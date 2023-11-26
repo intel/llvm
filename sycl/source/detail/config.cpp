@@ -161,13 +161,11 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, info::device_type>, 6> &
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
+  static const std::array<std::pair<std::string, info::device_type>, 5>
+      SyclDeviceTypeMap = {{{"cpu", info::device_type::cpu},
                             {"gpu", info::device_type::gpu},
                             {"acc", info::device_type::accelerator},
                             {"fpga", info::device_type::accelerator},
@@ -175,16 +173,13 @@ getSyclDeviceTypeMap() {
   return SyclDeviceTypeMap;
 }
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
-      {{"host", backend::host},
-       {"opencl", backend::opencl},
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
+      {{"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
-       {"esimd_emulator", backend::ext_intel_esimd_emulator},
        {"native_cpu", backend::ext_native_cpu},
        {"*", backend::all}}};
   return SyclBeMap;

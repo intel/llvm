@@ -231,14 +231,12 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, info::device_type>, 6> &
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap();
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -262,48 +260,6 @@ public:
     }
     Initialized = true;
     return DeviceTargets;
-  }
-};
-
-// ---------------------------------------
-// SYCL_DEVICE_FILTER support
-
-template <>
-class __SYCL2020_DEPRECATED("Use SYCLConfig<ONEAPI_DEVICE_SELECTOR> instead")
-    SYCLConfig<SYCL_DEVICE_FILTER> {
-  using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
-
-public:
-  static device_filter_list *get() {
-    static bool Initialized = false;
-    static device_filter_list *FilterList = nullptr;
-
-    // Configuration parameters are processed only once, like reading a string
-    // from environment and converting it into a typed object.
-    if (Initialized) {
-      return FilterList;
-    }
-
-    const char *ValStr = BaseT::getRawValue();
-    if (ValStr) {
-
-      std::cerr
-          << "\nWARNING: The enviroment variable SYCL_DEVICE_FILTER"
-             " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
-             "For more details, please refer to:\n"
-             "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-             "EnvironmentVariables.md#oneapi_device_selector\n\n";
-
-      FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
-    }
-
-    // As mentioned above, configuration parameters are processed only once.
-    // If multiple threads are checking this env var at the same time,
-    // they will end up setting the configration to the same value.
-    // If other threads check after one thread already set configration,
-    // the threads will get the same value as the first thread.
-    Initialized = true;
-    return FilterList;
   }
 };
 

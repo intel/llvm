@@ -14,9 +14,6 @@ inputs:
     default: 'llvm_sycl.tar.zst'
   decompress_command:
     default: zstd
-  sycl_device_filter:
-    description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
-    required: true
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
