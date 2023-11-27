@@ -268,16 +268,14 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
            Vals += 6;
            if constexpr (CheckProperties) {
              if (GlobalID % 2 == 0)
-               slm_block_store<T, N>(LocalElemOffset, Vals, Mask,
-                                     StorePropertiesT{});
+               slm_block_store(LocalElemOffset, Vals, Mask, StorePropertiesT{});
              else
-               slm_block_store<T, N>(LocalElemOffset,
-                                     Vals.template select<N, 1>(), Mask,
-                                     StorePropertiesT{});
+               slm_block_store(LocalElemOffset, Vals.template select<N, 1>(),
+                               Mask, StorePropertiesT{});
            }
 
            else
-             slm_block_store<T, N>(LocalElemOffset, Vals, Mask);
+             slm_block_store(LocalElemOffset, Vals, Mask);
 
            Vals = slm_block_load<T, N>(LocalElemOffset);
 
@@ -285,18 +283,17 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
            if constexpr (CheckProperties)
              if (GlobalID % 2 == 0)
 
-               slm_block_store<T, N>(LocalElemOffset, Vals, StorePropertiesT{});
+               slm_block_store(LocalElemOffset, Vals, StorePropertiesT{});
              else
-               slm_block_store<T, N>(LocalElemOffset,
-                                     Vals.template select<N, 1>(),
-                                     StorePropertiesT{});
+               slm_block_store(LocalElemOffset, Vals.template select<N, 1>(),
+                               StorePropertiesT{});
 
            else
-             slm_block_store<T, N>(LocalElemOffset, Vals);
+             slm_block_store(LocalElemOffset, Vals);
 
            Vals = slm_block_load<T, N>(LocalElemOffset);
            Vals += 6;
-           slm_block_store<T, N>(LocalElemOffset, Vals);
+           slm_block_store(LocalElemOffset, Vals);
            Vals = slm_block_load<T, N>(LocalElemOffset);
          }
          Vals.copy_to(OutPtr + ElemOff);
@@ -367,14 +364,14 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
            if constexpr (CheckProperties) {
              if (LocalElemOffset == 0) {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, Vals, Mask, StorePropertiesT{});
+                 block_store(LocalAcc, Vals, Mask, StorePropertiesT{});
                else
                  block_store<T, N>(LocalAcc, Vals.template select<N, 1>(), Mask,
                                    StorePropertiesT{});
              } else {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals, Mask,
-                                   StorePropertiesT{});
+                 block_store(LocalAcc, LocalElemOffset, Vals, Mask,
+                             StorePropertiesT{});
                else
                  block_store<T, N>(LocalAcc, LocalElemOffset,
                                    Vals.template select<N, 1>(), Mask,
@@ -383,13 +380,13 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
            } else {
              if (LocalElemOffset == 0) {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, Vals, Mask);
+                 block_store(LocalAcc, Vals, Mask);
                else
                  block_store<T, N>(LocalAcc, Vals.template select<N, 1>(),
                                    Mask);
              } else {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals, Mask);
+                 block_store(LocalAcc, LocalElemOffset, Vals, Mask);
                else
                  block_store<T, N>(LocalAcc, LocalElemOffset,
                                    Vals.template select<N, 1>(), Mask);
@@ -400,14 +397,14 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
            if constexpr (CheckProperties) {
              if (LocalElemOffset == 0) {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, Vals, StorePropertiesT{});
+                 block_store(LocalAcc, Vals, StorePropertiesT{});
                else
                  block_store<T, N>(LocalAcc, Vals.template select<N, 1>(),
                                    StorePropertiesT{});
              } else {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals,
-                                   StorePropertiesT{});
+                 block_store(LocalAcc, LocalElemOffset, Vals,
+                             StorePropertiesT{});
                else
                  block_store<T, N>(LocalAcc, LocalElemOffset,
                                    Vals.template select<N, 1>(),
@@ -416,12 +413,12 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
            } else {
              if (LocalElemOffset == 0) {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, Vals);
+                 block_store(LocalAcc, Vals);
                else
                  block_store<T, N>(LocalAcc, Vals.template select<N, 1>());
              } else {
                if (GlobalID % 2 == 0)
-                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals);
+                 block_store(LocalAcc, LocalElemOffset, Vals);
                else
                  block_store<T, N>(LocalAcc, LocalElemOffset,
                                    Vals.template select<N, 1>());
@@ -429,7 +426,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
            }
            Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
            Vals += 6;
-           block_store<T, N>(LocalAcc, LocalElemOffset, Vals);
+           block_store(LocalAcc, LocalElemOffset, Vals);
            Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
          }
          Vals.copy_to(OutPtr + ElemOff);
@@ -606,10 +603,9 @@ template <typename T, bool TestPVCFeatures> bool test_block_store_slm(queue Q) {
 
   bool Passed = true;
 
-  // Test slm_block_store() from SLM that doesn't use the mask is implemented
-  // for any N > 1.
-  // Ensure that for every call of slm_block_store(offset, ...)
-  // the 'alignment' property is specified correctly.
+  // Test block_store() to SLM that doesn't use the mask is implemented for any
+  // N > 1. Ensure that for every call of slm_block_store(offset, ...) the
+  // 'alignment' property is specified correctly.
   properties Align16Props{alignment<16>};
   properties AlignElemProps{alignment<sizeof(T)>};
   Passed &= testSLM<T, 1, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
