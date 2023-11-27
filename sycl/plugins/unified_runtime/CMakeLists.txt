@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/martygrant/unified-runtime.git")
-  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
-  # Merge: 62e6d2f9 5fb82924
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 109ed46ee55f41317d35b2a9a20fa7a2029e9e64
+  # Merge: 31b654f9 23005313
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 8 13:32:46 2023 +0000
-  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
-  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
-  set(UNIFIED_RUNTIME_TAG martin/openclCommandBuffers)
+  # Date:   Wed Nov 22 16:04:52 2023 +0000
+  #     Merge pull request #966 from martygrant/martin/openclCommandBuffers
+  #     [OpenCL] Add Command Buffer extension to OpenCL adapter.
+  set(UNIFIED_RUNTIME_TAG 109ed46ee55f41317d35b2a9a20fa7a2029e9e64)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
