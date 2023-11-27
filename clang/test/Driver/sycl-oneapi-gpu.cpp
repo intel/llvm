@@ -163,6 +163,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx908 -DMAC_STR=GFX908
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90a -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90a -DMAC_STR=GFX90A
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90c -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90c -DMAC_STR=GFX90C
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1010 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1010 -DMAC_STR=GFX1010
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1011 -### %s 2>&1 | \

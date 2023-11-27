@@ -91,6 +91,7 @@ and not recommended to use in production environment.
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
