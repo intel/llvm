@@ -15,7 +15,7 @@ bool testAndOperator(const std::string &typeName) {
   sycl::queue q;
   sycl::buffer<ResultT, 1> buffer{results.data(), N};
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buffer.template get_access<sycl::access_mode::write>(cgh);
+     sycl::accessor acc{buffer, cgh, sycl::write_only};
      cgh.parallel_for(sycl::range<1>{1}, [=](sycl::id<1> id) {
        auto testVec1 = sycl::vec<T, 1>(static_cast<T>(1));
        auto testVec2 = sycl::vec<T, 1>(static_cast<T>(2));
