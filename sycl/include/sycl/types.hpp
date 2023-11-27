@@ -1544,16 +1544,14 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
+  // Certain operators return a vector with a different element type. Also, the
+  // left and right operand types may differ. CommonDataT selects a result type
+  // based on these types to ensure that the result value can be represented.
+  using OpLeftDataT = typename OperationLeftT::DataT;
+  using OpRightDataT = typename OperationRightT::DataT;
   using CommonDataT = std::conditional_t<
-      sizeof(DataT) >=
-          sizeof(std::common_type_t<typename OperationLeftT::DataT,
-                                    typename OperationRightT::DataT>),
-      DataT,
-      std::common_type_t<typename OperationLeftT::DataT,
-                         typename OperationRightT::DataT>>;
-
-  //  std::common_type_t<DataT, typename OperationLeftT::DataT,
-  //                                        typename OperationRightT::DataT>;
+      sizeof(DataT) >= sizeof(std::common_type_t<OpLeftDataT, OpRightDataT>),
+      DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
