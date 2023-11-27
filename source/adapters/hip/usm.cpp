@@ -190,7 +190,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_HOST);
       }
       // should never get here
-      ur_unreachable();
+      ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer
