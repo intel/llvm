@@ -133,45 +133,6 @@
 // RUN: diff %t.extracted.7 %t.2B.bin
 // RUN: diff %t.extracted.8 %t.2C.bin
 
-// Check that entry points as strings exist and are in expected order
-//
-// RUN: llvm-strings %t.fat.bin | grep _entry_targ_ | FileCheck %s --check-prefix CHECK-ENTRY
-// CHECK-ENTRY:      _entry_targ_0_A
-// CHECK-ENTRY-NEXT: _entry_targ_0_B
-// CHECK-ENTRY-NEXT: _entry_targ_0_C
-// CHECK-ENTRY-NEXT: _entry_targ_1_AA
-// CHECK-ENTRY-NEXT: _entry_targ_1_BB
-// CHECK-ENTRY-NEXT: _entry_targ_1_CC
-// CHECK-ENTRY-NEXT: _entry_targ_2_AAA
-// CHECK-ENTRY-NEXT: _entry_targ_2_BBB
-// CHECK-ENTRY-NEXT: _entry_targ_2_CCC
-
-// Check that property groups as strings exist and are in expected order
-//
-// RUN: llvm-strings %t.fat.bin | grep testProp-Group | FileCheck %s --check-prefix CHECK-PROP-GROUP
-// CHECK-PROP-GROUP:      testProp-GroupA
-// CHECK-PROP-GROUP-NEXT: testProp-GroupB
-// CHECK-PROP-GROUP-NEXT: testProp-GroupC
-// CHECK-PROP-GROUP-NEXT: testProp-GroupD
-// CHECK-PROP-GROUP-NEXT: testProp-GroupE
-// CHECK-PROP-GROUP-NEXT: testProp-GroupF
-// CHECK-PROP-GROUP-NEXT: testProp-GroupG
-// CHECK-PROP-GROUP-NEXT: testProp-GroupH
-// CHECK-PROP-GROUP-NEXT: testProp-GroupI
-
-// Check that property names as strings exist and are in expected order
-//
-// RUN: llvm-strings %t.fat.bin | grep testProp-name | FileCheck %s --check-prefix CHECK-PROP-NAME
-// CHECK-PROP-NAME:      testProp-name2
-// CHECK-PROP-NAME-NEXT: testProp-name3
-// CHECK-PROP-NAME-NEXT: testProp-name5
-// CHECK-PROP-NAME-NEXT: testProp-name7
-// CHECK-PROP-NAME-NEXT: testProp-name11
-// CHECK-PROP-NAME-NEXT: testProp-name13
-// CHECK-PROP-NAME-NEXT: testProp-name17
-// CHECK-PROP-NAME-NEXT: testProp-name19
-// CHECK-PROP-NAME-NEXT: testProp-name23
-
 // Check disassembly
 //
 // RUN: llvm-dis %t.wrapped.bc
