@@ -50824,37 +50824,18 @@ static SDValue combineFMulcFCMulc(SDNode *N, SelectionDAG &DAG,
   SDValue RHS = N->getOperand(1);
   int CombineOpcode =
       N->getOpcode() == X86ISD::VFCMULC ? X86ISD::VFMULC : X86ISD::VFCMULC;
-  auto isConjugationConstant = [](const Constant *c) {
-    if (const auto *CI = dyn_cast<ConstantInt>(c)) {
-      APInt ConjugationInt32 = APInt(32, 0x80000000, true);
-      APInt ConjugationInt64 = APInt(64, 0x8000000080000000ULL, true);
-      switch (CI->getBitWidth()) {
-      case 16:
-        return false;
-      case 32:
-        return CI->getValue() == ConjugationInt32;
-      case 64:
-        return CI->getValue() == ConjugationInt64;
-      default:
-        llvm_unreachable("Unexpected bit width");
-      }
-    }
-    if (const auto *CF = dyn_cast<ConstantFP>(c))
-      return CF->getType()->isFloatTy() && CF->isNegativeZeroValue();
-    return false;
-  };
   auto combineConjugation = [&](SDValue &r) {
     if (LHS->getOpcode() == ISD::BITCAST && RHS.hasOneUse()) {
       SDValue XOR = LHS.getOperand(0);
       if (XOR->getOpcode() == ISD::XOR && XOR.hasOneUse()) {
-        SDValue XORRHS = XOR.getOperand(1);
-        if (XORRHS.getOpcode() == ISD::BITCAST && XORRHS.hasOneUse())
-          XORRHS = XORRHS.getOperand(0);
-        if (XORRHS.getOpcode() == X86ISD::VBROADCAST_LOAD &&
-            XORRHS.getOperand(1).getNumOperands()) {
-          ConstantPoolSDNode *CP =
-              dyn_cast<ConstantPoolSDNode>(XORRHS.getOperand(1).getOperand(0));
-          if (CP && isConjugationConstant(CP->getConstVal())) {
+        KnownBits XORRHS = DAG.computeKnownBits(XOR.getOperand(1));
+        if (XORRHS.isConstant()) {
+          APInt ConjugationInt32 = APInt(32, 0x80000000, true);
+          APInt ConjugationInt64 = APInt(64, 0x8000000080000000ULL, true);
+          if ((XORRHS.getBitWidth() == 32 &&
+               XORRHS.getConstant() == ConjugationInt32) ||
+              (XORRHS.getBitWidth() == 64 &&
+               XORRHS.getConstant() == ConjugationInt64)) {
             SelectionDAG::FlagInserter FlagsInserter(DAG, N);
             SDValue I2F = DAG.getBitcast(VT, LHS.getOperand(0).getOperand(0));
             SDValue FCMulC = DAG.getNode(CombineOpcode, SDLoc(N), VT, RHS, I2F);
@@ -50888,20 +50869,11 @@ static SDValue combineFaddCFmul(SDNode *N, SelectionDAG &DAG,
     return DAG.getTarget().Options.NoSignedZerosFPMath ||
            Flags.hasNoSignedZeros();
   };
-  auto IsVectorAllNegativeZero = [](const SDNode *N) {
-    if (N->getOpcode() != X86ISD::VBROADCAST_LOAD)
-      return false;
-    assert(N->getSimpleValueType(0).getScalarType() == MVT::f32 &&
-           "Unexpected vector type!");
-    if (ConstantPoolSDNode *CP =
-            dyn_cast<ConstantPoolSDNode>(N->getOperand(1)->getOperand(0))) {
-      APInt AI = APInt(32, 0x80008000, true);
-      if (const auto *CI = dyn_cast<ConstantInt>(CP->getConstVal()))
-        return CI->getValue() == AI;
-      if (const auto *CF = dyn_cast<ConstantFP>(CP->getConstVal()))
-        return CF->getValue() == APFloat(APFloat::IEEEsingle(), AI);
-    }
-    return false;
+  auto IsVectorAllNegativeZero = [&DAG](SDValue Op) {
+    APInt AI = APInt(32, 0x80008000, true);
+    KnownBits Bits = DAG.computeKnownBits(Op);
+    return Bits.getBitWidth() == 32 && Bits.isConstant() &&
+           Bits.getConstant() == AI;
   };
 
   if (N->getOpcode() != ISD::FADD || !Subtarget.hasFP16() ||
@@ -50933,7 +50905,7 @@ static SDValue combineFaddCFmul(SDNode *N, SelectionDAG &DAG,
       if ((Opcode == X86ISD::VFMADDC || Opcode == X86ISD::VFCMADDC) &&
           ((ISD::isBuildVectorAllZeros(Op0->getOperand(2).getNode()) &&
             HasNoSignedZero(Op0->getFlags())) ||
-           IsVectorAllNegativeZero(Op0->getOperand(2).getNode()))) {
+           IsVectorAllNegativeZero(Op0->getOperand(2)))) {
         MulOp0 = Op0.getOperand(0);
         MulOp1 = Op0.getOperand(1);
         IsConj = Opcode == X86ISD::VFCMADDC;
