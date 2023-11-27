@@ -74,6 +74,18 @@ namespace ur_validation_layer
 
         }
 
+            %for tp in tracked_params:
+            <%
+                tp_input_handle_funcs = next((hf for hf in handle_create_get_retain_release_funcs if th.subt(n, tags, tp['type']) == hf['handle'] and "[in]" in tp['desc']), {})
+                is_related_create_get_retain_release_func = any(func_name in funcs for funcs in tp_input_handle_funcs.values())
+            %>
+            %if tp_input_handle_funcs and not is_related_create_get_retain_release_func:
+            if (context.enableLifetimeValidation && !refCountContext.isReferenceValid(${tp['name']})) {
+                refCountContext.logInvalidReference(${tp['name']});
+            }
+            %endif
+            %endfor
+
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
         %for tp in tracked_params:
@@ -167,6 +179,7 @@ namespace ur_validation_layer
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
             enableLeakChecking = true;
+            enableLifetimeValidation = true;
         } else {
             if (enabledLayerNames.count(nameParameterValidation)) {
                 enableParameterValidation = true;
@@ -174,9 +187,14 @@ namespace ur_validation_layer
             if (enabledLayerNames.count(nameLeakChecking)) {
                 enableLeakChecking = true;
             }
+            if (enabledLayerNames.count(nameLifetimeValidation)) {
+                // Handle lifetime validation requires leak checking feature.
+                enableLifetimeValidation = true;
+                enableLeakChecking = true;
+            }
         }
 
-        if(!enableParameterValidation && !enableLeakChecking) {
+        if (!enableParameterValidation && !enableLeakChecking && !enableLifetimeValidation) {
             return result;
         }
 

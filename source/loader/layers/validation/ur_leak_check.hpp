@@ -115,6 +115,8 @@ struct RefCountContext {
 
     void clear() { counts.clear(); }
 
+    bool isReferenceValid(void *ptr) { return counts.count(ptr) > 0; }
+
     void logInvalidReferences() {
         for (auto &[ptr, refRuntimeInfo] : counts) {
             context.logger.error("Retained {} reference(s) to handle {}",
@@ -126,6 +128,10 @@ struct RefCountContext {
                                      refRuntimeInfo.backtrace[i].c_str());
             }
         }
+    }
+
+    void logInvalidReference(void *ptr) {
+        context.logger.error("There are no valid references to handle {}", ptr);
     }
 
 } refCountContext;
