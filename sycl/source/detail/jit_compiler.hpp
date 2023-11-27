@@ -42,6 +42,11 @@ public:
   }
 
 private:
+  using KernelBinaryCacheKey =
+      std::pair<::jit_compiler::BinaryFormat, std::string>;
+  using KernelBinaryCacheValue =
+      std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>;
+
   jit_compiler();
   ~jit_compiler();
   jit_compiler(const jit_compiler &) = delete;
@@ -59,10 +64,15 @@ private:
   std::vector<uint8_t> encodeReqdWorkGroupSize(
       const ::jit_compiler::SYCLKernelAttribute &Attr) const;
 
+  KernelBinaryCacheValue retrieveKernelBinary(QueueImplPtr &Queue,
+                                              CGExecKernel *KernelCG);
+
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
   std::unique_ptr<::jit_compiler::JITContext> MJITContext;
+
+  std::map<KernelBinaryCacheKey, KernelBinaryCacheValue> MKernelBinaryCache;
 };
 
 } // namespace detail

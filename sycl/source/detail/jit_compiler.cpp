@@ -56,9 +56,27 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
-std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
-retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
+jit_compiler::KernelBinaryCacheValue
+jit_compiler::retrieveKernelBinary(QueueImplPtr &Queue,
+                                   CGExecKernel *KernelCG) {
+  bool DebugEnabled =
+      detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
+
   auto KernelName = KernelCG->getKernelName();
+  KernelBinaryCacheKey CacheKey{getTargetFormat(Queue), KernelName};
+  if (const auto Iter = MKernelBinaryCache.find(CacheKey);
+      Iter != MKernelBinaryCache.end()) {
+    if (DebugEnabled) {
+      std::cerr << "INFO: Re-using cached kernel binary for '" << KernelName
+                << "'\n";
+    }
+    return Iter->second;
+  }
+
+  if (DebugEnabled) {
+    std::cerr << "INFO: No cached kernel binary for '" << KernelName
+              << "'. Creating a new one.\n";
+  }
 
   bool isNvidia =
       Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
@@ -78,7 +96,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
                  DI->getRawData().DeviceTargetSpec == TargetSpec;
         });
     if (DeviceImage == DeviceImages.end()) {
-      return {nullptr, nullptr};
+      return MKernelBinaryCache[CacheKey] = {nullptr, nullptr};
     }
     auto ContextImpl = Queue->getContextImplPtr();
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
@@ -87,7 +105,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     sycl::detail::pi::PiProgram Program =
         detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
                                                               Context, Device);
-    return {*DeviceImage, Program};
+    return MKernelBinaryCache[CacheKey] = {*DeviceImage, Program};
   }
 
   const RTDeviceBinaryImage *DeviceImage = nullptr;
@@ -116,7 +134,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     Program = detail::ProgramManager::getInstance().createPIProgram(
         *DeviceImage, Context, Device);
   }
-  return {DeviceImage, Program};
+  return MKernelBinaryCache[CacheKey] = {DeviceImage, Program};
 }
 
 static ::jit_compiler::ParameterKind
