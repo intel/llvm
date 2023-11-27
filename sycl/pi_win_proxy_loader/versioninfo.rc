@@ -1,0 +1,43 @@
+#define VER_FILEVERSION             @SYCL_MAJOR_VERSION@,@SYCL_MINOR_VERSION@,@SYCL_PATCH_VERSION@,@SYCL_DEV_ABI_VERSION@
+#define VER_FILEVERSION_STR         "@SYCL_VERSION_STRING@\0"
+
+#define VER_PRODUCTVERSION          @SYCL_MAJOR_VERSION@,@SYCL_MINOR_VERSION@,0,0
+#define VER_PRODUCTVERSION_STR      "@SYCL_MAJOR_VERSION@.@SYCL_MINOR_VERSION@\0"
+
+1 VERSIONINFO
+FILEVERSION VER_FILEVERSION
+PRODUCTVERSION VER_PRODUCTVERSION
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+    FILEFLAGS 0x1L
+#else
+    FILEFLAGS 0x0L
+#endif
+FILEOS 0x4L
+FILETYPE 0x2L
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+	BLOCK "040904e4"
+	BEGIN
+	    VALUE "CompanyName", "Intel Inc."
+	    VALUE "FileDescription", "proxy loader"
+	    VALUE "FileVersion",  VER_FILEVERSION_STR
+	    VALUE "InternalName", "pi_win_proxy_loader"
+	    VALUE "LegalCopyright", "Copyright (c) 2023 Intel Inc. All rights reserved."
+#ifdef _DEBUG
+	    VALUE "OriginalFilename", "pi_win_proxy_loaderd.dll"
+#else
+	    VALUE "OriginalFilename", "pi_win_proxy_loader.dll"
+#endif
+	    VALUE "ProductName", "PI Win Proxy Loader"
+	    VALUE "ProductVersion", VER_PRODUCTVERSION_STR
+	END
+    END
+    /* VarFileInfo also required */
+    BLOCK "VarFileInfo"
+    BEGIN
+	VALUE "Translation", 0x0409, 1252
+    END
+END

@@ -1,5 +1,6 @@
 project(pi_win_proxy_loader)
-add_library(pi_win_proxy_loader SHARED  pi_win_proxy_loader.cpp)
+configure_file(versioninfo.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
+add_library(pi_win_proxy_loader SHARED  pi_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
 install(TARGETS pi_win_proxy_loader
         RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader
 )
@@ -41,7 +42,7 @@ if (MSVC)
 # Handle the debug version for the Microsoft compiler as a special case by
 # creating a debug version of the static library that uses the flags used by
 # the SYCL runtime
-  add_library(pi_win_proxy_loaderd SHARED pi_win_proxy_loader.cpp)
+  add_library(pi_win_proxy_loaderd SHARED pi_win_proxy_loader.cpp ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
   target_compile_options(pi_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
   target_compile_options(pi_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
   target_link_libraries(pi_win_proxy_loaderd PRIVATE shlwapi)
