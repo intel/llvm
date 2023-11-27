@@ -103,36 +103,35 @@ void performFusion(queue &q, Internalization internalize, range<1> globalSize,
 }
 
 int main() {
-  queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
+  queue q{gpu_selector_v,
+          ext::codeplay::experimental::property::queue::enable_fusion{}};
+  queue q_cpu{cpu_selector_v,
+              ext::codeplay::experimental::property::queue::enable_fusion{}};
 
   // Initial invocation
   performFusion(q, Internalization::Private, range<1>{dataSize}, 1, 1);
-  // CHECK: JIT DEBUG: Compiling new kernel, no suitable cached kernel found
 
   // Identical invocation, should lead to JIT cache hit.
   performFusion(q, Internalization::Private, range<1>{dataSize}, 1, 1);
-  // CHECK-NEXT: JIT DEBUG: Re-using cached JIT kernel
-  // CHECK-NEXT: INFO: Re-using existing device binary for fused kernel
 
   // Invocation with a different beta. Because beta was identical to alpha so
   // far, this should lead to a cache miss.
   performFusion(q, Internalization::Private, range<1>{dataSize}, 2, 1);
-  // CHECK-NEXT: JIT DEBUG: Compiling new kernel, no suitable cached kernel found
 
   // Invocation with barrier insertion should lead to a cache miss.
   performFusion(q, Internalization::Private, range<1>{dataSize}, 1, 1,
                 /* insertBarriers */ true);
-  // CHECK-NEXT: JIT DEBUG: Compiling new kernel, no suitable cached kernel found
 
   // Invocation with different internalization target should lead to a cache
   // miss.
   performFusion(q, Internalization::None, range<1>{dataSize}, 1, 1);
-  // CHECK-NEXT: JIT DEBUG: Compiling new kernel, no suitable cached kernel found
 
   // Invocation with a different gamma should lead to a cache miss because gamma
   // participates in constant propagation.
   performFusion(q, Internalization::Private, range<1>{dataSize}, 1, 2);
-  // CHECK-NEXT: JIT DEBUG: Compiling new kernel, no suitable cached kernel found
+
+  // Invocation on a different device.
+  performFusion(q_cpu, Internalization::Private, range<1>{dataSize}, 1, 2);
 
   return 0;
 }

@@ -61,6 +61,34 @@ enum class ParameterKind : uint32_t {
 /// Different binary formats supported as input to the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
+using DeviceArchitecture = unsigned;
+
+class TargetInfo {
+public:
+  static constexpr inline DeviceArchitecture SPIRVArch = -1;
+
+  static constexpr TargetInfo get(BinaryFormat Format,
+                                  DeviceArchitecture Arch) {
+    if (Format == BinaryFormat::SPIRV) {
+      // We do not distinguish different architectures for SPIR-V targets
+      return {Format, SPIRVArch};
+    }
+    return {Format, Arch};
+  }
+
+  TargetInfo() = default;
+
+  constexpr BinaryFormat getFormat() const { return Format; }
+  constexpr DeviceArchitecture getArch() const { return Arch; }
+
+private:
+  constexpr TargetInfo(BinaryFormat Format, DeviceArchitecture Arch)
+      : Format(Format), Arch(Arch) {}
+
+  BinaryFormat Format;
+  DeviceArchitecture Arch;
+};
+
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
 struct SYCLKernelBinaryInfo {
