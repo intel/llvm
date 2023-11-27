@@ -264,11 +264,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 
   switch (MemInfoType) {
   case UR_MEM_INFO_SIZE: {
-#if HIP_VERSION < 50600000
-    if constexpr (std::is_same_v<T, SurfaceMem>) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-#endif
     try {
       const auto MemVisitor = [](auto &&Mem) -> size_t {
         using T = std::decay_t<decltype(Mem)>;
@@ -279,7 +274,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           return AllocSize;
         } else if constexpr (std::is_same_v<T, SurfaceMem>) {
 #if HIP_VERSION < 50600000
-          return 0;
+          throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #else
           HIP_ARRAY3D_DESCRIPTOR ArrayDescriptor;
           UR_CHECK_ERROR(
