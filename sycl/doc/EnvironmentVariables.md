@@ -42,7 +42,7 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <accept-filter> ::= <term>
 <discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
-<backend> ::= { * | level_zero | opencl | cuda | hip }  // case insensitive
+<backend> ::= { * | level_zero | opencl | cuda | hip | native_cpu }  // case insensitive
 <devices> ::= <device>[,<device>...]
 <device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
