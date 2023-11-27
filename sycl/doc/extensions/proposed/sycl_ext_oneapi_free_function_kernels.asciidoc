@@ -460,6 +460,13 @@ The arguments to a free function kernel are in the private address space.
 As a result, a kernel can modify its arguments, but the modification is visible
 only within the work-item.
 
+[_Note:_ This applies only to the arguments themselves, not to memory that the
+arguments point to.
+For example, with a USM pointer argument, the pointer argument itself is in the
+private address space, but the memory it points to is in the global address
+space.
+_{endnote}_]
+
 === Interaction with kernel properties
 
 If the implementation supports
