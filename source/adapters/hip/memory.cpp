@@ -264,6 +264,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 
   switch (MemInfoType) {
   case UR_MEM_INFO_SIZE: {
+#if HIP_VERSION < 50600000
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#else
     try {
       const auto MemVisitor = [](auto &&Mem) -> size_t {
         using T = std::decay_t<decltype(Mem)>;
@@ -274,12 +277,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           return AllocSize;
         } else if constexpr (std::is_same_v<T, SurfaceMem>) {
           HIP_ARRAY3D_DESCRIPTOR ArrayDescriptor;
-#if HIP_VERSION >= 50600000
           UR_CHECK_ERROR(
               hipArray3DGetDescriptor(&ArrayDescriptor, Mem.getArray()));
-#else
-          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
           const auto PixelSizeBytes =
               GetHipFormatPixelSize(ArrayDescriptor.Format) *
               ArrayDescriptor.NumChannels;
@@ -301,6 +300,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
+#endif
   }
   case UR_MEM_INFO_CONTEXT: {
     return ReturnValue(hMemory->getContext());
