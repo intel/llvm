@@ -719,7 +719,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   return *BuildResult->Ptr.load();
 }
 
-
 // When caching is enabled, the returned PiProgram and PiKernel will
 // already have their ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
