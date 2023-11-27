@@ -270,8 +270,9 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
              if (GlobalID % 2 == 0)
                slm_block_store(LocalElemOffset, Vals, Mask, StorePropertiesT{});
              else
-               slm_block_store(LocalElemOffset, Vals.template select<N, 1>(),
-                               Mask, StorePropertiesT{});
+               slm_block_store<T, N>(LocalElemOffset,
+                                     Vals.template select<N, 1>(), Mask,
+                                     StorePropertiesT{});
            }
 
            else
@@ -285,8 +286,9 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
 
                slm_block_store(LocalElemOffset, Vals, StorePropertiesT{});
              else
-               slm_block_store(LocalElemOffset, Vals.template select<N, 1>(),
-                               StorePropertiesT{});
+               slm_block_store<T, N>(LocalElemOffset,
+                                     Vals.template select<N, 1>(),
+                                     StorePropertiesT{});
 
            else
              slm_block_store(LocalElemOffset, Vals);
