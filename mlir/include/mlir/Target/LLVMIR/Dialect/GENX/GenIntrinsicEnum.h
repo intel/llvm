@@ -20,8 +20,7 @@ namespace llvm {
 namespace GenISAIntrinsic {
 
 enum ID : uint32_t {
-  // no_intrinsic = llvm::Intrinsic::num_intrinsics,
-  no_intrinsic = 13439, // HACK
+  no_intrinsic = llvm::Intrinsic::num_intrinsics,
   GenISA_2fto2bf,
   GenISA_assume_uniform,
   GenISA_bftof,
