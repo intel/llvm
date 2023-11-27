@@ -201,11 +201,6 @@ may only be submitted to a queue that shares the same context.
 The bundle's set of associated devices is the set of devices contained in
 `ctxt`.
 
-When the source language is `source_language::sycl`, the `source` string must
-not `#include <sycl/sycl.hpp>`.
-Instead, the device-side SYCL APIs are implicitly declared, and the source code
-may use these APIs without including this header.
-
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
 
@@ -347,6 +342,21 @@ will look at the `include_files` property to see if there is an entry whose
 _Name_ is `foo.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
+
+When the source language is `source_language::sycl`, the following header files
+are implicitly available.
+Therefore, the source string may `#include` these even without defining their
+content via the `include_files` property:
+
+* `<sycl/sycl.hpp>`;
+* The {cpp} standard library headers;
+* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
+  that the implementation supports; and
+* Any SYCL extension headers in "sycl/ext" for extensions that the
+  implementation supports.
+
+The include files defined via the `include_files` property are searched first,
+before these implicitly available headers.
 
 _Effects (1):_ Constructs an `include_files` property with a single (_Name_,
 _Content_) pair.
