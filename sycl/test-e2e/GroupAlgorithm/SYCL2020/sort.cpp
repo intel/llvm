@@ -450,39 +450,43 @@ void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
       std::cout << "Reference data: " << std::endl;
       for (auto &El : KeysSorted)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
 
       std::cout << "DataToSortCase0 data: " << std::endl;
       for (auto &El : DataToSortCase0)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
 
       std::cout << "KeysToSortCase1 data: " << std::endl;
       for (auto &El : KeysToSortCase1)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
 
       std::cout << "KeysToSortCase2 data: " << std::endl;
       for (auto &El : KeysToSortCase2)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
 
       std::cout << "KeysToSortCase3 data: " << std::endl;
       for (auto &El : KeysToSortCase3)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
 
       std::cout << "InputData data: " << std::endl;
       for (auto &El : DataToSort)
         std::cout << El << " ";
-      std::cout << std::endl;
+      std::cout << std::endl << std::flush;
     }
 
+    std::cout << "Checking case 0" << std::endl << std::flush;
     if constexpr (std::is_same_v<Compare, std::less<T>>)
       assert(KeysToSortCase0 == KeysSorted);
 
+    std::cout << "Checking case 1" << std::endl << std::flush;
     assert(KeysToSortCase1 == KeysSorted);
+    std::cout << "Checking case 2" << std::endl << std::flush;
     assert(KeysToSortCase2 == KeysSorted);
+    std::cout << "Checking case 3" << std::endl << std::flush;
     if constexpr (!std::is_same_v<CustomType, T>)
       assert(KeysToSortCase3 == KeysSorted);
   }
@@ -708,18 +712,26 @@ int main() {
     std::vector<size_t> Sizes{18, 64};
 
     for (size_t Size : Sizes) {
+      std::cout << "Size: " << Size << std::endl;
+      std::cout << "Running int32_t" << std::endl;
       RunOverType<std::int32_t>(Q, Size);
+      std::cout << "Running char" << std::endl;
       RunOverType<char>(Q, Size);
+      std::cout << "Running half" << std::endl;
       if (Q.get_device().has(sycl::aspect::fp16))
         RunOverType<sycl::half>(Q, Size);
+      std::cout << "Running double" << std::endl;
       if (Q.get_device().has(sycl::aspect::fp64))
         RunOverType<double>(Q, Size);
+      std::cout << "Running customtype" << std::endl;
       RunOverType<CustomType>(Q, Size);
     }
 
     std::cout << "Test passed." << std::endl;
   } catch (std::exception &E) {
     std::cout << "Test failed" << std::endl;
-    std::cout << E.what() << std::endl;
+    std::cout << E.what() << std::endl << std::flush;
   }
+
+  return 0;
 }
