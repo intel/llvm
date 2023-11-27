@@ -252,6 +252,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX90A__
 #define __SYCL_TARGET_AMD_GPU_GFX90A__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX90C__
+#define __SYCL_TARGET_AMD_GPU_GFX90C__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1010__
 #define __SYCL_TARGET_AMD_GPU_GFX1010__ 0
 #endif
@@ -333,6 +336,7 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX906__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX908__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX90A__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX90C__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1010__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1011__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1012__ == 1) ||
@@ -449,6 +453,8 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX908__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx90a)] =
         __SYCL_TARGET_AMD_GPU_GFX90A__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx90c)] =
+        __SYCL_TARGET_AMD_GPU_GFX90C__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1010)] =
         __SYCL_TARGET_AMD_GPU_GFX1010__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1011)] =
