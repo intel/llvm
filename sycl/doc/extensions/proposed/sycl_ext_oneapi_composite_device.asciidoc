@@ -62,7 +62,7 @@ using other backends, but they will return an empty list of composite devices.
 
 Some Intel GPU architectures are structured with multiple tiles on a single
 card.  Currently, this applies only to the Data Center GPU Max series (aka
-PVC).  By default, SYCL exposes each of theses tiles as a separate root device,
+PVC).  By default, SYCL exposes each of these tiles as a separate root device,
 so each tile corresponds to a separate `device` object that is returned from
 `device::get_devices`.  Applications generally perform better when each tile
 is treated as a separate device, but some advanced use cases can benefit by
@@ -244,7 +244,7 @@ a composite device unless it has at least two component devices.  This is
 similar to our decision in the core SYCL spec to disallow partitioning into
 sub-devices which results in only a single sub-device.  We don't want to expose
 partitioning when the parent and child represent exactly the same hardware.
-The second reason is practical.  The {dpcpp} implementation will associated
+The second reason is practical.  The {dpcpp} implementation will associate
 each composite device with a single Level Zero native device handle, which
 represents the entire card.  There is no way to get a Level Zero handle that
 represents a subset of the tiles.  Therefore, we do not expose a component
