@@ -173,7 +173,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32: {
-    ur_unreachable();
+    ur::unreachable();
   }
   }
   DIE_NO_IMPLEMENTATION;

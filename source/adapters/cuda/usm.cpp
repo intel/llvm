@@ -227,7 +227,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_HOST);
       }
       // should never get here
-      ur_unreachable();
+      ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_BASE_PTR: {
 #if CUDA_VERSION >= 10020
