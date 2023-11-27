@@ -1,5 +1,5 @@
 // REQUIRES: fusion,opencl,gpu
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} -O2 -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu,gpu %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "COMPUTATION ERROR"
 
 // Test caching for kernel binary images. Also test for debug messages being
