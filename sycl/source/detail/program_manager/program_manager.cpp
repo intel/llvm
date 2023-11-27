@@ -1410,9 +1410,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
     // check if kernel uses asan
     {
-      const RTDeviceBinaryImage::PropertyRange &AsanUsedRange =
-          Img->getAsanUsed();
-      m_KernelUsesAsan |= AsanUsedRange.isAvailable();
+      pi_device_binary_property Prop = Img->getProperty("asanUsed");
+      m_KernelUsesAsan |=
+          Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
     }
 
     // Sort kernel ids for faster search
