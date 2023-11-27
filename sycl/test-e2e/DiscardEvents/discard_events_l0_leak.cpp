@@ -2,13 +2,13 @@
 //
 // RUN: %{build} -o %t.out
 //
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' ZE_DEBUG=4 %{run} %t.out wait  2>&1 | FileCheck %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' ZE_DEBUG=4 %{run} %t.out nowait 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' UR_L0_LEAKS_DEBUG=1 %{run} %t.out wait  2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' UR_L0_LEAKS_DEBUG=1 %{run} %t.out nowait 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 //
 // The test is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
+// UR_L0_LEAKS_DEBUG=1 testing capability.
 // In addition to general leak checking, especially for discard_events, the test
 // checks that piKernelRelease to be executed for each kernel call, and
 // EventRelease for events, that are used for dependencies between
