@@ -42,7 +42,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
     if (context.enableLeakChecking && phAdapters &&
         result == UR_RESULT_SUCCESS) {
-        refCountContext.createOrIncrementRefCount(*phAdapters, true);
+        for (uint32_t i = 0; i < NumEntries; i++) {
+            refCountContext.createOrIncrementRefCount(phAdapters[i], true);
+        }
     }
 
     return result;
@@ -439,6 +441,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ur_result_t result =
         pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
 
+    if (context.enableLeakChecking && phDevices &&
+        result == UR_RESULT_SUCCESS) {
+        for (uint32_t i = 0; i < NumEntries; i++) {
+            refCountContext.createOrIncrementRefCount(phDevices[i], false);
+        }
+    }
+
     return result;
 }
 
@@ -513,7 +522,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_result_t result = pfnRetain(hDevice);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hDevice);
+        refCountContext.incrementRefCount(hDevice, false);
     }
 
     return result;
@@ -539,7 +548,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     ur_result_t result = pfnRelease(hDevice);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hDevice);
+        refCountContext.decrementRefCount(hDevice, false);
     }
 
     return result;
@@ -788,7 +797,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_result_t result = pfnRetain(hContext);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hContext);
+        refCountContext.incrementRefCount(hContext, false);
     }
 
     return result;
@@ -814,7 +823,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_result_t result = pfnRelease(hContext);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hContext);
+        refCountContext.decrementRefCount(hContext, false);
     }
 
     return result;
@@ -1028,6 +1037,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     ur_result_t result =
         pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost, phMem);
 
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
+
     return result;
 }
 
@@ -1083,6 +1096,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ur_result_t result =
         pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
 
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phBuffer);
+    }
+
     return result;
 }
 
@@ -1106,7 +1123,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_result_t result = pfnRetain(hMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hMem);
+        refCountContext.incrementRefCount(hMem, false);
     }
 
     return result;
@@ -1132,7 +1149,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_result_t result = pfnRelease(hMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hMem);
+        refCountContext.decrementRefCount(hMem, false);
     }
 
     return result;
@@ -1249,6 +1266,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_result_t result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
                                                          pProperties, phMem);
 
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
+
     return result;
 }
 
@@ -1293,6 +1314,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
     ur_result_t result = pfnImageCreateWithNativeHandle(
         hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
 
     return result;
 }
@@ -1465,7 +1490,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_result_t result = pfnRetain(hSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hSampler);
+        refCountContext.incrementRefCount(hSampler, false);
     }
 
     return result;
@@ -1492,7 +1517,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_result_t result = pfnRelease(hSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hSampler);
+        refCountContext.decrementRefCount(hSampler, false);
     }
 
     return result;
@@ -1891,7 +1916,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     ur_result_t result = pfnPoolRetain(pPool);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(pPool);
+        refCountContext.incrementRefCount(pPool, false);
     }
 
     return result;
@@ -1917,7 +1942,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     ur_result_t result = pfnPoolRelease(pPool);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(pPool);
+        refCountContext.decrementRefCount(pPool, false);
     }
 
     return result;
@@ -2308,7 +2333,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_result_t result = pfnRetain(hPhysicalMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hPhysicalMem);
+        refCountContext.incrementRefCount(hPhysicalMem, false);
     }
 
     return result;
@@ -2335,7 +2360,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_result_t result = pfnRelease(hPhysicalMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hPhysicalMem);
+        refCountContext.decrementRefCount(hPhysicalMem, false);
     }
 
     return result;
@@ -2574,7 +2599,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_result_t result = pfnRetain(hProgram);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hProgram);
+        refCountContext.incrementRefCount(hProgram, false);
     }
 
     return result;
@@ -2600,7 +2625,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     ur_result_t result = pfnRelease(hProgram);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hProgram);
+        refCountContext.decrementRefCount(hProgram, false);
     }
 
     return result;
@@ -3098,7 +3123,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_result_t result = pfnRetain(hKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hKernel);
+        refCountContext.incrementRefCount(hKernel, false);
     }
 
     return result;
@@ -3124,7 +3149,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     ur_result_t result = pfnRelease(hKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hKernel);
+        refCountContext.decrementRefCount(hKernel, false);
     }
 
     return result;
@@ -3489,7 +3514,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     ur_result_t result = pfnRetain(hQueue);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hQueue);
+        refCountContext.incrementRefCount(hQueue, false);
     }
 
     return result;
@@ -3515,7 +3540,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_result_t result = pfnRelease(hQueue);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hQueue);
+        refCountContext.decrementRefCount(hQueue, false);
     }
 
     return result;
@@ -3772,7 +3797,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     ur_result_t result = pfnRetain(hEvent);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hEvent);
+        refCountContext.incrementRefCount(hEvent, false);
     }
 
     return result;
@@ -3798,7 +3823,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     ur_result_t result = pfnRelease(hEvent);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hEvent);
+        refCountContext.decrementRefCount(hEvent, false);
     }
 
     return result;
@@ -6569,10 +6594,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
     ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hInteropMem);
-    }
-
     return result;
 }
 
@@ -6806,10 +6827,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 
     ur_result_t result = pfnRetainExp(hCommandBuffer);
 
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hCommandBuffer);
-    }
-
     return result;
 }
 
@@ -6832,10 +6849,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     }
 
     ur_result_t result = pfnReleaseExp(hCommandBuffer);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hCommandBuffer);
-    }
 
     return result;
 }
@@ -7894,10 +7907,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     }
 
     ur_result_t result = pfnReleaseExp(hContext, pMem);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(pMem);
-    }
 
     return result;
 }
