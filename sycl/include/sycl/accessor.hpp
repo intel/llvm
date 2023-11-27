@@ -924,7 +924,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
-  image_accessor() : MImageObj() {}
+  image_accessor() {}
 #endif
 
   // Available only when: accessTarget == access::target::host_image
