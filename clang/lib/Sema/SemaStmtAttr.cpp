@@ -1153,6 +1153,7 @@ void Sema::ProcessStmtAttributes(Stmt *S, const ParsedAttributes &InAttrs,
 
 bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
   CheckRedundantSYCLIntelIVDepAttrs(*this, Attrs);
+  return false;
 }
 
 bool Sema::CheckRebuiltCodeAlignStmtAttributes(ArrayRef<const Attr *> Attrs) {
