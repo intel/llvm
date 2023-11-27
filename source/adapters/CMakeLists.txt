@@ -32,21 +32,21 @@ add_subdirectory(null)
 
 set(INTEL_LLVM_TAG nightly-2023-09-20)
 
-if(UR_BUILD_ADAPTER_L0)
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(level_zero)
 endif()
 
-if(UR_BUILD_ADAPTER_CUDA)
+if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(cuda)
 endif()
 
-if(UR_BUILD_ADAPTER_HIP)
+if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(hip)
 endif()
 
-if(UR_BUILD_ADAPTER_OPENCL)
+if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(opencl)
 endif()
-if(UR_BUILD_ADAPTER_NATIVE_CPU)
+if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(native_cpu)
 endif()
