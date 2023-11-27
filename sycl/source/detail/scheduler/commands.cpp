@@ -253,47 +253,6 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   return RetPiEvents;
 }
 
-// This function is implemented (duplicating getPiEvents a lot) as short term
-// solution for the issue that barrier with wait list could not
-// handle empty pi event handles when kernel is enqueued on host task
-// completion.
-std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
-    const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls) {
-    // Throwaway events created with empty constructor will not have a context
-    // (which is set lazily) calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    // Skip host task also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
-      continue;
-    // In this path nullptr native event means that the command has not been
-    // enqueued. It may happen if async enqueue in a host task is involved.
-    if (EventImpl->getHandleRef() == nullptr) {
-      if (!EventImpl->getCommand() ||
-          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
-        continue;
-      std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
-    }
-    // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
-    // to different sync mechanisms for different task types on in-order queue.
-    const QueueImplPtr &WorkerQueue = getWorkerQueue();
-    // MWorkerQueue in command is always not null. So check if
-    // EventImpl->getWorkerQueue != nullptr is implicit.
-    if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->isInOrder() && !isHostTask())
-      continue;
-
-    RetPiEvents.push_back(EventImpl->getHandleRef());
-  }
-
-  return RetPiEvents;
-}
-
 bool Command::isHostTask() const {
   return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
          ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
@@ -3003,24 +2962,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::Barrier: {
-    if (MQueue->getDeviceImplPtr()->is_host()) {
-      // NOP for host device.
-      return PI_SUCCESS;
-    }
-    const PluginPtr &Plugin = MQueue->getPlugin();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
-
-    return PI_SUCCESS;
-  }
+  case CG::CGTYPE::Barrier:
   case CG::CGTYPE::BarrierWaitlist: {
-    CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<sycl::detail::pi::PiEvent> PiEvents =
-        getPiEventsBlocking(Events);
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
@@ -3031,8 +2974,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     // This should not be skipped even for in order queue, we need a proper
     // event to wait for.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(),
-        PiEvents.empty() ? nullptr : &PiEvents[0], Event);
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0], Event);
 
     return PI_SUCCESS;
   }

@@ -135,6 +135,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
 }
 
 event handler::finalize() {
+  assert(MEventsWaitWithBarrier.empty());
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
   if (MIsFinalized)
@@ -398,9 +399,6 @@ event handler::finalize() {
                                       std::begin(EventsBarriers),
                                       std::end(EventsBarriers));
       }
-      CGData.MEvents.insert(std::end(CGData.MEvents),
-                            std::begin(MEventsWaitWithBarrier),
-                            std::end(MEventsWaitWithBarrier));
       // Barrier node is implemented as an empty node in Graph
       // but keep the barrier type to help managing dependencies
       MCGType = detail::CG::Barrier;
@@ -408,8 +406,7 @@ event handler::finalize() {
           new detail::CG(detail::CG::Barrier, std::move(CGData), MCodeLoc));
     } else {
       CommandGroup.reset(
-          new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
-                                std::move(CGData), MCGType, MCodeLoc));
+          new detail::CGBarrier({}, std::move(CGData), MCGType, MCodeLoc));
     }
     break;
   }
@@ -854,9 +851,8 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
-  MEventsWaitWithBarrier.resize(WaitList.size());
   std::transform(
-      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
+      WaitList.begin(), WaitList.end(), std::back_inserter(CGData.MEvents),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
 }
 
