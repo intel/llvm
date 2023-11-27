@@ -7,7 +7,8 @@ from templates import helper as th
 
     x=tags['$x']
     X=x.upper()
-    create_retain_release_funcs=th.get_create_retain_release_functions(specs, n, tags)
+
+    handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
  * Copyright (C) 2023 Intel Corporation
@@ -27,11 +28,12 @@ namespace ur_validation_layer
     %for obj in th.get_adapter_functions(specs):
     <%
         func_name=th.make_func_name(n, tags, obj)
-        object_param=th.make_param_lines(n, tags, obj, format=["name"])[-1]
-        object_param_type=th.make_param_lines(n, tags, obj, format=["type"])[-1]
+
         param_checks=th.make_param_checks(n, tags, obj, meta=meta).items()
         first_errors = [X + "_RESULT_ERROR_INVALID_NULL_POINTER", X + "_RESULT_ERROR_INVALID_NULL_HANDLE"]
         sorted_param_checks = sorted(param_checks, key=lambda pair: False if pair[0] in first_errors else True)
+
+        tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
     %>
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
@@ -74,37 +76,35 @@ namespace ur_validation_layer
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
-        %if func_name == n + "AdapterRelease":
+        %for tp in tracked_params:
+        <%
+            tp_handle_funcs = next((hf for hf in handle_create_get_retain_release_funcs if th.subt(n, tags, tp['type']) in [hf['handle'], hf['handle'] + "*"]), None)
+            is_handle_to_adapter = ("_adapter_handle_t" in tp['type'])
+        %>
+        %if func_name in tp_handle_funcs['create']:
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
-            refCountContext.decrementRefCount(${object_param}, true);
+            refCountContext.createRefCount(*${tp['name']});
         }
-        %elif func_name == n + "AdapterRetain":
+        %elif func_name in tp_handle_funcs['get']:
+        if( context.enableLeakChecking && ${tp['name']} && result == UR_RESULT_SUCCESS )
+        {
+            for (uint32_t i = ${th.param_traits.range_start(tp)}; i < ${th.param_traits.range_end(tp)}; i++) {
+                refCountContext.createOrIncrementRefCount(${tp['name']}[i], ${str(is_handle_to_adapter).lower()});
+            }
+        }
+        %elif func_name in tp_handle_funcs['retain']:
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
-            refCountContext.incrementRefCount(${object_param}, true);
+            refCountContext.incrementRefCount(${tp['name']}, ${str(is_handle_to_adapter).lower()});
         }
-        %elif func_name == n + "AdapterGet":
-        if( context.enableLeakChecking && phAdapters && result == UR_RESULT_SUCCESS )
-        {
-            refCountContext.createOrIncrementRefCount(*phAdapters, true);
-        }
-        %elif func_name in create_retain_release_funcs["create"]:
+        %elif func_name in tp_handle_funcs['release']:
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
-            refCountContext.createRefCount(*${object_param});
-        }
-        %elif func_name in create_retain_release_funcs["retain"]:
-        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
-        {
-            refCountContext.incrementRefCount(${object_param});
-        }
-        %elif func_name in create_retain_release_funcs["release"]:
-        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
-        {
-            refCountContext.decrementRefCount(${object_param});
+            refCountContext.decrementRefCount(${tp['name']}, ${str(is_handle_to_adapter).lower()});
         }
         %endif
+        %endfor
 
         return result;
     }
