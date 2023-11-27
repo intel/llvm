@@ -22882,6 +22882,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
             .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
             .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
             .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+            .Case("__spirv_ocl_sin", llvm::Intrinsic::fpbuiltin_spirv_ocl_sin)
             .Default(0);
   } else {
     // The function has a clang builtin. Create an attribute for it
