@@ -1458,7 +1458,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //     (B2)
   //     /|\
   //    / | \
-  // (6) (7) (8) (those nodes also have B1 as a predecessor)
+  // (6) (7) (8)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
   for (auto Root : GraphImpl->MRoots) {
     auto Node = Root.lock();
@@ -1468,7 +1468,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
-      ASSERT_EQ(SuccNode->MSuccessors.size(), 6lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
       for (auto Succ1 : SuccNode->MSuccessors) {
         auto SuccBarrier1 = Succ1.lock();
         if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
@@ -1479,7 +1479,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
           for (auto Succ2 : SuccBarrier1->MSuccessors) {
             auto SuccBarrier2 = Succ2.lock();
             // Nodes 6, 7, 8
-            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 2lu);
+            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 1lu);
             ASSERT_EQ(SuccBarrier2->MSuccessors.size(), 0lu);
           }
         } else {
