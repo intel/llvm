@@ -22,6 +22,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
   public:
     bool enableParameterValidation = false;
     bool enableLeakChecking = false;
+    bool enableLifetimeValidation = false;
     logger::Logger logger;
 
     ur_dditable_t urDdiTable = {};
@@ -31,7 +32,8 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 
     bool isAvailable() const override { return true; }
     std::vector<std::string> getNames() const override {
-        return {nameFullValidation, nameParameterValidation, nameLeakChecking};
+        return {nameFullValidation, nameParameterValidation, nameLeakChecking,
+                nameLifetimeValidation};
     }
     ur_result_t init(ur_dditable_t *dditable,
                      const std::set<std::string> &enabledLayerNames,
@@ -42,6 +44,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     const std::string nameFullValidation = "UR_LAYER_FULL_VALIDATION";
     const std::string nameParameterValidation = "UR_LAYER_PARAMETER_VALIDATION";
     const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
+    const std::string nameLifetimeValidation = "UR_LAYER_LIFETIME_VALIDATION";
 };
 
 ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size);
