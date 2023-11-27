@@ -30,6 +30,8 @@
 #include <sycl/exception.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -400,8 +402,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
-  // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (IsAutoGRF && !IsEsimdImage) {
+  if (IsAutoGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
@@ -495,6 +496,37 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       else
         CompileOpts.erase(Pos, OptLen);
     }
+    static const std::string TargetRegisterAllocMode =
+        "-ftarget-register-alloc-mode=";
+    auto OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    while (OptPos != std::string::npos) {
+      auto EndOfOpt = CompileOpts.find(" ", OptPos);
+      // Extract everything after the equals until the end of the option
+      auto OptValue = CompileOpts.substr(
+          OptPos + TargetRegisterAllocMode.size(),
+          EndOfOpt - OptPos - TargetRegisterAllocMode.size());
+      auto ColonPos = OptValue.find(":");
+      auto Device = OptValue.substr(0, ColonPos);
+      std::string BackendStrToAdd;
+      bool IsPVC =
+          std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+            return IsIntelGPU &&
+                   (Dev.get_info<ext::intel::info::device::device_id>() &
+                    0xFF00) == 0x0B00;
+          });
+      // Currently 'pvc' is the only supported device.
+      if (Device == "pvc" && IsPVC)
+        BackendStrToAdd = " " + OptValue.substr(ColonPos + 1) + " ";
+
+      // Extract everything before this option
+      std::string NewCompileOpts =
+          CompileOpts.substr(0, OptPos) + BackendStrToAdd;
+      // Extract everything after this option and add it to the above.
+      if (EndOfOpt != std::string::npos)
+        NewCompileOpts += CompileOpts.substr(EndOfOpt);
+      CompileOpts = NewCompileOpts;
+      OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    }
   }
 }
 
@@ -572,21 +604,15 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const program_impl *Prg,
-    bool JITCompilationIsRequired) {
+    const std::string &KernelName, bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
   std::string LinkOpts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-  }
 
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
 
   SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
@@ -616,7 +642,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
 
-  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
@@ -625,8 +651,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache) {
-      if (Prg)
-        flushSpecConstants(*Prg, NativePrg, &Img);
       if (Img.supportsSpecConstants())
         enableITTAnnotationsIfNeeded(NativePrg, Plugin);
     }
@@ -669,18 +693,27 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
   };
+
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
+    return BuildF();
 
   auto BuildResult =
       getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
           Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
+
+  // If caching is enabled, one copy of the program handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // program.
+  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
+      *BuildResult->Ptr.load());
   return *BuildResult->Ptr.load();
 }
 
@@ -688,8 +721,7 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
-                                  const program_impl *Prg) {
+                                  const std::string &KernelName) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -701,21 +733,28 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
-  }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
                              CompileOpts + LinkOpts, KernelName);
-  auto ret_tuple = Cache.tryToGetKernelFast(key);
-  if (std::get<0>(ret_tuple))
-    return ret_tuple;
+  if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    auto ret_tuple = Cache.tryToGetKernelFast(key);
+    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
+    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    if (std::get<Kernel>(ret_tuple)) {
+      // Pulling a copy of a kernel and program from the cache,
+      // so we need to retain those resources.
+      ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
+          std::get<Kernel>(ret_tuple));
+      ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
+          std::get<Program>(ret_tuple));
+      return ret_tuple;
+    }
+  }
 
   sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
@@ -739,6 +778,14 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    // The built kernel cannot be shared between multiple
+    // threads when caching is disabled, so we can return
+    // nullptr for the mutex.
+    auto [Kernel, ArgMask] = BuildF();
+    return make_tuple(Kernel, nullptr, ArgMask, Program);
+  }
+
   auto BuildResult = getOrBuild<KernelArgMaskPairT, invalid_object_error>(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
@@ -747,6 +794,12 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto ret_val = std::make_tuple(KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
                                  KernelArgMaskPair.second, Program);
+  // If caching is enabled, one copy of the kernel handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // kernel.
+  ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
+      KernelArgMaskPair.first);
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
@@ -1153,8 +1206,10 @@ getDeviceLibPrograms(const ContextImplPtr Context,
     if (!isDeviceLibRequired(Ext, DeviceLibReqMask)) {
       continue;
     }
+
     if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
-         Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64) &&
+         Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64 ||
+         Ext == DeviceLibExt::cl_intel_devicelib_imf_fp64) &&
         !fp64Support) {
       continue;
     }
@@ -1504,16 +1559,13 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   Prg.flush_spec_constants(*Img, NativePrg);
 }
 
-// If the kernel is loaded from spv file, it may not include DeviceLib require
-// mask, sycl runtime won't know which fallback device libraries are needed. In
-// such case, the safest way is to load all fallback device libraries.
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &DLMRange =
       Img.getDeviceLibReqMask();
   if (DLMRange.isAvailable())
     return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
-    return 0xFFFFFFFF;
+    return 0x0;
 }
 
 const KernelArgMask *
@@ -1893,7 +1945,15 @@ void ProgramManager::bringSYCLDeviceImagesToState(
   for (device_image_plain &DevImage : DeviceImages) {
     const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
 
+    // At this time, there is no circumstance where a device image should ever
+    // be in the source state. That not good.
+    assert(DevImageState != bundle_state::ext_oneapi_source);
+
     switch (TargetState) {
+    case bundle_state::ext_oneapi_source:
+      // This case added for switch statement completion. We should not be here.
+      assert(DevImageState == bundle_state::ext_oneapi_source);
+      break;
     case bundle_state::input:
       // Do nothing since there is no state which can be upgraded to the input.
       assert(DevImageState == bundle_state::input);
@@ -1909,6 +1969,11 @@ void ProgramManager::bringSYCLDeviceImagesToState(
       break;
     case bundle_state::executable: {
       switch (DevImageState) {
+      case bundle_state::ext_oneapi_source:
+        // This case added for switch statement completion.
+        // We should not be here.
+        assert(DevImageState != bundle_state::ext_oneapi_source);
+        break;
       case bundle_state::input:
         DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
                          /*PropList=*/{});
@@ -2267,12 +2332,22 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    auto ResProgram = BuildF();
+    DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+        InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
+        InputImpl->get_kernel_ids_ptr(), ResProgram,
+        InputImpl->get_spec_const_data_ref(),
+        InputImpl->get_spec_const_blob_ref());
+
+    return createSyclObjFromImpl<device_image_plain>(ExecImpl);
+  }
+
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
@@ -2305,7 +2380,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
-    CacheKey.second.first = PiDeviceAdd;
+    CacheKey.second = PiDeviceAdd;
     getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
         Cache, GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
@@ -2360,11 +2435,25 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    // The built kernel cannot be shared between multiple
+    // threads when caching is disabled, so we can return
+    // nullptr for the mutex.
+    auto [Kernel, ArgMask] = BuildF();
+    return make_tuple(Kernel, nullptr, ArgMask);
+  }
+
   auto BuildResult =
       getOrBuild<KernelProgramCache::KernelArgMaskPairT, invalid_object_error>(
           Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
+  // If caching is enabled, one copy of the kernel handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // kernel.
+  Ctx->getPlugin()->call<PiApiKind::piKernelRetain>(
+      BuildResult->Ptr.load()->first);
   return std::make_tuple(BuildResult->Ptr.load()->first,
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Ptr.load()->second);
@@ -2407,6 +2496,243 @@ multiply_with_overflow_check(T x, T y) {
     return x * y;
 }
 
+namespace matrix_ext = ext::oneapi::experimental::matrix;
+
+// Matrix type string to matrix_type enum value conversion
+// Note: matrix type strings are defined in template specialization for
+// convertTypeToMatrixTypeString above
+std::optional<matrix_ext::matrix_type>
+convertMatrixTypeStringMatrixTypeEnumValue(
+    const std::string &MatrixTypeString) {
+  assert(!MatrixTypeString.empty() &&
+         "MatrixTypeString type string can't be empty. Check if required "
+         "template specialization for convertTypeToMatrixTypeString exists.");
+  std::string_view MatrixTypeStringView = MatrixTypeString;
+  std::string Prefix("matrix_type::");
+  assert((MatrixTypeStringView.substr(0, Prefix.size()) == Prefix) &&
+         "MatrixTypeString has incorrect prefix, should be \"matrix_type::\".");
+  MatrixTypeStringView.remove_prefix(Prefix.size());
+  if ("bf16" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::bf16;
+  else if ("fp16" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp16;
+  else if ("tf32" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::tf32;
+  else if ("fp32" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp32;
+  else if ("fp64" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp64;
+  else if ("sint8" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::sint8;
+  else if ("sint16" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::sint16;
+  else if ("sint32" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::sint32;
+  else if ("sint64" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::sint64;
+  else if ("uint8" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::uint8;
+  else if ("uint16" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::uint16;
+  else if ("uint32" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::uint32;
+  else if ("uint64" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::uint64;
+  return std::nullopt;
+}
+
+bool isMatrixSupportedByHW(const std::string &MatrixTypeStrUser,
+                           size_t RowsUser, size_t ColsUser,
+                           matrix_ext::matrix_type MatrixTypeRuntime,
+                           size_t MaxRowsRuntime, size_t MaxColsRuntime,
+                           size_t RowsRuntime, size_t ColsRuntime) {
+  std::optional<matrix_ext::matrix_type> MatrixTypeUserOpt =
+      convertMatrixTypeStringMatrixTypeEnumValue(MatrixTypeStrUser);
+  if (!MatrixTypeUserOpt)
+    return false;
+  bool IsMatrixTypeSupported = (MatrixTypeUserOpt.value() == MatrixTypeRuntime);
+  bool IsRowsSupported = ((RowsRuntime != 0) ? (RowsUser == RowsRuntime)
+                                             : (RowsUser <= MaxRowsRuntime));
+  bool IsColsSupported = ((ColsRuntime != 0) ? (ColsUser == ColsRuntime)
+                                             : (ColsUser <= MaxColsRuntime));
+  return IsMatrixTypeSupported && IsRowsSupported && IsColsSupported;
+}
+
+std::optional<sycl::exception> checkDevSupportJointMatrix(
+    const std::string &JointMatrixProStr,
+    const std::vector<ext::oneapi::experimental::matrix::combination>
+        &SupportedMatrixCombinations) {
+  std::istringstream JointMatrixStrStream(JointMatrixProStr);
+  std::string SingleJointMatrix;
+
+  // start to parse the value which is generated by
+  // SYCLPropagateJointMatrixUsage pass
+  while (std::getline(JointMatrixStrStream, SingleJointMatrix, ';')) {
+    std::istringstream SingleJointMatrixStrStream(SingleJointMatrix);
+    std::vector<std::string> JointMatrixVec;
+    std::string Item;
+
+    while (std::getline(SingleJointMatrixStrStream, Item, ',')) {
+      JointMatrixVec.push_back(Item);
+    }
+
+    assert(JointMatrixVec.size() == 4 &&
+           "Property set is corrupted, it must have 4 elements.");
+
+    const std::string &MatrixTypeUser = JointMatrixVec[0];
+    const std::string &UseStrUser = JointMatrixVec[1];
+    size_t RowsUser, ColsUser = 0;
+    try {
+      RowsUser = std::stoi(JointMatrixVec[2]);
+      ColsUser = std::stoi(JointMatrixVec[3]);
+    } catch (std::logic_error &) {
+      // ignore exceptions, one way or another a user will see sycl::exception
+      // with the message about incorrect rows or cols, because they are
+      // initialized with 0 above
+    }
+
+    bool IsMatrixCompatible = false;
+
+    for (const auto &Combination : SupportedMatrixCombinations) {
+      std::optional<ext::oneapi::experimental::matrix::use> Use =
+          detail::convertMatrixUseStringToEnum(UseStrUser.c_str());
+      assert(Use && "Property set has empty matrix::use value.");
+      switch (Use.value()) {
+      case matrix_ext::use::a:
+        IsMatrixCompatible |= isMatrixSupportedByHW(
+            MatrixTypeUser, RowsUser, ColsUser, Combination.atype,
+            Combination.max_msize, Combination.max_ksize, Combination.msize,
+            Combination.ksize);
+        break;
+      case matrix_ext::use::b:
+        IsMatrixCompatible |= isMatrixSupportedByHW(
+            MatrixTypeUser, RowsUser, ColsUser, Combination.btype,
+            Combination.max_ksize, Combination.max_nsize, Combination.ksize,
+            Combination.nsize);
+        break;
+      case matrix_ext::use::accumulator: {
+        IsMatrixCompatible |= isMatrixSupportedByHW(
+            MatrixTypeUser, RowsUser, ColsUser, Combination.ctype,
+            Combination.max_msize, Combination.max_nsize, Combination.msize,
+            Combination.nsize);
+        IsMatrixCompatible |= isMatrixSupportedByHW(
+            MatrixTypeUser, RowsUser, ColsUser, Combination.dtype,
+            Combination.max_msize, Combination.max_nsize, Combination.msize,
+            Combination.nsize);
+        break;
+      }
+      }
+
+      // early exit if we have a match
+      if (IsMatrixCompatible)
+        break;
+    }
+
+    if (!IsMatrixCompatible)
+      return sycl::exception(make_error_code(errc::kernel_not_supported),
+                             "joint_matrix with parameters " + MatrixTypeUser +
+                                 ", " + UseStrUser +
+                                 ", Rows=" + std::to_string(RowsUser) +
+                                 ", Cols=" + std::to_string(ColsUser) +
+                                 " is not supported on this device");
+  }
+  return std::nullopt;
+}
+
+std::optional<sycl::exception> checkDevSupportJointMatrixMad(
+    const std::string &JointMatrixProStr,
+    const std::vector<ext::oneapi::experimental::matrix::combination>
+        &SupportedMatrixCombinations) {
+  std::istringstream JointMatrixMadStrStream(JointMatrixProStr);
+  std::string SingleJointMatrixMad;
+
+  // start to parse the value which is generated by
+  // SYCLPropagateJointMatrixUsage pass
+  while (std::getline(JointMatrixMadStrStream, SingleJointMatrixMad, ';')) {
+    std::istringstream SingleJointMatrixMadStrStream(SingleJointMatrixMad);
+    std::vector<std::string> JointMatrixMadVec;
+    std::string Item;
+
+    while (std::getline(SingleJointMatrixMadStrStream, Item, ',')) {
+      JointMatrixMadVec.push_back(Item);
+    }
+
+    assert(JointMatrixMadVec.size() == 7 &&
+           "Property set is corrupted, it must have 7 elements.");
+
+    const std::string &MatrixTypeAStrUser = JointMatrixMadVec[0];
+    const std::string &MatrixTypeBStrUser = JointMatrixMadVec[1];
+    const std::string &MatrixTypeCStrUser = JointMatrixMadVec[2];
+    const std::string &MatrixTypeDStrUser = JointMatrixMadVec[3];
+    size_t MSizeUser, KSizeUser, NSizeUser = 0;
+    try {
+      MSizeUser = std::stoi(JointMatrixMadVec[4]);
+      KSizeUser = std::stoi(JointMatrixMadVec[5]);
+      NSizeUser = std::stoi(JointMatrixMadVec[6]);
+    } catch (std::logic_error &) {
+      // ignore exceptions, one way or another a user will see sycl::exception
+      // with the message about incorrect size(s), because they are
+      // initialized with 0 above
+    }
+
+    std::optional<matrix_ext::matrix_type> MatrixTypeAUserOpt =
+        convertMatrixTypeStringMatrixTypeEnumValue(MatrixTypeAStrUser);
+    std::optional<matrix_ext::matrix_type> MatrixTypeBUserOpt =
+        convertMatrixTypeStringMatrixTypeEnumValue(MatrixTypeBStrUser);
+    std::optional<matrix_ext::matrix_type> MatrixTypeCUserOpt =
+        convertMatrixTypeStringMatrixTypeEnumValue(MatrixTypeCStrUser);
+    std::optional<matrix_ext::matrix_type> MatrixTypeDUserOpt =
+        convertMatrixTypeStringMatrixTypeEnumValue(MatrixTypeDStrUser);
+
+    bool IsMatrixMadCompatible = false;
+
+    for (const auto &Combination : SupportedMatrixCombinations) {
+      if (!MatrixTypeAUserOpt || !MatrixTypeBUserOpt || !MatrixTypeCUserOpt ||
+          !MatrixTypeDUserOpt)
+        continue;
+
+      bool IsMatrixTypeACompatible =
+          (MatrixTypeAUserOpt.value() == Combination.atype);
+      bool IsMatrixTypeBCompatible =
+          (MatrixTypeBUserOpt.value() == Combination.btype);
+      bool IsMatrixTypeCCompatible =
+          (MatrixTypeCUserOpt.value() == Combination.ctype);
+      bool IsMatrixTypeDCompatible =
+          (MatrixTypeDUserOpt.value() == Combination.dtype);
+      bool IsMSizeCompatible =
+          ((Combination.msize != 0) ? (MSizeUser == Combination.msize)
+                                    : (MSizeUser <= Combination.max_msize));
+      bool IsKSizeCompatible =
+          ((Combination.ksize != 0) ? (KSizeUser == Combination.ksize)
+                                    : (KSizeUser <= Combination.max_ksize));
+      bool IsNSizeCompatible =
+          ((Combination.nsize != 0) ? (NSizeUser == Combination.nsize)
+                                    : (NSizeUser <= Combination.max_nsize));
+
+      IsMatrixMadCompatible =
+          IsMatrixTypeACompatible && IsMatrixTypeBCompatible &&
+          IsMatrixTypeCCompatible && IsMatrixTypeDCompatible &&
+          IsMSizeCompatible && IsKSizeCompatible && IsNSizeCompatible;
+
+      // early exit if we have a match
+      if (IsMatrixMadCompatible)
+        break;
+    }
+
+    if (!IsMatrixMadCompatible)
+      return sycl::exception(
+          make_error_code(errc::kernel_not_supported),
+          "joint_matrix_mad function with parameters atype=" +
+              MatrixTypeAStrUser + ", btype=" + MatrixTypeBStrUser +
+              ", ctype=" + MatrixTypeCStrUser + ", dtype=" +
+              MatrixTypeDStrUser + ", M=" + std::to_string(MSizeUser) + ", K=" +
+              std::to_string(KSizeUser) + ", N=" + std::to_string(NSizeUser) +
+              " is not supported on this "
+              "device");
+  }
+  return std::nullopt;
+}
+
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &Img) {
@@ -2425,6 +2751,8 @@ checkDevSupportDeviceRequirements(const device &Dev,
   };
 
   auto AspectsPropIt = getPropIt("aspects");
+  auto JointMatrixPropIt = getPropIt("joint_matrix");
+  auto JointMatrixMadPropIt = getPropIt("joint_matrix_mad");
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
   auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
@@ -2442,6 +2770,62 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                "Required aspect " + getAspectNameStr(Aspect) +
                                    " is not supported on the device");
     }
+  }
+
+  // TODO: remove checks for CUDA and HIP from if-statement below when runtime
+  // query for them in matrix_combinations is implemented
+  if (JointMatrixPropIt &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
+    std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
+        Dev.get_info<
+            ext::oneapi::experimental::info::device::matrix_combinations>();
+
+    if (Combinations.empty())
+      return sycl::exception(make_error_code(errc::kernel_not_supported),
+                             "no matrix hardware on the target device, "
+                             "joint_matrix is not supported");
+
+    ByteArray JointMatrixByteArray =
+        DeviceBinaryProperty(*(JointMatrixPropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    JointMatrixByteArray.dropBytes(8);
+    std::string JointMatrixByteArrayToStr;
+    while (!JointMatrixByteArray.empty()) {
+      JointMatrixByteArrayToStr += JointMatrixByteArray.consume<char>();
+    }
+    std::optional<sycl::exception> Result =
+        checkDevSupportJointMatrix(JointMatrixByteArrayToStr, Combinations);
+    if (Result)
+      return Result.value();
+  }
+
+  // TODO: remove checks for CUDA and HIP from if-statement below when runtime
+  // query for them in matrix_combinations is implemented
+  if (JointMatrixMadPropIt &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
+    std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
+        Dev.get_info<
+            ext::oneapi::experimental::info::device::matrix_combinations>();
+
+    if (Combinations.empty())
+      return sycl::exception(make_error_code(errc::kernel_not_supported),
+                             "no matrix hardware on the target device, "
+                             "joint_matrix_mad is not supported");
+
+    ByteArray JointMatrixMadByteArray =
+        DeviceBinaryProperty(*(JointMatrixMadPropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    JointMatrixMadByteArray.dropBytes(8);
+    std::string JointMatrixMadByteArrayToStr;
+    while (!JointMatrixMadByteArray.empty()) {
+      JointMatrixMadByteArrayToStr += JointMatrixMadByteArray.consume<char>();
+    }
+    std::optional<sycl::exception> Result = checkDevSupportJointMatrixMad(
+        JointMatrixMadByteArrayToStr, Combinations);
+    if (Result)
+      return Result.value();
   }
 
   // Checking if device supports defined required work group size

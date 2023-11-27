@@ -65,7 +65,7 @@ if ((SYCL_BUILD_PI_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
   set(TRIPLES "${TRIPLES},amdgcn-amd-amdhsa")
 endif()
 
-add_lit_testsuite(check-sycl-combined-triples "Running device-agnostic SYCL regression tests for all avaialble triples"
+add_lit_testsuite(check-sycl-combined-triples "Running device-agnostic SYCL regression tests for all available triples"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_TRIPLE=${TRIPLES}"

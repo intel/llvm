@@ -44,9 +44,9 @@ entry:
   %arr = alloca [3 x i32], align 4
   %arr2 = alloca [3 x i32], align 4
   %0 = bitcast ptr %arr to ptr
-  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %0, ptr addrspace(2) align 4 bitcast (ptr addrspace(2) @__const.test.arr to ptr addrspace(2)), i32 12, i1 false)
+  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %0, ptr addrspace(2) align 4 @__const.test.arr, i32 12, i1 false)
   %1 = bitcast ptr %arr2 to ptr
-  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %1, ptr addrspace(2) align 4 bitcast (ptr addrspace(2) @__const.test.arr2 to ptr addrspace(2)), i32 12, i1 false)
+  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %1, ptr addrspace(2) align 4 @__const.test.arr2, i32 12, i1 false)
   ret void
 }
 

@@ -1387,8 +1387,8 @@ void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
     if (!NewState)
       continue;
 
-    // It is possible that NewState == State is true.
-    // It can occur if another checker has applied the state before us.
+    // Here it's possible that NewState == State, e.g. when other checkers
+    // already applied the same constraints (or stricter ones).
     // Still add these note tags, the other checker should add only its
     // specialized note tags. These general note tags are handled always by
     // StdLibraryFunctionsChecker.
@@ -1427,7 +1427,12 @@ void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
             });
         Pred = C.addTransition(NewState, Pred, Tag);
       }
-      if (!Pred)
+
+      // Pred may be:
+      //  - a nullpointer, if we reach an already existing node (theoretically);
+      //  - a sink, when NewState is posteriorly overconstrained.
+      // In these situations we cannot add the errno note tag.
+      if (!Pred || Pred->isSink())
         continue;
     }
 
@@ -2860,9 +2865,14 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         Signature(ArgTypes{ConstCharPtrRestrictTy, CharPtrRestrictTy, SizeTy},
                   RetType{Ssize_tTy}),
         Summary(NoEvalCall)
-            .Case({ReturnValueCondition(LessThanOrEq, ArgNo(2)),
-                   ReturnValueCondition(WithinRange, Range(0, Ssize_tMax))},
+            .Case({ArgumentCondition(2, WithinRange, Range(1, IntMax)),
+                   ReturnValueCondition(LessThanOrEq, ArgNo(2)),
+                   ReturnValueCondition(WithinRange, Range(1, Ssize_tMax))},
                   ErrnoMustNotBeChecked, GenericSuccessMsg)
+            .Case({ArgumentCondition(2, WithinRange, SingleValue(0)),
+                   ReturnValueCondition(WithinRange, SingleValue(0))},
+                  ErrnoMustNotBeChecked,
+                  "Assuming that argument 'bufsize' is 0")
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant, GenericFailureMsg)
             .ArgConstraint(NotNull(ArgNo(0)))
             .ArgConstraint(NotNull(ArgNo(1)))
@@ -2879,9 +2889,14 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
             ArgTypes{IntTy, ConstCharPtrRestrictTy, CharPtrRestrictTy, SizeTy},
             RetType{Ssize_tTy}),
         Summary(NoEvalCall)
-            .Case({ReturnValueCondition(LessThanOrEq, ArgNo(3)),
-                   ReturnValueCondition(WithinRange, Range(0, Ssize_tMax))},
+            .Case({ArgumentCondition(3, WithinRange, Range(1, IntMax)),
+                   ReturnValueCondition(LessThanOrEq, ArgNo(3)),
+                   ReturnValueCondition(WithinRange, Range(1, Ssize_tMax))},
                   ErrnoMustNotBeChecked, GenericSuccessMsg)
+            .Case({ArgumentCondition(3, WithinRange, SingleValue(0)),
+                   ReturnValueCondition(WithinRange, SingleValue(0))},
+                  ErrnoMustNotBeChecked,
+                  "Assuming that argument 'bufsize' is 0")
             .Case(ReturnsMinusOne, ErrnoNEZeroIrrelevant, GenericFailureMsg)
             .ArgConstraint(ValidFileDescriptorOrAtFdcwd(ArgNo(0)))
             .ArgConstraint(NotNull(ArgNo(1)))

@@ -564,6 +564,8 @@ Expected<TBDFlags> getFlags(const Object *File) {
                   .Case("not_app_extension_safe",
                         TBDFlags::NotApplicationExtensionSafe)
                   .Case("sim_support", TBDFlags::SimulatorSupport)
+                  .Case("not_for_dyld_shared_cache",
+                        TBDFlags::OSLibNotForSharedCache)
                   .Default(TBDFlags::None);
           Flags |= TBDFlag;
         });
@@ -655,6 +657,7 @@ Expected<IFPtr> parseToInterfaceFile(const Object *File) {
   F->setApplicationExtensionSafe(
       !(Flags & TBDFlags::NotApplicationExtensionSafe));
   F->setSimulatorSupport((Flags & TBDFlags::SimulatorSupport));
+  F->setOSLibNotForSharedCache((Flags & TBDFlags::OSLibNotForSharedCache));
   for (auto &T : Targets)
     F->addTarget(T);
   for (auto &[Lib, Targets] : Clients)
@@ -923,6 +926,8 @@ Array serializeFlags(const InterfaceFile *File) {
     Flags.emplace_back("not_app_extension_safe");
   if (File->hasSimulatorSupport())
     Flags.emplace_back("sim_support");
+  if (File->isOSLibNotForSharedCache())
+    Flags.emplace_back("not_for_dyld_shared_cache");
   return serializeScalar(TBDKey::Attributes, std::move(Flags));
 }
 
@@ -986,9 +991,8 @@ Expected<Object> serializeIF(const InterfaceFile *File) {
   return std::move(Library);
 }
 
-Expected<Object> getJSON(const InterfaceFile *File) {
-  assert(File->getFileType() == FileType::TBD_V5 &&
-         "unexpected json file format version");
+Expected<Object> getJSON(const InterfaceFile *File, const FileType FileKind) {
+  assert(FileKind == FileType::TBD_V5 && "unexpected json file format version");
   Object Root;
 
   auto MainLibOrErr = serializeIF(File);
@@ -1012,8 +1016,9 @@ Expected<Object> getJSON(const InterfaceFile *File) {
 
 Error MachO::serializeInterfaceFileToJSON(raw_ostream &OS,
                                           const InterfaceFile &File,
+                                          const FileType FileKind,
                                           bool Compact) {
-  auto TextFile = getJSON(&File);
+  auto TextFile = getJSON(&File, FileKind);
   if (!TextFile)
     return TextFile.takeError();
   if (Compact)

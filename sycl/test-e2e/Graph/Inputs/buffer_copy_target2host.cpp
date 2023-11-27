@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   std::vector<T> DataA(Size), DataB(Size);
@@ -37,8 +41,8 @@ int main() {
   }
 
   for (size_t i = 0; i < Size; i++) {
-    assert(ReferenceA[i] == DataA[i]);
-    assert(ReferenceB[i] == DataB[i]);
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
   }
 
   return 0;

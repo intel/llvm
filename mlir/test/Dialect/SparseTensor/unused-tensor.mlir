@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -sparsification | FileCheck %s
+// RUN: mlir-opt %s --sparse-reinterpret-map -sparsification | FileCheck %s
 
 //
 // A contrived example where the sparse tensor B is only
@@ -7,7 +7,7 @@
 // compiler still generates the correct loop nest for this case.
 //
 
-#SM = #sparse_tensor.encoding<{ lvlTypes = [ "dense", "compressed" ] }>
+#SM = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed) }>
 
 #trait = {
   indexing_maps = [

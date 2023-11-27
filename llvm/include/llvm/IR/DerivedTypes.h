@@ -132,7 +132,10 @@ public:
   }
 
   /// Parameter type accessors.
-  Type *getParamType(unsigned i) const { return ContainedTys[i+1]; }
+  Type *getParamType(unsigned i) const {
+    assert(i < getNumParams() && "getParamType() out of range!");
+    return ContainedTys[i + 1];
+  }
 
   /// Return the number of fixed parameters this function type requires.
   /// This does not consider varargs.
@@ -643,8 +646,6 @@ inline ElementCount VectorType::getElementCount() const {
 class PointerType : public Type {
   explicit PointerType(LLVMContext &C, unsigned AddrSpace);
 
-  Type *PointeeTy;
-
 public:
   PointerType(const PointerType &) = delete;
   PointerType &operator=(const PointerType &) = delete;
@@ -677,13 +678,6 @@ public:
                "instead")]] static PointerType *
   getWithSamePointeeType(PointerType *PT, unsigned AddressSpace) {
     return get(PT->getContext(), AddressSpace);
-  }
-
-  [[deprecated("Pointer element types are deprecated. You can *temporarily* "
-               "use Type::getPointerElementType() instead")]]
-  Type *getElementType() const {
-    assert(!isOpaque() && "Attempting to get element type of opaque pointer");
-    return PointeeTy;
   }
 
   [[deprecated("Always returns true")]] bool isOpaque() const { return true; }

@@ -58,21 +58,24 @@ public:
     const Scope &scope{context_.FindScope(source_)};
     bool isFirstSymbol{isFirstSymbol_};
     isFirstSymbol_ = false;
-    if (const char *whyNot{IsAutomatic(symbol) ? "Automatic variable"
-                : IsDummy(symbol)              ? "Dummy argument"
-                : IsFunctionResult(symbol)     ? "Function result"
-                : IsAllocatable(symbol)        ? "Allocatable"
+    // Ordered so that most egregious errors are first
+    if (const char *whyNot{IsProcedure(symbol) && !IsPointer(symbol)
+                ? "Procedure"
+                : isFirstSymbol && IsHostAssociated(symbol, scope)
+                ? "Host-associated object"
+                : isFirstSymbol && IsUseAssociated(symbol, scope)
+                ? "USE-associated object"
+                : IsDummy(symbol)          ? "Dummy argument"
+                : IsFunctionResult(symbol) ? "Function result"
+                : IsAutomatic(symbol)      ? "Automatic variable"
+                : IsAllocatable(symbol)    ? "Allocatable"
                 : IsInitialized(symbol, true /*ignore DATA*/,
                       true /*ignore allocatable components*/,
                       true /*ignore uninitialized pointer components*/)
                 ? "Default-initialized"
-                : IsProcedure(symbol) && !IsPointer(symbol) ? "Procedure"
-                // remaining checks don't apply to components
-                : !isFirstSymbol                   ? nullptr
-                : IsHostAssociated(symbol, scope)  ? "Host-associated object"
-                : IsUseAssociated(symbol, scope)   ? "USE-associated object"
                 : symbol.has<AssocEntityDetails>() ? "Construct association"
-                : IsPointer(symbol) && (hasComponent_ || hasSubscript_)
+                : isFirstSymbol && IsPointer(symbol) &&
+                    (hasComponent_ || hasSubscript_)
                 ? "Target of pointer"
                 : nullptr}) {
       context_.Say(source_,
@@ -81,14 +84,30 @@ public:
       return false;
     }
     if (IsProcedurePointer(symbol)) {
-      context_.Say(source_,
-          "Procedure pointer '%s' in a DATA statement is not standard"_port_en_US,
-          symbol.name());
+      if (!context_.IsEnabled(common::LanguageFeature::DataStmtExtensions)) {
+        context_.Say(source_,
+            "Procedure pointer '%s' may not appear in a DATA statement"_err_en_US,
+            symbol.name());
+        return false;
+      } else if (context_.ShouldWarn(
+                     common::LanguageFeature::DataStmtExtensions)) {
+        context_.Say(source_,
+            "Procedure pointer '%s' in a DATA statement is not standard"_port_en_US,
+            symbol.name());
+      }
     }
     if (IsInBlankCommon(symbol)) {
-      context_.Say(source_,
-          "Blank COMMON object '%s' in a DATA statement is not standard"_port_en_US,
-          symbol.name());
+      if (!context_.IsEnabled(common::LanguageFeature::DataStmtExtensions)) {
+        context_.Say(source_,
+            "Blank COMMON object '%s' may not appear in a DATA statement"_err_en_US,
+            symbol.name());
+        return false;
+      } else if (context_.ShouldWarn(
+                     common::LanguageFeature::DataStmtExtensions)) {
+        context_.Say(source_,
+            "Blank COMMON object '%s' in a DATA statement is not standard"_port_en_US,
+            symbol.name());
+      }
     }
     return true;
   }

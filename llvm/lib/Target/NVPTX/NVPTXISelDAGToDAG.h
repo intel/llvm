@@ -43,8 +43,7 @@ public:
 
   NVPTXDAGToDAGISel() = delete;
 
-  explicit NVPTXDAGToDAGISel(NVPTXTargetMachine &tm,
-                             CodeGenOpt::Level   OptLevel);
+  explicit NVPTXDAGToDAGISel(NVPTXTargetMachine &tm, CodeGenOptLevel OptLevel);
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   const NVPTXSubtarget *Subtarget = nullptr;
@@ -75,6 +74,7 @@ private:
   bool tryBFE(SDNode *N);
   bool tryConstantFP(SDNode *N);
   bool SelectSETP_F16X2(SDNode *N);
+  bool SelectSETP_BF16X2(SDNode *N);
   bool tryEXTRACT_VECTOR_ELEMENT(SDNode *N);
 
   inline SDValue getI32Imm(unsigned Imm, const SDLoc &DL) {

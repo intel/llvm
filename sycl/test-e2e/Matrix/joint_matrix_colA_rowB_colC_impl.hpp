@@ -19,9 +19,12 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = multi_ptr<T2, sycl::access::address_space::global_space>(A);
-  auto pB = multi_ptr<T2, sycl::access::address_space::global_space>(B);
-  auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
+  auto pA = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(A);
+  auto pB = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(B);
+  auto pC = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(C);
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
@@ -48,7 +51,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
              joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN,
                                N);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,

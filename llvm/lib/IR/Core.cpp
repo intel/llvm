@@ -125,10 +125,6 @@ void LLVMContextSetDiscardValueNames(LLVMContextRef C, LLVMBool Discard) {
   unwrap(C)->setDiscardValueNames(Discard);
 }
 
-void LLVMContextSetOpaquePointers(LLVMContextRef C, LLVMBool OpaquePointers) {
-  unwrap(C)->setOpaquePointers(OpaquePointers);
-}
-
 void LLVMContextDispose(LLVMContextRef C) {
   delete unwrap(C);
 }
@@ -1714,16 +1710,6 @@ LLVMValueRef LLVMConstShl(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
                                    unwrap<Constant>(RHSConstant)));
 }
 
-LLVMValueRef LLVMConstLShr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getLShr(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstAShr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getAShr(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
 LLVMValueRef LLVMConstGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal,
                            LLVMValueRef *ConstantIndices, unsigned NumIndices) {
   ArrayRef<Constant *> IdxList(unwrap<Constant>(ConstantIndices, NumIndices),
@@ -1744,46 +1730,6 @@ LLVMValueRef LLVMConstInBoundsGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal,
 LLVMValueRef LLVMConstTrunc(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
   return wrap(ConstantExpr::getTrunc(unwrap<Constant>(ConstantVal),
                                      unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstSExt(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getSExt(unwrap<Constant>(ConstantVal),
-                                    unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstZExt(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getZExt(unwrap<Constant>(ConstantVal),
-                                    unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstFPTrunc(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getFPTrunc(unwrap<Constant>(ConstantVal),
-                                       unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstFPExt(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getFPExtend(unwrap<Constant>(ConstantVal),
-                                        unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstUIToFP(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getUIToFP(unwrap<Constant>(ConstantVal),
-                                      unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstSIToFP(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getSIToFP(unwrap<Constant>(ConstantVal),
-                                      unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstFPToUI(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getFPToUI(unwrap<Constant>(ConstantVal),
-                                      unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstFPToSI(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getFPToSI(unwrap<Constant>(ConstantVal),
-                                      unwrap(ToType)));
 }
 
 LLVMValueRef LLVMConstPtrToInt(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
@@ -1807,18 +1753,6 @@ LLVMValueRef LLVMConstAddrSpaceCast(LLVMValueRef ConstantVal,
                                              unwrap(ToType)));
 }
 
-LLVMValueRef LLVMConstZExtOrBitCast(LLVMValueRef ConstantVal,
-                                    LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getZExtOrBitCast(unwrap<Constant>(ConstantVal),
-                                             unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstSExtOrBitCast(LLVMValueRef ConstantVal,
-                                    LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getSExtOrBitCast(unwrap<Constant>(ConstantVal),
-                                             unwrap(ToType)));
-}
-
 LLVMValueRef LLVMConstTruncOrBitCast(LLVMValueRef ConstantVal,
                                      LLVMTypeRef ToType) {
   return wrap(ConstantExpr::getTruncOrBitCast(unwrap<Constant>(ConstantVal),
@@ -1829,17 +1763,6 @@ LLVMValueRef LLVMConstPointerCast(LLVMValueRef ConstantVal,
                                   LLVMTypeRef ToType) {
   return wrap(ConstantExpr::getPointerCast(unwrap<Constant>(ConstantVal),
                                            unwrap(ToType)));
-}
-
-LLVMValueRef LLVMConstIntCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType,
-                              LLVMBool isSigned) {
-  return wrap(ConstantExpr::getIntegerCast(unwrap<Constant>(ConstantVal),
-                                           unwrap(ToType), isSigned));
-}
-
-LLVMValueRef LLVMConstFPCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType) {
-  return wrap(ConstantExpr::getFPCast(unwrap<Constant>(ConstantVal),
-                                      unwrap(ToType)));
 }
 
 LLVMValueRef LLVMConstExtractElement(LLVMValueRef VectorConstant,
@@ -3536,10 +3459,8 @@ LLVMValueRef LLVMBuildMalloc(LLVMBuilderRef B, LLVMTypeRef Ty,
   Type* ITy = Type::getInt32Ty(unwrap(B)->GetInsertBlock()->getContext());
   Constant* AllocSize = ConstantExpr::getSizeOf(unwrap(Ty));
   AllocSize = ConstantExpr::getTruncOrBitCast(AllocSize, ITy);
-  Instruction* Malloc = CallInst::CreateMalloc(unwrap(B)->GetInsertBlock(),
-                                               ITy, unwrap(Ty), AllocSize,
-                                               nullptr, nullptr, "");
-  return wrap(unwrap(B)->Insert(Malloc, Twine(Name)));
+  return wrap(unwrap(B)->CreateMalloc(ITy, unwrap(Ty), AllocSize, nullptr,
+                                      nullptr, Name));
 }
 
 LLVMValueRef LLVMBuildArrayMalloc(LLVMBuilderRef B, LLVMTypeRef Ty,
@@ -3547,10 +3468,8 @@ LLVMValueRef LLVMBuildArrayMalloc(LLVMBuilderRef B, LLVMTypeRef Ty,
   Type* ITy = Type::getInt32Ty(unwrap(B)->GetInsertBlock()->getContext());
   Constant* AllocSize = ConstantExpr::getSizeOf(unwrap(Ty));
   AllocSize = ConstantExpr::getTruncOrBitCast(AllocSize, ITy);
-  Instruction* Malloc = CallInst::CreateMalloc(unwrap(B)->GetInsertBlock(),
-                                               ITy, unwrap(Ty), AllocSize,
-                                               unwrap(Val), nullptr, "");
-  return wrap(unwrap(B)->Insert(Malloc, Twine(Name)));
+  return wrap(unwrap(B)->CreateMalloc(ITy, unwrap(Ty), AllocSize, unwrap(Val),
+                                      nullptr, Name));
 }
 
 LLVMValueRef LLVMBuildMemSet(LLVMBuilderRef B, LLVMValueRef Ptr,
@@ -3589,8 +3508,7 @@ LLVMValueRef LLVMBuildArrayAlloca(LLVMBuilderRef B, LLVMTypeRef Ty,
 }
 
 LLVMValueRef LLVMBuildFree(LLVMBuilderRef B, LLVMValueRef PointerVal) {
-  return wrap(unwrap(B)->Insert(
-     CallInst::CreateFree(unwrap(PointerVal), unwrap(B)->GetInsertBlock())));
+  return wrap(unwrap(B)->CreateFree(unwrap(PointerVal)));
 }
 
 LLVMValueRef LLVMBuildLoad2(LLVMBuilderRef B, LLVMTypeRef Ty,
@@ -3760,6 +3678,8 @@ LLVMAtomicOrdering LLVMGetOrdering(LLVMValueRef MemAccessInst) {
     O = LI->getOrdering();
   else if (StoreInst *SI = dyn_cast<StoreInst>(P))
     O = SI->getOrdering();
+  else if (FenceInst *FI = dyn_cast<FenceInst>(P))
+    O = FI->getOrdering();
   else
     O = cast<AtomicRMWInst>(P)->getOrdering();
   return mapToLLVMOrdering(O);
@@ -3771,6 +3691,10 @@ void LLVMSetOrdering(LLVMValueRef MemAccessInst, LLVMAtomicOrdering Ordering) {
 
   if (LoadInst *LI = dyn_cast<LoadInst>(P))
     return LI->setOrdering(O);
+  else if (FenceInst *FI = dyn_cast<FenceInst>(P))
+    return FI->setOrdering(O);
+  else if (AtomicRMWInst *ARWI = dyn_cast<AtomicRMWInst>(P))
+    return ARWI->setOrdering(O);
   return cast<StoreInst>(P)->setOrdering(O);
 }
 
@@ -4041,6 +3965,12 @@ LLVMBool LLVMIsAtomicSingleThread(LLVMValueRef AtomicInst) {
 
   if (AtomicRMWInst *I = dyn_cast<AtomicRMWInst>(P))
     return I->getSyncScopeID() == SyncScope::SingleThread;
+  else if (FenceInst *FI = dyn_cast<FenceInst>(P))
+    return FI->getSyncScopeID() == SyncScope::SingleThread;
+  else if (StoreInst *SI = dyn_cast<StoreInst>(P))
+    return SI->getSyncScopeID() == SyncScope::SingleThread;
+  else if (LoadInst *LI = dyn_cast<LoadInst>(P))
+    return LI->getSyncScopeID() == SyncScope::SingleThread;
   return cast<AtomicCmpXchgInst>(P)->getSyncScopeID() ==
              SyncScope::SingleThread;
 }
@@ -4051,6 +3981,12 @@ void LLVMSetAtomicSingleThread(LLVMValueRef AtomicInst, LLVMBool NewValue) {
 
   if (AtomicRMWInst *I = dyn_cast<AtomicRMWInst>(P))
     return I->setSyncScopeID(SSID);
+  else if (FenceInst *FI = dyn_cast<FenceInst>(P))
+    return FI->setSyncScopeID(SSID);
+  else if (StoreInst *SI = dyn_cast<StoreInst>(P))
+    return SI->setSyncScopeID(SSID);
+  else if (LoadInst *LI = dyn_cast<LoadInst>(P))
+    return LI->setSyncScopeID(SSID);
   return cast<AtomicCmpXchgInst>(P)->setSyncScopeID(SSID);
 }
 

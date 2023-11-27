@@ -1,11 +1,11 @@
-// RUN: mlir-opt %s -sparsification | FileCheck %s
+// RUN: mlir-opt %s --sparse-reinterpret-map -sparsification | FileCheck %s
 
 //
 // A SDDMM implementation with "spy" function and
 // in-place update of the sampling sparse matrix.
 //
 
-#SM = #sparse_tensor.encoding<{ lvlTypes = [ "dense", "compressed" ] }>
+#SM = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed) }>
 
 #trait_sampled_dense_dense = {
   indexing_maps = [

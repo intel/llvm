@@ -40,12 +40,11 @@
 
 #include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 
-#include <random>
 #include <optional>
+#include <random>
 
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
-#include "mlir/Dialect/Bufferization/IR/SubsetInsertionOpInterface.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Bufferization/Transforms/Transforms.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -55,6 +54,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/SubsetOpInterface.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -181,40 +181,6 @@ void OneShotAnalysisState::createAliasInfoEntry(Value v) {
   equivalentInfo.insert(v);
 }
 
-// Gather yielded tensors in `yieldedTensors` by querying all aliases. This is
-// to ensure that such information is available during bufferization time.
-// Alias information can no longer be queried once we have started modifying
-// the IR.
-void OneShotAnalysisState::gatherYieldedTensors(Operation *op) {
-  op->walk([&](Operation *returnOp) {
-    if (!isa<RegionBranchTerminatorOpInterface>(returnOp) ||
-        !getOptions().isOpAllowed(returnOp))
-      return WalkResult::advance();
-
-    for (OpOperand &returnValOperand : returnOp->getOpOperands()) {
-      Value returnVal = returnValOperand.get();
-      // Skip non-tensor values.
-      if (!isa<TensorType>(returnVal.getType()))
-        continue;
-
-      // Add all aliases of the returned value. But only the ones that are in
-      // the same block.
-      applyOnAliases(returnVal, [&](Value v) {
-        if (auto bbArg = dyn_cast<BlockArgument>(v)) {
-          if (bbArg.getOwner()->getParentOp() == returnOp->getParentOp())
-            yieldedTensors.insert(bbArg);
-          return;
-        }
-        Operation *definingOp = v.getDefiningOp();
-        if (definingOp->getParentOp() == returnOp->getParentOp())
-          yieldedTensors.insert(v);
-      });
-    }
-
-    return WalkResult::advance();
-  });
-}
-
 void OneShotAnalysisState::gatherUndefinedTensorUses(Operation *op) {
   op->walk([&](Operation *op) {
     // Skip unknown ops.
@@ -244,10 +210,6 @@ bool OneShotAnalysisState::hasUndefinedContents(OpOperand *opOperand) const {
 
 bool OneShotAnalysisState::isInPlace(OpOperand &opOperand) const {
   return inplaceBufferized.contains(&opOperand);
-}
-
-bool OneShotAnalysisState::isTensorYielded(Value tensor) const {
-  return yieldedTensors.contains(tensor);
 }
 
 bool OneShotAnalysisState::isValueWritten(Value value) const {
@@ -1220,8 +1182,8 @@ checkPreBufferizationAssumptions(Operation *op, const DominanceInfo &domInfo,
     // not handled in the analysis.
     if (auto toTensorOp = dyn_cast<ToTensorOp>(op.getOperation())) {
       if (!toTensorOp.getRestrict() && !toTensorOp->getUses().empty()) {
-        op->emitError("to_tensor ops without `restrict` are not supported by "
-                      "One-Shot Analysis");
+        op->emitOpError("to_tensor ops without `restrict` are not supported by "
+                        "One-Shot Analysis");
         return WalkResult::interrupt();
       }
     }
@@ -1233,8 +1195,19 @@ checkPreBufferizationAssumptions(Operation *op, const DominanceInfo &domInfo,
                 /*checkConsistencyOnly=*/true)) {
           // This error can happen if certain "mustBufferizeInPlace" interface
           // methods are implemented incorrectly, such that the IR already has
-          // a RaW conflict before making any bufferization decisions.
-          op->emitError("input IR has RaW conflict");
+          // a RaW conflict before making any bufferization decisions. It can
+          // also happen if the bufferization.materialize_in_destination is used
+          // in such a way that a RaW conflict is not avoidable.
+          op->emitOpError("not bufferizable under the given constraints: "
+                          "cannot avoid RaW conflict");
+          return WalkResult::interrupt();
+        }
+
+        if (state.isInPlace(opOperand) &&
+            wouldCreateWriteToNonWritableBuffer(
+                opOperand, state, /*checkConsistencyOnly=*/true)) {
+          op->emitOpError("not bufferizable under the given constraints: would "
+                          "write to read-only buffer");
           return WalkResult::interrupt();
         }
       }
@@ -1307,82 +1280,6 @@ static void annotateOpsWithAliasSets(Operation *op,
   });
 }
 
-/// Assert that every allocation can be deallocated in the same block. I.e.,
-/// every value that is returned or yielded from a block is:
-/// * guaranteed to be aliasing a bbArg of that block or a parent block, or
-/// * guaranteed to be aliasing an OpResult of a op in a parent block.
-///
-/// In that case, buffer deallocation is simple: Every allocated buffer can be
-/// deallocated in the same block. Otherwise, the buffer deallocation pass must
-/// be run.
-///
-/// Note: The current implementation checks for equivalent values instead of
-/// aliasing values, which is stricter than needed. We can currently not check
-/// for aliasing values because the analysis is a maybe-alias analysis and we
-/// need a must-alias analysis here.
-///
-/// Example:
-/// ```
-/// %0 = "some_op" : tensor<?xf32>
-/// %1 = scf.if %c -> (tensor<?xf32>) {
-///   scf.yield %0 : tensor<?xf32>
-/// } else {
-///   %t = linalg.alloc_tensor : tensor<?xf32>
-///   scf.yield %t : tensor<?xf32>
-/// }
-/// ```
-///
-/// In the above example, the second scf.yield op is problematic because the
-/// yielded value %t is defined in the same block as the scf.yield op and
-/// and bufferizes to a new allocation.
-// TODO: Remove buffer deallocation from One-Shot Bufferize and fix the buffer
-// deallocation pass.
-static LogicalResult assertNoAllocsReturned(Operation *op,
-                                            const OneShotAnalysisState &state) {
-  LogicalResult status = success();
-  DominanceInfo domInfo(op);
-  op->walk([&](Operation *returnOp) {
-    if (!isa<RegionBranchTerminatorOpInterface>(returnOp) ||
-        !state.getOptions().isOpAllowed(returnOp))
-      return WalkResult::advance();
-
-    for (OpOperand &returnValOperand : returnOp->getOpOperands()) {
-      Value returnVal = returnValOperand.get();
-      // Skip non-tensor values.
-      if (!isa<TensorType>(returnVal.getType()))
-        continue;
-
-      bool foundEquivValue = false;
-      state.applyOnEquivalenceClass(returnVal, [&](Value equivVal) {
-        if (auto bbArg = dyn_cast<BlockArgument>(equivVal)) {
-          Operation *definingOp = bbArg.getOwner()->getParentOp();
-          if (definingOp->isProperAncestor(returnOp))
-            foundEquivValue = true;
-          return;
-        }
-
-        Operation *definingOp = equivVal.getDefiningOp();
-        if (definingOp->getBlock()->findAncestorOpInBlock(
-                *returnOp->getParentOp()))
-          // Skip ops that happen after `returnOp` and parent ops.
-          if (happensBefore(definingOp, returnOp, domInfo))
-            foundEquivValue = true;
-      });
-
-      // Note: Returning/yielding buffer allocations is allowed only if
-      // `allowReturnAllocs` is set.
-      if (!foundEquivValue)
-        status = returnOp->emitError()
-                 << "operand #" << returnValOperand.getOperandNumber()
-                 << " may return/yield a new buffer allocation";
-    }
-
-    return WalkResult::advance();
-  });
-
-  return status;
-}
-
 LogicalResult bufferization::analyzeOp(Operation *op,
                                        OneShotAnalysisState &state,
                                        BufferizationStatistics *statistics) {
@@ -1402,11 +1299,8 @@ LogicalResult bufferization::analyzeOp(Operation *op,
   }
 
   bool failedAnalysis = false;
-  if (!options.allowReturnAllocs)
-    failedAnalysis |= failed(assertNoAllocsReturned(op, state));
 
   // Gather some extra analysis data.
-  state.gatherYieldedTensors(op);
   state.gatherUndefinedTensorUses(op);
 
   // Analysis verification: After setting up alias/equivalence sets, each op
@@ -1440,6 +1334,5 @@ bufferization::runOneShotBufferize(Operation *op,
   }
   if (options.testAnalysisOnly)
     return success();
-  return bufferizeOp(op, options, /*copyBeforeWrite=*/options.copyBeforeWrite,
-                     /*opFilter=*/nullptr, statistics);
+  return bufferizeOp(op, options, statistics);
 }

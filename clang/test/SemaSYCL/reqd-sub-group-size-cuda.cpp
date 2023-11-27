@@ -9,7 +9,7 @@ int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &h) {
-    h.single_task<class invalid_kernel>([=] [[sycl::reqd_sub_group_size(8)]] {}); // expected-warning {{attribute argument 8 is invalid and will be ignored; CUDA requires sub_group size 32}}
+    h.single_task<class invalid_kernel>([=] [[sycl::reqd_sub_group_size(8)]] {}); // expected-warning {{attribute argument 8 is invalid and will be ignored; nvptx requires sub_group size 32}}
   });
 
   Q.submit([&](sycl::handler &h) {

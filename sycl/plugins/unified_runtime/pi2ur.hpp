@@ -345,7 +345,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   /* Helper function to perform conversions in-place */
   ConvertHelper Value(ParamValueSize, ParamValue, ParamValueSizeRet);
 
-  pi_result error = PI_SUCCESS;
+  pi_result Error = PI_SUCCESS;
   if (ParamName == UR_DEVICE_INFO_TYPE) {
     auto ConvertFunc = [](ur_device_type_t UrValue) {
       switch (UrValue) {
@@ -437,25 +437,24 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
                   sizeof(ur_device_partition_property_t),
               PI_ERROR_UNKNOWN);
 
-    const uint32_t ur_number_elements =
+    const uint32_t UrNumberElements =
         *ParamValueSizeRet / sizeof(ur_device_partition_property_t);
 
     if (ParamValue) {
-      auto param_value_copy =
-          std::make_unique<ur_device_partition_property_t[]>(
-              ur_number_elements);
-      std::memcpy(param_value_copy.get(), ParamValue,
-                  ur_number_elements * sizeof(ur_device_partition_property_t));
+      auto ParamValueCopy =
+          std::make_unique<ur_device_partition_property_t[]>(UrNumberElements);
+      std::memcpy(ParamValueCopy.get(), ParamValue,
+                  UrNumberElements * sizeof(ur_device_partition_property_t));
       pi_device_partition_property *pValuePI =
           reinterpret_cast<pi_device_partition_property *>(ParamValue);
       ur_device_partition_property_t *pValueUR =
           reinterpret_cast<ur_device_partition_property_t *>(
-              param_value_copy.get());
-      const ur_device_partition_t type = pValueUR->type;
-      *pValuePI = ConvertFunc(type);
+              ParamValueCopy.get());
+      const ur_device_partition_t Type = pValueUR->type;
+      *pValuePI = ConvertFunc(Type);
       ++pValuePI;
 
-      for (uint32_t i = 0; i < ur_number_elements; ++i) {
+      for (uint32_t i = 0; i < UrNumberElements; ++i) {
         switch (pValueUR->type) {
         case UR_DEVICE_PARTITION_EQUALLY: {
           *pValuePI = pValueUR->value.equally;
@@ -486,7 +485,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
       /* Add 2 extra elements to the return value (one for the type at the
        * beginning and another to terminate the array with a 0 */
       *ParamValueSizeRet =
-          (ur_number_elements + 2) * sizeof(pi_device_partition_property);
+          (UrNumberElements + 2) * sizeof(pi_device_partition_property);
     }
   }
 
@@ -616,7 +615,7 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
             (int)ParamValueSize, (int)*ParamValueSizeRet);
     die("ur2piDeviceInfoValue: size mismatch");
   }
-  return error;
+  return Error;
 }
 
 inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
@@ -1498,9 +1497,7 @@ inline pi_result piextContextCreateWithNativeHandle(
     pi_native_handle NativeHandle, pi_uint32 NumDevices,
     const pi_device *Devices, bool OwnNativeHandle, pi_context *RetContext) {
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(Devices, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(NumDevices, PI_ERROR_INVALID_VALUE);
 
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
@@ -1509,8 +1506,9 @@ inline pi_result piextContextCreateWithNativeHandle(
   ur_context_handle_t *UrContext =
       reinterpret_cast<ur_context_handle_t *>(RetContext);
 
-  ur_context_native_properties_t Properties{};
-  Properties.isNativeHandleOwned = OwnNativeHandle;
+  ur_context_native_properties_t Properties{
+      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
+
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
       NativeContext, NumDevices, UrDevices, &Properties, UrContext));
 
@@ -1987,10 +1985,17 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(RetProgram);
 
-  HANDLE_ERRORS(urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
-                              Options, UrProgram));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
+                       UrInputPrograms, Options, UrProgram);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
+                             Options, UrProgram);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piProgramCompile(
@@ -2019,9 +2024,15 @@ inline pi_result piProgramCompile(
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramCompile(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramCompileExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramCompile(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result
@@ -2052,9 +2063,14 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramBuild(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult = urProgramBuildExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramBuild(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piextProgramSetSpecializationConstant(pi_program Program,
@@ -2215,8 +2231,6 @@ inline pi_result
 piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                   pi_context Context, pi_program Program,
                                   bool OwnNativeHandle, pi_kernel *Kernel) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
@@ -2340,8 +2354,18 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
-    break;
+    size_t NumArgs = 0;
+    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
+                                  sizeof(NumArgs), &NumArgs, nullptr));
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(uint32_t);
+    }
+    if (ParamValue) {
+      if (ParamValueSize != sizeof(uint32_t))
+        return PI_ERROR_INVALID_BUFFER_SIZE;
+      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
+    }
+    return PI_SUCCESS;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;
@@ -2462,7 +2486,6 @@ inline pi_result piProgramRelease(pi_program Program) {
 inline pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
                                           size_t, const void *ArgValue) {
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-
   HANDLE_ERRORS(urKernelSetArgPointer(UrKernel, ArgIndex, nullptr, ArgValue));
 
   return PI_SUCCESS;
@@ -3302,8 +3325,8 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 ///
 /// \param queue is the queue to submit to
 /// \param ptr is the ptr to fill
-/// \param pitch is the total width of the destination memory including padding
-/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pitch is the total width of the destination memory including
+/// padding \param pattern is a pointer with the bytes of the pattern to set
 /// \param pattern_size is the size in bytes of the pattern
 /// \param width is width in bytes of each row to fill
 /// \param height is height the columns to fill

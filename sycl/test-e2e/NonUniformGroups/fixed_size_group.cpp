@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 // REQUIRES: gpu
+// UNSUPPORTED: hip
 // REQUIRES: sg-32
 
 #include <sycl/sycl.hpp>

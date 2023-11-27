@@ -1216,7 +1216,7 @@ caveats to this use of name mangling:
 * The ``overloadable`` attribute has almost no meaning when used in C++,
   because names will already be mangled and functions are already overloadable.
   However, when an ``overloadable`` function occurs within an ``extern "C"``
-  linkage specification, it's name *will* be mangled in the same way as it
+  linkage specification, its name *will* be mangled in the same way as it
   would in C.
 
 For the purpose of backwards compatibility, at most one function with the same
@@ -1458,6 +1458,10 @@ Example usage:
 
 ``[[no_unique_address]]`` is a standard C++20 attribute. Clang supports its use
 in C++11 onwards.
+
+On MSVC targets, ``[[no_unique_address]]`` is ignored; use
+``[[msvc::no_unique_address]]`` instead. Currently there is no guarantee of ABI
+compatibility or stability with MSVC.
   }];
 }
 
@@ -3013,6 +3017,65 @@ In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::min_work_groups_per_cu";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired minimum
+number of resident work_groups per multiprocessor. It complies to the
+.minnctapersm PTX directive.
+
+.. code-block:: c++
+
+  [[intel::min_work_groups_per_cu(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::min_work_groups_per_cu(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::min_work_groups_per_cu(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::min_work_groups_per_cu(N)]] void func() {}
+
+  }];
+}
+
+def SYCLIntelMaxWorkGroupsPerMultiprocessorDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::max_work_groups_per_mp";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired maximum
+number work_groups per cluster with which the application will ever launch. It
+complies to the .maxclusterrank PTX directive. Note, that the feature requires
+SM_90 or higher.
+
+.. code-block:: c++
+
+  [[intel::max_work_groups_per_mp(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::max_work_groups_per_mp(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::max_work_groups_per_mp(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::max_work_groups_per_mp(N)]] void func() {}
+
+  }];
+}
+
 def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::max_global_work_dim";
@@ -3357,11 +3420,10 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop or a function. Takes no arguments and
-disables pipelining of the loop or function data path, causing the loop
-or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
-``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
-``enable_loop_pipelining`` attribute.
+indicates whether the kernel should be pipelined or not. Cannot be used on the
+same loop or function, or in conjunction with ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, ``ivdep``,
+``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -4372,6 +4434,18 @@ allows the caller to align the parameter memory.
 See the documentation for `__vectorcall`_ on MSDN for more details.
 
 .. _`__vectorcall`: http://msdn.microsoft.com/en-us/library/dn375768.aspx
+  }];
+}
+
+def M68kRTDDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On M68k targets, this attribute changes the calling convention of a function
+to clear parameters off the stack on return. In other words, callee is
+responsible for cleaning out the stack space allocated for incoming paramters.
+This convention does not support variadic calls or unprototyped functions in C.
+When targeting M68010 or newer CPUs, this calling convention is implemented
+using the `rtd` instruction.
   }];
 }
 
@@ -6445,6 +6519,54 @@ Marking virtual functions as ``disable_tail_calls`` is legal.
     };
 
   }];
+}
+
+def AnyX86InterruptDocs : Documentation {
+    let Category = DocCatFunction;
+    let Heading = "interrupt (X86)";
+    let Content = [{
+Clang supports the GNU style ``__attribute__((interrupt))`` attribute on X86
+targets. This attribute may be attached to a function definition and instructs
+the backend to generate appropriate function entry/exit code so that it can be
+used directly as an interrupt service routine.
+
+Interrupt handlers have access to the stack frame pushed onto the stack by the processor,
+and return using the ``IRET`` instruction. All registers in an interrupt handler are callee-saved.
+Exception handlers also have access to the error code pushed onto the stack by the processor,
+when applicable.
+
+An interrupt handler must take the following arguments:
+
+  .. code-block:: c
+
+   __attribute__ ((interrupt))
+   void f (struct stack_frame *frame) {
+       ...
+   }
+
+  Where ``struct stack_frame`` is a suitable struct matching the stack frame pushed by the
+  processor.
+
+An exception handler must take the following arguments:
+
+  .. code-block:: c
+
+   __attribute__ ((interrupt))
+   void g (struct stack_frame *frame, unsigned long code) {
+       ...
+   }
+
+  On 32-bit targets, the ``code`` argument should be of type ``unsigned int``.
+
+Exception handlers should only be used when an error code is pushed by the processor.
+Using the incorrect handler type will crash the system.
+
+Interrupt and exception handlers cannot be called by other functions and must have return type ``void``.
+
+Interrupt and exception handlers should only call functions with the 'no_caller_saved_registers'
+attribute, or should be compiled with the '-mgeneral-regs-only' flag to avoid saving unused
+non-GPR registers.
+    }];
 }
 
 def AnyX86NoCallerSavedRegistersDocs : Documentation {
@@ -8813,6 +8935,69 @@ its underlying representation to be a WebAssembly ``funcref``.
   }];
 }
 
+def PreferredTypeDocumentation : Documentation {
+  let Category = DocCatField;
+  let Content = [{
+This attribute allows adjusting the type of a bit-field in debug information.
+This can be helpful when a bit-field is intended to store an enumeration value,
+but has to be specified as having the enumeration's underlying type in order to
+facilitate compiler optimizations or bit-field packing behavior. Normally, the
+underlying type is what is emitted in debug information, which can make it hard
+for debuggers to know to map a bit-field's value back to a particular enumeration.
+
+.. code-block:: c++
+
+    enum Colors { Red, Green, Blue };
+
+    struct S {
+      [[clang::preferred_type(Colors)]] unsigned ColorVal : 2;
+      [[clang::preferred_type(bool)]] unsigned UseAlternateColorSpace : 1;
+    } s = { Green, false };
+
+Without the attribute, a debugger is likely to display the value ``1`` for ``ColorVal``
+and ``0`` for ``UseAlternateColorSpace``. With the attribute, the debugger may now
+display ``Green`` and ``false`` instead.
+
+This can be used to map a bit-field to an arbitrary type that isn't integral
+or an enumeration type. For example:
+
+.. code-block:: c++
+
+    struct A {
+      short a1;
+      short a2;
+    };
+
+    struct B {
+      [[clang::preferred_type(A)]] unsigned b1 : 32 = 0x000F'000C;
+    };
+
+will associate the type ``A`` with the ``b1`` bit-field and is intended to display
+something like this in the debugger:
+
+.. code-block:: text
+
+    Process 2755547 stopped
+    * thread #1, name = 'test-preferred-', stop reason = step in
+        frame #0: 0x0000555555555148 test-preferred-type`main at test.cxx:13:14
+       10   int main()
+       11   {
+       12       B b;
+    -> 13       return b.b1;
+       14   }
+    (lldb) v -T
+    (B) b = {
+      (A:32) b1 = {
+        (short) a1 = 12
+        (short) a2 = 15
+      }
+    }
+
+Note that debuggers may not be able to handle more complex mappings, and so
+this usage is debugger-dependent.
+  }];
+}
+
 def CleanupDocs : Documentation {
   let Category = DocCatType;
   let Content = [{
@@ -8838,4 +9023,166 @@ the same scope, their ``cleanup`` callbacks are invoked in the reverse order
 the variables were declared in. It is not possible to check the return value
 (if any) of these ``cleanup`` callback functions.
 }];
+}
+
+def CtorDtorDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``constructor`` attribute causes the function to be called before entering
+``main()``, and the ``destructor`` attribute causes the function to be called
+after returning from ``main()`` or when the ``exit()`` function has been
+called. Note, ``quick_exit()``, ``_Exit()``, and ``abort()`` prevent a function
+marked ``destructor`` from being called.
+
+The constructor or destructor function should not accept any arguments and its
+return type should be ``void``.
+
+The attributes accept an optional argument used to specify the priority order
+in which to execute constructor and destructor functions. The priority is
+given as an integer constant expression between 101 and 65535 (inclusive).
+Priorities outside of that range are reserved for use by the implementation. A
+lower value indicates a higher priority of initialization. Note that only the
+relative ordering of values is important. For example:
+
+.. code-block:: c++
+
+  __attribute__((constructor(200))) void foo(void);
+  __attribute__((constructor(101))) void bar(void);
+
+``bar()`` will be called before ``foo()``, and both will be called before
+``main()``. If no argument is given to the ``constructor`` or ``destructor``
+attribute, they default to the value ``65535``.
+}];
+}
+
+def CountedByDocs : Documentation {
+  let Category = DocCatField;
+  let Content = [{
+Clang supports the ``counted_by`` attribute on the flexible array member of a
+structure in C. The argument for the attribute is the name of a field member in
+the same structure holding the count of elements in the flexible array. This
+information can be used to improve the results of the array bound sanitizer and
+the ``__builtin_dynamic_object_size`` builtin.
+
+For example, the following code:
+
+.. code-block:: c
+
+  struct bar;
+
+  struct foo {
+    size_t count;
+    char other;
+    struct bar *array[] __attribute__((counted_by(count)));
+  };
+
+specifies that the flexible array member ``array`` has the number of elements
+allocated for it stored in ``count``. This establishes a relationship between
+``array`` and ``count``. Specifically, ``p->array`` must have at least
+``p->count`` number of elements available. It's the user's responsibility to
+ensure that this relationship is maintained through changes to the structure.
+
+In the following example, the allocated array erroneously has fewer elements
+than what's specified by ``p->count``. This would result in an out-of-bounds
+access not being detected.
+
+.. code-block:: c
+
+  #define SIZE_INCR 42
+
+  struct foo *p;
+
+  void foo_alloc(size_t count) {
+    p = malloc(MAX(sizeof(struct foo),
+                   offsetof(struct foo, array[0]) + count * sizeof(struct bar *)));
+    p->count = count + SIZE_INCR;
+  }
+
+The next example updates ``p->count``, breaking the relationship requirement
+that ``p->array`` must have at least ``p->count`` number of elements available:
+
+.. code-block:: c
+
+  #define SIZE_INCR 42
+
+  struct foo *p;
+
+  void foo_alloc(size_t count) {
+    p = malloc(MAX(sizeof(struct foo),
+                   offsetof(struct foo, array[0]) + count * sizeof(struct bar *)));
+    p->count = count;
+  }
+
+  void use_foo(int index) {
+    p->count += SIZE_INCR + 1; /* 'count' is now larger than the number of elements of 'array'. */
+    p->array[index] = 0;       /* the sanitizer can't properly check if this is an out-of-bounds access. */
+  }
+
+  }];
+}
+
+def CoroOnlyDestroyWhenCompleteDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The `coro_only_destroy_when_complete` attribute should be marked on a C++ class. The coroutines
+whose return type is marked with the attribute are assumed to be destroyed only after the coroutine has
+reached the final suspend point.
+
+This is helpful for the optimizers to reduce the size of the destroy function for the coroutines.
+
+For example,
+
+.. code-block:: c++
+
+  A foo() {
+    dtor d;
+    co_await something();
+    dtor d1;
+    co_await something();
+    dtor d2;
+    co_return 43;
+  }
+
+The compiler may generate the following pseudocode:
+
+.. code-block:: c++
+
+  void foo.destroy(foo.Frame *frame) {
+    switch(frame->suspend_index()) {
+      case 1:
+        frame->d.~dtor();
+        break;
+      case 2:
+        frame->d.~dtor();
+        frame->d1.~dtor();
+        break;
+      case 3:
+        frame->d.~dtor();
+        frame->d1.~dtor();
+        frame->d2.~dtor();
+        break;
+      default: // coroutine completed or haven't started
+        break;
+    }
+
+    frame->promise.~promise_type();
+    delete frame;
+  }
+
+The `foo.destroy()` function's purpose is to release all of the resources
+initialized for the coroutine when it is destroyed in a suspended state.
+However, if the coroutine is only ever destroyed at the final suspend state,
+the rest of the conditions are superfluous.
+
+The user can use the `coro_only_destroy_when_complete` attributo suppress
+generation of the other destruction cases, optimizing the above `foo.destroy` to:
+
+.. code-block:: c++
+
+  void foo.destroy(foo.Frame *frame) {
+    frame->promise.~promise_type();
+    delete frame;
+  }
+
+  }];
 }

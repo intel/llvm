@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
 
 #include <sycl/sycl.hpp>
 
@@ -57,7 +57,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.row.row.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -88,7 +88,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.mma.col.col.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -119,7 +119,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.row.row.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -150,7 +150,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.mma.col.col.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -181,7 +181,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.row.row.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -212,7 +212,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               stride);
           // CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.mma.col.col.bf16(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
-          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.f32.p1(ptr addrspace(1) %{{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),

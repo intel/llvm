@@ -111,8 +111,7 @@ template <typename T, int N, int Op> bool test_impl(queue q) {
     }
     T gold = Gold[Op * num_vals + i];
     T val = res[i];
-    std::cout << "  " << ops[Op] << "(" << (simd<ValTy, N>)test_vals_arr[i]
-              << ") = " << (ValTy)val;
+    std::cout << "  " << ops[Op];
 
     if (val != gold) {
       ++err_cnt;

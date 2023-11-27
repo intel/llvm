@@ -18,6 +18,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -595,7 +596,7 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)
 
 // This macro is only for Intel GPU architectures
-#define INTEL_ARCHES(X)                                                        \
+#define INTEL_GPU_ARCHES(X)                                                    \
   X(0x02000000, oneapi_exp_arch::intel_gpu_bdw)                                \
   X(0x02400009, oneapi_exp_arch::intel_gpu_skl)                                \
   X(0x02404009, oneapi_exp_arch::intel_gpu_kbl)                                \
@@ -618,6 +619,13 @@ struct get_device_info_impl<range<Dimensions>,
   X(0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12)                            \
   X(0x030f0007, oneapi_exp_arch::intel_gpu_pvc)
 
+// This macro is only for Intel CPU architectures
+// TODO: extend the macro with other CPU architectures when they will be added
+// to ext_oneapi_device_architecture
+#define INTEL_CPU_ARCHES(X)                                                    \
+  X(8, oneapi_exp_arch::intel_cpu_spr)                                         \
+  X(9, oneapi_exp_arch::intel_cpu_gnr)
+
 #define CMP_NVIDIA_AMD(s, i)                                                   \
   if (strcmp(s, arch) == 0)                                                    \
     return i;
@@ -636,7 +644,7 @@ struct get_device_info_impl<
     if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
                           backend::opencl == CurrentBackend)) {
       auto MapArchIDToArchName = [](const int arch) {
-        INTEL_ARCHES(CMP_INTEL);
+        INTEL_GPU_ARCHES(CMP_INTEL);
         throw sycl::exception(
             make_error_code(errc::runtime),
             "The current device architecture is not supported by "
@@ -666,11 +674,22 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
-      return MapArchIDToArchName(DeviceArch.get());
+      std::string DeviceArchCopy(DeviceArch.get());
+      std::string DeviceArchSubstr =
+          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
-      // TODO: add support of different CPU architectures to
-      // sycl_ext_oneapi_device_architecture
-      return sycl::ext::oneapi::experimental::architecture::x86_64;
+      auto MapArchIDToArchName = [](const int arch) {
+        INTEL_CPU_ARCHES(CMP_INTEL);
+        return sycl::ext::oneapi::experimental::architecture::x86_64;
+      };
+      uint32_t DeviceIp;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<
+              ext::oneapi::experimental::info::device::architecture>::value,
+          sizeof(DeviceIp), &DeviceIp, nullptr);
+      return MapArchIDToArchName(DeviceIp);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
     // Generating a user-friendly error message
@@ -688,6 +707,83 @@ struct get_device_info_impl<
         << DeviceStr << " device with sycl::backend::" << CurrentBackend
         << " backend.";
     throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
+  }
+};
+
+template <>
+struct get_device_info_impl<
+    std::vector<ext::oneapi::experimental::matrix::combination>,
+    ext::oneapi::experimental::info::device::matrix_combinations> {
+  static std::vector<ext::oneapi::experimental::matrix::combination>
+  get(const DeviceImplPtr &Dev) {
+    using namespace ext::oneapi::experimental::matrix;
+    using namespace ext::oneapi::experimental;
+    architecture DeviceArch = get_device_info_impl<
+        ext::oneapi::experimental::architecture,
+        ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    if (architecture::intel_cpu_spr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::intel_cpu_gnr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::intel_gpu_pvc == DeviceArch)
+      return {
+          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
+             (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
+             (architecture::intel_gpu_dg2_g12 == DeviceArch))
+      return {
+          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    return {};
   }
 };
 
@@ -903,11 +999,12 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-    // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
-    // and LevelZero.
+    // Currently fusion is only supported for SPIR-V based backends,
+    // CUDA and HIP.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
            (Dev->getBackend() == backend::opencl) ||
-           (Dev->getBackend() == backend::ext_oneapi_cuda);
+           (Dev->getBackend() == backend::ext_oneapi_cuda) ||
+           (Dev->getBackend() == backend::ext_oneapi_hip);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;
@@ -1879,6 +1976,15 @@ template <>
 inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
   throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::matrix::combination>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::matrix_combinations>() {
+  throw runtime_error("Obtaining matrix combinations is not "
                       "supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }

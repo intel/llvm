@@ -1,10 +1,10 @@
-// RUN: mlir-opt %s -sparsification -cse -split-input-file | \
+// RUN: mlir-opt %s --sparse-reinterpret-map -sparsification -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SCALAR
-// RUN: mlir-opt %s -sparsification -cse -sparse-vectorization="vl=16" -cse -split-input-file | \
+// RUN: mlir-opt %s --sparse-reinterpret-map --sparse-reinterpret-map -sparsification -cse -sparse-vectorization="vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC16
-// RUN: mlir-opt %s -sparsification -cse -sparse-vectorization="vl=16 enable-simd-index32=true" -cse -split-input-file | \
+// RUN: mlir-opt %s --sparse-reinterpret-map -sparsification -cse -sparse-vectorization="vl=16 enable-simd-index32=true" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC16-IDX32
-// RUN: mlir-opt %s -sparsification -cse -sparse-vectorization="vl=4 enable-vla-vectorization=true" -cse -split-input-file | \
+// RUN: mlir-opt %s --sparse-reinterpret-map -sparsification -cse -sparse-vectorization="vl=4 enable-vla-vectorization=true" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC4-SVE
 
 #DenseVector = #sparse_tensor.encoding<{ map = (d0) -> (d0 : dense) }>
@@ -309,7 +309,7 @@ func.func @reduction_d(%arga: tensor<1024xf32, #DenseVector>,
 // -----
 
 #SparseMatrix = #sparse_tensor.encoding<{
-  lvlTypes = [ "dense", "compressed" ],
+  map = (d0, d1) -> (d0 : dense, d1 : compressed),
   posWidth = 32,
   crdWidth = 32
 }>
@@ -448,7 +448,7 @@ func.func @mul_ds(%arga: tensor<512x1024xf32, #SparseMatrix>,
 
 // -----
 
-#SparseMatrix = #sparse_tensor.encoding<{lvlTypes = ["dense","compressed"]}>
+#SparseMatrix = #sparse_tensor.encoding<{map = (d0, d1) -> (d0 : dense, d1 : compressed)}>
 
 #trait_affine = {
   indexing_maps = [

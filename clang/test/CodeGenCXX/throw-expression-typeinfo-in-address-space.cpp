@@ -1,4 +1,3 @@
-// XFAIL: *
 // RUN: %clang_cc1 %s -triple amdgcn-amd-amdhsa -emit-llvm -fcxx-exceptions -fexceptions -std=c++11 -o - | FileCheck %s
 
 struct X {
