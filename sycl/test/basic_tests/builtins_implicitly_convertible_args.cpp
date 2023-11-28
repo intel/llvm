@@ -23,7 +23,7 @@ template <typename T> struct ImplicitlyConvertibleType {
   UNARY_CHECK_INNER(FUNC_NAME, sycl::half)                                     \
   UNARY_CHECK_INNER(FUNC_NAME, double)
 
-#define UGENINT_GEQ8BIT_UNARY_CHECK(FUNC_NAME)                                 \
+#define UGENINT_GEQ16BIT_UNARY_CHECK(FUNC_NAME)                                \
   UNARY_CHECK_INNER(FUNC_NAME, unsigned int)                                   \
   UNARY_CHECK_INNER(FUNC_NAME, unsigned short)                                 \
   UNARY_CHECK_INNER(FUNC_NAME, unsigned long)
@@ -100,7 +100,7 @@ void check() {
   GENFLOAT_TRINARY_CHECK(mad)
   GENFLOAT_BINARY_CHECK(maxmag)
   GENFLOAT_BINARY_CHECK(minmag)
-  UGENINT_GEQ8BIT_UNARY_CHECK(nan)
+  UGENINT_GEQ16BIT_UNARY_CHECK(nan)
   GENFLOAT_BINARY_CHECK(nextafter)
   GENFLOAT_BINARY_CHECK(pow)
   GENFLOAT_BINARY_CHECK(powr)
