@@ -177,14 +177,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  const size_t BufferOrigin[3] = {bufferOrigin.x, bufferOrigin.y,
+                                  bufferOrigin.z};
+  const size_t HostOrigin[3] = {hostOrigin.x, hostOrigin.y, hostOrigin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueReadBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_mem>(hBuffer), blockingRead,
-      cl_adapter::cast<const size_t *>(&bufferOrigin),
-      cl_adapter::cast<const size_t *>(&hostOrigin),
-      cl_adapter::cast<const size_t *>(&region), bufferRowPitch,
-      bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList,
+      cl_adapter::cast<cl_mem>(hBuffer), blockingRead, BufferOrigin, HostOrigin,
+      Region, bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
+      pDst, numEventsInWaitList,
       cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 
@@ -201,14 +203,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  const size_t BufferOrigin[3] = {bufferOrigin.x, bufferOrigin.y,
+                                  bufferOrigin.z};
+  const size_t HostOrigin[3] = {hostOrigin.x, hostOrigin.y, hostOrigin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueWriteBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_mem>(hBuffer), blockingWrite,
-      cl_adapter::cast<const size_t *>(&bufferOrigin),
-      cl_adapter::cast<const size_t *>(&hostOrigin),
-      cl_adapter::cast<const size_t *>(&region), bufferRowPitch,
-      bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList,
+      cl_adapter::cast<cl_mem>(hBuffer), blockingWrite, BufferOrigin,
+      HostOrigin, Region, bufferRowPitch, bufferSlicePitch, hostRowPitch,
+      hostSlicePitch, pSrc, numEventsInWaitList,
       cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 
@@ -245,16 +249,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  const size_t SrcOrigin[3] = {srcOrigin.x, srcOrigin.y, srcOrigin.z};
+  const size_t DstOrigin[3] = {dstOrigin.x, dstOrigin.y, dstOrigin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueCopyBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBufferSrc),
-      cl_adapter::cast<cl_mem>(hBufferDst),
-      cl_adapter::cast<const size_t *>(&srcOrigin),
-      cl_adapter::cast<const size_t *>(&dstOrigin),
-      cl_adapter::cast<const size_t *>(&region), srcRowPitch, srcSlicePitch,
-      dstRowPitch, dstSlicePitch, numEventsInWaitList,
-      cl_adapter::cast<const cl_event *>(phEventWaitList),
+      cl_adapter::cast<cl_mem>(hBufferDst), SrcOrigin, DstOrigin, Region,
+      srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+      numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 
   if (ClErr == CL_INVALID_VALUE) {
@@ -331,13 +335,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  const size_t Origin[3] = {origin.x, origin.y, origin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueReadImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_mem>(hImage), blockingRead,
-      cl_adapter::cast<const size_t *>(&origin),
-      cl_adapter::cast<const size_t *>(&region), rowPitch, slicePitch, pDst,
-      numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
+      cl_adapter::cast<cl_mem>(hImage), blockingRead, Origin, Region, rowPitch,
+      slicePitch, pDst, numEventsInWaitList,
+      cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 
   if (ClErr == CL_INVALID_VALUE) {
@@ -351,13 +356,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  const size_t Origin[3] = {origin.x, origin.y, origin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueWriteImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_mem>(hImage), blockingWrite,
-      cl_adapter::cast<const size_t *>(&origin),
-      cl_adapter::cast<const size_t *>(&region), rowPitch, slicePitch, pSrc,
-      numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
+      cl_adapter::cast<cl_mem>(hImage), blockingWrite, Origin, Region, rowPitch,
+      slicePitch, pSrc, numEventsInWaitList,
+      cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 
   if (ClErr == CL_INVALID_VALUE) {
@@ -372,13 +378,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_rect_offset_t dstOrigin, ur_rect_region_t region,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  const size_t SrcOrigin[3] = {srcOrigin.x, srcOrigin.y, srcOrigin.z};
+  const size_t DstOrigin[3] = {dstOrigin.x, dstOrigin.y, dstOrigin.z};
+  const size_t Region[3] = {region.width, region.height, region.depth};
 
   auto ClErr = clEnqueueCopyImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hImageSrc), cl_adapter::cast<cl_mem>(hImageDst),
-      cl_adapter::cast<const size_t *>(&srcOrigin),
-      cl_adapter::cast<const size_t *>(&dstOrigin),
-      cl_adapter::cast<const size_t *>(&region), numEventsInWaitList,
+      SrcOrigin, DstOrigin, Region, numEventsInWaitList,
       cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent));
 

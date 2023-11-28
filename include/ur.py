@@ -6,7 +6,7 @@
  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
  @file ur.py
- @version v0.8-r0
+ @version v0.9-r0
 
  """
 import platform
@@ -187,25 +187,25 @@ class ur_function_v(IntEnum):
     ADAPTER_RETAIN = 179                            ## Enumerator for ::urAdapterRetain
     ADAPTER_GET_LAST_ERROR = 180                    ## Enumerator for ::urAdapterGetLastError
     ADAPTER_GET_INFO = 181                          ## Enumerator for ::urAdapterGetInfo
-    LOADER_INIT = 182                               ## Enumerator for ::urLoaderInit
-    LOADER_TEAR_DOWN = 183                          ## Enumerator for ::urLoaderTearDown
-    COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 184      ## Enumerator for ::urCommandBufferAppendUSMMemcpyExp
-    COMMAND_BUFFER_APPEND_USM_FILL_EXP = 185        ## Enumerator for ::urCommandBufferAppendUSMFillExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 186 ## Enumerator for ::urCommandBufferAppendMemBufferCopyExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 187## Enumerator for ::urCommandBufferAppendMemBufferWriteExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 188 ## Enumerator for ::urCommandBufferAppendMemBufferReadExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 189## Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 190   ## Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 191## Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
-    COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 192 ## Enumerator for ::urCommandBufferAppendMemBufferFillExp
-    ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 193     ## Enumerator for ::urEnqueueCooperativeKernelLaunchExp
-    KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194## Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
-    COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 195    ## Enumerator for ::urCommandBufferAppendUSMPrefetchExp
-    COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 196      ## Enumerator for ::urCommandBufferAppendUSMAdviseExp
     PROGRAM_BUILD_EXP = 197                         ## Enumerator for ::urProgramBuildExp
     PROGRAM_COMPILE_EXP = 198                       ## Enumerator for ::urProgramCompileExp
     PROGRAM_LINK_EXP = 199                          ## Enumerator for ::urProgramLinkExp
     LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 200  ## Enumerator for ::urLoaderConfigSetCodeLocationCallback
+    LOADER_INIT = 201                               ## Enumerator for ::urLoaderInit
+    LOADER_TEAR_DOWN = 202                          ## Enumerator for ::urLoaderTearDown
+    COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 203      ## Enumerator for ::urCommandBufferAppendUSMMemcpyExp
+    COMMAND_BUFFER_APPEND_USM_FILL_EXP = 204        ## Enumerator for ::urCommandBufferAppendUSMFillExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 205 ## Enumerator for ::urCommandBufferAppendMemBufferCopyExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 206## Enumerator for ::urCommandBufferAppendMemBufferWriteExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 207 ## Enumerator for ::urCommandBufferAppendMemBufferReadExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 208## Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 209   ## Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 210## Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
+    COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 211 ## Enumerator for ::urCommandBufferAppendMemBufferFillExp
+    COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 212    ## Enumerator for ::urCommandBufferAppendUSMPrefetchExp
+    COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 213      ## Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 214     ## Enumerator for ::urEnqueueCooperativeKernelLaunchExp
+    KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 215## Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -601,7 +601,8 @@ class ur_api_version_v(IntEnum):
     _0_6 = UR_MAKE_VERSION( 0, 6 )                  ## version 0.6
     _0_7 = UR_MAKE_VERSION( 0, 7 )                  ## version 0.7
     _0_8 = UR_MAKE_VERSION( 0, 8 )                  ## version 0.8
-    CURRENT = UR_MAKE_VERSION( 0, 8 )               ## latest known version
+    _0_9 = UR_MAKE_VERSION( 0, 9 )                  ## version 0.9
+    CURRENT = UR_MAKE_VERSION( 0, 9 )               ## latest known version
 
 class ur_api_version_t(c_int):
     def __str__(self):

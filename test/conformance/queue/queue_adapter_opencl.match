@@ -1,0 +1,4 @@
+urQueueCreateTest.InvalidQueueProperties/Intel_R__OpenCL___{{.*}}_
+urQueueCreateWithNativeHandleTest.Success/Intel_R__OpenCL___{{.*}}_
+urQueueGetInfoTestWithInfoParam.Success/Intel_R__OpenCL___{{.*}}___UR_QUEUE_INFO_SIZE
+urQueueGetInfoTestWithInfoParam.Success/Intel_R__OpenCL___{{.*}}___UR_QUEUE_INFO_EMPTY

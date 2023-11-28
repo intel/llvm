@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_print.hpp
- * @version v0.8-r0
+ * @version v0.9-r0
  *
  */
 #ifndef UR_PRINT_HPP
@@ -822,6 +822,18 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
         break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP:
+        os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
+        break;
+    case UR_FUNCTION_PROGRAM_COMPILE_EXP:
+        os << "UR_FUNCTION_PROGRAM_COMPILE_EXP";
+        break;
+    case UR_FUNCTION_PROGRAM_LINK_EXP:
+        os << "UR_FUNCTION_PROGRAM_LINK_EXP";
+        break;
+    case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK:
+        os << "UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK";
+        break;
     case UR_FUNCTION_LOADER_INIT:
         os << "UR_FUNCTION_LOADER_INIT";
         break;
@@ -855,29 +867,17 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP";
         break;
-    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP:
-        os << "UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP";
-        break;
-    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
-        os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
-        break;
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP";
         break;
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
         break;
-    case UR_FUNCTION_PROGRAM_BUILD_EXP:
-        os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
+    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP";
         break;
-    case UR_FUNCTION_PROGRAM_COMPILE_EXP:
-        os << "UR_FUNCTION_PROGRAM_COMPILE_EXP";
-        break;
-    case UR_FUNCTION_PROGRAM_LINK_EXP:
-        os << "UR_FUNCTION_PROGRAM_LINK_EXP";
-        break;
-    case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK:
-        os << "UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK";
+    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
+        os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
         break;
     default:
         os << "unknown enumerator";
