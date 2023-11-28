@@ -1,5 +1,16 @@
 project(pi_win_proxy_loader)
-configure_file(versioninfo.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
+set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc
+               PROPERTY COMPILE_DEFINITIONS
+	       "RC_VERSION_FIELD_1=${SYCL_MAJOR_VERSION}"
+               "RC_VERSION_FIELD_2=${SYCL_MAJOR_VERSION}"
+               "RC_VERSION_FIELD_3=${SYCL_PATCH_VERSION}"
+               "RC_VERSION_FIELD_4=${SYCL_DEV_ABI_VERSION}"
+               "RC_FILE_VERSION=\"${SYCL_VERSION_STRING}\""
+               "RC_INTERNAL_NAME=\"pi_win_proxy_loader\""
+               "RC_PRODUCT_NAME=\"pi_win_proxy_loader\""
+               "RC_PRODUCT_VERSION=\"${SYCL_VERSION_STRING}\""
+               "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Inc. All Rights Reserved\"")
+configure_file(../../llvm/resources/windows_version_resource.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
 add_library(pi_win_proxy_loader SHARED  pi_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
 install(TARGETS pi_win_proxy_loader
         RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader
