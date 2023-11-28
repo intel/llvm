@@ -3,8 +3,8 @@
 // RUN: | FileCheck --check-prefixes=CHECK %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
-// RUN: "-ffp-builtin-accuracy=high:[acosf,cos,pow] low:[tan] \
-// medium:[sincos,log10]" -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: "-ffp-builtin-accuracy=high:[acosf,cos,pow] low:[tan] medium:[sincos,log10]" \
+// RUN:  -Wno-return-type -Wno-implicit-function-declaration \
 // RUN: -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-F1 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
