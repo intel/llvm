@@ -70,7 +70,7 @@ public:
         SPIRVVersion(static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0)),
         GeneratorId(SPIRVGEN_KhronosLLVMSPIRVTranslator), GeneratorVer(0),
         InstSchema(SPIRVISCH_Default), SrcLang(SourceLanguageOpenCL_C),
-        SrcLangVer(102000) {
+        SrcLangVer(102000), BoolTy(nullptr), VoidTy(nullptr) {
     AddrModel = sizeof(size_t) == 32 ? AddressingModelPhysical32
                                      : AddressingModelPhysical64;
     // OpenCL memory model requires Kernel capability
@@ -533,7 +533,10 @@ private:
   SPIRVStringMap StrMap;
   SPIRVCapMap CapMap;
   SPIRVUnknownStructFieldMap UnknownStructFieldMap;
-  std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
+  SPIRVTypeBool *BoolTy;
+  SPIRVTypeVoid *VoidTy;
+  SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
+  SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -655,6 +658,17 @@ void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
     return;
   }
   SPIRVExt.insert(ExtName);
+
+  // SPV_EXT_shader_atomic_float16_add extends the
+  // SPV_EXT_shader_atomic_float_add extension.
+  // The specification requires both extensions to be added to use
+  // AtomicFloat16AddEXT capability whereas getRequiredExtension()
+  // is able to return a single extensionID.
+  if (Ext == ExtensionID::SPV_EXT_shader_atomic_float16_add) {
+    SPIRVMap<ExtensionID, std::string>::find(
+        ExtensionID::SPV_EXT_shader_atomic_float_add, &ExtName);
+    SPIRVExt.insert(ExtName);
+  }
 }
 
 void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
@@ -690,7 +704,8 @@ SPIRVConstant *SPIRVModuleImpl::getLiteralAsConstant(unsigned Literal) {
   if (Loc != LiteralMap.end())
     return Loc->second;
   auto *Ty = addIntegerType(32);
-  auto *V = new SPIRVConstant(this, Ty, getId(), static_cast<uint64_t>(Literal));
+  auto *V =
+      new SPIRVConstant(this, Ty, getId(), static_cast<uint64_t>(Literal));
   LiteralMap[Literal] = V;
   addConstant(V);
   return V;
@@ -915,7 +930,12 @@ template <class T> T *SPIRVModuleImpl::addType(T *Ty) {
 }
 
 SPIRVTypeVoid *SPIRVModuleImpl::addVoidType() {
-  return addType(new SPIRVTypeVoid(this, getId()));
+  SPIRVTypeVoid *V = VoidTy;
+  if (!V) {
+    V = addType(new SPIRVTypeVoid(this, getId()));
+    VoidTy = V;
+  }
+  return V;
 }
 
 SPIRVTypeArray *SPIRVModuleImpl::addArrayType(SPIRVType *ElementType,
@@ -924,7 +944,12 @@ SPIRVTypeArray *SPIRVModuleImpl::addArrayType(SPIRVType *ElementType,
 }
 
 SPIRVTypeBool *SPIRVModuleImpl::addBoolType() {
-  return addType(new SPIRVTypeBool(this, getId()));
+  SPIRVTypeBool *B = BoolTy;
+  if (!B) {
+    B = addType(new SPIRVTypeBool(this, getId()));
+    BoolTy = B;
+  }
+  return B;
 }
 
 SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
@@ -937,8 +962,12 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
 }
 
 SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
-  SPIRVTypeFloat *T = addType(new SPIRVTypeFloat(this, getId(), BitWidth));
-  return T;
+  auto Loc = FloatTypeMap.find(BitWidth);
+  if (Loc != FloatTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth);
+  FloatTypeMap[BitWidth] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypePointer *
@@ -1227,8 +1256,9 @@ SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
     End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
                                                     : Elements.end();
     Slice.assign(Start, End);
-    auto *Continued = static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
-        addSpecConstantCompositeContinuedINTEL(Slice));
+    auto *Continued =
+        static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
+            addSpecConstantCompositeContinuedINTEL(Slice));
     Res->addContinuedInstruction(Continued);
   }
   return Res;
@@ -1440,7 +1470,7 @@ SPIRVValue *SPIRVModuleImpl::addAsmINTEL(SPIRVTypeFunction *TheType,
                                          const std::string &TheInstructions,
                                          const std::string &TheConstraints) {
   auto *Asm = new SPIRVAsmINTEL(this, TheType, getId(), TheTarget,
-                               TheInstructions, TheConstraints);
+                                TheInstructions, TheConstraints);
   return add(Asm);
 }
 
@@ -1725,8 +1755,9 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
 // Create AliasDomainDeclINTEL/AliasScopeDeclINTEL/AliasScopeListDeclINTEL
 // instructions
 template <typename AliasingInstType>
-SPIRVEntry *SPIRVModuleImpl::getOrAddMemAliasingINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+SPIRVEntry *
+SPIRVModuleImpl::getOrAddMemAliasingINTELInst(std::vector<SPIRVId> Args,
+                                              llvm::MDNode *MD) {
   assert(MD && "noalias/alias.scope metadata can't be null");
   // Don't duplicate aliasing instruction. For that use a map with a MDNode key
   if (AliasInstMDMap.find(MD) != AliasInstMDMap.end())
@@ -1737,20 +1768,23 @@ SPIRVEntry *SPIRVModuleImpl::getOrAddMemAliasingINTELInst(
 }
 
 // Create AliasDomainDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasDomainDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+SPIRVEntry *
+SPIRVModuleImpl::getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
+                                                  llvm::MDNode *MD) {
   return getOrAddMemAliasingINTELInst<SPIRVAliasDomainDeclINTEL>(Args, MD);
 }
 
 // Create AliasScopeDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+SPIRVEntry *
+SPIRVModuleImpl::getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
+                                                 llvm::MDNode *MD) {
   return getOrAddMemAliasingINTELInst<SPIRVAliasScopeDeclINTEL>(Args, MD);
 }
 
 // Create AliasScopeListDeclINTEL instruction
-SPIRVEntry *SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(
-    std::vector<SPIRVId> Args, llvm::MDNode *MD) {
+SPIRVEntry *
+SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
+                                                     llvm::MDNode *MD) {
   return getOrAddMemAliasingINTELInst<SPIRVAliasScopeListDeclINTEL>(Args, MD);
 }
 

@@ -362,7 +362,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (!Glob)
       continue;
     for (const auto &Use : Glob->uses()) {
-      auto I = cast<CallInst>(Use.getUser());
+      auto *I = cast<CallInst>(Use.getUser());
       if (!IsNativeCPUKernel(I->getFunction())) {
         // only use the threadlocal if we have kernels calling builtins
         // indirectly
