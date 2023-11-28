@@ -588,6 +588,7 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx906", oneapi_exp_arch::amd_gpu_gfx906)                                 \
   X("gfx908", oneapi_exp_arch::amd_gpu_gfx908)                                 \
   X("gfx90a", oneapi_exp_arch::amd_gpu_gfx90a)                                 \
+  X("gfx90c", oneapi_exp_arch::amd_gpu_gfx90c)                                 \
   X("gfx1010", oneapi_exp_arch::amd_gpu_gfx1010)                               \
   X("gfx1011", oneapi_exp_arch::amd_gpu_gfx1011)                               \
   X("gfx1012", oneapi_exp_arch::amd_gpu_gfx1012)                               \
