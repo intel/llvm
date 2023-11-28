@@ -90,7 +90,7 @@ TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
     auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
     ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
-    auto desc = poolDescriptors[0];
+    const auto &desc = poolDescriptors[0];
 
     auto pool = nullPoolCreate();
     ASSERT_NE(pool, nullptr);
