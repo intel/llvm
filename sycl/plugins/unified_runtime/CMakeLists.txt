@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/ykhatav/my-fork-unified-runtime")
-  # commit 71957e849435169b43e51a42025afeeb63d7508b
+  # commit 712d79120e0a9293daf5741f9c0b5269ddd862ce
   # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Tue Nov 14 16:45:24 2023 +0000
