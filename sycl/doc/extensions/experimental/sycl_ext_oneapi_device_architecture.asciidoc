@@ -454,7 +454,7 @@ architecture.
 
 |`amd_gpu_gfx908`
 |-
-|AMD GCN GFX9 (Vega) architecture.
+|AMD GCN GFX9 (CDNA 1) architecture.
 
 |`amd_gpu_gfx909`
 |-
@@ -462,7 +462,7 @@ architecture.
 
 |`amd_gpu_gfx90a`
 |-
-|AMD GCN GFX9 (Vega) architecture.
+|AMD GCN GFX9 (CDNA 2) architecture.
 
 |`amd_gpu_gfx90c`
 |-
@@ -470,15 +470,15 @@ architecture.
 
 |`amd_gpu_gfx940`
 |-
-|AMD GCN GFX9 (Vega) architecture.
+|AMD GCN GFX9 (CDNA 3) architecture.
 
 |`amd_gpu_gfx941`
 |-
-|AMD GCN GFX9 (Vega) architecture.
+|AMD GCN GFX9 (CDNA 3) architecture.
 
 |`amd_gpu_gfx942`
 |-
-|AMD GCN GFX9 (Vega) architecture.
+|AMD GCN GFX9 (CDNA 3) architecture.
 
 |`amd_gpu_gfx1010`
 |-
