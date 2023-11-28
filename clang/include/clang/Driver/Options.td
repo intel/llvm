@@ -1204,6 +1204,14 @@ defm gpu_rdc : BoolFOption<"gpu-rdc",
           "Generate relocatable device code, also known as separate compilation mode">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option]>>;
 
+defm offload_implicit_host_device_templates :
+  BoolFOption<"offload-implicit-host-device-templates",
+  LangOpts<"OffloadImplicitHostDeviceTemplates">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Template functions or specializations without host, device and "
+          "global attributes have implicit host device attributes (CUDA/HIP only)">,
+  NegFlag<SetFalse>>;
+
 def fgpu_default_stream_EQ : Joined<["-"], "fgpu-default-stream=">,
   HelpText<"Specify default stream. The default value is 'legacy'. (CUDA/HIP only)">,
   Visibility<[ClangOption, CC1Option]>,
@@ -2188,7 +2196,7 @@ defm fixed_point : BoolFOption<"fixed-point",
   LangOpts<"FixedPoint">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option], "Enable">,
   NegFlag<SetFalse, [], [ClangOption], "Disable">,
-  BothFlags<[], [ClangOption], " fixed point types">>, ShouldParseIf<!strconcat("!", cplusplus.KeyPath)>;
+  BothFlags<[], [ClangOption], " fixed point types">>;
 defm cxx_static_destructors : BoolFOption<"c++-static-destructors",
   LangOpts<"RegisterStaticDestructors">, DefaultTrue,
   NegFlag<SetFalse, [], [ClangOption, CC1Option],
@@ -2929,7 +2937,7 @@ def fms_compatibility_version
                "version number to report in _MSC_VER (0 = don't define it "
                "(default))">;
 def fms_runtime_lib_EQ : Joined<["-"], "fms-runtime-lib=">, Group<f_Group>,
-  Flags<[]>, Visibility<[ClangOption, CLOption]>,
+  Flags<[]>, Visibility<[ClangOption, CLOption, FlangOption]>,
   Values<"static,static_dbg,dll,dll_dbg">,
   HelpText<"Select Windows run-time library">,
   DocBrief<[{
@@ -3203,10 +3211,10 @@ def faltmathlib_EQ : Joined<["-"], "faltmathlib=">, Group<f_Group>,
     NormalizedValues<["SVMLAltMathLibrary", "TestAltMathLibrary","NoAltMathLibrary"]>,
     MarshallingInfoEnum<CodeGenOpts<"AltMathLib">, "NoAltMathLibrary">;
 def fveclib : Joined<["-"], "fveclib=">, Group<f_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
     HelpText<"Use the given vector functions library">,
     Values<"Accelerate,libmvec,MASSV,SVML,SLEEF,Darwin_libsystem_m,ArmPL,none">,
-    NormalizedValuesScope<"CodeGenOptions">,
+    NormalizedValuesScope<"llvm::driver::VectorLibrary">,
     NormalizedValues<["Accelerate", "LIBMVEC", "MASSV", "SVML", "SLEEF",
                       "Darwin_libsystem_m", "ArmPL", "NoLibrary"]>,
     MarshallingInfoEnum<CodeGenOpts<"VecLib">, "NoLibrary">;
@@ -5532,6 +5540,9 @@ def regcall4 : Flag<["-"], "regcall4">, Group<m_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set __regcall4 as a default calling convention to respect __regcall ABI v.4">,
   MarshallingInfoFlag<LangOpts<"RegCall4">>;
+def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption, CLOption]>,
+  HelpText<"Dump device code into the user provided directory.">;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Save intermediate compilation results.">;
@@ -6518,6 +6529,10 @@ def flang_experimental_hlfir : Flag<["-"], "flang-experimental-hlfir">,
   Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
   HelpText<"Use HLFIR lowering (experimental)">;
 
+def flang_deprecated_no_hlfir : Flag<["-"], "flang-deprecated-no-hlfir">,
+  Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
+  HelpText<"Do not use HLFIR lowering (deprecated)">;
+
 def flang_experimental_polymorphism : Flag<["-"], "flang-experimental-polymorphism">,
   Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
   HelpText<"Enable Fortran 2003 polymorphism (experimental)">;
@@ -7092,9 +7107,6 @@ def vectorize_loops : Flag<["-"], "vectorize-loops">,
 def vectorize_slp : Flag<["-"], "vectorize-slp">,
   HelpText<"Run the SLP vectorization passes">,
   MarshallingInfoFlag<CodeGenOpts<"VectorizeSLP">>;
-def dependent_lib : Joined<["--"], "dependent-lib=">,
-  HelpText<"Add dependent library">,
-  MarshallingInfoStringVector<CodeGenOpts<"DependentLibraries">>;
 def linker_option : Joined<["--"], "linker-option=">,
   HelpText<"Add linker option">,
   MarshallingInfoStringVector<CodeGenOpts<"LinkerOptions">>;
@@ -7673,6 +7685,11 @@ def pic_level : Separate<["-"], "pic-level">,
 def pic_is_pie : Flag<["-"], "pic-is-pie">,
   HelpText<"File is for a position independent executable">,
   MarshallingInfoFlag<LangOpts<"PIE">>;
+
+
+def dependent_lib : Joined<["--"], "dependent-lib=">,
+  HelpText<"Add dependent library">,
+  MarshallingInfoStringVector<CodeGenOpts<"DependentLibraries">>;
 
 } // let Visibility = [CC1Option, FC1Option]
 

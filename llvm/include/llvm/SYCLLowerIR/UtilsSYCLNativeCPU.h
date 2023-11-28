@@ -9,12 +9,16 @@
 // Utility functions and constants for SYCL Native CPU.
 //
 //===----------------------------------------------------------------------===//
-#include "llvm/Target/TargetMachine.h"
+#pragma once
+#include "llvm/IR/PassManager.h"
+#include "llvm/ADT/Twine.h"
 
 namespace llvm {
+namespace sycl {
+namespace utils {
+
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM, unsigned OptLevel, bool DisableVecz);
-namespace sycl {
 const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_get_global_id";
 const constexpr char NativeCPUGlobaRange[] =
     "__dpcpp_nativecpu_get_global_range";
@@ -31,5 +35,16 @@ const constexpr char NativeCPUSetSubgroupId[] =
 const constexpr char NativeCPUSetMaxSubgroupSize[] =
     "__dpcpp_nativecpu_set_max_sub_group_size";
 const constexpr char NativeCPUSetLocalId[] = "__dpcpp_nativecpu_set_local_id";
+
+constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
+constexpr char SYCLNATIVECPUKERNEL[] = ".NativeCPUKernel";
+constexpr char SYCLNATIVECPUPREFIX[] = "__dpcpp_nativecpu";
+inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
+  if (S.startswith(SYCLNATIVECPUPREFIX) || S.endswith(SYCLNATIVECPUKERNEL))
+    return S;
+  return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
+}
+
+} // namespace utils
 } // namespace sycl
 } // namespace llvm

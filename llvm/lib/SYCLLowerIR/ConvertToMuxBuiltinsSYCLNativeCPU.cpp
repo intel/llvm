@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/TargetParser/Triple.h"
 #include <map>
 
@@ -25,7 +26,7 @@ using namespace llvm;
 
 namespace {
 
-static void fixCallingConv(Function *F) {
+static void fixFunctionAttributes(Function *F) {
   // The frame-pointer=all and the "byval" attributes lead to code generation
   // that conflicts with the Kernel declaration that we emit in the Native CPU
   // helper header (in which all the kernel argument are void* or scalars).
@@ -94,8 +95,12 @@ Function *getMuxBarrierFunc(Module &M) {
   auto *Int32Ty = Type::getInt32Ty(Ctx);
   static auto *MuxFTy = FunctionType::get(Type::getVoidTy(Ctx),
                                           {Int32Ty, Int32Ty, Int32Ty}, false);
-  auto F = M.getOrInsertFunction(MuxBarrier, MuxFTy);
-  return cast<Function>(F.getCallee());
+  auto FCallee = M.getOrInsertFunction(MuxBarrier, MuxFTy);
+  auto *F = dyn_cast<Function>(FCallee.getCallee());
+  if(!F) {
+    report_fatal_error("Error while inserting mux builtins");
+  }
+  return F;
 }
 
 static constexpr const char *MuxKernelAttrName = "mux-kernel";
@@ -158,8 +163,8 @@ ConvertToMuxBuiltinsSYCLNativeCPUPass::run(Module &M,
   bool ModuleChanged = false;
   for (auto &F : M) {
     if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
+      fixFunctionAttributes(&F);
       setIsKernelEntryPt(F);
-      fixCallingConv(&F);
     }
   }
   const bool VisualStudioMangling = isForVisualStudio(M.getTargetTriple());

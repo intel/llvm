@@ -32,7 +32,12 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
+  T operator op##=(const T &rhs) const {                                       \
+    T t = *this;                                                               \
+    t op## = rhs;                                                              \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -114,20 +119,34 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  T operator++() { return *this += 1; }
-
-  T operator++(int) {
-    const T t = *this;
-    *this = (t + 1);
+  T operator++() const {
+    T t = *this;
+    ++t;
+    *this = t;
     return t;
   }
 
-  T operator--() { return *this -= 1; }
+  T operator++(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2++;
+    *this = t2;
+    return t1;
+  }
 
-  T operator--(int) {
-    const T t = *this;
-    *this = (t - 1);
+  T operator--() const {
+    T t = *this;
+    --t;
+    *this = t;
     return t;
+  }
+
+  T operator--(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2--;
+    *this = t2;
+    return t1;
   }
 
   template <class T2, class P2> friend class annotated_ptr;
@@ -190,7 +209,6 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using reference = sycl::ext::oneapi::experimental::annotated_ref<
       T, typename unpack<filtered_properties>::type>;
 
-#ifdef __SYCL_DEVICE_ONLY__
 #ifdef __ENABLE_USM_ADDR_SPACE__
   using global_pointer_t = std::conditional_t<
       detail::IsUsmKindDevice<property_list_t>::value,
@@ -202,11 +220,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #else
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
 #endif // __ENABLE_USM_ADDR_SPACE__
-#else
-  using global_pointer_t = T *;
-#endif // __SYCL_DEVICE_ONLY__
 
-  global_pointer_t m_Ptr;
+  T *m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 
@@ -225,7 +240,7 @@ public:
 
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {}
+      : m_Ptr(Ptr) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -233,7 +248,7 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {
+      : m_Ptr(Ptr) {
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,

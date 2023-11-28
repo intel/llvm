@@ -27,9 +27,17 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #endif
 
-namespace llvm {
+using namespace llvm;
+using namespace sycl::utils;
+cl::opt<bool> ForceNoTail("native-cpu-force-no-tail", cl::init(false),
+    cl::desc("Never emit the peeling loop for vectorized kernels,"
+    "even when the local size is not known to be a multiple of the vector width"));
+
+cl::opt<bool> IsDebug("native-cpu-debug", cl::init(false),
+    cl::desc("Emit extra alloca instructions to preserve the value of live"
+    "vriables between barriers"));
 cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(8), cl::desc("Vector width for SYCL Native CPU vectorizer, defaults to 8"));
-void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
+void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM, unsigned OptLevel, bool DisableVecz) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
@@ -52,10 +60,9 @@ void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
     MAM.registerPass([&] { return vecz::VeczPassOptionsAnalysis(queryFunc); });
     MPM.addPass(vecz::RunVeczPass());
   }
-  // Todo set options properly
   compiler::utils::WorkItemLoopsPassOptions Opts;
-  Opts.IsDebug = false;
-  Opts.ForceNoTail = false;
+  Opts.IsDebug = IsDebug;
+  Opts.ForceNoTail = ForceNoTail;
   MAM.registerPass([&] { return compiler::utils::BuiltinInfoAnalysis(); });
   MAM.registerPass([&] { return compiler::utils::SubgroupAnalysis(); });
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
@@ -88,4 +95,3 @@ void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
   }
   MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
 }
-} // namespace llvm
