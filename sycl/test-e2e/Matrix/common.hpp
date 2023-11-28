@@ -141,8 +141,8 @@ template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr ((!exact) && std::is_same_v<T1, float> ||
-                    std::is_same_v<T1, bfloat16>) {
+      if constexpr (!exact && (std::is_same_v<T1, float> ||
+                               std::is_same_v<T1, bfloat16>)) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cout << "Incorrect result in matrix. "

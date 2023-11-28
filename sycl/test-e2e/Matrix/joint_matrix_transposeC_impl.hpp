@@ -64,7 +64,7 @@ template <size_t TM> void run_matrix_test() {
   float *out_row_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
   float *ref_col_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  //input is column majot matrix so it is of NxM shape
+  // input is column majot matrix so it is of NxM shape
   matrix_rand(MATRIX_N, MATRIX_M, input, (float)5.0);
   matrix_fill(MATRIX_M, MATRIX_N, out_col_major, (float)0);
   matrix_fill(MATRIX_N, MATRIX_M, out_row_major, (float)0);
@@ -85,7 +85,6 @@ template <size_t TM> void run_matrix_test() {
   free(out_row_major, q);
   free(ref_col_major, q);
   assert(res);
-  return;
 }
 
 int main() {
