@@ -14,7 +14,7 @@ using namespace sycl::ext::intel::esimd;
 // Returns true iff verification is passed.
 template <typename T>
 bool verify(T OutVal, const T *Out, size_t Size, int N, bool UseMask) {
-  bool Passed = true;
+  int NumErrors = 0;
   using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
   for (int i = 0; i < Size; i++) {
     bool IsMaskSet = (i / N + 1) & 0x1;
@@ -23,12 +23,13 @@ bool verify(T OutVal, const T *Out, size_t Size, int N, bool UseMask) {
       Expected = sycl::bit_cast<Tuint>((T)(i + 6));
     Tuint Computed = sycl::bit_cast<Tuint>(Out[i]);
     if (Computed != Expected) {
-      Passed = false;
-      std::cout << "Out[" << i << "] = " << std::to_string(Computed) << " vs "
-                << std::to_string(Expected) << std::endl;
+      NumErrors++;
+      if (NumErrors < 32)
+        std::cout << "Out[" << i << "] = " << std::to_string(Computed) << " vs "
+                  << std::to_string(Expected) << std::endl;
     }
   }
-  return Passed;
+  return NumErrors == 0;
 }
 
 template <typename T, uint16_t N, bool UseMask, bool UseProperties,
@@ -680,6 +681,11 @@ bool test_block_store_local_acc_slm(queue Q) {
   constexpr bool CheckProperties = true;
 
   bool Passed = true;
+
+  // Many cases currently fail on Windows before this driver version.
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::Windows, "26957",
+                                 "101.4824", false))
+    return Passed;
 
   // Test block_store() from SLM that doesn't use the mask is implemented
   // for any N > 1.
