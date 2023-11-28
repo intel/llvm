@@ -53,14 +53,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 192e9404392c38ac43d09116d6c97e153c66f46b
-  # Merge: 2f44433c f65473d9
+  set(UNIFIED_RUNTIME_REPO "https://github.com/ykhatav/my-fork-unified-runtime")
+  # commit 712d79120e0a9293daf5741f9c0b5269ddd862ce
+  # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Fri Nov 10 13:25:42 2023 +0000
   #     Merge pull request #1044 from aarongreig/aaron/clCTSFixMegaBranch
   #     [OpenCL] Combined CTS fixes
-  set(UNIFIED_RUNTIME_TAG 192e9404392c38ac43d09116d6c97e153c66f46b)
+  set(UNIFIED_RUNTIME_TAG fe93c1a6abb46976338688665e945d76b6565796)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
