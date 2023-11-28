@@ -163,9 +163,10 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: CUDA, triplet: nvptx64-nvidia-cuda},
-          {name: HIP, triplet: amdgcn-amd-amdhsa}, 
-          {name: L0, triplet: spir64}
+          {name: CUDA, triplet: nvptx64-nvidia-cuda, platform: ""},
+          {name: HIP, triplet: amdgcn-amd-amdhsa, platform: ""},
+          {name: L0, triplet: spir64, platform: ""},
+          {name: OPENCL, triplet: spir64, platform: "Intel(R) OpenCL"}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -219,7 +220,7 @@ jobs:
     - name: Test adapters
       if: matrix.adapter.name != 'L0'
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
 
   examples-build-hw:
     name: Build - examples on HW

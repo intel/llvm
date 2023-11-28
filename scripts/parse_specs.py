@@ -18,8 +18,8 @@ from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
 
-default_version = "0.7"
-all_versions = ["0.6", "0.7"]
+default_version = "0.9"
+all_versions = ["0.6", "0.7", "0.8", "0.9"]
 
 """
     preprocess object

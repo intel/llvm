@@ -140,8 +140,19 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   try {
+    const unsigned long long flags = 0;
+#if CUDA_VERSION >= 12000
     UR_CHECK_ERROR(cuGraphInstantiate(&hCommandBuffer->CudaGraphExec,
-                                      hCommandBuffer->CudaGraph, 0));
+                                      hCommandBuffer->CudaGraph, flags));
+#elif CUDA_VERSION >= 11040
+    UR_CHECK_ERROR(cuGraphInstantiateWithFlags(
+        &hCommandBuffer->CudaGraphExec, hCommandBuffer->CudaGraph, flags));
+#else
+    // Cannot use flags
+    UR_CHECK_ERROR(cuGraphInstantiate(&hCommandBuffer->CudaGraphExec,
+                                      hCommandBuffer->CudaGraph, nullptr,
+                                      nullptr, 0));
+#endif
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
