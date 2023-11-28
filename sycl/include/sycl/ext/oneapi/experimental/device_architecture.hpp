@@ -72,6 +72,7 @@ enum class architecture {
   amd_gpu_gfx906,
   amd_gpu_gfx908,
   amd_gpu_gfx90a,
+  amd_gpu_gfx90c,
   amd_gpu_gfx1010,
   amd_gpu_gfx1011,
   amd_gpu_gfx1012,
