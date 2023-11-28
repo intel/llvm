@@ -8,6 +8,9 @@
 //
 // TODO enable cuda once buffer issue investigated and fixed
 // UNSUPPORTED: cuda
+//
+// Device to host copy command not supported for OpenCL
+// UNSUPPORTED: opencl
 
 #define GRAPH_E2E_EXPLICIT
 

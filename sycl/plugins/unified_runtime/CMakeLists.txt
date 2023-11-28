@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 31b654f981f6098936e7f04c65803395a2ea343a
-  # Merge: 71957e84 3da21336
+  # commit 109ed46ee55f41317d35b2a9a20fa7a2029e9e64
+  # Merge: 31b654f9 23005313
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 22 11:27:33 2023 +0000
-  #     Merge pull request #1053 from jandres742/url0leakkey
-  #     [UR][L0] Add UR_L0_LEAKS_DEBUG key
-  set(UNIFIED_RUNTIME_TAG 31b654f981f6098936e7f04c65803395a2ea343a)
+  # Date:   Wed Nov 22 16:04:52 2023 +0000
+  #     Merge pull request #966 from martygrant/martin/openclCommandBuffers
+  #     [OpenCL] Add Command Buffer extension to OpenCL adapter.
+  set(UNIFIED_RUNTIME_TAG 109ed46ee55f41317d35b2a9a20fa7a2029e9e64)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -12,4 +12,4 @@
 
 #define GRAPH_E2E_EXPLICIT
 
-#include "../Inputs/executable_graph_update_ordering"
+#include "../Inputs/executable_graph_update_ordering.cpp"

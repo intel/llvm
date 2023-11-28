@@ -149,8 +149,8 @@ yet been implemented.
 Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
-Currently Level Zero and CUDA backends are implemented.
-More sub-sections will be added here as other backends are supported.
+Backends which are implemented currently are: [Level Zero](#level-zero),
+[CUDA](#cuda), and partial support for [OpenCL](#opencl).
 
 ### Level Zero
 
@@ -246,3 +246,104 @@ the executable CUDA Graph that represent this series of operations.
 An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
+
+### OpenCL
+
+SYCL-Graph is only enabled for an OpenCL backend when the
+[cl_khr_command_buffer](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer)
+extension is available, however this information isn't available until runtime
+due to OpenCL implementations being loaded through an ICD.
+
+The `ur_exp_command_buffer` string is conditionally returned from the OpenCL
+command-buffer UR backend at runtime based on `cl_khr_command_buffer` support
+to indicate that the graph extension should be enabled. This is information
+is propagated to the SYCL user via the
+`device.get_info<info::device::graph_support>()` query for graph extension
+support.
+
+#### Limitations
+
+Due to the API mapping gaps documented in the following section, OpenCL as a
+SYCL backend cannot fully support the graph API. Instead, there are
+limitations in the types of nodes which a user can add to a graph, using
+an unsupported node type will cause a sycl exception to be thrown in graph
+finalization with error code `sycl::errc::feature_not_supported` and a message
+mentioning the unsupported command. For example,
+
+```
+terminate called after throwing an instance of 'sycl::_V1::exception'
+what():  USM copy command not supported by graph backend
+```
+
+The types of commands which are unsupported, and lead to this exception are:
+* `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
+   This corresponds to a memory buffer read command.
+* `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
+  This corresponds to a memory buffer write command.
+* `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
+   `dest` are USM pointers. This corresponds to a USM copy command.
+
+Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
+is supported, as a memory buffer copy command exists in the OpenCL extension.
+
+#### UR API Mapping
+
+There are some gaps in both the OpenCL and UR specifications for Command
+Buffers shown in the list below. There are implementations in the UR OpenCL
+adapter where there is matching support for each function in the list.
+
+| UR | OpenCL | Supported |
+| --- | --- | --- |
+| urCommandBufferCreateExp | clCreateCommandBufferKHR | Yes |
+| urCommandBufferRetainExp | clRetainCommandBufferKHR | Yes |
+| urCommandBufferReleaseExp | clReleaseCommandBufferKHR | Yes |
+| urCommandBufferFinalizeExp | clFinalizeCommandBufferKHR | Yes |
+| urCommandBufferAppendKernelLaunchExp | clCommandNDRangeKernelKHR | Yes |
+| urCommandBufferAppendUSMMemcpyExp |  | No |
+| urCommandBufferAppendUSMFillExp |  | No |
+| urCommandBufferAppendMembufferCopyExp | clCommandCopyBufferKHR | Yes |
+| urCommandBufferAppendMemBufferWriteExp |  | No |
+| urCommandBufferAppendMemBufferReadExp |  | No |
+| urCommandBufferAppendMembufferCopyRectExp | clCommandCopyBufferRectKHR | Yes |
+| urCommandBufferAppendMemBufferWriteRectExp |  | No |
+| urCommandBufferAppendMemBufferReadRectExp |  | No |
+| urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
+| urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
+|  | clCommandBarrierWithWaitListKHR | No |
+|  | clCommandCopyImageKHR | No |
+|  | clCommandCopyImageToBufferKHR | No |
+|  | clCommandFillImageKHR | No |
+|  | clGetCommandBufferInfoKHR | No |
+|  | clCommandSVMMemcpyKHR | No |
+|  | clCommandSVMMemFillKHR | No |
+
+We are looking to address these gaps in the future so that SYCL-Graph can be
+fully supported on a `cl_khr_command_buffer` backend.
+
+#### UR Command-Buffer Implementation
+
+Many of the OpenCL functions take a `cl_command_queue` parameter which is not
+present in most of the UR functions. Instead, when a new command buffer is
+created in `urCommandBufferCreateExp` we also create and maintain a new
+internal `ur_queue_handle_t` with a reference stored inside of the
+`ur_exp_command_buffer_handle_t_` struct. The internal queue is retained and
+released whenever the owning command buffer is retained or released.
+
+With command buffers being an OpenCL extension, each function is accessed by
+loading a function pointer to its implementation. These are defined in a common
+header file in the UR OpenCL adapter. The symbols for the functions are however
+defined in [OpenCL-Headers](https://github.com/KhronosGroup/OpenCL-Headers/blob/main/CL/cl_ext.h)
+but it is not known at this time what version of the headers will be used in
+the UR GitHub CI configuration, so loading the function pointers will be used
+until this can be verified. A future piece of work would be replacing the
+custom defined symbols with the ones from OpenCL-Headers.
+
+#### Available OpenCL Command-Buffer Implementations
+
+Publicly available implementations of `cl_khr_command_buffer` that can be used
+to enable the graph extension in OpenCL:
+
+- [OneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
+- [PoCL](http://portablecl.org/)
+- [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/efeae73139ddf064fafce565cc39640af10d900f/layers/10_cmdbufemu)
+
