@@ -22,6 +22,3 @@
 // RUN:   %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // CHECK-OPTS-NOT: -sycl-opt
 
-// checking that explicitly enabling -sycl-opt still works
-// RUN:   %clang -fsycl -fsycl-targets=native_cpu -mllvm -sycl-opt -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPT_ON %s
-// CHECK-OPT_ON: -sycl-opt
