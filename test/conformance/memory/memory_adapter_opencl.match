@@ -1,0 +1,5 @@
+urMemGetInfoTest.InvalidNullPointerParamValue/Intel_R__OpenCL___{{.*}}___UR_MEM_INFO_SIZE
+urMemGetInfoTest.InvalidNullPointerParamValue/Intel_R__OpenCL___{{.*}}___UR_MEM_INFO_CONTEXT
+urMemGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__OpenCL___{{.*}}___UR_MEM_INFO_SIZE
+urMemGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__OpenCL___{{.*}}___UR_MEM_INFO_CONTEXT
+urMemImageCreateTest.InvalidImageDescStype/Intel_R__OpenCL___{{.*}}_

@@ -43,12 +43,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
   std::ignore = hQueue;
+  hQueue->incrementReferenceCount();
 
-  DIE_NO_IMPLEMENTATION;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  delete hQueue;
+  decrementOrDelete(hQueue);
+
   return UR_RESULT_SUCCESS;
 }
 
