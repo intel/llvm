@@ -296,13 +296,13 @@ device functions.
 
 When the attribute is applied to a kernel:
 
-> ... it causes the compiler to issue a diagnostic if the kernel (or any of the
+> \... it causes the compiler to issue a diagnostic if the kernel (or any of the
 > functions it calls) uses an optional feature that is associated with an aspect
 > that is not listed in the attribute.
 
 When the attribute is applied to a function:
 
-> ... it causes the compiler to issue a diagnostic if the device function (or
+> \... it causes the compiler to issue a diagnostic if the device function (or
 > any of the functions it calls) uses an optional feature that is associated
 > with an aspect that is not listed in the attribute.
 
