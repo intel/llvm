@@ -156,8 +156,12 @@ enum class architecture : /* unspecified */ {
   amd_gpu_gfx904,
   amd_gpu_gfx906,
   amd_gpu_gfx908,
+  amd_gpu_gfx909,
   amd_gpu_gfx90a,
   amd_gpu_gfx90c,
+  amd_gpu_gfx940,
+  amd_gpu_gfx941,
+  amd_gpu_gfx942,
   amd_gpu_gfx1010,
   amd_gpu_gfx1011,
   amd_gpu_gfx1012,
@@ -165,7 +169,18 @@ enum class architecture : /* unspecified */ {
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
   amd_gpu_gfx1032,
+  amd_gpu_gfx1033,
   amd_gpu_gfx1034,
+  amd_gpu_gfx1035,
+  amd_gpu_gfx1036,
+  amd_gpu_gfx1100,
+  amd_gpu_gfx1101,
+  amd_gpu_gfx1102,
+  amd_gpu_gfx1103,
+  amd_gpu_gfx1150,
+  amd_gpu_gfx1151,
+  amd_gpu_gfx1200,
+  amd_gpu_gfx1201,
 
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -441,11 +456,27 @@ architecture.
 |-
 |AMD GCN GFX9 (Vega) architecture.
 
+|`amd_gpu_gfx909`
+|-
+|AMD GCN GFX9 (Vega) architecture.
+
 |`amd_gpu_gfx90a`
 |-
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx90c`
+|-
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx940`
+|-
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx941`
+|-
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx942`
 |-
 |AMD GCN GFX9 (Vega) architecture.
 
@@ -477,9 +508,53 @@ architecture.
 |-
 |GCN GFX10.3 (RDNA 2) architecture.
 
+|`amd_gpu_gfx1033`
+|-
+|GCN GFX10.3 (RDNA 2) architecture.
+
 |`amd_gpu_gfx1034`
 |-
 |GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1035`
+|-
+|GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1036`
+|-
+|GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1100`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1101`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1102`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1103`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1150`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1151`
+|-
+|GCN GFX11 (RDNA 3) architecture.
+
+|`amd_gpu_gfx1200`
+|-
+|GCN GFX12 (RDNA 4) architecture.
+
+|`amd_gpu_gfx1201`
+|-
+|GCN GFX12 (RDNA 4) architecture.
 
 |===
 

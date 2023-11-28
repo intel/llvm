@@ -587,8 +587,12 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx904", oneapi_exp_arch::amd_gpu_gfx904)                                 \
   X("gfx906", oneapi_exp_arch::amd_gpu_gfx906)                                 \
   X("gfx908", oneapi_exp_arch::amd_gpu_gfx908)                                 \
+  X("gfx909", oneapi_exp_arch::amd_gpu_gfx909)                                 \
   X("gfx90a", oneapi_exp_arch::amd_gpu_gfx90a)                                 \
   X("gfx90c", oneapi_exp_arch::amd_gpu_gfx90c)                                 \
+  X("gfx940", oneapi_exp_arch::amd_gpu_gfx940)                                 \
+  X("gfx941", oneapi_exp_arch::amd_gpu_gfx941)                                 \
+  X("gfx942", oneapi_exp_arch::amd_gpu_gfx942)                                 \
   X("gfx1010", oneapi_exp_arch::amd_gpu_gfx1010)                               \
   X("gfx1011", oneapi_exp_arch::amd_gpu_gfx1011)                               \
   X("gfx1012", oneapi_exp_arch::amd_gpu_gfx1012)                               \
@@ -596,7 +600,18 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx1030", oneapi_exp_arch::amd_gpu_gfx1030)                               \
   X("gfx1031", oneapi_exp_arch::amd_gpu_gfx1031)                               \
   X("gfx1032", oneapi_exp_arch::amd_gpu_gfx1032)                               \
-  X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)
+  X("gfx1033", oneapi_exp_arch::amd_gpu_gfx1033)                               \
+  X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)                               \
+  X("gfx1035", oneapi_exp_arch::amd_gpu_gfx1035)                               \
+  X("gfx1036", oneapi_exp_arch::amd_gpu_gfx1036)                               \
+  X("gfx1100", oneapi_exp_arch::amd_gpu_gfx1100)                               \
+  X("gfx1101", oneapi_exp_arch::amd_gpu_gfx1101)                               \
+  X("gfx1102", oneapi_exp_arch::amd_gpu_gfx1102)                               \
+  X("gfx1103", oneapi_exp_arch::amd_gpu_gfx1103)                               \
+  X("gfx1150", oneapi_exp_arch::amd_gpu_gfx1150)                               \
+  X("gfx1151", oneapi_exp_arch::amd_gpu_gfx1151)                               \
+  X("gfx1200", oneapi_exp_arch::amd_gpu_gfx1200)                               \
+  X("gfx1201", oneapi_exp_arch::amd_gpu_gfx1201)
 
 // This macro is only for Intel GPU architectures
 #define INTEL_GPU_ARCHES(X)                                                    \

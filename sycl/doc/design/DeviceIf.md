@@ -98,7 +98,12 @@ recognizes:
 * `amd_gpu_gfx904`
 * `amd_gpu_gfx906`
 * `amd_gpu_gfx908`
+* `amd_gpu_gfx909`
 * `amd_gpu_gfx90a`
+* `amd_gpu_gfx90c`
+* `amd_gpu_gfx940`
+* `amd_gpu_gfx941`
+* `amd_gpu_gfx942`
 * `amd_gpu_gfx1010`
 * `amd_gpu_gfx1011`
 * `amd_gpu_gfx1012`
@@ -106,7 +111,18 @@ recognizes:
 * `amd_gpu_gfx1030`
 * `amd_gpu_gfx1031`
 * `amd_gpu_gfx1032`
+* `amd_gpu_gfx1033`
 * `amd_gpu_gfx1034`
+* `amd_gpu_gfx1035`
+* `amd_gpu_gfx1036`
+* `amd_gpu_gfx1100`
+* `amd_gpu_gfx1101`
+* `amd_gpu_gfx1102`
+* `amd_gpu_gfx1103`
+* `amd_gpu_gfx1150`
+* `amd_gpu_gfx1151`
+* `amd_gpu_gfx1200`
+* `amd_gpu_gfx1201`
 
 The above listed device names may not be mixed with the existing target name
 `spir64_gen` on the same command line.  In addition, the user must not pass the

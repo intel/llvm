@@ -71,8 +71,12 @@ enum class architecture {
   amd_gpu_gfx904,
   amd_gpu_gfx906,
   amd_gpu_gfx908,
+  amd_gpu_gfx909,
   amd_gpu_gfx90a,
   amd_gpu_gfx90c,
+  amd_gpu_gfx940,
+  amd_gpu_gfx941,
+  amd_gpu_gfx942,
   amd_gpu_gfx1010,
   amd_gpu_gfx1011,
   amd_gpu_gfx1012,
@@ -80,7 +84,18 @@ enum class architecture {
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
   amd_gpu_gfx1032,
+  amd_gpu_gfx1033,
   amd_gpu_gfx1034,
+  amd_gpu_gfx1035,
+  amd_gpu_gfx1036,
+  amd_gpu_gfx1100,
+  amd_gpu_gfx1101,
+  amd_gpu_gfx1102,
+  amd_gpu_gfx1103,
+  amd_gpu_gfx1150,
+  amd_gpu_gfx1151,
+  amd_gpu_gfx1200,
+  amd_gpu_gfx1201,
   // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -452,10 +467,18 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX906__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx908)] =
         __SYCL_TARGET_AMD_GPU_GFX908__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx909)] =
+        __SYCL_TARGET_AMD_GPU_GFX909__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx90a)] =
         __SYCL_TARGET_AMD_GPU_GFX90A__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx90c)] =
         __SYCL_TARGET_AMD_GPU_GFX90C__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx940)] =
+        __SYCL_TARGET_AMD_GPU_GFX940__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx941)] =
+        __SYCL_TARGET_AMD_GPU_GFX941__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx942)] =
+        __SYCL_TARGET_AMD_GPU_GFX942__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1010)] =
         __SYCL_TARGET_AMD_GPU_GFX1010__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1011)] =
@@ -468,8 +491,30 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
         __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1033)] =
+        __SYCL_TARGET_AMD_GPU_GFX1033__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1034)] =
         __SYCL_TARGET_AMD_GPU_GFX1034__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1035)] =
+        __SYCL_TARGET_AMD_GPU_GFX1035__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1036)] =
+        __SYCL_TARGET_AMD_GPU_GFX1036__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1100)] =
+        __SYCL_TARGET_AMD_GPU_GFX1100__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1101)] =
+        __SYCL_TARGET_AMD_GPU_GFX1101__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1102)] =
+        __SYCL_TARGET_AMD_GPU_GFX1102__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1103)] =
+        __SYCL_TARGET_AMD_GPU_GFX1103__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1150)] =
+        __SYCL_TARGET_AMD_GPU_GFX1150__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1151)] =
+        __SYCL_TARGET_AMD_GPU_GFX1151__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1200)] =
+        __SYCL_TARGET_AMD_GPU_GFX1200__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1201)] =
+        __SYCL_TARGET_AMD_GPU_GFX1201__ == 1;
   }
 };
 
