@@ -189,7 +189,7 @@ kernel.
 **TODO:** do we need to say anything about in-memory and on-disk cache
 functionality here?
 
-[1]: <../extensions/proposed/sycl_ext_oneapi_virtual_functions.asciidoc>
+[1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
 [3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
 
