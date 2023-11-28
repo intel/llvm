@@ -249,22 +249,22 @@ graph resubmission.
 
 ### OpenCL
 
-SYCL-Graphs is only enabled for an OpenCL backend when the
+SYCL-Graph is only enabled for an OpenCL backend when the
 [cl_khr_command_buffer](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer)
 extension is available, however this information isn't available until runtime
 due to OpenCL implementations being loaded through an ICD.
 
 The `ur_exp_command_buffer` string is conditionally returned from the OpenCL
 command-buffer UR backend at runtime based on `cl_khr_command_buffer` support
-to indicate that the graphs extension should be enabled. This is information
+to indicate that the graph extension should be enabled. This is information
 is propagated to the SYCL user via the
-`device.get_info<info::device::graph_support>()` query for graphs extension
+`device.get_info<info::device::graph_support>()` query for graph extension
 support.
 
 #### Limitations
 
 Due to the API mapping gaps documented in the following section, OpenCL as a
-SYCL backend cannot fully support the graphs API. Instead there are
+SYCL backend cannot fully support the graph API. Instead, there are
 limitations in the types of nodes which a user can add to a graph, using
 an unsupported node type will cause a sycl exception to be thrown in graph
 finalization with error code `sycl::errc::feature_not_supported` and a message
@@ -317,7 +317,7 @@ adapter where there is matching support for each function in the list.
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
 
-We are looking to address these gaps in the future so that SYCL-Graphs can be
+We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
 
 #### UR Command-Buffer Implementation
@@ -341,9 +341,9 @@ custom defined symbols with the ones from OpenCL-Headers.
 #### Available OpenCL Command-Buffer Implementations
 
 Publicly available implementations of `cl_khr_command_buffer` that can be used
-to enable the graphs extension in OpenCL:
+to enable the graph extension in OpenCL:
 
 - [OneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
 - [PoCL](http://portablecl.org/)
-- [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/main/layers/10_cmdbufemu)
+- [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/efeae73139ddf064fafce565cc39640af10d900f/layers/10_cmdbufemu)
 
