@@ -372,11 +372,15 @@ public:
 
     Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
+    std::vector<pi::PiDevice> DeviceVec;
+    DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-          PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
+      DeviceVec.push_back(Dev);
     }
+    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
+        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        nullptr);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
