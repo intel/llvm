@@ -244,6 +244,9 @@ public:
 
   bool isHostTask() const;
 
+  void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
+                           const QueueImplPtr &Queue);
+
 protected:
   QueueImplPtr MQueue;
   EventImplPtr MEvent;

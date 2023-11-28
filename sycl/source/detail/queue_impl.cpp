@@ -112,6 +112,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext),
                             &EventImpl->getHandleRef(), EventImpl);
+    EventImpl->flushIfNeeded();
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -205,6 +206,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext),
                             &EventImpl->getHandleRef(), EventImpl);
+    EventImpl->flushIfNeeded();
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -248,6 +250,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
                               &EventImpl->getHandleRef(), EventImpl);
+    EventImpl->flushIfNeeded();
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -293,6 +296,7 @@ event queue_impl::memcpyToDeviceGlobal(
                                          Self, NumBytes, Offset, Src,
                                          getOrWaitEvents(DepEvents, MContext),
                                          &EventImpl->getHandleRef(), EventImpl);
+    EventImpl->flushIfNeeded();
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -338,6 +342,7 @@ event queue_impl::memcpyFromDeviceGlobal(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
         getOrWaitEvents(DepEvents, MContext), &EventImpl->getHandleRef(),
         EventImpl);
+    EventImpl->flushIfNeeded();
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

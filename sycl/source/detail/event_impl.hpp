@@ -188,10 +188,9 @@ public:
   /// @return a vector of "immediate" dependencies for this event_impl.
   std::vector<EventImplPtr> getWaitList();
 
-  /// Performs a flush on the queue associated with this event if the user queue
-  /// is different and the task associated with this event hasn't been submitted
-  /// to the device yet.
-  void flushIfNeeded(const QueueImplPtr &UserQueue);
+  /// Performs a flush on the queue associated with this event if the task
+  /// associated with this event hasn't been submitted to the device yet.
+  void flushIfNeeded();
 
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
@@ -203,6 +202,11 @@ public:
   ///
   /// \return true if this event is discarded.
   bool isDiscarded() const { return MState == HES_Discarded; }
+
+  /// Returns the queue associated with this event.
+  ///
+  /// @return shared_ptr to MQueue, please be aware it can be empty pointer
+  QueueImplPtr getQueue() { return MQueue.lock(); }
 
   /// Returns worker queue for command.
   ///

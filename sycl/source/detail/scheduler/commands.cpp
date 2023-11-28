@@ -299,10 +299,15 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
-static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
-                                const QueueImplPtr &Queue) {
+/// Performs a flush on the queue associated with the event if it is different
+/// from the WorkerQueue.
+void Command::flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
+                                  const QueueImplPtr &WorkerQueue) {
+
   for (auto &EventImpl : EventImpls) {
-    EventImpl->flushIfNeeded(Queue);
+    if (WorkerQueue != EventImpl->getQueue()) {
+      EventImpl->flushIfNeeded();
+    }
   }
 }
 

@@ -170,6 +170,7 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     }
     return;
   }
+
   MState.store(HES_Complete);
 }
 
@@ -414,7 +415,7 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   return Result;
 }
 
-void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+void event_impl::flushIfNeeded() {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no PI call is made).
   if (MIsFlushed || !MEvent)
@@ -427,8 +428,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     MIsFlushed = true;
     return;
   }
-  if (Queue == UserQueue)
-    return;
 
   // Check if the task for this event has already been submitted.
   pi_event_status Status = PI_EVENT_QUEUED;
