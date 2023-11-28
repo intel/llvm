@@ -131,6 +131,15 @@ struct ur_program_handle_t_ : _ur_object {
   // The Level Zero module handle.  Used primarily in Exe state.
   ze_module_handle_t ZeModule{};
 
+  // Map of L0 Modules created for all the devices for which a UR Program
+  // has been built.
+  std::unordered_map<ze_device_handle_t, ze_module_handle_t> ZeModuleMap;
+
   // The Level Zero build log from the last call to zeModuleCreate().
   ze_module_build_log_handle_t ZeBuildLog{};
+
+  // Map of L0 Module Build logs created for all the devices for which a UR
+  // Program has been built.
+  std::unordered_map<ze_device_handle_t, ze_module_build_log_handle_t>
+      ZeBuildLogMap;
 };
