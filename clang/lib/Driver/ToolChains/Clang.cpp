@@ -9785,7 +9785,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA);
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
       TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-compile-opts=");
       BuildArgs.clear();
