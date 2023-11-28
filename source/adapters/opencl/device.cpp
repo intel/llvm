@@ -886,7 +886,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PROFILE:
   case UR_DEVICE_INFO_VERSION:
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-  case UR_DEVICE_INFO_EXTENSIONS:
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
@@ -907,6 +906,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         propSize, pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_EXTENSIONS: {
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    size_t ExtSize = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    std::string SupportedExtensions(ExtStr.c_str());
+    if (ExtStr.find("cl_khr_command_buffer") != std::string::npos) {
+      SupportedExtensions += " ur_exp_command_buffer";
+    }
+    return ReturnValue(SupportedExtensions.c_str());
   }
   /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
    * EU device-specific information extensions. Some of the queries are

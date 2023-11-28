@@ -380,4 +380,19 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
   return retVal;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_program_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnBuildExp = urProgramBuildExp;
+  pDdiTable->pfnCompileExp = urProgramCompileExp;
+  pDdiTable->pfnLinkExp = urProgramLinkExp;
+  return retVal;
+}
+
 } // extern "C"
