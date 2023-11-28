@@ -17,6 +17,7 @@
 #include "event.hpp"
 #include "platform.hpp"
 #include "queue.hpp"
+#include "ur_util.hpp"
 #include "usm.hpp"
 
 #include <cuda.h>
