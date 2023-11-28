@@ -149,7 +149,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   urPrint("ZE ---> %s%s\n", ZeName, ZeArgs);
 
-  if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
+  if (UrL0LeaksDebug) {
     ++(*ZeCallCount)[ZeName];
   }
 

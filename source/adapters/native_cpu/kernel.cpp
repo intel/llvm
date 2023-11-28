@@ -25,7 +25,8 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   if (kernelEntry == hProgram->_kernels.end())
     return UR_RESULT_ERROR_INVALID_KERNEL;
 
-  auto f = reinterpret_cast<nativecpu_ptr_t>(kernelEntry->second);
+  auto f = reinterpret_cast<nativecpu_ptr_t>(
+      const_cast<unsigned char *>(kernelEntry->second));
   auto kernel = new ur_kernel_handle_t_(pKernelName, *f);
 
   *phKernel = kernel;
@@ -171,6 +172,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     // todo: set proper values
     return ReturnValue(0);
   }
+  case UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32: {
+#ifdef _MSC_VER
+    __assume(0);
+#else
+    __builtin_unreachable();
+#endif
+  }
   }
   DIE_NO_IMPLEMENTATION;
 }
@@ -182,7 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  delete hKernel;
+  decrementOrDelete(hKernel);
 
   return UR_RESULT_SUCCESS;
 }

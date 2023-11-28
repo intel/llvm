@@ -8,8 +8,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/cl_ext.h>
 #include <ur/ur.hpp>
 
-/// Stub implementation of command-buffers for OpenCL
+struct ur_exp_command_buffer_handle_t_ {
+  ur_queue_handle_t hInternalQueue;
+  ur_context_handle_t hContext;
+  cl_command_buffer_khr CLCommandBuffer;
 
-struct ur_exp_command_buffer_handle_t_ {};
+  ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
+                                  ur_context_handle_t hContext,
+                                  cl_command_buffer_khr CLCommandBuffer)
+      : hInternalQueue(hQueue), hContext(hContext),
+        CLCommandBuffer(CLCommandBuffer) {}
+};

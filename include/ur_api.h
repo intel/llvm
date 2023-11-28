@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.7-r0
+ * @version v0.9-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -205,6 +205,9 @@ typedef enum ur_function_t {
     UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
     UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
     UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
+    UR_FUNCTION_PROGRAM_BUILD_EXP = 197,                                       ///< Enumerator for ::urProgramBuildExp
+    UR_FUNCTION_PROGRAM_COMPILE_EXP = 198,                                     ///< Enumerator for ::urProgramCompileExp
+    UR_FUNCTION_PROGRAM_LINK_EXP = 199,                                        ///< Enumerator for ::urProgramLinkExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1022,7 +1025,9 @@ urPlatformGetInfo(
 typedef enum ur_api_version_t {
     UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),     ///< version 0.6
     UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),     ///< version 0.7
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 7), ///< latest known version
+    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),     ///< version 0.8
+    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),     ///< version 0.9
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 9), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -8033,6 +8038,131 @@ urCommandBufferEnqueueExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
+#if !defined(__GNUC__)
+#pragma region multi device compile(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
+/// @brief The extension string which defines support for test
+///        which is returned when querying device extensions.
+#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP "ur_exp_multi_device_compile"
+#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one program, negates need for the
+///        linking step.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, the program passed
+///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clBuildProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred when building `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuildExp(
+    ur_program_handle_t hProgram,  ///< [in] Handle of the program to build.
+    uint32_t numDevices,           ///< [in] number of devices
+    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *pOptions           ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCompileProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred while compiling `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCompileExp(
+    ur_program_handle_t hProgram,  ///< [in][out] handle of the program to compile.
+    uint32_t numDevices,           ///< [in] number of devices
+    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *pOptions           ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
+///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
+///       `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clLinkProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///         + `NULL == phPrograms`
+///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLinkExp(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t numDevices,                   ///< [in] number of devices
+    ur_device_handle_t *phDevices,         ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' USM Import/Release Extension APIs
 #if !defined(__GNUC__)
 #pragma region usm import release(experimental)
@@ -8532,6 +8662,17 @@ typedef struct ur_program_build_params_t {
 } ur_program_build_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramBuildExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_build_exp_params_t {
+    ur_program_handle_t *phProgram;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    const char **ppOptions;
+} ur_program_build_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCompile
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -8540,6 +8681,17 @@ typedef struct ur_program_compile_params_t {
     ur_program_handle_t *phProgram;
     const char **ppOptions;
 } ur_program_compile_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramCompileExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_compile_exp_params_t {
+    ur_program_handle_t *phProgram;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    const char **ppOptions;
+} ur_program_compile_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramLink
@@ -8552,6 +8704,20 @@ typedef struct ur_program_link_params_t {
     const char **ppOptions;
     ur_program_handle_t **pphProgram;
 } ur_program_link_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramLinkExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_link_exp_params_t {
+    ur_context_handle_t *phContext;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    uint32_t *pcount;
+    const ur_program_handle_t **pphPrograms;
+    const char **ppOptions;
+    ur_program_handle_t **pphProgram;
+} ur_program_link_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramRetain

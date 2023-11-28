@@ -1,0 +1,2 @@
+urEventSetCallbackTest.AllStates/Intel_R__OpenCL___{{.*}}_
+urEventSetCallbackNegativeTest.InvalidNullHandle/Intel_R__OpenCL___{{.*}}_
