@@ -15,6 +15,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 #include "usm.hpp"
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
