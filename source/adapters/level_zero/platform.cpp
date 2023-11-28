@@ -30,7 +30,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   static std::once_flag ZeCallCountInitialized;
   try {
     std::call_once(ZeCallCountInitialized, []() {
-      if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
+      if (UrL0LeaksDebug) {
         ZeCallCount = new std::map<std::string, int>;
       }
     });

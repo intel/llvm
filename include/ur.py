@@ -6,7 +6,7 @@
  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
  @file ur.py
- @version v0.7-r0
+ @version v0.9-r0
 
  """
 import platform
@@ -573,7 +573,9 @@ class ur_platform_info_t(c_int):
 class ur_api_version_v(IntEnum):
     _0_6 = UR_MAKE_VERSION( 0, 6 )                  ## version 0.6
     _0_7 = UR_MAKE_VERSION( 0, 7 )                  ## version 0.7
-    CURRENT = UR_MAKE_VERSION( 0, 7 )               ## latest known version
+    _0_8 = UR_MAKE_VERSION( 0, 8 )                  ## version 0.8
+    _0_9 = UR_MAKE_VERSION( 0, 9 )                  ## version 0.9
+    CURRENT = UR_MAKE_VERSION( 0, 9 )               ## latest known version
 
 class ur_api_version_t(c_int):
     def __str__(self):

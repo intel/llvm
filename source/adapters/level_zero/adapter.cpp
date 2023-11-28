@@ -38,7 +38,7 @@ ur_result_t adapterStateTeardown() {
   // Print the balance of various create/destroy native calls.
   // The idea is to verify if the number of create(+) and destroy(-) calls are
   // matched.
-  if (ZeCallCount && (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) != 0) {
+  if (ZeCallCount && (UrL0LeaksDebug) != 0) {
     // clang-format off
     //
     // The format of this table is such that each row accounts for a
@@ -79,8 +79,7 @@ ur_result_t adapterStateTeardown() {
     //
     // clang-format on
 
-    fprintf(stderr, "ZE_DEBUG=%d: check balance of create/destroy calls\n",
-            UR_L0_DEBUG_CALL_COUNT);
+    fprintf(stderr, "Check balance of create/destroy calls\n");
     fprintf(stderr,
             "----------------------------------------------------------\n");
     for (const auto &Row : CreateDestroySet) {
