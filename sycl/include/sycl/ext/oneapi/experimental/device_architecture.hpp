@@ -265,11 +265,23 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX908__
 #define __SYCL_TARGET_AMD_GPU_GFX908__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX909__
+#define __SYCL_TARGET_AMD_GPU_GFX909__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX90A__
 #define __SYCL_TARGET_AMD_GPU_GFX90A__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX90C__
 #define __SYCL_TARGET_AMD_GPU_GFX90C__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX940__
+#define __SYCL_TARGET_AMD_GPU_GFX940__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX941__
+#define __SYCL_TARGET_AMD_GPU_GFX941__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX942__
+#define __SYCL_TARGET_AMD_GPU_GFX942__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1010__
 #define __SYCL_TARGET_AMD_GPU_GFX1010__ 0
@@ -292,8 +304,41 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
 #define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1033__
+#define __SYCL_TARGET_AMD_GPU_GFX1033__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1034__
 #define __SYCL_TARGET_AMD_GPU_GFX1034__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1035__
+#define __SYCL_TARGET_AMD_GPU_GFX1035__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1036__
+#define __SYCL_TARGET_AMD_GPU_GFX1036__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1100__
+#define __SYCL_TARGET_AMD_GPU_GFX1100__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1101__
+#define __SYCL_TARGET_AMD_GPU_GFX1101__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1102__
+#define __SYCL_TARGET_AMD_GPU_GFX1102__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1103__
+#define __SYCL_TARGET_AMD_GPU_GFX1103__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1150__
+#define __SYCL_TARGET_AMD_GPU_GFX1150__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1151__
+#define __SYCL_TARGET_AMD_GPU_GFX1151__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1200__
+#define __SYCL_TARGET_AMD_GPU_GFX1200__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1201__
+#define __SYCL_TARGET_AMD_GPU_GFX1201__ 0
 #endif
 
 // This is true when the translation unit is compiled in AOT mode with target
@@ -351,8 +396,12 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX904__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX906__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX908__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX909__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX90A__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX90C__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX940__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX941__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX942__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1010__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1011__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1012__ == 1) ||
@@ -360,7 +409,18 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1033__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1035__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1036__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1100__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1101__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1102__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1103__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1150__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1151__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1200__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1201__ == 1);
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of
