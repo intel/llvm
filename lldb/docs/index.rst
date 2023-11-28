@@ -102,10 +102,13 @@ Additionally it builds:
 See the :doc:`LLDB Build Page <resources/build>` for build instructions.
 
 Discussions about LLDB should go to the `LLDB forum
-<https://discourse.llvm.org/c/subprojects/lldb>`__. Commit
+<https://discourse.llvm.org/c/subprojects/lldb>`__ or the ``lldb`` channel on
+the `LLVM Discord server <https://discord.com/invite/xS7Z362>`__.
+
+For contributions follow the
+`LLVM contribution process <https://llvm.org/docs/Contributing.html>`__. Commit
 messages are automatically sent to the `lldb-commits
-<http://lists.llvm.org/mailman/listinfo/lldb-commits>`__ mailing list, and
-this is also the preferred mailing list for patch submissions.
+<http://lists.llvm.org/mailman/listinfo/lldb-commits>`__ mailing list.
 
 See the :doc:`Projects page <resources/projects>` if you are looking for some
 interesting areas to contribute to lldb.
@@ -125,6 +128,7 @@ interesting areas to contribute to lldb.
    use/qemu-testing
    use/intel_pt
    use/ondemand
+   use/aarch64-linux
    use/troubleshooting
    use/links
    Man Page <man/lldb>
@@ -151,6 +155,7 @@ interesting areas to contribute to lldb.
    resources/debugging
    resources/fuzzing
    resources/sbapi
+   resources/dataformatters
    resources/extensions
    resources/caveats
    resources/projects
@@ -166,5 +171,5 @@ interesting areas to contribute to lldb.
    Releases <https://github.com/llvm/llvm-project/releases>
    Discussion Forums <https://discourse.llvm.org/c/subprojects/lldb/8>
    Developer Policy <https://llvm.org/docs/DeveloperPolicy.html>
-   Bug Reports <https://github.com/llvm/llvm-project/issues/labels/lldb/>
-   Code Reviews <https://reviews.llvm.org>
+   Bug Reports <https://github.com/llvm/llvm-project/issues?q=is%3Aissue+label%3Alldb+is%3Aopen>
+   Code Reviews <https://github.com/llvm/llvm-project/pulls?q=is%3Apr+label%3Alldb+is%3Aopen>

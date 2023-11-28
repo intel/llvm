@@ -7,6 +7,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = unsigned int;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size), DataOut(Size);
@@ -63,6 +67,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    Event.wait();
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
@@ -70,6 +75,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExecAdditional);
     });
+    Event.wait();
   }
 
   Queue.wait_and_throw();
@@ -83,8 +89,10 @@ int main() {
   free(PtrC, Queue);
   free(PtrOut, Queue);
 
-  assert(ReferenceC == DataC);
-  assert(ReferenceOut == DataOut);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceOut[i], DataOut[i], "DataOut"));
+  }
 
   return 0;
 }

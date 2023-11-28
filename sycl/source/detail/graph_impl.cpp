@@ -29,50 +29,6 @@ namespace experimental {
 namespace detail {
 
 namespace {
-
-/// Recursively check if a given node is an exit node, and add the new nodes as
-/// successors if so.
-/// @param[in] CurrentNode Node to check as exit node.
-/// @param[in] NewInputs Noes to add as successors.
-void connectToExitNodes(
-    std::shared_ptr<node_impl> CurrentNode,
-    const std::vector<std::shared_ptr<node_impl>> &NewInputs) {
-  if (CurrentNode->MSuccessors.size() > 0) {
-    for (auto &Successor : CurrentNode->MSuccessors) {
-      connectToExitNodes(Successor, NewInputs);
-    }
-
-  } else {
-    for (auto &Input : NewInputs) {
-      CurrentNode->registerSuccessor(Input, CurrentNode);
-    }
-  }
-}
-
-/// Recursive check if a graph node or its successors contains a given
-/// requirement.
-/// @param[in] Req The requirement to check for.
-/// @param[in] CurrentNode The current graph node being checked.
-/// @param[in,out] Deps The unique list of dependencies which have been
-/// identified for this requirement.
-/// @return True if a dependency was added in this node or any of its
-/// successors.
-bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
-                         const std::shared_ptr<node_impl> &CurrentNode,
-                         std::set<std::shared_ptr<node_impl>> &Deps) {
-  bool SuccessorAddedDep = false;
-  for (auto &Successor : CurrentNode->MSuccessors) {
-    SuccessorAddedDep |= checkForRequirement(Req, Successor, Deps);
-  }
-
-  if (!CurrentNode->isEmpty() && Deps.find(CurrentNode) == Deps.end() &&
-      CurrentNode->hasRequirement(Req) && !SuccessorAddedDep) {
-    Deps.insert(CurrentNode);
-    return true;
-  }
-  return SuccessorAddedDep;
-}
-
 /// Visits a node on the graph and it's successors recursively in a depth-first
 /// approach.
 /// @param[in] Node The current node being visited.
@@ -99,7 +55,8 @@ bool visitNodeDepthFirst(
   Node->MVisited = true;
   VisitedNodes.emplace(Node);
   for (auto &Successor : Node->MSuccessors) {
-    if (visitNodeDepthFirst(Successor, VisitedNodes, NodeStack, NodeFunc)) {
+    if (visitNodeDepthFirst(Successor.lock(), VisitedNodes, NodeStack,
+                            NodeFunc)) {
       return true;
     }
   }
@@ -117,12 +74,28 @@ void duplicateNode(const std::shared_ptr<node_impl> Node,
   }
 }
 
+/// Recursively add nodes to execution stack.
+/// @param NodeImpl Node to schedule.
+/// @param Schedule Execution ordering to add node to.
+void sortTopological(std::shared_ptr<node_impl> NodeImpl,
+                     std::list<std::shared_ptr<node_impl>> &Schedule) {
+  for (auto &Succ : NodeImpl->MSuccessors) {
+    // Check if we've already scheduled this node
+    auto NextNode = Succ.lock();
+    if (std::find(Schedule.begin(), Schedule.end(), NextNode) ==
+        Schedule.end()) {
+      sortTopological(NextNode, Schedule);
+    }
+  }
+
+  Schedule.push_front(NodeImpl);
+}
 } // anonymous namespace
 
 void exec_graph_impl::schedule() {
   if (MSchedule.empty()) {
     for (auto &Node : MGraphImpl->MRoots) {
-      Node->sortTopological(Node, MSchedule);
+      sortTopological(Node.lock(), MSchedule);
     }
   }
 }
@@ -148,10 +121,19 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
     }
   }
 
-  // Recursively walk the graph to find exit nodes and connect up the inputs
-  // TODO: Consider caching exit nodes so we don't have to do this
-  for (auto &NodeImpl : MRoots) {
-    connectToExitNodes(NodeImpl, Inputs);
+  // Find all exit nodes in the current graph and register the Inputs as
+  // successors
+  for (auto &NodeImpl : MNodeStorage) {
+    if (NodeImpl->MSuccessors.size() == 0) {
+      for (auto &Input : Inputs) {
+        NodeImpl->registerSuccessor(Input, NodeImpl);
+      }
+    }
+  }
+
+  // Add all the new nodes to the node storage
+  for (auto &Node : NodeList) {
+    MNodeStorage.push_back(Node);
   }
 
   return this->add(Outputs);
@@ -175,7 +157,7 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     *NewNodesIt = NodeCopy;
     NodesMap.insert({Node, NodeCopy});
     for (auto &NextNode : Node->MSuccessors) {
-      auto Successor = NodesMap.at(NextNode);
+      auto Successor = NodesMap.at(NextNode.lock());
       NodeCopy->registerSuccessor(Successor, NodeCopy);
     }
   }
@@ -193,18 +175,17 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 
 std::shared_ptr<node_impl>
 graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
+  // Copy deps so we can modify them
+  auto Deps = Dep;
+
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
-  // TODO: Encapsulate in separate function to avoid duplication
-  if (!Dep.empty()) {
-    for (auto &N : Dep) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
-  }
+  // Add any deps from the vector of extra dependencies
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
+  MNodeStorage.push_back(NodeImpl);
+
+  addDepsToNode(NodeImpl, Deps);
 
   return NodeImpl;
 }
@@ -218,6 +199,13 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   sycl::handler Handler{Impl};
   CGF(Handler);
   Handler.finalize();
+
+  if (Handler.MCGType == sycl::detail::CG::Barrier) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
+        "SYCL Graph Explicit API. Please use empty nodes instead.");
+  }
 
   // If the handler recorded a subgraph return that here as the relevant nodes
   // have already been added. The node returned here is an empty node with
@@ -272,17 +260,28 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       MemObj->markBeingUsedInGraph();
     }
     // Look through the graph for nodes which share this requirement
-    for (auto &NodePtr : MRoots) {
-      checkForRequirement(Req, NodePtr, UniqueDeps);
+    for (auto &Node : MNodeStorage) {
+      if (Node->hasRequirement(Req)) {
+        bool ShouldAddDep = true;
+        // If any of this node's successors have this requirement then we skip
+        // adding the current node as a dependency.
+        for (auto &Succ : Node->MSuccessors) {
+          if (Succ.lock()->hasRequirement(Req)) {
+            ShouldAddDep = false;
+            break;
+          }
+        }
+        if (ShouldAddDep) {
+          UniqueDeps.insert(Node);
+        }
+      }
     }
   }
 
   // Add any nodes specified by event dependencies into the dependency list
   for (auto &Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      if (UniqueDeps.find(NodeImpl->second) == UniqueDeps.end()) {
-        UniqueDeps.insert(NodeImpl->second);
-      }
+      UniqueDeps.insert(NodeImpl->second);
     } else {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Event dependency from handler::depends_on does "
@@ -293,17 +292,20 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
+  // Add any deps from the extra dependencies vector
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));
-  if (!Deps.empty()) {
-    for (auto &N : Deps) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
+  MNodeStorage.push_back(NodeImpl);
+
+  addDepsToNode(NodeImpl, Deps);
+
+  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
+  if (CGType == sycl::detail::CG::Barrier) {
+    MExtraDependencies.push_back(NodeImpl);
   }
+
   return NodeImpl;
 }
 
@@ -331,7 +333,7 @@ void graph_impl::searchDepthFirst(
 
   for (auto &Root : MRoots) {
     std::deque<std::shared_ptr<node_impl>> NodeStack;
-    if (visitNodeDepthFirst(Root, VisitedNodes, NodeStack, NodeFunc)) {
+    if (visitNodeDepthFirst(Root.lock(), VisitedNodes, NodeStack, NodeFunc)) {
       break;
     }
   }
@@ -372,18 +374,15 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 
   bool SrcFound = false;
   bool DestFound = false;
-  auto CheckForNodes = [&](std::shared_ptr<node_impl> &Node,
-                           std::deque<std::shared_ptr<node_impl>> &) {
-    if (Node == Src) {
-      SrcFound = true;
-    }
-    if (Node == Dest) {
-      DestFound = true;
-    }
-    return SrcFound && DestFound;
-  };
+  for (const auto &Node : MNodeStorage) {
 
-  searchDepthFirst(CheckForNodes);
+    SrcFound |= Node == Src;
+    DestFound |= Node == Dest;
+
+    if (SrcFound && DestFound) {
+      break;
+    }
+  }
 
   if (!SrcFound) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
@@ -413,6 +412,18 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
     }
   }
   removeRoot(Dest); // remove receiver from root node list
+}
+
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+  std::vector<sycl::detail::EventImplPtr> Events;
+
+  for (auto Node : MNodeStorage) {
+    if (Node->MSuccessors.empty()) {
+      Events.push_back(getEventForNode(Node));
+    }
+  }
+
+  return Events;
 }
 
 // Check if nodes are empty and if so loop back through predecessors until we
@@ -583,6 +594,11 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   sycl::detail::EventImplPtr NewEvent;
 
   if (CommandBuffer) {
+    if (!previousSubmissionCompleted()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "This Graph cannot be submitted at the moment "
+                            "because the previous run has not yet completed.");
+    }
     NewEvent = CreateNewEvent();
     sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
     // Merge requirements from the nodes into requirements (if any) from the
@@ -640,9 +656,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                 NodeImpl->MCommandGroup.get());
         auto OutEvent = CreateNewEvent();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
-            Queue, CG->MNDRDesc, CG->MArgs,
-            // TODO: Handler KernelBundles
-            nullptr, CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
+            Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle, CG->MSyclKernel,
+            CG->MKernelName, RawEvents, OutEvent,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler
@@ -707,6 +722,19 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   std::shared_ptr<detail::node_impl> NodeImpl =
       impl->add(impl, CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+}
+
+void modifiable_command_graph::addGraphLeafDependencies(node Node) {
+  // Find all exit nodes in the current graph and add them to the dependency
+  // vector
+  std::shared_ptr<detail::node_impl> DstImpl =
+      sycl::detail::getSyclObjImpl(Node);
+  graph_impl::WriteLock Lock(impl->MMutex);
+  for (auto &NodeImpl : impl->MNodeStorage) {
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
+    }
+  }
 }
 
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
@@ -815,6 +843,18 @@ bool modifiable_command_graph::end_recording(
   return QueueStateChanged;
 }
 
+void modifiable_command_graph::print_graph(std::string path,
+                                           bool verbose) const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  if (path.substr(path.find_last_of(".") + 1) == "dot") {
+    impl->printGraphAsDot(path, verbose);
+  } else {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "DOT graph is the only format supported at the moment.");
+  }
+}
+
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
@@ -825,22 +865,20 @@ void executable_command_graph::finalizeImpl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
 
-  auto Context = impl->getContext();
-  for (const auto &Device : Context.get_devices()) {
-    bool CmdBufSupport =
-        Device.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::native;
+  auto Device = impl->getGraphImpl()->getDevice();
+  bool CmdBufSupport =
+      Device
+          .get_info<ext::oneapi::experimental::info::device::graph_support>() ==
+      graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
-    // Above query should still succeed in emulation mode, but ignore the
-    // result and use emulation.
-    CmdBufSupport = false;
+  // Above query should still succeed in emulation mode, but ignore the
+  // result and use emulation.
+  CmdBufSupport = false;
 #endif
 
-    if (CmdBufSupport) {
-      impl->createCommandBuffers(Device);
-    }
+  if (CmdBufSupport) {
+    impl->createCommandBuffers(Device);
   }
 }
 

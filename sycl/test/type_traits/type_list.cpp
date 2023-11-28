@@ -31,102 +31,22 @@ void test_trait() {
 int main() {
   // test list of types
   using scalar_float = d::type_list<float>;
-  static_assert(is_same<scalar_float::head, float>::value, "");
-  static_assert(is_same<scalar_float::tail, d::empty_type_list>::value, "");
-
   using vector_float = d::type_list<s::vec<float, 1>, s::vec<float, 2>>;
-  static_assert(is_same<vector_float::head, s::vec<float, 1>>::value, "");
-  static_assert(is_same<vector_float::tail::head, s::vec<float, 2>>::value, "");
-  static_assert(is_same<vector_float::tail::tail, d::empty_type_list>::value,
-                "");
-
-  using float_list = d::type_list<scalar_float, vector_float>;
-  static_assert(is_same<float_list::head, float>::value, "");
-  static_assert(is_same<float_list::tail::head, s::vec<float, 1>>::value, "");
-  static_assert(is_same<float_list::tail::tail::head, s::vec<float, 2>>::value,
-                "");
-  static_assert(
-      is_same<float_list::tail::tail::tail, d::empty_type_list>::value, "");
-
+  using float_list = d::tl_append<scalar_float, vector_float>;
   using scalar_double = d::type_list<double>;
   using vector_double = d::type_list<s::vec<double, 1>, s::vec<double, 2>>;
-  using double_list = d::type_list<scalar_double, vector_double>;
-  using floating_list = d::type_list<float_list, double_list>;
-  static_assert(is_same<floating_list::head, float>::value, "");
-  static_assert(is_same<floating_list::tail::head, s::vec<float, 1>>::value,
-                "");
-  static_assert(
-      is_same<floating_list::tail::tail::head, s::vec<float, 2>>::value, "");
-  static_assert(is_same<floating_list::tail::tail::tail::head, double>::value,
-                "");
-  static_assert(is_same<floating_list::tail::tail::tail::tail::head,
-                        s::vec<double, 1>>::value,
-                "");
-  static_assert(is_same<floating_list::tail::tail::tail::tail::tail::head,
-                        s::vec<double, 2>>::value,
-                "");
-  static_assert(is_same<floating_list::tail::tail::tail::tail::tail::tail,
-                        d::empty_type_list>::value,
-                "");
+  using double_list = d::tl_append<scalar_double, vector_double>;
+  using floating_list = d::tl_append<float_list, double_list>;
 
   using scalar_int = d::type_list<int>;
   using scalar_long = d::type_list<long>;
   using vector_int = d::type_list<s::vec<int, 1>, s::vec<int, 2>>;
   using vector_long = d::type_list<s::vec<long, 1>, s::vec<long, 2>>;
-  using int_list = d::type_list<scalar_int, vector_int>;
-  using long_list = d::type_list<scalar_long, vector_long>;
-  using integer_list = d::type_list<int_list, long_list>;
-  static_assert(is_same<integer_list::head, int>::value, "");
-  static_assert(is_same<integer_list::tail::head, s::vec<int, 1>>::value, "");
-  static_assert(is_same<integer_list::tail::tail::head, s::vec<int, 2>>::value,
-                "");
-  static_assert(is_same<integer_list::tail::tail::tail::head, long>::value, "");
-  static_assert(is_same<integer_list::tail::tail::tail::tail::head,
-                        s::vec<long, 1>>::value,
-                "");
-  static_assert(is_same<integer_list::tail::tail::tail::tail::tail::head,
-                        s::vec<long, 2>>::value,
-                "");
-  static_assert(is_same<integer_list::tail::tail::tail::tail::tail::tail,
-                        d::empty_type_list>::value,
-                "");
+  using int_list = d::tl_append<scalar_int, vector_int>;
+  using long_list = d::tl_append<scalar_long, vector_long>;
+  using integer_list = d::tl_append<int_list, long_list>;
 
-  using types = d::type_list<floating_list, integer_list>;
-  static_assert(is_same<types::head, float>::value, "");
-  static_assert(is_same<types::tail::head, s::vec<float, 1>>::value, "");
-  static_assert(is_same<types::tail::tail::head, s::vec<float, 2>>::value, "");
-  static_assert(is_same<types::tail::tail::tail::head, double>::value, "");
-  static_assert(
-      is_same<types::tail::tail::tail::tail::head, s::vec<double, 1>>::value,
-      "");
-  static_assert(is_same<types::tail::tail::tail::tail::tail::head,
-                        s::vec<double, 2>>::value,
-                "");
-  static_assert(
-      is_same<types::tail::tail::tail::tail::tail::tail::head, int>::value, "");
-  static_assert(is_same<types::tail::tail::tail::tail::tail::tail::tail::head,
-                        s::vec<int, 1>>::value,
-                "");
-  static_assert(
-      is_same<types::tail::tail::tail::tail::tail::tail::tail::tail::head,
-              s::vec<int, 2>>::value,
-      "");
-  static_assert(
-      is_same<types::tail::tail::tail::tail::tail::tail::tail::tail::tail::head,
-              long>::value,
-      "");
-  static_assert(is_same<types::tail::tail::tail::tail::tail::tail::tail::tail::
-                            tail::tail::head,
-                        s::vec<long, 1>>::value,
-                "");
-  static_assert(is_same<types::tail::tail::tail::tail::tail::tail::tail::tail::
-                            tail::tail::tail::head,
-                        s::vec<long, 2>>::value,
-                "");
-  static_assert(is_same<types::tail::tail::tail::tail::tail::tail::tail::tail::
-                            tail::tail::tail::tail,
-                        d::empty_type_list>::value,
-                "");
+  using types = d::tl_append<floating_list, integer_list>;
 
   static_assert(d::is_contained<float, scalar_float>::value, "");
   static_assert(d::is_contained<s::vec<float, 2>, scalar_float>::value == false,
@@ -155,40 +75,21 @@ int main() {
 
   test_predicate<d::is_type_size_equal, int8_t, s::opencl::cl_char>();
   test_predicate<d::is_type_size_equal, int16_t, s::opencl::cl_char, false>();
-  test_predicate<d::is_type_size_greater, int8_t, s::opencl::cl_char, false>();
-  test_predicate<d::is_type_size_greater, int32_t, s::opencl::cl_char>();
   test_predicate<d::is_type_size_double_of, int8_t, s::opencl::cl_char,
                  false>();
   test_predicate<d::is_type_size_double_of, int16_t, s::opencl::cl_char>();
   test_predicate<d::is_type_size_double_of, int32_t, s::opencl::cl_char,
                  false>();
-  test_predicate<d::is_type_size_less, int8_t, s::opencl::cl_int>();
-  test_predicate<d::is_type_size_less, int32_t, s::opencl::cl_int, false>();
-  test_predicate<d::is_type_size_half_of, int8_t, s::opencl::cl_int, false>();
-  test_predicate<d::is_type_size_half_of, int16_t, s::opencl::cl_int>();
-  test_predicate<d::is_type_size_half_of, int32_t, s::opencl::cl_int, false>();
 
   // if void is found, the required type is not found
   test_trait<d::find_same_size_type_t, d::type_list<int8_t>, s::opencl::cl_char,
              int8_t>();
   test_trait<d::find_same_size_type_t, d::type_list<int16_t>,
              s::opencl::cl_char, void>();
-  test_trait<d::find_larger_type_t, d::type_list<int8_t, int16_t>,
-             s::opencl::cl_char, int16_t>();
-  test_trait<d::find_larger_type_t, d::type_list<int8_t>, s::opencl::cl_char,
-             void>();
   test_trait<d::find_twice_as_large_type_t, d::type_list<int8_t, int16_t>,
              s::opencl::cl_char, int16_t>();
   test_trait<d::find_twice_as_large_type_t, d::type_list<int8_t, int32_t>,
              s::opencl::cl_char, void>();
-  test_trait<d::find_smaller_type_t, d::type_list<int8_t>, s::opencl::cl_int,
-             int8_t>();
-  test_trait<d::find_smaller_type_t, d::type_list<int32_t>, s::opencl::cl_int,
-             void>();
-  test_trait<d::find_twice_as_small_type_t, d::type_list<int8_t, int16_t>,
-             s::opencl::cl_int, int16_t>();
-  test_trait<d::find_twice_as_small_type_t, d::type_list<int8_t, int32_t>,
-             s::opencl::cl_int, void>();
 
   return 0;
 }

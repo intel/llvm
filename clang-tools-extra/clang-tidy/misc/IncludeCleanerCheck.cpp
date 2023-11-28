@@ -26,9 +26,11 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Format/Format.h"
+#include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -96,11 +98,14 @@ bool IncludeCleanerCheck::shouldIgnore(const include_cleaner::Header &H) {
   return llvm::any_of(IgnoreHeadersRegex, [&H](const llvm::Regex &R) {
     switch (H.kind()) {
     case include_cleaner::Header::Standard:
+      // We don't trim angle brackets around standard library headers
+      // deliberately, so that they are only matched as <vector>, otherwise
+      // having just `.*/vector` might yield false positives.
       return R.match(H.standard().name());
     case include_cleaner::Header::Verbatim:
-      return R.match(H.verbatim());
+      return R.match(H.verbatim().trim("<>\""));
     case include_cleaner::Header::Physical:
-      return R.match(H.physical()->tryGetRealPathName());
+      return R.match(H.physical().getFileEntry().tryGetRealPathName());
     }
     llvm_unreachable("Unknown Header kind.");
   });
@@ -119,6 +124,8 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
     MainFileDecls.push_back(D);
   }
   llvm::DenseSet<include_cleaner::Symbol> SeenSymbols;
+  const DirectoryEntry *ResourceDir =
+      PP->getHeaderSearchInfo().getModuleMap().getBuiltinDir();
   // FIXME: Find a way to have less code duplication between include-cleaner
   // analysis implementation and the below code.
   walkUsed(MainFileDecls, RecordedPreprocessor.MacroReferences, &RecordedPI,
@@ -141,8 +148,11 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
              bool Satisfied = false;
              for (const include_cleaner::Header &H : Providers) {
                if (H.kind() == include_cleaner::Header::Physical &&
-                   H.physical() == MainFile)
+                   (H.physical() == MainFile ||
+                    H.physical().getDir() == ResourceDir)) {
                  Satisfied = true;
+                 continue;
+               }
 
                for (const include_cleaner::Include *I :
                     RecordedPreprocessor.Includes.match(H)) {
@@ -159,7 +169,7 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
   std::vector<const include_cleaner::Include *> Unused;
   for (const include_cleaner::Include &I :
        RecordedPreprocessor.Includes.all()) {
-    if (Used.contains(&I) || !I.Resolved)
+    if (Used.contains(&I) || !I.Resolved || I.Resolved->getDir() == ResourceDir)
       continue;
     if (RecordedPI.shouldKeep(*I.Resolved))
       continue;
@@ -173,12 +183,14 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
       if (getCurrentMainFile().endswith(PHeader))
         continue;
     }
-
-    if (llvm::none_of(
-            IgnoreHeadersRegex,
-            [Resolved = (*I.Resolved).getFileEntry().tryGetRealPathName()](
-                const llvm::Regex &R) { return R.match(Resolved); }))
-      Unused.push_back(&I);
+    auto StdHeader = tooling::stdlib::Header::named(
+        I.quote(), PP->getLangOpts().CPlusPlus ? tooling::stdlib::Lang::CXX
+                                               : tooling::stdlib::Lang::C);
+    if (StdHeader && shouldIgnore(*StdHeader))
+      continue;
+    if (shouldIgnore(*I.Resolved))
+      continue;
+    Unused.push_back(&I);
   }
 
   llvm::StringRef Code = SM->getBufferData(SM->getMainFileID());

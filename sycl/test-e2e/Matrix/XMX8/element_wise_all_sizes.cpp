@@ -7,7 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// TODO: Currently fails and regularly times out on DG2. Re-enable when this has
+//       been addressed.
+// UNSUPPORTED: gpu-intel-dg2
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>

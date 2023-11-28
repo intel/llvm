@@ -125,17 +125,6 @@ public:
   /// integer type with the size configured for this type converter.
   Type getIndexType() const;
 
-  /// Returns true if using opaque pointers was enabled in the lowering options.
-  bool useOpaquePointers() const { return getOptions().useOpaquePointers; }
-
-  /// Creates an LLVM pointer type with the given element type and address
-  /// space.
-  /// This function is meant to be used in code supporting both typed and opaque
-  /// pointers, as it will create an opaque pointer with the given address space
-  /// if opaque pointers are enabled in the lowering options.
-  LLVM::LLVMPointerType getPointerType(Type elementType,
-                                       unsigned addressSpace = 0) const;
-
   /// Gets the bitwidth of the index type when converted to LLVM.
   unsigned getIndexTypeBitwidth() const { return options.getIndexBitwidth(); }
 
@@ -239,7 +228,7 @@ private:
   Type convertMemRefToBarePtr(BaseMemRefType type) const;
 
   /// Convert a 1D vector type into an LLVM vector type.
-  Type convertVectorType(VectorType type) const;
+  FailureOr<Type> convertVectorType(VectorType type) const;
 
   /// Options for customizing the llvm lowering.
   LowerToLLVMOptions options;

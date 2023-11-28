@@ -176,6 +176,11 @@ void test_deduce() {
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, s_ptr,
                                                      s_ptr) ==
          memcpy_direction::device_to_device);
+
+  std::free(sys_ptr);
+  syclcompat::free(h_ptr);
+  syclcompat::free(d_ptr);
+  syclcompat::free(s_ptr);
 }
 
 int main() {

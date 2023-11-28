@@ -249,6 +249,8 @@ bool RTLsTy::attemptLoadRTL(const std::string &RTLName, RTLInfoTy &RTL) {
       DynLibrary->getAddressOfSymbol("__tgt_rtl_data_notify_mapped");
   *((void **)&RTL.data_notify_unmapped) =
       DynLibrary->getAddressOfSymbol("__tgt_rtl_data_notify_unmapped");
+  *((void **)&RTL.set_device_offset) =
+      DynLibrary->getAddressOfSymbol("__tgt_rtl_set_device_offset");
 
   // Record Replay RTL
   *((void **)&RTL.activate_record_replay) =
@@ -311,12 +313,18 @@ static void registerGlobalCtorsDtorsForImage(__tgt_bin_desc *Desc,
         DP("Adding ctor " DPxMOD " to the pending list.\n",
            DPxPTR(Entry->addr));
         Device.PendingCtorsDtors[Desc].PendingCtors.push_back(Entry->addr);
+        MESSAGE("WARNING: Calling deprecated constructor for entry %s will be "
+                "removed in a future release \n",
+                Entry->name);
       } else if (Entry->flags & OMP_DECLARE_TARGET_DTOR) {
         // Dtors are pushed in reverse order so they are executed from end
         // to beginning when unregistering the library!
         DP("Adding dtor " DPxMOD " to the pending list.\n",
            DPxPTR(Entry->addr));
         Device.PendingCtorsDtors[Desc].PendingDtors.push_front(Entry->addr);
+        MESSAGE("WARNING: Calling deprecated destructor for entry %s will be "
+                "removed in a future release \n",
+                Entry->name);
       }
 
       if (Entry->flags & OMP_DECLARE_TARGET_LINK) {
@@ -423,6 +431,10 @@ void RTLsTy::initRTLonce(RTLInfoTy &R) {
            "RTL index should equal the number of devices used so far.");
     R.IsUsed = true;
     UsedRTLs.push_back(&R);
+
+    // If possible, set the device identifier offset
+    if (R.set_device_offset)
+      R.set_device_offset(Start);
 
     DP("RTL " DPxMOD " has index %d!\n", DPxPTR(R.LibraryHandler.get()), R.Idx);
   }
@@ -538,7 +550,8 @@ void RTLsTy::unregisterLib(__tgt_bin_desc *Desc) {
         if (Device.PendingCtorsDtors[Desc].PendingCtors.empty()) {
           AsyncInfoTy AsyncInfo(Device);
           for (auto &Dtor : Device.PendingCtorsDtors[Desc].PendingDtors) {
-            int Rc = target(nullptr, Device, Dtor, CTorDTorKernelArgs, AsyncInfo);
+            int Rc =
+                target(nullptr, Device, Dtor, CTorDTorKernelArgs, AsyncInfo);
             if (Rc != OFFLOAD_SUCCESS) {
               DP("Running destructor " DPxMOD " failed.\n", DPxPTR(Dtor));
             }

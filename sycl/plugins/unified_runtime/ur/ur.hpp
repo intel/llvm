@@ -47,6 +47,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 #define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
 #define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
+#define __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -271,7 +272,7 @@ public:
                             param_value_size_ret, t);
   }
 
-  // Array return value where element type is differrent from T
+  // Array return value where element type is different from T
   template <class RetType, class T>
   ur_result_t operator()(const T *t, size_t s) {
     return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,

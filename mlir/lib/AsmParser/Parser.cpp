@@ -15,21 +15,54 @@
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/AsmParser/AsmParserState.h"
 #include "mlir/AsmParser/CodeComplete.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/AsmState.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/Region.h"
+#include "mlir/IR/Value.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/IR/Visitors.h"
+#include "mlir/Support/LLVM.h"
+#include "mlir/Support/LogicalResult.h"
+#include "mlir/Support/TypeID.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/bit.h"
+#include "llvm/Support/Alignment.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
 #include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -1443,12 +1476,12 @@ Operation *OperationParser::parseGenericOperation() {
   // Try setting the properties for the operation, using a diagnostic to print
   // errors.
   if (properties) {
-    InFlightDiagnostic diagnostic =
-        mlir::emitError(srcLocation, "invalid properties ")
-        << properties << " for op " << name << ": ";
-    if (failed(op->setPropertiesFromAttribute(properties, &diagnostic)))
+    auto emitError = [&]() {
+      return mlir::emitError(srcLocation, "invalid properties ")
+             << properties << " for op " << name << ": ";
+    };
+    if (failed(op->setPropertiesFromAttribute(properties, emitError)))
       return nullptr;
-    diagnostic.abandon();
   }
 
   return op;
@@ -2001,12 +2034,13 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
 
   // Try setting the properties for the operation.
   if (properties) {
-    InFlightDiagnostic diagnostic =
-        mlir::emitError(srcLocation, "invalid properties ")
-        << properties << " for op " << op->getName().getStringRef() << ": ";
-    if (failed(op->setPropertiesFromAttribute(properties, &diagnostic)))
+    auto emitError = [&]() {
+      return mlir::emitError(srcLocation, "invalid properties ")
+             << properties << " for op " << op->getName().getStringRef()
+             << ": ";
+    };
+    if (failed(op->setPropertiesFromAttribute(properties, emitError)))
       return nullptr;
-    diagnostic.abandon();
   }
   return op;
 }

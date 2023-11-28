@@ -62,7 +62,7 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
 
   auto AddAffected = [&Affected](Value *V, unsigned Idx =
                                                AssumptionCache::ExprResultIdx) {
-    if (isa<Argument>(V)) {
+    if (isa<Argument>(V) || isa<GlobalValue>(V)) {
       Affected.push_back({V, Idx});
     } else if (auto *I = dyn_cast<Instruction>(V)) {
       Affected.push_back({I, Idx});
@@ -188,7 +188,7 @@ void AssumptionCache::unregisterAssumption(AssumeInst *CI) {
       AffectedValues.erase(AVI);
   }
 
-  erase_value(AssumeHandles, CI);
+  llvm::erase(AssumeHandles, CI);
 }
 
 void AssumptionCache::AffectedValueCallbackVH::deleted() {

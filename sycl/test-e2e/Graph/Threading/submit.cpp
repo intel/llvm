@@ -1,13 +1,17 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build_pthread_inc} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
-// Test calling queue::submit(graph) in a threaded situation.
+// Test submitting a graph in a threaded situation.
 // The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
+// UR_L0_LEAKS_DEBUG=1 testing capability.
+
+// Note that we do not check the outputs becuse multiple concurrent executions
+// is indeterministic (and depends on the backend command management).
+// However, this test verifies that concurrent graph submissions do not trigger
+// errors nor memory leaks.
 
 #include "../graph_common.hpp"
 
@@ -15,6 +19,10 @@
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
@@ -44,19 +52,26 @@ int main() {
   run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
   Graph.end_recording();
 
+  std::vector<exp_ext::command_graph<exp_ext::graph_state::executable>>
+      GraphExecs;
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    GraphExecs.push_back(Graph.finalize());
+  }
+
   Barrier SyncPoint{NumThreads};
 
-  auto GraphExec = Graph.finalize();
-  auto SubmitGraph = [&]() {
+  auto SubmitGraph = [&](int ThreadNum) {
     SyncPoint.wait();
-    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](sycl::handler &CGH) {
+      CGH.ext_oneapi_graph(GraphExecs[ThreadNum]);
+    });
   };
 
   std::vector<std::thread> Threads;
   Threads.reserve(NumThreads);
 
   for (unsigned i = 0; i < NumThreads; ++i) {
-    Threads.emplace_back(SubmitGraph);
+    Threads.emplace_back(SubmitGraph, i);
   }
 
   for (unsigned i = 0; i < NumThreads; ++i) {
@@ -65,18 +80,9 @@ int main() {
 
   Queue.wait_and_throw();
 
-  Queue.copy(PtrA, DataA.data(), Size);
-  Queue.copy(PtrB, DataB.data(), Size);
-  Queue.copy(PtrC, DataC.data(), Size);
-  Queue.wait_and_throw();
-
   free(PtrA, Queue);
   free(PtrB, Queue);
   free(PtrC, Queue);
-
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
 
   return 0;
 }

@@ -184,21 +184,41 @@ add_math_entrypoint_gpu_object(
 )
 
 add_math_entrypoint_gpu_object(
-  frexp
+  lround
   SRCS
-    frexp.cpp
+    lround.cpp
   HDRS
-    ../frexp.h
+    ../lround.h
   COMPILE_OPTIONS
     -O2
 )
 
 add_math_entrypoint_gpu_object(
-  frexpf
+  lroundf
   SRCS
-    frexpf.cpp
+    lroundf.cpp
   HDRS
-    ../frexpf.h
+    ../lroundf.h
+  COMPILE_OPTIONS
+    -O2
+)
+
+add_math_entrypoint_gpu_object(
+  llround
+  SRCS
+    llround.cpp
+  HDRS
+    ../llround.h
+  COMPILE_OPTIONS
+    -O2
+)
+
+add_math_entrypoint_gpu_object(
+  llroundf
+  SRCS
+    llroundf.cpp
+  HDRS
+    ../llroundf.h
   COMPILE_OPTIONS
     -O2
 )
@@ -264,26 +284,6 @@ add_math_entrypoint_gpu_object(
 )
 
 add_math_entrypoint_gpu_object(
-  remquo
-  SRCS
-    remquo.cpp
-  HDRS
-    ../remquo.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
-  remquof
-  SRCS
-    remquof.cpp
-  HDRS
-    ../remquof.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
   rint
   SRCS
     rint.cpp
@@ -314,41 +314,11 @@ add_math_entrypoint_gpu_object(
 )
 
 add_math_entrypoint_gpu_object(
-  scalbn
-  SRCS
-    scalbn.cpp
-  HDRS
-    ../scalbn.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
-  scalbnf
-  SRCS
-    scalbnf.cpp
-  HDRS
-    ../scalbnf.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
   sinh
   SRCS
     sinh.cpp
   HDRS
     ../sinh.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
-  sinhf
-  SRCS
-    sinhf.cpp
-  HDRS
-    ../sinhf.h
   COMPILE_OPTIONS
     -O2
 )
@@ -384,31 +354,11 @@ add_math_entrypoint_gpu_object(
 )
 
 add_math_entrypoint_gpu_object(
-  tanf
-  SRCS
-    tanf.cpp
-  HDRS
-    ../tanf.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
   tanh
   SRCS
     tanh.cpp
   HDRS
     ../tanh.h
-  COMPILE_OPTIONS
-    -O2
-)
-
-add_math_entrypoint_gpu_object(
-  tanhf
-  SRCS
-    tanhf.cpp
-  HDRS
-    ../tanhf.h
   COMPILE_OPTIONS
     -O2
 )

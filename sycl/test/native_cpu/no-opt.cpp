@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -o %t.bc %s
-// This test currently fails because the PrepareSYCLNativeCPU pass doesn't
-// support non optimized code yet (in particular non-inlined code)
-// Todo: remove XFAIL once native cpu supports -O0
-// XFAIL: *
+// REQUIRES: native_cpu_be
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -g -O0 -o %t %s
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 #include "sycl.hpp"
 class Test1;
@@ -10,12 +8,11 @@ int main() {
   const size_t N = 4;
   sycl::buffer<size_t, 1> Buffer(N);
   sycl::queue deviceQueue;
-  sycl::accessor<int, 1, sycl::access::mode::write> acc;
-  sycl::range<1> r(1);
+  sycl::range<1> r(N);
   deviceQueue
       .submit([&](sycl::handler &h) {
-        sycl::accessor Accessor{Buffer, h, sycl::write_only};
-        h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
+        auto Accessor = Buffer.get_access<sycl::access::mode::write>(h);
+        h.parallel_for<Test1>(r, [=](sycl::id<1> id) { Accessor[id[0]] = 42; });
       })
       .wait();
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};

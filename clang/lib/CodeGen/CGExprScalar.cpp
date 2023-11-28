@@ -1661,9 +1661,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;
 
-  llvm::PointerType *PtrTy = cast<llvm::PointerType>(GlobalConstStr->getType());
-  llvm::PointerType *NewPtrTy =
-      llvm::PointerType::getWithSamePointeeType(PtrTy, ExprAS);
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(VMContext, ExprAS);
   return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
                                      "usid_addr_cast");
 }
@@ -2111,12 +2109,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
       Src = Builder.CreateAddrSpaceCast(
           Src,
-          llvm::PointerType::getWithSamePointeeType(
-              cast<llvm::PointerType>(SrcTy), DstTy->getPointerAddressSpace()));
-    else if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
-             SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
-      llvm_unreachable("wrong cast for pointers in different address spaces"
-                       "(must be an address space cast)!");
+          llvm::PointerType::get(VMContext, DstTy->getPointerAddressSpace()));
+    assert(
+        (!SrcTy->isPtrOrPtrVectorTy() || !DstTy->isPtrOrPtrVectorTy() ||
+         SrcTy->getPointerAddressSpace() == DstTy->getPointerAddressSpace()) &&
+        "Address-space cast must be used to convert address spaces");
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
       if (auto *PT = DestTy->getAs<PointerType>()) {
@@ -2253,16 +2250,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return Visit(const_cast<Expr*>(E));
 
   case CK_NoOp: {
-    llvm::Value *V = Visit(const_cast<Expr *>(E));
-    if (V) {
-      // CK_NoOp can model a pointer qualification conversion, which can remove
-      // an array bound and change the IR type.
-      // FIXME: Once pointee types are removed from IR, remove this.
-      llvm::Type *T = ConvertType(DestTy);
-      if (T != V->getType())
-        V = Builder.CreateBitCast(V, T);
-    }
-    return V;
+    return CE->changesVolatileQualification() ? EmitLoadOfLValue(CE)
+                                              : Visit(const_cast<Expr *>(E));
   }
 
   case CK_BaseToDerived: {
@@ -2958,7 +2947,7 @@ Value *ScalarExprEmitter::VisitUnaryLNot(const UnaryOperator *E) {
   // Perform vector logical not on comparison with zero vector.
   if (E->getType()->isVectorType() &&
       E->getType()->castAs<VectorType>()->getVectorKind() ==
-          VectorType::GenericVector) {
+          VectorKind::Generic) {
     Value *Oper = Visit(E->getSubExpr());
     Value *Zero = llvm::Constant::getNullValue(Oper->getType());
     Value *Result;
@@ -3080,9 +3069,10 @@ Value *
 ScalarExprEmitter::VisitUnaryExprOrTypeTraitExpr(
                               const UnaryExprOrTypeTraitExpr *E) {
   QualType TypeToSize = E->getTypeOfArgument();
-  if (E->getKind() == UETT_SizeOf) {
+  if (auto Kind = E->getKind();
+      Kind == UETT_SizeOf || Kind == UETT_DataSizeOf) {
     if (const VariableArrayType *VAT =
-          CGF.getContext().getAsVariableArrayType(TypeToSize)) {
+            CGF.getContext().getAsVariableArrayType(TypeToSize)) {
       if (E->isArgumentType()) {
         // sizeof(type) - make sure to emit the VLA size.
         CGF.EmitVariablyModifiedType(TypeToSize);
@@ -3109,6 +3099,9 @@ ScalarExprEmitter::VisitUnaryExprOrTypeTraitExpr(
                 E->getTypeOfArgument()->getPointeeType()))
             .getQuantity();
     return llvm::ConstantInt::get(CGF.SizeTy, Alignment);
+  } else if (E->getKind() == UETT_VectorElements) {
+    auto *VecTy = cast<llvm::VectorType>(ConvertType(E->getTypeOfArgument()));
+    return Builder.CreateElementCount(CGF.SizeTy, VecTy->getElementCount());
   }
 
   // If this isn't sizeof(vla), the result must be constant; use the constant
@@ -3749,10 +3742,12 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   // Explicitly handle GNU void* and function pointer arithmetic extensions. The
   // GNU void* casts amount to no-ops since our void* type is i8*, but this is
   // future proof.
+  llvm::Type *elemTy;
   if (elementType->isVoidType() || elementType->isFunctionType())
-    return CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
+    elemTy = CGF.Int8Ty;
+  else
+    elemTy = CGF.ConvertTypeForMem(elementType);
 
-  llvm::Type *elemTy = CGF.ConvertTypeForMem(elementType);
   if (CGF.getLangOpts().isSignedOverflowDefined())
     return CGF.Builder.CreateGEP(elemTy, pointer, index, "add.ptr");
 

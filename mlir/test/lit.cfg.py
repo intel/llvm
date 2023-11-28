@@ -18,7 +18,14 @@ from lit.llvm.subst import FindTool
 # name: The name of this test suite.
 config.name = "MLIR"
 
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+# We prefer the lit internal shell which provides a better user experience on failures
+# unless the user explicitly disables it with LIT_USE_INTERNAL_SHELL=0 env var.
+use_lit_shell = True
+lit_shell_env = os.environ.get("LIT_USE_INTERNAL_SHELL")
+if lit_shell_env:
+  use_lit_shell = not lit.util.pythonize_bool(lit_shell_env)
+
+config.test_format = lit.formats.ShTest(execute_external=not use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = [
@@ -47,10 +54,9 @@ config.substitutions.append(("%host_cxx", config.host_cxx))
 config.substitutions.append(("%host_cc", config.host_cc))
 
 
-# Searches for a runtime library with the given name and returns a tool
-# substitution of the same name and the found path.
+# Searches for a runtime library with the given name and returns the found path.
 # Correctly handles the platforms shared library directory and naming conventions.
-def add_runtime(name):
+def find_runtime(name):
     path = ""
     for prefix in ["", "lib"]:
         path = os.path.join(
@@ -58,7 +64,13 @@ def add_runtime(name):
         )
         if os.path.isfile(path):
             break
-    return ToolSubst(f"%{name}", path)
+    return path
+
+
+# Searches for a runtime library with the given name and returns a tool
+# substitution of the same name and the found path.
+def add_runtime(name):
+    return ToolSubst(f"%{name}", find_runtime(name))
 
 
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
@@ -118,6 +130,15 @@ if config.enable_rocm_runner:
 
 if config.enable_cuda_runner:
     tools.extend([add_runtime("mlir_cuda_runtime")])
+
+if config.mlir_run_arm_sme_tests:
+    config.substitutions.append(
+        (
+            "%arm_sme_abi_shlib",
+            # Use passed Arm SME ABI routines, if not present default to stubs.
+            config.arm_sme_abi_routines_shlib or find_runtime("mlir_arm_sme_abi_stubs"),
+        )
+    )
 
 # The following tools are optional
 tools.extend(

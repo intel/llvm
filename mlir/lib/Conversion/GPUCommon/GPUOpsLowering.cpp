@@ -67,6 +67,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   // Create the new function operation. Only copy those attributes that are
   // not specific to function modeling.
   SmallVector<NamedAttribute, 4> attributes;
+  ArrayAttr argAttrs;
   for (const auto &attr : gpuFuncOp->getAttrs()) {
     if (attr.getName() == SymbolTable::getSymbolAttrName() ||
         attr.getName() == gpuFuncOp.getFunctionTypeAttrName() ||
@@ -75,6 +76,10 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
         attr.getName() == gpuFuncOp.getWorkgroupAttribAttrsAttrName() ||
         attr.getName() == gpuFuncOp.getPrivateAttribAttrsAttrName())
       continue;
+    if (attr.getName() == gpuFuncOp.getArgAttrsAttrName()) {
+      argAttrs = gpuFuncOp.getArgAttrsAttr();
+      continue;
+    }
     attributes.push_back(attr);
   }
   // Add a dialect specific kernel attribute in addition to GPU kernel
@@ -101,18 +106,13 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
 
     for (const auto &en : llvm::enumerate(workgroupBuffers)) {
       LLVM::GlobalOp global = en.value();
+      auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext(),
+                                                global.getAddrSpace());
       Value address = rewriter.create<LLVM::AddressOfOp>(
-          loc,
-          getTypeConverter()->getPointerType(global.getType(),
-                                             global.getAddrSpace()),
-          global.getSymNameAttr());
-      auto elementType =
-          cast<LLVM::LLVMArrayType>(global.getType()).getElementType();
-      Value memory = rewriter.create<LLVM::GEPOp>(
-          loc,
-          getTypeConverter()->getPointerType(elementType,
-                                             global.getAddrSpace()),
-          global.getType(), address, ArrayRef<LLVM::GEPArg>{0, 0});
+          loc, ptrType, global.getSymNameAttr());
+      Value memory =
+          rewriter.create<LLVM::GEPOp>(loc, ptrType, global.getType(), address,
+                                       ArrayRef<LLVM::GEPArg>{0, 0});
 
       // Build a memref descriptor pointing to the buffer to plug with the
       // existing memref infrastructure. This may use more registers than
@@ -138,7 +138,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
       // memory space and does not support `alloca`s with addrspace(5).
       Type elementType = typeConverter->convertType(type.getElementType());
       auto ptrType =
-          getTypeConverter()->getPointerType(elementType, allocaAddrSpace);
+          LLVM::LLVMPointerType::get(rewriter.getContext(), allocaAddrSpace);
       Value numElements = rewriter.create<LLVM::ConstantOp>(
           gpuFuncOp.getLoc(), int64Ty, type.getNumElements());
       uint64_t alignment = 0;
@@ -190,6 +190,49 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     }
   }
 
+  // Get memref type from function arguments and set the noalias to
+  // pointer arguments.
+  for (const auto &en : llvm::enumerate(gpuFuncOp.getArgumentTypes())) {
+    auto memrefTy = en.value().dyn_cast<MemRefType>();
+    NamedAttrList argAttr = argAttrs
+                                ? argAttrs[en.index()].cast<DictionaryAttr>()
+                                : NamedAttrList();
+
+    auto copyPointerAttribute = [&](StringRef attrName) {
+      Attribute attr = argAttr.erase(attrName);
+
+      // This is a proxy for the bare pointer calling convention.
+      if (!attr)
+        return;
+      auto remapping = signatureConversion.getInputMapping(en.index());
+      if (remapping->size > 1 &&
+          attrName == LLVM::LLVMDialect::getNoAliasAttrName()) {
+        emitWarning(llvmFuncOp.getLoc(),
+                    "Cannot copy noalias with non-bare pointers.\n");
+        return;
+      }
+      for (size_t i = 0, e = remapping->size; i < e; ++i) {
+        if (llvmFuncOp.getArgument(remapping->inputNo + i)
+                .getType()
+                .isa<LLVM::LLVMPointerType>()) {
+          llvmFuncOp.setArgAttr(remapping->inputNo + i, attrName, attr);
+        }
+      }
+    };
+
+    if (argAttr.empty())
+      continue;
+
+    if (memrefTy) {
+      copyPointerAttribute(LLVM::LLVMDialect::getNoAliasAttrName());
+      copyPointerAttribute(LLVM::LLVMDialect::getReadonlyAttrName());
+      copyPointerAttribute(LLVM::LLVMDialect::getWriteOnlyAttrName());
+      copyPointerAttribute(LLVM::LLVMDialect::getNonNullAttrName());
+      copyPointerAttribute(LLVM::LLVMDialect::getDereferenceableAttrName());
+      copyPointerAttribute(
+          LLVM::LLVMDialect::getDereferenceableOrNullAttrName());
+    }
+  }
   rewriter.eraseOp(gpuFuncOp);
   return success();
 }
@@ -227,7 +270,7 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
   Location loc = gpuPrintfOp->getLoc();
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getI8Type());
-  mlir::Type i8Ptr = getTypeConverter()->getPointerType(llvmI8);
+  auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
   mlir::Type llvmI32 = typeConverter->convertType(rewriter.getI32Type());
   mlir::Type llvmI64 = typeConverter->convertType(rewriter.getI64Type());
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
@@ -250,7 +293,7 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
       moduleOp, loc, rewriter, "__ockl_printf_append_string_n",
       LLVM::LLVMFunctionType::get(
           llvmI64,
-          {llvmI64, i8Ptr, /*length (bytes)*/ llvmI64, /*isLast*/ llvmI32}));
+          {llvmI64, ptrType, /*length (bytes)*/ llvmI64, /*isLast*/ llvmI32}));
 
   /// Start the printf hostcall
   Value zeroI64 = rewriter.create<LLVM::ConstantOp>(loc, llvmI64, 0);
@@ -278,10 +321,10 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
   // Get a pointer to the format string's first element and pass it to printf()
   Value globalPtr = rewriter.create<LLVM::AddressOfOp>(
       loc,
-      getTypeConverter()->getPointerType(globalType, global.getAddrSpace()),
+      LLVM::LLVMPointerType::get(rewriter.getContext(), global.getAddrSpace()),
       global.getSymNameAttr());
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
+      loc, ptrType, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
   Value stringLen =
       rewriter.create<LLVM::ConstantOp>(loc, llvmI64, formatStringSize);
 
@@ -338,15 +381,17 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
   Location loc = gpuPrintfOp->getLoc();
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getIntegerType(8));
-  mlir::Type i8Ptr = getTypeConverter()->getPointerType(llvmI8, addressSpace);
+  mlir::Type ptrType =
+      LLVM::LLVMPointerType::get(rewriter.getContext(), addressSpace);
 
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
   // This ensures that global constants and declarations are placed within
   // the device code, not the host code
   auto moduleOp = gpuPrintfOp->getParentOfType<gpu::GPUModuleOp>();
 
-  auto printfType = LLVM::LLVMFunctionType::get(rewriter.getI32Type(), {i8Ptr},
-                                                /*isVarArg=*/true);
+  auto printfType =
+      LLVM::LLVMFunctionType::get(rewriter.getI32Type(), {ptrType},
+                                  /*isVarArg=*/true);
   LLVM::LLVMFuncOp printfDecl =
       getOrDefineFunction(moduleOp, loc, rewriter, "printf", printfType);
 
@@ -370,10 +415,10 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
   // Get a pointer to the format string's first element
   Value globalPtr = rewriter.create<LLVM::AddressOfOp>(
       loc,
-      getTypeConverter()->getPointerType(globalType, global.getAddrSpace()),
+      LLVM::LLVMPointerType::get(rewriter.getContext(), global.getAddrSpace()),
       global.getSymNameAttr());
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
+      loc, ptrType, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
 
   // Construct arguments and function call
   auto argsRange = adaptor.getArgs();
@@ -393,7 +438,7 @@ LogicalResult GPUPrintfOpToVPrintfLowering::matchAndRewrite(
   Location loc = gpuPrintfOp->getLoc();
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getIntegerType(8));
-  mlir::Type i8Ptr = LLVM::LLVMPointerType::get(llvmI8);
+  mlir::Type ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
 
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
   // This ensures that global constants and declarations are placed within
@@ -401,7 +446,7 @@ LogicalResult GPUPrintfOpToVPrintfLowering::matchAndRewrite(
   auto moduleOp = gpuPrintfOp->getParentOfType<gpu::GPUModuleOp>();
 
   auto vprintfType =
-      LLVM::LLVMFunctionType::get(rewriter.getI32Type(), {i8Ptr, i8Ptr});
+      LLVM::LLVMFunctionType::get(rewriter.getI32Type(), {ptrType, ptrType});
   LLVM::LLVMFuncOp vprintfDecl =
       getOrDefineFunction(moduleOp, loc, rewriter, "vprintf", vprintfType);
 
@@ -425,7 +470,7 @@ LogicalResult GPUPrintfOpToVPrintfLowering::matchAndRewrite(
   // Get a pointer to the format string's first element
   Value globalPtr = rewriter.create<LLVM::AddressOfOp>(loc, global);
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
+      loc, ptrType, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
   SmallVector<Type> types;
   SmallVector<Value> args;
   // Promote and pack the arguments into a stack allocation.
@@ -442,18 +487,16 @@ LogicalResult GPUPrintfOpToVPrintfLowering::matchAndRewrite(
   }
   Type structType =
       LLVM::LLVMStructType::getLiteral(gpuPrintfOp.getContext(), types);
-  Type structPtrType = LLVM::LLVMPointerType::get(structType);
   Value one = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(),
                                                 rewriter.getIndexAttr(1));
-  Value tempAlloc = rewriter.create<LLVM::AllocaOp>(loc, structPtrType, one,
-                                                    /*alignment=*/0);
+  Value tempAlloc =
+      rewriter.create<LLVM::AllocaOp>(loc, ptrType, structType, one,
+                                      /*alignment=*/0);
   for (auto [index, arg] : llvm::enumerate(args)) {
     Value ptr = rewriter.create<LLVM::GEPOp>(
-        loc, LLVM::LLVMPointerType::get(arg.getType()), tempAlloc,
-        ArrayRef<LLVM::GEPArg>{0, index});
+        loc, ptrType, structType, tempAlloc, ArrayRef<LLVM::GEPArg>{0, index});
     rewriter.create<LLVM::StoreOp>(loc, arg, ptr);
   }
-  tempAlloc = rewriter.create<LLVM::BitcastOp>(loc, i8Ptr, tempAlloc);
   std::array<Value, 2> printfArgs = {stringStart, tempAlloc};
 
   rewriter.create<LLVM::CallOp>(loc, vprintfDecl, printfArgs);

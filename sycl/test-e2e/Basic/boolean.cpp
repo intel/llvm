@@ -63,8 +63,8 @@ int main() {
   }
 
   {
-    int r1[6];
-    int r2[6];
+    int r1[5];
+    int r2[5];
     {
       buffer<int, 1> BufR1(r1, range<1>(6));
       buffer<int, 1> BufR2(r2, range<1>(6));
@@ -73,45 +73,41 @@ int main() {
         auto AccR1 = BufR1.get_access<access::mode::write>(cgh);
         auto AccR2 = BufR2.get_access<access::mode::write>(cgh);
         cgh.single_task<class size_align>([=]() {
-          AccR1[0] = sizeof(d::Boolean<1>);
-          AccR1[1] = sizeof(d::Boolean<2>);
-          AccR1[2] = sizeof(d::Boolean<3>);
-          AccR1[3] = sizeof(d::Boolean<4>);
-          AccR1[4] = sizeof(d::Boolean<8>);
-          AccR1[5] = sizeof(d::Boolean<16>);
+          AccR1[0] = sizeof(d::Boolean<2>);
+          AccR1[1] = sizeof(d::Boolean<3>);
+          AccR1[2] = sizeof(d::Boolean<4>);
+          AccR1[3] = sizeof(d::Boolean<8>);
+          AccR1[4] = sizeof(d::Boolean<16>);
 
-          AccR2[0] = alignof(d::Boolean<1>);
-          AccR2[1] = alignof(d::Boolean<2>);
-          AccR2[2] = alignof(d::Boolean<3>);
-          AccR2[3] = alignof(d::Boolean<4>);
-          AccR2[4] = alignof(d::Boolean<8>);
-          AccR2[5] = alignof(d::Boolean<16>);
+          AccR2[0] = alignof(d::Boolean<2>);
+          AccR2[1] = alignof(d::Boolean<3>);
+          AccR2[2] = alignof(d::Boolean<4>);
+          AccR2[3] = alignof(d::Boolean<8>);
+          AccR2[4] = alignof(d::Boolean<16>);
         });
       });
     }
 
-    for (size_t I = 0; I < 6; I++) {
+    for (size_t I = 0; I < 5; I++) {
       std::cout << " r1[" << I << "] " << r1[I];
     }
     std::cout << std::endl;
 
-    for (size_t I = 0; I < 6; I++) {
+    for (size_t I = 0; I < 5; I++) {
       std::cout << " r2[" << I << "] " << r2[I];
     }
     std::cout << std::endl;
-    assert(r1[0] == sizeof(d::Boolean<1>));
-    assert(r1[1] == sizeof(d::Boolean<2>));
-    assert(r1[2] == sizeof(d::Boolean<3>));
-    assert(r1[3] == sizeof(d::Boolean<4>));
-    assert(r1[4] == sizeof(d::Boolean<8>));
-    assert(r1[5] == sizeof(d::Boolean<16>));
+    assert(r1[0] == sizeof(d::Boolean<2>));
+    assert(r1[1] == sizeof(d::Boolean<3>));
+    assert(r1[2] == sizeof(d::Boolean<4>));
+    assert(r1[3] == sizeof(d::Boolean<8>));
+    assert(r1[4] == sizeof(d::Boolean<16>));
 
-    assert(r2[0] == alignof(d::Boolean<1>));
-    assert(r2[1] == alignof(d::Boolean<2>));
-    assert(r2[2] == alignof(d::Boolean<3>));
-    assert(r2[3] == alignof(d::Boolean<4>));
-    assert(r2[4] == alignof(d::Boolean<8>));
-    assert(r2[5] == alignof(d::Boolean<16>));
+    assert(r2[0] == alignof(d::Boolean<2>));
+    assert(r2[1] == alignof(d::Boolean<3>));
+    assert(r2[2] == alignof(d::Boolean<4>));
+    assert(r2[3] == alignof(d::Boolean<8>));
+    assert(r2[4] == alignof(d::Boolean<16>));
   }
 
   {
@@ -130,16 +126,6 @@ int main() {
     assert(r2 == -1);
     assert(r3 == 0);
     assert(r4 == -1);
-  }
-
-  {
-    int r1 = d::Boolean<1>(int{-1});
-    int r2 = d::Boolean<1>(int{0});
-    int r3 = d::Boolean<1>(int{1});
-    std::cout << "r1 " << r1 << " r2 " << r2 << " r3 " << r3 << std::endl;
-    assert(r1 == 1);
-    assert(r2 == 0);
-    assert(r3 == 1);
   }
 
   return 0;

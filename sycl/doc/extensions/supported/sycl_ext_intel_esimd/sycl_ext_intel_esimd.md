@@ -30,6 +30,7 @@
   - [Private Global Variables](#private-global-variables)
   - [__regcall Calling convention](#__regcall-calling-convention)
   - [Inline assembly](#inline-assembly)
+  - [Device aspect](#device-aspect)
 - [Implementation restrictions](#implementation-restrictions)
   - [Features not supported with the ESIMD extension](#features-not-supported-with-the-esimd-extension)
   - [Unsupported standard SYCL APIs](#unsupported-standard-sycl-apis)
@@ -37,7 +38,6 @@
 
 ## Other content:
 * [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
-* [ESIMD Emulator](./sycl_ext_intel_esimd_emulator.md) (deprecated)
 * [Examples](./examples/README.md)
 * [ESIMD LIT tests - working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
 
@@ -1009,6 +1009,24 @@ __asm__("add (M1, 16) %0 %1 %2"
                     : "=r"(vc.data_ref())
                     : "r"(va.data()), "r"(vb.data()));
 ```
+
+### Device aspect
+This extension adds the following new value to the SYCL `aspect` enum:
+
+```
+namespace sycl {
+enum class aspect {
+  ...
+  ext_intel_esimd
+};
+} // namespace sycl
+```
+
+The new aspect has the following behavior when queried via `device::has()`:
+
+| Aspect | Description |
+|--------|-------------|
+|`aspect::ext_intel_esimd` | Indicates that the device supports the `sycl_ext_intel_esimd` extension as defined in this document. |
 
 ## Examples
 ### Vector addition (USM)

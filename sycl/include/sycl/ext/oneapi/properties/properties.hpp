@@ -187,6 +187,8 @@ properties(PropertyValueTs... props)
     -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
+using empty_properties_t = decltype(properties{});
+
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename... PropertyValueTs>
@@ -239,16 +241,35 @@ struct ValueOrDefault<
   }
 };
 
+template <typename SyclT, typename PropertiesT> struct all_props_are_keys_of;
+
+template <typename SyclT, typename PropertiesT>
+struct all_props_are_keys_of : std::true_type {};
+
+template <typename SyclT>
+struct all_props_are_keys_of<
+    SyclT, ext::oneapi::experimental::detail::empty_properties_t>
+    : std::true_type {};
+
+template <typename SyclT, typename PropT>
+struct all_props_are_keys_of<
+    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
+    : std::bool_constant<
+          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
+};
+
+template <typename SyclT, typename PropT, typename... PropTs>
+struct all_props_are_keys_of<
+    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
+    : std::bool_constant<
+          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
+          all_props_are_keys_of<SyclT, PropTs...>()> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
-// If property_list is not trivially copyable, allow properties to propagate
-// is_device_copyable
 template <typename PropertiesT>
-struct is_device_copyable<
-    ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable_v<
-        ext::oneapi::experimental::properties<PropertiesT>>>>
+struct is_device_copyable<ext::oneapi::experimental::properties<PropertiesT>>
     : is_device_copyable<PropertiesT> {};
 } // namespace _V1
 } // namespace sycl

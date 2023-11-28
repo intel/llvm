@@ -1,28 +1,19 @@
 #!/usr/bin/env bash
 #
 # Run as: CLANG=bin/clang build_symbolizer.sh out.o
+# If you want to use a local copy of zlib, set ZLIB_SRC.
 # zlib can be downloaded from http://www.zlib.net.
 #
-# Script compiles self-contained object file with symbolization code and injects
-# it into the given set of runtime libraries. Script updates only libraries
-# which has unresolved __sanitizer_symbolize_* symbols and matches architecture.
-# Object file is be compiled from LLVM sources with dependencies like libc++ and
-# zlib. Then it internalizes symbols in the file, so that it can be linked
-# into arbitrary programs, avoiding conflicts with the program own symbols and
-# avoiding dependencies on any program symbols. The only acceptable dependencies
-# are libc and __sanitizer::internal_* from sanitizer runtime.
+# Script compiles self-contained object file with symbolization code.
 #
 # Symbols exported by the object file will be used by Sanitizer runtime
 # libraries to symbolize code/data in-process.
-#
-# The script will modify the output directory which is given as the first
-# argument to the script.
 #
 # FIXME: We should really be using a simpler approach to building this object
 # file, and it should be available as a regular cmake rule. Conceptually, we
 # want to be doing "ld -r" followed by "objcopy -G" to create a relocatable
 # object file with only our entry points exposed. However, this does not work at
-# present, see PR30750.
+# present, see https://github.com/llvm/llvm-project/issues/30098.
 
 set -x
 set -e
@@ -30,7 +21,13 @@ set -u
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 SRC_DIR=$(readlink -f $SCRIPT_DIR/..)
-TARGE_DIR=$(readlink -f $1)
+
+if [[ $# -ne 1 ]]; then
+  echo "Missing output file"
+  exit 1
+fi
+
+OUTPUT=$(readlink -f $1)
 COMPILER_RT_SRC=$(readlink -f ${SCRIPT_DIR}/../../../..)
 LLVM_SRC=${LLVM_SRC:-${COMPILER_RT_SRC}/../llvm}
 LLVM_SRC=$(readlink -f $LLVM_SRC)
@@ -62,6 +59,7 @@ LLVM_BUILD=${BUILD_DIR}/llvm
 SYMBOLIZER_BUILD=${BUILD_DIR}/symbolizer
 
 FLAGS=${FLAGS:-}
+ZLIB_SRC=${ZLIB_SRC:-}
 TARGET_TRIPLE=$($CC -print-target-triple $FLAGS)
 if [[ "$FLAGS" =~ "-m32" ]] ; then
   # Avoid new wrappers.
@@ -73,7 +71,15 @@ FLAGS+=" -include ${SRC_DIR}/../sanitizer_redefine_builtins.h -DSANITIZER_COMMON
 LINKFLAGS="-fuse-ld=lld -target $TARGET_TRIPLE"
 
 # Build zlib.
-[[ -d ${ZLIB_BUILD} ]] || git clone https://github.com/madler/zlib ${ZLIB_BUILD}
+if [[ ! -d ${ZLIB_BUILD} ]]; then
+  if [[ -z "${ZLIB_SRC}" ]]; then
+    git clone https://github.com/madler/zlib ${ZLIB_BUILD}
+  else
+    ZLIB_SRC=$(readlink -f $ZLIB_SRC)
+    cp -r ${ZLIB_SRC}/* ${ZLIB_BUILD}/
+  fi
+fi
+
 cd ${ZLIB_BUILD}
 AR="${AR}" CC="${CC}" CFLAGS="$FLAGS -Wno-deprecated-non-prototype" RANLIB=/bin/true ./configure --static
 make -j libz.a
@@ -150,6 +156,7 @@ $AR rc symbolizer.a sanitizer_symbolize.o sanitizer_wrappers.o
 
 SYMBOLIZER_API_LIST=__sanitizer_symbolize_code
 SYMBOLIZER_API_LIST+=,__sanitizer_symbolize_data
+SYMBOLIZER_API_LIST+=,__sanitizer_symbolize_frame
 SYMBOLIZER_API_LIST+=,__sanitizer_symbolize_flush
 SYMBOLIZER_API_LIST+=,__sanitizer_symbolize_demangle
 SYMBOLIZER_API_LIST+=,__sanitizer_symbolize_set_demangle
@@ -186,20 +193,6 @@ nm -f posix -g symbolizer.o | cut -f 1,2 -d \  | LC_COLLATE=C sort -u > undefine
 (diff -u $SCRIPT_DIR/global_symbols.txt undefined.new | grep -E "^\+[^+]") && \
   (echo "Failed: unexpected symbols"; exit 1)
 
-arch() {
-  objdump -f $1 | grep -m1 -Po "(?<=file format ).*$"
-}
-
-SYMBOLIZER_FORMAT=$(arch symbolizer.o)
-echo "Injecting $SYMBOLIZER_FORMAT symbolizer..."
-for A in $TARGE_DIR/libclang_rt.*san*.a; do
-  A_FORMAT=$(arch $A)
-  if [[ "$A_FORMAT" != "$SYMBOLIZER_FORMAT" ]] ; then
-    continue
-  fi
-  (nm -u $A 2>/dev/null | grep -E "__sanitizer_symbolize_code" >/dev/null) || continue
-  echo "$A"
-  $AR rcs $A symbolizer.o
-done
+cp -f symbolizer.o $OUTPUT
 
 echo "Success!"

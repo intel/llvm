@@ -1,6 +1,7 @@
 import argparse
 import os
 import platform
+import shlex
 import subprocess
 import sys
 
@@ -51,6 +52,7 @@ def do_configure(args):
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
     sycl_enabled_plugins = ["opencl"]
+    sycl_preview_lib = 'ON'
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
@@ -61,9 +63,6 @@ def do_configure(args):
     # lld is needed on Windows or for the HIP plugin on AMD
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
         llvm_enable_projects += ';lld'
-
-    if args.enable_esimd_emulator:
-        sycl_enabled_plugins.append("esimd_emulator")
 
     if args.cuda or args.hip or args.native_cpu:
         llvm_enable_projects += ';libclc'
@@ -144,6 +143,9 @@ def do_configure(args):
     if args.enable_plugin:
         sycl_enabled_plugins += args.enable_plugin
 
+    if args.disable_preview_lib:
+        sycl_preview_lib = 'OFF'
+
     install_dir = os.path.join(abs_obj_dir, "install")
 
     cmake_cmd = [
@@ -177,6 +179,7 @@ def do_configure(args):
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
@@ -207,7 +210,7 @@ def do_configure(args):
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
-    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
+    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
@@ -245,7 +248,6 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
-    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support (deprecated)")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
@@ -260,6 +262,7 @@ def main():
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
+    parser.add_argument("--disable-preview-lib", action='store_true', help="Disable building of the SYCL runtime major release preview library")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
     args = parser.parse_args()

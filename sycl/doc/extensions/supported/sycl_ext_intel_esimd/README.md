@@ -17,7 +17,6 @@ Please see the additional resources on the Intel DPC++ project's github:
 
 1) [ESIMD Extension Specification](./sycl_ext_intel_esimd.md)
 1) [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
-1) [ESIMD Emulator](./sycl_ext_intel_esimd_emulator.md) (deprecated)
 1) [Examples](./examples/README.md)
 1) [ESIMD end-to-end LIT tests](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
 1) [Implementation and API Restrictions](./sycl_ext_intel_esimd.md#implementation-restrictions)

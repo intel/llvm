@@ -34,6 +34,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -430,10 +431,18 @@ bool TargetInstrInfo::produceSameValue(const MachineInstr &MI0,
   return MI0.isIdenticalTo(MI1, MachineInstr::IgnoreVRegDefs);
 }
 
-MachineInstr &TargetInstrInfo::duplicate(MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator InsertBefore, const MachineInstr &Orig) const {
-  assert(!Orig.isNotDuplicable() && "Instruction cannot be duplicated");
+MachineInstr &
+TargetInstrInfo::duplicate(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator InsertBefore,
+                           const MachineInstr &Orig) const {
   MachineFunction &MF = *MBB.getParent();
+  // CFI instructions are marked as non-duplicable, because Darwin compact
+  // unwind info emission can't handle multiple prologue setups.
+  assert((!Orig.isNotDuplicable() ||
+          (!MF.getTarget().getTargetTriple().isOSDarwin() &&
+           Orig.isCFIInstruction())) &&
+         "Instruction cannot be duplicated");
+
   return MF.cloneMachineInstrBundle(MBB, InsertBefore, Orig);
 }
 
@@ -1610,26 +1619,29 @@ std::string TargetInstrInfo::createMIROperandComment(
   assert(Op.isImm() && "Expected flag operand to be an immediate");
   // Pretty print the inline asm operand descriptor.
   unsigned Flag = Op.getImm();
-  InlineAsm::Kind Kind = InlineAsm::getKind(Flag);
-  OS << InlineAsm::getKindName(Kind);
+  const InlineAsm::Flag F(Flag);
+  OS << F.getKindName();
 
-  unsigned RCID = 0;
-  if (!InlineAsm::isImmKind(Flag) && !InlineAsm::isMemKind(Flag) &&
-      InlineAsm::hasRegClassConstraint(Flag, RCID)) {
+  unsigned RCID;
+  if (!F.isImmKind() && !F.isMemKind() && F.hasRegClassConstraint(RCID)) {
     if (TRI) {
       OS << ':' << TRI->getRegClassName(TRI->getRegClass(RCID));
     } else
       OS << ":RC" << RCID;
   }
 
-  if (InlineAsm::isMemKind(Flag)) {
-    unsigned MCID = InlineAsm::getMemoryConstraintID(Flag);
+  if (F.isMemKind()) {
+    InlineAsm::ConstraintCode MCID = F.getMemoryConstraintID();
     OS << ":" << InlineAsm::getMemConstraintName(MCID);
   }
 
-  unsigned TiedTo = 0;
-  if (InlineAsm::isUseOperandTiedToDef(Flag, TiedTo))
+  unsigned TiedTo;
+  if (F.isUseOperandTiedToDef(TiedTo))
     OS << " tiedto:$" << TiedTo;
+
+  if ((F.isRegDefKind() || F.isRegDefEarlyClobberKind() || F.isRegUseKind()) &&
+      F.getRegMayBeFolded())
+    OS << " foldable";
 
   return OS.str();
 }

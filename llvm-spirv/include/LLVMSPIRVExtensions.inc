@@ -2,6 +2,7 @@
 #define EXT(X)
 #endif
 
+EXT(SPV_EXT_shader_atomic_float16_add)
 EXT(SPV_EXT_shader_atomic_float_add)
 EXT(SPV_EXT_shader_atomic_float_min_max)
 EXT(SPV_EXT_image_raw10_raw12)

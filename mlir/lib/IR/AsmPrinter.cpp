@@ -67,6 +67,15 @@ OpAsmParser::~OpAsmParser() = default;
 
 MLIRContext *AsmParser::getContext() const { return getBuilder().getContext(); }
 
+/// Parse a type list.
+/// This is out-of-line to work-around https://github.com/llvm/llvm-project/issues/62918
+ParseResult AsmParser::parseTypeList(SmallVectorImpl<Type> &result) {
+    return parseCommaSeparatedList(
+        [&]() { return parseType(result.emplace_back()); });
+  }
+
+
+
 //===----------------------------------------------------------------------===//
 // DialectAsmPrinter
 //===----------------------------------------------------------------------===//
@@ -214,6 +223,12 @@ OpPrintingFlags::OpPrintingFlags()
 OpPrintingFlags &
 OpPrintingFlags::elideLargeElementsAttrs(int64_t largeElementLimit) {
   elementsAttrElementLimit = largeElementLimit;
+  return *this;
+}
+
+OpPrintingFlags &
+OpPrintingFlags::elideLargeResourceString(int64_t largeResourceLimit) {
+  resourceStringCharLimit = largeResourceLimit;
   return *this;
 }
 
@@ -779,6 +794,7 @@ private:
     os << "%";
   }
   void printKeywordOrString(StringRef) override {}
+  void printString(StringRef) override {}
   void printResourceHandle(const AsmDialectResourceHandle &) override {}
   void printSymbolName(StringRef) override {}
   void printSuccessor(Block *) override {}
@@ -919,6 +935,7 @@ private:
   /// determining potential aliases.
   void printFloat(const APFloat &) override {}
   void printKeywordOrString(StringRef) override {}
+  void printString(StringRef) override {}
   void printSymbolName(StringRef) override {}
   void printResourceHandle(const AsmDialectResourceHandle &) override {}
 
@@ -2402,8 +2419,7 @@ void AsmPrinter::Impl::printDenseIntOrFPElementsAttr(
   if (!attr.isSplat() && allowHex &&
       shouldPrintElementsAttrWithHex(numElements)) {
     ArrayRef<char> rawData = attr.getRawData();
-    if (llvm::support::endian::system_endianness() ==
-        llvm::support::endianness::big) {
+    if (llvm::endianness::native == llvm::endianness::big) {
       // Convert endianess in big-endian(BE) machines. `rawData` is BE in BE
       // machines. It is converted here to print in LE format.
       SmallVector<char, 64> outDataVec(rawData.size());
@@ -2767,6 +2783,13 @@ void AsmPrinter::printKeywordOrString(StringRef keyword) {
   ::printKeywordOrString(keyword, impl->getStream());
 }
 
+void AsmPrinter::printString(StringRef keyword) {
+  assert(impl && "expected AsmPrinter::printString to be overriden");
+  *this << '"';
+  printEscapedString(keyword, getStream());
+  *this << '"';
+}
+
 void AsmPrinter::printSymbolName(StringRef symbolRef) {
   assert(impl && "expected AsmPrinter::printSymbolName to be overriden");
   ::printSymbolReference(symbolRef, impl->getStream());
@@ -2798,7 +2821,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
   const char *binopSpelling = nullptr;
   switch (expr.getKind()) {
   case AffineExprKind::SymbolId: {
-    unsigned pos = expr.cast<AffineSymbolExpr>().getPosition();
+    unsigned pos = cast<AffineSymbolExpr>(expr).getPosition();
     if (printValueName)
       printValueName(pos, /*isSymbol=*/true);
     else
@@ -2806,7 +2829,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
     return;
   }
   case AffineExprKind::DimId: {
-    unsigned pos = expr.cast<AffineDimExpr>().getPosition();
+    unsigned pos = cast<AffineDimExpr>(expr).getPosition();
     if (printValueName)
       printValueName(pos, /*isSymbol=*/false);
     else
@@ -2814,7 +2837,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
     return;
   }
   case AffineExprKind::Constant:
-    os << expr.cast<AffineConstantExpr>().getValue();
+    os << cast<AffineConstantExpr>(expr).getValue();
     return;
   case AffineExprKind::Add:
     binopSpelling = " + ";
@@ -2833,7 +2856,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
     break;
   }
 
-  auto binOp = expr.cast<AffineBinaryOpExpr>();
+  auto binOp = cast<AffineBinaryOpExpr>(expr);
   AffineExpr lhsExpr = binOp.getLHS();
   AffineExpr rhsExpr = binOp.getRHS();
 
@@ -2843,7 +2866,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
       os << '(';
 
     // Pretty print multiplication with -1.
-    auto rhsConst = rhsExpr.dyn_cast<AffineConstantExpr>();
+    auto rhsConst = dyn_cast<AffineConstantExpr>(rhsExpr);
     if (rhsConst && binOp.getKind() == AffineExprKind::Mul &&
         rhsConst.getValue() == -1) {
       os << "-";
@@ -2869,10 +2892,10 @@ void AsmPrinter::Impl::printAffineExprInternal(
 
   // Pretty print addition to a product that has a negative operand as a
   // subtraction.
-  if (auto rhs = rhsExpr.dyn_cast<AffineBinaryOpExpr>()) {
+  if (auto rhs = dyn_cast<AffineBinaryOpExpr>(rhsExpr)) {
     if (rhs.getKind() == AffineExprKind::Mul) {
       AffineExpr rrhsExpr = rhs.getRHS();
-      if (auto rrhs = rrhsExpr.dyn_cast<AffineConstantExpr>()) {
+      if (auto rrhs = dyn_cast<AffineConstantExpr>(rrhsExpr)) {
         if (rrhs.getValue() == -1) {
           printAffineExprInternal(lhsExpr, BindingStrength::Weak,
                                   printValueName);
@@ -2906,7 +2929,7 @@ void AsmPrinter::Impl::printAffineExprInternal(
   }
 
   // Pretty print addition to a negative number as a subtraction.
-  if (auto rhsConst = rhsExpr.dyn_cast<AffineConstantExpr>()) {
+  if (auto rhsConst = dyn_cast<AffineConstantExpr>(rhsExpr)) {
     if (rhsConst.getValue() < 0) {
       printAffineExprInternal(lhsExpr, BindingStrength::Weak, printValueName);
       os << " - " << -rhsConst.getValue();

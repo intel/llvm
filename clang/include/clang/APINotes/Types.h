@@ -144,14 +144,8 @@ public:
     return SwiftBridge;
   }
 
-  void setSwiftBridge(const std::optional<std::string> &SwiftType) {
+  void setSwiftBridge(std::optional<std::string> SwiftType) {
     SwiftBridge = SwiftType;
-  }
-
-  void setSwiftBridge(const std::optional<llvm::StringRef> &SwiftType) {
-    SwiftBridge = SwiftType
-                      ? std::optional<std::string>(std::string(*SwiftType))
-                      : std::nullopt;
   }
 
   const std::optional<std::string> &getNSErrorDomain() const {
@@ -660,6 +654,10 @@ class TagInfo : public CommonTypeInfo {
   unsigned IsFlagEnum : 1;
 
 public:
+  std::optional<std::string> SwiftImportAs;
+  std::optional<std::string> SwiftRetainOp;
+  std::optional<std::string> SwiftReleaseOp;
+
   std::optional<EnumExtensibilityKind> EnumExtensibility;
 
   TagInfo() : HasFlagEnum(0), IsFlagEnum(0) {}
@@ -677,6 +675,13 @@ public:
   TagInfo &operator|=(const TagInfo &RHS) {
     static_cast<CommonTypeInfo &>(*this) |= RHS;
 
+    if (!SwiftImportAs)
+      SwiftImportAs = RHS.SwiftImportAs;
+    if (!SwiftRetainOp)
+      SwiftRetainOp = RHS.SwiftRetainOp;
+    if (!SwiftReleaseOp)
+      SwiftReleaseOp = RHS.SwiftReleaseOp;
+
     if (!HasFlagEnum)
       setFlagEnum(RHS.isFlagEnum());
 
@@ -693,6 +698,9 @@ public:
 
 inline bool operator==(const TagInfo &LHS, const TagInfo &RHS) {
   return static_cast<const CommonTypeInfo &>(LHS) == RHS &&
+         LHS.SwiftImportAs == RHS.SwiftImportAs &&
+         LHS.SwiftRetainOp == RHS.SwiftRetainOp &&
+         LHS.SwiftReleaseOp == RHS.SwiftReleaseOp &&
          LHS.isFlagEnum() == RHS.isFlagEnum() &&
          LHS.EnumExtensibility == RHS.EnumExtensibility;
 }
@@ -758,6 +766,7 @@ struct Context {
 /// data they contain; it is up to the user to ensure that the data
 /// referenced by the identifier list persists.
 struct ObjCSelectorRef {
+  unsigned NumArgs;
   llvm::ArrayRef<llvm::StringRef> Identifiers;
 };
 } // namespace api_notes

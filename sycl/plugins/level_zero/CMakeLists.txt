@@ -44,24 +44,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
 endif()
 
-add_library (LevelZeroLoader INTERFACE)
-# The MSVC linker does not like / at the start of a path, so to work around this
-# we split it into a link library and a library path, where the path is allowed
-# to have leading /.
-get_filename_component(LEVEL_ZERO_LIBRARY_SRC "${LEVEL_ZERO_LIBRARY}" DIRECTORY)
-get_filename_component(LEVEL_ZERO_LIB_NAME "${LEVEL_ZERO_LIBRARY}" NAME)
-target_link_directories(LevelZeroLoader
-  INTERFACE "${LEVEL_ZERO_LIBRARY_SRC}"
-)
-target_link_libraries(LevelZeroLoader
-  INTERFACE "${LEVEL_ZERO_LIB_NAME}"
-)
-
-add_library (LevelZeroLoader-Headers INTERFACE)
-target_include_directories(LevelZeroLoader-Headers
-  INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
-)
-
 if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
   set(XPTI_INCLUDE "${CMAKE_SOURCE_DIR}/../xpti/include")
@@ -83,6 +65,9 @@ add_custom_command(
 
 find_package(Threads REQUIRED)
 
+# Get the L0 adapter sources so they can be shared with the L0 PI plugin
+get_target_property(UR_L0_ADAPTER_SOURCES ur_adapter_level_zero SOURCES)
+
 add_sycl_plugin(level_zero
   SOURCES
     # These are short-term shared with Unified Runtime
@@ -93,39 +78,7 @@ add_sycl_plugin(level_zero
     "ur_bindings.hpp"
     "../unified_runtime/pi2ur.hpp"
     "../unified_runtime/pi2ur.cpp"
-    "../unified_runtime/ur/ur.hpp"
-    "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
-    "../unified_runtime/ur/adapters/level_zero/command_buffer.hpp"
-    "../unified_runtime/ur/adapters/level_zero/adapter.hpp"
-    "../unified_runtime/ur/adapters/level_zero/common.hpp"
-    "../unified_runtime/ur/adapters/level_zero/context.hpp"
-    "../unified_runtime/ur/adapters/level_zero/device.hpp"
-    "../unified_runtime/ur/adapters/level_zero/event.hpp"
-    "../unified_runtime/ur/adapters/level_zero/image.hpp"
-    "../unified_runtime/ur/adapters/level_zero/kernel.hpp"
-    "../unified_runtime/ur/adapters/level_zero/memory.hpp"
-    "../unified_runtime/ur/adapters/level_zero/platform.hpp"
-    "../unified_runtime/ur/adapters/level_zero/program.hpp"
-    "../unified_runtime/ur/adapters/level_zero/queue.hpp"
-    "../unified_runtime/ur/adapters/level_zero/sampler.hpp"
-    "../unified_runtime/ur/adapters/level_zero/usm.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
-    "../unified_runtime/ur/adapters/level_zero/adapter.cpp"
-    "../unified_runtime/ur/adapters/level_zero/command_buffer.cpp"
-    "../unified_runtime/ur/adapters/level_zero/common.cpp"
-    "../unified_runtime/ur/adapters/level_zero/context.cpp"
-    "../unified_runtime/ur/adapters/level_zero/device.cpp"
-    "../unified_runtime/ur/adapters/level_zero/event.cpp"
-    "../unified_runtime/ur/adapters/level_zero/image.cpp"
-    "../unified_runtime/ur/adapters/level_zero/kernel.cpp"
-    "../unified_runtime/ur/adapters/level_zero/memory.cpp"
-    "../unified_runtime/ur/adapters/level_zero/platform.cpp"
-    "../unified_runtime/ur/adapters/level_zero/program.cpp"
-    "../unified_runtime/ur/adapters/level_zero/queue.cpp"
-    "../unified_runtime/ur/adapters/level_zero/sampler.cpp"
-    "../unified_runtime/ur/adapters/level_zero/usm.cpp"
-    "../unified_runtime/ur/adapters/level_zero/usm_p2p.cpp"
+    ${UR_L0_ADAPTER_SOURCES}
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
@@ -135,6 +88,7 @@ add_sycl_plugin(level_zero
     ${CMAKE_CURRENT_BINARY_DIR} # for ze_api.def
     ${CMAKE_CURRENT_SOURCE_DIR} # for Level-Zero Plugin "ur_bindings.hpp"
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
+    ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/level_zero
     ${XPTI_INCLUDE}
   LIBRARIES
     LevelZeroLoader-Headers

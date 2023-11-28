@@ -514,9 +514,20 @@ TEST(WalkAST, Functions) {
 }
 
 TEST(WalkAST, Enums) {
-  testWalk("enum E { $explicit^A = 42, B = 43 };", "int e = ^A;");
+  testWalk("enum E { $explicit^A = 42 };", "int e = ^A;");
   testWalk("enum class $explicit^E : int;", "enum class ^E : int {};");
   testWalk("enum class E : int {};", "enum class ^E : int ;");
+  testWalk("namespace ns { enum E { $explicit^A = 42 }; }", "int e = ns::^A;");
+  testWalk("namespace ns { enum E { A = 42 }; } using ns::E::$explicit^A;",
+           "int e = ^A;");
+  testWalk("namespace ns { enum E { A = 42 }; } using enum ns::$explicit^E;",
+           "int e = ^A;");
+  testWalk(R"(namespace ns { enum E { A = 42 }; }
+              struct S { using enum ns::E; };)",
+           "int e = S::^A;");
+  testWalk(R"(namespace ns { enum E { A = 42 }; }
+              struct S { using ns::E::A; };)",
+           "int e = S::^A;");
 }
 
 TEST(WalkAST, InitializerList) {
@@ -538,6 +549,11 @@ TEST(WalkAST, Concepts) {
   testWalk(Concept, "void func(^Foo auto x) {}");
   // FIXME: Foo should be explicitly referenced.
   testWalk("template<typename T> concept Foo = true;", "void func() { ^Foo auto x = 1; }");
+}
+
+TEST(WalkAST, FriendDecl) {
+  testWalk("void $explicit^foo();", "struct Bar { friend void ^foo(); };");
+  testWalk("struct $explicit^Foo {};", "struct Bar { friend struct ^Foo; };");
 }
 } // namespace
 } // namespace clang::include_cleaner

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <clocale>
 #include <codecvt>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -87,7 +88,7 @@ struct release
 template <class T, class ...Args>
 T& make(Args ...args)
 {
-    static typename aligned_storage<sizeof(T)>::type buf;
+    alignas(T) static std::byte buf[sizeof(T)];
     auto *obj = ::new (&buf) T(args...);
     return *obj;
 }
@@ -541,7 +542,7 @@ const locale&
 locale::__imp::make_classic()
 {
     // only one thread can get in here and it only gets in once
-    static aligned_storage<sizeof(locale)>::type buf;
+    alignas(locale) static std::byte buf[sizeof(locale)];
     locale* c = reinterpret_cast<locale*>(&buf);
     c->__locale_ = &make<__imp>(1u);
     return *c;
@@ -558,7 +559,7 @@ locale&
 locale::__imp::make_global()
 {
     // only one thread can get in here and it only gets in once
-    static aligned_storage<sizeof(locale)>::type buf;
+    alignas(locale) static std::byte buf[sizeof(locale)];
     auto *obj = ::new (&buf) locale(locale::classic());
     return *obj;
 }
@@ -688,38 +689,11 @@ locale::facet::__on_zero_shared() noexcept
 
 // locale::id
 
-int32_t locale::id::__next_id = 0;
+constinit int32_t locale::id::__next_id = 0;
 
-namespace
-{
-
-class __fake_bind
-{
-    locale::id* id_;
-    void (locale::id::* pmf_)();
-public:
-    __fake_bind(void (locale::id::* pmf)(), locale::id* id)
-        : id_(id), pmf_(pmf) {}
-
-    void operator()() const
-    {
-        (id_->*pmf_)();
-    }
-};
-
-}
-
-long
-locale::id::__get()
-{
-    call_once(__flag_, __fake_bind(&locale::id::__init, this));
+long locale::id::__get() {
+    call_once(__flag_, [&] { __id_ = __libcpp_atomic_add(&__next_id, 1); });
     return __id_ - 1;
-}
-
-void
-locale::id::__init()
-{
-    __id_ = __libcpp_atomic_add(&__next_id, 1);
 }
 
 // template <> class collate_byname<char>
@@ -836,7 +810,7 @@ const ctype_base::mask ctype_base::graph;
 // template <> class ctype<wchar_t>;
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-locale::id ctype<wchar_t>::id;
+constinit locale::id ctype<wchar_t>::id;
 
 ctype<wchar_t>::~ctype()
 {
@@ -969,7 +943,7 @@ ctype<wchar_t>::do_narrow(const char_type* low, const char_type* high, char dfau
 
 // template <> class ctype<char>;
 
-locale::id ctype<char>::id;
+constinit locale::id ctype<char>::id;
 
 const size_t ctype<char>::table_size;
 
@@ -1524,7 +1498,7 @@ ctype_byname<wchar_t>::do_narrow(const char_type* low, const char_type* high, ch
 
 // template <> class codecvt<char, char, mbstate_t>
 
-locale::id codecvt<char, char, mbstate_t>::id;
+constinit locale::id codecvt<char, char, mbstate_t>::id;
 
 codecvt<char, char, mbstate_t>::~codecvt()
 {
@@ -1586,7 +1560,7 @@ codecvt<char, char, mbstate_t>::do_max_length() const noexcept
 // template <> class codecvt<wchar_t, char, mbstate_t>
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-locale::id codecvt<wchar_t, char, mbstate_t>::id;
+constinit locale::id codecvt<wchar_t, char, mbstate_t>::id;
 
 codecvt<wchar_t, char, mbstate_t>::codecvt(size_t refs)
     : locale::facet(refs),
@@ -3192,7 +3166,7 @@ _LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // template <> class codecvt<char16_t, char, mbstate_t>
 
-locale::id codecvt<char16_t, char, mbstate_t>::id;
+constinit locale::id codecvt<char16_t, char, mbstate_t>::id;
 
 codecvt<char16_t, char, mbstate_t>::~codecvt()
 {
@@ -3271,7 +3245,7 @@ codecvt<char16_t, char, mbstate_t>::do_max_length() const noexcept
 
 // template <> class codecvt<char16_t, char8_t, mbstate_t>
 
-locale::id codecvt<char16_t, char8_t, mbstate_t>::id;
+constinit locale::id codecvt<char16_t, char8_t, mbstate_t>::id;
 
 codecvt<char16_t, char8_t, mbstate_t>::~codecvt()
 {
@@ -3350,7 +3324,7 @@ codecvt<char16_t, char8_t, mbstate_t>::do_max_length() const noexcept
 
 // template <> class codecvt<char32_t, char, mbstate_t>
 
-locale::id codecvt<char32_t, char, mbstate_t>::id;
+constinit locale::id codecvt<char32_t, char, mbstate_t>::id;
 
 codecvt<char32_t, char, mbstate_t>::~codecvt()
 {
@@ -3429,7 +3403,7 @@ codecvt<char32_t, char, mbstate_t>::do_max_length() const noexcept
 
 // template <> class codecvt<char32_t, char8_t, mbstate_t>
 
-locale::id codecvt<char32_t, char8_t, mbstate_t>::id;
+constinit locale::id codecvt<char32_t, char8_t, mbstate_t>::id;
 
 codecvt<char32_t, char8_t, mbstate_t>::~codecvt()
 {
@@ -4628,9 +4602,9 @@ static bool checked_string_to_char_convert(char& dest,
 
 // numpunct<char> && numpunct<wchar_t>
 
-locale::id numpunct< char  >::id;
+constinit locale::id numpunct<char>::id;
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-locale::id numpunct<wchar_t>::id;
+constinit locale::id numpunct<wchar_t>::id;
 #endif
 
 numpunct<char>::numpunct(size_t refs)

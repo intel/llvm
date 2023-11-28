@@ -594,12 +594,19 @@ struct TestVectorDistribution
                          .getResult(0);
       return result;
     };
-    if (distributeTransferWriteOps) {
+    if (distributeTransferWriteOps && propagateDistribution) {
+      RewritePatternSet patterns(ctx);
+      vector::populatePropagateWarpVectorDistributionPatterns(
+          patterns, distributionFn, shuffleFn, /*benefit=*/1,
+          /*readBenefit=*/0);
+      vector::populateDistributeReduction(patterns, warpReduction, 1);
+      populateDistributeTransferWriteOpPatterns(patterns, distributionFn, 2);
+      (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    } else if (distributeTransferWriteOps) {
       RewritePatternSet patterns(ctx);
       populateDistributeTransferWriteOpPatterns(patterns, distributionFn);
       (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
-    }
-    if (propagateDistribution) {
+    } else if (propagateDistribution) {
       RewritePatternSet patterns(ctx);
       vector::populatePropagateWarpVectorDistributionPatterns(
           patterns, distributionFn, shuffleFn);
@@ -681,7 +688,8 @@ struct TestCreateVectorBroadcast
       auto targetShape =
           cast<VectorType>(op->getResult(0).getType()).getShape();
       auto arrayAttr =
-          cast<DenseI64ArrayAttr>(op->getAttr("broadcast_dims")).asArrayRef();
+          cast<DenseI64ArrayAttr>(op->getDiscardableAttr("broadcast_dims"))
+              .asArrayRef();
       llvm::SetVector<int64_t> broadcastedDims;
       broadcastedDims.insert(arrayAttr.begin(), arrayAttr.end());
       OpBuilder b(op);

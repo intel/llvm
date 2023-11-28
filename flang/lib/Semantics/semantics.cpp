@@ -212,7 +212,14 @@ public:
   void MapCommonBlockAndCheckConflicts(
       SemanticsContext &context, const Symbol &common) {
     const Symbol *isInitialized{CommonBlockIsInitialized(common)};
-    auto [it, firstAppearance] = commonBlocks_.insert({common.name(),
+    // Merge common according to the name they will have in the object files.
+    // This allows merging BIND(C) and non BIND(C) common block instead of
+    // later crashing. This "merge" matches what ifort/gfortran/nvfortran are
+    // doing and what a linker would do if the definition were in distinct
+    // files.
+    std::string commonName{
+        GetCommonBlockObjectName(common, context.underscoring())};
+    auto [it, firstAppearance] = commonBlocks_.insert({commonName,
         isInitialized ? CommonBlockInfo{common, common}
                       : CommonBlockInfo{common, std::nullopt}});
     if (!firstAppearance) {
@@ -236,7 +243,8 @@ public:
           info.initialization = common;
         }
       }
-      if (common.size() != info.biggestSize->size() && !common.name().empty()) {
+      if (common.size() != info.biggestSize->size() && !common.name().empty() &&
+          context.ShouldWarn(common::LanguageFeature::DistinctCommonSizes)) {
         context
             .Say(common.name(),
                 "A named COMMON block should have the same size everywhere it appears (%zd bytes here)"_port_en_US,
@@ -291,7 +299,8 @@ private:
     }
     return nullptr;
   }
-  std::map<SourceName, CommonBlockInfo> commonBlocks_;
+
+  std::map<std::string, CommonBlockInfo> commonBlocks_;
 };
 
 SemanticsContext::SemanticsContext(
@@ -304,7 +313,7 @@ SemanticsContext::SemanticsContext(
       globalScope_{*this}, intrinsicModulesScope_{globalScope_.MakeScope(
                                Scope::Kind::IntrinsicModules, nullptr)},
       foldingContext_{parser::ContextualMessages{&messages_}, defaultKinds_,
-          intrinsics_, targetCharacteristics_} {}
+          intrinsics_, targetCharacteristics_, languageFeatures_} {}
 
 SemanticsContext::~SemanticsContext() {}
 

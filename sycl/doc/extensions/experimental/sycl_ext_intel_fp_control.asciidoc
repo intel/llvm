@@ -1,0 +1,166 @@
+= sycl_ext_intel_fp_control
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is an experimental extension specification, intended to provide early access
+to features and gather community feedback. Interfaces defined in this specification
+are implemented in {dpcpp}, but they are not finalized and may change incompatibly in
+future versions of {dpcpp} without prior notice. **Shipping software products should not
+rely on APIs defined in this specification.**
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for kernels marked with SYCL_ESIMD_KERNEL. 
+Error is emitted if property which is defined in this extension is applied to non-ESIMD kernel.
+
+== Overview
+
+Intel GPUs allow to control kernel behavior in floating point operations. This extension adds the kernel property `fp_control` which provides a way to specify the rounding mode and denorm mode for floating point operations in a SYCL kernel.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FP_CONTROL` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Properties
+
+|===
+|Property|Description
+
+|`fp_control`
+|The `fp_control` kernel property provides a way to specify the rounding mode and denormalized floating point values mode for a kernel.
+|===
+
+The values that the property can be set to are a subset of the following that can be OR'ed together:
+
+[%header,cols="1,5"]
+|===
+|Mode | Description
+| round_to_nearest | Round to nearest or even
+| round_upward | Round towards positive infinity
+| round_downward | Round towards negative infinity
+| round_toward_zero | Round towards zero
+| denorm_ftz | Denormalized floating point values are flushed to zero in the kernel code
+| denorm_d_allow | Kernel code is allowed to use denormalized double precision floating point values
+| denorm_f_allow | Kernel code is allowed to use denormalized single precision floating point values
+| denorm_hf_allow | Kernel code is allowed to use denormalized half precision floating point values
+| denorm_allow | Kernel code is allowed to use denormalized double/float/half precision floating point values
+|===
+
+Rounding modes are mutually exclusive and `denorm_ftz` mode is mutually exclusive with `denorm_*allow` modes.
+At most one `fp_control` property may be associated with a kernel. If a kernel is not associated with a `fp_control` property, the manner in which the fp mode is selected is implementation-defined.
+
+The properties are defined as follows:
+```c++
+namespace sycl::ext::intel::experimental {
+
+
+enum class fp_mode : /* implementation defined */ {
+  round_to_nearest = /* implementation defined */,
+  round_upward = /* implementation defined */,
+  round_downward = /* implementation defined */,
+  round_toward_zero = /* implementation defined */,
+
+  denorm_ftz = /* implementation defined */,
+  denorm_d_allow = /* implementation defined */,
+  denorm_f_allow = /* implementation defined */,
+  denorm_hf_allow = /* implementation defined */,
+  denorm_allow = /* implementation defined */
+};
+
+constexpr fp_mode operator|(const fp_mode &a, const fp_mode &b);
+
+struct fp_control_key {
+  template <fp_mode option>
+  using value_t = ext::oneapi::experimental::property_value<
+      fp_control_key, std::integral_constant<fp_mode, option>>;
+};
+
+template <fp_mode option>
+inline constexpr fp_control_key::value_t<option> fp_control;
+
+} // namespace sycl::ext::intel::experimental
+```
+
+=== Using the properties in a kernel
+
+A simple example of using this extension is below.
+
+```c++
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+{
+  ...
+  syclex::properties properties{
+     intelex::fp_control<intelex::fp_mode::denorm_allow | intelex::fp_mode::round_downward>};
+  q.submit([&](handler& h) {
+    h.parallel_for<class EsimdKernel>(32, properties, [=](id<1> i) SYCL_ESIMD_KERNEL {
+      });
+  }).wait();
+}
+```

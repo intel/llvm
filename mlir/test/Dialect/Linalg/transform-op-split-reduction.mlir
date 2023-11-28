@@ -1,4 +1,4 @@
-// RUN: mlir-opt --split-input-file --test-transform-dialect-interpreter %s | FileCheck %s
+// RUN: mlir-opt --split-input-file --transform-interpreter %s | FileCheck %s
 
 func.func @matmul_split(%A : tensor<16x256xf32>, %B: tensor<256x32xf32>, %C: tensor<16x32xf32>) -> tensor<16x32xf32> {
   %0 = linalg.matmul ins(%A, %B: tensor<16x256xf32>, tensor<256x32xf32>)
@@ -31,11 +31,13 @@ func.func @matmul_split(%A : tensor<16x256xf32>, %B: tensor<256x32xf32>, %C: ten
 //      CHECK: } -> tensor<16x32xf32>
 //      CHECK: return %[[R]] : tensor<16x32xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -80,11 +82,13 @@ func.func @generic_split_1d(%arg0: tensor<32xf32>, %arg1: tensor<f32>, %out: ten
 //      CHECK: } -> tensor<f32>
 //      CHECK: return %[[R]] : tensor<f32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 0}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 0}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -102,7 +106,7 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
     } ins(%input, %input_2 : tensor<32x2xf32>, tensor<5x32xf32>) outs(%output : tensor<5x2xf32>) {
     ^bb0(%arg0: f32, %arg1: f32, %arg2: f32):
       %3 = arith.addf %arg0, %arg1 : f32
-      %4 = arith.maxf %3, %arg2 : f32
+      %4 = arith.maximumf %3, %arg2 : f32
       linalg.yield %4 : f32
     } -> tensor<5x2xf32>
   return %0 : tensor<5x2xf32>
@@ -122,21 +126,23 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
 //      CHECK: %[[G:.*]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP2]]], iterator_types = ["parallel", "reduction", "parallel", "parallel"]}
 // CHECK-SAME:   ins(%[[I1]], %[[I2]] : tensor<4x8x2xf32>, tensor<5x4x8xf32>) outs(%[[F]] : tensor<5x2x4xf32>) {
 //      CHECK:   arith.addf
-//      CHECK:   arith.maxf
+//      CHECK:   arith.maximumf
 //      CHECK:   linalg.yield
 //      CHECK: } -> tensor<5x2x4xf32>
 //      CHECK: %[[R:.*]] = linalg.generic {indexing_maps = [#[[$MAP3]], #[[$MAP4]]], iterator_types = ["parallel", "parallel", "reduction"]}
 // CHECK-SAME:   ins(%[[G]] : tensor<5x2x4xf32>) outs(%{{.*}} : tensor<5x2xf32>) {
-//      CHECK:   arith.maxf
+//      CHECK:   arith.maximumf
 //      CHECK:   linalg.yield
 //      CHECK:  } -> tensor<5x2xf32>
 //      CHECK: return %[[R]] : tensor<5x2xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -158,7 +164,7 @@ func.func @generic_split_3d_ninf(%input: tensor<32x2xf32>, %input_2: tensor<5x32
     } ins(%input, %input_2 : tensor<32x2xf32>, tensor<5x32xf32>) outs(%output : tensor<5x2xf32>) {
     ^bb0(%arg0: f32, %arg1: f32, %arg2: f32):
       %3 = arith.addf %arg0, %arg1 : f32
-      %4 = arith.maxf %3, %arg2 fastmath<nnan,ninf> : f32
+      %4 = arith.maximumf %3, %arg2 fastmath<nnan,ninf> : f32
       linalg.yield %4 : f32
     } -> tensor<5x2xf32>
   return %0 : tensor<5x2xf32>
@@ -170,7 +176,7 @@ func.func @generic_split_3d_ninf(%input: tensor<32x2xf32>, %input_2: tensor<5x32
 //  CHECK-DAG: #[[$MAP3:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 //  CHECK-DAG: #[[$MAP4:.*]] = affine_map<(d0, d1, d2) -> (d0, d1)>
 // CHECK-LABEL:  func @generic_split_3d_ninf
-//  CHECK-DAG: %[[ID:.*]] = arith.constant -1.401300e-45 : f32
+//  CHECK-DAG: %[[ID:.*]] = arith.constant -3.40282347E+38 : f32
 //  CHECK-DAG: %[[I1:.*]] = tensor.expand_shape %{{.*}}[0, 1], [2]] : tensor<32x2xf32> into tensor<4x8x2xf32>
 //  CHECK-DAG: %[[I2:.*]] = tensor.expand_shape %{{.*}}[0], [1, 2]] : tensor<5x32xf32> into tensor<5x4x8xf32>
 //  CHECK-DAG: %[[INI:.*]] = tensor.empty() : tensor<5x2x4xf32>
@@ -178,21 +184,23 @@ func.func @generic_split_3d_ninf(%input: tensor<32x2xf32>, %input_2: tensor<5x32
 //      CHECK: %[[G:.*]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP2]]], iterator_types = ["parallel", "reduction", "parallel", "parallel"]}
 // CHECK-SAME:   ins(%[[I1]], %[[I2]] : tensor<4x8x2xf32>, tensor<5x4x8xf32>) outs(%[[F]] : tensor<5x2x4xf32>) {
 //      CHECK:   arith.addf
-//      CHECK:   arith.maxf {{.*}} fastmath<nnan,ninf>
+//      CHECK:   arith.maximumf {{.*}} fastmath<nnan,ninf>
 //      CHECK:   linalg.yield
 //      CHECK: } -> tensor<5x2x4xf32>
 //      CHECK: %[[R:.*]] = linalg.generic {indexing_maps = [#[[$MAP3]], #[[$MAP4]]], iterator_types = ["parallel", "parallel", "reduction"]}
 // CHECK-SAME:   ins(%[[G]] : tensor<5x2x4xf32>) outs(%{{.*}} : tensor<5x2xf32>) {
-//      CHECK:   arith.maxf {{.*}} fastmath<nnan,ninf>
+//      CHECK:   arith.maximumf {{.*}} fastmath<nnan,ninf>
 //      CHECK:   linalg.yield
 //      CHECK:  } -> tensor<5x2xf32>
 //      CHECK: return %[[R]] : tensor<5x2xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -228,11 +236,13 @@ func.func @matmul_split(%A : tensor<16x256xf32>, %B: tensor<256x32xf32>, %C: ten
 //      CHECK: } -> tensor<16x32xf32>
 //      CHECK: return %[[R]] : tensor<16x32xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -277,11 +287,13 @@ func.func @generic_split_1d(%arg0: tensor<32xf32>, %arg1: tensor<f32>, %out: ten
 //      CHECK: } -> tensor<f32>
 //      CHECK: return %[[R]] : tensor<f32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 0, inner_parallel}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 0, inner_parallel}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -299,7 +311,7 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
     } ins(%input, %input_2 : tensor<32x2xf32>, tensor<5x32xf32>) outs(%output : tensor<5x2xf32>) {
     ^bb0(%arg0: f32, %arg1: f32, %arg2: f32):
       %3 = arith.addf %arg0, %arg1 : f32
-      %4 = arith.minf %3, %arg2 : f32
+      %4 = arith.minimumf %3, %arg2 : f32
       linalg.yield %4 : f32
     } -> tensor<5x2xf32>
   return %0 : tensor<5x2xf32>
@@ -319,21 +331,23 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
 //      CHECK: %[[G:.*]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP2]]], iterator_types = ["parallel", "reduction", "parallel", "parallel"]}
 // CHECK-SAME:   ins(%[[I1]], %[[I2]] : tensor<8x4x2xf32>, tensor<5x8x4xf32>) outs(%[[F]] : tensor<5x2x4xf32>) {
 //      CHECK:   arith.addf
-//      CHECK:   arith.minf
+//      CHECK:   arith.minimumf
 //      CHECK:   linalg.yield
 //      CHECK: } -> tensor<5x2x4xf32>
 //      CHECK: %[[R:.*]] = linalg.generic {indexing_maps = [#[[$MAP3]], #[[$MAP4]]], iterator_types = ["parallel", "parallel", "reduction"]}
 // CHECK-SAME:   ins(%[[G]] : tensor<5x2x4xf32>) outs(%{{.*}} : tensor<5x2xf32>) {
-//      CHECK:   arith.minf
+//      CHECK:   arith.minimumf
 //      CHECK:   linalg.yield
 //      CHECK:  } -> tensor<5x2xf32>
 //      CHECK: return %[[R]] : tensor<5x2xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }
 
 // -----
@@ -355,7 +369,7 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
     } ins(%input, %input_2 : tensor<32x2xf32>, tensor<5x32xf32>) outs(%output : tensor<5x2xf32>) {
     ^bb0(%arg0: f32, %arg1: f32, %arg2: f32):
       %3 = arith.addf %arg0, %arg1 : f32
-      %4 = arith.minf %3, %arg2 fastmath<ninf> : f32
+      %4 = arith.minimumf %3, %arg2 fastmath<ninf> : f32
       linalg.yield %4 : f32
     } -> tensor<5x2xf32>
   return %0 : tensor<5x2xf32>
@@ -375,19 +389,21 @@ func.func @generic_split_3d(%input: tensor<32x2xf32>, %input_2: tensor<5x32xf32>
 //      CHECK: %[[G:.*]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP2]]], iterator_types = ["parallel", "reduction", "parallel", "parallel"]}
 // CHECK-SAME:   ins(%[[I1]], %[[I2]] : tensor<8x4x2xf32>, tensor<5x8x4xf32>) outs(%[[F]] : tensor<5x2x4xf32>) {
 //      CHECK:   arith.addf
-//      CHECK:   arith.minf {{.*}} fastmath<ninf>
+//      CHECK:   arith.minimumf {{.*}} fastmath<ninf>
 //      CHECK:   linalg.yield
 //      CHECK: } -> tensor<5x2x4xf32>
 //      CHECK: %[[R:.*]] = linalg.generic {indexing_maps = [#[[$MAP3]], #[[$MAP4]]], iterator_types = ["parallel", "parallel", "reduction"]}
 // CHECK-SAME:   ins(%[[G]] : tensor<5x2x4xf32>) outs(%{{.*}} : tensor<5x2xf32>) {
-//      CHECK:   arith.minf {{.*}} fastmath<ninf>
+//      CHECK:   arith.minimumf {{.*}} fastmath<ninf>
 //      CHECK:   linalg.yield
 //      CHECK:  } -> tensor<5x2xf32>
 //      CHECK: return %[[R]] : tensor<5x2xf32>
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !transform.any_op):
-  %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
-    : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:4 = transform.structured.split_reduction %0 { split_factor = 4, insert_split_dimension = 2, inner_parallel}
+      : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+      transform.yield
+  }
 }

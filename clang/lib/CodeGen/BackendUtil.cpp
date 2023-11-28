@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Frontend/Driver/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -43,14 +44,17 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -65,6 +69,7 @@
 #include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -80,6 +85,7 @@
 #include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
@@ -102,7 +108,7 @@ using namespace llvm;
 #include "llvm/Support/Extension.def"
 
 namespace llvm {
-extern cl::opt<bool> DebugInfoCorrelate;
+extern cl::opt<bool> PrintPipelinePasses;
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
@@ -274,40 +280,9 @@ static bool asanUseGlobalsGC(const Triple &T, const CodeGenOptions &CGOpts) {
 
 static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
                                          const CodeGenOptions &CodeGenOpts) {
-  TargetLibraryInfoImpl *TLII = new TargetLibraryInfoImpl(TargetTriple);
+  TargetLibraryInfoImpl *TLII =
+      llvm::driver::createTLII(TargetTriple, CodeGenOpts.getVecLib());
 
-  switch (CodeGenOpts.getVecLib()) {
-  case CodeGenOptions::Accelerate:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::Accelerate,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::LIBMVEC:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::LIBMVEC_X86,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::MASSV:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::MASSV,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::SVML:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::SVML,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::SLEEF:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::SLEEFGNUABI,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::Darwin_libsystem_m:
-    TLII->addVectorizableFunctionsFromVecLib(
-        TargetLibraryInfoImpl::DarwinLibSystemM, TargetTriple);
-    break;
-  case CodeGenOptions::ArmPL:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::ArmPL,
-                                             TargetTriple);
-    break;
-  default:
-    break;
-  }
   switch (CodeGenOpts.getAltMathLib()) {
   case CodeGenOptions::TestAltMathLibrary:
     TLII->addAltMathFunctionsFromLib(
@@ -341,12 +316,12 @@ getCodeModel(const CodeGenOptions &CodeGenOpts) {
 
 static CodeGenFileType getCodeGenFileType(BackendAction Action) {
   if (Action == Backend_EmitObj)
-    return CGFT_ObjectFile;
+    return CodeGenFileType::ObjectFile;
   else if (Action == Backend_EmitMCNull)
-    return CGFT_Null;
+    return CodeGenFileType::Null;
   else {
     assert(Action == Backend_EmitAssembly && "Invalid action!");
-    return CGFT_AssemblyFile;
+    return CodeGenFileType::AssemblyFile;
   }
 }
 
@@ -514,6 +489,8 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
   Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
+  Options.MCOptions.PPCUseFullRegisterNames =
+      CodeGenOpts.PPCUseFullRegisterNames;
   Options.MisExpect = CodeGenOpts.MisExpect;
 
   return true;
@@ -588,10 +565,10 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
   std::string FeaturesStr =
       llvm::join(TargetOpts.Features.begin(), TargetOpts.Features.end(), ",");
   llvm::Reloc::Model RM = CodeGenOpts.RelocationModel;
-  std::optional<CodeGenOpt::Level> OptLevelOrNone =
+  std::optional<CodeGenOptLevel> OptLevelOrNone =
       CodeGenOpt::getLevel(CodeGenOpts.OptimizationLevel);
   assert(OptLevelOrNone && "Invalid optimization level!");
-  CodeGenOpt::Level OptLevel = *OptLevelOrNone;
+  CodeGenOptLevel OptLevel = *OptLevelOrNone;
 
   llvm::TargetOptions Options;
   if (!initTargetOptions(Diags, Options, CodeGenOpts, TargetOpts, LangOpts,
@@ -599,6 +576,7 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
     return;
   TM.reset(TheTarget->createTargetMachine(Triple, TargetOpts.CPU, FeaturesStr,
                                           Options, RM, CM, OptLevel));
+  TM->setLargeDataThreshold(CodeGenOpts.LargeDataThreshold);
 }
 
 bool EmitAssemblyHelper::AddEmitPasses(legacy::PassManager &CodeGenPasses,
@@ -934,6 +912,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           << PluginFN << toString(PassPlugin.takeError());
     }
   }
+  for (auto PassCallback : CodeGenOpts.PassBuilderCallbacks)
+    PassCallback(PB);
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"
@@ -952,6 +932,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
+  // Add a verifier pass, before any other passes, to catch CodeGen issues.
+  if (CodeGenOpts.VerifyModule)
+    MPM.addPass(VerifierPass());
 
   if (!CodeGenOpts.DisableLLVMPasses) {
     // Map our optimization levels into one of the distinct levels used to
@@ -959,11 +942,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
     if (LangOpts.SYCLIsDevice)
+      PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
+                                             OptimizationLevel Level) {
+        MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
+        MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
+        MPM.addPass(SYCLPropagateJointMatrixUsagePass());
+      });
+    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
-            MPM.addPass(
-                SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
+            MPM.addPass(ESIMDRemoveHostCodePass());
           });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
@@ -1065,21 +1053,19 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    const bool PrepareForThinOrUnifiedLTO =
-        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
-      MPM = PB.buildO0DefaultPipeline(OptimizationLevel::O0,
-                                      PrepareForLTO || PrepareForThinLTO);
+      MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
+                                      PrepareForLTO || PrepareForThinLTO));
     } else if (CodeGenOpts.FatLTO) {
-      MPM = PB.buildFatLTODefaultPipeline(Level, PrepareForThinOrUnifiedLTO,
-                                          PrepareForThinOrUnifiedLTO ||
-                                              shouldEmitRegularLTOSummary());
+      MPM.addPass(PB.buildFatLTODefaultPipeline(
+          Level, PrepareForThinLTO,
+          PrepareForThinLTO || shouldEmitRegularLTOSummary()));
     } else if (PrepareForThinLTO) {
-      MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
+      MPM.addPass(PB.buildThinLTOPreLinkDefaultPipeline(Level));
     } else if (PrepareForLTO) {
-      MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
+      MPM.addPass(PB.buildLTOPreLinkDefaultPipeline(Level));
     } else {
-      MPM = PB.buildPerModuleDefaultPipeline(Level);
+      MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
     }
 
     if (SYCLNativeCPURename)
@@ -1116,12 +1102,18 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.SYCLIsNativeCPU) {
         MPM.addPass(PrepareSYCLNativeCPUPass());
       }
+
+      // Remove SYCL metadata added by the frontend, like sycl_aspects
+      // Note, this pass should be at the end of the pipeline
+      MPM.addPass(CleanupSYCLMetadataPass());
     }
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
   // the code-generation pipeline.
+  // Since we already added a verifier pass above, this
+  // might even not run the analysis, if previous passes caused no changes.
   if (!actionRequiresCodeGen(Action) && CodeGenOpts.VerifyModule)
     MPM.addPass(VerifierPass());
 
@@ -1179,6 +1171,21 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
   }
 
+  // Print a textual, '-passes=' compatible, representation of pipeline if
+  // requested.
+  if (PrintPipelinePasses) {
+    MPM.printPipeline(outs(), [&PIC](StringRef ClassName) {
+      auto PassName = PIC.getPassNameForClassName(ClassName);
+      return PassName.empty() ? ClassName : PassName;
+    });
+    outs() << "\n";
+    return;
+  }
+
+  if (LangOpts.HIPStdPar && !LangOpts.CUDAIsDevice &&
+      LangOpts.HIPStdParInterposeAlloc)
+    MPM.addPass(HipStdParAllocationInterpositionPass());
+
   // Now that we have all of the passes ready, run them.
   {
     PrettyStackTraceString CrashInfo("Optimizer");
@@ -1213,6 +1220,13 @@ void EmitAssemblyHelper::RunCodegenPipeline(
       return;
     break;
   default:
+    return;
+  }
+
+  // If -print-pipeline-passes is requested, don't run the legacy pass manager.
+  // FIXME: when codegen is switched to use the new pass manager, it should also
+  // emit pass names here.
+  if (PrintPipelinePasses) {
     return;
   }
 
@@ -1286,7 +1300,7 @@ static void runThinLTOBackend(
   Conf.CodeModel = getCodeModel(CGOpts);
   Conf.MAttrs = TOpts.Features;
   Conf.RelocModel = CGOpts.RelocationModel;
-  std::optional<CodeGenOpt::Level> OptLevelOrNone =
+  std::optional<CodeGenOptLevel> OptLevelOrNone =
       CodeGenOpt::getLevel(CGOpts.OptimizationLevel);
   assert(OptLevelOrNone && "Invalid optimization level!");
   Conf.CGOptLevel = *OptLevelOrNone;

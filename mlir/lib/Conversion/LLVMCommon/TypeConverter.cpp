@@ -61,7 +61,12 @@ LLVMTypeConverter::LLVMTypeConverter(MLIRContext *ctx,
   addConversion([&](MemRefType type) { return convertMemRefType(type); });
   addConversion(
       [&](UnrankedMemRefType type) { return convertUnrankedMemRefType(type); });
-  addConversion([&](VectorType type) { return convertVectorType(type); });
+  addConversion([&](VectorType type) -> std::optional<Type> {
+    FailureOr<Type> llvmType = convertVectorType(type);
+    if (failed(llvmType))
+      return std::nullopt;
+    return llvmType;
+  });
 
   // LLVM-compatible types are legal, so add a pass-through conversion. Do this
   // before the conversions below since conversions are attempted in reverse
@@ -69,16 +74,6 @@ LLVMTypeConverter::LLVMTypeConverter(MLIRContext *ctx,
   addConversion([](Type type) {
     return LLVM::isCompatibleType(type) ? std::optional<Type>(type)
                                         : std::nullopt;
-  });
-
-  // LLVM container types may (recursively) contain other types that must be
-  // converted even when the outer type is compatible.
-  addConversion([&](LLVM::LLVMPointerType type) -> std::optional<Type> {
-    if (type.isOpaque())
-      return type;
-    if (auto pointee = convertType(type.getElementType()))
-      return LLVM::LLVMPointerType::get(pointee, type.getAddressSpace());
-    return std::nullopt;
   });
 
   addConversion([&](LLVM::LLVMStructType type, SmallVectorImpl<Type> &results)
@@ -204,14 +199,6 @@ Type LLVMTypeConverter::getIndexType() const {
   return IntegerType::get(&getContext(), getIndexTypeBitwidth());
 }
 
-LLVM::LLVMPointerType
-LLVMTypeConverter::getPointerType(Type elementType,
-                                  unsigned int addressSpace) const {
-  if (useOpaquePointers())
-    return LLVM::LLVMPointerType::get(&getContext(), addressSpace);
-  return LLVM::LLVMPointerType::get(elementType, addressSpace);
-}
-
 unsigned LLVMTypeConverter::getPointerBitwidth(unsigned addressSpace) const {
   return options.dataLayout.getPointerSizeInBits(addressSpace);
 }
@@ -244,12 +231,7 @@ Type LLVMTypeConverter::convertComplexType(ComplexType type) const {
 // Except for signatures, MLIR function types are converted into LLVM
 // pointer-to-function types.
 Type LLVMTypeConverter::convertFunctionType(FunctionType type) const {
-  SignatureConversion conversion(type.getNumInputs());
-  Type converted = convertFunctionSignature(
-      type, /*isVariadic=*/false, options.useBarePtrCallConv, conversion);
-  if (!converted)
-    return {};
-  return getPointerType(converted);
+  return LLVM::LLVMPointerType::get(type.getContext());
 }
 
 // Function types are converted to LLVM Function types by recursively converting
@@ -296,11 +278,12 @@ LLVMTypeConverter::convertFunctionTypeCWrapper(FunctionType type) const {
   if (!resultType)
     return {};
 
+  auto ptrType = LLVM::LLVMPointerType::get(type.getContext());
   auto structType = dyn_cast<LLVM::LLVMStructType>(resultType);
   if (structType) {
     // Struct types cannot be safely returned via C interface. Make this a
     // pointer argument, instead.
-    inputs.push_back(getPointerType(structType));
+    inputs.push_back(ptrType);
     resultType = LLVM::LLVMVoidType::get(&getContext());
   }
 
@@ -309,7 +292,7 @@ LLVMTypeConverter::convertFunctionTypeCWrapper(FunctionType type) const {
     if (!converted || !LLVM::isCompatibleType(converted))
       return {};
     if (isa<MemRefType, UnrankedMemRefType>(t))
-      converted = getPointerType(converted);
+      converted = ptrType;
     inputs.push_back(converted);
   }
 
@@ -368,7 +351,7 @@ LLVMTypeConverter::getMemRefDescriptorFields(MemRefType type,
            "failed. Consider adding memory space conversions.";
     return {};
   }
-  auto ptrTy = getPointerType(elementType, *addressSpace);
+  auto ptrTy = LLVM::LLVMPointerType::get(type.getContext(), *addressSpace);
 
   auto indexTy = getIndexType();
 
@@ -414,7 +397,7 @@ Type LLVMTypeConverter::convertMemRefType(MemRefType type) const {
 ///    be unranked.
 SmallVector<Type, 2>
 LLVMTypeConverter::getUnrankedMemRefDescriptorFields() const {
-  return {getIndexType(), getPointerType(IntegerType::get(&getContext(), 8))};
+  return {getIndexType(), LLVM::LLVMPointerType::get(&getContext())};
 }
 
 unsigned LLVMTypeConverter::getUnrankedMemRefDescriptorSize(
@@ -482,7 +465,7 @@ Type LLVMTypeConverter::convertMemRefToBarePtr(BaseMemRefType type) const {
   FailureOr<unsigned> addressSpace = getMemRefAddressSpace(type);
   if (failed(addressSpace))
     return {};
-  return getPointerType(elementType, *addressSpace);
+  return LLVM::LLVMPointerType::get(type.getContext(), *addressSpace);
 }
 
 /// Convert an n-D vector type to an LLVM vector type:
@@ -490,10 +473,9 @@ Type LLVMTypeConverter::convertMemRefToBarePtr(BaseMemRefType type) const {
 ///  * 1-D `vector<axT>` remains as is while,
 ///  * n>1 `vector<ax...xkxT>` convert via an (n-1)-D array type to
 ///    `!llvm.array<ax...array<jxvector<kxT>>>`.
-/// As LLVM does not support arrays of scalable vectors, it is assumed that
-/// scalable vectors are always 1-D. This condition could be relaxed once the
-/// missing functionality is added in LLVM
-Type LLVMTypeConverter::convertVectorType(VectorType type) const {
+/// Returns failure for n-D scalable vector types as LLVM does not support
+/// arrays of scalable vectors.
+FailureOr<Type> LLVMTypeConverter::convertVectorType(VectorType type) const {
   auto elementType = convertType(type.getElementType());
   if (!elementType)
     return {};
@@ -503,9 +485,9 @@ Type LLVMTypeConverter::convertVectorType(VectorType type) const {
                                     type.getScalableDims().back());
   assert(LLVM::isCompatibleVectorType(vectorType) &&
          "expected vector type compatible with the LLVM dialect");
-  assert(
-      (!type.isScalable() || (type.getRank() == 1)) &&
-      "expected 1-D scalable vector (n-D scalable vectors are not supported)");
+  // Only the trailing dimension can be scalable.
+  if (llvm::is_contained(type.getScalableDims().drop_back(), true))
+    return failure();
   auto shape = type.getShape();
   for (int i = shape.size() - 2; i >= 0; --i)
     vectorType = LLVM::LLVMArrayType::get(vectorType, shape[i]);
@@ -589,7 +571,7 @@ Value LLVMTypeConverter::promoteOneMemRefDescriptor(Location loc, Value operand,
                                                     OpBuilder &builder) const {
   // Alloca with proper alignment. We do not expect optimizations of this
   // alloca op and so we omit allocating at the entry block.
-  auto ptrType = getPointerType(operand.getType());
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
   Value one = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                builder.getIndexAttr(1));
   Value allocated =

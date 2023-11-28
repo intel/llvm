@@ -3,15 +3,18 @@
 #include "../graph_common.hpp"
 
 int main() {
-
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
   int *Arr = malloc_device<int>(N, Queue);
 
-  int Pattern = 3.14f;
+  int Pattern = 3;
   auto NodeA =
       add_node(Graph, Queue, [&](handler &CGH) { CGH.fill(Arr, Pattern, N); });
 
@@ -21,8 +24,8 @@ int main() {
 
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == Pattern);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Pattern, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

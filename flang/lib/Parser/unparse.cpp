@@ -1001,13 +1001,14 @@ public:
     Walk(std::get<Statement<EndDoStmt>>(x.t));
   }
   void Unparse(const LabelDoStmt &x) { // R1121
-    Walk(std::get<std::optional<Name>>(x.t), ": ");
     Word("DO "), Walk(std::get<Label>(x.t));
     Walk(" ", std::get<std::optional<LoopControl>>(x.t));
   }
   void Unparse(const NonLabelDoStmt &x) { // R1122
     Walk(std::get<std::optional<Name>>(x.t), ": ");
-    Word("DO "), Walk(std::get<std::optional<LoopControl>>(x.t));
+    Word("DO ");
+    Walk(std::get<std::optional<Label>>(x.t), " ");
+    Walk(std::get<std::optional<LoopControl>>(x.t));
   }
   void Unparse(const LoopControl &x) { // R1123
     common::visit(common::visitors{
@@ -1947,7 +1948,7 @@ public:
     Walk(std::get<AccBeginLoopDirective>(x.t));
     Put("\n");
     EndOpenACC();
-    Walk(std::get<DoConstruct>(x.t));
+    Walk(std::get<std::optional<DoConstruct>>(x.t));
   }
   void Unparse(const AccBeginLoopDirective &x) {
     Walk(std::get<AccLoopDirective>(x.t));
@@ -2307,17 +2308,7 @@ public:
   }
 
   void Unparse(const OmpAtomicDefaultMemOrderClause &x) {
-    switch (x.v) {
-    case OmpAtomicDefaultMemOrderClause::Type::SeqCst:
-      Word("SEQ_CST");
-      break;
-    case OmpAtomicDefaultMemOrderClause::Type::AcqRel:
-      Word("ACQ_REL");
-      break;
-    case OmpAtomicDefaultMemOrderClause::Type::Relaxed:
-      Word("RELAXED");
-      break;
-    }
+    Word(ToUpperCaseLetters(common::EnumToString(x.v)));
   }
 
   void Unparse(const OmpAtomicClauseList &x) { Walk(" ", x.v, " "); }

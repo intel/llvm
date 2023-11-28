@@ -46,7 +46,7 @@ they are considered implementation details of DPC++.  We do not intend to
 support them as general attributes that customer code can use.
 
 ```
-template <typename name, typename dataT, typename propertiesT = properties<>>
+template <typename name, typename dataT, typename propertiesT = ext::oneapi::experimental::empty_properties_t>
 class pipe {/*...*/};
 
 // Partial specialization to make propertiesT visible as a parameter pack

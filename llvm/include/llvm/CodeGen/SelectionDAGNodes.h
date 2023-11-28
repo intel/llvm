@@ -381,6 +381,7 @@ private:
   bool NoUnsignedWrap : 1;
   bool NoSignedWrap : 1;
   bool Exact : 1;
+  bool NonNeg : 1;
   bool NoNaNs : 1;
   bool NoInfs : 1;
   bool NoSignedZeros : 1;
@@ -401,9 +402,9 @@ private:
 public:
   /// Default constructor turns off all optimization flags.
   SDNodeFlags()
-      : NoUnsignedWrap(false), NoSignedWrap(false), Exact(false), NoNaNs(false),
-        NoInfs(false), NoSignedZeros(false), AllowReciprocal(false),
-        AllowContract(false), ApproximateFuncs(false),
+      : NoUnsignedWrap(false), NoSignedWrap(false), Exact(false), NonNeg(false),
+        NoNaNs(false), NoInfs(false), NoSignedZeros(false),
+        AllowReciprocal(false), AllowContract(false), ApproximateFuncs(false),
         AllowReassociation(false), NoFPExcept(false), Unpredictable(false) {}
 
   /// Propagate the fast-math-flags from an IR FPMathOperator.
@@ -421,6 +422,7 @@ public:
   void setNoUnsignedWrap(bool b) { NoUnsignedWrap = b; }
   void setNoSignedWrap(bool b) { NoSignedWrap = b; }
   void setExact(bool b) { Exact = b; }
+  void setNonNeg(bool b) { NonNeg = b; }
   void setNoNaNs(bool b) { NoNaNs = b; }
   void setNoInfs(bool b) { NoInfs = b; }
   void setNoSignedZeros(bool b) { NoSignedZeros = b; }
@@ -435,6 +437,7 @@ public:
   bool hasNoUnsignedWrap() const { return NoUnsignedWrap; }
   bool hasNoSignedWrap() const { return NoSignedWrap; }
   bool hasExact() const { return Exact; }
+  bool hasNonNeg() const { return NonNeg; }
   bool hasNoNaNs() const { return NoNaNs; }
   bool hasNoInfs() const { return NoInfs; }
   bool hasNoSignedZeros() const { return NoSignedZeros; }
@@ -451,6 +454,7 @@ public:
     NoUnsignedWrap &= Flags.NoUnsignedWrap;
     NoSignedWrap &= Flags.NoSignedWrap;
     Exact &= Flags.Exact;
+    NonNeg &= Flags.Exact;
     NoNaNs &= Flags.NoNaNs;
     NoInfs &= Flags.NoInfs;
     NoSignedZeros &= Flags.NoSignedZeros;
@@ -3128,9 +3132,25 @@ namespace ISD {
   /// Attempt to match a unary predicate against a scalar/splat constant or
   /// every element of a constant BUILD_VECTOR.
   /// If AllowUndef is true, then UNDEF elements will pass nullptr to Match.
-  bool matchUnaryPredicate(SDValue Op,
-                           std::function<bool(ConstantSDNode *)> Match,
-                           bool AllowUndefs = false);
+  template <typename ConstNodeType>
+  bool matchUnaryPredicateImpl(SDValue Op,
+                               std::function<bool(ConstNodeType *)> Match,
+                               bool AllowUndefs = false);
+
+  /// Hook for matching ConstantSDNode predicate
+  inline bool matchUnaryPredicate(SDValue Op,
+                                  std::function<bool(ConstantSDNode *)> Match,
+                                  bool AllowUndefs = false) {
+    return matchUnaryPredicateImpl<ConstantSDNode>(Op, Match, AllowUndefs);
+  }
+
+  /// Hook for matching ConstantFPSDNode predicate
+  inline bool
+  matchUnaryFpPredicate(SDValue Op,
+                        std::function<bool(ConstantFPSDNode *)> Match,
+                        bool AllowUndefs = false) {
+    return matchUnaryPredicateImpl<ConstantFPSDNode>(Op, Match, AllowUndefs);
+  }
 
   /// Attempt to match a binary predicate against a pair of scalar/splat
   /// constants or every element of a pair of constant BUILD_VECTORs.

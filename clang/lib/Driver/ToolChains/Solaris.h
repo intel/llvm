@@ -17,12 +17,11 @@ namespace clang {
 namespace driver {
 namespace tools {
 
-/// solaris -- Directly call Solaris assembler and linker
+/// Directly call Solaris assembler and linker
 namespace solaris {
-class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+class LLVM_LIBRARY_VISIBILITY Assembler final : public gnutools::Assembler {
 public:
-  Assembler(const ToolChain &TC)
-      : Tool("solaris::Assembler", "assembler", TC) {}
+  Assembler(const ToolChain &TC) : gnutools::Assembler(TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
 
@@ -34,7 +33,7 @@ public:
 
 bool isLinkerGnuLd(const ToolChain &TC, const llvm::opt::ArgList &Args);
 
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("solaris::Linker", "linker", TC) {}
 
