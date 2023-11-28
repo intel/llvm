@@ -28,6 +28,8 @@ int main() {
        matrix_type::fp32, matrix_type::fp32},
       {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
+      {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
+       matrix_type::fp32, matrix_type::fp32},
   };
 
   sycl::queue q;
