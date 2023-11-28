@@ -30,7 +30,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -56,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 534071e52f84bad1dd7fb210a360414507f3b3ae
-  # Merge: 9fc82304 d164792b
+  # commit 31b654f981f6098936e7f04c65803395a2ea343a
+  # Merge: 71957e84 3da21336
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 15 10:51:54 2023 +0000
-  #     Merge pull request #1077 from fabiomestre/fabio/combines_fixes_cuda_hip
-  #     [CUDA][HIP] Combined CTS Fixes
-  set(UNIFIED_RUNTIME_TAG 534071e52f84bad1dd7fb210a360414507f3b3ae)
+  # Date:   Wed Nov 22 11:27:33 2023 +0000
+  #     Merge pull request #1053 from jandres742/url0leakkey
+  #     [UR][L0] Add UR_L0_LEAKS_DEBUG key
+  set(UNIFIED_RUNTIME_TAG 31b654f981f6098936e7f04c65803395a2ea343a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -37,13 +37,13 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.
+This extension is written against the SYCL 2020 revision 8 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
+* link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
   sycl_ext_oneapi_kernel_compiler]
 
 
@@ -60,7 +60,7 @@ this specification.*
 == Overview
 
 This is an extension to
-link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
 sycl_ext_oneapi_kernel_compiler], which allows an application to define a
 kernel in the OpenCL C language when dynamically compiling a kernel from
 source.
