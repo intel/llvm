@@ -408,9 +408,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -423,10 +421,7 @@ public:
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
       const std::vector<event> &WaitList,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                  CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.

@@ -426,6 +426,15 @@ event queue_impl::memcpyFromDeviceGlobal(
       Self, {});
 }
 
+event queue_impl::getLastEvent() const {
+  assert(isInOrder());
+  std::lock_guard<std::mutex> Lock{MMutex};
+  auto LastEvent = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+  return MDiscardEvents
+             ? createDiscardedEvent()
+             : (LastEvent ? createSyclObjFromImpl<event>(LastEvent) : event{});
+}
+
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
