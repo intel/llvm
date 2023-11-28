@@ -194,8 +194,8 @@ performing calls through virtual member functions and declares use of one or
 more sets of virtual member functions.
 
 Optional parameter `SetIds` specifies which sets of virtual member functions are
-declared to be used by a kernel, it must be zero or more C++ typenames. If the
-argument is omitted (zero C++ typenames specified), then a kernel is considered
+declared to be used by a kernel, it must be zero or more C\++ typenames. If the
+argument is omitted (zero C\++ typenames specified), then a kernel is considered
 to be using the default set of virtual member functions.
 
 Calling a virtual member function, which does not belong to any of sets of
