@@ -401,6 +401,7 @@ private:
 
   std::set<std::string> m_KernelUsesAssert;
 
+  // True iff there is a device image compiled with AddressSanitizer
   bool m_KernelUsesAsan;
 
   // Maps between device_global identifiers and associated information.
