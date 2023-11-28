@@ -196,8 +196,12 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX904__`
 * `__SYCL_TARGET_AMD_GPU_GFX906__`
 * `__SYCL_TARGET_AMD_GPU_GFX908__`
+* `__SYCL_TARGET_AMD_GPU_GFX909__`
 * `__SYCL_TARGET_AMD_GPU_GFX90A__`
 * `__SYCL_TARGET_AMD_GPU_GFX90C__`
+* `__SYCL_TARGET_AMD_GPU_GFX940__`
+* `__SYCL_TARGET_AMD_GPU_GFX941__`
+* `__SYCL_TARGET_AMD_GPU_GFX942__`
 * `__SYCL_TARGET_AMD_GPU_GFX1010__`
 * `__SYCL_TARGET_AMD_GPU_GFX1011__`
 * `__SYCL_TARGET_AMD_GPU_GFX1012__`
@@ -205,7 +209,18 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX1030__`
 * `__SYCL_TARGET_AMD_GPU_GFX1031__`
 * `__SYCL_TARGET_AMD_GPU_GFX1032__`
+* `__SYCL_TARGET_AMD_GPU_GFX1033__`
 * `__SYCL_TARGET_AMD_GPU_GFX1034__`
+* `__SYCL_TARGET_AMD_GPU_GFX1035__`
+* `__SYCL_TARGET_AMD_GPU_GFX1036__`
+* `__SYCL_TARGET_AMD_GPU_GFX1100__`
+* `__SYCL_TARGET_AMD_GPU_GFX1101__`
+* `__SYCL_TARGET_AMD_GPU_GFX1102__`
+* `__SYCL_TARGET_AMD_GPU_GFX1103__`
+* `__SYCL_TARGET_AMD_GPU_GFX1150__`
+* `__SYCL_TARGET_AMD_GPU_GFX1151__`
+* `__SYCL_TARGET_AMD_GPU_GFX1200__`
+* `__SYCL_TARGET_AMD_GPU_GFX1201__`
 
 If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
 the compiler driver must predefine the following C++ macro name:
