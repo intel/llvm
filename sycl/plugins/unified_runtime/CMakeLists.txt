@@ -30,7 +30,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -56,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
+  # commit 109ed46ee55f41317d35b2a9a20fa7a2029e9e64
+  # Merge: 31b654f9 23005313
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
+  # Date:   Wed Nov 22 16:04:52 2023 +0000
+  #     Merge pull request #966 from martygrant/martin/openclCommandBuffers
+  #     [OpenCL] Add Command Buffer extension to OpenCL adapter.
+  set(UNIFIED_RUNTIME_TAG 109ed46ee55f41317d35b2a9a20fa7a2029e9e64)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

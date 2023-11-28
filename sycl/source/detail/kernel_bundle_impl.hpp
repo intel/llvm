@@ -352,6 +352,10 @@ public:
            "bundle_state::ext_oneapi_source required");
     assert(Language == syclex::source_language::opencl &&
            "TODO: add other Languages. Must be OpenCL");
+    if (Language != syclex::source_language::opencl)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "OpenCL C is the only supported language at this time");
 
     // if successful, the log is empty. if failed, throws an error with the
     // compilation log.
@@ -368,11 +372,15 @@ public:
 
     Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
+    std::vector<pi::PiDevice> DeviceVec;
+    DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-          PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
+      DeviceVec.push_back(Dev);
     }
+    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
+        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        nullptr);
 
     // Get the number of kernels in the program.
     size_t NumKernels;

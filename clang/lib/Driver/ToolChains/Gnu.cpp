@@ -459,9 +459,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("text");
   }
 
-  if (Args.hasArg(options::OPT_rdynamic))
-    CmdArgs.push_back("-export-dynamic");
-
   if (Args.hasArg(options::OPT_s))
     CmdArgs.push_back("-s");
 
@@ -501,16 +498,14 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (IsStatic) {
     CmdArgs.push_back("-static");
-  } else {
+  } else if (!Args.hasArg(options::OPT_r) &&
+             !Args.hasArg(options::OPT_shared) && !IsStaticPIE) {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
 
-    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE &&
-        !Args.hasArg(options::OPT_r)) {
-      CmdArgs.push_back("-dynamic-linker");
-      CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
-                                           ToolChain.getDynamicLinker(Args)));
-    }
+    CmdArgs.push_back("-dynamic-linker");
+    CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
+                                         ToolChain.getDynamicLinker(Args)));
   }
 
   CmdArgs.push_back("-o");
@@ -582,7 +577,15 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    // Find the first filename InputInfo object.
+    auto Input = llvm::find_if(
+        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
+    if (Input == Inputs.end())
+      // For a very rare case, all of the inputs to the linker are
+      // InputArg. If that happens, just use the first InputInfo.
+      Input = Inputs.begin();
+
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, *Input,
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -602,10 +605,18 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      if (II.getType() == types::TY_Tempfilelist) {
+      // TODO: Incoming file from the unbundling of the AOCX archive is
+      // represented as an object. The file should be considered as a filelist
+      // file to correspond with the '@' addition.
+      bool IsAOCXFile = false;
+      if (II.isFilename())
+        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
+
+      if (II.getType() == types::TY_Tempfilelist ||
+          (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        std::string FileName(II.getFilename());
-        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        const char *ArgFile =
+            C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
       } else
@@ -644,7 +655,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // AddRunTimeLibs).
   if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranRuntimeLibs(ToolChain, CmdArgs);
+    addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
     CmdArgs.push_back("-lm");
   }
 

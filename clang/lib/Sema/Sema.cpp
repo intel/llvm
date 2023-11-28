@@ -330,8 +330,9 @@ void Sema::Initialize() {
   if (getLangOpts().MSVCCompat) {
     if (getLangOpts().CPlusPlus &&
         IdResolver.begin(&Context.Idents.get("type_info")) == IdResolver.end())
-      PushOnScopeChains(Context.buildImplicitRecord("type_info", TTK_Class),
-                        TUScope);
+      PushOnScopeChains(
+          Context.buildImplicitRecord("type_info", TagTypeKind::Class),
+          TUScope);
 
     addImplicitTypedef("size_t", Context.getSizeType());
   }
@@ -1328,8 +1329,6 @@ void Sema::ActOnEndOfTranslationUnit() {
       if (auto *FD = dyn_cast<FunctionDecl>(D)) {
         bool DefInPMF = false;
         if (auto *FDD = FD->getDefinition()) {
-          assert(FDD->getOwningModule() &&
-                 FDD->getOwningModule()->isModulePurview());
           DefInPMF = FDD->getOwningModule()->isPrivateModule();
           if (!DefInPMF)
             continue;
