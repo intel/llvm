@@ -420,7 +420,7 @@ void f1(float a, float b) {
 // CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F4_MEDIUM]]
-// CHECK-F4: call float @tanf(float {{.*}})
+// CHECK-F4: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 //
 // CHECK-F5-LABEL: define dso_local void @f2(
 // CHECK-F5: call float @llvm.cos.f32(float {{.*}})
@@ -439,7 +439,7 @@ void f1(float a, float b) {
 // CHECK-F6: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F6_MEDIUM]]
-// CHECK-F6: call float @tanf(float noundef {{.*}}) #[[ATTR8:[0-9]+]]
+// CHECK-F6: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F6_MEDIUM]]
 //
 // CHECK-F6: attributes #[[ATTR_F6_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F6: attributes #[[ATTR_F6_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
