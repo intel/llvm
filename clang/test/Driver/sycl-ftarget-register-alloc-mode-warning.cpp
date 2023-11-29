@@ -20,6 +20,3 @@
 // LARGE: warning: using -ze-opt-large-register-file to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:large
 // SMALL: warning: using -ze-intel-128-GRF-per-thread to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:small
 // AUTO:  warning: using -ze-intel-enable-auto-large-GRF-mode to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:auto
-
-int main() {
-}
