@@ -2127,7 +2127,8 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     ctor.addInt(Int32Ty, I.Priority);
     ctor.add(I.Initializer);
     if (I.AssociatedData)
-      ctor.add(I.AssociatedData);
+      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          I.AssociatedData, TargetType));
     else
       ctor.addNullPointer(TargetType);
     ctor.finishAndAddTo(ctors);

@@ -628,7 +628,9 @@ MDNode *LoopInfo::createMetadata(
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
                         ConstantAsMetadata::get(
                             ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
+
   // Setting clang::code_align attribute.
   if (Attrs.CodeAlign > 0) {
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.align"),
