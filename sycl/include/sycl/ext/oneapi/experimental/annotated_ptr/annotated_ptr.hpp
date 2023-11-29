@@ -80,7 +80,7 @@ class annotated_ref<T, detail::properties_t<Props...>> {
 
   static_assert(
       std::is_trivially_copyable_v<T>,
-      "annotated_ref can only be encapsulated with trivially-copyable type!");
+      "annotated_ref can only encapsulate a trivially-copyable type!");
 
 private:
   T *m_Ptr;
@@ -183,8 +183,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
   static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
-                "annotated_ptr can only be encapsulated with either "
-                "trivially-copyable type "
+                "annotated_ptr can only encapsulate either "
+                "a trivially-copyable type "
                 "or void!");
 
   // buffer_location and alignment are allowed for annotated_ref

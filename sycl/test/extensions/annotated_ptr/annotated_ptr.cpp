@@ -164,7 +164,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
     test(int n_) : n(n_) {}
     test(const test &t) { n = t.n; }
   };
-  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: annotated_ptr can only be encapsulated with either trivially-copyable type or void!}}
+  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: annotated_ptr can only encapsulate either a trivially-copyable type or void!}}
   annotated_ptr<test> non_trivially_copyable;
 
   annotated_ptr<void> void_type;
