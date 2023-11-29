@@ -3363,6 +3363,33 @@ block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// efficient code. If the alignment is smaller than 16-bytes, then less
 /// efficient scatter is generated. If the stored vector is too long
 /// for 1 flat-store GPU instruction, then a series of flat-store and/or
+/// scatters may be generated.
+/// @tparam T Element type.
+/// @tparam N Number of elements to store.
+/// @tparam Flags The alignment specifier type tag.
+/// @param offset The byte-offset to store at.
+/// @param vals The vector to store.
+/// @param Flags Specifies the alignment.
+///
+template <typename T, int N, typename Flags>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
+slm_block_store(uint32_t offset, simd<T, N> vals, Flags) {
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_slm_block_st<detail::__raw_t<T>, N, Align>(offset, vals.data());
+}
+
+/// Each of the following slm_block_store functions stores the vector \p vals to
+/// a contiguous memory block in SLM (Shared Local Memory) at the \p
+/// byte_offset. The parameter 'pred' is the one element predicate. If it is set
+/// to 1, then all 'N' elements are stored. Otherwise, the block store operation
+/// is a NO-OP. The parameter 'props' specifies the optional compile-time
+/// properties list. Only esimd::alignment property is used. Other properties
+/// are ignored.
+
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-1)
+///                      simd_mask<1> pred, props={});
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-2)
+///                      props={});
 ///
 /// The following functions do the same work as slm_block_store(). They accept
 /// a local accessor \p lacc and the store of \p vals is done to SLM associated
@@ -3493,67 +3520,6 @@ slm_block_store(uint32_t byte_offset, simd<T, N> vals,
   __esimd_slm_block_st<StoreElemT, N, Alignment>(
       byte_offset,
       sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreElemT, N>>(vals.data()));
-}
-
-/// void slm_block_store(uint32_t byte_offset,       // (slm-bs-3)
-///                      simd_view<T, RegionTy> vals,
-///                      simd_mask<1> pred, props={});
-/// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
-/// Memory) at the given \p byte_offset. The parameter \p pred is the
-/// one-element predicate. If it is set to 1, then all 'N' elements are stored.
-/// Otherwise, the block stored operation is a NO-OP.
-///
-/// The parameter 'props' specifies the optional compile-time properties
-/// list. Only esimd::alignment property is used. Other properties are ignored.
-///
-/// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default expected alignment is the minimally required (see (R1) below).
-///
-/// Restrictions - predicate imposed - temporary:
-/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
-///     elements and 8-byte aligned for 8-byte elements.
-/// R2: The number of elements must be:
-///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
-///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
-///                      or 128(only if alignment is 8-bytes or more);
-///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
-///                      or 256(only if alignment is 8-bytes or more);
-///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
-///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device must be DG2, PVC or newer GPU.
-template <typename T, int N, typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-slm_block_store(uint32_t byte_offset, simd_view<T, RegionTy> vals,
-                simd_mask<1> pred, PropertyListT props = {}) {
-  slm_block_store<T, N>(byte_offset, vals.read(), pred, props);
-}
-
-/// void slm_block_store(uint32_t byte_offset,                   // (slm-bs-4)
-///                      simd_view<T, RegionTy> vals, props = {});
-/// Stores the vector \p vals to a contiguous memory block in SLM
-/// (Shared Local Memory) at the given \p byte_offset. The parameter 'props'
-/// specifies the optional compile-time properties list. Only esimd::alignment
-/// property is used. Other properties are ignored.
-///
-/// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default expected alignment is 16-bytes to generate block_store
-/// instruction on all known target devices (Gen12, DG2, PVC, etc).
-/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
-/// is valid, but requires JIT compiler generating a slower SCATTER instead
-/// of faster BLOCK_STORE.
-/// !!! Passing \p byte_offset not aligned by 16-bytes and not specifying
-/// the actual alignment in \p props produces incorrect store results on Gen12.
-template <typename T, int N, typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-slm_block_store(uint32_t byte_offset, simd_view<T, RegionTy> vals,
-                PropertyListT props = {}) {
-  slm_block_store<T, N>(byte_offset, vals.read(), props);
 }
 
 /// void block_store(local_accessor lacc, uint32_t byte_offset, // (lacc-bs-1)
