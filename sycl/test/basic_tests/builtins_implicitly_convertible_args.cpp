@@ -37,14 +37,14 @@ template <typename T> struct ImplicitlyConvertibleType {
 
 #define FLOAT_CHECK(NUM_ARGS, FUNC_NAME) CHECK_INNER(NUM_ARGS, FUNC_NAME, float)
 
-#define GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                        \
-  FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                                 \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::half)                                  \
+#define GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                    \
+  FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                             \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::half)                                 \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, double)
 
-#define UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)                                     \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned int)                                \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned short)                              \
+#define UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)                                 \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned int)                               \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned short)                             \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long)
 
 void check() {

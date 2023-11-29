@@ -20,86 +20,86 @@
                                decltype(sycl::FUNC_NAME(                       \
                                    NUM_ARGS##_DECLVAL(__VA_ARGS__)))>);
 
-#define NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                 \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<float, 4>)                         \
+#define NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                             \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<float, 4>)                        \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<float, 4>)
 
-#define NONSCALAR_GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                              \
-  NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                    \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<sycl::half, 4>)                 \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<double, 4>)                        \
+#define NONSCALAR_GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                          \
+  NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                   \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                   \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<sycl::half, 4>)                \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<double, 4>)                       \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<double, 4>)
 
-#define GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                        \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, float)                                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, double)                                      \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::half)                                  \
+#define GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                    \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, float)                                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, double)                                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::half)                                 \
   NONSCALAR_GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)
 
-#define NONSCALAR_UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)                           \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                      \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                      \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                      \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)               \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)             \
+#define NONSCALAR_UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)            \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
 
-#define SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                         \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, signed char)                                 \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, short)                                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, int)                                         \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, long long)                                   \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, long)                                        \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                        \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)                \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<short, 4>)                      \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<int, 4>)                        \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long long, 4>)                  \
+#define SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, signed char)                                \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, short)                                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, int)                                        \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, long long)                                  \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, long)                                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)               \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<short, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<int, 4>)                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long long, 4>)                 \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long, 4>)
 
-#define UGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                         \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned char)                               \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned short)                              \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned int)                                \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long long)                          \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long)                               \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                       \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)               \
+#define UGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned char)                              \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned short)                             \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned int)                               \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long long)                         \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long)                              \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
   NONSCALAR_UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)
 
-#define GENINT_CHECK(NUM_ARGS, FUNC_NAME)                                          \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, char)                                        \
-  SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                               \
+#define GENINT_CHECK(NUM_ARGS, FUNC_NAME)                                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, char)                                       \
+  SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                           \
   UGENINT_CHECK(NUM_ARGS, FUNC_NAME)
 
-#define GENTYPE_CHECK(NUM_ARGS, FUNC_NAME)                                       \
-  GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                            \
+#define GENTYPE_CHECK(NUM_ARGS, FUNC_NAME)                                     \
+  GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                          \
   GENINT_CHECK(NUM_ARGS, FUNC_NAME)
 
-#define NONSCALAR_SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                             \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                     \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                    \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                    \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                    \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)             \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<short, 4>)                   \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<int, 4>)                     \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long long, 4>)               \
+#define NONSCALAR_SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                           \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)               \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<short, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<int, 4>)                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long long, 4>)                 \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<long, 4>)
 
-#define NONSCALAR_UGENINT_CHECK(NUM_ARGS, FUNC_NAME)                             \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                    \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                   \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                   \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                   \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned char, 4>)           \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)          \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)            \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long long, 4>)      \
+#define NONSCALAR_UGENINT_CHECK(NUM_ARGS, FUNC_NAME)                           \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                      \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                     \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned char, 4>)             \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)            \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long long, 4>)        \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
 
 void check() {
