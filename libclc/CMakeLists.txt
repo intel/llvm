@@ -116,12 +116,54 @@ execute_process( COMMAND ${LLVM_CONFIG} "--bindir"
 # These were not properly reported in early LLVM and we don't need them
 list( APPEND LLVM_CXX_FLAGS -fno-rtti -fno-exceptions )
 
+# Use custom toolchain to build libclc, this can be useful when dealing with
+# debug builds, that do not need libclc bitcode to be built using debug tools.
+if ( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+  message( WARNING "Using custom LLVM tools to build libclc: "
+    "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
+    " make sure that the tools are up to date." )
+
+  # find_program needs the variable to be cleared in order to perform a search.
+  # Make sure that the cached entries are cleared as well.
+  unset( LLVM_CLANG CACHE )
+  unset( LLVM_AS CACHE )
+  unset( LLVM_LINK CACHE )
+  unset( LLVM_OPT CACHE )
+  unset( LLVM_SPIRV CACHE )
+  unset( LIBCLC_REMANGLER CACHE )
+  unset( LLVM_CLANG )
+  unset( LLVM_AS )
+  unset( LLVM_LINK )
+  unset( LLVM_OPT )
+  unset( LLVM_SPIRV )
+  unset( LIBCLC_REMANGLER )
+  find_program( LLVM_CLANG clang PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH )
+  find_program( LLVM_AS llvm-as PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH )
+  find_program( LLVM_LINK llvm-link PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH )
+  find_program( LLVM_OPT opt PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH )
+  find_program( LLVM_SPIRV llvm-spirv
+    PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+  find_program( LIBCLC_REMANGLER libclc-remangler
+    PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+  if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+      OR NOT LIBCLC_REMANGLER )
+    message( WARNING
+      "Custom toolchain incomplete, will try the default location." )
+  endif()
+endif()
+
 # Print LLVM variables
 message( "LLVM libdir: ${LLVM_LIBRARY_DIR}" )
 message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
+# It's OK to call find program again, if the variables have been set in the
+# custom location clause, find_program returns immediately.
 find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
 find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
 find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
