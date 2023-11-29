@@ -122,6 +122,10 @@
 ///    Arbitrary sized accesses are handled with:
 ///      __msan_metadata_ptr_for_load_n(ptr, size)
 ///      __msan_metadata_ptr_for_store_n(ptr, size);
+///    Note that the sanitizer code has to deal with how shadow/origin pairs
+///    returned by the these functions are represented in different ABIs. In
+///    the X86_64 ABI they are returned in RDX:RAX, and in the SystemZ ABI they
+///    are written to memory pointed to by a hidden parameter.
 ///  - TLS variables are stored in a single per-task struct. A call to a
 ///    function __msan_get_context_state() returning a pointer to that struct
 ///    is inserted into every instrumented function before the entry block;
@@ -135,7 +139,7 @@
 /// Also, KMSAN currently ignores uninitialized memory passed into inline asm
 /// calls, making sure we're on the safe side wrt. possible false positives.
 ///
-///  KernelMemorySanitizer only supports X86_64 at the moment.
+///  KernelMemorySanitizer only supports X86_64 and SystemZ at the moment.
 ///
 //
 // FIXME: This sanitizer does not yet handle scalable vectors
@@ -148,7 +152,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -156,6 +159,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallingConv.h"
@@ -434,6 +438,14 @@ static const MemoryMapParams Linux_AArch64_MemoryMapParams = {
     0x0200000000000, // OriginBase
 };
 
+// loongarch64 Linux
+static const MemoryMapParams Linux_LoongArch64_MemoryMapParams = {
+    0,              // AndMask (not used)
+    0x500000000000, // XorMask
+    0,              // ShadowBase (not used)
+    0x100000000000, // OriginBase
+};
+
 // aarch64 FreeBSD
 static const MemoryMapParams FreeBSD_AArch64_MemoryMapParams = {
     0x1800000000000, // AndMask
@@ -491,6 +503,11 @@ static const PlatformMemoryMapParams Linux_ARM_MemoryMapParams = {
     &Linux_AArch64_MemoryMapParams,
 };
 
+static const PlatformMemoryMapParams Linux_LoongArch_MemoryMapParams = {
+    nullptr,
+    &Linux_LoongArch64_MemoryMapParams,
+};
+
 static const PlatformMemoryMapParams FreeBSD_ARM_MemoryMapParams = {
     nullptr,
     &FreeBSD_AArch64_MemoryMapParams,
@@ -532,6 +549,7 @@ public:
 
 private:
   friend struct MemorySanitizerVisitor;
+  friend struct VarArgHelperBase;
   friend struct VarArgAMD64Helper;
   friend struct VarArgMIPS64Helper;
   friend struct VarArgAArch64Helper;
@@ -543,6 +561,10 @@ private:
   void createKernelApi(Module &M, const TargetLibraryInfo &TLI);
   void createUserspaceApi(Module &M, const TargetLibraryInfo &TLI);
 
+  template <typename... ArgsTy>
+  FunctionCallee getOrInsertMsanMetadataFunction(Module &M, StringRef Name,
+                                                 ArgsTy... Args);
+
   /// True if we're compiling the Linux kernel.
   bool CompileKernel;
   /// Track origins (allocation points) of uninitialized values.
@@ -550,9 +572,11 @@ private:
   bool Recover;
   bool EagerChecks;
 
+  Triple TargetTriple;
   LLVMContext *C;
-  Type *IntptrTy;
+  Type *IntptrTy;  ///< Integer type with the size of a ptr in default AS.
   Type *OriginTy;
+  PointerType *PtrTy; ///< Integer type with the size of a ptr in default AS.
 
   // XxxTLS variables represent the per-thread state in MSan and per-task state
   // in KMSAN.
@@ -572,16 +596,13 @@ private:
   /// Thread-local origin storage for function return value.
   Value *RetvalOriginTLS;
 
-  /// Thread-local shadow storage for in-register va_arg function
-  /// parameters (x86_64-specific).
+  /// Thread-local shadow storage for in-register va_arg function.
   Value *VAArgTLS;
 
-  /// Thread-local shadow storage for in-register va_arg function
-  /// parameters (x86_64-specific).
+  /// Thread-local shadow storage for in-register va_arg function.
   Value *VAArgOriginTLS;
 
-  /// Thread-local shadow storage for va_arg overflow area
-  /// (x86_64-specific).
+  /// Thread-local shadow storage for va_arg overflow area.
   Value *VAArgOverflowSizeTLS;
 
   /// Are the instrumentation callbacks set up?
@@ -620,12 +641,17 @@ private:
   /// Functions for poisoning/unpoisoning local variables
   FunctionCallee MsanPoisonAllocaFn, MsanUnpoisonAllocaFn;
 
-  /// Each of the MsanMetadataPtrXxx functions returns a pair of shadow/origin
-  /// pointers.
+  /// Pair of shadow/origin pointers.
+  Type *MsanMetadata;
+
+  /// Each of the MsanMetadataPtrXxx functions returns a MsanMetadata.
   FunctionCallee MsanMetadataPtrForLoadN, MsanMetadataPtrForStoreN;
   FunctionCallee MsanMetadataPtrForLoad_1_8[4];
   FunctionCallee MsanMetadataPtrForStore_1_8[4];
   FunctionCallee MsanInstrumentAsmStoreFn;
+
+  /// Storage for return values of the MsanMetadataPtrXxx functions.
+  Value *MsanMetadataAlloca;
 
   /// Helper to choose between different MsanMetadataPtrXxx().
   FunctionCallee getKmsanShadowOriginAccessFn(bool isStore, int size);
@@ -729,6 +755,21 @@ static GlobalVariable *createPrivateConstGlobalForString(Module &M,
                             GlobalValue::PrivateLinkage, StrConst, "");
 }
 
+template <typename... ArgsTy>
+FunctionCallee
+MemorySanitizer::getOrInsertMsanMetadataFunction(Module &M, StringRef Name,
+                                                 ArgsTy... Args) {
+  if (TargetTriple.getArch() == Triple::systemz) {
+    // SystemZ ABI: shadow/origin pair is returned via a hidden parameter.
+    return M.getOrInsertFunction(Name, Type::getVoidTy(*C),
+                                 PointerType::get(MsanMetadata, 0),
+                                 std::forward<ArgsTy>(Args)...);
+  }
+
+  return M.getOrInsertFunction(Name, MsanMetadata,
+                               std::forward<ArgsTy>(Args)...);
+}
+
 /// Create KMSAN API callbacks.
 void MemorySanitizer::createKernelApi(Module &M, const TargetLibraryInfo &TLI) {
   IRBuilder<> IRB(*C);
@@ -758,33 +799,32 @@ void MemorySanitizer::createKernelApi(Module &M, const TargetLibraryInfo &TLI) {
   MsanGetContextStateFn = M.getOrInsertFunction(
       "__msan_get_context_state", PointerType::get(MsanContextStateTy, 0));
 
-  Type *RetTy = StructType::get(PointerType::get(IRB.getInt8Ty(), 0),
-                                PointerType::get(IRB.getInt32Ty(), 0));
+  MsanMetadata = StructType::get(PointerType::get(IRB.getInt8Ty(), 0),
+                                 PointerType::get(IRB.getInt32Ty(), 0));
 
   for (int ind = 0, size = 1; ind < 4; ind++, size <<= 1) {
     std::string name_load =
         "__msan_metadata_ptr_for_load_" + std::to_string(size);
     std::string name_store =
         "__msan_metadata_ptr_for_store_" + std::to_string(size);
-    MsanMetadataPtrForLoad_1_8[ind] = M.getOrInsertFunction(
-        name_load, RetTy, PointerType::get(IRB.getInt8Ty(), 0));
-    MsanMetadataPtrForStore_1_8[ind] = M.getOrInsertFunction(
-        name_store, RetTy, PointerType::get(IRB.getInt8Ty(), 0));
+    MsanMetadataPtrForLoad_1_8[ind] = getOrInsertMsanMetadataFunction(
+        M, name_load, PointerType::get(IRB.getInt8Ty(), 0));
+    MsanMetadataPtrForStore_1_8[ind] = getOrInsertMsanMetadataFunction(
+        M, name_store, PointerType::get(IRB.getInt8Ty(), 0));
   }
 
-  MsanMetadataPtrForLoadN = M.getOrInsertFunction(
-      "__msan_metadata_ptr_for_load_n", RetTy,
-      PointerType::get(IRB.getInt8Ty(), 0), IRB.getInt64Ty());
-  MsanMetadataPtrForStoreN = M.getOrInsertFunction(
-      "__msan_metadata_ptr_for_store_n", RetTy,
+  MsanMetadataPtrForLoadN = getOrInsertMsanMetadataFunction(
+      M, "__msan_metadata_ptr_for_load_n", PointerType::get(IRB.getInt8Ty(), 0),
+      IRB.getInt64Ty());
+  MsanMetadataPtrForStoreN = getOrInsertMsanMetadataFunction(
+      M, "__msan_metadata_ptr_for_store_n",
       PointerType::get(IRB.getInt8Ty(), 0), IRB.getInt64Ty());
 
   // Functions for poisoning and unpoisoning memory.
-  MsanPoisonAllocaFn =
-      M.getOrInsertFunction("__msan_poison_alloca", IRB.getVoidTy(),
-                            IRB.getInt8PtrTy(), IntptrTy, IRB.getInt8PtrTy());
+  MsanPoisonAllocaFn = M.getOrInsertFunction(
+      "__msan_poison_alloca", IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy);
   MsanUnpoisonAllocaFn = M.getOrInsertFunction(
-      "__msan_unpoison_alloca", IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy);
+      "__msan_unpoison_alloca", IRB.getVoidTy(), PtrTy, IntptrTy);
 }
 
 static Constant *getOrInsertGlobal(Module &M, StringRef Name, Type *Ty) {
@@ -851,18 +891,18 @@ void MemorySanitizer::createUserspaceApi(Module &M, const TargetLibraryInfo &TLI
     FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
     MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
         FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
-        IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt8PtrTy(),
+        IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), PtrTy,
         IRB.getInt32Ty());
   }
 
-  MsanSetAllocaOriginWithDescriptionFn = M.getOrInsertFunction(
-      "__msan_set_alloca_origin_with_descr", IRB.getVoidTy(),
-      IRB.getInt8PtrTy(), IntptrTy, IRB.getInt8PtrTy(), IRB.getInt8PtrTy());
-  MsanSetAllocaOriginNoDescriptionFn = M.getOrInsertFunction(
-      "__msan_set_alloca_origin_no_descr", IRB.getVoidTy(), IRB.getInt8PtrTy(),
-      IntptrTy, IRB.getInt8PtrTy());
-  MsanPoisonStackFn = M.getOrInsertFunction(
-      "__msan_poison_stack", IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy);
+  MsanSetAllocaOriginWithDescriptionFn =
+      M.getOrInsertFunction("__msan_set_alloca_origin_with_descr",
+                            IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy, PtrTy);
+  MsanSetAllocaOriginNoDescriptionFn =
+      M.getOrInsertFunction("__msan_set_alloca_origin_no_descr",
+                            IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy);
+  MsanPoisonStackFn = M.getOrInsertFunction("__msan_poison_stack",
+                                            IRB.getVoidTy(), PtrTy, IntptrTy);
 }
 
 /// Insert extern declaration of runtime-provided functions and globals.
@@ -880,16 +920,14 @@ void MemorySanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo &TL
       IRB.getInt32Ty());
   MsanSetOriginFn = M.getOrInsertFunction(
       "__msan_set_origin", TLI.getAttrList(C, {2}, /*Signed=*/false),
-      IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy, IRB.getInt32Ty());
+      IRB.getVoidTy(), PtrTy, IntptrTy, IRB.getInt32Ty());
   MemmoveFn =
-      M.getOrInsertFunction("__msan_memmove", IRB.getInt8PtrTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
+      M.getOrInsertFunction("__msan_memmove", PtrTy, PtrTy, PtrTy, IntptrTy);
   MemcpyFn =
-      M.getOrInsertFunction("__msan_memcpy", IRB.getInt8PtrTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
-  MemsetFn = M.getOrInsertFunction(
-      "__msan_memset", TLI.getAttrList(C, {1}, /*Signed=*/true),
-      IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IRB.getInt32Ty(), IntptrTy);
+      M.getOrInsertFunction("__msan_memcpy", PtrTy, PtrTy, PtrTy, IntptrTy);
+  MemsetFn = M.getOrInsertFunction("__msan_memset",
+                                   TLI.getAttrList(C, {1}, /*Signed=*/true),
+                                   PtrTy, PtrTy, IRB.getInt32Ty(), IntptrTy);
 
   MsanInstrumentAsmStoreFn =
       M.getOrInsertFunction("__msan_instrument_asm_store", IRB.getVoidTy(),
@@ -927,6 +965,8 @@ FunctionCallee MemorySanitizer::getKmsanShadowOriginAccessFn(bool isStore,
 void MemorySanitizer::initializeModule(Module &M) {
   auto &DL = M.getDataLayout();
 
+  TargetTriple = Triple(M.getTargetTriple());
+
   bool ShadowPassed = ClShadowBase.getNumOccurrences() > 0;
   bool OriginPassed = ClOriginBase.getNumOccurrences() > 0;
   // Check the overrides first
@@ -937,7 +977,6 @@ void MemorySanitizer::initializeModule(Module &M) {
     CustomMapParams.OriginBase = ClOriginBase;
     MapParams = &CustomMapParams;
   } else {
-    Triple TargetTriple(M.getTargetTriple());
     switch (TargetTriple.getOS()) {
     case Triple::FreeBSD:
       switch (TargetTriple.getArch()) {
@@ -986,6 +1025,9 @@ void MemorySanitizer::initializeModule(Module &M) {
       case Triple::aarch64_be:
         MapParams = Linux_ARM_MemoryMapParams.bits64;
         break;
+      case Triple::loongarch64:
+        MapParams = Linux_LoongArch_MemoryMapParams.bits64;
+        break;
       default:
         report_fatal_error("unsupported architecture");
       }
@@ -999,6 +1041,7 @@ void MemorySanitizer::initializeModule(Module &M) {
   IRBuilder<> IRB(*C);
   IntptrTy = IRB.getIntPtrTy(DL);
   OriginTy = IRB.getInt32Ty();
+  PtrTy = IRB.getPtrTy();
 
   ColdCallWeights = MDBuilder(*C).createBranchWeights(1, 1000);
   OriginStoreWeights = MDBuilder(*C).createBranchWeights(1, 1000);
@@ -1257,9 +1300,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeStoreOriginFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      CallBase *CB = IRB.CreateCall(
-          Fn, {ConvertedShadow2,
-               IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()), Origin});
+      CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
       CB->addParamAttr(0, Attribute::ZExt);
       CB->addParamAttr(2, Attribute::ZExt);
     } else {
@@ -1464,6 +1505,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     MS.RetvalOriginTLS =
         IRB.CreateGEP(MS.MsanContextStateTy, ContextState,
                       {Zero, IRB.getInt32(6)}, "retval_origin");
+    if (MS.TargetTriple.getArch() == Triple::systemz)
+      MS.MsanMetadataAlloca = IRB.CreateAlloca(MS.MsanMetadata, 0u);
   }
 
   /// Add MemorySanitizer instrumentation to a function.
@@ -1627,7 +1670,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           VectTy->getElementCount());
     }
     assert(IntPtrTy == MS.IntptrTy);
-    return ShadowTy->getPointerTo();
+    return PointerType::get(*MS.C, 0);
   }
 
   Constant *constToIntPtr(Type *IntPtrTy, uint64_t C) const {
@@ -1669,6 +1712,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   std::pair<Value *, Value *>
   getShadowOriginPtrUserspace(Value *Addr, IRBuilder<> &IRB, Type *ShadowTy,
                               MaybeAlign Alignment) {
+    VectorType *VectTy = dyn_cast<VectorType>(Addr->getType());
+    if (!VectTy) {
+      assert(Addr->getType()->isPointerTy());
+    } else {
+      assert(VectTy->getElementType()->isPointerTy());
+    }
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *ShadowOffset = getShadowPtrOffset(Addr, IRB);
     Value *ShadowLong = ShadowOffset;
@@ -1696,6 +1745,18 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return std::make_pair(ShadowPtr, OriginPtr);
   }
 
+  template <typename... ArgsTy>
+  Value *createMetadataCall(IRBuilder<> &IRB, FunctionCallee Callee,
+                            ArgsTy... Args) {
+    if (MS.TargetTriple.getArch() == Triple::systemz) {
+      IRB.CreateCall(Callee,
+                     {MS.MsanMetadataAlloca, std::forward<ArgsTy>(Args)...});
+      return IRB.CreateLoad(MS.MsanMetadata, MS.MsanMetadataAlloca);
+    }
+
+    return IRB.CreateCall(Callee, {std::forward<ArgsTy>(Args)...});
+  }
+
   std::pair<Value *, Value *> getShadowOriginPtrKernelNoVec(Value *Addr,
                                                             IRBuilder<> &IRB,
                                                             Type *ShadowTy,
@@ -1708,12 +1769,13 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *AddrCast =
         IRB.CreatePointerCast(Addr, PointerType::get(IRB.getInt8Ty(), 0));
     if (Getter) {
-      ShadowOriginPtrs = IRB.CreateCall(Getter, AddrCast);
+      ShadowOriginPtrs = createMetadataCall(IRB, Getter, AddrCast);
     } else {
       Value *SizeVal = ConstantInt::get(MS.IntptrTy, Size);
-      ShadowOriginPtrs = IRB.CreateCall(isStore ? MS.MsanMetadataPtrForStoreN
-                                                : MS.MsanMetadataPtrForLoadN,
-                                        {AddrCast, SizeVal});
+      ShadowOriginPtrs = createMetadataCall(
+          IRB,
+          isStore ? MS.MsanMetadataPtrForStoreN : MS.MsanMetadataPtrForLoadN,
+          AddrCast, SizeVal);
     }
     Value *ShadowPtr = IRB.CreateExtractValue(ShadowOriginPtrs, 0);
     ShadowPtr = IRB.CreatePointerCast(ShadowPtr, PointerType::get(ShadowTy, 0));
@@ -1738,11 +1800,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // TODO: Support callbacs with vectors of addresses.
     unsigned NumElements = cast<FixedVectorType>(VectTy)->getNumElements();
     Value *ShadowPtrs = ConstantInt::getNullValue(
-        FixedVectorType::get(ShadowTy->getPointerTo(), NumElements));
+        FixedVectorType::get(IRB.getPtrTy(), NumElements));
     Value *OriginPtrs = nullptr;
     if (MS.TrackOrigins)
       OriginPtrs = ConstantInt::getNullValue(
-          FixedVectorType::get(MS.OriginTy->getPointerTo(), NumElements));
+          FixedVectorType::get(IRB.getPtrTy(), NumElements));
     for (unsigned i = 0; i < NumElements; ++i) {
       Value *OneAddr =
           IRB.CreateExtractElement(Addr, ConstantInt::get(IRB.getInt32Ty(), i));
@@ -1770,33 +1832,30 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// Compute the shadow address for a given function argument.
   ///
   /// Shadow = ParamTLS+ArgOffset.
-  Value *getShadowPtrForArgument(Value *A, IRBuilder<> &IRB, int ArgOffset) {
+  Value *getShadowPtrForArgument(IRBuilder<> &IRB, int ArgOffset) {
     Value *Base = IRB.CreatePointerCast(MS.ParamTLS, MS.IntptrTy);
     if (ArgOffset)
       Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(getShadowTy(A), 0),
-                              "_msarg");
+    return IRB.CreateIntToPtr(Base, IRB.getPtrTy(0), "_msarg");
   }
 
   /// Compute the origin address for a given function argument.
-  Value *getOriginPtrForArgument(Value *A, IRBuilder<> &IRB, int ArgOffset) {
+  Value *getOriginPtrForArgument(IRBuilder<> &IRB, int ArgOffset) {
     if (!MS.TrackOrigins)
       return nullptr;
     Value *Base = IRB.CreatePointerCast(MS.ParamOriginTLS, MS.IntptrTy);
     if (ArgOffset)
       Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MS.OriginTy, 0),
-                              "_msarg_o");
+    return IRB.CreateIntToPtr(Base, IRB.getPtrTy(0), "_msarg_o");
   }
 
   /// Compute the shadow address for a retval.
-  Value *getShadowPtrForRetval(Value *A, IRBuilder<> &IRB) {
-    return IRB.CreatePointerCast(MS.RetvalTLS,
-                                 PointerType::get(getShadowTy(A), 0), "_msret");
+  Value *getShadowPtrForRetval(IRBuilder<> &IRB) {
+    return IRB.CreatePointerCast(MS.RetvalTLS, IRB.getPtrTy(0), "_msret");
   }
 
   /// Compute the origin address for a retval.
-  Value *getOriginPtrForRetval(IRBuilder<> &IRB) {
+  Value *getOriginPtrForRetval() {
     // We keep a single origin for the entire retval. Might be too optimistic.
     return MS.RetvalOriginTLS;
   }
@@ -1920,7 +1979,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                   CpShadowPtr, Constant::getNullValue(EntryIRB.getInt8Ty()),
                   Size, ArgAlign);
             } else {
-              Value *Base = getShadowPtrForArgument(&FArg, EntryIRB, ArgOffset);
+              Value *Base = getShadowPtrForArgument(EntryIRB, ArgOffset);
               const Align CopyAlign = std::min(ArgAlign, kShadowTLSAlignment);
               Value *Cpy = EntryIRB.CreateMemCpy(CpShadowPtr, CopyAlign, Base,
                                                  CopyAlign, Size);
@@ -1929,7 +1988,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
               if (MS.TrackOrigins) {
                 Value *OriginPtr =
-                    getOriginPtrForArgument(&FArg, EntryIRB, ArgOffset);
+                    getOriginPtrForArgument(EntryIRB, ArgOffset);
                 // FIXME: OriginSize should be:
                 // alignTo(V % kMinOriginAlignment + Size, kMinOriginAlignment)
                 unsigned OriginSize = alignTo(Size, kMinOriginAlignment);
@@ -1948,12 +2007,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
             setOrigin(A, getCleanOrigin());
           } else {
             // Shadow over TLS
-            Value *Base = getShadowPtrForArgument(&FArg, EntryIRB, ArgOffset);
+            Value *Base = getShadowPtrForArgument(EntryIRB, ArgOffset);
             ShadowPtr = EntryIRB.CreateAlignedLoad(getShadowTy(&FArg), Base,
                                                    kShadowTLSAlignment);
             if (MS.TrackOrigins) {
               Value *OriginPtr =
-                  getOriginPtrForArgument(&FArg, EntryIRB, ArgOffset);
+                  getOriginPtrForArgument(EntryIRB, ArgOffset);
               setOrigin(A, EntryIRB.CreateLoad(MS.OriginTy, OriginPtr));
             }
           }
@@ -2776,11 +2835,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void visitMemMoveInst(MemMoveInst &I) {
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(
-        MS.MemmoveFn,
-        {IRB.CreatePointerCast(I.getArgOperand(0), IRB.getInt8PtrTy()),
-         IRB.CreatePointerCast(I.getArgOperand(1), IRB.getInt8PtrTy()),
-         IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
+    IRB.CreateCall(MS.MemmoveFn,
+                   {I.getArgOperand(0), I.getArgOperand(1),
+                    IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
   }
 
@@ -2801,11 +2858,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void visitMemCpyInst(MemCpyInst &I) {
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(
-        MS.MemcpyFn,
-        {IRB.CreatePointerCast(I.getArgOperand(0), IRB.getInt8PtrTy()),
-         IRB.CreatePointerCast(I.getArgOperand(1), IRB.getInt8PtrTy()),
-         IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
+    IRB.CreateCall(MS.MemcpyFn,
+                   {I.getArgOperand(0), I.getArgOperand(1),
+                    IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
   }
 
@@ -2814,7 +2869,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
         MS.MemsetFn,
-        {IRB.CreatePointerCast(I.getArgOperand(0), IRB.getInt8PtrTy()),
+        {I.getArgOperand(0),
          IRB.CreateIntCast(I.getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
@@ -3323,8 +3378,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *ShadowPtr =
         getShadowOriginPtr(Addr, IRB, Ty, Align(1), /*isStore*/ true).first;
 
-    IRB.CreateStore(getCleanShadow(Ty),
-                    IRB.CreatePointerCast(ShadowPtr, Ty->getPointerTo()));
+    IRB.CreateStore(getCleanShadow(Ty), ShadowPtr);
 
     if (ClCheckAccessAddress)
       insertShadowCheck(Addr, &I);
@@ -3657,10 +3711,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOrigin(&I, getOrigin(&I, 0));
   }
 
+  void handleIsFpClass(IntrinsicInst &I) {
+    IRBuilder<> IRB(&I);
+    Value *Shadow = getShadow(&I, 0);
+    setShadow(&I, IRB.CreateICmpNE(Shadow, getCleanShadow(Shadow)));
+    setOrigin(&I, getOrigin(&I, 0));
+  }
+
   void visitIntrinsicInst(IntrinsicInst &I) {
     switch (I.getIntrinsicID()) {
     case Intrinsic::abs:
       handleAbsIntrinsic(I);
+      break;
+    case Intrinsic::is_fpclass:
+      handleIsFpClass(I);
       break;
     case Intrinsic::lifetime_start:
       handleLifetimeStart(I);
@@ -4090,7 +4154,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (Function *Func = CB.getCalledFunction()) {
       // __sanitizer_unaligned_{load,store} functions may be called by users
       // and always expects shadows in the TLS. So don't check them.
-      MayCheckCall &= !Func->getName().startswith("__sanitizer_unaligned_");
+      MayCheckCall &= !Func->getName().starts_with("__sanitizer_unaligned_");
     }
 
     unsigned ArgOffset = 0;
@@ -4116,7 +4180,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         // in that case getShadow() will copy the actual arg shadow to
         // __msan_param_tls.
         Value *ArgShadow = getShadow(A);
-        Value *ArgShadowBase = getShadowPtrForArgument(A, IRB, ArgOffset);
+        Value *ArgShadowBase = getShadowPtrForArgument(IRB, ArgOffset);
         LLVM_DEBUG(dbgs() << "  Arg#" << i << ": " << *A
                           << " Shadow: " << *ArgShadow << "\n");
         if (ByVal) {
@@ -4143,7 +4207,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
             Store = IRB.CreateMemCpy(ArgShadowBase, Alignment, AShadowPtr,
                                      Alignment, Size);
             if (MS.TrackOrigins) {
-              Value *ArgOriginBase = getOriginPtrForArgument(A, IRB, ArgOffset);
+              Value *ArgOriginBase = getOriginPtrForArgument(IRB, ArgOffset);
               // FIXME: OriginSize should be:
               // alignTo(A % kMinOriginAlignment + Size, kMinOriginAlignment)
               unsigned OriginSize = alignTo(Size, kMinOriginAlignment);
@@ -4165,7 +4229,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           Constant *Cst = dyn_cast<Constant>(ArgShadow);
           if (MS.TrackOrigins && !(Cst && Cst->isNullValue())) {
             IRB.CreateStore(getOrigin(A),
-                            getOriginPtrForArgument(A, IRB, ArgOffset));
+                            getOriginPtrForArgument(IRB, ArgOffset));
           }
         }
         (void)Store;
@@ -4197,7 +4261,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     IRBuilder<> IRBBefore(&CB);
     // Until we have full dynamic coverage, make sure the retval shadow is 0.
-    Value *Base = getShadowPtrForRetval(&CB, IRBBefore);
+    Value *Base = getShadowPtrForRetval(IRBBefore);
     IRBBefore.CreateAlignedStore(getCleanShadow(&CB), Base,
                                  kShadowTLSAlignment);
     BasicBlock::iterator NextInsn;
@@ -4222,12 +4286,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
     IRBuilder<> IRBAfter(&*NextInsn);
     Value *RetvalShadow = IRBAfter.CreateAlignedLoad(
-        getShadowTy(&CB), getShadowPtrForRetval(&CB, IRBAfter),
+        getShadowTy(&CB), getShadowPtrForRetval(IRBAfter),
         kShadowTLSAlignment, "_msret");
     setShadow(&CB, RetvalShadow);
     if (MS.TrackOrigins)
       setOrigin(&CB, IRBAfter.CreateLoad(MS.OriginTy,
-                                         getOriginPtrForRetval(IRBAfter)));
+                                         getOriginPtrForRetval()));
   }
 
   bool isAMustTailRetVal(Value *RetVal) {
@@ -4248,7 +4312,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Don't emit the epilogue for musttail call returns.
     if (isAMustTailRetVal(RetVal))
       return;
-    Value *ShadowPtr = getShadowPtrForRetval(RetVal, IRB);
+    Value *ShadowPtr = getShadowPtrForRetval(IRB);
     bool HasNoUndef = F.hasRetAttribute(Attribute::NoUndef);
     bool StoreShadow = !(MS.EagerChecks && HasNoUndef);
     // FIXME: Consider using SpecialCaseList to specify a list of functions that
@@ -4268,7 +4332,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (StoreShadow) {
       IRB.CreateAlignedStore(Shadow, ShadowPtr, kShadowTLSAlignment);
       if (MS.TrackOrigins && StoreOrigin)
-        IRB.CreateStore(getOrigin(RetVal), getOriginPtrForRetval(IRB));
+        IRB.CreateStore(getOrigin(RetVal), getOriginPtrForRetval());
     }
   }
 
@@ -4302,8 +4366,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void poisonAllocaUserspace(AllocaInst &I, IRBuilder<> &IRB, Value *Len) {
     if (PoisonStack && ClPoisonStackWithCall) {
-      IRB.CreateCall(MS.MsanPoisonStackFn,
-                     {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len});
+      IRB.CreateCall(MS.MsanPoisonStackFn, {&I, Len});
     } else {
       Value *ShadowBase, *OriginBase;
       std::tie(ShadowBase, OriginBase) = getShadowOriginPtr(
@@ -4318,13 +4381,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       if (ClPrintStackNames) {
         Value *Descr = getLocalVarDescription(I);
         IRB.CreateCall(MS.MsanSetAllocaOriginWithDescriptionFn,
-                       {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len,
-                        IRB.CreatePointerCast(Idptr, IRB.getInt8PtrTy()),
-                        IRB.CreatePointerCast(Descr, IRB.getInt8PtrTy())});
+                       {&I, Len, Idptr, Descr});
       } else {
-        IRB.CreateCall(MS.MsanSetAllocaOriginNoDescriptionFn,
-                       {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len,
-                        IRB.CreatePointerCast(Idptr, IRB.getInt8PtrTy())});
+        IRB.CreateCall(MS.MsanSetAllocaOriginNoDescriptionFn, {&I, Len, Idptr});
       }
     }
   }
@@ -4332,12 +4391,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void poisonAllocaKmsan(AllocaInst &I, IRBuilder<> &IRB, Value *Len) {
     Value *Descr = getLocalVarDescription(I);
     if (PoisonStack) {
-      IRB.CreateCall(MS.MsanPoisonAllocaFn,
-                     {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len,
-                      IRB.CreatePointerCast(Descr, IRB.getInt8PtrTy())});
+      IRB.CreateCall(MS.MsanPoisonAllocaFn, {&I, Len, Descr});
     } else {
-      IRB.CreateCall(MS.MsanUnpoisonAllocaFn,
-                     {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len});
+      IRB.CreateCall(MS.MsanUnpoisonAllocaFn, {&I, Len});
     }
   }
 
@@ -4499,10 +4555,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
     if (!ElemTy->isSized())
       return;
-    Value *Ptr = IRB.CreatePointerCast(Operand, IRB.getInt8PtrTy());
     Value *SizeVal =
       IRB.CreateTypeSize(MS.IntptrTy, DL.getTypeStoreSize(ElemTy));
-    IRB.CreateCall(MS.MsanInstrumentAsmStoreFn, {Ptr, SizeVal});
+    IRB.CreateCall(MS.MsanInstrumentAsmStoreFn, {Operand, SizeVal});
   }
 
   /// Get the number of output arguments returned by pointers.
@@ -4596,8 +4651,91 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 };
 
+struct VarArgHelperBase : public VarArgHelper {
+  Function &F;
+  MemorySanitizer &MS;
+  MemorySanitizerVisitor &MSV;
+  SmallVector<CallInst *, 16> VAStartInstrumentationList;
+  const unsigned VAListTagSize;
+
+  VarArgHelperBase(Function &F, MemorySanitizer &MS,
+                   MemorySanitizerVisitor &MSV, unsigned VAListTagSize)
+      : F(F), MS(MS), MSV(MSV), VAListTagSize(VAListTagSize) {}
+
+  Value *getShadowAddrForVAArgument(IRBuilder<> &IRB, unsigned ArgOffset) {
+    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
+    return IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
+  }
+
+  /// Compute the shadow address for a given va_arg.
+  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
+                                   unsigned ArgOffset) {
+    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
+    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
+    return IRB.CreateIntToPtr(Base, PointerType::get(MSV.getShadowTy(Ty), 0),
+                              "_msarg_va_s");
+  }
+
+  /// Compute the shadow address for a given va_arg.
+  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
+                                   unsigned ArgOffset, unsigned ArgSize) {
+    // Make sure we don't overflow __msan_va_arg_tls.
+    if (ArgOffset + ArgSize > kParamTLSSize)
+      return nullptr;
+    return getShadowPtrForVAArgument(Ty, IRB, ArgOffset);
+  }
+
+  /// Compute the origin address for a given va_arg.
+  Value *getOriginPtrForVAArgument(IRBuilder<> &IRB, int ArgOffset) {
+    Value *Base = IRB.CreatePointerCast(MS.VAArgOriginTLS, MS.IntptrTy);
+    // getOriginPtrForVAArgument() is always called after
+    // getShadowPtrForVAArgument(), so __msan_va_arg_origin_tls can never
+    // overflow.
+    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
+    return IRB.CreateIntToPtr(Base, PointerType::get(MS.OriginTy, 0),
+                              "_msarg_va_o");
+  }
+
+  void CleanUnusedTLS(IRBuilder<> &IRB, Value *ShadowBase,
+                      unsigned BaseOffset) {
+    // The tails of __msan_va_arg_tls is not large enough to fit full
+    // value shadow, but it will be copied to backup anyway. Make it
+    // clean.
+    if (BaseOffset >= kParamTLSSize)
+      return;
+    Value *TailSize =
+        ConstantInt::getSigned(IRB.getInt32Ty(), kParamTLSSize - BaseOffset);
+    IRB.CreateMemSet(ShadowBase, ConstantInt::getNullValue(IRB.getInt8Ty()),
+                     TailSize, Align(8));
+  }
+
+  void unpoisonVAListTagForInst(IntrinsicInst &I) {
+    IRBuilder<> IRB(&I);
+    Value *VAListTag = I.getArgOperand(0);
+    const Align Alignment = Align(8);
+    auto [ShadowPtr, OriginPtr] = MSV.getShadowOriginPtr(
+        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
+    // Unpoison the whole __va_list_tag.
+    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
+                     VAListTagSize, Alignment, false);
+  }
+
+  void visitVAStartInst(VAStartInst &I) override {
+    if (F.getCallingConv() == CallingConv::Win64)
+      return;
+    VAStartInstrumentationList.push_back(&I);
+    unpoisonVAListTagForInst(I);
+  }
+
+  void visitVACopyInst(VACopyInst &I) override {
+    if (F.getCallingConv() == CallingConv::Win64)
+      return;
+    unpoisonVAListTagForInst(I);
+  }
+};
+
 /// AMD64-specific implementation of VarArgHelper.
-struct VarArgAMD64Helper : public VarArgHelper {
+struct VarArgAMD64Helper : public VarArgHelperBase {
   // An unfortunate workaround for asymmetric lowering of va_arg stuff.
   // See a comment in visitCallBase for more details.
   static const unsigned AMD64GpEndOffset = 48; // AMD64 ABI Draft 0.99.6 p3.5.7
@@ -4606,20 +4744,15 @@ struct VarArgAMD64Helper : public VarArgHelper {
   static const unsigned AMD64FpEndOffsetNoSSE = AMD64GpEndOffset;
 
   unsigned AMD64FpEndOffset;
-  Function &F;
-  MemorySanitizer &MS;
-  MemorySanitizerVisitor &MSV;
   AllocaInst *VAArgTLSCopy = nullptr;
   AllocaInst *VAArgTLSOriginCopy = nullptr;
   Value *VAArgOverflowSize = nullptr;
-
-  SmallVector<CallInst *, 16> VAStartInstrumentationList;
 
   enum ArgKind { AK_GeneralPurpose, AK_FloatingPoint, AK_Memory };
 
   VarArgAMD64Helper(Function &F, MemorySanitizer &MS,
                     MemorySanitizerVisitor &MSV)
-      : F(F), MS(MS), MSV(MSV) {
+      : VarArgHelperBase(F, MS, MSV, /*VAListTagSize=*/24) {
     AMD64FpEndOffset = AMD64FpEndOffsetSSE;
     for (const auto &Attr : F.getAttributes().getFnAttrs()) {
       if (Attr.isStringAttribute() &&
@@ -4634,6 +4767,8 @@ struct VarArgAMD64Helper : public VarArgHelper {
   ArgKind classifyArgument(Value *arg) {
     // A very rough approximation of X86_64 argument classification rules.
     Type *T = arg->getType();
+    if (T->isX86_FP80Ty())
+      return AK_Memory;
     if (T->isFPOrFPVectorTy() || T->isX86_MMXTy())
       return AK_FloatingPoint;
     if (T->isIntegerTy() && T->getPrimitiveSizeInBits() <= 64)
@@ -4656,6 +4791,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
     unsigned FpOffset = AMD64GpEndOffset;
     unsigned OverflowOffset = AMD64FpEndOffset;
     const DataLayout &DL = F.getParent()->getDataLayout();
+
     for (const auto &[ArgNo, A] : llvm::enumerate(CB.args())) {
       bool IsFixed = ArgNo < CB.getFunctionType()->getNumParams();
       bool IsByVal = CB.paramHasAttr(ArgNo, Attribute::ByVal);
@@ -4668,19 +4804,24 @@ struct VarArgAMD64Helper : public VarArgHelper {
         assert(A->getType()->isPointerTy());
         Type *RealTy = CB.getParamByValType(ArgNo);
         uint64_t ArgSize = DL.getTypeAllocSize(RealTy);
-        Value *ShadowBase = getShadowPtrForVAArgument(
-            RealTy, IRB, OverflowOffset, alignTo(ArgSize, 8));
+        uint64_t AlignedSize = alignTo(ArgSize, 8);
+        unsigned BaseOffset = OverflowOffset;
+        Value *ShadowBase =
+            getShadowPtrForVAArgument(RealTy, IRB, OverflowOffset);
         Value *OriginBase = nullptr;
         if (MS.TrackOrigins)
-          OriginBase = getOriginPtrForVAArgument(RealTy, IRB, OverflowOffset);
-        OverflowOffset += alignTo(ArgSize, 8);
-        if (!ShadowBase)
-          continue;
+          OriginBase = getOriginPtrForVAArgument(IRB, OverflowOffset);
+        OverflowOffset += AlignedSize;
+
+        if (OverflowOffset > kParamTLSSize) {
+          CleanUnusedTLS(IRB, ShadowBase, BaseOffset);
+          continue; // We have no space to copy shadow there.
+        }
+
         Value *ShadowPtr, *OriginPtr;
         std::tie(ShadowPtr, OriginPtr) =
             MSV.getShadowOriginPtr(A, IRB, IRB.getInt8Ty(), kShadowTLSAlignment,
                                    /*isStore*/ false);
-
         IRB.CreateMemCpy(ShadowBase, kShadowTLSAlignment, ShadowPtr,
                          kShadowTLSAlignment, ArgSize);
         if (MS.TrackOrigins)
@@ -4695,36 +4836,41 @@ struct VarArgAMD64Helper : public VarArgHelper {
         Value *ShadowBase, *OriginBase = nullptr;
         switch (AK) {
         case AK_GeneralPurpose:
-          ShadowBase =
-              getShadowPtrForVAArgument(A->getType(), IRB, GpOffset, 8);
+          ShadowBase = getShadowPtrForVAArgument(A->getType(), IRB, GpOffset);
           if (MS.TrackOrigins)
-            OriginBase = getOriginPtrForVAArgument(A->getType(), IRB, GpOffset);
+            OriginBase = getOriginPtrForVAArgument(IRB, GpOffset);
           GpOffset += 8;
+          assert(GpOffset <= kParamTLSSize);
           break;
         case AK_FloatingPoint:
-          ShadowBase =
-              getShadowPtrForVAArgument(A->getType(), IRB, FpOffset, 16);
+          ShadowBase = getShadowPtrForVAArgument(A->getType(), IRB, FpOffset);
           if (MS.TrackOrigins)
-            OriginBase = getOriginPtrForVAArgument(A->getType(), IRB, FpOffset);
+            OriginBase = getOriginPtrForVAArgument(IRB, FpOffset);
           FpOffset += 16;
+          assert(FpOffset <= kParamTLSSize);
           break;
         case AK_Memory:
           if (IsFixed)
             continue;
           uint64_t ArgSize = DL.getTypeAllocSize(A->getType());
+          uint64_t AlignedSize = alignTo(ArgSize, 8);
+          unsigned BaseOffset = OverflowOffset;
           ShadowBase =
-              getShadowPtrForVAArgument(A->getType(), IRB, OverflowOffset, 8);
-          if (MS.TrackOrigins)
-            OriginBase =
-                getOriginPtrForVAArgument(A->getType(), IRB, OverflowOffset);
-          OverflowOffset += alignTo(ArgSize, 8);
+              getShadowPtrForVAArgument(A->getType(), IRB, OverflowOffset);
+          if (MS.TrackOrigins) {
+            OriginBase = getOriginPtrForVAArgument(IRB, OverflowOffset);
+          }
+          OverflowOffset += AlignedSize;
+          if (OverflowOffset > kParamTLSSize) {
+            // We have no space to copy shadow there.
+            CleanUnusedTLS(IRB, ShadowBase, BaseOffset);
+            continue;
+          }
         }
         // Take fixed arguments into account for GpOffset and FpOffset,
         // but don't actually store shadows for them.
         // TODO(glider): don't call get*PtrForVAArgument() for them.
         if (IsFixed)
-          continue;
-        if (!ShadowBase)
           continue;
         Value *Shadow = MSV.getShadow(A);
         IRB.CreateAlignedStore(Shadow, ShadowBase, kShadowTLSAlignment);
@@ -4739,59 +4885,6 @@ struct VarArgAMD64Helper : public VarArgHelper {
     Constant *OverflowSize =
         ConstantInt::get(IRB.getInt64Ty(), OverflowOffset - AMD64FpEndOffset);
     IRB.CreateStore(OverflowSize, MS.VAArgOverflowSizeTLS);
-  }
-
-  /// Compute the shadow address for a given va_arg.
-  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
-                                   unsigned ArgOffset, unsigned ArgSize) {
-    // Make sure we don't overflow __msan_va_arg_tls.
-    if (ArgOffset + ArgSize > kParamTLSSize)
-      return nullptr;
-    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MSV.getShadowTy(Ty), 0),
-                              "_msarg_va_s");
-  }
-
-  /// Compute the origin address for a given va_arg.
-  Value *getOriginPtrForVAArgument(Type *Ty, IRBuilder<> &IRB, int ArgOffset) {
-    Value *Base = IRB.CreatePointerCast(MS.VAArgOriginTLS, MS.IntptrTy);
-    // getOriginPtrForVAArgument() is always called after
-    // getShadowPtrForVAArgument(), so __msan_va_arg_origin_tls can never
-    // overflow.
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MS.OriginTy, 0),
-                              "_msarg_va_o");
-  }
-
-  void unpoisonVAListTagForInst(IntrinsicInst &I) {
-    IRBuilder<> IRB(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) =
-        MSV.getShadowOriginPtr(VAListTag, IRB, IRB.getInt8Ty(), Alignment,
-                               /*isStore*/ true);
-
-    // Unpoison the whole __va_list_tag.
-    // FIXME: magic ABI constants.
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 24, Alignment, false);
-    // We shouldn't need to zero out the origins, as they're only checked for
-    // nonzero shadow.
-  }
-
-  void visitVAStartInst(VAStartInst &I) override {
-    if (F.getCallingConv() == CallingConv::Win64)
-      return;
-    VAStartInstrumentationList.push_back(&I);
-    unpoisonVAListTagForInst(I);
-  }
-
-  void visitVACopyInst(VACopyInst &I) override {
-    if (F.getCallingConv() == CallingConv::Win64)
-      return;
-    unpoisonVAListTagForInst(I);
   }
 
   void finalizeInstrumentation() override {
@@ -4830,7 +4923,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
 
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 16)),
@@ -4847,7 +4940,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       if (MS.TrackOrigins)
         IRB.CreateMemCpy(RegSaveAreaOriginPtr, Alignment, VAArgTLSOriginCopy,
                          Alignment, AMD64FpEndOffset);
-      Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 8)),
@@ -4873,18 +4966,14 @@ struct VarArgAMD64Helper : public VarArgHelper {
 };
 
 /// MIPS64-specific implementation of VarArgHelper.
-struct VarArgMIPS64Helper : public VarArgHelper {
-  Function &F;
-  MemorySanitizer &MS;
-  MemorySanitizerVisitor &MSV;
+/// NOTE: This is also used for LoongArch64.
+struct VarArgMIPS64Helper : public VarArgHelperBase {
   AllocaInst *VAArgTLSCopy = nullptr;
   Value *VAArgSize = nullptr;
 
-  SmallVector<CallInst *, 16> VAStartInstrumentationList;
-
   VarArgMIPS64Helper(Function &F, MemorySanitizer &MS,
                      MemorySanitizerVisitor &MSV)
-      : F(F), MS(MS), MSV(MSV) {}
+      : VarArgHelperBase(F, MS, MSV, /*VAListTagSize=*/8) {}
 
   void visitCallBase(CallBase &CB, IRBuilder<> &IRB) override {
     unsigned VAArgOffset = 0;
@@ -4912,42 +5001,6 @@ struct VarArgMIPS64Helper : public VarArgHelper {
     // Here using VAArgOverflowSizeTLS as VAArgSizeTLS to avoid creation of
     // a new class member i.e. it is the total size of all VarArgs.
     IRB.CreateStore(TotalVAArgSize, MS.VAArgOverflowSizeTLS);
-  }
-
-  /// Compute the shadow address for a given va_arg.
-  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
-                                   unsigned ArgOffset, unsigned ArgSize) {
-    // Make sure we don't overflow __msan_va_arg_tls.
-    if (ArgOffset + ArgSize > kParamTLSSize)
-      return nullptr;
-    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MSV.getShadowTy(Ty), 0),
-                              "_msarg");
-  }
-
-  void visitVAStartInst(VAStartInst &I) override {
-    IRBuilder<> IRB(&I);
-    VAStartInstrumentationList.push_back(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 8, Alignment, false);
-  }
-
-  void visitVACopyInst(VACopyInst &I) override {
-    IRBuilder<> IRB(&I);
-    VAStartInstrumentationList.push_back(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 8, Alignment, false);
   }
 
   void finalizeInstrumentation() override {
@@ -4979,7 +5032,7 @@ struct VarArgMIPS64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -4997,7 +5050,7 @@ struct VarArgMIPS64Helper : public VarArgHelper {
 };
 
 /// AArch64-specific implementation of VarArgHelper.
-struct VarArgAArch64Helper : public VarArgHelper {
+struct VarArgAArch64Helper : public VarArgHelperBase {
   static const unsigned kAArch64GrArgSize = 64;
   static const unsigned kAArch64VrArgSize = 128;
 
@@ -5009,28 +5062,36 @@ struct VarArgAArch64Helper : public VarArgHelper {
       AArch64VrBegOffset + kAArch64VrArgSize;
   static const unsigned AArch64VAEndOffset = AArch64VrEndOffset;
 
-  Function &F;
-  MemorySanitizer &MS;
-  MemorySanitizerVisitor &MSV;
   AllocaInst *VAArgTLSCopy = nullptr;
   Value *VAArgOverflowSize = nullptr;
-
-  SmallVector<CallInst *, 16> VAStartInstrumentationList;
 
   enum ArgKind { AK_GeneralPurpose, AK_FloatingPoint, AK_Memory };
 
   VarArgAArch64Helper(Function &F, MemorySanitizer &MS,
                       MemorySanitizerVisitor &MSV)
-      : F(F), MS(MS), MSV(MSV) {}
+      : VarArgHelperBase(F, MS, MSV, /*VAListTagSize=*/32) {}
 
-  ArgKind classifyArgument(Value *arg) {
-    Type *T = arg->getType();
-    if (T->isFPOrFPVectorTy())
-      return AK_FloatingPoint;
-    if ((T->isIntegerTy() && T->getPrimitiveSizeInBits() <= 64) ||
-        (T->isPointerTy()))
-      return AK_GeneralPurpose;
-    return AK_Memory;
+  // A very rough approximation of aarch64 argument classification rules.
+  std::pair<ArgKind, uint64_t> classifyArgument(Type *T) {
+    if (T->isIntOrPtrTy() && T->getPrimitiveSizeInBits() <= 64)
+      return {AK_GeneralPurpose, 1};
+    if (T->isFloatingPointTy() && T->getPrimitiveSizeInBits() <= 128)
+      return {AK_FloatingPoint, 1};
+
+    if (T->isArrayTy()) {
+      auto R = classifyArgument(T->getArrayElementType());
+      R.second *= T->getScalarType()->getArrayNumElements();
+      return R;
+    }
+
+    if (const FixedVectorType *FV = dyn_cast<FixedVectorType>(T)) {
+      auto R = classifyArgument(FV->getScalarType());
+      R.second *= FV->getNumElements();
+      return R;
+    }
+
+    LLVM_DEBUG(errs() << "Unknown vararg type: " << *T << "\n");
+    return {AK_Memory, 0};
   }
 
   // The instrumentation stores the argument shadow in a non ABI-specific
@@ -5038,7 +5099,7 @@ struct VarArgAArch64Helper : public VarArgHelper {
   // like x86_64 case, lowers the va_args in the frontend and this pass only
   // sees the low level code that deals with va_list internals).
   // The first seven GR registers are saved in the first 56 bytes of the
-  // va_arg tls arra, followers by the first 8 FP/SIMD registers, and then
+  // va_arg tls arra, followed by the first 8 FP/SIMD registers, and then
   // the remaining arguments.
   // Using constant offset within the va_arg TLS array allows fast copy
   // in the finalize instrumentation.
@@ -5050,20 +5111,22 @@ struct VarArgAArch64Helper : public VarArgHelper {
     const DataLayout &DL = F.getParent()->getDataLayout();
     for (const auto &[ArgNo, A] : llvm::enumerate(CB.args())) {
       bool IsFixed = ArgNo < CB.getFunctionType()->getNumParams();
-      ArgKind AK = classifyArgument(A);
-      if (AK == AK_GeneralPurpose && GrOffset >= AArch64GrEndOffset)
+      auto [AK, RegNum] = classifyArgument(A->getType());
+      if (AK == AK_GeneralPurpose &&
+          (GrOffset + RegNum * 8) > AArch64GrEndOffset)
         AK = AK_Memory;
-      if (AK == AK_FloatingPoint && VrOffset >= AArch64VrEndOffset)
+      if (AK == AK_FloatingPoint &&
+          (VrOffset + RegNum * 16) > AArch64VrEndOffset)
         AK = AK_Memory;
       Value *Base;
       switch (AK) {
       case AK_GeneralPurpose:
-        Base = getShadowPtrForVAArgument(A->getType(), IRB, GrOffset, 8);
-        GrOffset += 8;
+        Base = getShadowPtrForVAArgument(A->getType(), IRB, GrOffset);
+        GrOffset += 8 * RegNum;
         break;
       case AK_FloatingPoint:
-        Base = getShadowPtrForVAArgument(A->getType(), IRB, VrOffset, 8);
-        VrOffset += 16;
+        Base = getShadowPtrForVAArgument(A->getType(), IRB, VrOffset);
+        VrOffset += 16 * RegNum;
         break;
       case AK_Memory:
         // Don't count fixed arguments in the overflow area - va_start will
@@ -5071,16 +5134,20 @@ struct VarArgAArch64Helper : public VarArgHelper {
         if (IsFixed)
           continue;
         uint64_t ArgSize = DL.getTypeAllocSize(A->getType());
-        Base = getShadowPtrForVAArgument(A->getType(), IRB, OverflowOffset,
-                                         alignTo(ArgSize, 8));
-        OverflowOffset += alignTo(ArgSize, 8);
+        uint64_t AlignedSize = alignTo(ArgSize, 8);
+        unsigned BaseOffset = OverflowOffset;
+        Base = getShadowPtrForVAArgument(A->getType(), IRB, BaseOffset);
+        OverflowOffset += AlignedSize;
+        if (OverflowOffset > kParamTLSSize) {
+          // We have no space to copy shadow there.
+          CleanUnusedTLS(IRB, Base, BaseOffset);
+          continue;
+        }
         break;
       }
       // Count Gp/Vr fixed arguments to their respective offsets, but don't
       // bother to actually store a shadow.
       if (IsFixed)
-        continue;
-      if (!Base)
         continue;
       IRB.CreateAlignedStore(MSV.getShadow(A), Base, kShadowTLSAlignment);
     }
@@ -5089,48 +5156,12 @@ struct VarArgAArch64Helper : public VarArgHelper {
     IRB.CreateStore(OverflowSize, MS.VAArgOverflowSizeTLS);
   }
 
-  /// Compute the shadow address for a given va_arg.
-  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
-                                   unsigned ArgOffset, unsigned ArgSize) {
-    // Make sure we don't overflow __msan_va_arg_tls.
-    if (ArgOffset + ArgSize > kParamTLSSize)
-      return nullptr;
-    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MSV.getShadowTy(Ty), 0),
-                              "_msarg");
-  }
-
-  void visitVAStartInst(VAStartInst &I) override {
-    IRBuilder<> IRB(&I);
-    VAStartInstrumentationList.push_back(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 32, Alignment, false);
-  }
-
-  void visitVACopyInst(VACopyInst &I) override {
-    IRBuilder<> IRB(&I);
-    VAStartInstrumentationList.push_back(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 32, Alignment, false);
-  }
-
   // Retrieve a va_list field of 'void*' size.
   Value *getVAField64(IRBuilder<> &IRB, Value *VAListTag, int offset) {
     Value *SaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
-        Type::getInt64PtrTy(*MS.C));
+        PointerType::get(*MS.C, 0));
     return IRB.CreateLoad(Type::getInt64Ty(*MS.C), SaveAreaPtrPtr);
   }
 
@@ -5139,7 +5170,7 @@ struct VarArgAArch64Helper : public VarArgHelper {
     Value *SaveAreaPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
-        Type::getInt32PtrTy(*MS.C));
+        PointerType::get(*MS.C, 0));
     Value *SaveArea32 = IRB.CreateLoad(IRB.getInt32Ty(), SaveAreaPtr);
     return IRB.CreateSExt(SaveArea32, MS.IntptrTy);
   }
@@ -5190,21 +5221,25 @@ struct VarArgAArch64Helper : public VarArgHelper {
       // we need to adjust the offset for both GR and VR fields based on
       // the __{gr,vr}_offs value (since they are stores based on incoming
       // named arguments).
+      Type *RegSaveAreaPtrTy = IRB.getPtrTy();
 
       // Read the stack pointer from the va_list.
-      Value *StackSaveAreaPtr = getVAField64(IRB, VAListTag, 0);
+      Value *StackSaveAreaPtr =
+          IRB.CreateIntToPtr(getVAField64(IRB, VAListTag, 0), RegSaveAreaPtrTy);
 
       // Read both the __gr_top and __gr_off and add them up.
       Value *GrTopSaveAreaPtr = getVAField64(IRB, VAListTag, 8);
       Value *GrOffSaveArea = getVAField32(IRB, VAListTag, 24);
 
-      Value *GrRegSaveAreaPtr = IRB.CreateAdd(GrTopSaveAreaPtr, GrOffSaveArea);
+      Value *GrRegSaveAreaPtr = IRB.CreateIntToPtr(
+          IRB.CreateAdd(GrTopSaveAreaPtr, GrOffSaveArea), RegSaveAreaPtrTy);
 
       // Read both the __vr_top and __vr_off and add them up.
       Value *VrTopSaveAreaPtr = getVAField64(IRB, VAListTag, 16);
       Value *VrOffSaveArea = getVAField32(IRB, VAListTag, 28);
 
-      Value *VrRegSaveAreaPtr = IRB.CreateAdd(VrTopSaveAreaPtr, VrOffSaveArea);
+      Value *VrRegSaveAreaPtr = IRB.CreateIntToPtr(
+          IRB.CreateAdd(VrTopSaveAreaPtr, VrOffSaveArea), RegSaveAreaPtrTy);
 
       // It does not know how many named arguments is being used and, on the
       // callsite all the arguments were saved.  Since __gr_off is defined as
@@ -5260,18 +5295,13 @@ struct VarArgAArch64Helper : public VarArgHelper {
 };
 
 /// PowerPC64-specific implementation of VarArgHelper.
-struct VarArgPowerPC64Helper : public VarArgHelper {
-  Function &F;
-  MemorySanitizer &MS;
-  MemorySanitizerVisitor &MSV;
+struct VarArgPowerPC64Helper : public VarArgHelperBase {
   AllocaInst *VAArgTLSCopy = nullptr;
   Value *VAArgSize = nullptr;
 
-  SmallVector<CallInst *, 16> VAStartInstrumentationList;
-
   VarArgPowerPC64Helper(Function &F, MemorySanitizer &MS,
                         MemorySanitizerVisitor &MSV)
-      : F(F), MS(MS), MSV(MSV) {}
+      : VarArgHelperBase(F, MS, MSV, /*VAListTagSize=*/8) {}
 
   void visitCallBase(CallBase &CB, IRBuilder<> &IRB) override {
     // For PowerPC, we need to deal with alignment of stack arguments -
@@ -5359,43 +5389,6 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
     IRB.CreateStore(TotalVAArgSize, MS.VAArgOverflowSizeTLS);
   }
 
-  /// Compute the shadow address for a given va_arg.
-  Value *getShadowPtrForVAArgument(Type *Ty, IRBuilder<> &IRB,
-                                   unsigned ArgOffset, unsigned ArgSize) {
-    // Make sure we don't overflow __msan_va_arg_tls.
-    if (ArgOffset + ArgSize > kParamTLSSize)
-      return nullptr;
-    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MSV.getShadowTy(Ty), 0),
-                              "_msarg");
-  }
-
-  void visitVAStartInst(VAStartInst &I) override {
-    IRBuilder<> IRB(&I);
-    VAStartInstrumentationList.push_back(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 8, Alignment, false);
-  }
-
-  void visitVACopyInst(VACopyInst &I) override {
-    IRBuilder<> IRB(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) = MSV.getShadowOriginPtr(
-        VAListTag, IRB, IRB.getInt8Ty(), Alignment, /*isStore*/ true);
-    // Unpoison the whole __va_list_tag.
-    // FIXME: magic ABI constants.
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     /* size */ 8, Alignment, false);
-  }
-
   void finalizeInstrumentation() override {
     assert(!VAArgSize && !VAArgTLSCopy &&
            "finalizeInstrumentation called twice");
@@ -5426,7 +5419,7 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -5444,7 +5437,7 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
 };
 
 /// SystemZ-specific implementation of VarArgHelper.
-struct VarArgSystemZHelper : public VarArgHelper {
+struct VarArgSystemZHelper : public VarArgHelperBase {
   static const unsigned SystemZGpOffset = 16;
   static const unsigned SystemZGpEndOffset = 56;
   static const unsigned SystemZFpOffset = 128;
@@ -5456,15 +5449,10 @@ struct VarArgSystemZHelper : public VarArgHelper {
   static const unsigned SystemZOverflowArgAreaPtrOffset = 16;
   static const unsigned SystemZRegSaveAreaPtrOffset = 24;
 
-  Function &F;
-  MemorySanitizer &MS;
-  MemorySanitizerVisitor &MSV;
   bool IsSoftFloatABI;
   AllocaInst *VAArgTLSCopy = nullptr;
   AllocaInst *VAArgTLSOriginCopy = nullptr;
   Value *VAArgOverflowSize = nullptr;
-
-  SmallVector<CallInst *, 16> VAStartInstrumentationList;
 
   enum class ArgKind {
     GeneralPurpose,
@@ -5478,7 +5466,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
 
   VarArgSystemZHelper(Function &F, MemorySanitizer &MS,
                       MemorySanitizerVisitor &MSV)
-      : F(F), MS(MS), MSV(MSV),
+      : VarArgHelperBase(F, MS, MSV, SystemZVAListTagSize),
         IsSoftFloatABI(F.getFnAttribute("use-soft-float").getValueAsBool()) {}
 
   ArgKind classifyArgument(Type *T) {
@@ -5639,39 +5627,8 @@ struct VarArgSystemZHelper : public VarArgHelper {
     IRB.CreateStore(OverflowSize, MS.VAArgOverflowSizeTLS);
   }
 
-  Value *getShadowAddrForVAArgument(IRBuilder<> &IRB, unsigned ArgOffset) {
-    Value *Base = IRB.CreatePointerCast(MS.VAArgTLS, MS.IntptrTy);
-    return IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-  }
-
-  Value *getOriginPtrForVAArgument(IRBuilder<> &IRB, int ArgOffset) {
-    Value *Base = IRB.CreatePointerCast(MS.VAArgOriginTLS, MS.IntptrTy);
-    Base = IRB.CreateAdd(Base, ConstantInt::get(MS.IntptrTy, ArgOffset));
-    return IRB.CreateIntToPtr(Base, PointerType::get(MS.OriginTy, 0),
-                              "_msarg_va_o");
-  }
-
-  void unpoisonVAListTagForInst(IntrinsicInst &I) {
-    IRBuilder<> IRB(&I);
-    Value *VAListTag = I.getArgOperand(0);
-    Value *ShadowPtr, *OriginPtr;
-    const Align Alignment = Align(8);
-    std::tie(ShadowPtr, OriginPtr) =
-        MSV.getShadowOriginPtr(VAListTag, IRB, IRB.getInt8Ty(), Alignment,
-                               /*isStore*/ true);
-    IRB.CreateMemSet(ShadowPtr, Constant::getNullValue(IRB.getInt8Ty()),
-                     SystemZVAListTagSize, Alignment, false);
-  }
-
-  void visitVAStartInst(VAStartInst &I) override {
-    VAStartInstrumentationList.push_back(&I);
-    unpoisonVAListTagForInst(I);
-  }
-
-  void visitVACopyInst(VACopyInst &I) override { unpoisonVAListTagForInst(I); }
-
   void copyRegSaveArea(IRBuilder<> &IRB, Value *VAListTag) {
-    Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+    Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
     Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
@@ -5684,15 +5641,21 @@ struct VarArgSystemZHelper : public VarArgHelper {
         MSV.getShadowOriginPtr(RegSaveAreaPtr, IRB, IRB.getInt8Ty(), Alignment,
                                /*isStore*/ true);
     // TODO(iii): copy only fragments filled by visitCallBase()
+    // TODO(iii): support packed-stack && !use-soft-float
+    // For use-soft-float functions, it is enough to copy just the GPRs.
+    unsigned RegSaveAreaSize =
+        IsSoftFloatABI ? SystemZGpEndOffset : SystemZRegSaveAreaSize;
     IRB.CreateMemCpy(RegSaveAreaShadowPtr, Alignment, VAArgTLSCopy, Alignment,
-                     SystemZRegSaveAreaSize);
+                     RegSaveAreaSize);
     if (MS.TrackOrigins)
       IRB.CreateMemCpy(RegSaveAreaOriginPtr, Alignment, VAArgTLSOriginCopy,
-                       Alignment, SystemZRegSaveAreaSize);
+                       Alignment, RegSaveAreaSize);
   }
 
+  // FIXME: This implementation limits OverflowOffset to kParamTLSSize, so we
+  // don't know real overflow size and can't clear shadow beyond kParamTLSSize.
   void copyOverflowArea(IRBuilder<> &IRB, Value *VAListTag) {
-    Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+    Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
     Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
@@ -5760,6 +5723,10 @@ struct VarArgSystemZHelper : public VarArgHelper {
   }
 };
 
+// Loongarch64 is not a MIPS, but the current vargs calling convention matches
+// the MIPS.
+using VarArgLoongArch64Helper = VarArgMIPS64Helper;
+
 /// A no-op implementation of VarArgHelper.
 struct VarArgNoOpHelper : public VarArgHelper {
   VarArgNoOpHelper(Function &F, MemorySanitizer &MS,
@@ -5792,6 +5759,8 @@ static VarArgHelper *CreateVarArgHelper(Function &Func, MemorySanitizer &Msan,
     return new VarArgPowerPC64Helper(Func, Msan, Visitor);
   else if (TargetTriple.getArch() == Triple::systemz)
     return new VarArgSystemZHelper(Func, Msan, Visitor);
+  else if (TargetTriple.isLoongArch64())
+    return new VarArgLoongArch64Helper(Func, Msan, Visitor);
   else
     return new VarArgNoOpHelper(Func, Msan, Visitor);
 }

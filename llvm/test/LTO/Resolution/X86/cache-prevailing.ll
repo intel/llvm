@@ -1,9 +1,9 @@
 ; Tests whether the cache is sensitive to the prevailing bit.
 ; RUN: rm -rf %t.cache
 ; RUN: opt -module-hash -module-summary -o %t.bc %s
-; RUN: llvm-lto2 run -opaque-pointers -o %t.o %t.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -o %t.o %t.bc -cache-dir %t.cache \
 ; RUN:   -r %t.bc,foo,p -r %t.bc,bar,px
-; RUN: llvm-lto2 run -opaque-pointers -o %t.o %t.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -o %t.o %t.bc -cache-dir %t.cache \
 ; RUN:   -r %t.bc,foo, -r %t.bc,bar,px
 ; RUN: ls %t.cache | count 2
 

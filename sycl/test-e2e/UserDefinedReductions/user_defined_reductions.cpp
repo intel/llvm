@@ -1,8 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
 
+#include <complex>
 #include <numeric>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
@@ -122,8 +123,9 @@ void test(queue q, InputContainer input, OutputContainer output,
                 sycl::ext::oneapi::experimental::group_with_scratchpad(
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
-            InputT *first = in.get_pointer();
-            InputT *last = first + N;
+            const InputT *first =
+                in.template get_multi_ptr<access::decorated::no>();
+            const InputT *last = first + N;
             // check reduce_over_group w/o init
             out[0] = sycl::ext::oneapi::experimental::reduce_over_group(
                 handle, in[it.get_global_id(0)], binary_op);
@@ -143,13 +145,16 @@ void test(queue q, InputContainer input, OutputContainer output,
     });
     q.wait();
   }
-  assert(output[0] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  identity, binary_op));
-  assert(output[1] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  init, binary_op));
+  assert(output[0] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, identity,
+                                      binary_op));
+  assert(output[1] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, init,
+                                      binary_op));
   assert(output[2] ==
-         std::reduce(input.begin(), input.end(), identity, binary_op));
-  assert(output[3] == std::reduce(input.begin(), input.end(), init, binary_op));
+         std::accumulate(input.begin(), input.end(), identity, binary_op));
+  assert(output[3] ==
+         std::accumulate(input.begin(), input.end(), init, binary_op));
 }
 
 int main() {

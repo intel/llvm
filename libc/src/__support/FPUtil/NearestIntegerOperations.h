@@ -6,18 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H
 
 #include "FEnvImpl.h"
 #include "FPBits.h"
+#include "rounding_mode.h"
 
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/common.h"
 
 #include <math.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace fputil {
 
 template <typename T, cpp::enable_if_t<cpp::is_floating_point_v<T>, int> = 0>
@@ -133,7 +134,8 @@ LIBC_INLINE T round(T x) {
   }
 
   uint32_t trim_size = MantissaWidth<T>::VALUE - exponent;
-  bool half_bit_set = bits.get_mantissa() & (UIntType(1) << (trim_size - 1));
+  bool half_bit_set =
+      bool(bits.get_mantissa() & (UIntType(1) << (trim_size - 1)));
   bits.set_mantissa((bits.get_mantissa() >> trim_size) << trim_size);
   T trunc_value = T(bits);
 
@@ -161,7 +163,7 @@ LIBC_INLINE T round_using_current_rounding_mode(T x) {
 
   bool is_neg = bits.get_sign();
   int exponent = bits.get_exponent();
-  int rounding_mode = get_round();
+  int rounding_mode = quick_get_round();
 
   // If the exponent is greater than the most negative mantissa
   // exponent, then x is already an integer.
@@ -284,6 +286,6 @@ LIBC_INLINE I round_to_signed_integer_using_current_rounding_mode(F x) {
 }
 
 } // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H

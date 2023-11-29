@@ -7,12 +7,12 @@ target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:3
 
 ; This test checks that the pass does not run on nvcl triples.
 
-declare i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
+declare ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 
 define weak_odr dso_local i64 @_ZTS14other_function() {
-  %1 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
-  %2 = getelementptr inbounds i32, i32 addrspace(5)* %1, i64 2
-  %3 = load i32, i32 addrspace(5)* %2, align 4
+  %1 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
+  %2 = getelementptr inbounds i32, ptr addrspace(5) %1, i64 2
+  %3 = load i32, ptr addrspace(5) %2, align 4
   %4 = zext i32 %3 to i64
   ret i64 %4
 }
@@ -26,7 +26,7 @@ entry:
 
 !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 
-!0 = distinct !{void ()* @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}

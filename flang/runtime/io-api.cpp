@@ -379,8 +379,8 @@ Cookie IONAME(BeginOpenUnit)( // OPEN(without NEWUNIT=)
           IostatBadOpOnChildUnit, nullptr /* no unit */, sourceFile,
           sourceLine);
     } else {
-      return &unit->BeginIoStatement<OpenStatementState>(
-          terminator, *unit, wasExtant, sourceFile, sourceLine);
+      return &unit->BeginIoStatement<OpenStatementState>(terminator, *unit,
+          wasExtant, false /*not NEWUNIT=*/, sourceFile, sourceLine);
     }
   } else {
     return NoopUnit(terminator, unitNumber, IostatBadUnitNumber);
@@ -392,8 +392,9 @@ Cookie IONAME(BeginOpenNewUnit)( // OPEN(NEWUNIT=j)
   Terminator terminator{sourceFile, sourceLine};
   ExternalFileUnit &unit{
       ExternalFileUnit::NewUnit(terminator, false /*not child I/O*/)};
-  return &unit.BeginIoStatement<OpenStatementState>(
-      terminator, unit, false /*was an existing file*/, sourceFile, sourceLine);
+  return &unit.BeginIoStatement<OpenStatementState>(terminator, unit,
+      false /*was an existing file*/, true /*NEWUNIT=*/, sourceFile,
+      sourceLine);
 }
 
 Cookie IONAME(BeginWait)(ExternalUnit unitNumber, AsynchronousId id,
@@ -927,24 +928,19 @@ bool IONAME(SetEncoding)(
     io.GetIoErrorHandler().Crash(
         "SetEncoding() called after GetNewUnit() for an OPEN statement");
   }
-  bool isUTF8{false};
+  // Allow the encoding to be changed on an open unit -- it's
+  // useful and safe.
   static const char *keywords[]{"UTF-8", "DEFAULT", nullptr};
   switch (IdentifyValue(keyword, length, keywords)) {
   case 0:
-    isUTF8 = true;
+    open->unit().isUTF8 = true;
     break;
   case 1:
-    isUTF8 = false;
+    open->unit().isUTF8 = false;
     break;
   default:
     open->SignalError(IostatErrorInKeyword, "Invalid ENCODING='%.*s'",
         static_cast<int>(length), keyword);
-  }
-  if (isUTF8 != open->unit().isUTF8) {
-    if (open->wasExtant()) {
-      open->SignalError("ENCODING= may not be changed on an open unit");
-    }
-    open->unit().isUTF8 = isUTF8;
   }
   return true;
 }
@@ -1137,39 +1133,6 @@ bool IONAME(OutputDescriptor)(Cookie cookie, const Descriptor &descriptor) {
 
 bool IONAME(InputDescriptor)(Cookie cookie, const Descriptor &descriptor) {
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
-}
-
-bool IONAME(OutputUnformattedBlock)(Cookie cookie, const char *x,
-    std::size_t length, std::size_t elementBytes) {
-  IoStatementState &io{*cookie};
-  if (auto *unf{io.get_if<
-          ExternalUnformattedIoStatementState<Direction::Output>>()}) {
-    return unf->Emit(x, length, elementBytes);
-  } else if (auto *inq{io.get_if<InquireIOLengthState>()}) {
-    return inq->Emit(x, length, elementBytes);
-  } else if (!io.get_if<ErroneousIoStatementState>()) {
-    io.GetIoErrorHandler().Crash("OutputUnformattedBlock() called for an I/O "
-                                 "statement that is not unformatted output");
-  }
-  return false;
-}
-
-bool IONAME(InputUnformattedBlock)(
-    Cookie cookie, char *x, std::size_t length, std::size_t elementBytes) {
-  IoStatementState &io{*cookie};
-  IoErrorHandler &handler{io.GetIoErrorHandler()};
-  io.BeginReadingRecord();
-  if (handler.InError()) {
-    return false;
-  }
-  if (auto *unf{
-          io.get_if<ExternalUnformattedIoStatementState<Direction::Input>>()}) {
-    return unf->Receive(x, length, elementBytes);
-  } else if (!io.get_if<ErroneousIoStatementState>()) {
-    handler.Crash("InputUnformattedBlock() called for an I/O statement that is "
-                  "not unformatted input");
-  }
-  return false;
 }
 
 bool IONAME(OutputInteger8)(Cookie cookie, std::int8_t n) {
@@ -1451,15 +1414,14 @@ bool IONAME(InquirePendingId)(Cookie cookie, std::int64_t id, bool &result) {
 bool IONAME(InquireInteger64)(
     Cookie cookie, InquiryKeywordHash inquiry, std::int64_t &result, int kind) {
   IoStatementState &io{*cookie};
-  std::int64_t n;
+  std::int64_t n{0}; // safe "undefined" value
   if (io.Inquire(inquiry, n)) {
     if (SetInteger(result, kind, n)) {
       return true;
     }
     io.GetIoErrorHandler().SignalError(
         "InquireInteger64(): bad INTEGER kind(%d) or out-of-range "
-        "value(%jd) "
-        "for result",
+        "value(%jd) for result",
         kind, static_cast<std::intmax_t>(n));
   }
   return false;
@@ -1489,7 +1451,9 @@ static enum Iostat CheckUnitNumberInRangeImpl(INT unit, bool handleError,
     // Only provide the bad unit number in the message if SignalError can print
     // it accurately. Otherwise, the generic IostatUnitOverflow message will be
     // used.
-    if (static_cast<std::intmax_t>(unit) == unit) {
+    if constexpr (sizeof(INT) > sizeof(std::intmax_t)) {
+      errorHandler.SignalError(IostatUnitOverflow);
+    } else if (static_cast<std::intmax_t>(unit) == unit) {
       errorHandler.SignalError(IostatUnitOverflow,
           "UNIT number %jd is out of range", static_cast<std::intmax_t>(unit));
     } else {
@@ -1520,3 +1484,17 @@ enum Iostat IONAME(CheckUnitNumberInRange128)(common::int128_t unit,
 #endif
 
 } // namespace Fortran::runtime::io
+
+#if defined(_LIBCPP_VERBOSE_ABORT)
+// Provide own definition for `std::__libcpp_verbose_abort` to avoid dependency
+// on the version provided by libc++.
+
+void std::__libcpp_verbose_abort(char const *format, ...) {
+  va_list list;
+  va_start(list, format);
+  std::vfprintf(stderr, format, list);
+  va_end(list);
+
+  std::abort();
+}
+#endif

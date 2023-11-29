@@ -79,7 +79,6 @@ public:
     OffloadPackagerJobClass,
     OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
-    SPIRCheckJobClass,
     SYCLPostLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
@@ -630,10 +629,22 @@ public:
           DependentOffloadKind(DependentOffloadKind) {}
   };
 
+  /// Allow for a complete override of the target to unbundle.
+  /// This is used for specific unbundles used for SYCL AOT when generating full
+  /// device files that are bundled with the host object.
+  void setTargetString(std::string Target) { TargetString = Target; }
+
+  std::string getTargetString() const { return TargetString; }
+
 private:
   /// Container that keeps information about each dependence of this unbundling
   /// action.
   SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+  /// Provides a specific type to be used that overrides the input type.
+  types::ID DependentType = types::TY_Nothing;
+
+  std::string TargetString;
 
 public:
   // Offloading unbundling doesn't change the type of output.
@@ -655,18 +666,40 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadUnbundlingJobClass;
   }
+
+  /// Set the dependent type.
+  void setDependentType(types::ID Type) { DependentType = Type; }
+
+  /// Get the dependent type.
+  types::ID getDependentType() const { return DependentType; }
 };
 
 class OffloadWrapperJobAction : public JobAction {
   void anchor() override;
 
+  bool EmbedIR;
+
 public:
   OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
-  OffloadWrapperJobAction(Action *Input, types::ID OutputType);
+  OffloadWrapperJobAction(Action *Input, types::ID OutputType,
+                          bool EmbedIR = false);
+
+  bool isEmbeddedIR() const { return EmbedIR; }
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
   }
+
+  // Set the compilation step setting.  This is used to tell the wrapper job
+  // action that the compilation step to create the object should be performed
+  // after the wrapping step is complete.
+  void setCompileStep(bool SetValue) { CompileStep = SetValue; }
+
+  // Get the compilation step setting.
+  bool getCompileStep() const { return CompileStep; }
+
+private:
+  bool CompileStep = true;
 };
 
 class OffloadPackagerJobAction : public JobAction {
@@ -745,21 +778,6 @@ public:
   }
 };
 
-// Provides a check of the given input file for the existence of SPIR kernel
-// code.  This is currently only used for FPGA specific tool chains and can
-// be expanded to perform other SPIR checks if needed.
-// TODO: No longer being used for FPGA (or elsewhere), cleanup needed.
-class SPIRCheckJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  SPIRCheckJobAction(Action *Input, types::ID OutputType);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == SPIRCheckJobClass;
-  }
-};
-
 class SYCLPostLinkJobAction : public JobAction {
   void anchor() override;
 
@@ -811,6 +829,7 @@ class FileTableTformJobAction : public JobAction {
 public:
   static constexpr const char *COL_CODE = "Code";
   static constexpr const char *COL_ZERO = "0";
+  static constexpr const char *COL_SYM_AND_PROPS = "SymAndProps";
 
   struct Tform {
     enum Kind {

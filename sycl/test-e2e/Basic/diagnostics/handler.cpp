@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %BE_RUN_PLACEHOLDER %t.out | FileCheck %s
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 //
 // Appears to fail on HIP Nvidia because 'no device of requested type available'
 // when constructing a queue with an exception_list.

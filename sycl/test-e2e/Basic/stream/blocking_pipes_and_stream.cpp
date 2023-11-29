@@ -1,7 +1,7 @@
 // REQUIRES: accelerator
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
 // Test that usage of blocking pipes and stream object in the same kernel
 // doesn't cause program hang.

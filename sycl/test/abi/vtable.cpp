@@ -24,12 +24,13 @@ void foo(sycl::detail::HostKernelBase &HKB) {
 // CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
 
 void foo(sycl::detail::CG *CG) { delete CG; }
-// CHECK:    Vtable for 'sycl::detail::CG' (4 entries).
-// CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::CG RTTI
-// CHECK-NEXT:       -- (sycl::detail::CG, 0) vtable address --
-// CHECK-NEXT:   2 | sycl::detail::CG::~CG() [complete]
-// CHECK-NEXT:   3 | sycl::detail::CG::~CG() [deleting]
+// CHECK: Vtable for 'sycl::detail::CG' (6 entries).
+// CHECK-NEXT:    0 | offset_to_top (0)
+// CHECK-NEXT:    1 | sycl::detail::CG RTTI
+// CHECK-NEXT:        -- (sycl::detail::CG, 0) vtable address --
+// CHECK-NEXT:    2 | std::vector<std::shared_ptr<const void>> sycl::detail::CG::getAuxiliaryResources() const
+// CHECK-NEXT:    3 | void sycl::detail::CG::clearAuxiliaryResources()
+// CHECK-NEXT:    4 | sycl::detail::CG::~CG() [complete]
 
 void foo(sycl::detail::PropertyWithDataBase *Prop) { delete Prop; }
 // CHECK:    Vtable for 'sycl::detail::PropertyWithDataBase' (4 entries).

@@ -43,6 +43,9 @@ class DWARFObject;
 class raw_ostream;
 struct DIDumpOptions;
 struct DWARFSection;
+namespace dwarflinker_parallel {
+class CompileUnit;
+}
 
 /// Base class describing the header of any kind of "unit."  Some information
 /// is specific to certain unit types.  We separate this class out so we can
@@ -76,8 +79,8 @@ public:
   /// Note that \p SectionKind is used as a hint to guess the unit type
   /// for DWARF formats prior to DWARFv5. In DWARFv5 the unit type is
   /// explicitly defined in the header and the hint is ignored.
-  bool extract(DWARFContext &Context, const DWARFDataExtractor &debug_info,
-               uint64_t *offset_ptr, DWARFSectionKind SectionKind);
+  Error extract(DWARFContext &Context, const DWARFDataExtractor &debug_info,
+                uint64_t *offset_ptr, DWARFSectionKind SectionKind);
   // For units in DWARF Package File, remember the index entry and update
   // the abbreviation offset read by extract().
   bool applyIndexEntry(const DWARFUnitIndex::Entry *Entry);
@@ -253,6 +256,8 @@ class DWARFUnit {
   std::shared_ptr<DWARFUnit> DWO;
 
 protected:
+  friend dwarflinker_parallel::CompileUnit;
+
   /// Return the index of a \p Die entry inside the unit's DIE vector.
   ///
   /// It is illegal to call this method with a DIE that hasn't be
@@ -350,6 +355,15 @@ public:
     return AddrOffsetSectionBase;
   }
 
+  /// Returns offset to the indexed address value inside .debug_addr section.
+  std::optional<uint64_t> getIndexedAddressOffset(uint64_t Index) {
+    if (std::optional<uint64_t> AddrOffsetSectionBase =
+            getAddrOffsetSectionBase())
+      return *AddrOffsetSectionBase + Index * getAddressByteSize();
+
+    return std::nullopt;
+  }
+
   /// Recursively update address to Die map.
   void updateAddressDieMap(DWARFDie Die);
 
@@ -386,7 +400,8 @@ public:
   void clear();
 
   const std::optional<StrOffsetsContributionDescriptor> &
-  getStringOffsetsTableContribution() const {
+  getStringOffsetsTableContribution() {
+    extractDIEsIfNeeded(true /*CUDIeOnly*/);
     return StringOffsetsTableContribution;
   }
 

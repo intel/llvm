@@ -4,43 +4,43 @@
 ///
 
 /// Check whether an invalid SYCL target is specified:
-// RUN:   %clang -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
+// RUN:   not %clang -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET-ADD %s
-// RUN:   %clang_cl -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET-ADD %s
 // CHK-INVALID-TARGET-ADD: error: SYCL target is invalid: 'dummy-target'
 
 /// Check error for no -fsycl option
-// RUN:   %clang -### -fsycl-link-targets=spir64-unknown-unknown  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-link-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK-TGTS %s
 // CHK-NO-FSYCL-LINK-TGTS: error: '-fsycl-link-targets' must be used in conjunction with '-fsycl' to enable offloading
 
-// RUN:   %clang -### -fsycl-add-targets=spir64-unknown-unknown  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-add-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-ADD %s
 // CHK-NO-FSYCL-ADD: error: '-fsycl-add-targets' must be used in conjunction with '-fsycl' to enable offloading
 
 /// Check error for -fsycl-add-targets -fsycl-link-targets conflict
-// RUN:   %clang -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
+// RUN:   not %clang -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-ADD-LINK %s
-// RUN:   %clang_cl -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-ADD-LINK %s
 // CHK-SYCL-ADD-LINK: error: The option -fsycl-link-targets= conflicts with -fsycl-add-targets=
 
 /// Check error for -fsycl-targets -fsycl-link-targets conflict
-// RUN:   %clang -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-targets=spir64-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-targets=spir64-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-LINK-CONFLICT %s
-// RUN:   %clang_cl -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-targets=spir64-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-link-targets=spir64-unknown-unknown -fsycl-targets=spir64-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-LINK-CONFLICT %s
 // CHK-SYCL-LINK-CONFLICT: error: The option -fsycl-targets= conflicts with -fsycl-link-targets=
 
 /// Check error for -fsycl-[add|link]-targets with bad triple
-// RUN:   %clang -### -fsycl-add-targets=spir64_bad-unknown-unknown:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-add-targets=spir64_bad-unknown-unknown:dummy.spv -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
-// RUN:   %clang_cl -### -fsycl-add-targets=spir64_bad-unknown-unknown:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-add-targets=spir64_bad-unknown-unknown:dummy.spv -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
-// RUN:   %clang -### -fsycl-link-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-link-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
-// RUN:   %clang_cl -### -fsycl-link-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-link-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
 // CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown'
 

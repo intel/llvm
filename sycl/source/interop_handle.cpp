@@ -17,7 +17,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
@@ -34,8 +34,8 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   auto Plugin = MQueue->getPlugin();
   pi_native_handle Handle;
-  Plugin.call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
-                                                          &Handle);
+  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
+                                                           &Handle);
   return Handle;
 }
 
@@ -47,9 +47,10 @@ pi_native_handle interop_handle::getNativeContext() const {
   return MContext->getNative();
 }
 
-pi_native_handle interop_handle::getNativeQueue() const {
-  return MQueue->getNative();
+pi_native_handle
+interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
+  return MQueue->getNative(NativeHandleDesc);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

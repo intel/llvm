@@ -21,11 +21,13 @@ class MCAlignFragment;
 class MCDwarfCallFrameFragment;
 class MCDwarfLineAddrFragment;
 class MCFragment;
+class MCLEBFragment;
 class MCRelaxableFragment;
 class MCSymbol;
 class MCAsmLayout;
 class MCAssembler;
-class MCCFIInstruction;
+class MCContext;
+struct MCDwarfFrameInfo;
 struct MCFixupKindInfo;
 class MCInst;
 class MCObjectStreamer;
@@ -40,14 +42,17 @@ class raw_ostream;
 /// Generic interface to target specific assembler backends.
 class MCAsmBackend {
 protected: // Can only create subclasses.
-  MCAsmBackend(support::endianness Endian);
+  MCAsmBackend(llvm::endianness Endian, unsigned RelaxFixupKind = MaxFixupKind);
 
 public:
   MCAsmBackend(const MCAsmBackend &) = delete;
   MCAsmBackend &operator=(const MCAsmBackend &) = delete;
   virtual ~MCAsmBackend();
 
-  const support::endianness Endian;
+  const llvm::endianness Endian;
+
+  /// Fixup kind used for linker relaxation. Currently only used by RISC-V.
+  const unsigned RelaxFixupKind;
 
   /// Return true if this target might automatically pad instructions and thus
   /// need to emit padding enable/disable directives around sensative code.
@@ -124,6 +129,14 @@ public:
     llvm_unreachable("Need to implement hook if target has custom fixups");
   }
 
+  virtual bool handleAddSubRelocations(const MCAsmLayout &Layout,
+                                       const MCFragment &F,
+                                       const MCFixup &Fixup,
+                                       const MCValue &Target,
+                                       uint64_t &FixedValue) const {
+    return false;
+  }
+
   /// Apply the \p Value for given \p Fixup into the provided data fragment, at
   /// the offset specified by the fixup and following the fixup kind as
   /// appropriate. Errors (such as an out of range fixup value) should be
@@ -181,6 +194,13 @@ public:
     return false;
   }
 
+  // Defined by linker relaxation targets to possibly emit LEB128 relocations
+  // and set Value at the relocated location.
+  virtual bool relaxLEB128(MCLEBFragment &LF, MCAsmLayout &Layout,
+                           int64_t &Value) const {
+    return false;
+  }
+
   /// @}
 
   /// Returns the minimum size of a nop in bytes on this target. The assembler
@@ -210,8 +230,8 @@ public:
   virtual void handleAssemblerFlag(MCAssemblerFlag Flag) {}
 
   /// Generate the compact unwind encoding for the CFI instructions.
-  virtual uint32_t
-      generateCompactUnwindEncoding(ArrayRef<MCCFIInstruction>) const {
+  virtual uint32_t generateCompactUnwindEncoding(const MCDwarfFrameInfo *FI,
+                                                 const MCContext *Ctxt) const {
     return 0;
   }
 
@@ -219,6 +239,8 @@ public:
   virtual bool isMicroMips(const MCSymbol *Sym) const {
     return false;
   }
+
+  bool isDarwinCanonicalPersonality(const MCSymbol *Sym) const;
 };
 
 } // end namespace llvm

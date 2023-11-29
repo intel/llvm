@@ -21,8 +21,8 @@ cc_test(
     deps = [
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//mlir:BreakpointManagers",
         "//mlir:Debug",
+        "//mlir:IR",
         "//mlir:Support",
         "//third-party/unittest:gmock",
         "//third-party/unittest:gtest",
@@ -39,7 +39,9 @@ cc_test(
     ]),
     deps = [
         "//llvm:Support",
+        "//mlir:FunctionInterfaces",
         "//mlir:IR",
+        "//mlir:Parser",
         "//mlir:Support",
         "//mlir/test:TestDialect",
         "//third-party/unittest:gmock",
@@ -176,9 +178,12 @@ cc_test(
         "Dialect/SCF/*.h",
     ]),
     deps = [
+        "//mlir:ArithDialect",
         "//mlir:FuncDialect",
+        "//mlir:IR",
         "//mlir:Parser",
         "//mlir:SCFDialect",
+        "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
 )
@@ -228,10 +233,17 @@ cc_test(
         "Dialect/Transform/*.h",
     ]),
     deps = [
+        "//llvm:Support",
         "//llvm:TestingSupport",
         "//mlir:FuncDialect",
         "//mlir:IR",
+        "//mlir:MlirOptLib",
+        "//mlir:Parser",
+        "//mlir:Pass",
+        "//mlir:Support",
         "//mlir:TransformDialect",
+        "//mlir:TransformDialectTransforms",
+        "//mlir/test:TestTransformDialect",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
@@ -245,6 +257,7 @@ cc_test(
         "Dialect/Utils/*.h",
     ]),
     deps = [
+        "//llvm:Support",
         "//llvm:TestingSupport",
         "//mlir:DialectUtils",
         "//mlir:IR",
@@ -358,6 +371,27 @@ cc_test(
 )
 
 cc_test(
+    name = "bytecode_tests",
+    size = "small",
+    srcs = glob([
+        "Bytecode/*.cpp",
+        "Bytecode/*.h",
+        "Bytecode/*/*.cpp",
+        "Bytecode/*/*.h",
+    ]),
+    deps = [
+        "//llvm:Support",
+        "//mlir:BytecodeReader",
+        "//mlir:BytecodeWriter",
+        "//mlir:IR",
+        "//mlir:Parser",
+        "//third-party/unittest:gmock",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
+    ],
+)
+
+cc_test(
     name = "conversion_tests",
     size = "small",
     srcs = glob([
@@ -397,7 +431,6 @@ cc_test(
         "//mlir:FuncToLLVM",
         "//mlir:IR",
         "//mlir:LLVMToLLVMIRTranslation",
-        "//mlir:LinalgToLLVM",
         "//mlir:LinalgTransforms",
         "//mlir:MemRefToLLVM",
         "//mlir:Parser",

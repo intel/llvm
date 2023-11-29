@@ -5,23 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: matrix-tf32
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL:cpu
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
 using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "joint_matrix_tf32_impl.hpp"

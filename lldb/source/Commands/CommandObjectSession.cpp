@@ -31,13 +31,12 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
 protected:
-  bool DoExecute(Args &args, CommandReturnObject &result) override {
+  void DoExecute(Args &args, CommandReturnObject &result) override {
     llvm::StringRef file_path;
 
     if (!args.empty())
@@ -47,7 +46,6 @@ protected:
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
     else
       result.SetStatus(eReturnStatusFailed);
-    return result.Succeeded();
   }
 };
 
@@ -128,7 +126,7 @@ protected:
     OptionValueBoolean m_clear;
   };
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (m_options.m_clear.GetCurrentValue() &&
         m_options.m_clear.OptionWasSet()) {
       m_interpreter.GetCommandHistory().Clear();
@@ -190,7 +188,6 @@ protected:
                      stop_idx.second);
       }
     }
-    return result.Succeeded();
   }
 
   CommandOptions m_options;

@@ -467,7 +467,7 @@ void ProcessMinidump::ReadModuleList() {
 
     // check if the process is wow64 - a 32 bit windows process running on a
     // 64 bit windows
-    if (llvm::StringRef(name).endswith_insensitive("wow64.dll")) {
+    if (llvm::StringRef(name).ends_with_insensitive("wow64.dll")) {
       m_is_wow64 = true;
     }
 
@@ -795,12 +795,12 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
     if (argc > 0) {
       result.AppendErrorWithFormat("'%s' take no arguments, only options",
                                    m_cmd_name.c_str());
-      return false;
+      return;
     }
     SetDefaultOptionsIfNoneAreSet();
 
@@ -904,9 +904,7 @@ public:
       DumpTextStream(StreamType::FacebookThreadName,
                      "Facebook Thread Name");
     if (DumpFacebookLogcat())
-      DumpTextStream(StreamType::FacebookLogcat,
-                     "Facebook Logcat");
-    return true;
+      DumpTextStream(StreamType::FacebookLogcat, "Facebook Logcat");
   }
 };
 

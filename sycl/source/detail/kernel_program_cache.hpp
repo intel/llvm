@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>
@@ -17,15 +18,17 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <map>
 #include <mutex>
 #include <type_traits>
+
+#include <boost/unordered/unordered_flat_map.hpp>
+#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
@@ -48,6 +51,7 @@ public:
   /// Currently there is only a single user - ProgramManager class.
   template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
+    T Val;
     std::atomic<BuildState> State;
     BuildError Error;
 
@@ -68,35 +72,45 @@ public:
     BuildResult(T *P, BuildState S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
-  using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
-  using PiProgramPtrT = std::atomic<PiProgramT *>;
-  using ProgramWithBuildStateT = BuildResult<PiProgramT>;
+  using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
+  /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
+   * when debugging environment variables are set and we can just ignore them
+   * since all kernels will have their build options overridden with the same
+   * string*/
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                                     std::pair<RT::PiDevice, std::string>>;
-  using CommonProgramKeyT = std::pair<std::uintptr_t, RT::PiDevice>;
+                                     sycl::detail::pi::PiDevice>;
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
 
   struct ProgramCache {
-    std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
-    std::multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    ::boost::unordered_map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
+    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
 
     size_t size() const noexcept { return Cache.size(); }
   };
 
   using ContextPtr = context_impl *;
 
-  using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
-
-  using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = BuildResult<PiKernelT>;
-  using KernelByNameT = std::map<std::string, KernelWithBuildStateT>;
-  using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
+  using KernelArgMaskPairT =
+      std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>;
+  using KernelByNameT =
+      ::boost::unordered_map<std::string, BuildResult<KernelArgMaskPairT>>;
+  using KernelCacheT =
+      ::boost::unordered_map<sycl::detail::pi::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
+      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
                  std::string>;
   using KernelFastCacheValT =
-      std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>;
-  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
+                 const KernelArgMask *, sycl::detail::pi::PiProgram>;
+  // This container is used as a fast path for retrieving cached kernels.
+  // unordered_flat_map is used here to reduce lookup overhead.
+  // The slow path is used only once for each newly created kernel, so the
+  // higher overhead of insertion that comes with unordered_flat_map is more
+  // of an issue there. For that reason, those use regular unordered maps.
+  using KernelFastCacheT =
+      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
 
@@ -120,7 +134,7 @@ public:
     if (Inserted.second) {
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second.first);
+          std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(std::piecewise_construct,
                                std::forward_as_tuple(CommonKey),
                                std::forward_as_tuple(CacheKey));
@@ -128,8 +142,9 @@ public:
     return std::make_pair(&Inserted.first->second, Inserted.second);
   }
 
-  std::pair<KernelWithBuildStateT *, bool>
-  getOrInsertKernel(RT::PiProgram Program, const std::string &KernelName) {
+  std::pair<BuildResult<KernelArgMaskPairT> *, bool>
+  getOrInsertKernel(sycl::detail::pi::PiProgram Program,
+                    const std::string &KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto Inserted = Cache.emplace(
@@ -173,7 +188,7 @@ public:
     if (It != MKernelFastCache.end()) {
       return It->second;
     }
-    return std::make_tuple(nullptr, nullptr, nullptr);
+    return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
   }
 
   template <typename KeyT, typename ValT>
@@ -206,5 +221,5 @@ private:
   friend class ::MockKernelProgramCache;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

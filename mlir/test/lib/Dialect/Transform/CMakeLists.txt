@@ -21,4 +21,6 @@ add_mlir_library(MLIRTestTransformDialect
   MLIRPDLDialect
   MLIRTransformDialect
   MLIRTransformDialectTransforms
+  MLIRTransformLoopExtension
+  MLIRTransformPDLExtension
 )

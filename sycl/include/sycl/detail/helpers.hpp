@@ -8,22 +8,25 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/memcpy.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
+#include <sycl/access/access.hpp>     // for fence_space
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/pi.hpp>         // for PiEvent
+#include <sycl/memory_enums.hpp>      // for memory_order
 
-#include <memory>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_vars.hpp>
+#endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, integral_constant
+#include <utility>     // for forward, integer_sequence, mak...
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -37,14 +40,18 @@ enum class memory_order;
 
 namespace detail {
 
+class buffer_impl;
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-__SYCL_EXPORT std::vector<RT::PiEvent>
+__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents,
                 std::shared_ptr<sycl::detail::context_impl> Context);
 
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
@@ -82,14 +89,14 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<WithOffset, item<Dims, WithOffset>>
+  static std::enable_if_t<WithOffset, item<Dims, WithOffset>>
   createItem(const range<Dims> &Extent, const id<Dims> &Index,
              const id<Dims> &Offset) {
     return item<Dims, WithOffset>(Extent, Index, Offset);
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<!WithOffset, item<Dims, WithOffset>>
+  static std::enable_if_t<!WithOffset, item<Dims, WithOffset>>
   createItem(const range<Dims> &Extent, const id<Dims> &Index) {
     return item<Dims, WithOffset>(Extent, Index);
   }
@@ -140,8 +147,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<WithOffset, const item<Dims, WithOffset>>
-  getItem() {
+  static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
@@ -150,8 +156,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<!WithOffset, const item<Dims, WithOffset>>
-  getItem() {
+  static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
@@ -241,15 +246,14 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(Inds), ...);
+void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+  (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void dim_loop(F &&f) {
-  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
+template <size_t count, class F> void loop(F &&f) {
+  loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
-
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

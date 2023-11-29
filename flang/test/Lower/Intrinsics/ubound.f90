@@ -1,5 +1,5 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
-! RUN: %flang_fc1 -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
+! RUN: %flang_fc1 -emit-fir -flang-deprecated-no-hlfir %s -o - | FileCheck %s
 
 ! CHECK-LABEL: func @_QPubound_test(
 subroutine ubound_test(a, dim, res)
@@ -68,4 +68,16 @@ subroutine ubound_test_3(a, dim, res)
 ! CHECK:         %[[VAL_16:.*]] = arith.addi %[[VAL_15]], %[[VAL_8]] : i64
 ! CHECK:         fir.store %[[VAL_16]] to %{{.*}} : !fir.ref<i64>
   res = ubound(a, dim, 8)
+end subroutine
+
+
+! CHECK-LABEL: func @_QPubound_test_const_dim(
+subroutine ubound_test_const_dim(array)
+  real :: array(11:)
+  integer :: res
+! Should not call _FortranASizeDim when dim is compile time constant. But instead load from descriptor directly.
+! CHECK:         %[[C0:.*]] = arith.constant 0 : index
+! CHECK:         %[[DIMS:.*]]:3 = fir.box_dims %arg0, %[[C0]] : (!fir.box<!fir.array<?xf32>>, index) -> (index, index, index)
+! CHECK:         %{{.*}} = fir.convert %[[DIMS]]#1 : (index) -> i32
+  res = ubound(array, 1)
 end subroutine

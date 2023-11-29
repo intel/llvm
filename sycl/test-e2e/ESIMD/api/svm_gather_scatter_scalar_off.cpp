@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu && !gpu-intel-pvc
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: gpu-intel-pvc
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Regression test for gather/scatter API.
 // scalar offset variant of the test - uses scalar offset.

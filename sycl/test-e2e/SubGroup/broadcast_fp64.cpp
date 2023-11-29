@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp64
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==----- broadcast_fp64.cpp - SYCL sub_group broadcast test ----*- C++ -*--==//
 //
@@ -15,12 +14,7 @@
 
 int main() {
   queue Queue;
-  if (Queue.get_device().has(sycl::aspect::fp64)) {
-    check<double>(Queue);
-    std::cout << "Test passed." << std::endl;
-  } else {
-    std::cout << "Test skipped because device doesn't support aspect::fp64"
-              << std::endl;
-  }
+  check<double>(Queue);
+  std::cout << "Test passed." << std::endl;
   return 0;
 }

@@ -10,15 +10,22 @@
 
 #include "PluginInterface.h"
 #include "Debug.h"
+#include "Environment.h"
 #include "GlobalHandler.h"
 #include "JIT.h"
 #include "elf_common.h"
 #include "omptarget.h"
 #include "omptargetplugin.h"
 
+#ifdef OMPT_SUPPORT
+#include "OmptCallback.h"
+#include "omp-tools.h"
+#endif
+
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <cstdint>
@@ -33,61 +40,131 @@ GenericPluginTy *Plugin::SpecificPlugin = nullptr;
 
 // TODO: Fix any thread safety issues for multi-threaded kernel recording.
 struct RecordReplayTy {
+
+  // Describes the state of the record replay mechanism.
+  enum RRStatusTy { RRDeactivated = 0, RRRecording, RRReplaying };
+
 private:
   // Memory pointers for recording, replaying memory.
   void *MemoryStart;
   void *MemoryPtr;
   size_t MemorySize;
+  size_t TotalSize;
   GenericDeviceTy *Device;
   std::mutex AllocationLock;
 
-  // Environment variables for record and replay.
-  // Enables recording kernels if set.
-  BoolEnvar OMPX_RecordKernel;
-  // Enables replaying a kernel if set.
-  BoolEnvar OMPX_ReplayKernel;
-  // Enables saving the device memory kernel output post execution if set.
-  BoolEnvar OMPX_ReplaySaveOutput;
-  // Sets the maximum to pre-allocate device memory.
-  UInt32Envar OMPX_DeviceMemorySize;
+  RRStatusTy Status;
+  bool ReplaySaveOutput;
+  bool UsedVAMap = false;
+  uintptr_t MemoryOffset = 0;
 
-  // Record/replay pre-allocates the largest possible device memory using the
-  // default kind.
-  // TODO: Expand allocation to include other kinds (device, host, shared) and
-  // possibly use a MemoryManager to track (de-)allocations for
-  // storing/retrieving when recording/replaying.
-  Error preallocateDeviceMemory() {
-    // Pre-allocate memory on device. Starts with 64GB and subtracts in steps
-    // of 1GB until allocation succeeds.
-    const size_t MAX_MEMORY_ALLOCATION =
-        OMPX_DeviceMemorySize * 1024 * 1024 * 1024ULL;
+  void *suggestAddress(uint64_t MaxMemoryAllocation) {
+    // Get a valid pointer address for this system
+    void *Addr =
+        Device->allocate(1024, /* HstPtr */ nullptr, TARGET_ALLOC_DEFAULT);
+    Device->free(Addr);
+    // Align Address to MaxMemoryAllocation
+    Addr = (void *)alignPtr((Addr), MaxMemoryAllocation);
+    return Addr;
+  }
+
+  Error preAllocateVAMemory(uint64_t MaxMemoryAllocation, void *VAddr) {
+    size_t ASize = MaxMemoryAllocation;
+
+    if (!VAddr && isRecording())
+      VAddr = suggestAddress(MaxMemoryAllocation);
+
+    DP("Request %ld bytes allocated at %p\n", MaxMemoryAllocation, VAddr);
+
+    if (auto Err = Device->memoryVAMap(&MemoryStart, VAddr, &ASize))
+      return Err;
+
+    if (isReplaying() && VAddr != MemoryStart) {
+      return Plugin::error("Record-Replay cannot assign the"
+                           "requested recorded address (%p, %p)",
+                           VAddr, MemoryStart);
+    }
+
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, Device->getDeviceId(),
+         "Allocated %" PRIu64 " bytes at %p for replay.\n", ASize, MemoryStart);
+
+    MemoryPtr = MemoryStart;
+    MemorySize = 0;
+    TotalSize = ASize;
+    UsedVAMap = true;
+    return Plugin::success();
+  }
+
+  Error preAllocateHeuristic(uint64_t MaxMemoryAllocation,
+                             uint64_t RequiredMemoryAllocation, void *VAddr) {
+    const size_t MAX_MEMORY_ALLOCATION = MaxMemoryAllocation;
     constexpr size_t STEP = 1024 * 1024 * 1024ULL;
     MemoryStart = nullptr;
-    for (size_t Try = MAX_MEMORY_ALLOCATION; Try > 0; Try -= STEP) {
-      MemoryStart =
-          Device->allocate(Try, /* HstPtr */ nullptr, TARGET_ALLOC_DEFAULT);
+    for (TotalSize = MAX_MEMORY_ALLOCATION; TotalSize > 0; TotalSize -= STEP) {
+      MemoryStart = Device->allocate(TotalSize, /* HstPtr */ nullptr,
+                                     TARGET_ALLOC_DEFAULT);
       if (MemoryStart)
         break;
     }
-
     if (!MemoryStart)
       return Plugin::error("Allocating record/replay memory");
+
+    if (VAddr && VAddr != MemoryStart)
+      MemoryOffset = uintptr_t(VAddr) - uintptr_t(MemoryStart);
 
     MemoryPtr = MemoryStart;
     MemorySize = 0;
 
+    // Check if we need adjustment.
+    if (MemoryOffset > 0 &&
+        TotalSize >= RequiredMemoryAllocation + MemoryOffset) {
+      // If we are off but "before" the required address and with enough space,
+      // we just "allocate" the offset to match the required address.
+      MemoryPtr = (char *)MemoryPtr + MemoryOffset;
+      MemorySize += MemoryOffset;
+      MemoryOffset = 0;
+      assert(MemoryPtr == VAddr && "Expected offset adjustment to work");
+    } else if (MemoryOffset) {
+      // If we are off and in a situation we cannot just "waste" memory to force
+      // a match, we hope adjusting the arguments is sufficient.
+      REPORT(
+          "WARNING Failed to allocate replay memory at required location %p, "
+          "got %p, trying to offset argument pointers by %" PRIi64 "\n",
+          VAddr, MemoryStart, MemoryOffset);
+    }
+
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, Device->getDeviceId(),
+         "Allocated %" PRIu64 " bytes at %p for replay.\n", TotalSize,
+         MemoryStart);
+
     return Plugin::success();
   }
 
-  void dumpDeviceMemory(StringRef Filename,
-                        AsyncInfoWrapperTy &AsyncInfoWrapper) {
+  Error preallocateDeviceMemory(uint64_t DeviceMemorySize, void *ReqVAddr) {
+    if (Device->supportVAManagement()) {
+      auto Err = preAllocateVAMemory(DeviceMemorySize, ReqVAddr);
+      if (Err) {
+        REPORT("WARNING VA mapping failed, fallback to heuristic: "
+               "(Error: %s)\n",
+               toString(std::move(Err)).data());
+      }
+    }
+
+    uint64_t DevMemSize;
+    if (Device->getDeviceMemorySize(DevMemSize))
+      return Plugin::error("Cannot determine Device Memory Size");
+
+    return preAllocateHeuristic(DevMemSize, DeviceMemorySize, ReqVAddr);
+  }
+
+  void dumpDeviceMemory(StringRef Filename) {
     ErrorOr<std::unique_ptr<WritableMemoryBuffer>> DeviceMemoryMB =
         WritableMemoryBuffer::getNewUninitMemBuffer(MemorySize);
     if (!DeviceMemoryMB)
       report_fatal_error("Error creating MemoryBuffer for device memory");
 
     auto Err = Device->dataRetrieve(DeviceMemoryMB.get()->getBufferStart(),
-                                    MemoryStart, MemorySize, AsyncInfoWrapper);
+                                    MemoryStart, MemorySize, nullptr);
     if (Err)
       report_fatal_error("Error retrieving data for target pointer");
 
@@ -102,21 +179,18 @@ private:
   }
 
 public:
-  bool isRecording() const { return OMPX_RecordKernel; }
-  bool isReplaying() const { return OMPX_ReplayKernel; }
+  bool isRecording() const { return Status == RRStatusTy::RRRecording; }
+  bool isReplaying() const { return Status == RRStatusTy::RRReplaying; }
   bool isRecordingOrReplaying() const {
-    return (OMPX_RecordKernel || OMPX_ReplayKernel);
+    return (Status != RRStatusTy::RRDeactivated);
   }
-  bool isSaveOutputEnabled() const { return OMPX_ReplaySaveOutput; }
+  void setStatus(RRStatusTy Status) { this->Status = Status; }
+  bool isSaveOutputEnabled() const { return ReplaySaveOutput; }
 
   RecordReplayTy()
-      : OMPX_RecordKernel("LIBOMPTARGET_RECORD"),
-        OMPX_ReplayKernel("LIBOMPTARGET_REPLAY"),
-        OMPX_ReplaySaveOutput("LIBOMPTARGET_RR_SAVE_OUTPUT"),
-        OMPX_DeviceMemorySize("LIBOMPTARGET_RR_DEVMEM_SIZE",
-                              /* Default in GB */ 64) {}
+      : Status(RRStatusTy::RRDeactivated), ReplaySaveOutput(false) {}
 
-  void saveImage(const char *Name, DeviceImageTy &Image) {
+  void saveImage(const char *Name, const DeviceImageTy &Image) {
     SmallString<128> ImageName = {Name, ".image"};
     std::error_code EC;
     raw_fd_ostream OS(ImageName, EC);
@@ -134,11 +208,59 @@ public:
     OS.close();
   }
 
-  void saveKernelInputInfo(const char *Name, void **ArgPtrs,
-                           ptrdiff_t *ArgOffsets, int32_t NumArgs,
-                           uint64_t NumTeamsClause, uint32_t ThreadLimitClause,
-                           uint64_t LoopTripCount,
-                           AsyncInfoWrapperTy &AsyncInfoWrapper) {
+  void dumpGlobals(StringRef Filename, DeviceImageTy &Image) {
+    int32_t Size = 0;
+
+    for (auto &OffloadEntry : Image.getOffloadEntryTable()) {
+      if (!OffloadEntry.size)
+        continue;
+      Size += std::strlen(OffloadEntry.name) + /* '\0' */ 1 +
+              /* OffloadEntry.size value */ sizeof(uint32_t) +
+              OffloadEntry.size;
+    }
+
+    ErrorOr<std::unique_ptr<WritableMemoryBuffer>> GlobalsMB =
+        WritableMemoryBuffer::getNewUninitMemBuffer(Size);
+    if (!GlobalsMB)
+      report_fatal_error("Error creating MemoryBuffer for globals memory");
+
+    void *BufferPtr = GlobalsMB.get()->getBufferStart();
+    for (auto &OffloadEntry : Image.getOffloadEntryTable()) {
+      if (!OffloadEntry.size)
+        continue;
+
+      int32_t NameLength = std::strlen(OffloadEntry.name) + 1;
+      memcpy(BufferPtr, OffloadEntry.name, NameLength);
+      BufferPtr = advanceVoidPtr(BufferPtr, NameLength);
+
+      *((uint32_t *)(BufferPtr)) = OffloadEntry.size;
+      BufferPtr = advanceVoidPtr(BufferPtr, sizeof(uint32_t));
+
+      auto Err = Plugin::success();
+      {
+        if (auto Err = Device->dataRetrieve(BufferPtr, OffloadEntry.addr,
+                                            OffloadEntry.size, nullptr))
+          report_fatal_error("Error retrieving data for global");
+      }
+      if (Err)
+        report_fatal_error("Error retrieving data for global");
+      BufferPtr = advanceVoidPtr(BufferPtr, OffloadEntry.size);
+    }
+    assert(BufferPtr == GlobalsMB->get()->getBufferEnd() &&
+           "Buffer over/under-filled.");
+    assert(Size == getPtrDiff(BufferPtr, GlobalsMB->get()->getBufferStart()) &&
+           "Buffer size mismatch");
+
+    StringRef GlobalsMemory(GlobalsMB.get()->getBufferStart(), Size);
+    std::error_code EC;
+    raw_fd_ostream OS(Filename, EC);
+    OS << GlobalsMemory;
+    OS.close();
+  }
+
+  void saveKernelDescr(const char *Name, void **ArgPtrs, int32_t NumArgs,
+                       uint64_t NumTeamsClause, uint32_t ThreadLimitClause,
+                       uint64_t LoopTripCount) {
     json::Object JsonKernelInfo;
     JsonKernelInfo["Name"] = Name;
     JsonKernelInfo["NumArgs"] = NumArgs;
@@ -147,6 +269,7 @@ public:
     JsonKernelInfo["LoopTripCount"] = LoopTripCount;
     JsonKernelInfo["DeviceMemorySize"] = MemorySize;
     JsonKernelInfo["DeviceId"] = Device->getDeviceId();
+    JsonKernelInfo["BumpAllocVAStart"] = (intptr_t)MemoryStart;
 
     json::Array JsonArgPtrs;
     for (int I = 0; I < NumArgs; ++I)
@@ -155,11 +278,8 @@ public:
 
     json::Array JsonArgOffsets;
     for (int I = 0; I < NumArgs; ++I)
-      JsonArgOffsets.push_back(ArgOffsets[I]);
+      JsonArgOffsets.push_back(0);
     JsonKernelInfo["ArgOffsets"] = json::Value(std::move(JsonArgOffsets));
-
-    SmallString<128> MemoryFilename = {Name, ".memory"};
-    dumpDeviceMemory(MemoryFilename, AsyncInfoWrapper);
 
     SmallString<128> JsonFilename = {Name, ".json"};
     std::error_code EC;
@@ -171,11 +291,18 @@ public:
     JsonOS.close();
   }
 
-  void saveKernelOutputInfo(const char *Name,
-                            AsyncInfoWrapperTy &AsyncInfoWrapper) {
+  void saveKernelInput(const char *Name, DeviceImageTy &Image) {
+    SmallString<128> GlobalsFilename = {Name, ".globals"};
+    dumpGlobals(GlobalsFilename, Image);
+
+    SmallString<128> MemoryFilename = {Name, ".memory"};
+    dumpDeviceMemory(MemoryFilename);
+  }
+
+  void saveKernelOutputInfo(const char *Name) {
     SmallString<128> OutputFilename = {
         Name, (isRecording() ? ".original.output" : ".replay.output")};
-    dumpDeviceMemory(OutputFilename, AsyncInfoWrapper);
+    dumpDeviceMemory(OutputFilename);
   }
 
   void *alloc(uint64_t Size) {
@@ -188,50 +315,186 @@ public:
     Alloc = MemoryPtr;
     MemoryPtr = (char *)MemoryPtr + AlignedSize;
     MemorySize += AlignedSize;
+    DP("Memory Allocator return " DPxMOD "\n", DPxPTR(Alloc));
     return Alloc;
   }
 
-  Error init(GenericDeviceTy *Device) {
+  Error init(GenericDeviceTy *Device, uint64_t MemSize, void *VAddr,
+             RRStatusTy Status, bool SaveOutput, uint64_t &ReqPtrArgOffset) {
     this->Device = Device;
-    return preallocateDeviceMemory();
+    this->Status = Status;
+    this->ReplaySaveOutput = SaveOutput;
+
+    if (auto Err = preallocateDeviceMemory(MemSize, VAddr))
+      return Err;
+
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, Device->getDeviceId(),
+         "Record Replay Initialized (%p)"
+         " as starting address, %lu Memory Size"
+         " and set on status %s\n",
+         MemoryStart, TotalSize,
+         Status == RRStatusTy::RRRecording ? "Recording" : "Replaying");
+
+    // Tell the user to offset pointer arguments as the memory allocation does
+    // not match.
+    ReqPtrArgOffset = MemoryOffset;
+    return Plugin::success();
   }
 
-  void deinit() { Device->free(MemoryStart); }
+  void deinit() {
+    if (UsedVAMap) {
+      if (auto Err = Device->memoryVAUnMap(MemoryStart, TotalSize))
+        report_fatal_error("Error on releasing virtual memory space");
+    } else {
+      Device->free(MemoryStart);
+    }
+  }
 
 } RecordReplay;
 
-AsyncInfoWrapperTy::AsyncInfoWrapperTy(GenericDeviceTy &Device,
-                                       __tgt_async_info *AsyncInfoPtr)
-    : Err(Plugin::success()), Device(Device),
-      AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {
-  // Mark the success as checked. Otherwise, it would produce an error when
-  // re-assigned another error value.
-  !Err;
+// Extract the mapping of host function pointers to device function pointers
+// from the entry table. Functions marked as 'indirect' in OpenMP will have
+// offloading entries generated for them which map the host's function pointer
+// to a global containing the corresponding function pointer on the device.
+static Expected<std::pair<void *, uint64_t>>
+setupIndirectCallTable(GenericPluginTy &Plugin, GenericDeviceTy &Device,
+                       DeviceImageTy &Image) {
+  GenericGlobalHandlerTy &Handler = Plugin.getGlobalHandler();
+
+  llvm::ArrayRef<__tgt_offload_entry> Entries(Image.getTgtImage()->EntriesBegin,
+                                              Image.getTgtImage()->EntriesEnd);
+  llvm::SmallVector<std::pair<void *, void *>> IndirectCallTable;
+  for (const auto &Entry : Entries) {
+    if (Entry.size == 0 || !(Entry.flags & OMP_DECLARE_TARGET_INDIRECT))
+      continue;
+
+    assert(Entry.size == sizeof(void *) && "Global not a function pointer?");
+    auto &[HstPtr, DevPtr] = IndirectCallTable.emplace_back();
+
+    GlobalTy DeviceGlobal(Entry.name, Entry.size);
+    if (auto Err =
+            Handler.getGlobalMetadataFromDevice(Device, Image, DeviceGlobal))
+      return std::move(Err);
+
+    HstPtr = Entry.addr;
+    if (auto Err = Device.dataRetrieve(&DevPtr, DeviceGlobal.getPtr(),
+                                       Entry.size, nullptr))
+      return std::move(Err);
+  }
+
+  // If we do not have any indirect globals we exit early.
+  if (IndirectCallTable.empty())
+    return std::pair{nullptr, 0};
+
+  // Sort the array to allow for more efficient lookup of device pointers.
+  llvm::sort(IndirectCallTable,
+             [](const auto &x, const auto &y) { return x.first < y.first; });
+
+  uint64_t TableSize =
+      IndirectCallTable.size() * sizeof(std::pair<void *, void *>);
+  void *DevicePtr = Device.allocate(TableSize, nullptr, TARGET_ALLOC_DEVICE);
+  if (auto Err = Device.dataSubmit(DevicePtr, IndirectCallTable.data(),
+                                   TableSize, nullptr))
+    return std::move(Err);
+  return std::pair<void *, uint64_t>(DevicePtr, IndirectCallTable.size());
 }
 
-Error AsyncInfoWrapperTy::finalize() {
+AsyncInfoWrapperTy::AsyncInfoWrapperTy(GenericDeviceTy &Device,
+                                       __tgt_async_info *AsyncInfoPtr)
+    : Device(Device),
+      AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {}
+
+void AsyncInfoWrapperTy::finalize(Error &Err) {
   assert(AsyncInfoPtr && "AsyncInfoWrapperTy already finalized");
 
-  // If we used a local async info object we want synchronous behavior.
-  // In that case, and assuming the current status code is OK, we will
-  // synchronize explicitly when the object is deleted.
+  // If we used a local async info object we want synchronous behavior. In that
+  // case, and assuming the current status code is correct, we will synchronize
+  // explicitly when the object is deleted. Update the error with the result of
+  // the synchronize operation.
   if (AsyncInfoPtr == &LocalAsyncInfo && LocalAsyncInfo.Queue && !Err)
     Err = Device.synchronize(&LocalAsyncInfo);
 
   // Invalidate the wrapper object.
   AsyncInfoPtr = nullptr;
-
-  // Return the error associated to the async operations and the synchronize.
-  return std::move(Err);
 }
 
 Error GenericKernelTy::init(GenericDeviceTy &GenericDevice,
                             DeviceImageTy &Image) {
-  PreferredNumThreads = getDefaultNumThreads(GenericDevice);
 
-  MaxNumThreads = GenericDevice.getThreadLimit();
+  ImagePtr = &Image;
+
+  // Retrieve kernel environment object for the kernel.
+  GlobalTy KernelEnv(std::string(Name) + "_kernel_environment",
+                     sizeof(KernelEnvironment), &KernelEnvironment);
+  GenericGlobalHandlerTy &GHandler = Plugin::get().getGlobalHandler();
+  if (auto Err =
+          GHandler.readGlobalFromImage(GenericDevice, *ImagePtr, KernelEnv)) {
+    [[maybe_unused]] std::string ErrStr = toString(std::move(Err));
+    DP("Failed to read kernel environment for '%s': %s\n"
+       "Using default SPMD (2) execution mode\n",
+       Name, ErrStr.data());
+    assert(KernelEnvironment.Configuration.ReductionDataSize == 0 &&
+           "Default initialization failed.");
+  }
+
+  // Max = Config.Max > 0 ? min(Config.Max, Device.Max) : Device.Max;
+  MaxNumThreads = KernelEnvironment.Configuration.MaxThreads > 0
+                      ? std::min(KernelEnvironment.Configuration.MaxThreads,
+                                 int32_t(GenericDevice.getThreadLimit()))
+                      : GenericDevice.getThreadLimit();
+
+  // Pref = Config.Pref > 0 ? max(Config.Pref, Device.Pref) : Device.Pref;
+  PreferredNumThreads =
+      KernelEnvironment.Configuration.MinThreads > 0
+          ? std::max(KernelEnvironment.Configuration.MinThreads,
+                     int32_t(GenericDevice.getDefaultNumThreads()))
+          : GenericDevice.getDefaultNumThreads();
 
   return initImpl(GenericDevice, Image);
+}
+
+Expected<KernelLaunchEnvironmentTy *>
+GenericKernelTy::getKernelLaunchEnvironment(
+    GenericDeviceTy &GenericDevice,
+    AsyncInfoWrapperTy &AsyncInfoWrapper) const {
+  // Ctor/Dtor have no arguments, replaying uses the original kernel launch
+  // environment.
+  if (isCtorOrDtor() || RecordReplay.isReplaying())
+    return nullptr;
+
+  // TODO: Check if the kernel needs a launch environment.
+  auto AllocOrErr = GenericDevice.dataAlloc(sizeof(KernelLaunchEnvironmentTy),
+                                            /*HostPtr=*/nullptr,
+                                            TargetAllocTy::TARGET_ALLOC_DEVICE);
+  if (!AllocOrErr)
+    return AllocOrErr.takeError();
+
+  // Remember to free the memory later.
+  AsyncInfoWrapper.freeAllocationAfterSynchronization(*AllocOrErr);
+
+  /// Use the KLE in the __tgt_async_info to ensure a stable address for the
+  /// async data transfer.
+  auto &LocalKLE = (*AsyncInfoWrapper).KernelLaunchEnvironment;
+  LocalKLE = KernelLaunchEnvironment;
+  if (KernelEnvironment.Configuration.ReductionDataSize &&
+      KernelEnvironment.Configuration.ReductionBufferLength) {
+    auto AllocOrErr = GenericDevice.dataAlloc(
+        KernelEnvironment.Configuration.ReductionDataSize *
+            KernelEnvironment.Configuration.ReductionBufferLength,
+        /*HostPtr=*/nullptr, TargetAllocTy::TARGET_ALLOC_DEVICE);
+    if (!AllocOrErr)
+      return AllocOrErr.takeError();
+    LocalKLE.ReductionBuffer = *AllocOrErr;
+    // Remember to free the memory later.
+    AsyncInfoWrapper.freeAllocationAfterSynchronization(*AllocOrErr);
+  }
+
+  auto Err = GenericDevice.dataSubmit(*AllocOrErr, &LocalKLE,
+                                      sizeof(KernelLaunchEnvironmentTy),
+                                      AsyncInfoWrapper);
+  if (Err)
+    return Err;
+  return static_cast<KernelLaunchEnvironmentTy *>(*AllocOrErr);
 }
 
 Error GenericKernelTy::printLaunchInfo(GenericDeviceTy &GenericDevice,
@@ -259,12 +522,28 @@ Error GenericKernelTy::launch(GenericDeviceTy &GenericDevice, void **ArgPtrs,
   llvm::SmallVector<void *, 16> Args;
   llvm::SmallVector<void *, 16> Ptrs;
 
-  void *KernelArgsPtr = prepareArgs(GenericDevice, ArgPtrs, ArgOffsets,
-                                    KernelArgs.NumArgs, Args, Ptrs);
+  auto KernelLaunchEnvOrErr =
+      getKernelLaunchEnvironment(GenericDevice, AsyncInfoWrapper);
+  if (!KernelLaunchEnvOrErr)
+    return KernelLaunchEnvOrErr.takeError();
+
+  void *KernelArgsPtr =
+      prepareArgs(GenericDevice, ArgPtrs, ArgOffsets, KernelArgs.NumArgs, Args,
+                  Ptrs, *KernelLaunchEnvOrErr);
 
   uint32_t NumThreads = getNumThreads(GenericDevice, KernelArgs.ThreadLimit);
-  uint64_t NumBlocks = getNumBlocks(GenericDevice, KernelArgs.NumTeams,
-                                    KernelArgs.Tripcount, NumThreads);
+  uint64_t NumBlocks =
+      getNumBlocks(GenericDevice, KernelArgs.NumTeams, KernelArgs.Tripcount,
+                   NumThreads, KernelArgs.ThreadLimit[0] > 0);
+
+  // Record the kernel description after we modified the argument count and num
+  // blocks/threads.
+  if (RecordReplay.isRecording()) {
+    RecordReplay.saveImage(getName(), getImage());
+    RecordReplay.saveKernelInput(getName(), getImage());
+    RecordReplay.saveKernelDescr(getName(), Ptrs.data(), KernelArgs.NumArgs,
+                                 NumBlocks, NumThreads, KernelArgs.Tripcount);
+  }
 
   if (auto Err =
           printLaunchInfo(GenericDevice, KernelArgs, NumThreads, NumBlocks))
@@ -274,19 +553,28 @@ Error GenericKernelTy::launch(GenericDeviceTy &GenericDevice, void **ArgPtrs,
                     KernelArgsPtr, AsyncInfoWrapper);
 }
 
-void *GenericKernelTy::prepareArgs(GenericDeviceTy &GenericDevice,
-                                   void **ArgPtrs, ptrdiff_t *ArgOffsets,
-                                   int32_t NumArgs,
-                                   llvm::SmallVectorImpl<void *> &Args,
-                                   llvm::SmallVectorImpl<void *> &Ptrs) const {
+void *GenericKernelTy::prepareArgs(
+    GenericDeviceTy &GenericDevice, void **ArgPtrs, ptrdiff_t *ArgOffsets,
+    uint32_t &NumArgs, llvm::SmallVectorImpl<void *> &Args,
+    llvm::SmallVectorImpl<void *> &Ptrs,
+    KernelLaunchEnvironmentTy *KernelLaunchEnvironment) const {
+  if (isCtorOrDtor())
+    return nullptr;
+
+  uint32_t KLEOffset = !!KernelLaunchEnvironment;
+  NumArgs += KLEOffset;
+
   Args.resize(NumArgs);
   Ptrs.resize(NumArgs);
 
-  if (NumArgs == 0)
-    return nullptr;
+  if (KernelLaunchEnvironment) {
+    Ptrs[0] = KernelLaunchEnvironment;
+    Args[0] = &Ptrs[0];
+  }
 
-  for (int I = 0; I < NumArgs; ++I) {
-    Ptrs[I] = (void *)((intptr_t)ArgPtrs[I] + ArgOffsets[I]);
+  for (int I = KLEOffset; I < NumArgs; ++I) {
+    Ptrs[I] =
+        (void *)((intptr_t)ArgPtrs[I - KLEOffset] + ArgOffsets[I - KLEOffset]);
     Args[I] = &Ptrs[I];
   }
   return &Args[0];
@@ -307,7 +595,8 @@ uint32_t GenericKernelTy::getNumThreads(GenericDeviceTy &GenericDevice,
 uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
                                        uint32_t NumTeamsClause[3],
                                        uint64_t LoopTripCount,
-                                       uint32_t NumThreads) const {
+                                       uint32_t &NumThreads,
+                                       bool IsNumThreadsFromUser) const {
   assert(NumTeamsClause[1] == 0 && NumTeamsClause[2] == 0 &&
          "Multi dimensional launch not supported yet.");
 
@@ -318,14 +607,52 @@ uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
     return std::min(NumTeamsClause[0], GenericDevice.getBlockLimit());
   }
 
+  uint64_t DefaultNumBlocks = GenericDevice.getDefaultNumBlocks();
   uint64_t TripCountNumBlocks = std::numeric_limits<uint64_t>::max();
   if (LoopTripCount > 0) {
     if (isSPMDMode()) {
       // We have a combined construct, i.e. `target teams distribute
       // parallel for [simd]`. We launch so many teams so that each thread
-      // will execute one iteration of the loop. round up to the nearest
-      // integer
-      TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      // will execute one iteration of the loop; rounded up to the nearest
+      // integer. However, if that results in too few teams, we artificially
+      // reduce the thread count per team to increase the outer parallelism.
+      auto MinThreads = GenericDevice.getMinThreadsForLowTripCountLoop();
+      MinThreads = std::min(MinThreads, NumThreads);
+
+      // Honor the thread_limit clause; only lower the number of threads.
+      [[maybe_unused]] auto OldNumThreads = NumThreads;
+      if (LoopTripCount >= DefaultNumBlocks * NumThreads ||
+          IsNumThreadsFromUser) {
+        // Enough parallelism for teams and threads.
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+        assert(IsNumThreadsFromUser ||
+               TripCountNumBlocks >= DefaultNumBlocks &&
+                   "Expected sufficient outer parallelism.");
+      } else if (LoopTripCount >= DefaultNumBlocks * MinThreads) {
+        // Enough parallelism for teams, limit threads.
+
+        // This case is hard; for now, we force "full warps":
+        // First, compute a thread count assuming DefaultNumBlocks.
+        auto NumThreadsDefaultBlocks =
+            (LoopTripCount + DefaultNumBlocks - 1) / DefaultNumBlocks;
+        // Now get a power of two that is larger or equal.
+        auto NumThreadsDefaultBlocksP2 =
+            llvm::PowerOf2Ceil(NumThreadsDefaultBlocks);
+        // Do not increase a thread limit given be the user.
+        NumThreads = std::min(NumThreads, uint32_t(NumThreadsDefaultBlocksP2));
+        assert(NumThreads >= MinThreads &&
+               "Expected sufficient inner parallelism.");
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      } else {
+        // Not enough parallelism for teams and threads, limit both.
+        NumThreads = std::min(NumThreads, MinThreads);
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      }
+
+      assert(NumThreads * TripCountNumBlocks >= LoopTripCount &&
+             "Expected sufficient parallelism");
+      assert(OldNumThreads >= NumThreads &&
+             "Number of threads cannot be increased!");
     } else {
       assert((isGenericMode() || isGenericSPMDMode()) &&
              "Unexpected execution mode!");
@@ -345,8 +672,7 @@ uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
     }
   }
   // If the loops are long running we rather reuse blocks than spawn too many.
-  uint32_t PreferredNumBlocks = std::min(uint32_t(TripCountNumBlocks),
-                                         getDefaultNumBlocks(GenericDevice));
+  uint32_t PreferredNumBlocks = std::min(TripCountNumBlocks, DefaultNumBlocks);
   return std::min(PreferredNumBlocks, GenericDevice.getBlockLimit());
 }
 
@@ -361,16 +687,45 @@ GenericDeviceTy::GenericDeviceTy(int32_t DeviceId, int32_t NumDevices,
       // device initialization. These cannot be consulted until the device is
       // initialized correctly. We intialize them in GenericDeviceTy::init().
       OMPX_TargetStackSize(), OMPX_TargetHeapSize(),
-      // By default, the initial number of streams and events are 32.
-      OMPX_InitialNumStreams("LIBOMPTARGET_NUM_INITIAL_STREAMS", 32),
-      OMPX_InitialNumEvents("LIBOMPTARGET_NUM_INITIAL_EVENTS", 32),
+      // By default, the initial number of streams and events is 1.
+      OMPX_InitialNumStreams("LIBOMPTARGET_NUM_INITIAL_STREAMS", 1),
+      OMPX_InitialNumEvents("LIBOMPTARGET_NUM_INITIAL_EVENTS", 1),
       DeviceId(DeviceId), GridValues(OMPGridValues),
       PeerAccesses(NumDevices, PeerAccessState::PENDING), PeerAccessesLock(),
-      PinnedAllocs(*this) {}
+      PinnedAllocs(*this), RPCServer(nullptr) {
+#ifdef OMPT_SUPPORT
+  OmptInitialized.store(false);
+  // Bind the callbacks to this device's member functions
+#define bindOmptCallback(Name, Type, Code)                                     \
+  if (ompt::Initialized && ompt::lookupCallbackByCode) {                       \
+    ompt::lookupCallbackByCode((ompt_callbacks_t)(Code),                       \
+                               ((ompt_callback_t *)&(Name##_fn)));             \
+    DP("OMPT: class bound %s=%p\n", #Name, ((void *)(uint64_t)Name##_fn));     \
+  }
+
+  FOREACH_OMPT_DEVICE_EVENT(bindOmptCallback);
+#undef bindOmptCallback
+
+#endif
+}
 
 Error GenericDeviceTy::init(GenericPluginTy &Plugin) {
   if (auto Err = initImpl(Plugin))
     return Err;
+
+#ifdef OMPT_SUPPORT
+  if (ompt::Initialized) {
+    bool ExpectedStatus = false;
+    if (OmptInitialized.compare_exchange_strong(ExpectedStatus, true))
+      performOmptCallback(device_initialize,
+                          /* device_num */ DeviceId +
+                              Plugin.getDeviceIdStartIndex(),
+                          /* type */ getComputeUnitKind().c_str(),
+                          /* device */ reinterpret_cast<ompt_device_t *>(this),
+                          /* lookup */ ompt::lookupCallbackByName,
+                          /* documentation */ nullptr);
+  }
+#endif
 
   // Read and reinitialize the envars that depend on the device initialization.
   // Notice these two envars may change the stack size and heap size of the
@@ -406,15 +761,43 @@ Error GenericDeviceTy::init(GenericPluginTy &Plugin) {
   if (EnableMM)
     MemoryManager = new MemoryManagerTy(*this, ThresholdMM);
 
-  if (RecordReplay.isRecordingOrReplaying())
-    if (auto Err = RecordReplay.init(this))
-      return Err;
-
   return Plugin::success();
 }
 
-Error GenericDeviceTy::deinit() {
-  // Delete the memory manager before deinitilizing the device. Otherwise,
+Error GenericDeviceTy::deinit(GenericPluginTy &Plugin) {
+  for (DeviceImageTy *Image : LoadedImages)
+    if (auto Err = callGlobalDestructors(Plugin, *Image))
+      return Err;
+
+  if (OMPX_DebugKind.get() & uint32_t(DeviceDebugKind::AllocationTracker)) {
+    GenericGlobalHandlerTy &GHandler = Plugin.getGlobalHandler();
+    for (auto *Image : LoadedImages) {
+      DeviceMemoryPoolTrackingTy ImageDeviceMemoryPoolTracking = {0, 0, ~0U, 0};
+      GlobalTy TrackerGlobal("__omp_rtl_device_memory_pool_tracker",
+                             sizeof(DeviceMemoryPoolTrackingTy),
+                             &ImageDeviceMemoryPoolTracking);
+      if (auto Err =
+              GHandler.readGlobalFromDevice(*this, *Image, TrackerGlobal))
+        return Err;
+      DeviceMemoryPoolTracking.combine(ImageDeviceMemoryPoolTracking);
+    }
+
+    // TODO: Write this by default into a file.
+    printf("\n\n|-----------------------\n"
+           "| Device memory tracker:\n"
+           "|-----------------------\n"
+           "| #Allocations: %lu\n"
+           "| Byes allocated: %lu\n"
+           "| Minimal allocation: %lu\n"
+           "| Maximal allocation: %lu\n"
+           "|-----------------------\n\n\n",
+           DeviceMemoryPoolTracking.NumAllocations,
+           DeviceMemoryPoolTracking.AllocationTotal,
+           DeviceMemoryPoolTracking.AllocationMin,
+           DeviceMemoryPoolTracking.AllocationMax);
+  }
+
+  // Delete the memory manager before deinitializing the device. Otherwise,
   // we may delete device allocations after the device is deinitialized.
   if (MemoryManager)
     delete MemoryManager;
@@ -423,9 +806,22 @@ Error GenericDeviceTy::deinit() {
   if (RecordReplay.isRecordingOrReplaying())
     RecordReplay.deinit();
 
+  if (RPCServer)
+    if (auto Err = RPCServer->deinitDevice(*this))
+      return Err;
+
+#ifdef OMPT_SUPPORT
+  if (ompt::Initialized) {
+    bool ExpectedStatus = true;
+    if (OmptInitialized.compare_exchange_strong(ExpectedStatus, false))
+      performOmptCallback(device_finalize,
+                          /* device_num */ DeviceId +
+                              Plugin.getDeviceIdStartIndex());
+  }
+#endif
+
   return deinitImpl();
 }
-
 Expected<__tgt_target_table *>
 GenericDeviceTy::loadBinary(GenericPluginTy &Plugin,
                             const __tgt_device_image *InputTgtImage) {
@@ -459,8 +855,43 @@ GenericDeviceTy::loadBinary(GenericPluginTy &Plugin,
   if (auto Err = setupDeviceEnvironment(Plugin, *Image))
     return std::move(Err);
 
+  // Setup the global device memory pool if needed.
+  if (!RecordReplay.isReplaying() && shouldSetupDeviceMemoryPool()) {
+    uint64_t HeapSize;
+    auto SizeOrErr = getDeviceHeapSize(HeapSize);
+    if (SizeOrErr) {
+      REPORT("No global device memory pool due to error: %s\n",
+             toString(std::move(SizeOrErr)).data());
+    } else if (auto Err = setupDeviceMemoryPool(Plugin, *Image, HeapSize))
+      return std::move(Err);
+  }
+
   // Register all offload entries of the image.
   if (auto Err = registerOffloadEntries(*Image))
+    return std::move(Err);
+
+  if (auto Err = setupRPCServer(Plugin, *Image))
+    return std::move(Err);
+
+#ifdef OMPT_SUPPORT
+  if (ompt::Initialized) {
+    size_t Bytes =
+        getPtrDiff(InputTgtImage->ImageEnd, InputTgtImage->ImageStart);
+    performOmptCallback(device_load,
+                        /* device_num */ DeviceId +
+                            Plugin.getDeviceIdStartIndex(),
+                        /* FileName */ nullptr,
+                        /* File Offset */ 0,
+                        /* VmaInFile */ nullptr,
+                        /* ImgSize */ Bytes,
+                        /* HostAddr */ InputTgtImage->ImageStart,
+                        /* DeviceAddr */ nullptr,
+                        /* FIXME: ModuleId */ 0);
+  }
+#endif
+
+  // Call any global constructors present on the device.
+  if (auto Err = callGlobalConstructors(Plugin, *Image))
     return std::move(Err);
 
   // Return the pointer to the table of entries.
@@ -473,12 +904,22 @@ Error GenericDeviceTy::setupDeviceEnvironment(GenericPluginTy &Plugin,
   if (!shouldSetupDeviceEnvironment())
     return Plugin::success();
 
+  // Obtain a table mapping host function pointers to device function pointers.
+  auto CallTablePairOrErr = setupIndirectCallTable(Plugin, *this, Image);
+  if (!CallTablePairOrErr)
+    return CallTablePairOrErr.takeError();
+
   DeviceEnvironmentTy DeviceEnvironment;
-  DeviceEnvironment.DebugKind = OMPX_DebugKind;
+  DeviceEnvironment.DeviceDebugKind = OMPX_DebugKind;
   DeviceEnvironment.NumDevices = Plugin.getNumDevices();
   // TODO: The device ID used here is not the real device ID used by OpenMP.
   DeviceEnvironment.DeviceNum = DeviceId;
   DeviceEnvironment.DynamicMemSize = OMPX_SharedMemorySize;
+  DeviceEnvironment.ClockFrequency = getClockFrequency();
+  DeviceEnvironment.IndirectCallTable =
+      reinterpret_cast<uintptr_t>(CallTablePairOrErr->first);
+  DeviceEnvironment.IndirectCallTableSize = CallTablePairOrErr->second;
+  DeviceEnvironment.HardwareParallelism = getHardwareParallelism();
 
   // Create the metainfo of the device environment global.
   GlobalTy DevEnvGlobal("__omp_rtl_device_environment",
@@ -491,6 +932,69 @@ Error GenericDeviceTy::setupDeviceEnvironment(GenericPluginTy &Plugin,
        DevEnvGlobal.getName().data());
     consumeError(std::move(Err));
   }
+  return Plugin::success();
+}
+
+Error GenericDeviceTy::setupDeviceMemoryPool(GenericPluginTy &Plugin,
+                                             DeviceImageTy &Image,
+                                             uint64_t PoolSize) {
+  // Free the old pool, if any.
+  if (DeviceMemoryPool.Ptr) {
+    if (auto Err = dataDelete(DeviceMemoryPool.Ptr,
+                              TargetAllocTy::TARGET_ALLOC_DEVICE))
+      return Err;
+  }
+
+  DeviceMemoryPool.Size = PoolSize;
+  auto AllocOrErr = dataAlloc(PoolSize, /*HostPtr=*/nullptr,
+                              TargetAllocTy::TARGET_ALLOC_DEVICE);
+  if (AllocOrErr) {
+    DeviceMemoryPool.Ptr = *AllocOrErr;
+  } else {
+    auto Err = AllocOrErr.takeError();
+    REPORT("Failure to allocate device memory for global memory pool: %s\n",
+           toString(std::move(Err)).data());
+    DeviceMemoryPool.Ptr = nullptr;
+    DeviceMemoryPool.Size = 0;
+  }
+
+  // Create the metainfo of the device environment global.
+  GlobalTy TrackerGlobal("__omp_rtl_device_memory_pool_tracker",
+                         sizeof(DeviceMemoryPoolTrackingTy),
+                         &DeviceMemoryPoolTracking);
+  GenericGlobalHandlerTy &GHandler = Plugin.getGlobalHandler();
+  if (auto Err = GHandler.writeGlobalToDevice(*this, Image, TrackerGlobal))
+    return Err;
+
+  // Create the metainfo of the device environment global.
+  GlobalTy DevEnvGlobal("__omp_rtl_device_memory_pool",
+                        sizeof(DeviceMemoryPoolTy), &DeviceMemoryPool);
+
+  // Write device environment values to the device.
+  return GHandler.writeGlobalToDevice(*this, Image, DevEnvGlobal);
+}
+
+Error GenericDeviceTy::setupRPCServer(GenericPluginTy &Plugin,
+                                      DeviceImageTy &Image) {
+  // The plugin either does not need an RPC server or it is unavailible.
+  if (!shouldSetupRPCServer())
+    return Plugin::success();
+
+  // Check if this device needs to run an RPC server.
+  RPCServerTy &Server = Plugin.getRPCServer();
+  auto UsingOrErr =
+      Server.isDeviceUsingRPC(*this, Plugin.getGlobalHandler(), Image);
+  if (!UsingOrErr)
+    return UsingOrErr.takeError();
+
+  if (!UsingOrErr.get())
+    return Plugin::success();
+
+  if (auto Err = Server.initDevice(*this, Plugin.getGlobalHandler(), Image))
+    return Err;
+
+  RPCServer = &Server;
+  DP("Running an RPC server on device %d\n", getDeviceId());
   return Plugin::success();
 }
 
@@ -569,51 +1073,22 @@ Error GenericDeviceTy::registerKernelOffloadEntry(
   DeviceEntry = KernelEntry;
 
   // Create a kernel object.
-  auto KernelOrErr = constructKernelEntry(KernelEntry, Image);
+  auto KernelOrErr = constructKernel(KernelEntry);
   if (!KernelOrErr)
     return KernelOrErr.takeError();
 
-  GenericKernelTy *Kernel = *KernelOrErr;
-  assert(Kernel != nullptr && "Invalid kernel");
+  GenericKernelTy &Kernel = *KernelOrErr;
 
   // Initialize the kernel.
-  if (auto Err = Kernel->init(*this, Image))
+  if (auto Err = Kernel.init(*this, Image))
     return Err;
 
   // Set the device entry address to the kernel address and store the entry on
   // the entry table.
-  DeviceEntry.addr = (void *)Kernel;
+  DeviceEntry.addr = (void *)&Kernel;
   Image.getOffloadEntryTable().addEntry(DeviceEntry);
 
   return Plugin::success();
-}
-
-Expected<OMPTgtExecModeFlags>
-GenericDeviceTy::getExecutionModeForKernel(StringRef Name,
-                                           DeviceImageTy &Image) {
-  // Create a metadata object for the exec mode global (auto-generated).
-  StaticGlobalTy<llvm::omp::OMPTgtExecModeFlags> ExecModeGlobal(Name.data(),
-                                                                "_exec_mode");
-
-  // Retrieve execution mode for the kernel. This may fail since some kernels
-  // may not have an execution mode.
-  GenericGlobalHandlerTy &GHandler = Plugin::get().getGlobalHandler();
-  if (auto Err = GHandler.readGlobalFromImage(*this, Image, ExecModeGlobal)) {
-    // Consume the error since it is acceptable to fail.
-    [[maybe_unused]] std::string ErrStr = toString(std::move(Err));
-    DP("Failed to read execution mode for '%s': %s\n"
-       "Using default SPMD (2) execution mode\n",
-       Name.data(), ErrStr.data());
-
-    return OMP_TGT_EXEC_MODE_SPMD;
-  }
-
-  // Check that the retrieved execution mode is valid.
-  if (!GenericKernelTy::isValidExecutionMode(ExecModeGlobal.getValue()))
-    return Plugin::error("Invalid execution mode %d for '%s'",
-                         ExecModeGlobal.getValue(), Name.data());
-
-  return ExecModeGlobal.getValue();
 }
 
 Error PinnedAllocationMapTy::insertEntry(void *HstPtr, void *DevAccessiblePtr,
@@ -857,7 +1332,15 @@ Error GenericDeviceTy::synchronize(__tgt_async_info *AsyncInfo) {
   if (!AsyncInfo || !AsyncInfo->Queue)
     return Plugin::error("Invalid async info queue");
 
-  return synchronizeImpl(*AsyncInfo);
+  if (auto Err = synchronizeImpl(*AsyncInfo))
+    return Err;
+
+  for (auto *Ptr : AsyncInfo->AssociatedAllocations)
+    if (auto Err = dataDelete(Ptr, TargetAllocTy::TARGET_ALLOC_DEVICE))
+      return Err;
+  AsyncInfo->AssociatedAllocations.clear();
+
+  return Plugin::success();
 }
 
 Error GenericDeviceTy::queryAsync(__tgt_async_info *AsyncInfo) {
@@ -865,6 +1348,19 @@ Error GenericDeviceTy::queryAsync(__tgt_async_info *AsyncInfo) {
     return Plugin::error("Invalid async info queue");
 
   return queryAsyncImpl(*AsyncInfo);
+}
+
+Error GenericDeviceTy::memoryVAMap(void **Addr, void *VAddr, size_t *RSize) {
+  return Plugin::error("Device does not suppport VA Management");
+}
+
+Error GenericDeviceTy::memoryVAUnMap(void *VAddr, size_t Size) {
+  return Plugin::error("Device does not suppport VA Management");
+}
+
+Error GenericDeviceTy::getDeviceMemorySize(uint64_t &DSize) {
+  return Plugin::error(
+      "Mising getDeviceMemorySize impelmentation (required by RR-heuristic");
 }
 
 Expected<void *> GenericDeviceTy::dataAlloc(int64_t Size, void *HostPtr,
@@ -931,18 +1427,18 @@ Error GenericDeviceTy::dataSubmit(void *TgtPtr, const void *HstPtr,
                                   int64_t Size, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataSubmitImpl(TgtPtr, HstPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataSubmitImpl(TgtPtr, HstPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::dataRetrieve(void *HstPtr, const void *TgtPtr,
                                     int64_t Size, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataRetrieveImpl(HstPtr, TgtPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataRetrieveImpl(HstPtr, TgtPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::dataExchange(const void *SrcPtr, GenericDeviceTy &DstDev,
@@ -950,36 +1446,32 @@ Error GenericDeviceTy::dataExchange(const void *SrcPtr, GenericDeviceTy &DstDev,
                                     __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataExchangeImpl(SrcPtr, DstDev, DstPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataExchangeImpl(SrcPtr, DstDev, DstPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
                                     ptrdiff_t *ArgOffsets,
                                     KernelArgsTy &KernelArgs,
                                     __tgt_async_info *AsyncInfo) {
-  AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
+  AsyncInfoWrapperTy AsyncInfoWrapper(
+      *this, RecordReplay.isRecordingOrReplaying() ? nullptr : AsyncInfo);
 
   GenericKernelTy &GenericKernel =
       *reinterpret_cast<GenericKernelTy *>(EntryPtr);
 
-  if (RecordReplay.isRecording())
-    RecordReplay.saveKernelInputInfo(
-        GenericKernel.getName(), ArgPtrs, ArgOffsets, KernelArgs.NumArgs,
-        KernelArgs.NumTeams[0], KernelArgs.ThreadLimit[0], KernelArgs.Tripcount,
-        AsyncInfoWrapper);
+  auto Err = GenericKernel.launch(*this, ArgPtrs, ArgOffsets, KernelArgs,
+                                  AsyncInfoWrapper);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = GenericKernel.launch(*this, ArgPtrs, ArgOffsets, KernelArgs,
-                             AsyncInfoWrapper);
+  // 'finalize' here to guarantee next record-replay actions are in-sync
+  AsyncInfoWrapper.finalize(Err);
 
   if (RecordReplay.isRecordingOrReplaying() &&
       RecordReplay.isSaveOutputEnabled())
-    RecordReplay.saveKernelOutputInfo(GenericKernel.getName(),
-                                      AsyncInfoWrapper);
+    RecordReplay.saveKernelOutputInfo(GenericKernel.getName());
 
-  return AsyncInfoWrapper.finalize();
+  return Err;
 }
 
 Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
@@ -989,9 +1481,9 @@ Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
 
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, *AsyncInfoPtr);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = initAsyncInfoImpl(AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = initAsyncInfoImpl(AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::initDeviceInfo(__tgt_device_info *DeviceInfo) {
@@ -1001,8 +1493,16 @@ Error GenericDeviceTy::initDeviceInfo(__tgt_device_info *DeviceInfo) {
 }
 
 Error GenericDeviceTy::printInfo() {
-  // TODO: Print generic information here
-  return printInfoImpl();
+  InfoQueueTy InfoQueue;
+
+  // Get the vendor-specific info entries describing the device properties.
+  if (auto Err = obtainInfoImpl(InfoQueue))
+    return Err;
+
+  // Print all info entries.
+  InfoQueue.print();
+
+  return Plugin::success();
 }
 
 Error GenericDeviceTy::createEvent(void **EventPtrStorage) {
@@ -1017,17 +1517,17 @@ Error GenericDeviceTy::recordEvent(void *EventPtr,
                                    __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = recordEventImpl(EventPtr, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = recordEventImpl(EventPtr, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::waitEvent(void *EventPtr, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = waitEventImpl(EventPtr, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = waitEventImpl(EventPtr, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::syncEvent(void *EventPtr) {
@@ -1049,14 +1549,13 @@ Error GenericPluginTy::init() {
   GlobalHandler = Plugin::createGlobalHandler();
   assert(GlobalHandler && "Invalid global handler");
 
+  RPCServer = new RPCServerTy(NumDevices);
+  assert(RPCServer && "Invalid RPC server");
+
   return Plugin::success();
 }
 
 Error GenericPluginTy::deinit() {
-  // There is no global handler if no device is available.
-  if (GlobalHandler)
-    delete GlobalHandler;
-
   // Deinitialize all active devices.
   for (int32_t DeviceId = 0; DeviceId < NumDevices; ++DeviceId) {
     if (Devices[DeviceId]) {
@@ -1065,6 +1564,13 @@ Error GenericPluginTy::deinit() {
     }
     assert(!Devices[DeviceId] && "Device was not deinitialized");
   }
+
+  // There is no global handler if no device is available.
+  if (GlobalHandler)
+    delete GlobalHandler;
+
+  if (RPCServer)
+    delete RPCServer;
 
   // Perform last deinitializations on the plugin.
   return deinitImpl();
@@ -1090,7 +1596,7 @@ Error GenericPluginTy::deinitDevice(int32_t DeviceId) {
     return Plugin::success();
 
   // Deinitialize the device and release its resources.
-  if (auto Err = Devices[DeviceId]->deinit())
+  if (auto Err = Devices[DeviceId]->deinit(*this))
     return Err;
 
   // Delete the device and invalidate its reference.
@@ -1098,6 +1604,14 @@ Error GenericPluginTy::deinitDevice(int32_t DeviceId) {
   Devices[DeviceId] = nullptr;
 
   return Plugin::success();
+}
+
+const bool llvm::omp::target::plugin::libomptargetSupportsRPC() {
+#ifdef LIBOMPTARGET_RPC_SUPPORT
+  return true;
+#else
+  return false;
+#endif
 }
 
 /// Exposed library API function, basically wrappers around the GenericDeviceTy
@@ -1206,6 +1720,30 @@ int64_t __tgt_rtl_init_requires(int64_t RequiresFlags) {
 int32_t __tgt_rtl_is_data_exchangable(int32_t SrcDeviceId,
                                       int32_t DstDeviceId) {
   return Plugin::get().isDataExchangable(SrcDeviceId, DstDeviceId);
+}
+
+int32_t __tgt_rtl_initialize_record_replay(int32_t DeviceId, int64_t MemorySize,
+                                           void *VAddr, bool isRecord,
+                                           bool SaveOutput,
+                                           uint64_t &ReqPtrArgOffset) {
+  GenericPluginTy &Plugin = Plugin::get();
+  GenericDeviceTy &Device = Plugin.getDevice(DeviceId);
+  RecordReplayTy::RRStatusTy Status =
+      isRecord ? RecordReplayTy::RRStatusTy::RRRecording
+               : RecordReplayTy::RRStatusTy::RRReplaying;
+
+  if (auto Err = RecordReplay.init(&Device, MemorySize, VAddr, Status,
+                                   SaveOutput, ReqPtrArgOffset)) {
+    REPORT("WARNING RR did not intialize RR-properly with %lu bytes"
+           "(Error: %s)\n",
+           MemorySize, toString(std::move(Err)).data());
+    RecordReplay.setStatus(RecordReplayTy::RRStatusTy::RRDeactivated);
+
+    if (!isRecord) {
+      return OFFLOAD_FAIL;
+    }
+  }
+  return OFFLOAD_SUCCESS;
 }
 
 __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
@@ -1355,7 +1893,8 @@ int32_t __tgt_rtl_data_exchange(int32_t SrcDeviceId, void *SrcPtr,
                                 int32_t DstDeviceId, void *DstPtr,
                                 int64_t Size) {
   return __tgt_rtl_data_exchange_async(SrcDeviceId, SrcPtr, DstDeviceId, DstPtr,
-                                       Size, /* AsyncInfoPtr */ nullptr);
+                                       Size,
+                                       /* AsyncInfoPtr */ nullptr);
 }
 
 int32_t __tgt_rtl_data_exchange_async(int32_t SrcDeviceId, void *SrcPtr,
@@ -1509,6 +2048,12 @@ int32_t __tgt_rtl_init_device_info(int32_t DeviceId,
            DPxPTR(DeviceInfo), DeviceId, toString(std::move(Err)).data());
     return OFFLOAD_FAIL;
   }
+
+  return OFFLOAD_SUCCESS;
+}
+
+int32_t __tgt_rtl_set_device_offset(int32_t DeviceIdOffset) {
+  Plugin::get().setDeviceIdStartIndex(DeviceIdOffset);
 
   return OFFLOAD_SUCCESS;
 }

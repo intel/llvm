@@ -1,4 +1,4 @@
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 ; Bitcode compatibility test for 'dynamic' parameter to llvm.objectsize.
 

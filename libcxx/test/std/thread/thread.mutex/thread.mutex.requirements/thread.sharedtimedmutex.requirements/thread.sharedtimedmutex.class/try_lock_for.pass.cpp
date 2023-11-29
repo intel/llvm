@@ -10,8 +10,6 @@
 // UNSUPPORTED: c++03, c++11
 // ALLOW_RETRIES: 2
 
-// UNSUPPORTED: availability-shared_mutex-missing
-
 // <shared_mutex>
 
 // class shared_timed_mutex;
@@ -23,6 +21,7 @@
 #include <thread>
 #include <cstdlib>
 #include <cassert>
+#include <chrono>
 
 #include "make_test_thread.h"
 #include "test_macros.h"

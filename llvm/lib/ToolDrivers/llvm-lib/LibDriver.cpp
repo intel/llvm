@@ -23,6 +23,7 @@
 #include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
@@ -38,7 +39,7 @@ namespace {
 
 enum {
   OPT_INVALID = 0,
-#define OPTION(_1, _2, ID, _4, _5, _6, _7, _8, _9, _10, _11, _12) OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Options.inc"
 #undef OPTION
 };
@@ -50,10 +51,9 @@ enum {
 #include "Options.inc"
 #undef PREFIX
 
+using namespace llvm::opt;
 static constexpr opt::OptTable::Info InfoTable[] = {
-#define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
-  {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
-   X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Options.inc"
 #undef OPTION
 };
@@ -167,8 +167,7 @@ static Expected<COFF::MachineTypes> getCOFFFileMachine(MemoryBufferRef MB) {
   uint16_t Machine = (*Obj)->getMachine();
   if (Machine != COFF::IMAGE_FILE_MACHINE_I386 &&
       Machine != COFF::IMAGE_FILE_MACHINE_AMD64 &&
-      Machine != COFF::IMAGE_FILE_MACHINE_ARMNT &&
-      Machine != COFF::IMAGE_FILE_MACHINE_ARM64) {
+      Machine != COFF::IMAGE_FILE_MACHINE_ARMNT && !COFF::isAnyArm64(Machine)) {
     return createStringError(inconvertibleErrorCode(),
                              "unknown machine: " + std::to_string(Machine));
   }
@@ -181,7 +180,8 @@ static Expected<COFF::MachineTypes> getBitcodeFileMachine(MemoryBufferRef MB) {
   if (!TripleStr)
     return TripleStr.takeError();
 
-  switch (Triple(*TripleStr).getArch()) {
+  Triple T(*TripleStr);
+  switch (T.getArch()) {
   case Triple::x86:
     return COFF::IMAGE_FILE_MACHINE_I386;
   case Triple::x86_64:
@@ -189,10 +189,29 @@ static Expected<COFF::MachineTypes> getBitcodeFileMachine(MemoryBufferRef MB) {
   case Triple::arm:
     return COFF::IMAGE_FILE_MACHINE_ARMNT;
   case Triple::aarch64:
-    return COFF::IMAGE_FILE_MACHINE_ARM64;
+    return T.isWindowsArm64EC() ? COFF::IMAGE_FILE_MACHINE_ARM64EC
+                                : COFF::IMAGE_FILE_MACHINE_ARM64;
   default:
     return createStringError(inconvertibleErrorCode(),
                              "unknown arch in target triple: " + *TripleStr);
+  }
+}
+
+static bool machineMatches(COFF::MachineTypes LibMachine,
+                           COFF::MachineTypes FileMachine) {
+  if (LibMachine == FileMachine)
+    return true;
+  // ARM64EC mode allows both pure ARM64, ARM64EC and X64 objects to be mixed in
+  // the archive.
+  switch (LibMachine) {
+  case COFF::IMAGE_FILE_MACHINE_ARM64:
+    return FileMachine == COFF::IMAGE_FILE_MACHINE_ARM64X;
+  case COFF::IMAGE_FILE_MACHINE_ARM64EC:
+  case COFF::IMAGE_FILE_MACHINE_ARM64X:
+    return COFF::isAnyArm64(FileMachine) ||
+           FileMachine == COFF::IMAGE_FILE_MACHINE_AMD64;
+  default:
+    return false;
   }
 }
 
@@ -263,11 +282,18 @@ static void appendFile(std::vector<NewArchiveMember> &Members,
     // this check. See PR42180.
     if (FileMachine != COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
       if (LibMachine == COFF::IMAGE_FILE_MACHINE_UNKNOWN) {
+        if (FileMachine == COFF::IMAGE_FILE_MACHINE_ARM64EC) {
+            llvm::errs() << MB.getBufferIdentifier() << ": file machine type "
+                         << machineToStr(FileMachine)
+                         << " conflicts with inferred library machine type,"
+                         << " use /machine:arm64ec or /machine:arm64x\n";
+            exit(1);
+        }
         LibMachine = FileMachine;
         LibMachineSource =
             (" (inferred from earlier file '" + MB.getBufferIdentifier() + "')")
                 .str();
-      } else if (LibMachine != FileMachine) {
+      } else if (!machineMatches(LibMachine, FileMachine)) {
         llvm::errs() << MB.getBufferIdentifier() << ": file machine type "
                      << machineToStr(FileMachine)
                      << " conflicts with library machine type "
@@ -358,7 +384,7 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
     }
 
     Expected<COFFModuleDefinition> Def =
-        parseCOFFModuleDefinition(*MB, LibMachine, true);
+        parseCOFFModuleDefinition(*MB, LibMachine, /*MingwDef=*/false);
 
     if (!Def) {
       llvm::errs() << "error parsing definition\n"
@@ -456,11 +482,10 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
   std::reverse(Members.begin(), Members.end());
 
   bool Thin = Args.hasArg(OPT_llvmlibthin);
-  if (Error E =
-          writeArchive(OutputPath, Members,
-                       /*WriteSymtab=*/true,
-                       Thin ? object::Archive::K_GNU : object::Archive::K_COFF,
-                       /*Deterministic*/ true, Thin)) {
+  if (Error E = writeArchive(
+          OutputPath, Members, SymtabWritingMode::NormalSymtab,
+          Thin ? object::Archive::K_GNU : object::Archive::K_COFF,
+          /*Deterministic=*/true, Thin, nullptr, COFF::isArm64EC(LibMachine))) {
     handleAllErrors(std::move(E), [&](const ErrorInfoBase &EI) {
       llvm::errs() << OutputPath << ": " << EI.message() << "\n";
     });

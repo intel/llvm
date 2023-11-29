@@ -39,6 +39,7 @@
 #include "SPIRVStream.h"
 #include "SPIRVDebug.h"
 #include "SPIRVFunction.h"
+#include "SPIRVInstruction.h"
 #include "SPIRVNameMapEnum.h"
 #include "SPIRVOpCode.h"
 
@@ -179,6 +180,7 @@ const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
     writeQuotedString(O.OS, Str);
+    O.OS << " ";
     return O;
   }
 #endif
@@ -244,9 +246,21 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
   Entry->setWordCount(WordCount);
   if (OpCode != OpLine)
     Entry->setLine(M.getCurrentLine());
+  if (!Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                        SPIRVDebug::DebugLine) &&
+      !Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                        SPIRVDebug::DebugLine))
+    Entry->setDebugLine(M.getCurrentDebugLine());
+
   IS >> *Entry;
   if (Entry->isEndOfBlock() || OpCode == OpNoLine)
     M.setCurrentLine(nullptr);
+  if (Entry->isEndOfBlock() ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                       SPIRVDebug::DebugNoLine) ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                       SPIRVDebug::DebugNoLine))
+    M.setCurrentDebugLine(nullptr);
 
   if (OpExtension == OpCode) {
     auto *OpExt = static_cast<SPIRVExtension *>(Entry);
@@ -322,6 +336,27 @@ SPIRVDecoder::getContinuedInstructions(const spv::Op ContinuedOpCode) {
   while (OpCode == ContinuedOpCode) {
     SPIRVEntry *Entry = getEntry();
     assert(Entry && "Failed to decode entry! Invalid instruction!");
+    M.add(Entry);
+    ContinuedInst.push_back(Entry);
+    Pos = IS.tellg();
+    getWordCountAndOpCode();
+  }
+  IS.seekg(Pos); // restore position
+  return ContinuedInst;
+}
+
+std::vector<SPIRVEntry *> SPIRVDecoder::getSourceContinuedInstructions() {
+  std::vector<SPIRVEntry *> ContinuedInst;
+  std::streampos Pos = IS.tellg(); // remember position
+  getWordCountAndOpCode();
+  while (OpCode == OpExtInst) {
+    SPIRVEntry *Entry = getEntry();
+    assert(Entry && "Failed to decode entry! Invalid instruction!");
+    SPIRVExtInst *Inst = static_cast<SPIRVExtInst *>(Entry);
+    if (Inst->getExtOp() != SPIRVDebug::Instruction::SourceContinued) {
+      IS.seekg(Pos); // restore position
+      return ContinuedInst;
+    }
     M.add(Entry);
     ContinuedInst.push_back(Entry);
     Pos = IS.tellg();

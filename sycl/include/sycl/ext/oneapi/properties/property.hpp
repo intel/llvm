@@ -78,7 +78,7 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
-  static constexpr const char *value = "sycl-bar";
+  static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
 };
 
@@ -154,8 +154,12 @@ template <> struct IsRuntimeProperty<foo> : std::true_type {};
 
 #pragma once
 
+#include <iosfwd>      // for nullptr_t
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for false_type
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -190,13 +194,35 @@ enum PropKind : uint32_t {
   CacheConfig = 24,
   BitsPerSymbol = 25,
   FirstSymbolInHigherOrderBit = 26,
-  MinCapacity = 27,
-  PipeProtocol = 28,
-  ReadyLatency = 29,
-  UsesReady = 30,
-  UsesValid = 31,
+  PipeProtocol = 27,
+  ReadyLatency = 28,
+  UsesValid = 29,
+  UseRootSync = 30,
+  RegisterAllocMode = 31,
+  GRFSize = 32,
+  GRFSizeAutomatic = 33,
+  Resource = 34,
+  NumBanks = 35,
+  StrideSize = 36,
+  WordSize = 37,
+  BiDirectionalPorts = 38,
+  Clock2x = 39,
+  RAMStitching = 40,
+  MaxPrivateCopies = 41,
+  NumReplicates = 42,
+  Datapath = 43,
+  ESIMDL1CacheHint = 44,
+  ESIMDL2CacheHint = 45,
+  ESIMDL3CacheHint = 46,
+  UsmKind = 47,
+  CacheControlReadHint = 48,
+  CacheControlReadAssertion = 49,
+  CacheControlWrite = 50,
+  BuildOptions = 51,
+  BuildLog = 52,
+  FloatingPointControls = 53,
   // PropKindSize must always be the last value.
-  PropKindSize = 32,
+  PropKindSize = 54,
 };
 
 // This trait must be specialized for all properties and must have a unique
@@ -231,5 +257,5 @@ template <typename, typename> struct is_property_key_of : std::false_type {};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

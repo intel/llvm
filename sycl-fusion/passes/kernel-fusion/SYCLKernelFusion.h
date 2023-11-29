@@ -10,6 +10,7 @@
 #define SYCL_FUSION_PASSES_SYCLKERNELFUSION_H
 
 #include "Kernel.h"
+#include "target/TargetFusionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -34,7 +35,7 @@ public:
   constexpr static llvm::StringLiteral NDRangesMDKey{"sycl.kernel.nd-ranges"};
 
   constexpr SYCLKernelFusion() = default;
-  constexpr explicit SYCLKernelFusion(int BarriersFlags)
+  constexpr explicit SYCLKernelFusion(jit_compiler::BarrierFlags BarriersFlags)
       : BarriersFlags{BarriersFlags} {}
 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
@@ -44,7 +45,8 @@ public:
   ///
   /// By default, correct ordering of memory operations to global memory is
   /// ensured.
-  constexpr static int DefaultBarriersFlags{3};
+  constexpr static jit_compiler::BarrierFlags DefaultBarriersFlags{
+      jit_compiler::getLocalAndGlobalBarrierFlag()};
 
 private:
   // This needs to be in sync with the metadata kind
@@ -52,8 +54,6 @@ private:
   // locate our own metadata again.
   static constexpr auto MetadataKind = "sycl.kernel.fused";
   static constexpr auto ParameterMDKind = "sycl.kernel.param";
-  static constexpr auto ITTStartWrapper = "__itt_offload_wi_start_wrapper";
-  static constexpr auto ITTFinishWrapper = "__itt_offload_wi_finish_wrapper";
 
   using MDList = llvm::SmallVector<llvm::Metadata *, 16>;
 
@@ -112,17 +112,13 @@ private:
   llvm::Error
   fuseKernel(llvm::Module &M, llvm::Function &StubFunction,
              jit_compiler::SYCLModuleInfo *ModInfo,
+             llvm::TargetFusionInfo &TargetInfo,
              llvm::SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const;
 
   void canonicalizeParameters(
       llvm::SmallVectorImpl<ParameterIdentity> &Params) const;
 
   Parameter getParamFromMD(llvm::Metadata *MD) const;
-
-  void addToFusedMetadata(
-      llvm::Function *InputFunction, const llvm::StringRef &Kind,
-      const llvm::ArrayRef<bool> IsArgPresentMask,
-      llvm::SmallVectorImpl<llvm::Metadata *> &FusedMDList) const;
 
   void attachFusedMetadata(
       llvm::Function *FusedFunction, const llvm::StringRef &Kind,
@@ -160,11 +156,7 @@ private:
   ///
   /// Flags to apply to the barrier to be introduced between fused kernels.
   ///
-  /// Possible values:
-  /// - -1: Do not insert barrier
-  /// - 1: ensure correct ordering of memory operations to local memory
-  /// - 2: ensure correct ordering of memory operations to global memory
-  const int BarriersFlags{DefaultBarriersFlags};
+  const jit_compiler::BarrierFlags BarriersFlags{DefaultBarriersFlags};
 
   ///
   /// Merge the content of Other into Attributes, adding, removing or updating

@@ -22,6 +22,7 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr char ATTR_SYCL_OPTLEVEL[] = "sycl-optlevel";
 
 using CallGraphNodeAction = ::std::function<void(Function *)>;
 using CallGraphFunctionFilter =
@@ -115,6 +116,12 @@ bool collectPossibleStoredVals(
 inline bool isSYCLExternalFunction(const Function *F) {
   return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
 }
+
+constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
+inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
+  return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
+}
+constexpr char SYCLNATIVECPURENAMEMD[] = "sycl-native-cpu-rename";
 
 } // namespace utils
 } // namespace sycl

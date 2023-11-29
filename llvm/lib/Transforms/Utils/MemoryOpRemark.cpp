@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/MemoryOpRemark.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DebugInfo.h"
@@ -387,7 +388,8 @@ bool AutoInitRemark::canHandle(const Instruction *I) {
     return false;
   return any_of(I->getMetadata(LLVMContext::MD_annotation)->operands(),
                 [](const MDOperand &Op) {
-                  return cast<MDString>(Op.get())->getString() == "auto-init";
+                  return isa<MDString>(Op.get()) &&
+                         cast<MDString>(Op.get())->getString() == "auto-init";
                 });
 }
 

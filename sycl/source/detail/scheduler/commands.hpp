@@ -24,11 +24,14 @@
 #include <sycl/detail/cg.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 bool CurrentCodeLocationValid();
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+                                xpti_td *TraceEvent, uint16_t Type,
+                                const char *Txt);
 #endif
 
 class queue_impl;
@@ -109,10 +112,13 @@ public:
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
     HOST_TASK,
-    FUSION
+    FUSION,
+    EXEC_CMD_BUFFER,
   };
 
-  Command(CommandType Type, QueueImplPtr Queue);
+  Command(CommandType Type, QueueImplPtr Queue,
+          sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {});
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -181,9 +187,10 @@ public:
       Command *Cmd, void *ObjAddr, bool IsCommand,
       std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
-  void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
+  void emitEdgeEventForEventDependence(Command *Cmd,
+                                       sycl::detail::pi::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr);
+  void emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -227,12 +234,12 @@ public:
 
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce pi
   /// event but has empty native handle.
-  std::vector<RT::PiEvent>
+  std::vector<sycl::detail::pi::PiEvent>
   getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
@@ -248,7 +255,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
-                     RT::PiEvent &Event);
+                     sycl::detail::pi::PiEvent &Event);
 
   void waitForPreparedHostEvents() const;
 
@@ -289,6 +296,17 @@ public:
   // XPTI instrumentation. Copy code location details to the internal struct.
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
+
+  /// Clear all dependency events This should only be used if a command is about
+  /// to be deleted without being executed before that. As of now, the only
+  /// valid use case for this function is in kernel fusion, where the fused
+  /// kernel commands are replaced by the fused command without ever being
+  /// executed.
+  void clearAllDependencies() {
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+    MDeps.clear();
+  }
 
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
@@ -371,6 +389,18 @@ public:
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
+
+protected:
+  /// Gets the command buffer (if any) associated with this command.
+  sycl::detail::pi::PiExtCommandBuffer getCommandBuffer() const {
+    return MCommandBuffer;
+  }
+
+  /// CommandBuffer which will be used to submit to instead of the queue, if
+  /// set.
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  /// List of sync points for submissions to a command buffer.
+  std::vector<sycl::detail::pi::PiExtSyncPoint> MSyncPointDeps;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -585,20 +615,21 @@ private:
   void **MDstPtr = nullptr;
 };
 
-pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
-                                  const std::string &PipeName, bool blocking,
-                                  void *ptr, size_t size,
-                                  std::vector<RT::PiEvent> &RawEvents,
-                                  RT::PiEvent *OutEvent, bool read);
+pi_int32
+enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
+                         bool blocking, void *ptr, size_t size,
+                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+                         const detail::EventImplPtr &OutEventImpl, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
+    const std::string &KernelName,
+    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    RT::PiKernelCacheConfig KernelCacheConfig);
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 
@@ -606,7 +637,10 @@ class KernelFusionCommand;
 /// operation.
 class ExecCGCommand : public Command {
 public:
-  ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
+  ExecCGCommand(
+      std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+      const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -636,6 +670,8 @@ public:
 
 private:
   pi_int32 enqueueImp() final;
+  pi_int32 enqueueImpCommandBuffer();
+  pi_int32 enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -643,6 +679,18 @@ private:
 
   friend class Command;
 };
+
+// For XPTI instrumentation only.
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    std::vector<ArgDesc> &CGArgs);
+#endif
 
 class UpdateHostRequirementCommand : public Command {
 public:
@@ -684,6 +732,11 @@ public:
   /// only be called under the protection of the scheduler write-lock.
   void setFusionStatus(FusionStatus Status);
 
+  /// Reset the queue. This can be required as the command is held in order
+  /// to maintain events alive, however this prevent the normal destruction of
+  /// the queue.
+  void resetQueue();
+
   bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
 
   bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
@@ -698,6 +751,31 @@ private:
   FusionStatus MStatus;
 };
 
+// Enqueues a given kernel to a PiExtCommandBuffer
+pi_int32 enqueueImpCommandBufferKernel(
+    context Ctx, DeviceImplPtr DeviceImpl,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const CGExecKernel &CommandGroup,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+
+// Sets arguments for a given kernel and device based on the argument type.
+// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
+// extension.
+void SetArgBasedOnType(
+    const detail::plugin &Plugin, sycl::detail::pi::PiKernel Kernel,
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
+    size_t NextTrueIndex);
+
+void applyFuncOnFilteredArgs(
+    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
+    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func);
+
+void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

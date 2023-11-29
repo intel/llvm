@@ -69,6 +69,18 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     std::cout << Prepend << "Name       : " << DeviceName << std::endl;
     std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
     std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
+
+    std::cout << Prepend << "Aspects    :";
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  if (Device.has(aspect::ASPECT))                                              \
+    std::cout << " " << #ASPECT;
+#include <sycl/info/aspects.def>
+    std::cout << std::endl;
+    auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+    std::cout << Prepend << "info::device::sub_group_sizes:";
+    for (auto size : sg_sizes)
+      std::cout << " " << size;
+    std::cout << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;

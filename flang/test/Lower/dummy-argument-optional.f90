@@ -1,5 +1,5 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
-! RUN: flang-new -fc1 -fdefault-integer-8 -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
+! RUN: %flang_fc1 -fdefault-integer-8 -emit-fir -flang-deprecated-no-hlfir %s -o - | FileCheck %s
 
 ! Test OPTIONAL lowering on caller/callee and PRESENT intrinsic.
 module opt
@@ -52,16 +52,16 @@ end subroutine
 ! CHECK-SAME: %[[arg0:.*]]: !fir.boxchar<1> {fir.bindc_name = "x", fir.optional}) {
 subroutine character_scalar(x)
   ! CHECK: %[[unboxed:.*]]:2 = fir.unboxchar %[[arg0]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
+  ! CHECK: %[[ref:.*]] = fir.convert %[[unboxed]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1,10>>
   character(10), optional :: x
-  ! CHECK: fir.is_present %[[unboxed]]#0 : (!fir.ref<!fir.char<1,?>>) -> i1
+  ! CHECK: fir.is_present %[[ref]] : (!fir.ref<!fir.char<1,10>>) -> i1
   print *, present(x)
 end subroutine
 ! CHECK-LABEL: func @_QMoptPcall_character_scalar()
 subroutine call_character_scalar()
   ! CHECK: %[[addr:.*]] = fir.alloca !fir.char<1,10>
   character(10) :: x
-  ! CHECK: %[[addrCast:.*]] = fir.convert %[[addr]]
-  ! CHECK: %[[x:.*]] = fir.emboxchar %[[addrCast]], {{.*}}
+  ! CHECK: %[[x:.*]] = fir.emboxchar %[[addr]], {{.*}}
   ! CHECK: fir.call @_QMoptPcharacter_scalar(%[[x]]) {{.*}}: (!fir.boxchar<1>) -> ()
   call character_scalar(x)
   ! CHECK: %[[absent:.*]] = fir.absent !fir.boxchar<1>

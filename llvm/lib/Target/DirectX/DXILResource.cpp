@@ -105,6 +105,7 @@ StringRef ResourceBase::getComponentTypeName(ComponentType CompType) {
   case ComponentType::PackedU8x32:
     return "p32u8";
   }
+  llvm_unreachable("All ComponentType enums are handled in switch");
 }
 
 void ResourceBase::printComponentType(Kinds Kind, ComponentType CompType,
@@ -172,6 +173,7 @@ StringRef ResourceBase::getKindName(Kinds Kind) {
   case Kinds::FeedbackTexture2DArray:
     return "fbtex2darray";
   }
+  llvm_unreachable("All Kinds enums are handled in switch");
 }
 
 void ResourceBase::printKind(Kinds Kind, unsigned Alignment, raw_ostream &OS,
@@ -258,20 +260,6 @@ void UAVResource::print(raw_ostream &OS) const {
 // https://github.com/llvm/llvm-project/issues/57991).
 void UAVResource::parseSourceType(StringRef S) {
   IsROV = S.startswith("RasterizerOrdered");
-  if (IsROV)
-    S = S.substr(strlen("RasterizerOrdered"));
-  if (S.startswith("RW"))
-    S = S.substr(strlen("RW"));
-
-  // Note: I'm deliberately not handling any of the Texture buffer types at the
-  // moment. I want to resolve the issue above before adding Texture or Sampler
-  // support.
-  Shape = StringSwitch<ResourceBase::Kinds>(S)
-              .StartsWith("Buffer<", Kinds::TypedBuffer)
-              .StartsWith("ByteAddressBuffer<", Kinds::RawBuffer)
-              .StartsWith("StructuredBuffer<", Kinds::StructuredBuffer)
-              .Default(Kinds::Invalid);
-  assert(Shape != Kinds::Invalid && "Unsupported buffer type");
 
   S = S.substr(S.find("<") + 1);
 

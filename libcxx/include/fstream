@@ -183,19 +183,17 @@ typedef basic_fstream<wchar_t> wfstream;
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
 #include <__config>
+#include <__fwd/fstream.h>
 #include <__locale>
 #include <__utility/move.h>
 #include <__utility/swap.h>
 #include <__utility/unreachable.h>
 #include <cstdio>
+#include <filesystem>
 #include <istream>
 #include <ostream>
 #include <typeinfo>
 #include <version>
-
-#if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-#   include <filesystem>
-#endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -208,7 +206,7 @@ _LIBCPP_PUSH_MACROS
 #  define _LIBCPP_HAS_NO_OFF_T_FUNCTIONS
 #endif
 
-#if !defined(_LIBCPP_HAS_NO_FSTREAM)
+#if !defined(_LIBCPP_HAS_NO_FILESYSTEM)
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -244,8 +242,8 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     basic_filebuf* open(const string& __s, ios_base::openmode __mode);
 
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     basic_filebuf* open(const _VSTD_FS::path& __p, ios_base::openmode __mode) {
       return open(__p.c_str(), __mode);
     }
@@ -554,6 +552,18 @@ const char* basic_filebuf<_CharT, _Traits>::__make_mdstring(
   case ios_base::in | ios_base::out | ios_base::app | ios_base::binary:
   case ios_base::in | ios_base::app | ios_base::binary:
     return "a+b" _LIBCPP_FOPEN_CLOEXEC_MODE;
+#if _LIBCPP_STD_VER >= 23
+  case ios_base::out | ios_base::noreplace:
+  case ios_base::out | ios_base::trunc | ios_base::noreplace:
+    return "wx" _LIBCPP_FOPEN_CLOEXEC_MODE;
+  case ios_base::in | ios_base::out | ios_base::trunc | ios_base::noreplace:
+    return "w+x" _LIBCPP_FOPEN_CLOEXEC_MODE;
+  case ios_base::out | ios_base::binary | ios_base::noreplace:
+  case ios_base::out | ios_base::trunc | ios_base::binary | ios_base::noreplace:
+    return "wbx" _LIBCPP_FOPEN_CLOEXEC_MODE;
+  case ios_base::in | ios_base::out | ios_base::trunc | ios_base::binary | ios_base::noreplace:
+    return "w+bx" _LIBCPP_FOPEN_CLOEXEC_MODE;
+#endif // _LIBCPP_STD_VER >= 23
   default:
     return nullptr;
   }
@@ -667,6 +677,22 @@ basic_filebuf<_CharT, _Traits>::open(const wchar_t* __s, ios_base::openmode __mo
         case ios_base::in | ios_base::app | ios_base::binary:
             __mdstr = L"a+b";
             break;
+#  if _LIBCPP_STD_VER >= 23
+        case ios_base::out | ios_base::noreplace:
+        case ios_base::out | ios_base::trunc | ios_base::noreplace:
+          __mdstr = L"wx";
+          break;
+        case ios_base::in | ios_base::out | ios_base::trunc | ios_base::noreplace:
+          __mdstr = L"w+x";
+          break;
+        case ios_base::out | ios_base::binary | ios_base::noreplace:
+        case ios_base::out | ios_base::trunc | ios_base::binary | ios_base::noreplace:
+          __mdstr = L"wbx";
+          break;
+        case ios_base::in | ios_base::out | ios_base::trunc | ios_base::binary | ios_base::noreplace:
+          __mdstr = L"w+bx";
+          break;
+#  endif // _LIBCPP_STD_VER >= 23
         default:
             __rt = nullptr;
             break;
@@ -752,8 +778,8 @@ basic_filebuf<_CharT, _Traits>::underflow()
         else
         {
             if (__extbufend_ != __extbufnext_) {
-                _LIBCPP_ASSERT(__extbufnext_ != nullptr, "underflow moving from nullptr");
-                _LIBCPP_ASSERT(__extbuf_ != nullptr, "underflow moving into nullptr");
+                _LIBCPP_ASSERT_NON_NULL(__extbufnext_ != nullptr, "underflow moving from nullptr");
+                _LIBCPP_ASSERT_NON_NULL(__extbuf_ != nullptr, "underflow moving into nullptr");
                 _VSTD::memmove(__extbuf_, __extbufnext_, __extbufend_ - __extbufnext_);
             }
             __extbufnext_ = __extbuf_ + (__extbufend_ - __extbufnext_);
@@ -914,7 +940,7 @@ basic_filebuf<_CharT, _Traits>::setbuf(char_type* __s, streamsize __n)
     if (!__always_noconv_)
     {
         __ibs_ = max<streamsize>(__n, sizeof(__extbuf_min_));
-        if (__s && __ibs_ >= sizeof(__extbuf_min_))
+        if (__s && __ibs_ > sizeof(__extbuf_min_))
         {
             __intbuf_ = __s;
             __owns_ib_ = false;
@@ -1167,8 +1193,8 @@ public:
 #endif
     _LIBCPP_INLINE_VISIBILITY
     explicit basic_ifstream(const string& __s, ios_base::openmode __mode = ios_base::in);
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     explicit basic_ifstream(const filesystem::path& __p, ios_base::openmode __mode = ios_base::in)
       : basic_ifstream(__p.c_str(), __mode) {}
 #endif // _LIBCPP_STD_VER >= 17
@@ -1188,8 +1214,8 @@ public:
     void open(const wchar_t* __s, ios_base::openmode __mode = ios_base::in);
 #endif
     void open(const string& __s, ios_base::openmode __mode = ios_base::in);
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     void open(const filesystem::path& __p,
               ios_base::openmode __mode = ios_base::in) {
       return open(__p.c_str(), __mode);
@@ -1368,8 +1394,8 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     explicit basic_ofstream(const string& __s, ios_base::openmode __mode = ios_base::out);
 
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     explicit basic_ofstream(const filesystem::path& __p, ios_base::openmode __mode = ios_base::out)
       : basic_ofstream(__p.c_str(), __mode) {}
 #endif // _LIBCPP_STD_VER >= 17
@@ -1391,8 +1417,8 @@ public:
 #endif
     void open(const string& __s, ios_base::openmode __mode = ios_base::out);
 
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     void open(const filesystem::path& __p, ios_base::openmode __mode = ios_base::out)
     { return open(__p.c_str(), __mode); }
 #endif // _LIBCPP_STD_VER >= 17
@@ -1569,8 +1595,8 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     explicit basic_fstream(const string& __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
 
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     explicit basic_fstream(const filesystem::path& __p, ios_base::openmode __mode = ios_base::in | ios_base::out)
       : basic_fstream(__p.c_str(), __mode) {}
 #endif // _LIBCPP_STD_VER >= 17
@@ -1588,14 +1614,14 @@ public:
     basic_filebuf<char_type, traits_type>* rdbuf() const;
     _LIBCPP_INLINE_VISIBILITY
     bool is_open() const;
-    void open(const char* __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
+    _LIBCPP_HIDE_FROM_ABI void open(const char* __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
 #ifdef _LIBCPP_HAS_OPEN_WITH_WCHAR
     void open(const wchar_t* __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
 #endif
-    void open(const string& __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
+    _LIBCPP_HIDE_FROM_ABI void open(const string& __s, ios_base::openmode __mode = ios_base::in | ios_base::out);
 
-#if _LIBCPP_STD_VER >= 17 && !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
-    _LIBCPP_AVAILABILITY_FILESYSTEM _LIBCPP_INLINE_VISIBILITY
+#if _LIBCPP_STD_VER >= 17
+    _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY _LIBCPP_INLINE_VISIBILITY
     void open(const filesystem::path& __p, ios_base::openmode __mode = ios_base::in|ios_base::out)
     { return open(__p.c_str(), __mode); }
 #endif // _LIBCPP_STD_VER >= 17
@@ -1736,7 +1762,7 @@ basic_fstream<_CharT, _Traits>::close()
         this->setstate(ios_base::failbit);
 }
 
-#if defined(_LIBCPP_ABI_ENABLE_ADDITIONAL_IOSTREAM_EXPLICIT_INSTANTIATIONS_1)
+#ifndef _LIBCPP_AVAILABILITY_HAS_NO_ADDITIONAL_IOSTREAM_EXPLICIT_INSTANTIATIONS_1
 extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ifstream<char>;
 extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ofstream<char>;
 extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>;
@@ -1744,7 +1770,7 @@ extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>;
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_HAS_NO_FSTREAM
+#endif // _LIBCPP_HAS_NO_FILESYSTEM
 
 _LIBCPP_POP_MACROS
 
@@ -1754,6 +1780,7 @@ _LIBCPP_POP_MACROS
 #  include <cstdlib>
 #  include <iosfwd>
 #  include <limits>
+#  include <mutex>
 #  include <new>
 #  include <stdexcept>
 #  include <type_traits>

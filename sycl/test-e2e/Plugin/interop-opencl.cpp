@@ -1,9 +1,7 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==-- interop-opencl.cpp - SYCL test for OpenCL interop API --------------===//
 //

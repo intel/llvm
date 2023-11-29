@@ -42,6 +42,9 @@
 ; CHECK-NEXT:       Local Stack Slot Allocation
 ; CHECK-NEXT:       RISC-V Pre-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       RISC-V Insert VSETVLI pass
+; CHECK-NEXT:       RISC-V Insert Read/Write CSR Pass
+; CHECK-NEXT:       RISC-V Insert Write VXRM Pass
+; CHECK-NEXT:       RISC-V init undef pass
 ; CHECK-NEXT:       Eliminate PHI nodes for register allocation
 ; CHECK-NEXT:       Two-Address instruction pass
 ; CHECK-NEXT:       Fast Register Allocator
@@ -51,6 +54,8 @@
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       Prologue/Epilogue Insertion & Frame Finalization
 ; CHECK-NEXT:       Post-RA pseudo instruction expansion pass
+; CHECK-NEXT:       RISC-V post-regalloc pseudo instruction expansion pass
+; CHECK-NEXT:       Insert KCFI indirect call checks
 ; CHECK-NEXT:       Analyze Machine Code For Garbage Collection
 ; CHECK-NEXT:       Insert fentry calls
 ; CHECK-NEXT:       Insert XRay ops
@@ -65,8 +70,8 @@
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       Stack Frame Layout Analysis
 ; CHECK-NEXT:       RISC-V pseudo instruction expansion pass
-; CHECK-NEXT:       RISC-V insert NTLH instruction pass
 ; CHECK-NEXT:       RISC-V atomic pseudo instruction expansion pass
+; CHECK-NEXT:       Unpack machine instruction bundles
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       RISC-V Assembly Printer

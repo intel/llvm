@@ -43,7 +43,7 @@ static const MachineMemOperand::Flags MONoClobber =
 
 /// Utility to store machine instructions worklist.
 struct SIInstrWorklist {
-  SIInstrWorklist() : InstrList() {}
+  SIInstrWorklist() = default;
 
   void insert(MachineInstr *MI);
 
@@ -102,16 +102,15 @@ private:
 public:
   unsigned buildExtractSubReg(MachineBasicBlock::iterator MI,
                               MachineRegisterInfo &MRI,
-                              MachineOperand &SuperReg,
+                              const MachineOperand &SuperReg,
                               const TargetRegisterClass *SuperRC,
                               unsigned SubIdx,
                               const TargetRegisterClass *SubRC) const;
-  MachineOperand buildExtractSubRegOrImm(MachineBasicBlock::iterator MI,
-                                         MachineRegisterInfo &MRI,
-                                         MachineOperand &SuperReg,
-                                         const TargetRegisterClass *SuperRC,
-                                         unsigned SubIdx,
-                                         const TargetRegisterClass *SubRC) const;
+  MachineOperand buildExtractSubRegOrImm(
+      MachineBasicBlock::iterator MI, MachineRegisterInfo &MRI,
+      const MachineOperand &SuperReg, const TargetRegisterClass *SuperRC,
+      unsigned SubIdx, const TargetRegisterClass *SubRC) const;
+
 private:
   void swapOperands(MachineInstr &Inst) const;
 
@@ -170,6 +169,12 @@ private:
   Register findUsedSGPR(const MachineInstr &MI, int OpIndices[3]) const;
 
 protected:
+  /// If the specific machine instruction is a instruction that moves/copies
+  /// value from one register to another register return destination and source
+  /// registers as machine operands.
+  std::optional<DestSourcePair>
+  isCopyInstrImpl(const MachineInstr &MI) const override;
+
   bool swapSourceModifiers(MachineInstr &MI,
                            MachineOperand &Src0, unsigned Src0OpName,
                            MachineOperand &Src1, unsigned Src1OpName) const;
@@ -215,6 +220,9 @@ public:
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
+
+  bool isSafeToSink(MachineInstr &MI, MachineBasicBlock *SuccToSinkTo,
+                    MachineCycleInfo *CI) const override;
 
   bool areLoadsFromSameBasePtr(SDNode *Load0, SDNode *Load1, int64_t &Offset0,
                                int64_t &Offset1) const override;
@@ -265,6 +273,11 @@ public:
                             Register VReg) const override;
 
   bool expandPostRAPseudo(MachineInstr &MI) const override;
+
+  void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                     Register DestReg, unsigned SubIdx,
+                     const MachineInstr &Orig,
+                     const TargetRegisterInfo &TRI) const override;
 
   // Splits a V_MOV_B64_DPP_PSEUDO opcode into a pair of v_mov_b32_dpp
   // instructions. Returns a pair of generated instructions.
@@ -525,6 +538,14 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::DS;
   }
 
+  static bool isGWS(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::GWS;
+  }
+
+  bool isGWS(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::GWS;
+  }
+
   bool isAlwaysGDS(uint16_t Opcode) const;
 
   static bool isMIMG(const MachineInstr &MI) {
@@ -652,6 +673,23 @@ public:
 
   bool isSGPRSpill(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::SGPRSpill;
+  }
+
+  bool isSpillOpcode(uint16_t Opcode) const {
+    return get(Opcode).TSFlags &
+           (SIInstrFlags::SGPRSpill | SIInstrFlags::VGPRSpill);
+  }
+
+  static bool isWWMRegSpillOpcode(uint16_t Opcode) {
+    return Opcode == AMDGPU::SI_SPILL_WWM_V32_SAVE ||
+           Opcode == AMDGPU::SI_SPILL_WWM_AV32_SAVE ||
+           Opcode == AMDGPU::SI_SPILL_WWM_V32_RESTORE ||
+           Opcode == AMDGPU::SI_SPILL_WWM_AV32_RESTORE;
+  }
+
+  static bool isChainCallOpcode(uint64_t Opcode) {
+    return Opcode == AMDGPU::SI_CS_CHAIN_TC_W32 ||
+           Opcode == AMDGPU::SI_CS_CHAIN_TC_W64;
   }
 
   static bool isDPP(const MachineInstr &MI) {
@@ -809,7 +847,7 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::FPAtomic;
   }
 
-  static bool isNeverUniform(const MachineInstr &MI){
+  static bool isNeverUniform(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsNeverUniform;
   }
 
@@ -822,7 +860,7 @@ public:
   }
 
   bool isVGPRCopy(const MachineInstr &MI) const {
-    assert(MI.isCopy());
+    assert(isCopyInstr(MI));
     Register Dest = MI.getOperand(0).getReg();
     const MachineFunction &MF = *MI.getParent()->getParent();
     const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -892,7 +930,7 @@ public:
     if (OpIdx >= MI.getDesc().NumOperands)
       return false;
 
-    if (MI.isCopy()) {
+    if (isCopyInstr(MI)) {
       unsigned Size = getOpSize(MI, OpIdx);
       assert(Size == 8 || Size == 4);
 
@@ -938,6 +976,15 @@ public:
                          StringRef &ErrInfo) const override;
 
   unsigned getVALUOp(const MachineInstr &MI) const;
+
+  void insertScratchExecCopy(MachineFunction &MF, MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator MBBI,
+                             const DebugLoc &DL, Register Reg, bool IsSCCLive,
+                             SlotIndexes *Indexes = nullptr) const;
+
+  void restoreExec(MachineFunction &MF, MachineBasicBlock &MBB,
+                   MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
+                   Register Reg, SlotIndexes *Indexes = nullptr) const;
 
   /// Return the correct register class for \p OpNo.  For target-specific
   /// instructions, this will return the register class that has been defined
@@ -1129,7 +1176,11 @@ public:
   CreateTargetMIHazardRecognizer(const InstrItineraryData *II,
                                  const ScheduleDAGMI *DAG) const override;
 
-  bool isBasicBlockPrologue(const MachineInstr &MI) const override;
+  unsigned getLiveRangeSplitOpcode(Register Reg,
+                                   const MachineFunction &MF) const override;
+
+  bool isBasicBlockPrologue(const MachineInstr &MI,
+                            Register Reg = Register()) const override;
 
   MachineInstr *createPHIDestinationCopy(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator InsPt,
@@ -1363,6 +1414,13 @@ namespace AMDGPU {
   const uint64_t RSRC_TID_ENABLE = UINT64_C(1) << (32 + 23);
 
 } // end namespace AMDGPU
+
+namespace AMDGPU {
+enum AsmComments {
+  // For sgpr to vgpr spill instructions
+  SGPR_SPILL = MachineInstr::TAsmComments
+};
+} // namespace AMDGPU
 
 namespace SI {
 namespace KernelInputOffsets {

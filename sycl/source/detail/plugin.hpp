@@ -23,11 +23,13 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
 extern xpti::trace_event_data_t *GPIArgCallEvent;
+extern uint8_t PiCallStreamID;
+extern uint8_t PiDebugCallStreamID;
 #endif
 
 template <PiApiKind Kind, size_t Idx, typename... Args>
@@ -90,22 +92,23 @@ auto packCallArguments(ArgsT &&...Args) {
 class plugin {
 public:
   plugin() = delete;
-  plugin(const std::shared_ptr<RT::PiPlugin> &Plugin, backend UseBackend,
-         void *LibraryHandle)
+  plugin(const std::shared_ptr<sycl::detail::pi::PiPlugin> &Plugin,
+         backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
         TracingMutex(std::make_shared<std::mutex>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
 
-  plugin &operator=(const plugin &) = default;
-  plugin(const plugin &) = default;
-  plugin &operator=(plugin &&other) noexcept = default;
-  plugin(plugin &&other) noexcept = default;
+  // Disallow accidental copies of plugins
+  plugin &operator=(const plugin &) = delete;
+  plugin(const plugin &) = delete;
+  plugin &operator=(plugin &&other) noexcept = delete;
+  plugin(plugin &&other) noexcept = delete;
 
   ~plugin() = default;
 
-  const RT::PiPlugin &getPiPlugin() const { return *MPlugin; }
-  RT::PiPlugin &getPiPlugin() { return *MPlugin; }
-  const std::shared_ptr<RT::PiPlugin> &getPiPluginPtr() const {
+  const sycl::detail::pi::PiPlugin &getPiPlugin() const { return *MPlugin; }
+  sycl::detail::pi::PiPlugin &getPiPlugin() { return *MPlugin; }
+  const std::shared_ptr<sycl::detail::pi::PiPlugin> &getPiPluginPtr() const {
     return MPlugin;
   }
 
@@ -113,7 +116,7 @@ public:
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = sycl::runtime_error>
-  void checkPiResult(RT::PiResult pi_result) const {
+  void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
     char *message = nullptr;
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
@@ -130,7 +133,8 @@ public:
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
-  template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
+  template <sycl::errc errc>
+  void checkPiResult(sycl::detail::pi::PiResult pi_result) const {
     if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
       char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
@@ -146,7 +150,8 @@ public:
     __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
-  void reportPiError(RT::PiResult pi_result, const char *context) const {
+  void reportPiError(sycl::detail::pi::PiResult pi_result,
+                     const char *context) const {
     if (pi_result != PI_SUCCESS) {
       throw sycl::runtime_error(std::string(context) +
                                     " API failed with error: " +
@@ -159,57 +164,87 @@ public:
   ///
   /// Usage:
   /// \code{cpp}
-  /// PiResult Err = plugin.call<PiApiKind::pi>(Args);
-  /// Plugin.checkPiResult(Err); // Checks Result and throws a runtime_error
+  /// PiResult Err = Plugin->call<PiApiKind::pi>(Args);
+  /// Plugin->checkPiResult(Err); // Checks Result and throws a runtime_error
   /// // exception.
   /// \endcode
   ///
   /// \sa plugin::checkPiResult
 
   template <PiApiKind PiApiOffset, typename... ArgsT>
-  RT::PiResult call_nocheck(ArgsT... Args) const {
-    RT::PiFuncInfo<PiApiOffset> PiCallInfo;
+  sycl::detail::pi::PiResult call_nocheck(ArgsT... Args) const {
+    sycl::detail::pi::PiFuncInfo<PiApiOffset> PiCallInfo;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+    bool CorrelationIDAvailable = false, CorrelationIDWithArgsAvailable = false;
     // Emit a function_begin trace for the PI API before the call is executed.
     // If arguments need to be captured, then a data structure can be sent in
     // the per_instance_user_data field.
     const char *PIFnName = PiCallInfo.getFuncName();
-    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
-    uint64_t CorrelationIDWithArgs = 0;
+    uint64_t CorrelationIDWithArgs = 0, CorrelationID = 0;
+
+    if (xptiCheckTraceEnabled(
+            PiCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_begin)) {
+      CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
+      CorrelationIDAvailable = true;
+    }
     unsigned char *ArgsDataPtr = nullptr;
-    using PackCallArgumentsTy =
-        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
-    auto ArgsData =
-        xptiTraceEnabled()
-            ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-            : PackCallArgumentsTy{};
-    // TODO check if stream is observed when corresponding API is present.
-    if (xptiTraceEnabled()) {
+    // If subscribers are listening to Pi debug call stream, only then prepare
+    // the data for the notifications and emit notifications. Even though the
+    // function emitFunctionWithArgsBeginTrace() checks for the trqace typoe
+    // using xptiTraceCheckEnabled(), we add a guard here before we prepare the
+    // data for the notification, as it comes with a cost
+    if (xptiCheckTraceEnabled(
+            PiDebugCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
+      using PackCallArgumentsTy = decltype(packCallArguments<PiApiOffset>(
+          std::forward<ArgsT>(Args)...));
+      auto ArgsData =
+          xptiTraceEnabled()
+              ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
+              : PackCallArgumentsTy{};
+      // TODO check if stream is observed when corresponding API is present.
       ArgsDataPtr = ArgsData.data();
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+      CorrelationIDWithArgsAvailable = true;
     }
 #endif
-    RT::PiResult R;
+    sycl::detail::pi::PiResult R = PI_SUCCESS;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
-      RT::printArgs(Args...);
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-      std::cout << ") ---> ";
-      RT::printArgs(R);
-      RT::printOuts(Args...);
-      std::cout << std::endl;
+      sycl::detail::pi::printArgs(Args...);
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+        std::cout << ") ---> ";
+        sycl::detail::pi::printArgs(R);
+        sycl::detail::pi::printOuts(Args...);
+        std::cout << std::endl;
+      } else {
+        std::cout << ") ---> ";
+        std::cout << "API Called After Plugin Teardown, Functon Call ignored.";
+        std::cout << std::endl;
+      }
     } else {
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      }
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Close the function begin with a call to function end
-    pi::emitFunctionEndTrace(CorrelationID, PIFnName);
-    pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                     static_cast<uint32_t>(PiApiOffset),
-                                     PIFnName, ArgsDataPtr, R, *MPlugin);
+    // Close the function begin with a call to function end; we do not need to
+    // check th xptiTraceCheckEnbled() here as it is performed within the
+    // function
+    if (CorrelationIDAvailable) {
+      // Only send function_end notification if function_begin is subscribed to
+      pi::emitFunctionEndTrace(CorrelationID, PIFnName);
+    }
+    if (CorrelationIDWithArgsAvailable) {
+      pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
+                                       static_cast<uint32_t>(PiApiOffset),
+                                       PIFnName, ArgsDataPtr, R, *MPlugin);
+    }
 #endif
     return R;
   }
@@ -219,34 +254,33 @@ public:
   /// \throw sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
-    RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
+    sycl::detail::pi::PiResult Err = call_nocheck<PiApiOffset>(Args...);
     checkPiResult(Err);
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
   template <sycl::errc errc, PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
-    RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
+    sycl::detail::pi::PiResult Err = call_nocheck<PiApiOffset>(Args...);
     checkPiResult<errc>(Err);
   }
 
-  backend getBackend(void) const { return MBackend; }
+  /// Tells if this plugin can serve specified backend.
+  /// For example, Unified Runtime plugin will be able to serve
+  /// multiple backends as determined by the platforms reported by the plugin.
+  bool hasBackend(backend Backend) const { return Backend == MBackend; }
+
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
-  int unload() { return RT::unloadPlugin(MLibraryHandle); }
-
-  // Get backend option.
-  void getBackendOption(pi_platform platform, const char *frontend_option,
-                        const char **backend_option) const {
-    RT::PiResult Err = call_nocheck<PiApiKind::piPluginGetBackendOption>(
-        platform, frontend_option, backend_option);
-    checkPiResult(Err);
+  int unload() {
+    this->pluginReleased = true;
+    return sycl::detail::pi::unloadPlugin(MLibraryHandle);
   }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   // The function is expected to be called in a thread safe manner.
-  int getPlatformId(RT::PiPlatform Platform) {
+  int getPlatformId(sycl::detail::pi::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return It - PiPlatforms.begin();
@@ -261,7 +295,7 @@ public:
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
   // The function is expected to be called in a thread safe manner.
-  int getStartingDeviceId(RT::PiPlatform Platform) {
+  int getStartingDeviceId(sycl::detail::pi::PiPlatform Platform) {
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
@@ -270,7 +304,7 @@ public:
 
   // set the id of the last device for the given platform
   // The function is expected to be called in a thread safe manner.
-  void setLastDeviceId(RT::PiPlatform Platform, int Id) {
+  void setLastDeviceId(sycl::detail::pi::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
     LastDeviceIds[PlatformId] = Id;
   }
@@ -278,22 +312,23 @@ public:
   // Adjust the id of the last device for the given platform.
   // Involved when there is no device on that platform at all.
   // The function is expected to be called in a thread safe manner.
-  void adjustLastDeviceId(RT::PiPlatform Platform) {
+  void adjustLastDeviceId(sycl::detail::pi::PiPlatform Platform) {
     int PlatformId = getPlatformId(Platform);
     if (PlatformId > 0 &&
         LastDeviceIds[PlatformId] < LastDeviceIds[PlatformId - 1])
       LastDeviceIds[PlatformId] = LastDeviceIds[PlatformId - 1];
   }
 
-  bool containsPiPlatform(RT::PiPlatform Platform) {
+  bool containsPiPlatform(sycl::detail::pi::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     return It != PiPlatforms.end();
   }
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  bool pluginReleased = false;
 
 private:
-  std::shared_ptr<RT::PiPlugin> MPlugin;
+  std::shared_ptr<sycl::detail::pi::PiPlugin> MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
@@ -302,11 +337,14 @@ private:
   // Device/Platform cache later.
   std::shared_ptr<std::mutex> MPluginMutex;
   // vector of PiPlatforms that belong to this plugin
-  std::vector<RT::PiPlatform> PiPlatforms;
+  std::vector<sycl::detail::pi::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
 }; // class plugin
+
+using PluginPtr = std::shared_ptr<plugin>;
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

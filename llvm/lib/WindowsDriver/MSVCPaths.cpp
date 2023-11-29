@@ -9,6 +9,7 @@
 #include "llvm/WindowsDriver/MSVCPaths.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Path.h"
@@ -586,7 +587,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
         for (StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith_insensitive(Prefix))
+          if (!It->starts_with_insensitive(Prefix))
             goto NotAToolChain;
           ++It;
         }

@@ -158,6 +158,10 @@ X86RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
     case X86::GR16RegClassID:
     case X86::GR32RegClassID:
     case X86::GR64RegClassID:
+    case X86::GR8_NOREX2RegClassID:
+    case X86::GR16_NOREX2RegClassID:
+    case X86::GR32_NOREX2RegClassID:
+    case X86::GR64_NOREX2RegClassID:
     case X86::RFP32RegClassID:
     case X86::RFP64RegClassID:
     case X86::RFP80RegClassID:
@@ -604,16 +608,57 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     }
   }
   if (!Is64Bit || !MF.getSubtarget<X86Subtarget>().hasAVX512()) {
-    for (unsigned n = 16; n != 32; ++n) {
-      for (MCRegAliasIterator AI(X86::XMM0 + n, this, true); AI.isValid(); ++AI)
+    for (unsigned n = 0; n != 16; ++n) {
+      for (MCRegAliasIterator AI(X86::XMM16 + n, this, true); AI.isValid();
+           ++AI)
         Reserved.set(*AI);
     }
+  }
+
+  // Reserve the extended general purpose registers.
+  if (!Is64Bit || !MF.getSubtarget<X86Subtarget>().hasEGPR())
+    Reserved.set(X86::R16, X86::R31WH + 1);
+
+  if (MF.getFunction().getCallingConv() == CallingConv::GRAAL) {
+    for (MCRegAliasIterator AI(X86::R14, this, true); AI.isValid(); ++AI)
+      Reserved.set(*AI);
+    for (MCRegAliasIterator AI(X86::R15, this, true); AI.isValid(); ++AI)
+      Reserved.set(*AI);
   }
 
   assert(checkAllSuperRegsMarked(Reserved,
                                  {X86::SIL, X86::DIL, X86::BPL, X86::SPL,
                                   X86::SIH, X86::DIH, X86::BPH, X86::SPH}));
   return Reserved;
+}
+
+unsigned X86RegisterInfo::getNumSupportedRegs(const MachineFunction &MF) const {
+  // All existing Intel CPUs that support AMX support AVX512 and all existing
+  // Intel CPUs that support APX support AMX. AVX512 implies AVX.
+  //
+  // We enumerate the registers in X86GenRegisterInfo.inc in this order:
+  //
+  // Registers before AVX512,
+  // AVX512 registers (X/YMM16-31, ZMM0-31, K registers)
+  // AMX registers (TMM)
+  // APX registers (R16-R31)
+  //
+  // and try to return the minimum number of registers supported by the target.
+  assert((X86::R15WH + 1 == X86 ::YMM0) && (X86::YMM15 + 1 == X86::K0) &&
+         (X86::K6_K7 + 1 == X86::TMMCFG) && (X86::TMM7 + 1 == X86::R16) &&
+         (X86::R31WH + 1 == X86::NUM_TARGET_REGS) &&
+         "Register number may be incorrect");
+
+  const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
+  if (ST.hasEGPR())
+    return X86::NUM_TARGET_REGS;
+  if (ST.hasAMXTILE())
+    return X86::TMM7 + 1;
+  if (ST.hasAVX512())
+    return X86::K6_K7 + 1;
+  if (ST.hasAVX())
+    return X86::YMM15 + 1;
+  return X86::R15WH + 1;
 }
 
 bool X86RegisterInfo::isArgumentRegister(const MachineFunction &MF,
@@ -743,6 +788,13 @@ bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   return true;
 }
 
+bool X86RegisterInfo::shouldRealignStack(const MachineFunction &MF) const {
+  if (TargetRegisterInfo::shouldRealignStack(MF))
+    return true;
+
+  return !Is64Bit && MF.getFunction().getCallingConv() == CallingConv::X86_INTR;
+}
+
 // tryOptimizeLEAtoMOV - helper function that tries to replace a LEA instruction
 // of the form 'lea (%esp), %ebx' --> 'mov %esp, %ebx'.
 // TODO: In this case we should be really trying first to entirely eliminate
@@ -812,7 +864,7 @@ void X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int Offset = FIOffset + Imm;
     assert((!Is64Bit || isInt<32>((long long)FIOffset + Imm)) &&
            "Requesting 64-bit offset in 32-bit immediate!");
-    if (Offset != 0 || !tryOptimizeLEAtoMOV(II))
+    if (Offset != 0)
       MI.getOperand(FIOperandNum + 3).ChangeToImmediate(Offset);
   } else {
     // Offset is symbolic. This is extremely rare.
@@ -932,8 +984,7 @@ unsigned X86RegisterInfo::findDeadCallerSavedReg(
   case X86::EH_RETURN:
   case X86::EH_RETURN64: {
     SmallSet<uint16_t, 8> Uses;
-    for (unsigned I = 0, E = MBBI->getNumOperands(); I != E; ++I) {
-      MachineOperand &MO = MBBI->getOperand(I);
+    for (MachineOperand &MO : MBBI->operands()) {
       if (!MO.isReg() || MO.isDef())
         continue;
       Register Reg = MO.getReg();
@@ -1024,7 +1075,14 @@ bool X86RegisterInfo::getRegAllocationHints(Register VirtReg,
   bool BaseImplRetVal = TargetRegisterInfo::getRegAllocationHints(
       VirtReg, Order, Hints, MF, VRM, Matrix);
 
-  if (RC.getID() != X86::TILERegClassID)
+  unsigned ID = RC.getID();
+  const X86Subtarget &Subtarget = MF.getSubtarget<X86Subtarget>();
+  if ((ID == X86::VK64RegClassID || ID == X86::VK64WMRegClassID) &&
+      Subtarget.hasAVX512() && !Subtarget.hasEVEX512())
+    report_fatal_error(
+        "64-bit mask registers are not supported without EVEX512");
+
+  if (ID != X86::TILERegClassID)
     return BaseImplRetVal;
 
   ShapeT VirtShape = getTileShape(VirtReg, const_cast<VirtRegMap *>(VRM), MRI);

@@ -24,6 +24,8 @@ endif() # Standalone.
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+find_package(Vulkan)
+
 if(NOT LLVM_LIT)
   find_program(LLVM_LIT
                NAMES llvm-lit lit.py lit
@@ -34,6 +36,27 @@ endif()
 set(SYCL_E2E_TESTS_LIT_FLAGS "-sv" CACHE STRING "Flags used when running lit")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+if(NOT SYCL_TEST_E2E_TARGETS)
+  set(SYCL_TEST_E2E_TARGETS "all")
+endif()
+
+if(MSVC AND NOT SYCL_TEST_E2E_STANDALONE)
+  # We're trying to pass MSVC flags to Clang, which doesn't work by default
+  separate_arguments(cxx_flags NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
+  foreach(flag IN ITEMS ${cxx_flags})
+    # Skip certain flags that only exists for MSVC
+    if("${flag}" STREQUAL "/EHsc")
+      continue()
+    endif()
+    # Change the way compiler definitions are passed in
+    string(REGEX REPLACE "^/D" "-D" clang_flag "${flag}")
+    list(APPEND SYCL_E2E_CLANG_CXX_FLAGS ${clang_flag})
+  endforeach()
+  string (REPLACE ";" " " SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS}")
+else()
+  set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+endif()
 
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
@@ -50,40 +73,18 @@ endif() # Standalone.
 if(NOT SYCL_TEST_E2E_STANDALONE)
   list(APPEND SYCL_E2E_TEST_DEPS
     sycl-toolchain
+    FileCheck
+    not
   )
 endif() # Standalone.
 
-if(SYCL_TEST_E2E_TARGETS)
-  message("Configure iterative execution on multiple backends")
-  add_custom_target(check-sycl-e2e)
-  foreach(TARGET_STR ${SYCL_TEST_E2E_TARGETS})
-    string(REPLACE ":" ";" TARGET_LIST ${TARGET_STR})
-    list (GET TARGET_LIST 0 TARGET_BE)
-    list (GET TARGET_LIST 1 TARGET_DEVICES)
-
-    if ("${TARGET_BE}" STREQUAL "")
-      message(FATAL_ERROR
-        "invalid empty target backend specification in SYCL_TEST_E2E_TARGETS")
-    elseif("${TARGET_DEVICES}" STREQUAL "")
-      message(FATAL_ERROR
-        "invalid empty target device specification in SYCL_TEST_E2E_TARGETS")
-    endif()
-    message("Run on ${TARGET_DEVICES} for ${TARGET_BE}")
-
-    string(REPLACE "," "_" TARGET check-sycl-e2e-${TARGET_BE}-${TARGET_DEVICES})
-
-    add_custom_target(${TARGET}
-      COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
-      COMMENT "Running the SYCL tests for ${TARGET} backend"
-      DEPENDS ${SYCL_E2E_TEST_DEPS}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      USES_TERMINAL
-    )
-    set_target_properties(${TARGET} PROPERTIES FOLDER "SYCL Level Zero tests")
-    add_dependencies(check-sycl-e2e ${TARGET})
-
-  endforeach()
-endif(SYCL_TEST_E2E_TARGETS)
+add_custom_target(check-sycl-e2e
+  COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .
+  COMMENT "Running SYCL End-to-End tests"
+  DEPENDS ${SYCL_E2E_TEST_DEPS}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  USES_TERMINAL
+)
 
 add_subdirectory(External)
 add_subdirectory(ExtraTests)

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/X86BaseInfo.h"
-#include "MCTargetDesc/X86InstrRelaxTables.h"
+#include "MCTargetDesc/X86EncodingOptimization.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
 #include "X86MCSymbolizer.h"
 #include "bolt/Core/MCPlus.h"
@@ -50,21 +50,6 @@ static cl::opt<bool> X86StripRedundantAddressSize(
 
 namespace {
 
-unsigned getShortBranchOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    return Opcode;
-  case X86::JMP_2: return X86::JMP_1;
-  case X86::JMP_4: return X86::JMP_1;
-  case X86::JCC_2: return X86::JCC_1;
-  case X86::JCC_4: return X86::JCC_1;
-  }
-}
-
-unsigned getShortArithOpcode(unsigned Opcode) {
-  return X86::getShortOpcodeArith(Opcode);
-}
-
 bool isMOVSX64rm32(const MCInst &Inst) {
   return Inst.getOpcode() == X86::MOVSX64rm32;
 }
@@ -76,6 +61,25 @@ bool isADDri(const MCInst &Inst) {
          Inst.getOpcode() == X86::ADD64ri8;
 }
 
+// Create instruction to increment contents of target by 1
+static InstructionListType createIncMemory(const MCSymbol *Target,
+                                           MCContext *Ctx) {
+  InstructionListType Insts;
+  Insts.emplace_back();
+  Insts.back().setOpcode(X86::LOCK_INC64m);
+  Insts.back().clear();
+  Insts.back().addOperand(MCOperand::createReg(X86::RIP));        // BaseReg
+  Insts.back().addOperand(MCOperand::createImm(1));               // ScaleAmt
+  Insts.back().addOperand(MCOperand::createReg(X86::NoRegister)); // IndexReg
+
+  Insts.back().addOperand(MCOperand::createExpr(
+      MCSymbolRefExpr::create(Target, MCSymbolRefExpr::VK_None,
+                              *Ctx))); // Displacement
+  Insts.back().addOperand(
+      MCOperand::createReg(X86::NoRegister)); // AddrSegmentReg
+  return Insts;
+}
+
 #define GET_INSTRINFO_OPERAND_TYPES_ENUM
 #define GET_INSTRINFO_OPERAND_TYPE
 #define GET_INSTRINFO_MEM_OPERAND_SIZE
@@ -83,13 +87,12 @@ bool isADDri(const MCInst &Inst) {
 
 class X86MCPlusBuilder : public MCPlusBuilder {
 public:
-  X86MCPlusBuilder(const MCInstrAnalysis *Analysis, const MCInstrInfo *Info,
-                   const MCRegisterInfo *RegInfo)
-      : MCPlusBuilder(Analysis, Info, RegInfo) {}
+  using MCPlusBuilder::MCPlusBuilder;
 
   std::unique_ptr<MCSymbolizer>
-  createTargetSymbolizer(BinaryFunction &Function) const override {
-    return std::make_unique<X86MCSymbolizer>(Function);
+  createTargetSymbolizer(BinaryFunction &Function,
+                         bool CreateNewSymbols) const override {
+    return std::make_unique<X86MCSymbolizer>(Function, CreateNewSymbols);
   }
 
   bool isBranch(const MCInst &Inst) const override {
@@ -281,7 +284,7 @@ public:
     case X86::PUSHFS16:
     case X86::PUSHGS16:
     case X86::PUSHSS16:
-    case X86::PUSHi16:
+    case X86::PUSH16i:
       return 2;
     case X86::PUSH32i8:
     case X86::PUSH32r:
@@ -295,7 +298,7 @@ public:
     case X86::PUSHFS32:
     case X86::PUSHGS32:
     case X86::PUSHSS32:
-    case X86::PUSHi32:
+    case X86::PUSH32i:
       return 4;
     case X86::PUSH64i32:
     case X86::PUSH64i8:
@@ -332,8 +335,8 @@ public:
     return false;
   }
 
-  bool isUnsupportedBranch(unsigned Opcode) const override {
-    switch (Opcode) {
+  bool isUnsupportedBranch(const MCInst &Inst) const override {
+    switch (Inst.getOpcode()) {
     default:
       return false;
     case X86::LOOP:
@@ -345,7 +348,7 @@ public:
     }
   }
 
-  bool isLoad(const MCInst &Inst) const override {
+  bool mayLoad(const MCInst &Inst) const override {
     if (isPop(Inst))
       return true;
 
@@ -358,7 +361,7 @@ public:
     return MCII.mayLoad();
   }
 
-  bool isStore(const MCInst &Inst) const override {
+  bool mayStore(const MCInst &Inst) const override {
     if (isPush(Inst))
       return true;
 
@@ -398,6 +401,7 @@ public:
     case ELF::R_X86_64_PC8:
     case ELF::R_X86_64_PC32:
     case ELF::R_X86_64_PC64:
+    case ELF::R_X86_64_GOTPC64:
     case ELF::R_X86_64_GOTPCRELX:
     case ELF::R_X86_64_REX_GOTPCRELX:
       return true;
@@ -411,7 +415,7 @@ public:
     }
   }
 
-  unsigned getTrapFillValue() const override { return 0xCC; }
+  StringRef getTrapFillValue() const override { return StringRef("\314", 1); }
 
   struct IndJmpMatcherFrag1 : MCInstMatcher {
     std::unique_ptr<MCInstMatcher> Base;
@@ -1159,13 +1163,9 @@ public:
       break;
     }
 
-    const MCInstrDesc &MCII = Info->get(Inst.getOpcode());
-    for (int I = 0, E = MCII.getNumDefs(); I != E; ++I) {
-      const MCOperand &Operand = Inst.getOperand(I);
-      if (Operand.isReg() && Operand.getReg() == X86::RSP)
-        return true;
-    }
-    return false;
+    return any_of(defOperands(Inst), [](const MCOperand &Op) {
+      return Op.isReg() && Op.getReg() == X86::RSP;
+    });
   }
 
   bool
@@ -1298,19 +1298,11 @@ public:
 
     // If potential leak, check if it is not just writing to itself/sp/bp
     if (DoesLeak) {
-      for (int I = 0, E = NumDefs; I != E; ++I) {
-        const MCOperand &Operand = Inst.getOperand(I);
-        if (HasFramePointer && Operand.isReg() &&
-            SPBPAliases[Operand.getReg()]) {
-          DoesLeak = false;
-          break;
-        }
-        if (!HasFramePointer && Operand.isReg() &&
-            SPAliases[Operand.getReg()]) {
-          DoesLeak = false;
-          break;
-        }
-      }
+      DoesLeak = !any_of(defOperands(Inst), [&](const MCOperand &Operand) {
+        assert(Operand.isReg());
+        MCPhysReg Reg = Operand.getReg();
+        return HasFramePointer ? SPBPAliases[Reg] : SPAliases[Reg];
+      });
     }
     return DoesLeak;
   }
@@ -1737,7 +1729,7 @@ public:
       }
     } else {
       // If it's arithmetic instruction check if signed operand fits in 1 byte.
-      const unsigned ShortOpcode = getShortArithOpcode(OldOpcode);
+      const unsigned ShortOpcode = X86::getOpcodeForShortImmediateForm(OldOpcode);
       if (ShortOpcode != OldOpcode &&
           Inst.getOperand(MCPlus::getNumPrimeOperands(Inst) - 1).isImm()) {
         int64_t Imm =
@@ -1762,7 +1754,7 @@ public:
     // - Non-stack loads are prohibited (generally unsafe)
     // - Stack loads are OK if AllowStackMemOp is true
     // - Stack loads with RBP are OK if AllowBasePtrStackMemOp is true
-    if (isLoad(Inst)) {
+    if (mayLoad(Inst)) {
       // If stack memory operands are not allowed, no loads are allowed
       if (!AllowStackMemOp)
         return false;
@@ -1886,8 +1878,7 @@ public:
       }
 
       // Handle conditional branches and ignore indirect branches
-      if (!isUnsupportedBranch(I->getOpcode()) &&
-          getCondCode(*I) == X86::COND_INVALID) {
+      if (!isUnsupportedBranch(*I) && getCondCode(*I) == X86::COND_INVALID) {
         // Indirect branch
         return false;
       }
@@ -2198,7 +2189,7 @@ public:
       MCInst &CurInst = *Itr++;
       const MCInstrDesc &Desc = Info->get(CurInst.getOpcode());
       if (Desc.hasDefOfPhysReg(CurInst, MethodRegNum, *RegInfo)) {
-        if (!isLoad(CurInst))
+        if (!mayLoad(CurInst))
           return false;
         if (std::optional<X86MemOperand> MO =
                 evaluateX86MemoryOperand(CurInst)) {
@@ -2336,28 +2327,15 @@ public:
     return true;
   }
 
-  void createLoadImmediate(MCInst &Inst, const MCPhysReg Dest,
-                           uint32_t Imm) const override {
-    Inst.setOpcode(X86::MOV64ri32);
-    Inst.clear();
-    Inst.addOperand(MCOperand::createReg(Dest));
-    Inst.addOperand(MCOperand::createImm(Imm));
-  }
-
-  bool createIncMemory(MCInst &Inst, const MCSymbol *Target,
-                       MCContext *Ctx) const override {
-
-    Inst.setOpcode(X86::LOCK_INC64m);
-    Inst.clear();
-    Inst.addOperand(MCOperand::createReg(X86::RIP));        // BaseReg
-    Inst.addOperand(MCOperand::createImm(1));               // ScaleAmt
-    Inst.addOperand(MCOperand::createReg(X86::NoRegister)); // IndexReg
-
-    Inst.addOperand(MCOperand::createExpr(
-        MCSymbolRefExpr::create(Target, MCSymbolRefExpr::VK_None,
-                                *Ctx)));                    // Displacement
-    Inst.addOperand(MCOperand::createReg(X86::NoRegister)); // AddrSegmentReg
-    return true;
+  InstructionListType createLoadImmediate(const MCPhysReg Dest,
+                                          uint64_t Imm) const override {
+    InstructionListType Insts;
+    Insts.emplace_back();
+    Insts.back().setOpcode(X86::MOV64ri32);
+    Insts.back().clear();
+    Insts.back().addOperand(MCOperand::createReg(Dest));
+    Insts.back().addOperand(MCOperand::createImm(Imm));
+    return Insts;
   }
 
   bool createIJmp32Frag(SmallVectorImpl<MCInst> &Insts,
@@ -2485,30 +2463,9 @@ public:
       }
     }
 
-    // Extract a symbol and an addend out of the fixup value expression.
-    //
-    // Only the following limited expression types are supported:
-    //   Symbol + Addend
-    //   Symbol
-    uint64_t Addend = 0;
-    MCSymbol *Symbol = nullptr;
-    const MCExpr *ValueExpr = Fixup.getValue();
-    if (ValueExpr->getKind() == MCExpr::Binary) {
-      const auto *BinaryExpr = cast<MCBinaryExpr>(ValueExpr);
-      assert(BinaryExpr->getOpcode() == MCBinaryExpr::Add &&
-             "unexpected binary expression");
-      const MCExpr *LHS = BinaryExpr->getLHS();
-      assert(LHS->getKind() == MCExpr::SymbolRef && "unexpected LHS");
-      Symbol = const_cast<MCSymbol *>(this->getTargetSymbol(LHS));
-      const MCExpr *RHS = BinaryExpr->getRHS();
-      assert(RHS->getKind() == MCExpr::Constant && "unexpected RHS");
-      Addend = cast<MCConstantExpr>(RHS)->getValue();
-    } else {
-      assert(ValueExpr->getKind() == MCExpr::SymbolRef && "unexpected value");
-      Symbol = const_cast<MCSymbol *>(this->getTargetSymbol(ValueExpr));
-    }
+    auto [RelSymbol, RelAddend] = extractFixupExpr(Fixup);
 
-    return Relocation({RelOffset, Symbol, RelType, Addend, 0});
+    return Relocation({RelOffset, RelSymbol, RelType, RelAddend, 0});
   }
 
   bool replaceImmWithSymbolRef(MCInst &Inst, const MCSymbol *Symbol,
@@ -2571,8 +2528,8 @@ public:
     default: {
       switch (getPushSize(Inst)) {
 
-      case 2: I = {2, false, {{CHECK8, X86::PUSH16i8}, {NOCHECK, X86::PUSHi16}}}; break;
-      case 4: I = {4, false, {{CHECK8, X86::PUSH32i8}, {NOCHECK, X86::PUSHi32}}}; break;
+      case 2: I = {2, false, {{CHECK8, X86::PUSH16i8}, {NOCHECK, X86::PUSH16i}}}; break;
+      case 4: I = {4, false, {{CHECK8, X86::PUSH32i8}, {NOCHECK, X86::PUSH32i}}}; break;
       case 8: I = {8, false, {{CHECK8, X86::PUSH64i8},
                               {CHECK32, X86::PUSH64i32},
                               {NOCHECK, Inst.getOpcode()}}}; break;
@@ -2867,6 +2824,21 @@ public:
 
   MCPhysReg getX86R11() const override { return X86::R11; }
 
+  unsigned getShortBranchOpcode(unsigned Opcode) const override {
+    switch (Opcode) {
+    default:
+      return Opcode;
+    case X86::JMP_2:
+      return X86::JMP_1;
+    case X86::JMP_4:
+      return X86::JMP_1;
+    case X86::JCC_2:
+      return X86::JCC_1;
+    case X86::JCC_4:
+      return X86::JCC_1;
+    }
+  }
+
   MCPhysReg getIntArgRegister(unsigned ArgNo) const override {
     // FIXME: this should depend on the calling convention.
     switch (ArgNo) {
@@ -3053,9 +3025,9 @@ public:
     Inst.clear();
   }
 
-  InstructionListType createInstrIncMemory(const MCSymbol *Target,
-                                           MCContext *Ctx,
-                                           bool IsLeaf) const override {
+  InstructionListType
+  createInstrIncMemory(const MCSymbol *Target, MCContext *Ctx, bool IsLeaf,
+                       unsigned CodePointerSize) const override {
     InstructionListType Instrs(IsLeaf ? 13 : 11);
     unsigned int I = 0;
 
@@ -3075,7 +3047,10 @@ public:
     createClearRegWithNoEFlagsUpdate(Instrs[I++], X86::RAX, 8);
     createX86SaveOVFlagToRegister(Instrs[I++], X86::AL);
     // LOCK INC
-    createIncMemory(Instrs[I++], Target, Ctx);
+    InstructionListType IncMem = createIncMemory(Target, Ctx);
+    assert(IncMem.size() == 1 && "Invalid IncMem size");
+    std::copy(IncMem.begin(), IncMem.end(), Instrs.begin() + I);
+    I += IncMem.size();
     // POPF
     createAddRegImm(Instrs[I++], X86::AL, 127, 1);
     createPopRegister(Instrs[I++], X86::RAX, 8);
@@ -3117,17 +3092,9 @@ public:
     // Check if the target address expression used in the original indirect call
     // uses the stack pointer, which we are going to clobber.
     static BitVector SPAliases(getAliases(X86::RSP));
-    bool UsesSP = false;
-    // Skip defs.
-    for (unsigned I = Info->get(CallInst.getOpcode()).getNumDefs(),
-                  E = MCPlus::getNumPrimeOperands(CallInst);
-         I != E; ++I) {
-      const MCOperand &Operand = CallInst.getOperand(I);
-      if (Operand.isReg() && SPAliases[Operand.getReg()]) {
-        UsesSP = true;
-        break;
-      }
-    }
+    bool UsesSP = any_of(useOperands(CallInst), [&](const MCOperand &Op) {
+      return Op.isReg() && SPAliases[Op.getReg()];
+    });
 
     InstructionListType Insts;
     MCPhysReg TempReg = getIntArgRegister(0);
@@ -3157,8 +3124,8 @@ public:
     }
     Insts.emplace_back();
     createPushRegister(Insts.back(), TempReg, 8);
-    Insts.emplace_back();
-    createLoadImmediate(Insts.back(), TempReg, CallSiteID);
+    InstructionListType LoadImm = createLoadImmediate(TempReg, CallSiteID);
+    Insts.insert(Insts.end(), LoadImm.begin(), LoadImm.end());
     Insts.emplace_back();
     createPushRegister(Insts.back(), TempReg, 8);
 
@@ -3268,7 +3235,7 @@ public:
   }
 
   InstructionListType createSymbolTrampoline(const MCSymbol *TgtSym,
-                                             MCContext *Ctx) const override {
+                                             MCContext *Ctx) override {
     InstructionListType Insts(1);
     createUncondBranch(Insts[0], TgtSym, Ctx);
     return Insts;
@@ -3610,8 +3577,9 @@ namespace bolt {
 
 MCPlusBuilder *createX86MCPlusBuilder(const MCInstrAnalysis *Analysis,
                                       const MCInstrInfo *Info,
-                                      const MCRegisterInfo *RegInfo) {
-  return new X86MCPlusBuilder(Analysis, Info, RegInfo);
+                                      const MCRegisterInfo *RegInfo,
+                                      const MCSubtargetInfo *STI) {
+  return new X86MCPlusBuilder(Analysis, Info, RegInfo, STI);
 }
 
 } // namespace bolt

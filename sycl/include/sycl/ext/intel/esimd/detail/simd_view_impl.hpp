@@ -10,12 +10,13 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// @addtogroup sycl_esimd_core_vectors
@@ -38,7 +39,12 @@ namespace ext::intel::esimd::detail {
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+#ifndef __SYCL_DEVICE_ONLY__
 class simd_view_impl {
+#else
+class [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_intel_esimd)]] simd_view_impl {
+#endif
 public:
   /// The only type which is supposed to extend this one and be used in user
   /// code.
@@ -230,7 +236,7 @@ public:
   /// @param Offset is the starting element offset.
   /// @return \c simd_view representing the subregion.
   template <int Size, int Stride, typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+            typename = std::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
     using TopRegionTy = region1d_t<element_type, Size, Stride>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
@@ -280,8 +286,7 @@ public:
   /// @return 2D simd_view of the subregion.
   // clang-format on
   template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+            typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) {
     using TopRegionTy =
         region2d_t<element_type, SizeY, StrideY, SizeX, StrideX>;
@@ -472,8 +477,7 @@ public:
   /// Reference a row from a 2D region. Available only if this object is 2D.
   /// @param i Row index.
   /// @return A 2D view of a region representing i'th row of the target region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 1, getSizeX(), 1>(i, 0)
         .template bit_cast_view<element_type>();
@@ -483,8 +487,7 @@ public:
   /// @param i Column index.
   /// @return A 2D view of a region representing i'th column of the target
   ///   region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 1>(0, i);
   }
@@ -492,8 +495,7 @@ public:
   /// Read a single element from the target 1D region.
   /// @param i Element index.
   /// @return Element value.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     const auto v = read();
     return v[i];
@@ -502,8 +504,7 @@ public:
   /// Return a writeable view of a single element in the target 1D region.
   /// @param i Element index.
   /// @return A new 1D view of the element. Can be used to update it.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   auto operator[](int i) {
     return select<1, 1>(i);
   }
@@ -572,14 +573,14 @@ public:
 
   /// Applies simd_obj_impl::any operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t any() {
     return read().any();
   }
 
   /// Applies simd_obj_impl::all operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t all() {
     return read().all();
   }
@@ -608,5 +609,5 @@ protected:
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

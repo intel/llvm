@@ -243,6 +243,18 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(property::no_init,
                          host_accessor<unsigned long, 2, access_mode::read>);
 
+  // Image-accessor (SYCL 2020) is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(
+      property::no_init,
+      unsampled_image_accessor<sycl::int4, 3, access_mode::read_write>);
+  CHECK_IS_PROPERTY_OF_V(property::no_init,
+                         sampled_image_accessor<sycl::float4, 1>);
+  CHECK_IS_PROPERTY_OF_V(
+      property::no_init,
+      host_unsampled_image_accessor<sycl::int4, 2, access_mode::read>);
+  CHECK_IS_PROPERTY_OF_V(property::no_init,
+                         host_sampled_image_accessor<sycl::float4, 1>);
+
   // Buffer is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::buffer::use_host_ptr, buffer<int, 2>);
   CHECK_IS_PROPERTY_OF_V(property::buffer::use_mutex, buffer<char, 1>);
@@ -256,10 +268,18 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(
       ext::oneapi::cuda::property::context::use_primary_context, context);
 
-  // Image is_property_of_v
+  // Image (SYCL 1.2.1) is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::image::use_host_ptr, image<1>);
   CHECK_IS_PROPERTY_OF_V(property::image::use_mutex, image<2>);
   CHECK_IS_PROPERTY_OF_V(property::image::context_bound, image<3>);
+
+  // Image (SYCL 2020) is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(property::image::use_host_ptr, sampled_image<1>);
+  CHECK_IS_PROPERTY_OF_V(property::image::use_mutex, sampled_image<2>);
+  CHECK_IS_PROPERTY_OF_V(property::image::context_bound, sampled_image<3>);
+  CHECK_IS_PROPERTY_OF_V(property::image::use_host_ptr, unsampled_image<1>);
+  CHECK_IS_PROPERTY_OF_V(property::image::use_mutex, unsampled_image<2>);
+  CHECK_IS_PROPERTY_OF_V(property::image::context_bound, unsampled_image<3>);
 
   // Queue is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::queue::in_order, queue);

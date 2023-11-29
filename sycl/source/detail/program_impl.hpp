@@ -24,7 +24,7 @@
 #include <mutex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class kernel;
@@ -99,7 +99,7 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param Kernel is a raw PI kernel handle.
-  program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
+  program_impl(ContextImplPtr Context, sycl::detail::pi::PiKernel Kernel);
 
   ~program_impl();
 
@@ -131,10 +131,10 @@ public:
 
   /// \return a reference to a raw PI program handle. PI program is not
   /// retained before return.
-  RT::PiProgram &getHandleRef() { return MProgram; }
+  sycl::detail::pi::PiProgram &getHandleRef() { return MProgram; }
   /// \return a constant reference to a raw PI program handle. PI program is
   /// not retained before return.
-  const RT::PiProgram &getHandleRef() const { return MProgram; }
+  const sycl::detail::pi::PiProgram &getHandleRef() const { return MProgram; }
 
   /// \return true if this SYCL program is a host program.
   bool is_host() const { return MContext->is_host(); }
@@ -154,24 +154,7 @@ public:
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param Module is an OS handle to user code module.
   void compile_with_kernel_name(std::string KernelName,
-                                std::string CompileOptions,
-                                OSModuleHandle Module);
-
-  /// Compiles the OpenCL C kernel function defined by source string.
-  ///
-  /// This member function sets the state of this SYCL program to
-  /// program_state::compiled.
-  /// If the program was not in the program_state::none state,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being compiled for returns false for the device
-  /// information query info::device::is_compiler_available, a
-  /// feature_not_supported SYCL exception is thrown.
-  ///
-  /// \param KernelSource is a string containing OpenCL C kernel source code.
-  /// \param CompileOptions is a string containing OpenCL compile options.
-  void compile_with_source(std::string KernelSource,
-                           std::string CompileOptions = "");
+                                std::string CompileOptions);
 
   /// Builds the SYCL kernel function into encapsulated raw program.
   ///
@@ -188,24 +171,7 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
-  void build_with_kernel_name(std::string KernelName, std::string BuildOptions,
-                              OSModuleHandle M);
-
-  /// Builds the OpenCL C kernel function defined by source code.
-  ///
-  /// This member function sets the state of this SYCL program to
-  /// program_state::linked. If this program was not in program_state::none,
-  /// an invalid_object_error SYCL exception is thrown. If the compilation
-  /// fails, a compile_program_error SYCL exception is thrown. If any device
-  /// that the program is being built for returns false for the device
-  /// information queries info::device::is_compiler_available or
-  /// info::device::is_linker_available, a feature_not_supported SYCL
-  /// exception is thrown.
-  ///
-  /// \param KernelSource is a string containing OpenCL C kernel source code.
-  /// \param BuildOptions is a string containing OpenCL build options.
-  void build_with_source(std::string KernelSource,
-                         std::string BuildOptions = "");
+  void build_with_kernel_name(std::string KernelName, std::string BuildOptions);
 
   /// Links encapsulated raw program.
   ///
@@ -257,10 +223,12 @@ public:
   }
 
   /// \return the Plugin associated with the context of this program.
-  const plugin &getPlugin() const {
+  const PluginPtr &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
   }
+
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   /// \return a vector of devices that are associated with this program.
   std::vector<device> get_devices() const { return MDevices; }
@@ -306,9 +274,6 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
-  void set_spec_constant_impl(const char *Name, const void *ValAddr,
-                              size_t ValSize);
-
   /// Takes current values of specialization constants and "injects" them into
   /// the underlying native program program via specialization constant
   /// managemment PI APIs. The native program passed as non-null argument
@@ -317,15 +282,9 @@ public:
   ///        resolve spec constant name to SPIR-V integer ID
   /// \param NativePrg if not null, used as the flush target, otherwise MProgram
   ///        is used
-  void flush_spec_constants(const RTDeviceBinaryImage &Img,
-                            RT::PiProgram NativePrg = nullptr) const;
-
-  /// Returns the OS module handle this program belongs to. A program belongs to
-  /// an OS module if it was built from device image(s) belonging to that
-  /// module.
-  /// TODO Some programs can be linked from images belonging to different
-  ///      modules. May need a special fake handle for the resulting program.
-  OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
+  void
+  flush_spec_constants(const RTDeviceBinaryImage &Img,
+                       sycl::detail::pi::PiProgram NativePrg = nullptr) const;
 
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
@@ -345,7 +304,7 @@ public:
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
-               RT::PiProgram Program);
+               sycl::detail::pi::PiProgram Program);
   /// Checks feature support for specific devices.
   ///
   /// If there's at least one device that does not support this feature,
@@ -370,14 +329,8 @@ private:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
-  create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                     const std::string &KernelName,
+  create_pi_program_with_kernel_name(const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
-
-  /// Creates an OpenCL program from OpenCL C source code.
-  ///
-  /// \param Source is a string containing OpenCL C source code.
-  void create_cl_program_with_source(const std::string &Source);
 
   /// Compiles underlying plugin interface program.
   ///
@@ -390,7 +343,7 @@ private:
   void build(const std::string &Options);
 
   /// \return a vector of devices managed by the plugin.
-  std::vector<RT::PiDevice> get_pi_devices() const;
+  std::vector<sycl::detail::pi::PiDevice> get_pi_devices() const;
 
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.
@@ -405,7 +358,8 @@ private:
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  RT::PiKernel get_pi_kernel(const std::string &KernelName) const;
+  std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
+  get_pi_kernel_arg_mask_pair(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
   std::vector<device> sort_devices_by_cl_device_id(std::vector<device> Devices);
@@ -422,7 +376,7 @@ private:
   /// \param State is a program state to match against.
   void throw_if_state_is_not(program_state State) const;
 
-  RT::PiProgram MProgram = nullptr;
+  sycl::detail::pi::PiProgram MProgram = nullptr;
   program_state MState = program_state::none;
   std::mutex MMutex;
   ContextImplPtr MContext;
@@ -432,7 +386,6 @@ private:
   std::string MCompileOptions;
   std::string MLinkOptions;
   std::string MBuildOptions;
-  OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Keeps specialization constant map for this program. Spec constant name
   // resolution to actual SPIR-V integer ID happens at build time, where the
@@ -449,5 +402,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

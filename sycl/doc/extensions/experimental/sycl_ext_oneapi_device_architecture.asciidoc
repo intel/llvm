@@ -51,10 +51,10 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 specification.*
 
 There are important limitations with the {dpcpp} implementation of this
-experimental extension.  In particular, this extension may only be used when
-the application is compiled in AOT mode.  See the section below titled
-"Limitations with the experimental version" for a full description of the
-limitations.
+experimental extension.  In particular, some parts of this extension may only
+be used when the application is compiled in AOT mode.  See the section below
+titled "Limitations with the experimental version" for a full description of
+the limitations.
 
 
 == Overview
@@ -99,26 +99,34 @@ namespace sycl::ext::oneapi::experimental {
 
 enum class architecture : /* unspecified */ {
   x86_64,
+  intel_cpu_spr,
+  intel_cpu_gnr,
   intel_gpu_bdw,
   intel_gpu_skl,
   intel_gpu_kbl,
   intel_gpu_cfl,
   intel_gpu_apl,
+  intel_gpu_bxt = intel_gpu_apl,
   intel_gpu_glk,
   intel_gpu_whl,
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
+  intel_gpu_ehl,
+  intel_gpu_jsl = intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
-  intel_gpu_rpl_s,
+  intel_gpu_rpl_s = intel_gpu_adl_s,
   intel_gpu_adl_p,
   intel_gpu_adl_n,
   intel_gpu_dg1,
   intel_gpu_acm_g10,
+  intel_gpu_dg2_g10 = intel_gpu_acm_g10,
   intel_gpu_acm_g11,
+  intel_gpu_dg2_g11 = intel_gpu_acm_g11,
   intel_gpu_acm_g12,
+  intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
 
   nvidia_gpu_sm_50,
@@ -189,6 +197,18 @@ of these enumerators, and it provides a brief description of their meanings.
 |-
 |Any CPU device with the x86_64 instruction set.
 
+|`intel_cpu_spr`
+|-
+|Intel Xeon processor codenamed Sapphire Rapids. The utility of this
+enumeration is currently limited. See the section "Limitations with
+the experimental version" for details.
+
+|`intel_cpu_gnr`
+|-
+|Intel Xeon processor codenamed Granite Rapids. The utility of this
+enumeration is currently limited. See the section "Limitations with
+the experimental version" for details.
+
 |`intel_gpu_bdw`
 |-
 |Broadwell Intel graphics architecture.
@@ -237,13 +257,11 @@ of these enumerators, and it provides a brief description of their meanings.
 |-
 |Rocket Lake Intel graphics architecture.
 
-|`intel_gpu_adl_s`
+|`intel_gpu_adl_s` +
+`intel_gpu_rpl_s`
 |-
-|Alder Lake S Intel graphics architecture.
-
-|`intel_gpu_rpl_s`
-|-
-|Raptor Lake Intel graphics architecture.
+|Alder Lake S Intel graphics architecture or Raptor Lake Intel graphics
+architecture.
 
 |`intel_gpu_adl_p`
 |-
@@ -485,8 +503,8 @@ code.  This function is not available in host code.
 ```
 namespace sycl::ext::oneapi::experimental {
 
-template<architecture ...Archs, typename ...Args, typename T>
-/* unspecified */ if_architecture_is(T fn, Args ...args);
+template<architecture ...Archs, typename T>
+/* unspecified */ if_architecture_is(T fn);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -504,11 +522,11 @@ type, which provides the following member functions:
 ```
 class /* unspecified */ {
  public:
-  template<architecture ...Archs, typename ...Args, typename T>
-  /* unspecified */ else_if_architecture_is(T fn, Args ...args);
+  template<architecture ...Archs, typename T>
+  /* unspecified */ else_if_architecture_is(T fn);
 
-  template<typename T, typename ...Args>
-  void otherwise(T fn, Args ...args);
+  template<typename T>
+  void otherwise(T fn);
 };
 ```
 
@@ -523,23 +541,12 @@ call to `if_architecture_is` or `else_if_architecture_is` whose condition is
 architectures in the `Archs` parameter pack.
 
 
-== Limitations with the experimental version
+=== New member function of `device` class 
 
-The {dpcpp} implementation of this extension currently has some important
-limitations.  The application must be compiled in ahead-of-time (AOT) mode
-using `-fsycl-targets=<special-target>` where `<special-target>` is one of the
-"special target values" listed in the link:../../UsersManual.md[users manual]
-description of the `-fsycl-targets` option.  These are the target names of the
-form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+This extension adds the following new member function to the `device` class, 
+which returns a Boolean telling whether the device has the specified 
+architecture.
 
-
-== Future direction
-
-This experimental extension is still evolving.  We expect that future versions
-will include the following:
-
-* An extended member function like:
-+
 --
 ```
 namespace sycl {
@@ -551,30 +558,64 @@ class device {
 
 // namespace sycl
 ```
-
-This provides a way to query a device's architecture from host code.
 --
 
-* An extended device information descriptor named
-  `sycl::ext::oneapi::experimental::info::device::architecture`, which returns
-  the architecture of the device.  This allows host code such as:
-+
+=== New device descriptor
+
+[%header,cols="5,1,5"]
+|===
+|Device descriptor
+|Return type
+|Description
+
+|`ext::oneapi::experimental::info::device::architecture`
+|`ext::oneapi::experimental::architecture`
+|Returns the architecture of the device
+
+|===
+
+This device descriptor allows host code such as:
+
 --
 ```
-using namespace sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
-architecture arch = dev.get_info<info::device::architecture>();
+syclex::architecture arch = dev.get_info<syclex::info::device::architecture>();
 switch (arch) {
-case architecture::x86_64:
+case syclex::architecture::x86_64:
   /* ... */
   break;
-case architecture::intel_gpu_bdw:
+case syclex::architecture::intel_gpu_bdw:
   /* ... */
   break;
 /* etc. */
 }
 ```
 --
+
+== Limitations with the experimental version
+
+The {dpcpp} implementation of this extension currently has some important
+limitations with the `if_architecture_is` free function.  In order to use this
+feature, the application must be compiled in ahead-of-time (AOT) mode using
+`-fsycl-targets=<special-target>` where `<special-target>` is one of the
+"special target values" listed in the link:../../UsersManual.md[users manual]
+description of the `-fsycl-targets` option.  These are the target names of the
+form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+
+The architecture enumerations `intel_cpu_spr` and `intel_cpu_gnr` do
+not currently work with any of the APIs described in this extension.
+They cannot be used with the `if_architecture_is` function,
+the `device::ext_oneapi_architecture_is` function, or the
+`info::device::architecture` query descriptor. They currently exist
+only for use with the
+link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
+extension.
+
+== Future direction
+
+This experimental extension is still evolving.  We expect that future versions
+will include the following:
 
 * A compile-time constant property that can be used to decorate kernels and
   non-kernel device functions:

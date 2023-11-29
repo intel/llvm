@@ -257,6 +257,8 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
   bool IsFreeBSD = Triple.isOSFreeBSD();
   bool IsOpenBSD = Triple.isOSOpenBSD();
   bool IsNetBSD = Triple.isOSNetBSD();
+  bool IsHaiku = Triple.isOSHaiku();
+  bool IsOHOS = Triple.isOHOSFamily();
 
   // FIXME: the isOSBinFormatMachO is a workaround for identifying a Darwin-like
   // environment where size_t is `unsigned long` rather than `unsigned int`
@@ -323,7 +325,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
     default:
       if (IsNetBSD)
         setABI("apcs-gnu");
-      else if (IsFreeBSD || IsOpenBSD)
+      else if (IsFreeBSD || IsOpenBSD || IsHaiku || IsOHOS)
         setABI("aapcs-linux");
       else
         setABI("aapcs");
@@ -514,6 +516,7 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasFloat16 = true;
   ARMCDECoprocMask = 0;
   HasBFloat16 = false;
+  HasFullBFloat16 = false;
   FPRegsDisabled = false;
 
   // This does not diagnose illegal cases like having both
@@ -596,6 +599,8 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     } else if (Feature == "+pacbti") {
       HasPAC = 1;
       HasBTI = 1;
+    } else if (Feature == "+fullbf16") {
+      HasFullBFloat16 = true;
     }
   }
 
@@ -711,10 +716,9 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   // For bare-metal none-eabi.
   if (getTriple().getOS() == llvm::Triple::UnknownOS &&
       (getTriple().getEnvironment() == llvm::Triple::EABI ||
-       getTriple().getEnvironment() == llvm::Triple::EABIHF)) {
-    Builder.defineMacro("__ELF__");
-    if (Opts.CPlusPlus)
-      Builder.defineMacro("_GNU_SOURCE");
+       getTriple().getEnvironment() == llvm::Triple::EABIHF) &&
+      Opts.CPlusPlus) {
+    Builder.defineMacro("_GNU_SOURCE");
   }
 
   // Target properties.
@@ -1244,7 +1248,7 @@ bool ARMTargetInfo::validateConstraintModifier(
 
   return true;
 }
-const char *ARMTargetInfo::getClobbers() const {
+std::string_view ARMTargetInfo::getClobbers() const {
   // FIXME: Is this really right?
   return "";
 }

@@ -12,12 +12,37 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace jit_compiler {
 
 using BinaryAddress = const uint8_t *;
+
+/// Possible barrier flags
+enum class BarrierFlags : uint32_t {
+  None = 0,   // Do not insert barrier
+  Local = 1,  // Ensure correct ordering of memory operations to local memory
+  Global = 2, // Ensure correct ordering of memory operations to global memory
+  LocalAndGlobal = Local | Global
+};
+
+constexpr BarrierFlags getNoBarrierFlag() { return BarrierFlags::None; }
+constexpr BarrierFlags getLocalAndGlobalBarrierFlag() {
+  return BarrierFlags::LocalAndGlobal;
+}
+constexpr bool isNoBarrierFlag(BarrierFlags Flag) {
+  return Flag == BarrierFlags::None;
+}
+constexpr bool hasLocalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<uint32_t>(Flag) &
+         static_cast<uint32_t>(BarrierFlags::Local);
+}
+constexpr bool hasGlobalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<uint32_t>(Flag) &
+         static_cast<uint32_t>(BarrierFlags::Global);
+}
 
 ///
 /// Enumerate possible kinds of parameters.
@@ -34,7 +59,7 @@ enum class ParameterKind : uint32_t {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.

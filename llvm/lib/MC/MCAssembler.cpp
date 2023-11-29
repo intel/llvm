@@ -273,7 +273,7 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
     "FKF_IsAlignedDownTo32Bits is only allowed on PC-relative fixups!");
 
   if (IsPCRel) {
-    uint32_t Offset = Layout.getFragmentOffset(DF) + Fixup.getOffset();
+    uint64_t Offset = Layout.getFragmentOffset(DF) + Fixup.getOffset();
 
     // A number of ARM fixups in Thumb mode require that the effective PC
     // address be determined as the 32-bit aligned version of the actual offset.
@@ -286,6 +286,13 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
     IsResolved = false;
     WasForced = true;
   }
+
+  // A linker relaxation target may emit ADD/SUB relocations for A-B+C. Let
+  // recordRelocation handle non-VK_None cases like A@plt-B+C.
+  if (!IsResolved && Target.getSymA() && Target.getSymB() &&
+      Target.getSymA()->getKind() == MCSymbolRefExpr::VK_None &&
+      getBackend().handleAddSubRelocations(Layout, *DF, Fixup, Target, Value))
+    return true;
 
   return IsResolved;
 }
@@ -303,7 +310,7 @@ uint64_t MCAssembler::computeFragmentSize(const MCAsmLayout &Layout,
   case MCFragment::FT_Fill: {
     auto &FF = cast<MCFillFragment>(F);
     int64_t NumValues = 0;
-    if (!FF.getNumValues().evaluateAsAbsolute(NumValues, Layout)) {
+    if (!FF.getNumValues().evaluateKnownAbsolute(NumValues, Layout)) {
       getContext().reportError(FF.getLoc(),
                                "expected assembly-time absolute expression");
       return 0;
@@ -464,14 +471,13 @@ void MCAsmLayout::layoutFragment(MCFragment *F) {
   }
 }
 
-void MCAssembler::registerSymbol(const MCSymbol &Symbol, bool *Created) {
-  bool New = !Symbol.isRegistered();
-  if (Created)
-    *Created = New;
-  if (New) {
+bool MCAssembler::registerSymbol(const MCSymbol &Symbol) {
+  bool Changed = !Symbol.isRegistered();
+  if (Changed) {
     Symbol.setIsRegistered(true);
     Symbols.push_back(&Symbol);
   }
+  return Changed;
 }
 
 void MCAssembler::writeFragmentPadding(raw_ostream &OS,
@@ -515,7 +521,7 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
   // FIXME: Embed in fragments instead?
   uint64_t FragmentSize = Asm.computeFragmentSize(Layout, F);
 
-  support::endianness Endian = Asm.getBackend().Endian;
+  llvm::endianness Endian = Asm.getBackend().Endian;
 
   if (const MCEncodedFragment *EF = dyn_cast<MCEncodedFragment>(&F))
     Asm.writeFragmentPadding(OS, *EF, FragmentSize);
@@ -600,7 +606,7 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     // Duplicate V into Data as byte vector to reduce number of
     // writes done. As such, do endian conversion here.
     for (unsigned I = 0; I != VSize; ++I) {
-      unsigned index = Endian == support::little ? I : (VSize - I - 1);
+      unsigned index = Endian == llvm::endianness::little ? I : (VSize - I - 1);
       Data[I] = uint8_t(V >> (index * 8));
     }
     for (unsigned I = VSize; I < MaxChunkSize; ++I)
@@ -912,6 +918,12 @@ void MCAssembler::layout(MCAsmLayout &Layout) {
         Contents = DF.getContents();
         break;
       }
+      case MCFragment::FT_LEB: {
+        auto &LF = cast<MCLEBFragment>(Frag);
+        Fixups = LF.getFixups();
+        Contents = LF.getContents();
+        break;
+      }
       case MCFragment::FT_PseudoProbe: {
         MCPseudoProbeAddrFragment &PF = cast<MCPseudoProbeAddrFragment>(Frag);
         Fixups = PF.getFixups();
@@ -991,28 +1003,36 @@ bool MCAssembler::relaxInstruction(MCAsmLayout &Layout,
   getBackend().relaxInstruction(Relaxed, *F.getSubtargetInfo());
 
   // Encode the new instruction.
-  //
-  // FIXME-PERF: If it matters, we could let the target do this. It can
-  // probably do so more efficiently in many cases.
-  SmallVector<MCFixup, 4> Fixups;
-  SmallString<256> Code;
-  getEmitter().encodeInstruction(Relaxed, Code, Fixups, *F.getSubtargetInfo());
-
-  // Update the fragment.
   F.setInst(Relaxed);
-  F.getContents() = Code;
-  F.getFixups() = Fixups;
-
+  F.getFixups().clear();
+  F.getContents().clear();
+  getEmitter().encodeInstruction(Relaxed, F.getContents(), F.getFixups(),
+                                 *F.getSubtargetInfo());
   return true;
 }
 
 bool MCAssembler::relaxLEB(MCAsmLayout &Layout, MCLEBFragment &LF) {
-  uint64_t OldSize = LF.getContents().size();
+  const unsigned OldSize = static_cast<unsigned>(LF.getContents().size());
+  unsigned PadTo = OldSize;
   int64_t Value;
-  bool Abs = LF.getValue().evaluateKnownAbsolute(Value, Layout);
-  if (!Abs)
-    report_fatal_error("sleb128 and uleb128 expressions must be absolute");
-  SmallString<8> &Data = LF.getContents();
+  SmallVectorImpl<char> &Data = LF.getContents();
+  LF.getFixups().clear();
+  // Use evaluateKnownAbsolute for Mach-O as a hack: .subsections_via_symbols
+  // requires that .uleb128 A-B is foldable where A and B reside in different
+  // fragments. This is used by __gcc_except_table.
+  bool Abs = getSubsectionsViaSymbols()
+                 ? LF.getValue().evaluateKnownAbsolute(Value, Layout)
+                 : LF.getValue().evaluateAsAbsolute(Value, Layout);
+  if (!Abs) {
+    if (!getBackend().relaxLEB128(LF, Layout, Value)) {
+      getContext().reportError(LF.getValue().getLoc(),
+                               Twine(LF.isSigned() ? ".s" : ".u") +
+                                   "leb128 expression is not absolute");
+      LF.setValue(MCConstantExpr::create(0, Context));
+    }
+    uint8_t Tmp[10]; // maximum size: ceil(64/7)
+    PadTo = std::max(PadTo, encodeULEB128(uint64_t(Value), Tmp));
+  }
   Data.clear();
   raw_svector_ostream OSE(Data);
   // The compiler can generate EH table assembly that is impossible to assemble
@@ -1020,9 +1040,9 @@ bool MCAssembler::relaxLEB(MCAsmLayout &Layout, MCLEBFragment &LF) {
   // to a later alignment fragment. To accommodate such tables, relaxation can
   // only increase an LEB fragment size here, not decrease it. See PR35809.
   if (LF.isSigned())
-    encodeSLEB128(Value, OSE, OldSize);
+    encodeSLEB128(Value, OSE, PadTo);
   else
-    encodeULEB128(Value, OSE, OldSize);
+    encodeULEB128(Value, OSE, PadTo);
   return OldSize != LF.getContents().size();
 }
 
@@ -1104,11 +1124,10 @@ bool MCAssembler::relaxDwarfLineAddr(MCAsmLayout &Layout,
   LineDelta = DF.getLineDelta();
   SmallVectorImpl<char> &Data = DF.getContents();
   Data.clear();
-  raw_svector_ostream OSE(Data);
   DF.getFixups().clear();
 
-  MCDwarfLineAddr::Encode(Context, getDWARFLinetableParams(), LineDelta,
-                          AddrDelta, OSE);
+  MCDwarfLineAddr::encode(Context, getDWARFLinetableParams(), LineDelta,
+                          AddrDelta, Data);
   return OldSize != Data.size();
 }
 
@@ -1119,17 +1138,21 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCAsmLayout &Layout,
     return WasRelaxed;
 
   MCContext &Context = Layout.getAssembler().getContext();
-  uint64_t OldSize = DF.getContents().size();
-  int64_t AddrDelta;
-  bool Abs = DF.getAddrDelta().evaluateKnownAbsolute(AddrDelta, Layout);
-  assert(Abs && "We created call frame with an invalid expression");
-  (void) Abs;
+  int64_t Value;
+  bool Abs = DF.getAddrDelta().evaluateAsAbsolute(Value, Layout);
+  if (!Abs) {
+    getContext().reportError(DF.getAddrDelta().getLoc(),
+                             "invalid CFI advance_loc expression");
+    DF.setAddrDelta(MCConstantExpr::create(0, Context));
+    return false;
+  }
+
   SmallVectorImpl<char> &Data = DF.getContents();
+  uint64_t OldSize = Data.size();
   Data.clear();
-  raw_svector_ostream OSE(Data);
   DF.getFixups().clear();
 
-  MCDwarfFrameEmitter::EncodeAdvanceLoc(Context, AddrDelta, OSE);
+  MCDwarfFrameEmitter::encodeAdvanceLoc(Context, Value, Data);
   return OldSize != Data.size();
 }
 

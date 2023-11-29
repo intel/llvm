@@ -42,7 +42,6 @@
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <llvm/CodeGen/SelectionDAGNodes.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -124,20 +123,6 @@ getSimplificationBuilder(mlir::Operation *op, const fir::KindMapping &kindMap) {
   // override them with FastMathFlags attached to the operation.
   builder.setFastMathFlags(fmi.getFastMathFlagsAttr().getValue());
   return builder;
-}
-
-/// Stringify FastMathFlags set for the given \p builder in a way
-/// that the string may be used for mangling a function name.
-/// If FastMathFlags are set to 'none', then the result is an empty
-/// string.
-static std::string getFastMathFlagsString(const fir::FirOpBuilder &builder) {
-  mlir::arith::FastMathFlags flags = builder.getFastMathFlags();
-  if (flags == mlir::arith::FastMathFlags::none)
-    return {};
-
-  std::string fmfString{mlir::arith::stringifyFastMathFlags(flags)};
-  std::replace(fmfString.begin(), fmfString.end(), ',', '_');
-  return fmfString;
 }
 
 /// Generate function type for the simplified version of RTNAME(Sum) and
@@ -632,8 +617,18 @@ static void genRuntimeMaxvalBody(fir::FirOpBuilder &builder,
   auto genBodyOp = [](fir::FirOpBuilder builder, mlir::Location loc,
                       mlir::Type elementType, mlir::Value elem1,
                       mlir::Value elem2) -> mlir::Value {
-    if (elementType.isa<mlir::FloatType>())
-      return builder.create<mlir::arith::MaxFOp>(loc, elem1, elem2);
+    if (elementType.isa<mlir::FloatType>()) {
+      // arith.maxf later converted to llvm.intr.maxnum does not work
+      // correctly for NaNs and -0.0 (see maxnum/minnum pattern matching
+      // in LLVM's InstCombine pass). Moreover, llvm.intr.maxnum
+      // for F128 operands is lowered into fmaxl call by LLVM.
+      // This libm function may not work properly for F128 arguments
+      // on targets where long double is not F128. It is an LLVM issue,
+      // but we just use normal select here to resolve all the cases.
+      auto compare = builder.create<mlir::arith::CmpFOp>(
+          loc, mlir::arith::CmpFPredicate::OGT, elem1, elem2);
+      return builder.create<mlir::arith::SelectOp>(loc, compare, elem1, elem2);
+    }
     if (elementType.isa<mlir::IntegerType>())
       return builder.create<mlir::arith::MaxSIOp>(loc, elem1, elem2);
 
@@ -1072,7 +1067,7 @@ void SimplifyIntrinsicsPass::simplifyIntOrFloatReduction(
   mlir::SymbolRefAttr callee = call.getCalleeAttr();
 
   fir::FirOpBuilder builder{getSimplificationBuilder(call, kindMap)};
-  std::string fmfString{getFastMathFlagsString(builder)};
+  std::string fmfString{builder.getFastMathFlagsString()};
   std::string funcName =
       (mlir::Twine{callee.getLeafReference().getValue(), "x"} +
        mlir::Twine{rank} +
@@ -1205,7 +1200,7 @@ void SimplifyIntrinsicsPass::simplifyMinlocReduction(
   mlir::Value outputAlloc = outputDef->getOperand(0);
   mlir::Type outType = hlfir::getFortranElementType(outputAlloc.getType());
 
-  std::string fmfString{getFastMathFlagsString(builder)};
+  std::string fmfString{builder.getFastMathFlagsString()};
   std::string funcName =
       (mlir::Twine{callee.getLeafReference().getValue(), "x"} +
        mlir::Twine{rank} +
@@ -1299,7 +1294,7 @@ void SimplifyIntrinsicsPass::runOnOperation() {
           fir::FirOpBuilder builder{getSimplificationBuilder(op, kindMap)};
           // Stringize the builder's FastMathFlags flags for mangling
           // the generated function name.
-          std::string fmfString{getFastMathFlagsString(builder)};
+          std::string fmfString{builder.getFastMathFlagsString()};
 
           mlir::Type type = call.getResult(0).getType();
           if (!type.isa<mlir::FloatType>() && !type.isa<mlir::IntegerType>())

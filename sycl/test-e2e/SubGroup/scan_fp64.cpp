@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp64
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies the correct work of the sub-group algorithms
 // exclusive_scan() and inclusive_scan().
@@ -10,8 +9,7 @@
 #include <iostream>
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device()) ||
-      !Queue.get_device().has(sycl::aspect::fp64)) {
+  if (!core_sg_supported(Queue.get_device())) {
     std::cout << "Skipping test\n";
     return 0;
   }

@@ -13,10 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: "Gorban, Igor" <igor.gorban@intel.com>
-    # Date: Wed Feb 15 09:37:04 2023 +0000
-    # Fix module globals accessors
-    set(LLVMGenXIntrinsics_GIT_TAG 3ac855c9253d608a36d10b8ff87e62aa413bbf23)
+    # Author: Artur Gainullin <artur.gainullin@intel.com>
+    # Date:   Thu Nov 9 00:37:24 2023 +0000
+
+    # Replace old kernel with rewritten kernel in metadata only since LLVM 17
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -50,26 +51,29 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDOptimizeVecArgCallConv.cpp
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
+  ESIMD/ESIMDRemoveHostCode.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
-  ESIMD/LowerESIMDVecArg.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
   LowerInvokeSimd.cpp
-  LowerKernelProps.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
+  SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
+  PrepareSYCLNativeCPU.cpp
+  RenameKernelSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -81,6 +85,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMGenXIntrinsics
   LLVMDemangle
   LLVMTransformUtils
+  DeviceConfigFile
 
   LINK_LIBS
   LLVMGenXIntrinsics
@@ -92,6 +97,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   Core
   Support
+  ipo
   )
 
 target_include_directories(LLVMSYCLLowerIR

@@ -36,7 +36,10 @@ macro(add_sycl_executable ARG_TARGET_NAME)
     COMMAND_EXPAND_LISTS)
   add_dependencies(${ARG_TARGET_NAME}_exec sycl-toolchain)
   foreach(_lib ${ARG_LIBRARIES})
-    add_dependencies(${ARG_TARGET_NAME}_exec _lib)
+    # Avoid errors when linking external targets such as dl
+    if(TARGET ${_lib})
+      add_dependencies(${ARG_TARGET_NAME}_exec ${_lib})
+    endif()
   endforeach()
 
   foreach(_dep ${ARG_DEPENDANTS})

@@ -6,15 +6,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, level_zero
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// XREQUIRES: gpu
-// TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
-// The current "REQUIRES" should be replaced with "gpu" only as mentioned in
-// "XREQUIRES".
-// UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // Test for simd lvalue select function.
 // The test creates source simd instance with reference data and then calls

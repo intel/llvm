@@ -51,8 +51,8 @@ E: andrey.churbanov@intel.com
 D: OpenMP runtime library
 
 N: Johannes Doerfert
-E: jdoerfert@anl.gov
-D: OpenMP target offloading
+E: jdoerfert@llnl.gov
+D: OpenMP target offloading, OpenMP-Opt, Attributor
 
 N: Greg Clayton
 E: clayborg@gmail.com
@@ -75,10 +75,6 @@ E: andrea.dibiagio@sony.com
 E: andrea.dibiagio@gmail.com
 D: MCA, llvm-mca
 
-N: Duncan P. N. Exon Smith
-E: dexonsmith@apple.com
-D: Branch weights and BlockFrequencyInfo
-
 N: Hal Finkel
 E: hfinkel@anl.gov
 D: The loop reroller and alias analysis
@@ -92,7 +88,7 @@ E: llvm@sunfishcode.online
 D: WebAssembly Backend (lib/Target/WebAssembly/*)
 
 N: Renato Golin
-E: renato.golin@linaro.org
+E: rengolin@systemcall.eu
 D: ARM Linux support
 
 N: Venkatraman Govindaraju
@@ -119,6 +115,10 @@ N: Min-Yih Hsu
 E: min@myhsu.dev
 D: M68k Target (lib/Target/M68k/*)
 
+N: Cyndy Ishida
+E: cyndyishida@gmail.com
+D: TextAPI (lib/TextAPI/*) and related TAPI tools
+
 N: Teresa Johnson
 E: tejohnson@google.com
 D: Gold plugin (tools/gold/*) and IR Linker
@@ -135,9 +135,17 @@ N: Benjamin Kramer
 E: benny.kra@gmail.com
 D: DWARF Parser
 
-N: Michael Kuperstein
-E: mkuper@google.com
+N: Sundeep Kushwaha
+E: sundeepk@quicinc.com
+D: Hexagon Backend
+
+N: Florian Hahn
+E: flo@fhahn.com
 D: Loop Vectorizer
+
+N: Alexey Bataev
+E: a.bataev@outlook.com
+D: SLP Vectorizer
 
 N: Sergei Larin
 E: slarin@codeaurora.org
@@ -156,8 +164,8 @@ N: David Majnemer
 E: david.majnemer@gmail.com
 D: IR Constant Folder, InstCombine
 
-N: Dylan McKay
-E: me@dylanmckay.io
+N: Ben Shi
+E: 2283975856@qq.com, powerman1st@163.com
 D: AVR Backend
 
 N: Kazushi Marukawa
@@ -171,10 +179,6 @@ D: AArch64 backend, misc ARM backend
 N: Diego Novillo
 E: dnovillo@google.com
 D: SampleProfile and related parts of ProfileData
-
-N: Krzysztof Parzyszek
-E: kparzysz@quicinc.com
-D: Hexagon Backend
 
 N: Nigel Perks
 E: nigelp@xmos.com

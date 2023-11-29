@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -emit-llvm %s -o - -triple=wasm32-unknown-unknown | FileCheck %s
+// RUN: %clang_cc1 -emit-llvm %s -o - -triple=wasm32-unknown-unknown | FileCheck %s
 
 int main(int argc, char* argv[]) {
   return 0;

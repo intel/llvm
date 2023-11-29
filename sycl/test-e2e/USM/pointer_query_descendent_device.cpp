@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 // Use of descendent devices in opencl contexts is not supported yet.
 // UNSUPPORTED: opencl

@@ -40,6 +40,13 @@ using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
 
+// This function is explicity instantiated in ARM.cpp, don't do it here to avoid
+// warnings with MSVC.
+extern template void ObjFile<ELF32LE>::importCmseSymbols();
+extern template void ObjFile<ELF32BE>::importCmseSymbols();
+extern template void ObjFile<ELF64LE>::importCmseSymbols();
+extern template void ObjFile<ELF64BE>::importCmseSymbols();
+
 bool InputFile::isInGroup;
 uint32_t InputFile::nextGroupId;
 
@@ -76,7 +83,7 @@ static ELFKind getELFKind(MemoryBufferRef mb, StringRef archiveName) {
       fatal(archiveName + "(" + filename + "): " + msg);
   };
 
-  if (!mb.getBuffer().startswith(ElfMagic))
+  if (!mb.getBuffer().starts_with(ElfMagic))
     report("not an ELF file");
   if (endian != ELFDATA2LSB && endian != ELFDATA2MSB)
     report("corrupted ELF file: invalid data encoding");
@@ -177,6 +184,15 @@ static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
       config->armHasMovtMovw = true;
     break;
   }
+
+  // Only ARMv8-M or later architectures have CMSE support.
+  std::optional<unsigned> profile =
+      attributes.getAttributeValue(ARMBuildAttrs::CPU_arch_profile);
+  if (!profile)
+    return;
+  if (arch >= ARMBuildAttrs::CPUArch::v8_M_Base &&
+      profile == ARMBuildAttrs::MicroControllerProfile)
+    config->armCMSESupport = true;
 }
 
 InputFile::InputFile(Kind k, MemoryBufferRef m)
@@ -192,8 +208,31 @@ std::optional<MemoryBufferRef> elf::readFile(StringRef path) {
 
   // The --chroot option changes our virtual root directory.
   // This is useful when you are dealing with files created by --reproduce.
-  if (!config->chroot.empty() && path.startswith("/"))
+  if (!config->chroot.empty() && path.starts_with("/"))
     path = saver().save(config->chroot + path);
+
+  bool remapped = false;
+  auto it = config->remapInputs.find(path);
+  if (it != config->remapInputs.end()) {
+    path = it->second;
+    remapped = true;
+  } else {
+    for (const auto &[pat, toFile] : config->remapInputsWildcards) {
+      if (pat.match(path)) {
+        path = toFile;
+        remapped = true;
+        break;
+      }
+    }
+  }
+  if (remapped) {
+    // Use /dev/null to indicate an input file that should be ignored. Change
+    // the path to NUL on Windows.
+#ifdef _WIN32
+    if (path == "/dev/null")
+      path = "NUL";
+#endif
+  }
 
   log(path);
   config->dependencyFiles.insert(llvm::CachedHashString(path));
@@ -252,13 +291,6 @@ template <class ELFT> static void doParseFile(InputFile *file) {
   if (!isCompatible(file))
     return;
 
-  // Binary file
-  if (auto *f = dyn_cast<BinaryFile>(file)) {
-    ctx.binaryFiles.push_back(f);
-    f->parse();
-    return;
-  }
-
   // Lazy object file
   if (file->lazy) {
     if (auto *f = dyn_cast<BitcodeFile>(file)) {
@@ -273,26 +305,37 @@ template <class ELFT> static void doParseFile(InputFile *file) {
   if (config->trace)
     message(toString(file));
 
-  // .so file
-  if (auto *f = dyn_cast<SharedFile>(file)) {
+  if (file->kind() == InputFile::ObjKind) {
+    ctx.objectFiles.push_back(cast<ELFFileBase>(file));
+    cast<ObjFile<ELFT>>(file)->parse();
+  } else if (auto *f = dyn_cast<SharedFile>(file)) {
     f->parse<ELFT>();
-    return;
-  }
-
-  // LLVM bitcode file
-  if (auto *f = dyn_cast<BitcodeFile>(file)) {
+  } else if (auto *f = dyn_cast<BitcodeFile>(file)) {
     ctx.bitcodeFiles.push_back(f);
     f->parse();
-    return;
+  } else {
+    ctx.binaryFiles.push_back(cast<BinaryFile>(file));
+    cast<BinaryFile>(file)->parse();
   }
-
-  // Regular object file
-  ctx.objectFiles.push_back(cast<ELFFileBase>(file));
-  cast<ObjFile<ELFT>>(file)->parse();
 }
 
 // Add symbols in File to the symbol table.
 void elf::parseFile(InputFile *file) { invokeELFT(doParseFile, file); }
+
+// This function is explicity instantiated in ARM.cpp. Mark it extern here,
+// to avoid warnings when building with MSVC.
+extern template void ObjFile<ELF32LE>::importCmseSymbols();
+extern template void ObjFile<ELF32BE>::importCmseSymbols();
+extern template void ObjFile<ELF64LE>::importCmseSymbols();
+extern template void ObjFile<ELF64BE>::importCmseSymbols();
+
+template <class ELFT> static void doParseArmCMSEImportLib(InputFile *file) {
+  cast<ObjFile<ELFT>>(file)->importCmseSymbols();
+}
+
+void elf::parseArmCMSEImportLib(InputFile *file) {
+  invokeELFT(doParseArmCMSEImportLib, file);
+}
 
 // Concatenates arguments to construct a string representing an error location.
 static std::string createFileLineMsg(StringRef path, unsigned line) {
@@ -305,7 +348,7 @@ static std::string createFileLineMsg(StringRef path, unsigned line) {
 
 template <class ELFT>
 static std::string getSrcMsgAux(ObjFile<ELFT> &file, const Symbol &sym,
-                                InputSectionBase &sec, uint64_t offset) {
+                                const InputSectionBase &sec, uint64_t offset) {
   // In DWARF, functions and variables are stored to different places.
   // First, look up a function for a given offset.
   if (std::optional<DILineInfo> info = file.getDILineInfo(&sec, offset))
@@ -320,7 +363,7 @@ static std::string getSrcMsgAux(ObjFile<ELFT> &file, const Symbol &sym,
   return std::string(file.sourceFile);
 }
 
-std::string InputFile::getSrcMsg(const Symbol &sym, InputSectionBase &sec,
+std::string InputFile::getSrcMsg(const Symbol &sym, const InputSectionBase &sec,
                                  uint64_t offset) {
   if (kind() != ObjKind)
     return "";
@@ -431,8 +474,8 @@ ObjFile<ELFT>::getVariableLoc(StringRef name) {
 // Returns source line information for a given offset
 // using DWARF debug info.
 template <class ELFT>
-std::optional<DILineInfo> ObjFile<ELFT>::getDILineInfo(InputSectionBase *s,
-                                                       uint64_t offset) {
+std::optional<DILineInfo>
+ObjFile<ELFT>::getDILineInfo(const InputSectionBase *s, uint64_t offset) {
   // Detect SectionIndex for specified section.
   uint64_t sectionIndex = object::SectionedAddress::UndefSection;
   ArrayRef<InputSectionBase *> sections = s->file->getSections();
@@ -561,9 +604,9 @@ template <class ELFT> void ObjFile<ELFT>::parse(bool ignoreComdats) {
           check(this->getObj().getSectionContents(sec));
       StringRef name = check(obj.getSectionName(sec, shstrtab));
       this->sections[i] = &InputSection::discarded;
-      if (Error e =
-              attributes.parse(contents, ekind == ELF32LEKind ? support::little
-                                                              : support::big)) {
+      if (Error e = attributes.parse(contents, ekind == ELF32LEKind
+                                                   ? llvm::endianness::little
+                                                   : llvm::endianness::big)) {
         InputSection isec(*this, sec, name);
         warn(toString(&isec) + ": " + llvm::toString(std::move(e)));
       } else {
@@ -579,6 +622,16 @@ template <class ELFT> void ObjFile<ELFT>::parse(bool ignoreComdats) {
           this->sections[i] = in.attributes.get();
         }
       }
+    }
+
+    // Producing a static binary with MTE globals is not currently supported,
+    // remove all SHT_AARCH64_MEMTAG_GLOBALS_STATIC sections as they're unused
+    // medatada, and we don't want them to end up in the output file for static
+    // executables.
+    if (sec.sh_type == SHT_AARCH64_MEMTAG_GLOBALS_STATIC &&
+        !canHaveMemtagGlobals()) {
+      this->sections[i] = &InputSection::discarded;
+      continue;
     }
 
     if (sec.sh_type != SHT_GROUP)
@@ -862,12 +915,13 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
   while (!data.empty()) {
     // Read one NOTE record.
     auto *nhdr = reinterpret_cast<const Elf_Nhdr *>(data.data());
-    if (data.size() < sizeof(Elf_Nhdr) || data.size() < nhdr->getSize())
+    if (data.size() < sizeof(Elf_Nhdr) ||
+        data.size() < nhdr->getSize(sec.addralign))
       reportFatal(data.data(), "data is too short");
 
     Elf_Note note(*nhdr);
     if (nhdr->n_type != NT_GNU_PROPERTY_TYPE_0 || note.getName() != "GNU") {
-      data = data.slice(nhdr->getSize());
+      data = data.slice(nhdr->getSize(sec.addralign));
       continue;
     }
 
@@ -876,7 +930,7 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
                                   : GNU_PROPERTY_X86_FEATURE_1_AND;
 
     // Read a body of a NOTE record, which consists of type-length-value fields.
-    ArrayRef<uint8_t> desc = note.getDesc();
+    ArrayRef<uint8_t> desc = note.getDesc(sec.addralign);
     while (!desc.empty()) {
       const uint8_t *place = desc.data();
       if (desc.size() < 8)
@@ -901,7 +955,7 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
     }
 
     // Go to next NOTE record to look for more FEATURE_1_AND descriptions.
-    data = data.slice(nhdr->getSize());
+    data = data.slice(nhdr->getSize(sec.addralign));
   }
 
   return featuresSet;
@@ -935,7 +989,7 @@ template <class ELFT>
 InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
                                                     const Elf_Shdr &sec,
                                                     StringRef name) {
-  if (name.startswith(".n")) {
+  if (name.starts_with(".n")) {
     // The GNU linker uses .note.GNU-stack section as a marker indicating
     // that the code in the object file does not expect that the stack is
     // executable (in terms of NX bit). If all input files have the marker,
@@ -1007,8 +1061,8 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
   return makeThreadLocal<InputSection>(*this, sec, name);
 }
 
-// Initialize this->Symbols. this->Symbols is a parallel array as
-// its corresponding ELF symbol table.
+// Initialize symbols. symbols is a parallel array to the corresponding ELF
+// symbol table.
 template <class ELFT>
 void ObjFile<ELFT>::initializeSymbols(const object::ELFFile<ELFT> &obj) {
   ArrayRef<Elf_Sym> eSyms = this->getELFSyms<ELFT>();
@@ -1492,7 +1546,7 @@ template <class ELFT> void SharedFile::parse() {
           SharedSymbol{*this, name, sym.getBinding(), sym.st_other,
                        sym.getType(), sym.st_value, sym.st_size, alignment});
       if (s->file == this)
-        s->verdefIndex = ver;
+        s->versionId = ver;
     }
 
     // Also add the symbol with the versioned name to handle undefined symbols
@@ -1509,7 +1563,7 @@ template <class ELFT> void SharedFile::parse() {
         SharedSymbol{*this, saver().save(name), sym.getBinding(), sym.st_other,
                      sym.getType(), sym.st_value, sym.st_size, alignment});
     if (s->file == this)
-      s->verdefIndex = idx;
+      s->versionId = idx;
   }
 }
 
@@ -1528,12 +1582,17 @@ static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   case Triple::r600:
     return EM_AMDGPU;
   case Triple::arm:
+  case Triple::armeb:
   case Triple::thumb:
+  case Triple::thumbeb:
     return EM_ARM;
   case Triple::avr:
     return EM_AVR;
   case Triple::hexagon:
     return EM_HEXAGON;
+  case Triple::loongarch32:
+  case Triple::loongarch64:
+    return EM_LOONGARCH;
   case Triple::mips:
   case Triple::mipsel:
   case Triple::mips64:
@@ -1550,6 +1609,8 @@ static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   case Triple::riscv32:
   case Triple::riscv64:
     return EM_RISCV;
+  case Triple::sparcv9:
+    return EM_SPARCV9;
   case Triple::x86:
     return t.isOSIAMCU() ? EM_IAMCU : EM_386;
   case Triple::x86_64:
@@ -1712,15 +1773,15 @@ void BinaryFile::parse() {
 
   llvm::StringSaver &saver = lld::saver();
 
-  symtab.addAndCheckDuplicate(Defined{nullptr, saver.save(s + "_start"),
+  symtab.addAndCheckDuplicate(Defined{this, saver.save(s + "_start"),
                                       STB_GLOBAL, STV_DEFAULT, STT_OBJECT, 0, 0,
                                       section});
-  symtab.addAndCheckDuplicate(Defined{nullptr, saver.save(s + "_end"),
-                                      STB_GLOBAL, STV_DEFAULT, STT_OBJECT,
-                                      data.size(), 0, section});
-  symtab.addAndCheckDuplicate(Defined{nullptr, saver.save(s + "_size"),
-                                      STB_GLOBAL, STV_DEFAULT, STT_OBJECT,
-                                      data.size(), 0, nullptr});
+  symtab.addAndCheckDuplicate(Defined{this, saver.save(s + "_end"), STB_GLOBAL,
+                                      STV_DEFAULT, STT_OBJECT, data.size(), 0,
+                                      section});
+  symtab.addAndCheckDuplicate(Defined{this, saver.save(s + "_size"), STB_GLOBAL,
+                                      STV_DEFAULT, STT_OBJECT, data.size(), 0,
+                                      nullptr});
 }
 
 ELFFileBase *elf::createObjFile(MemoryBufferRef mb, StringRef archiveName,
@@ -1765,7 +1826,7 @@ template <class ELFT> void ObjFile<ELFT>::parseLazy() {
   }
 }
 
-bool InputFile::shouldExtractForCommon(StringRef name) {
+bool InputFile::shouldExtractForCommon(StringRef name) const {
   if (isa<BitcodeFile>(this))
     return isBitcodeNonCommonDef(mb, name, archiveName);
 

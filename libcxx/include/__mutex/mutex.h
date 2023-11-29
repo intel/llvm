@@ -21,7 +21,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-class _LIBCPP_TYPE_VIS _LIBCPP_THREAD_SAFETY_ANNOTATION(capability("mutex")) mutex {
+class _LIBCPP_EXPORTED_FROM_ABI _LIBCPP_THREAD_SAFETY_ANNOTATION(capability("mutex")) mutex {
   __libcpp_mutex_t __m_ = _LIBCPP_MUTEX_INITIALIZER;
 
 public:
@@ -31,7 +31,7 @@ public:
   mutex& operator=(const mutex&) = delete;
 
 #  if defined(_LIBCPP_HAS_TRIVIAL_MUTEX_DESTRUCTION)
-  ~mutex() = default;
+  _LIBCPP_HIDE_FROM_ABI ~mutex() = default;
 #  else
   ~mutex() _NOEXCEPT;
 #  endif

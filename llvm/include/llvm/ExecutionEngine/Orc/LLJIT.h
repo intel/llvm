@@ -22,6 +22,7 @@
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ThreadPool.h"
+#include <variant>
 
 namespace llvm {
 namespace orc {
@@ -306,7 +307,7 @@ public:
           JITTargetMachineBuilder JTMB)>;
 
   using ProcessSymbolsJITDylibSetupFunction =
-      std::function<Error(JITDylib &JD)>;
+      unique_function<Expected<JITDylibSP>(LLJIT &J)>;
 
   using PlatformSetupFunction = unique_function<Expected<JITDylibSP>(LLJIT &J)>;
 
@@ -318,6 +319,7 @@ public:
   ProcessSymbolsJITDylibSetupFunction SetupProcessSymbolsJITDylib;
   ObjectLinkingLayerCreator CreateObjectLinkingLayer;
   CompileFunctionCreator CreateCompileFunction;
+  unique_function<Error(LLJIT &)> PrePlatformSetup;
   PlatformSetupFunction SetUpPlatform;
   unsigned NumCompileThreads = 0;
 
@@ -413,6 +415,19 @@ public:
   SetterImpl &setCompileFunctionCreator(
       LLJITBuilderState::CompileFunctionCreator CreateCompileFunction) {
     impl().CreateCompileFunction = std::move(CreateCompileFunction);
+    return impl();
+  }
+
+  /// Set a setup function to be run just before the PlatformSetupFunction is
+  /// run.
+  ///
+  /// This can be used to customize the LLJIT instance before the platform is
+  /// set up. E.g. By installing a debugger support plugin before the platform
+  /// is set up (when the ORC runtime is loaded) we enable debugging of the
+  /// runtime itself.
+  SetterImpl &
+  setPrePlatformSetup(unique_function<Error(LLJIT &)> PrePlatformSetup) {
+    impl().PrePlatformSetup = std::move(PrePlatformSetup);
     return impl();
   }
 

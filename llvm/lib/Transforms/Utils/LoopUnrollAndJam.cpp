@@ -19,7 +19,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
@@ -347,7 +346,7 @@ llvm::UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
       !EnableFSDiscriminator)
     for (BasicBlock *BB : L->getBlocks())
       for (Instruction &I : *BB)
-        if (!isa<DbgInfoIntrinsic>(&I))
+        if (!I.isDebugOrPseudoInst())
           if (const DILocation *DIL = I.getDebugLoc()) {
             auto NewDIL = DIL->cloneByMultiplyingDuplicationFactor(Count);
             if (NewDIL)

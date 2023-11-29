@@ -1,20 +1,20 @@
 ; REQUIRES: x86-registered-target
 
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/funcimport.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto -print-summary-global-ids -o %t3 %t.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=GUID
 
 ; Do the import now
-; RUN: opt -opaque-pointers -passes=function-import -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
+; RUN: opt -passes=function-import -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
 ; Try again with new pass manager
-; RUN: opt -opaque-pointers -passes='function-import' -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
-; RUN: opt -opaque-pointers -passes='function-import' -debug-only=function-import -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=DUMP
+; RUN: opt -passes='function-import' -stats -print-imports -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIMDEF
+; RUN: opt -passes='function-import' -debug-only=function-import -enable-import-metadata -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s --check-prefix=DUMP
 ; "-stats" and "-debug-only" require +Asserts.
 ; REQUIRES: asserts
 
 ; Test import with smaller instruction limit
-; RUN: opt -opaque-pointers -passes=function-import -enable-import-metadata  -summary-file %t3.thinlto.bc %t.bc -import-instr-limit=5 -S | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIM5
+; RUN: opt -passes=function-import -enable-import-metadata  -summary-file %t3.thinlto.bc %t.bc -import-instr-limit=5 -S | FileCheck %s --check-prefix=CHECK --check-prefix=INSTLIM5
 ; INSTLIM5-NOT: @staticfunc.llvm.
 
 ; Test force import all

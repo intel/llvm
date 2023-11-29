@@ -1,5 +1,5 @@
 ; RUN: mkdir -p %t && cd %t
-; RUN: opt -opaque-pointers < %s -S -passes=insert-gcov-profiling | FileCheck %s
+; RUN: opt < %s -S -passes=insert-gcov-profiling | FileCheck %s
 
 target triple = "x86_64-unknown-linux-gnu"
 

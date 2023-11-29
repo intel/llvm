@@ -64,15 +64,12 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -407,8 +404,8 @@ bool IndVarSimplify::rewriteNonIntegerIVs(Loop *L) {
     PHIs.push_back(&PN);
 
   bool Changed = false;
-  for (unsigned i = 0, e = PHIs.size(); i != e; ++i)
-    if (PHINode *PN = dyn_cast_or_null<PHINode>(&*PHIs[i]))
+  for (WeakTrackingVH &PHI : PHIs)
+    if (PHINode *PN = dyn_cast_or_null<PHINode>(&*PHI))
       Changed |= handleFloatingPointIV(L, PN);
 
   // If the loop previously had floating-point IV, ScalarEvolution
@@ -2000,20 +1997,12 @@ bool IndVarSimplify::run(Loop *L) {
                                        TTI, PreHeader->getTerminator()))
         continue;
 
-      // Check preconditions for proper SCEVExpander operation. SCEV does not
-      // express SCEVExpander's dependencies, such as LoopSimplify. Instead
-      // any pass that uses the SCEVExpander must do it. This does not work
-      // well for loop passes because SCEVExpander makes assumptions about
-      // all loops, while LoopPassManager only forces the current loop to be
-      // simplified.
-      //
-      // FIXME: SCEV expansion has no way to bail out, so the caller must
-      // explicitly check any assumptions made by SCEV. Brittle.
-      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(ExitCount);
-      if (!AR || AR->getLoop()->getLoopPreheader())
-        Changed |= linearFunctionTestReplace(L, ExitingBB,
-                                             ExitCount, IndVar,
-                                             Rewriter);
+      if (!Rewriter.isSafeToExpand(ExitCount))
+        continue;
+
+      Changed |= linearFunctionTestReplace(L, ExitingBB,
+                                           ExitCount, IndVar,
+                                           Rewriter);
     }
   }
   // Clear the rewriter cache, because values that are in the rewriter's cache

@@ -95,7 +95,7 @@ using SBTF2 = ::SS1 [[clang::btf_type_tag("1")]];
 using SBTF3 = ::SS1 [[clang::btf_type_tag("2")]];
 
 N t21 = 0 ? (SBTF1){} : (SBTF3){}; // expected-error {{from 'SS1'}}
-N t22 = 0 ? (SBTF1){} : (SBTF2){}; // expected-error {{from 'SS1 btf_type_tag(1)' (aka 'SS1')}}
+N t22 = 0 ? (SBTF1){} : (SBTF2){}; // expected-error {{from 'SS1 __attribute__((btf_type_tag("1")))' (aka 'SS1')}}
 
 using QX = const SB1 *;
 using QY = const ::SB1 *;
@@ -142,3 +142,14 @@ namespace PR61419 {
   extern const pair<id, id> p;
   id t = false ? p.first : p.second;
 } // namespace PR61419
+
+namespace GH67603 {
+  template <class> using A = long;
+  template <class B> void h() {
+    using C = B;
+    using D = B;
+    N t = 0 ? A<decltype(C())>() : A<decltype(D())>();
+    // expected-error@-1 {{rvalue of type 'A<decltype(C())>' (aka 'long')}}
+  }
+  template void h<int>();
+} // namespace GH67603

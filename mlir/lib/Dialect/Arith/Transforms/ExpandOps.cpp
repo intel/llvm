@@ -16,7 +16,7 @@
 
 namespace mlir {
 namespace arith {
-#define GEN_PASS_DEF_ARITHEXPANDOPS
+#define GEN_PASS_DEF_ARITHEXPANDOPSPASS
 #include "mlir/Dialect/Arith/Transforms/Passes.h.inc"
 } // namespace arith
 } // namespace mlir
@@ -161,7 +161,7 @@ struct FloorDivSIOpConverter : public OpRewritePattern<arith::FloorDivSIOp> {
 };
 
 template <typename OpTy, arith::CmpFPredicate pred>
-struct MaxMinFOpConverter : public OpRewritePattern<OpTy> {
+struct MaximumMinimumFOpConverter : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
@@ -303,7 +303,9 @@ struct BFloat16TruncFOpConverter : public OpRewritePattern<arith::TruncFOp> {
 };
 
 struct ArithExpandOpsPass
-    : public arith::impl::ArithExpandOpsBase<ArithExpandOpsPass> {
+    : public arith::impl::ArithExpandOpsPassBase<ArithExpandOpsPass> {
+  using ArithExpandOpsPassBase::ArithExpandOpsPassBase;
+
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
@@ -316,8 +318,8 @@ struct ArithExpandOpsPass
       arith::CeilDivSIOp,
       arith::CeilDivUIOp,
       arith::FloorDivSIOp,
-      arith::MaxFOp,
-      arith::MinFOp
+      arith::MaximumFOp,
+      arith::MinimumFOp
     >();
 
     if (includeBf16) {
@@ -362,12 +364,8 @@ void mlir::arith::populateArithExpandOpsPatterns(RewritePatternSet &patterns) {
   populateCeilFloorDivExpandOpsPatterns(patterns);
   // clang-format off
   patterns.add<
-    MaxMinFOpConverter<MaxFOp, arith::CmpFPredicate::UGT>,
-    MaxMinFOpConverter<MinFOp, arith::CmpFPredicate::ULT>
+    MaximumMinimumFOpConverter<MaximumFOp, arith::CmpFPredicate::UGT>,
+    MaximumMinimumFOpConverter<MinimumFOp, arith::CmpFPredicate::ULT>
    >(patterns.getContext());
   // clang-format on
-}
-
-std::unique_ptr<Pass> mlir::arith::createArithExpandOpsPass() {
-  return std::make_unique<ArithExpandOpsPass>();
 }

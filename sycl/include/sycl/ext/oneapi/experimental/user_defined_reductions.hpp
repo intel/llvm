@@ -12,7 +12,7 @@
 #include <sycl/group_algorithm.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 template <typename GroupHelper, typename T, typename BinaryOperation>
@@ -44,7 +44,7 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
 
 // ---- reduce_over_group
 template <typename GroupHelper, typename T, typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
     return sycl::reduce_over_group(group_helper.get_group(), x, binary_op);
@@ -61,7 +61,7 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
 
 template <typename GroupHelper, typename V, typename T,
           typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, V x, T init,
                   BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<V, BinaryOperation>::value &&
@@ -80,9 +80,9 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 
 // ---- joint_reduce
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                           sycl::detail::is_pointer<Ptr>::value),
-                          typename std::iterator_traits<Ptr>::value_type>
+std::enable_if_t<(is_group_helper_v<GroupHelper> &&
+                  sycl::detail::is_pointer_v<Ptr>),
+                 typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<
@@ -117,8 +117,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
 
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
-sycl::detail::enable_if_t<
-    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
+std::enable_if_t<
+    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer_v<Ptr>), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
@@ -135,5 +135,5 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

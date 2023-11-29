@@ -278,14 +278,15 @@ private:
 
   // These facilities are used for validation in debug builds.
   class UnparsedFileStatus {
-    llvm::PointerIntPair<const FileEntry *, 1, bool> Data;
+    OptionalFileEntryRef File;
+    bool FoundDirectives;
 
   public:
-    UnparsedFileStatus(const FileEntry *File, bool FoundDirectives)
-        : Data(File, FoundDirectives) {}
+    UnparsedFileStatus(OptionalFileEntryRef File, bool FoundDirectives)
+        : File(File), FoundDirectives(FoundDirectives) {}
 
-    const FileEntry *getFile() const { return Data.getPointer(); }
-    bool foundDirectives() const { return Data.getInt(); }
+    OptionalFileEntryRef getFile() const { return File; }
+    bool foundDirectives() const { return FoundDirectives; }
   };
 
   using ParsedFilesMap = llvm::DenseMap<FileID, const FileEntry *>;

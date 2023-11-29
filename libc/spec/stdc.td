@@ -358,6 +358,7 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"copysign", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"copysignf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
           FunctionSpec<"copysignl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoubleType>]>,
+          FunctionSpec<"copysignf128", RetValSpec<Float128Type>, [ArgSpec<Float128Type>, ArgSpec<Float128Type>]>,
 
           FunctionSpec<"ceil", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"ceilf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
@@ -408,10 +409,13 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"log10", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log1p", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log1pf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log2", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"log2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"log", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"logf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"logb", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
@@ -429,8 +433,15 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"tan", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"tanf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
+          FunctionSpec<"erff", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"exp", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"expf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"exp2", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"exp2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"expm1", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"expm1f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"remainderf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
@@ -481,6 +492,11 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"nextafter", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"nextafterl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoubleType>]>,
 
+          FunctionSpec<"nexttowardf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<LongDoubleType>]>,
+          FunctionSpec<"nexttoward", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<LongDoubleType>]>,
+          FunctionSpec<"nexttowardl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoubleType>]>,
+
+          FunctionSpec<"powf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
           FunctionSpec<"pow", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
 
           FunctionSpec<"coshf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
@@ -579,6 +595,11 @@ def StdC : StandardSpec<"stdc"> {
               "getc",
               RetValSpec<IntType>,
               [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "getchar",
+              RetValSpec<IntType>,
+              [ArgSpec<VoidType>]
           >,
           FunctionSpec<
               "putc",
@@ -687,6 +708,34 @@ def StdC : StandardSpec<"stdc"> {
               [ArgSpec<FILERestrictedPtr>,
                ArgSpec<ConstCharRestrictedPtr>,
                ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "vsprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VaListType>]
+          >,
+          FunctionSpec<
+              "vsnprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VaListType>]
+          >,
+          FunctionSpec<
+              "vprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VaListType>]
+          >,
+          FunctionSpec<
+              "vfprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VaListType>]
           >,
           FunctionSpec<
               "ungetc",

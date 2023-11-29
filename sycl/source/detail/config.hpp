@@ -13,6 +13,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
@@ -23,7 +24,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
@@ -237,7 +238,7 @@ getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -327,13 +328,19 @@ public:
 
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
+  static void resetWithValue(const char *Val) {
+    (void)getCachedValue(/*ResetCache=*/true, Val);
+  }
+
   static const char *getName() { return BaseT::MConfigName; }
 
 private:
-  static const char *getCachedValue(bool ResetCache = false) {
+  static const char *getCachedValue(bool ResetCache = false,
+                                    const char *Val = nullptr) {
     static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
+    if (ResetCache) {
+      ValStr = (Val != nullptr) ? Val : BaseT::getRawValue();
+    }
     return ValStr;
   }
 };
@@ -607,8 +614,36 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static constexpr bool Default = true; // default is true
+  static bool get() { return getCachedValue(); }
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool parseValue() {
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr)
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+    }
+    return ValStr[0] == '1';
+  }
+
+  static bool getCachedValue() {
+    static bool Val = parseValue();
+    return Val;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

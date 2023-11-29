@@ -1,7 +1,7 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %S/Inputs/personality.ll -o %t2.bc
 
-; RUN: llvm-lto2 run -opaque-pointers -o %t.o %t1.bc %t2.bc -save-temps \
+; RUN: llvm-lto2 run -o %t.o %t1.bc %t2.bc -save-temps \
 ; RUN:   -r %t2.bc,bar,p \
 ; RUN:   -r %t2.bc,personality_routine,p \
 ; RUN:   -r %t2.bc,personality_routine2,p \

@@ -4,12 +4,16 @@ add_startup_object(
     start.cpp
   DEPENDS
     libc.src.__support.RPC.rpc_client
+    libc.src.__support.GPU.utils
+    libc.src.stdlib.exit
+    libc.src.stdlib.atexit
   COMPILE_OPTIONS
     -ffreestanding # To avoid compiler warnings about calling the main function.
     -fno-builtin
     -nogpulib # Do not include any GPU vendor libraries.
     -mcpu=${LIBC_GPU_TARGET_ARCHITECTURE}
     -emit-llvm # AMDGPU's intermediate object file format is bitcode.
+    -mcode-object-version=${LIBC_GPU_CODE_OBJECT_VERSION} # Manually set the ABI.
     --target=${LIBC_GPU_TARGET_TRIPLE}
   NO_GPU_BUNDLE # Compile this file directly without special GPU handling.
 )
@@ -22,4 +26,6 @@ target_link_libraries(
   "-mcpu=${LIBC_GPU_TARGET_ARCHITECTURE}"
   "--target=${LIBC_GPU_TARGET_TRIPLE}"
   "-flto"
+  "-Wl,-mllvm,-amdgpu-lower-global-ctor-dtor=0"
+  "-Wl,-mllvm,-amdhsa-code-object-version=${LIBC_GPU_CODE_OBJECT_VERSION}"
 )

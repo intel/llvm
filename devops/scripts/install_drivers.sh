@@ -1,16 +1,45 @@
 #!/bin/bash
 
-CR_TAG=$compute_runtime_tag
-IGC_TAG=$igc_tag
-CM_TAG=$cm_tag
-L0_TAG=$level_zero_tag
-TBB_TAG=$tbb_tag
-FPGA_TAG=$fpgaemu_tag
-CPU_TAG=$cpu_tag
+set -e
+set -x
+
+if [ -f "$1" ]; then
+    # Read data from the dependencies.json passed as the first argument.
+    CONFIG_FILE=$1
+    CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
+    IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
+    CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
+    L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
+    TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
+    FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
+    CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
+else
+    CR_TAG=$compute_runtime_tag
+    IGC_TAG=$igc_tag
+    CM_TAG=$cm_tag
+    L0_TAG=$level_zero_tag
+    TBB_TAG=$tbb_tag
+    FPGA_TAG=$fpgaemu_tag
+    CPU_TAG=$cpu_tag
+fi
+
+function get_release() {
+    REPO=$1
+    TAG=$2
+    if [ "$TAG" == "latest" ]; then
+        URL="https://api.github.com/repos/${REPO}/releases/latest"
+    else
+        URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
+    fi
+    HEADER=""
+    if [ "$GITHUB_TOKEN" != "" ]; then
+        HEADER="Authorization: Bearer $GITHUB_TOKEN"
+    fi
+    curl -s -L -H "$HEADER" $URL \
+        | jq -r '. as $raw | try .assets[].browser_download_url catch error($raw)'
+}
 
 TBB_INSTALLED=false
-
-LOCATION=$(dirname -- "$(readlink -f "${BASH_SOURCE}")")
 
 if [[ -v INSTALL_LOCATION ]]; then
   INSTALL_LOCATION=$(realpath "$INSTALL_LOCATION")
@@ -26,7 +55,7 @@ InstallTBB () {
     cd $INSTALL_LOCATION
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
-    python3 $LOCATION/get_release.py oneapi-src/onetbb $TBB_TAG \
+    get_release oneapi-src/onetbb $TBB_TAG \
       | grep -E ".*-lin.tgz" \
       | wget -qi -
     tar -xf *.tgz && rm *.tgz && mv oneapi-tbb-* oneapi-tbb
@@ -41,18 +70,18 @@ InstallIGFX () {
   echo "IGC version $IGC_TAG"
   echo "CM compiler version $CM_TAG"
   echo "Level Zero version $L0_TAG"
-  python3 $LOCATION/get_release.py intel/intel-graphics-compiler $IGC_TAG \
+  get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
-  python3 $LOCATION/get_release.py intel/compute-runtime $CR_TAG \
+  get_release intel/compute-runtime $CR_TAG \
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   sha256sum -c *.sum && \
-  python3 $LOCATION/get_release.py intel/cm-compiler $CM_TAG \
+  get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
-  python3 $LOCATION/get_release.py oneapi-src/level-zero $L0_TAG \
+  get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
@@ -67,7 +96,7 @@ InstallCPURT () {
     echo "$INSTALL_LOCATION/oclcpu exists and will be removed!"
     rm -Rf $INSTALL_LOCATION/oclcpu;
   fi
-  python3 $LOCATION/get_release.py intel/llvm $CPU_TAG \
+  get_release intel/llvm $CPU_TAG \
     | grep -E ".*oclcpuexp.*tar.gz" \
     | wget -qi -
   mkdir oclcpu && tar -xf *.tar.gz -C oclcpu && rm *.tar.gz
@@ -85,9 +114,9 @@ InstallFPGAEmu () {
   cd $INSTALL_LOCATION
   if [ -d "$INSTALL_LOCATION/fpgaemu" ]; then
     echo "$INSTALL_LOCATION/fpgaemu exists and will be removed!"
-    rm -Rf $INSTALL_LOCATION/oclcpu;
+    rm -Rf $INSTALL_LOCATION/fpgaemu;
   fi
-  python3 $LOCATION/get_release.py intel/llvm $FPGA_TAG \
+  get_release intel/llvm $FPGA_TAG \
     | grep -E ".*fpgaemu.*tar.gz" \
     | wget -qi - && \
     mkdir fpgaemu && tar -xf *.tar.gz -C fpgaemu && rm *.tar.gz

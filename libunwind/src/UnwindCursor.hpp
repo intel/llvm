@@ -31,7 +31,8 @@
 #endif
 
 #if defined(_LIBUNWIND_TARGET_LINUX) &&                                        \
-    (defined(_LIBUNWIND_TARGET_AARCH64) || defined(_LIBUNWIND_TARGET_S390X))
+    (defined(_LIBUNWIND_TARGET_AARCH64) || defined(_LIBUNWIND_TARGET_RISCV) || \
+     defined(_LIBUNWIND_TARGET_S390X))
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -575,6 +576,7 @@ UnwindCursor<A, R>::UnwindCursor(unw_context_t *context, A &as)
                 "UnwindCursor<> requires more alignment than unw_cursor_t");
   memset(&_info, 0, sizeof(_info));
   memset(&_histTable, 0, sizeof(_histTable));
+  memset(&_dispContext, 0, sizeof(_dispContext));
   _dispContext.ContextRecord = &_msContext;
   _dispContext.HistoryTable = &_histTable;
   // Initialize MS context from ours.
@@ -677,6 +679,7 @@ UnwindCursor<A, R>::UnwindCursor(CONTEXT *context, A &as)
                 "UnwindCursor<> does not fit in unw_cursor_t");
   memset(&_info, 0, sizeof(_info));
   memset(&_histTable, 0, sizeof(_histTable));
+  memset(&_dispContext, 0, sizeof(_dispContext));
   _dispContext.ContextRecord = &_msContext;
   _dispContext.HistoryTable = &_histTable;
   _msContext = *context;
@@ -990,6 +993,10 @@ private:
 #if defined(_LIBUNWIND_TARGET_AARCH64)
   bool setInfoForSigReturn(Registers_arm64 &);
   int stepThroughSigReturn(Registers_arm64 &);
+#endif
+#if defined(_LIBUNWIND_TARGET_RISCV)
+  bool setInfoForSigReturn(Registers_riscv &);
+  int stepThroughSigReturn(Registers_riscv &);
 #endif
 #if defined(_LIBUNWIND_TARGET_S390X)
   bool setInfoForSigReturn(Registers_s390x &);
@@ -2294,27 +2301,39 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
     if (!getFunctionName(functionBuf, sizeof(functionBuf), &offset)) {
       functionName = ".anonymous.";
     }
-    _LIBUNWIND_TRACE_UNWINDING("%s: Look up traceback table of func=%s at %p",
-                               __func__, functionName,
-                               reinterpret_cast<void *>(TBTable));
+    _LIBUNWIND_TRACE_UNWINDING(
+        "%s: Look up traceback table of func=%s at %p, pc=%p, "
+        "SP=%p, saves_lr=%d, stores_bc=%d",
+        __func__, functionName, reinterpret_cast<void *>(TBTable),
+        reinterpret_cast<void *>(pc),
+        reinterpret_cast<void *>(registers.getSP()), TBTable->tb.saves_lr,
+        TBTable->tb.stores_bc);
   }
 
 #if defined(__powerpc64__)
-  // Instruction to reload TOC register "l r2,40(r1)"
+  // Instruction to reload TOC register "ld r2,40(r1)"
   const uint32_t loadTOCRegInst = 0xe8410028;
   const int32_t unwPPCF0Index = UNW_PPC64_F0;
   const int32_t unwPPCV0Index = UNW_PPC64_V0;
 #else
-  // Instruction to reload TOC register "l r2,20(r1)"
+  // Instruction to reload TOC register "lwz r2,20(r1)"
   const uint32_t loadTOCRegInst = 0x80410014;
   const int32_t unwPPCF0Index = UNW_PPC_F0;
   const int32_t unwPPCV0Index = UNW_PPC_V0;
 #endif
 
+  // lastStack points to the stack frame of the next routine up.
+  pint_t curStack = static_cast<pint_t>(registers.getSP());
+  pint_t lastStack = *reinterpret_cast<pint_t *>(curStack);
+
+  if (lastStack == 0)
+    return UNW_STEP_END;
+
   R newRegisters = registers;
 
-  // lastStack points to the stack frame of the next routine up.
-  pint_t lastStack = *(reinterpret_cast<pint_t *>(registers.getSP()));
+  // If backchain is not stored, use the current stack frame.
+  if (!TBTable->tb.stores_bc)
+    lastStack = curStack;
 
   // Return address is the address after call site instruction.
   pint_t returnAddress;
@@ -2324,32 +2343,40 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
                                reinterpret_cast<void *>(lastStack));
 
     sigcontext *sigContext = reinterpret_cast<sigcontext *>(
-        reinterpret_cast<char *>(lastStack) + STKMIN);
+        reinterpret_cast<char *>(lastStack) + STKMINALIGN);
     returnAddress = sigContext->sc_jmpbuf.jmp_context.iar;
 
-    _LIBUNWIND_TRACE_UNWINDING("From sigContext=%p, returnAddress=%p\n",
+    bool useSTKMIN = false;
+    if (returnAddress < 0x10000000) {
+      // Try again using STKMIN.
+      sigContext = reinterpret_cast<sigcontext *>(
+          reinterpret_cast<char *>(lastStack) + STKMIN);
+      returnAddress = sigContext->sc_jmpbuf.jmp_context.iar;
+      if (returnAddress < 0x10000000) {
+        _LIBUNWIND_TRACE_UNWINDING("Bad returnAddress=%p from sigcontext=%p",
+                                   reinterpret_cast<void *>(returnAddress),
+                                   reinterpret_cast<void *>(sigContext));
+        return UNW_EBADFRAME;
+      }
+      useSTKMIN = true;
+    }
+    _LIBUNWIND_TRACE_UNWINDING("Returning from a signal handler %s: "
+                               "sigContext=%p, returnAddress=%p. "
+                               "Seems to be a valid address",
+                               useSTKMIN ? "STKMIN" : "STKMINALIGN",
                                reinterpret_cast<void *>(sigContext),
                                reinterpret_cast<void *>(returnAddress));
 
-    if (returnAddress < 0x10000000) {
-      // Try again using STKMINALIGN
-      sigContext = reinterpret_cast<sigcontext *>(
-          reinterpret_cast<char *>(lastStack) + STKMINALIGN);
-      returnAddress = sigContext->sc_jmpbuf.jmp_context.iar;
-      if (returnAddress < 0x10000000) {
-        _LIBUNWIND_TRACE_UNWINDING("Bad returnAddress=%p\n",
-                                   reinterpret_cast<void *>(returnAddress));
-        return UNW_EBADFRAME;
-      } else {
-        _LIBUNWIND_TRACE_UNWINDING("Tried again using STKMINALIGN: "
-                                   "sigContext=%p, returnAddress=%p. "
-                                   "Seems to be a valid address\n",
-                                   reinterpret_cast<void *>(sigContext),
-                                   reinterpret_cast<void *>(returnAddress));
-      }
-    }
     // Restore the condition register from sigcontext.
     newRegisters.setCR(sigContext->sc_jmpbuf.jmp_context.cr);
+
+    // Save the LR in sigcontext for stepping up when the function that
+    // raised the signal is a leaf function. This LR has the return address
+    // to the caller of the leaf function.
+    newRegisters.setLR(sigContext->sc_jmpbuf.jmp_context.lr);
+    _LIBUNWIND_TRACE_UNWINDING(
+        "Save LR=%p from sigcontext",
+        reinterpret_cast<void *>(sigContext->sc_jmpbuf.jmp_context.lr));
 
     // Restore GPRs from sigcontext.
     for (int i = 0; i < 32; ++i)
@@ -2373,13 +2400,26 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
     }
   } else {
     // Step up a normal frame.
-    returnAddress = reinterpret_cast<pint_t *>(lastStack)[2];
 
-    _LIBUNWIND_TRACE_UNWINDING("Extract info from lastStack=%p, "
-                               "returnAddress=%p\n",
-                               reinterpret_cast<void *>(lastStack),
-                               reinterpret_cast<void *>(returnAddress));
-    _LIBUNWIND_TRACE_UNWINDING("fpr_regs=%d, gpr_regs=%d, saves_cr=%d\n",
+    if (!TBTable->tb.saves_lr && registers.getLR()) {
+      // This case should only occur if we were called from a signal handler
+      // and the signal occurred in a function that doesn't save the LR.
+      returnAddress = static_cast<pint_t>(registers.getLR());
+      _LIBUNWIND_TRACE_UNWINDING("Use saved LR=%p",
+                                 reinterpret_cast<void *>(returnAddress));
+    } else {
+      // Otherwise, use the LR value in the stack link area.
+      returnAddress = reinterpret_cast<pint_t *>(lastStack)[2];
+    }
+
+    // Reset LR in the current context.
+    newRegisters.setLR(NULL);
+
+    _LIBUNWIND_TRACE_UNWINDING(
+        "Extract info from lastStack=%p, returnAddress=%p",
+        reinterpret_cast<void *>(lastStack),
+        reinterpret_cast<void *>(returnAddress));
+    _LIBUNWIND_TRACE_UNWINDING("fpr_regs=%d, gpr_regs=%d, saves_cr=%d",
                                TBTable->tb.fpr_saved, TBTable->tb.gpr_saved,
                                TBTable->tb.saves_cr);
 
@@ -2443,7 +2483,7 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
 
       struct vec_ext *vec_ext = reinterpret_cast<struct vec_ext *>(charPtr);
 
-      _LIBUNWIND_TRACE_UNWINDING("vr_saved=%d\n", vec_ext->vr_saved);
+      _LIBUNWIND_TRACE_UNWINDING("vr_saved=%d", vec_ext->vr_saved);
 
       // Restore vector register(s) if saved on the stack.
       if (vec_ext->vr_saved) {
@@ -2473,11 +2513,11 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
 
     // Do we need to set the TOC register?
     _LIBUNWIND_TRACE_UNWINDING(
-        "Current gpr2=%p\n",
+        "Current gpr2=%p",
         reinterpret_cast<void *>(newRegisters.getRegister(2)));
     if (firstInstruction == loadTOCRegInst) {
       _LIBUNWIND_TRACE_UNWINDING(
-          "Set gpr2=%p from frame\n",
+          "Set gpr2=%p from frame",
           reinterpret_cast<void *>(reinterpret_cast<pint_t *>(lastStack)[5]));
       newRegisters.setRegister(2, reinterpret_cast<pint_t *>(lastStack)[5]);
     }
@@ -2509,7 +2549,6 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
   } else {
     isSignalFrame = false;
   }
-
   return UNW_STEP_SUCCESS;
 }
 #endif // defined(_LIBUNWIND_SUPPORT_TBTAB_UNWIND)
@@ -2717,6 +2756,60 @@ int UnwindCursor<A, R>::stepThroughSigReturn(Registers_arm64 &) {
 }
 #endif // defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&
        // defined(_LIBUNWIND_TARGET_AARCH64)
+
+#if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&                               \
+    defined(_LIBUNWIND_TARGET_RISCV)
+template <typename A, typename R>
+bool UnwindCursor<A, R>::setInfoForSigReturn(Registers_riscv &) {
+  const pint_t pc = static_cast<pint_t>(getReg(UNW_REG_IP));
+  uint32_t instructions[2];
+  struct iovec local_iov = {&instructions, sizeof instructions};
+  struct iovec remote_iov = {reinterpret_cast<void *>(pc), sizeof instructions};
+  long bytesRead =
+      syscall(SYS_process_vm_readv, getpid(), &local_iov, 1, &remote_iov, 1, 0);
+  // Look for the two instructions used in the sigreturn trampoline
+  // __vdso_rt_sigreturn:
+  //
+  // 0x08b00893 li a7,0x8b
+  // 0x00000073 ecall
+  if (bytesRead != sizeof instructions || instructions[0] != 0x08b00893 ||
+      instructions[1] != 0x00000073)
+    return false;
+
+  _info = {};
+  _info.start_ip = pc;
+  _info.end_ip = pc + 4;
+  _isSigReturn = true;
+  return true;
+}
+
+template <typename A, typename R>
+int UnwindCursor<A, R>::stepThroughSigReturn(Registers_riscv &) {
+  // In the signal trampoline frame, sp points to an rt_sigframe[1], which is:
+  //  - 128-byte siginfo struct
+  //  - ucontext_t struct:
+  //     - 8-byte long (__uc_flags)
+  //     - 8-byte pointer (*uc_link)
+  //     - 24-byte uc_stack
+  //     - 8-byte uc_sigmask
+  //     - 120-byte of padding to allow sigset_t to be expanded in the future
+  //     - 8 bytes of padding because sigcontext has 16-byte alignment
+  //     - struct sigcontext uc_mcontext
+  // [1]
+  // https://github.com/torvalds/linux/blob/master/arch/riscv/kernel/signal.c
+  const pint_t kOffsetSpToSigcontext = 128 + 8 + 8 + 24 + 8 + 128;
+
+  const pint_t sigctx = _registers.getSP() + kOffsetSpToSigcontext;
+  _registers.setIP(_addressSpace.get64(sigctx));
+  for (int i = UNW_RISCV_X1; i <= UNW_RISCV_X31; ++i) {
+    uint64_t value = _addressSpace.get64(sigctx + static_cast<pint_t>(i * 8));
+    _registers.setRegister(i, value);
+  }
+  _isSignalFrame = true;
+  return UNW_STEP_SUCCESS;
+}
+#endif // defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&
+       // defined(_LIBUNWIND_TARGET_RISCV)
 
 #if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN) &&                               \
     defined(_LIBUNWIND_TARGET_S390X)

@@ -31,6 +31,10 @@ public:
   /// A logger that simply writes messages to the specified ostream in real
   /// time.
   static std::unique_ptr<Logger> textual(llvm::raw_ostream &);
+  /// A logger that builds an HTML UI to inspect the analysis results.
+  /// Each function's analysis is written to a stream obtained from the factory.
+  static std::unique_ptr<Logger>
+      html(std::function<std::unique_ptr<llvm::raw_ostream>()>);
 
   virtual ~Logger() = default;
 
@@ -46,7 +50,9 @@ public:
   /// Called when we start (re-)processing a block in the CFG.
   /// The target program point is the entry to the specified block.
   /// Calls to log() describe transferBranch(), join() etc.
-  virtual void enterBlock(const CFGBlock &) {}
+  /// `PostVisit` specifies whether we're processing the block for the
+  /// post-visit callback.
+  virtual void enterBlock(const CFGBlock &, bool PostVisit) {}
   /// Called when we start processing an element in the current CFG block.
   /// The target program point is after the specified element.
   /// Calls to log() describe the transfer() function.

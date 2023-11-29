@@ -965,6 +965,19 @@ def imm0_255 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = Imm0_255AsmOperand;
 }
 
+// imm0_255_expr - For Thumb1 movs/adds - 8-bit immediate that can also reference
+// a relocatable expression.
+def Imm0_255ExprAsmOperand: AsmOperandClass {
+  let Name = "Imm0_255Expr";
+  let RenderMethod = "addImmOperands";
+  let DiagnosticString = "operand must be an immediate in the range [0,255] or a relocatable expression";
+}
+
+def imm0_255_expr : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
+  let EncoderMethod = "getHiLoImmOpValue";
+  let ParserMatchClass = Imm0_255ExprAsmOperand;
+}
+
 /// imm0_65535 - An immediate is in the range [0,65535].
 def Imm0_65535AsmOperand: ImmAsmOperand<0,65535> { let Name = "Imm0_65535"; }
 def imm0_65535 : Operand<i32>, ImmLeaf<i32, [{
@@ -990,8 +1003,10 @@ def Imm0_65535ExprAsmOperand: AsmOperandClass {
   let DiagnosticString = "operand must be an immediate in the range [0,0xffff] or a relocatable expression";
 }
 
-def imm0_65535_expr : Operand<i32> {
-  let EncoderMethod = "getHiLo16ImmOpValue";
+def imm0_65535_expr : Operand<i32>, ImmLeaf<i32, [{
+  return Imm >= 0 && Imm < 65536;
+}]> {
+  let EncoderMethod = "getHiLoImmOpValue";
   let ParserMatchClass = Imm0_65535ExprAsmOperand;
 }
 
@@ -4839,7 +4854,7 @@ class AI_crc32<bit C, bits<2> sz, string suffix, SDPatternOperator builtin>
   : AInoP<(outs GPRnopc:$Rd), (ins GPRnopc:$Rn, GPRnopc:$Rm), MiscFrm, NoItinerary,
                !strconcat("crc32", suffix), "\t$Rd, $Rn, $Rm",
                [(set GPRnopc:$Rd, (builtin GPRnopc:$Rn, GPRnopc:$Rm))]>,
-               Requires<[IsARM, HasV8, HasCRC]> {
+               Requires<[IsARM, HasCRC]> {
   bits<4> Rd;
   bits<4> Rn;
   bits<4> Rm;
@@ -5342,7 +5357,7 @@ def atomic_load_acquire_16 : acquiring_load<atomic_load_16>;
 def atomic_load_acquire_32 : acquiring_load<atomic_load_32>;
 
 class releasing_store<PatFrag base>
-  : PatFrag<(ops node:$ptr, node:$val), (base node:$ptr, node:$val), [{
+  : PatFrag<(ops node:$ptr, node:$val), (base node:$val, node:$ptr), [{
   AtomicOrdering Ordering = cast<AtomicSDNode>(N)->getSuccessOrdering();
   return isReleaseOrStronger(Ordering);
 }]>;
@@ -5903,8 +5918,12 @@ let isCall = 1,
 }
 
 // Reading thread pointer from coprocessor register
+def : ARMPat<(ARMthread_pointer), (MRC 15, 0, 13, 0, 2)>,
+      Requires<[IsARM, IsReadTPTPIDRURW]>;
 def : ARMPat<(ARMthread_pointer), (MRC 15, 0, 13, 0, 3)>,
-      Requires<[IsARM, IsReadTPHard]>;
+      Requires<[IsARM, IsReadTPTPIDRURO]>;
+def : ARMPat<(ARMthread_pointer), (MRC 15, 0, 13, 0, 4)>,
+      Requires<[IsARM, IsReadTPTPIDRPRW]>;
 
 //===----------------------------------------------------------------------===//
 // SJLJ Exception handling intrinsics
@@ -6165,15 +6184,15 @@ def : ARMPat<(atomic_load_32 ldst_so_reg:$src),
              (LDRrs ldst_so_reg:$src)>;
 def : ARMPat<(atomic_load_32 addrmode_imm12:$src),
              (LDRi12 addrmode_imm12:$src)>;
-def : ARMPat<(atomic_store_8 ldst_so_reg:$ptr, GPR:$val),
+def : ARMPat<(atomic_store_8 GPR:$val, ldst_so_reg:$ptr),
              (STRBrs GPR:$val, ldst_so_reg:$ptr)>;
-def : ARMPat<(atomic_store_8 addrmode_imm12:$ptr, GPR:$val),
+def : ARMPat<(atomic_store_8 GPR:$val, addrmode_imm12:$ptr),
              (STRBi12 GPR:$val, addrmode_imm12:$ptr)>;
-def : ARMPat<(atomic_store_16 addrmode3:$ptr, GPR:$val),
+def : ARMPat<(atomic_store_16 GPR:$val, addrmode3:$ptr),
              (STRH GPR:$val, addrmode3:$ptr)>;
-def : ARMPat<(atomic_store_32 ldst_so_reg:$ptr, GPR:$val),
+def : ARMPat<(atomic_store_32 GPR:$val, ldst_so_reg:$ptr),
              (STRrs GPR:$val, ldst_so_reg:$ptr)>;
-def : ARMPat<(atomic_store_32 addrmode_imm12:$ptr, GPR:$val),
+def : ARMPat<(atomic_store_32 GPR:$val, addrmode_imm12:$ptr),
              (STRi12 GPR:$val, addrmode_imm12:$ptr)>;
 
 

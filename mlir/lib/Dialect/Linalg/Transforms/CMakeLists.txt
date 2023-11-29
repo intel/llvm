@@ -11,10 +11,10 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   DropUnitDims.cpp
   ElementwiseOpFusion.cpp
   ElementwiseToLinalg.cpp
+  EliminateEmptyTensors.cpp
   EraseUnusedOperandsAndResults.cpp
   FusePadOpWithLinalgProducer.cpp
   Fusion.cpp
-  FusionOnTensors.cpp
   Generalization.cpp
   Hoisting.cpp
   HoistPadding.cpp
@@ -22,10 +22,12 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Interchange.cpp
   Loops.cpp
   NamedOpConversions.cpp
+  Padding.cpp
   Promotion.cpp
+  Specialize.cpp
   Split.cpp
   SplitReduction.cpp
-  SubsetHoisting.cpp
+  SubsetInsertionOpInterfaceImpl.cpp
   SwapExtractSliceWithFillPatterns.cpp
   Tiling.cpp
   TilingInterfaceImpl.cpp
@@ -64,6 +66,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRSCFTransforms
   MLIRSCFUtils
   MLIRPass
+  MLIRSubsetOpInterface
   MLIRSparseTensorDialect
   MLIRTensorDialect
   MLIRTensorTilingInterfaceImpl

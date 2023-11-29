@@ -426,11 +426,16 @@ public:
     return lldb::StackFrameSP();
   }
 
-  uint32_t GetSelectedFrameIndex() {
-    return GetStackFrameList()->GetSelectedFrameIndex();
+  // Only pass true to select_most_relevant if you are fulfilling an explicit
+  // user request for GetSelectedFrameIndex.  The most relevant frame is only
+  // for showing to the user, and can do arbitrary work, so we don't want to
+  // call it internally.
+  uint32_t GetSelectedFrameIndex(SelectMostRelevant select_most_relevant) {
+    return GetStackFrameList()->GetSelectedFrameIndex(select_most_relevant);
   }
 
-  lldb::StackFrameSP GetSelectedFrame();
+  lldb::StackFrameSP
+  GetSelectedFrame(SelectMostRelevant select_most_relevant);
 
   uint32_t SetSelectedFrame(lldb_private::StackFrame *frame,
                             bool broadcast = false);
@@ -484,6 +489,23 @@ public:
   ///     The position of the first instruction to print.
   void DumpTraceInstructions(Stream &s, size_t count,
                              size_t start_position = 0) const;
+
+  /// Print a description of this thread using the provided thread format.
+  ///
+  /// \param[out] strm
+  ///   The Stream to print the description to.
+  ///
+  /// \param[in] frame_idx
+  ///   If not \b LLDB_INVALID_FRAME_ID, then use this frame index as context to
+  ///   generate the description.
+  ///
+  /// \param[in] format
+  ///   The input format.
+  ///
+  /// \return
+  ///   \b true if and only if dumping with the given \p format worked.
+  bool DumpUsingFormat(Stream &strm, uint32_t frame_idx,
+                       const FormatEntity::Entry *format);
 
   // If stop_format is true, this will be the form used when we print stop
   // info. If false, it will be the form we use for thread list and co.

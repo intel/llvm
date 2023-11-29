@@ -193,13 +193,21 @@ Language Selection and Mode Options
 
    ISO C++ 2020 with amendments and GNU extensions
 
-  | ``c++2b``
+  | ``c++23``
 
-   Working draft for ISO C++ 2023
+   ISO C++ 2023 with amendments
 
-  | ``gnu++2b``
+  | ``gnu++23``
 
-   Working draft for ISO C++ 2023 with GNU extensions
+   ISO C++ 2023 with amendments and GNU extensions
+
+  | ``c++2c``
+
+   Working draft for C++2c
+
+  | ``gnu++2c``
+
+   Working draft for C++2c with GNU extensions
 
  The default C++ language standard is ``gnu++17``.
 
@@ -293,7 +301,8 @@ Language Selection and Mode Options
 
 .. option:: -fmsc-version=
 
- Set _MSC_VER. Defaults to 1300 on Windows. Not set otherwise.
+ Set ``_MSC_VER``. When on Windows, this defaults to either the same value as
+ the currently installed version of cl.exe, or ``1920``. Not set otherwise.
 
 .. option:: -fborland-extensions
 
@@ -674,6 +683,21 @@ Preprocessor Options
 .. option:: -nobuiltininc
 
   Do not search clang's builtin directory for include files.
+
+.. option:: -fkeep-system-includes
+
+  Usable only with :option:`-E`. Do not copy the preprocessed content of
+  "system" headers to the output; instead, preserve the #include directive.
+  This can greatly reduce the volume of text produced by :option:`-E` which
+  can be helpful when trying to produce a "small" reproduceable test case.
+
+  This option does not guarantee reproduceability, however. If the including
+  source defines preprocessor symbols that influence the behavior of system
+  headers (for example, ``_XOPEN_SOURCE``) the operation of :option:`-E` will
+  remove that definition and thus can change the semantics of the included
+  header. Also, using a different version of the system headers (especially a
+  different version of the STL) may result in different behavior. Always verify
+  the preprocessed file by compiling it separately.
 
 
 ENVIRONMENT

@@ -19,7 +19,6 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
@@ -92,18 +91,16 @@ static void addMappingsFromTLI(const TargetLibraryInfo &TLI, CallInst &CI) {
                                                    Mappings.end());
 
   auto AddVariantDecl = [&](const ElementCount &VF, bool Predicate) {
-    const std::string TLIName =
-        std::string(TLI.getVectorizedFunction(ScalarName, VF, Predicate));
-    if (!TLIName.empty()) {
-      std::string MangledName = VFABI::mangleTLIVectorName(
-          TLIName, ScalarName, CI.arg_size(), VF, Predicate);
+    const VecDesc *VD = TLI.getVectorMappingInfo(ScalarName, VF, Predicate);
+    if (VD && !VD->getVectorFnName().empty()) {
+      std::string MangledName = VD->getVectorFunctionABIVariantString();
       if (!OriginalSetOfMappings.count(MangledName)) {
         Mappings.push_back(MangledName);
         ++NumCallInjected;
       }
-      Function *VariantF = M->getFunction(TLIName);
+      Function *VariantF = M->getFunction(VD->getVectorFnName());
       if (!VariantF)
-        addVariantDeclaration(CI, VF, Predicate, TLIName);
+        addVariantDeclaration(CI, VF, Predicate, VD->getVectorFnName());
     }
   };
 
@@ -141,40 +138,4 @@ PreservedAnalyses InjectTLIMappings::run(Function &F,
   runImpl(TLI, F);
   // Even if the pass adds IR attributes, the analyses are preserved.
   return PreservedAnalyses::all();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Legacy PM Implementation.
-////////////////////////////////////////////////////////////////////////////////
-bool InjectTLIMappingsLegacy::runOnFunction(Function &F) {
-  const TargetLibraryInfo &TLI =
-      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-  return runImpl(TLI, F);
-}
-
-void InjectTLIMappingsLegacy::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesCFG();
-  AU.addRequired<TargetLibraryInfoWrapperPass>();
-  AU.addPreserved<TargetLibraryInfoWrapperPass>();
-  AU.addPreserved<ScalarEvolutionWrapperPass>();
-  AU.addPreserved<AAResultsWrapperPass>();
-  AU.addPreserved<LoopAccessLegacyAnalysis>();
-  AU.addPreserved<DemandedBitsWrapperPass>();
-  AU.addPreserved<OptimizationRemarkEmitterWrapperPass>();
-  AU.addPreserved<GlobalsAAWrapperPass>();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Legacy Pass manager initialization
-////////////////////////////////////////////////////////////////////////////////
-char InjectTLIMappingsLegacy::ID = 0;
-
-INITIALIZE_PASS_BEGIN(InjectTLIMappingsLegacy, DEBUG_TYPE,
-                      "Inject TLI Mappings", false, false)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(InjectTLIMappingsLegacy, DEBUG_TYPE, "Inject TLI Mappings",
-                    false, false)
-
-FunctionPass *llvm::createInjectTLIMappingsLegacyPass() {
-  return new InjectTLIMappingsLegacy();
 }

@@ -28,6 +28,7 @@ struct KernelPayload {
   KernelPayload(Function *Kernel, MDNode *MD = nullptr);
   Function *Kernel;
   MDNode *MD;
+  SmallVector<MDNode *> DependentMDs;
 };
 
 ArchType getArchType(const Module &M);

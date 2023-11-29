@@ -13,6 +13,7 @@
 #include "mlir/IR/Location.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Metadata.h"
@@ -23,14 +24,18 @@ using namespace mlir;
 using namespace mlir::LLVM;
 using namespace mlir::LLVM::detail;
 
-void DebugImporter::translate(llvm::Function *func, LLVMFuncOp funcOp) {
-  if (!func->getSubprogram())
-    return;
+Location DebugImporter::translateFuncLocation(llvm::Function *func) {
+  llvm::DISubprogram *subprogram = func->getSubprogram();
+  if (!subprogram)
+    return UnknownLoc::get(context);
 
   // Add a fused location to link the subprogram information.
-  StringAttr name = StringAttr::get(context, func->getSubprogram()->getName());
-  funcOp->setLoc(FusedLocWith<DISubprogramAttr>::get(
-      {NameLoc::get(name)}, translate(func->getSubprogram()), context));
+  StringAttr funcName = StringAttr::get(context, subprogram->getName());
+  StringAttr fileName = StringAttr::get(context, subprogram->getFilename());
+  return FusedLocWith<DISubprogramAttr>::get(
+      {NameLoc::get(funcName),
+       FileLineColLoc::get(fileName, subprogram->getLine(), /*column=*/0)},
+      translate(subprogram), context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,11 +70,16 @@ DICompositeTypeAttr DebugImporter::translateImpl(llvm::DICompositeType *node) {
   // TODO: Support debug metadata with cyclic dependencies.
   if (llvm::is_contained(elements, nullptr))
     elements.clear();
+  DITypeAttr baseType = translate(node->getBaseType());
+  // Arrays require a base type, otherwise the debug metadata is considered to
+  // be malformed.
+  if (node->getTag() == llvm::dwarf::DW_TAG_array_type && !baseType)
+    return nullptr;
   return DICompositeTypeAttr::get(
       context, node->getTag(), getStringAttrOrNull(node->getRawName()),
       translate(node->getFile()), node->getLine(), translate(node->getScope()),
-      translate(node->getBaseType()), flags.value_or(DIFlags::Zero),
-      node->getSizeInBits(), node->getAlignInBits(), elements);
+      baseType, flags.value_or(DIFlags::Zero), node->getSizeInBits(),
+      node->getAlignInBits(), elements);
 }
 
 DIDerivedTypeAttr DebugImporter::translateImpl(llvm::DIDerivedType *node) {
@@ -85,6 +95,12 @@ DIDerivedTypeAttr DebugImporter::translateImpl(llvm::DIDerivedType *node) {
 
 DIFileAttr DebugImporter::translateImpl(llvm::DIFile *node) {
   return DIFileAttr::get(context, node->getFilename(), node->getDirectory());
+}
+
+DILabelAttr DebugImporter::translateImpl(llvm::DILabel *node) {
+  return DILabelAttr::get(context, translate(node->getScope()),
+                          getStringAttrOrNull(node->getRawName()),
+                          translate(node->getFile()), node->getLine());
 }
 
 DILexicalBlockAttr DebugImporter::translateImpl(llvm::DILexicalBlock *node) {
@@ -110,6 +126,16 @@ DILocalVariableAttr DebugImporter::translateImpl(llvm::DILocalVariable *node) {
 
 DIScopeAttr DebugImporter::translateImpl(llvm::DIScope *node) {
   return cast<DIScopeAttr>(translate(static_cast<llvm::DINode *>(node)));
+}
+
+DIModuleAttr DebugImporter::translateImpl(llvm::DIModule *node) {
+  return DIModuleAttr::get(
+      context, translate(node->getFile()), translate(node->getScope()),
+      getStringAttrOrNull(node->getRawName()),
+      getStringAttrOrNull(node->getRawConfigurationMacros()),
+      getStringAttrOrNull(node->getRawIncludePath()),
+      getStringAttrOrNull(node->getRawAPINotesFile()), node->getLineNo(),
+      node->getIsDecl());
 }
 
 DINamespaceAttr DebugImporter::translateImpl(llvm::DINamespace *node) {
@@ -143,10 +169,15 @@ DISubrangeAttr DebugImporter::translateImpl(llvm::DISubrange *node) {
                               constInt->getSExtValue());
     return IntegerAttr();
   };
-  return DISubrangeAttr::get(context, getIntegerAttrOrNull(node->getCount()),
-                             getIntegerAttrOrNull(node->getLowerBound()),
-                             getIntegerAttrOrNull(node->getUpperBound()),
-                             getIntegerAttrOrNull(node->getStride()));
+  IntegerAttr count = getIntegerAttrOrNull(node->getCount());
+  IntegerAttr upperBound = getIntegerAttrOrNull(node->getUpperBound());
+  // Either count or the upper bound needs to be present. Otherwise, the
+  // metadata is invalid. The conversion might fail due to unsupported DI nodes.
+  if (!count && !upperBound)
+    return {};
+  return DISubrangeAttr::get(
+      context, count, getIntegerAttrOrNull(node->getLowerBound()), upperBound,
+      getIntegerAttrOrNull(node->getStride()));
 }
 
 DISubroutineTypeAttr
@@ -200,15 +231,19 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DIFile>(node))
       return translateImpl(casted);
+    if (auto *casted = dyn_cast<llvm::DILabel>(node))
+      return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILexicalBlock>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILexicalBlockFile>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILocalVariable>(node))
       return translateImpl(casted);
-    if (auto *casted = dyn_cast<llvm::DISubprogram>(node))
+    if (auto *casted = dyn_cast<llvm::DIModule>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DINamespace>(node))
+      return translateImpl(casted);
+    if (auto *casted = dyn_cast<llvm::DISubprogram>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DISubrange>(node))
       return translateImpl(casted);
@@ -229,7 +264,7 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
 
 Location DebugImporter::translateLoc(llvm::DILocation *loc) {
   if (!loc)
-    return mlirModule.getLoc();
+    return UnknownLoc::get(context);
 
   // Get the file location of the instruction.
   Location result = FileLineColLoc::get(context, loc->getFilename(),

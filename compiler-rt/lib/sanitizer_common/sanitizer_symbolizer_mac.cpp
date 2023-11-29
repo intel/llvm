@@ -14,16 +14,16 @@
 #include "sanitizer_platform.h"
 #if SANITIZER_APPLE
 
-#include "sanitizer_allocator_internal.h"
-#include "sanitizer_mac.h"
-#include "sanitizer_symbolizer_mac.h"
+#  include <dlfcn.h>
+#  include <errno.h>
+#  include <stdlib.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
+#  include <util.h>
 
-#include <dlfcn.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <util.h>
+#  include "sanitizer_allocator_internal.h"
+#  include "sanitizer_mac.h"
+#  include "sanitizer_symbolizer_mac.h"
 
 namespace __sanitizer {
 
@@ -42,7 +42,8 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   }
 
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
-  if (!demangled) return false;
+  if (!demangled)
+    demangled = info.dli_sname;
   stack->info.function = internal_strdup(demangled);
   return true;
 }
@@ -52,6 +53,8 @@ bool DlAddrSymbolizer::SymbolizeData(uptr addr, DataInfo *datainfo) {
   int result = dladdr((const void *)addr, &info);
   if (!result) return false;
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
+  if (!demangled)
+    demangled = info.dli_sname;
   datainfo->name = internal_strdup(demangled);
   datainfo->start = (uptr)info.dli_saddr;
   return true;

@@ -19,4 +19,4 @@
 
 ; Make sure the generic AS declarations have been wiped out
 ; in favor of the single constant AS & variadic declaration:
-; CHECK-BUILTIN-NOT: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(i8 addrspace(4)*, {{.+}})
+; CHECK-BUILTIN-NOT: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(ptr addrspace(4), {{.+}})

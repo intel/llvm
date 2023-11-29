@@ -1,11 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
 // For this test, complete_fusion must be supported.
 // REQUIRES: fusion
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test fusion cancellation on event dependency between two active fusions.
 
@@ -81,7 +77,11 @@ int main() {
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (40 * i * i) && "Computation error");
   }
-
+  sycl::free(in1, q1);
+  sycl::free(in2, q1);
+  sycl::free(in3, q1);
+  sycl::free(tmp, q1);
+  sycl::free(out, q1);
   return 0;
 }
 

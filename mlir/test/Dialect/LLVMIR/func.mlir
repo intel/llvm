@@ -5,33 +5,33 @@
 
 module {
   // GENERIC: "llvm.func"
-  // GENERIC: function_type = !llvm.func<void ()>
+  // GENERIC-SAME: function_type = !llvm.func<void ()>
   // GENERIC-SAME: sym_name = "foo"
-  // GENERIC-SAME: () -> ()
+  // GENERIC: () -> ()
   // CHECK: llvm.func @foo()
   "llvm.func" () ({
   }) {sym_name = "foo", function_type = !llvm.func<void ()>} : () -> ()
 
   // GENERIC: "llvm.func"
-  // GENERIC: function_type = !llvm.func<i64 (i64, i64)>
+  // GENERIC-SAME: function_type = !llvm.func<i64 (i64, i64)>
   // GENERIC-SAME: sym_name = "bar"
-  // GENERIC-SAME: () -> ()
+  // GENERIC: () -> ()
   // CHECK: llvm.func @bar(i64, i64) -> i64
   "llvm.func"() ({
   }) {sym_name = "bar", function_type = !llvm.func<i64 (i64, i64)>} : () -> ()
 
   // GENERIC: "llvm.func"
+  // GENERIC-SAME: function_type = !llvm.func<i64 (i64)>
+  // GENERIC-SAME: sym_name = "baz"
   // CHECK: llvm.func @baz(%{{.*}}: i64) -> i64
-  "llvm.func"() ({
+  "llvm.func"() <{sym_name = "baz", function_type = !llvm.func<i64 (i64)>}> ({
   // GENERIC: ^bb0
   ^bb0(%arg0: i64):
     // GENERIC: llvm.return
     llvm.return %arg0 : i64
 
-  // GENERIC: function_type = !llvm.func<i64 (i64)>
-  // GENERIC-SAME: sym_name = "baz"
-  // GENERIC-SAME: () -> ()
-  }) {sym_name = "baz", function_type = !llvm.func<i64 (i64)>} : () -> ()
+  // GENERIC: () -> ()
+  }) : () -> ()
 
   // CHECK: llvm.func @qux(!llvm.ptr {llvm.noalias}, i64)
   // CHECK: attributes {xxx = {yyy = 42 : i64}}
@@ -184,6 +184,24 @@ module {
     llvm.return
   }
 
+  // CHECK: llvm.func cc_10 @cconv4
+  llvm.func cc_10 @cconv4() {
+    llvm.return
+  }
+
+  // CHECK: llvm.func @test_ccs
+  llvm.func @test_ccs() {
+    // CHECK-NEXT: llvm.call        @cconv1() : () -> ()
+    // CHECK-NEXT: llvm.call        @cconv2() : () -> ()
+    // CHECK-NEXT: llvm.call fastcc @cconv3() : () -> ()
+    // CHECK-NEXT: llvm.call cc_10  @cconv4() : () -> ()
+    llvm.call        @cconv1() : () -> ()
+    llvm.call ccc    @cconv2() : () -> ()
+    llvm.call fastcc @cconv3() : () -> ()
+    llvm.call cc_10  @cconv4() : () -> ()
+    llvm.return
+  }
+
   // CHECK-LABEL: llvm.func @variadic_def
   llvm.func @variadic_def(...) {
     llvm.return
@@ -202,6 +220,33 @@ module {
 
   // CHECK-LABEL: llvm.func protected @protected
   llvm.func protected @protected() {
+    llvm.return
+  }
+
+  // CHECK-LABEL: local_unnamed_addr @local_unnamed_addr_func
+  llvm.func local_unnamed_addr @local_unnamed_addr_func() {
+    llvm.return
+  }
+
+  // CHECK-LABEL: @align_func
+  // CHECK-SAME: attributes {alignment = 2 : i64}
+  llvm.func @align_func() attributes {alignment = 2 : i64} {
+    llvm.return
+  }
+
+  // CHECK: llvm.comdat @__llvm_comdat
+  llvm.comdat @__llvm_comdat {
+    // CHECK: llvm.comdat_selector @any any
+    llvm.comdat_selector @any any
+  }
+  // CHECK: @any() comdat(@__llvm_comdat::@any) attributes
+  llvm.func @any() comdat(@__llvm_comdat::@any) attributes { dso_local } {
+    llvm.return
+  }
+
+  llvm.func @vscale_roundtrip() vscale_range(1, 2) {
+    // CHECK: @vscale_roundtrip
+    // CHECK-SAME: vscale_range(1, 2)
     llvm.return
   }
 }

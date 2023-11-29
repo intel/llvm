@@ -4,16 +4,16 @@
 ; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M0-SYMS \
-; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel1 \
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel2
+;
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M1-SYMS \
+; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel3 \
 ; RUN:     --implicit-check-not kernel2
 ;
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M2-SYMS \
-; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel3
-;
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M1-SYMS \
 ; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
-; RUN:     --implicit-check-not kernel3
+; RUN:     --implicit-check-not kernel0
 
 ; CHECK-TABLE: Code
 ; CHECK-TABLE-NEXT: _0.sym
@@ -21,12 +21,12 @@
 ; CHECK-TABLE-NEXT: _2.sym
 ; CHECK-TABLE-EMPTY:
 
-; CHECK-M0-SYMS: kernel3
+; CHECK-M0-SYMS: kernel1
+; CHECK-M0-SYMS: kernel2
 
 ; CHECK-M1-SYMS: kernel0
 
-; CHECK-M2-SYMS: kernel1
-; CHECK-M2-SYMS: kernel2
+; CHECK-M2-SYMS: kernel3
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"

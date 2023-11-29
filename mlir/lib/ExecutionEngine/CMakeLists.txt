@@ -2,6 +2,7 @@
 # is a big dependency which most don't need.
 
 set(LLVM_OPTIONAL_SOURCES
+  ArmSMEStubs.cpp
   AsyncRuntime.cpp
   CRunnerUtils.cpp
   CudaRuntimeWrappers.cpp
@@ -12,6 +13,7 @@ set(LLVM_OPTIONAL_SOURCES
   RunnerUtils.cpp
   OptUtils.cpp
   JitRunner.cpp
+  SyclRuntimeWrappers.cpp
   )
 
 # Use a separate library for OptUtils, to avoid pulling in the entire JIT and
@@ -90,6 +92,7 @@ add_mlir_library(MLIRExecutionEngine
   MLIRExecutionEngineUtils
   MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
+  MLIROpenMPToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   )
 
@@ -175,6 +178,10 @@ if(LLVM_ENABLE_PIC)
     target_link_options(mlir_async_runtime PRIVATE "-Wl,-exclude-libs,ALL")
   endif()
 
+  add_mlir_library(mlir_arm_sme_abi_stubs
+    SHARED
+    ArmSMEStubs.cpp)
+
   if(MLIR_ENABLE_CUDA_RUNNER)
     # Configure CUDA support. Using check_language first allows us to give a
     # custom error message.
@@ -188,7 +195,7 @@ if(LLVM_ENABLE_PIC)
     endif()
 
     # We need the libcuda.so library.
-    find_library(CUDA_RUNTIME_LIBRARY cuda)
+    find_library(CUDA_RUNTIME_LIBRARY cuda HINTS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} REQUIRED)
 
     add_mlir_library(mlir_cuda_runtime
       SHARED
@@ -197,6 +204,7 @@ if(LLVM_ENABLE_PIC)
       EXCLUDE_FROM_LIBMLIR
     )
     set_property(TARGET mlir_cuda_runtime PROPERTY CXX_STANDARD 14)
+
     target_include_directories(mlir_cuda_runtime
       PRIVATE
       ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
@@ -205,6 +213,40 @@ if(LLVM_ENABLE_PIC)
       PRIVATE
       ${CUDA_RUNTIME_LIBRARY}
     )
+
+    if(MLIR_ENABLE_CUDA_CUSPARSE)
+      # Find the libcusparse.so library if CUSPARSE build is requested.
+      find_library(CUDA_CUSPARSE_LIBRARY cusparse HINTS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} REQUIRED)
+
+      target_link_libraries(mlir_cuda_runtime
+        PRIVATE
+        ${CUDA_CUSPARSE_LIBRARY}
+      )
+      target_compile_definitions(mlir_cuda_runtime
+        PRIVATE
+        MLIR_ENABLE_CUDA_CUSPARSE=1
+      )
+
+      if(MLIR_ENABLE_CUDA_CUSPARSELT)
+        # Find the libcusparseLt.so library in package manager default path if
+        # CUSPARSELT build is requested. libcusparseLt.so provides sm80+ tensor
+        # core support for 2:4 sparsity acceleration.
+        find_library(CUDA_CUSPARSELT_LIBRARY cusparseLt HINTS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} REQUIRED)
+        find_path(CUDA_CUSPARSELT_HEADER cusparseLt.h HINTS ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} REQUIRED)
+        target_include_directories(mlir_cuda_runtime
+          PRIVATE
+          ${CUDA_CUSPARSELT_HEADER}
+        )
+        target_link_libraries(mlir_cuda_runtime
+          PRIVATE
+          ${CUDA_CUSPARSELT_LIBRARY}
+        )
+        target_compile_definitions(mlir_cuda_runtime
+          PRIVATE
+          MLIR_ENABLE_CUDA_CUSPARSELT=1
+        )
+      endif()
+    endif()
   endif()
 
   if(MLIR_ENABLE_ROCM_RUNNER)
@@ -226,11 +268,15 @@ if(LLVM_ENABLE_PIC)
     set(CMAKE_PREFIX_PATH "${REAL_CMAKE_PREFIX_PATH}")
 
     if (NOT DEFINED ROCM_TEST_CHIPSET)
-      execute_process(COMMAND "${ROCM_PATH}/bin/rocm_agent_enumerator"
-      OUTPUT_VARIABLE AGENTS_STRING
-      ERROR_VARIABLE AGENTS_STRING
-      RESULT_VARIABLE AGENT_ENUMERATOR_RESULT)
-
+      find_program(ROCM_AGENT_ENUMERATOR rocm_agent_enumerator "${ROCM_PATH}/bin" /usr/bin /usr/local/bin)
+      if(ROCM_AGENT_ENUMERATOR)
+          execute_process(COMMAND "${ROCM_AGENT_ENUMERATOR}"
+          OUTPUT_VARIABLE AGENTS_STRING
+          ERROR_VARIABLE AGENTS_STRING
+          RESULT_VARIABLE AGENT_ENUMERATOR_RESULT)
+      else()
+        message(SEND_ERROR "Could not find rocm_agent_enumerator")
+      endif()
       if (NOT AGENT_ENUMERATOR_RESULT EQUAL 0)
         message(SEND_ERROR "Could not run rocm_agent_enumerator and ROCM_TEST_CHIPSET is not defined")
         set(AGENTS_STRING "")
@@ -287,5 +333,40 @@ if(LLVM_ENABLE_PIC)
       PUBLIC
       hip::host hip::amdhip64
     )
+  endif()
+
+  if(MLIR_ENABLE_SYCL_RUNNER)
+    find_package(SyclRuntime)
+
+    if(NOT SyclRuntime_FOUND)
+      message(FATAL_ERROR "syclRuntime not found. Please set check oneapi installation and run setvars.sh.")
+    endif()
+
+    find_package(LevelZero)
+
+    if(NOT LevelZero_FOUND)
+      message(FATAL_ERROR "LevelZero not found. Please set LEVEL_ZERO_DIR.")
+    endif()
+
+    add_mlir_library(mlir_sycl_runtime
+      SHARED
+      SyclRuntimeWrappers.cpp
+
+      EXCLUDE_FROM_LIBMLIR
+    )
+
+    check_cxx_compiler_flag("-frtti" CXX_HAS_FRTTI_FLAG)
+    if(NOT CXX_HAS_FRTTI_FLAG)
+      message(FATAL_ERROR "CXX compiler does not accept flag -frtti")
+    endif()
+    target_compile_options (mlir_sycl_runtime PUBLIC -fexceptions -frtti)
+
+    target_include_directories(mlir_sycl_runtime PRIVATE
+      ${MLIR_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(mlir_sycl_runtime PRIVATE LevelZero::LevelZero SyclRuntime::SyclRuntime)
+
+    set_property(TARGET mlir_sycl_runtime APPEND PROPERTY BUILD_RPATH "${LevelZero_LIBRARIES_DIR}" "${SyclRuntime_LIBRARIES_DIR}")
   endif()
 endif()

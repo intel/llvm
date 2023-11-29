@@ -48,6 +48,10 @@
 #define CINDEX_VERSION_STRING                                                  \
   CINDEX_VERSION_STRINGIZE(CINDEX_VERSION_MAJOR, CINDEX_VERSION_MINOR)
 
+#ifndef __has_feature
+#define __has_feature(feature) 0
+#endif
+
 LLVM_CLANG_C_EXTERN_C_BEGIN
 
 /** \defgroup CINDEX libclang: C Interface to Clang
@@ -2132,7 +2136,11 @@ enum CXCursorKind {
    */
   CXCursor_OMPErrorDirective = 305,
 
-  CXCursor_LastStmt = CXCursor_OMPErrorDirective,
+  /** OpenMP scope directive.
+   */
+  CXCursor_OMPScopeDirective = 306,
+
+  CXCursor_LastStmt = CXCursor_OMPScopeDirective,
 
   /**
    * Cursor that represents the translation unit itself.
@@ -2986,6 +2994,7 @@ enum CXCallingConv {
   CXCallingConv_AArch64VectorCall = 16,
   CXCallingConv_SwiftAsync = 17,
   CXCallingConv_AArch64SVEPCS = 18,
+  CXCallingConv_M68kRTD = 19,
 
   CXCallingConv_Invalid = 100,
   CXCallingConv_Unexposed = 200
@@ -3870,8 +3879,6 @@ typedef enum CXChildVisitResult (*CXCursorVisitor)(CXCursor cursor,
 CINDEX_LINKAGE unsigned clang_visitChildren(CXCursor parent,
                                             CXCursorVisitor visitor,
                                             CXClientData client_data);
-#ifdef __has_feature
-#if __has_feature(blocks)
 /**
  * Visitor invoked for each cursor found by a traversal.
  *
@@ -3882,8 +3889,12 @@ CINDEX_LINKAGE unsigned clang_visitChildren(CXCursor parent,
  * The visitor should return one of the \c CXChildVisitResult values
  * to direct clang_visitChildrenWithBlock().
  */
+#if __has_feature(blocks)
 typedef enum CXChildVisitResult (^CXCursorVisitorBlock)(CXCursor cursor,
                                                         CXCursor parent);
+#else
+typedef struct _CXChildVisitResult *CXCursorVisitorBlock;
+#endif
 
 /**
  * Visits the children of a cursor using the specified block.  Behaves
@@ -3891,8 +3902,6 @@ typedef enum CXChildVisitResult (^CXCursorVisitorBlock)(CXCursor cursor,
  */
 CINDEX_LINKAGE unsigned
 clang_visitChildrenWithBlock(CXCursor parent, CXCursorVisitorBlock block);
-#endif
-#endif
 
 /**
  * @}
@@ -5893,11 +5902,12 @@ CINDEX_LINKAGE CXResult clang_findReferencesInFile(
 CINDEX_LINKAGE CXResult clang_findIncludesInFile(
     CXTranslationUnit TU, CXFile file, CXCursorAndRangeVisitor visitor);
 
-#ifdef __has_feature
 #if __has_feature(blocks)
-
 typedef enum CXVisitorResult (^CXCursorAndRangeVisitorBlock)(CXCursor,
                                                              CXSourceRange);
+#else
+typedef struct _CXCursorAndRangeVisitorBlock *CXCursorAndRangeVisitorBlock;
+#endif
 
 CINDEX_LINKAGE
 CXResult clang_findReferencesInFileWithBlock(CXCursor, CXFile,
@@ -5906,9 +5916,6 @@ CXResult clang_findReferencesInFileWithBlock(CXCursor, CXFile,
 CINDEX_LINKAGE
 CXResult clang_findIncludesInFileWithBlock(CXTranslationUnit, CXFile,
                                            CXCursorAndRangeVisitorBlock);
-
-#endif
-#endif
 
 /**
  * The client's data object that is associated with a CXFile.
@@ -6521,6 +6528,144 @@ typedef enum CXVisitorResult (*CXFieldVisitor)(CXCursor C,
  */
 CINDEX_LINKAGE unsigned clang_Type_visitFields(CXType T, CXFieldVisitor visitor,
                                                CXClientData client_data);
+
+/**
+ * Describes the kind of binary operators.
+ */
+enum CXBinaryOperatorKind {
+  /** This value describes cursors which are not binary operators. */
+  CXBinaryOperator_Invalid,
+  /** C++ Pointer - to - member operator. */
+  CXBinaryOperator_PtrMemD,
+  /** C++ Pointer - to - member operator. */
+  CXBinaryOperator_PtrMemI,
+  /** Multiplication operator. */
+  CXBinaryOperator_Mul,
+  /** Division operator. */
+  CXBinaryOperator_Div,
+  /** Remainder operator. */
+  CXBinaryOperator_Rem,
+  /** Addition operator. */
+  CXBinaryOperator_Add,
+  /** Subtraction operator. */
+  CXBinaryOperator_Sub,
+  /** Bitwise shift left operator. */
+  CXBinaryOperator_Shl,
+  /** Bitwise shift right operator. */
+  CXBinaryOperator_Shr,
+  /** C++ three-way comparison (spaceship) operator. */
+  CXBinaryOperator_Cmp,
+  /** Less than operator. */
+  CXBinaryOperator_LT,
+  /** Greater than operator. */
+  CXBinaryOperator_GT,
+  /** Less or equal operator. */
+  CXBinaryOperator_LE,
+  /** Greater or equal operator. */
+  CXBinaryOperator_GE,
+  /** Equal operator. */
+  CXBinaryOperator_EQ,
+  /** Not equal operator. */
+  CXBinaryOperator_NE,
+  /** Bitwise AND operator. */
+  CXBinaryOperator_And,
+  /** Bitwise XOR operator. */
+  CXBinaryOperator_Xor,
+  /** Bitwise OR operator. */
+  CXBinaryOperator_Or,
+  /** Logical AND operator. */
+  CXBinaryOperator_LAnd,
+  /** Logical OR operator. */
+  CXBinaryOperator_LOr,
+  /** Assignment operator. */
+  CXBinaryOperator_Assign,
+  /** Multiplication assignment operator. */
+  CXBinaryOperator_MulAssign,
+  /** Division assignment operator. */
+  CXBinaryOperator_DivAssign,
+  /** Remainder assignment operator. */
+  CXBinaryOperator_RemAssign,
+  /** Addition assignment operator. */
+  CXBinaryOperator_AddAssign,
+  /** Subtraction assignment operator. */
+  CXBinaryOperator_SubAssign,
+  /** Bitwise shift left assignment operator. */
+  CXBinaryOperator_ShlAssign,
+  /** Bitwise shift right assignment operator. */
+  CXBinaryOperator_ShrAssign,
+  /** Bitwise AND assignment operator. */
+  CXBinaryOperator_AndAssign,
+  /** Bitwise XOR assignment operator. */
+  CXBinaryOperator_XorAssign,
+  /** Bitwise OR assignment operator. */
+  CXBinaryOperator_OrAssign,
+  /** Comma operator. */
+  CXBinaryOperator_Comma
+};
+
+/**
+ * Retrieve the spelling of a given CXBinaryOperatorKind.
+ */
+CINDEX_LINKAGE CXString
+clang_getBinaryOperatorKindSpelling(enum CXBinaryOperatorKind kind);
+
+/**
+ * Retrieve the binary operator kind of this cursor.
+ *
+ * If this cursor is not a binary operator then returns Invalid.
+ */
+CINDEX_LINKAGE enum CXBinaryOperatorKind
+clang_getCursorBinaryOperatorKind(CXCursor cursor);
+
+/**
+ * Describes the kind of unary operators.
+ */
+enum CXUnaryOperatorKind {
+  /** This value describes cursors which are not unary operators. */
+  CXUnaryOperator_Invalid,
+  /** Postfix increment operator. */
+  CXUnaryOperator_PostInc,
+  /** Postfix decrement operator. */
+  CXUnaryOperator_PostDec,
+  /** Prefix increment operator. */
+  CXUnaryOperator_PreInc,
+  /** Prefix decrement operator. */
+  CXUnaryOperator_PreDec,
+  /** Address of operator. */
+  CXUnaryOperator_AddrOf,
+  /** Dereference operator. */
+  CXUnaryOperator_Deref,
+  /** Plus operator. */
+  CXUnaryOperator_Plus,
+  /** Minus operator. */
+  CXUnaryOperator_Minus,
+  /** Not operator. */
+  CXUnaryOperator_Not,
+  /** LNot operator. */
+  CXUnaryOperator_LNot,
+  /** "__real expr" operator. */
+  CXUnaryOperator_Real,
+  /** "__imag expr" operator. */
+  CXUnaryOperator_Imag,
+  /** __extension__ marker operator. */
+  CXUnaryOperator_Extension,
+  /** C++ co_await operator. */
+  CXUnaryOperator_Coawait
+};
+
+/**
+ * Retrieve the spelling of a given CXUnaryOperatorKind.
+ */
+CINDEX_LINKAGE CXString
+clang_getUnaryOperatorKindSpelling(enum CXUnaryOperatorKind kind);
+
+/**
+ * Retrieve the unary operator kind of this cursor.
+ *
+ * If this cursor is not a unary operator then returns Invalid.
+ */
+CINDEX_LINKAGE enum CXUnaryOperatorKind
+clang_getCursorUnaryOperatorKind(CXCursor cursor);
 
 /**
  * @}

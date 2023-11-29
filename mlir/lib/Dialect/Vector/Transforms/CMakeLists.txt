@@ -10,8 +10,10 @@ add_mlir_dialect_library(MLIRVectorTransforms
   LowerVectorShapeCast.cpp
   LowerVectorTransfer.cpp
   LowerVectorTranspose.cpp
+  SubsetOpInterfaceImpl.cpp
   VectorDistribute.cpp
   VectorDropLeadUnitDim.cpp
+  VectorEmulateNarrowType.cpp
   VectorInsertExtractStridedSliceRewritePatterns.cpp
   VectorTransferOpTransforms.cpp
   VectorTransferSplitRewritePatterns.cpp
@@ -32,12 +34,14 @@ add_mlir_dialect_library(MLIRVectorTransforms
   MLIRBufferizationDialect
   MLIRBufferizationTransforms
   MLIRDialectUtils
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRLinalgDialect
   MLIRMemRefDialect
+  MLIRMemRefUtils
   MLIRSCFDialect
   MLIRSideEffectInterfaces
+  MLIRSubsetOpInterface
   MLIRTensorDialect
   MLIRTransforms
   MLIRVectorDialect

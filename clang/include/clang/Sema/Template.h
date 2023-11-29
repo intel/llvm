@@ -213,7 +213,9 @@ enum class TemplateSubstitutionKind : char {
              "substituted args outside retained args?");
       assert(getKind() == TemplateSubstitutionKind::Specialization);
       TemplateArgumentLists.push_back(
-          {{AssociatedDecl->getCanonicalDecl(), Final}, Args});
+          {{AssociatedDecl ? AssociatedDecl->getCanonicalDecl() : nullptr,
+            Final},
+           Args});
     }
 
     void addOuterTemplateArguments(ArgList Args) {
@@ -232,9 +234,21 @@ enum class TemplateSubstitutionKind : char {
     /// Replaces the current 'innermost' level with the provided argument list.
     /// This is useful for type deduction cases where we need to get the entire
     /// list from the AST, but then add the deduced innermost list.
-    void replaceInnermostTemplateArguments(ArgList Args) {
-      assert(TemplateArgumentLists.size() > 0 && "Replacing in an empty list?");
-      TemplateArgumentLists[0].Args = Args;
+    void replaceInnermostTemplateArguments(Decl *AssociatedDecl, ArgList Args) {
+      assert((!TemplateArgumentLists.empty() || NumRetainedOuterLevels) &&
+             "Replacing in an empty list?");
+
+      if (!TemplateArgumentLists.empty()) {
+        assert((TemplateArgumentLists[0].AssociatedDeclAndFinal.getPointer() ||
+                TemplateArgumentLists[0].AssociatedDeclAndFinal.getPointer() ==
+                    AssociatedDecl) &&
+               "Trying to change incorrect declaration?");
+        TemplateArgumentLists[0].Args = Args;
+      } else {
+        --NumRetainedOuterLevels;
+        TemplateArgumentLists.push_back(
+            {{AssociatedDecl, /*Final=*/false}, Args});
+      }
     }
 
     /// Add an outermost level that we are not substituting. We have no
@@ -618,8 +632,6 @@ enum class TemplateSubstitutionKind : char {
     // A few supplemental visitor functions.
     Decl *VisitCXXMethodDecl(CXXMethodDecl *D,
                              TemplateParameterList *TemplateParams,
-                             std::optional<const ASTTemplateArgumentListInfo *>
-                                 ClassScopeSpecializationArgs = std::nullopt,
                              RewriteKind RK = RewriteKind::None);
     Decl *VisitFunctionDecl(FunctionDecl *D,
                             TemplateParameterList *TemplateParams,

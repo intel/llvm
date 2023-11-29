@@ -36,6 +36,9 @@ config.excludes = ['Inputs', 'feature-tests']
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
 
+# allow expanding substitutions that are based on other substitutions
+config.recursiveExpansionLimit = 10
+
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
@@ -55,6 +58,10 @@ if config.extra_environment:
         else:
            lit_config.note("\tUnset "+var)
            llvm_config.with_environment(var,"")
+
+# If major release preview library is enabled we can enable the feature.
+if config.sycl_preview_lib_enabled == "ON":
+    config.available_features.add('preview-breaking-changes-supported')
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 # Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime
@@ -85,6 +92,7 @@ config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
+config.substitutions.append( ('%llvm_main_include_dir', config.llvm_main_include_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%level_zero_include_dir',  config.level_zero_include_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
@@ -102,7 +110,7 @@ for include_dir in [config.sycl_include, config.level_zero_include_dir, config.o
         sycl_host_only_options += ' -isystem %s' % include_dir
 config.substitutions.append( ('%fsycl-host-only', sycl_host_only_options) )
 
-config.substitutions.append( ('%sycl_lib', ' -lsycl6' if platform.system() == "Windows" else '-lsycl') )
+config.substitutions.append( ('%sycl_lib', ' -lsycl7' if platform.system() == "Windows" else '-lsycl') )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
@@ -118,20 +126,20 @@ if config.cuda_be == "ON":
 if config.hip_be == "ON":
     config.available_features.add('hip_be')
 
-if config.esimd_emulator_be == "ON":
-    config.available_features.add('esimd_emulator_be')
-
 if config.opencl_be == "ON":
     config.available_features.add('opencl_be')
 
 if config.level_zero_be == "ON":
     config.available_features.add('level_zero_be')
 
-if triple == 'nvptx64-nvidia-cuda':
+if config.native_cpu_be == "ON":
+    config.available_features.add('native_cpu_be')
+
+if 'nvptx64-nvidia-cuda' in triple:
     llvm_config.with_system_environment('CUDA_PATH')
     config.available_features.add('cuda')
 
-if triple == 'amdgcn-amd-amdhsa':
+if 'amdgcn-amd-amdhsa' in triple:
     llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch

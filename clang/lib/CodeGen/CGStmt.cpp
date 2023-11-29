@@ -409,6 +409,8 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPDispatchDirectiveClass:
     llvm_unreachable("Dispatch directive not supported yet.");
     break;
+  case Stmt::OMPScopeDirectiveClass:
+    llvm_unreachable("scope not supported with FE outlining");
   case Stmt::OMPMaskedDirectiveClass:
     EmitOMPMaskedDirective(cast<OMPMaskedDirective>(*S));
     break;
@@ -416,16 +418,19 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     EmitOMPGenericLoopDirective(cast<OMPGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTeamsGenericLoopDirectiveClass:
-    llvm_unreachable("teams loop directive not supported yet.");
+    EmitOMPTeamsGenericLoopDirective(cast<OMPTeamsGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTargetTeamsGenericLoopDirectiveClass:
-    llvm_unreachable("target teams loop directive not supported yet.");
+    EmitOMPTargetTeamsGenericLoopDirective(
+        cast<OMPTargetTeamsGenericLoopDirective>(*S));
     break;
   case Stmt::OMPParallelGenericLoopDirectiveClass:
-    llvm_unreachable("parallel loop directive not supported yet.");
+    EmitOMPParallelGenericLoopDirective(
+        cast<OMPParallelGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
-    llvm_unreachable("target parallel loop directive not supported yet.");
+    EmitOMPTargetParallelGenericLoopDirective(
+        cast<OMPTargetParallelGenericLoopDirective>(*S));
     break;
   case Stmt::OMPParallelMaskedDirectiveClass:
     EmitOMPParallelMaskedDirective(cast<OMPParallelMaskedDirective>(*S));
@@ -2193,9 +2198,9 @@ std::pair<llvm::Value*, llvm::Type *> CodeGenFunction::EmitAsmInputLValue(
         getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
       Ty = llvm::IntegerType::get(getLLVMContext(), Size);
 
-      return {Builder.CreateLoad(Builder.CreateElementBitCast(
-                  InputValue.getAddress(*this), Ty)),
-              nullptr};
+      return {
+          Builder.CreateLoad(InputValue.getAddress(*this).withElementType(Ty)),
+          nullptr};
     }
   }
 
@@ -2395,8 +2400,7 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
     // ResultTypeRequiresCast.size() elements of RegResults.
     if ((i < ResultTypeRequiresCast.size()) && ResultTypeRequiresCast[i]) {
       unsigned Size = CGF.getContext().getTypeSize(ResultRegQualTys[i]);
-      Address A =
-          Builder.CreateElementBitCast(Dest.getAddress(CGF), ResultRegTypes[i]);
+      Address A = Dest.getAddress(CGF).withElementType(ResultRegTypes[i]);
       if (CGF.getTargetHooks().isScalarizableAsmOperand(CGF, TruncTy)) {
         Builder.CreateStore(Tmp, A);
         continue;
@@ -2416,6 +2420,24 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
   }
 }
 
+static void EmitHipStdParUnsupportedAsm(CodeGenFunction *CGF,
+                                        const AsmStmt &S) {
+  constexpr auto Name = "__ASM__hipstdpar_unsupported";
+
+  StringRef Asm;
+  if (auto GCCAsm = dyn_cast<GCCAsmStmt>(&S))
+    Asm = GCCAsm->getAsmString()->getString();
+
+  auto &Ctx = CGF->CGM.getLLVMContext();
+
+  auto StrTy = llvm::ConstantDataArray::getString(Ctx, Asm);
+  auto FnTy = llvm::FunctionType::get(llvm::Type::getVoidTy(Ctx),
+                                      {StrTy->getType()}, false);
+  auto UBF = CGF->CGM.getModule().getOrInsertFunction(Name, FnTy);
+
+  CGF->Builder.CreateCall(UBF, {StrTy});
+}
+
 void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   // Pop all cleanup blocks at the end of the asm statement.
   CodeGenFunction::RunCleanupsScope Cleanups(*this);
@@ -2427,26 +2449,37 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   SmallVector<TargetInfo::ConstraintInfo, 4> OutputConstraintInfos;
   SmallVector<TargetInfo::ConstraintInfo, 4> InputConstraintInfos;
 
-  for (unsigned i = 0, e = S.getNumOutputs(); i != e; i++) {
+  bool IsHipStdPar = getLangOpts().HIPStdPar && getLangOpts().CUDAIsDevice;
+  bool IsValidTargetAsm = true;
+  for (unsigned i = 0, e = S.getNumOutputs(); i != e && IsValidTargetAsm; i++) {
     StringRef Name;
     if (const GCCAsmStmt *GAS = dyn_cast<GCCAsmStmt>(&S))
       Name = GAS->getOutputName(i);
     TargetInfo::ConstraintInfo Info(S.getOutputConstraint(i), Name);
     bool IsValid = getTarget().validateOutputConstraint(Info); (void)IsValid;
-    assert(IsValid && "Failed to parse output constraint");
+    if (IsHipStdPar && !IsValid)
+      IsValidTargetAsm = false;
+    else
+      assert(IsValid && "Failed to parse output constraint");
     OutputConstraintInfos.push_back(Info);
   }
 
-  for (unsigned i = 0, e = S.getNumInputs(); i != e; i++) {
+  for (unsigned i = 0, e = S.getNumInputs(); i != e && IsValidTargetAsm; i++) {
     StringRef Name;
     if (const GCCAsmStmt *GAS = dyn_cast<GCCAsmStmt>(&S))
       Name = GAS->getInputName(i);
     TargetInfo::ConstraintInfo Info(S.getInputConstraint(i), Name);
     bool IsValid =
       getTarget().validateInputConstraint(OutputConstraintInfos, Info);
-    assert(IsValid && "Failed to parse input constraint"); (void)IsValid;
+    if (IsHipStdPar && !IsValid)
+      IsValidTargetAsm = false;
+    else
+      assert(IsValid && "Failed to parse input constraint");
     InputConstraintInfos.push_back(Info);
   }
+
+  if (!IsValidTargetAsm)
+    return EmitHipStdParUnsupportedAsm(this, S);
 
   std::string Constraints;
 
@@ -2576,8 +2609,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       // Otherwise there will be a mis-match if the matrix is also an
       // input-argument which is represented as vector.
       if (isa<MatrixType>(OutExpr->getType().getCanonicalType()))
-        DestAddr = Builder.CreateElementBitCast(
-            DestAddr, ConvertType(OutExpr->getType()));
+        DestAddr = DestAddr.withElementType(ConvertType(OutExpr->getType()));
 
       ArgTypes.push_back(DestAddr.getType());
       ArgElemTypes.push_back(DestAddr.getElementType());
@@ -2779,7 +2811,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
          "unwind clobber can't be used with asm goto");
 
   // Add machine specific clobbers
-  std::string MachineClobbers = getTarget().getClobbers();
+  std::string_view MachineClobbers = getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
     if (!Constraints.empty())
       Constraints += ',';

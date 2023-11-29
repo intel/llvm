@@ -21,7 +21,6 @@
 #include "llvm/Object/BuildID.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/MemProf.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
 #include <memory>
@@ -110,6 +109,9 @@ public:
   /// Write the profile to \c OS
   Error write(raw_fd_ostream &OS);
 
+  /// Write the profile to a string output stream \c OS
+  Error write(raw_string_ostream &OS);
+
   /// Write the profile in text format to \c OS
   Error writeText(raw_fd_ostream &OS);
 
@@ -167,7 +169,7 @@ public:
   InstrProfKind getProfileKind() const { return ProfileKind; }
 
   // Internal interface for testing purpose only.
-  void setValueProfDataEndianness(support::endianness Endianness);
+  void setValueProfDataEndianness(llvm::endianness Endianness);
   void setOutputSparse(bool Sparse);
   // Compute the overlap b/w this object and Other. Program level result is
   // stored in Overlap and function level result is stored in FuncLevelOverlap.

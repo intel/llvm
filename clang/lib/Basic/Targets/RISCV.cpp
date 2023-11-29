@@ -23,6 +23,7 @@ using namespace clang;
 using namespace clang::targets;
 
 ArrayRef<const char *> RISCVTargetInfo::getGCCRegNames() const {
+  // clang-format off
   static const char *const GCCRegNames[] = {
       // Integer registers
       "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
@@ -40,7 +41,12 @@ ArrayRef<const char *> RISCVTargetInfo::getGCCRegNames() const {
       "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",
       "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",
       "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",
-      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"};
+      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",
+
+      // CSRs
+      "fflags", "frm", "vtype", "vl", "vxsat", "vxrm"
+    };
+  // clang-format on
   return llvm::ArrayRef(GCCRegNames);
 }
 
@@ -124,7 +130,6 @@ static unsigned getVersionValue(unsigned MajorVersion, unsigned MinorVersion) {
 
 void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
-  Builder.defineMacro("__ELF__");
   Builder.defineMacro("__riscv");
   bool Is64Bit = getTriple().getArch() == llvm::Triple::riscv64;
   Builder.defineMacro("__riscv_xlen", Is64Bit ? "64" : "32");
@@ -197,9 +202,19 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
 
   if (ISAInfo->hasExtension("zve32x")) {
     Builder.defineMacro("__riscv_vector");
-    // Currently we support the v0.11 RISC-V V intrinsics.
-    Builder.defineMacro("__riscv_v_intrinsic", Twine(getVersionValue(0, 11)));
+    // Currently we support the v0.12 RISC-V V intrinsics.
+    Builder.defineMacro("__riscv_v_intrinsic", Twine(getVersionValue(0, 12)));
   }
+
+  auto VScale = getVScaleRange(Opts);
+  if (VScale && VScale->first && VScale->first == VScale->second)
+    Builder.defineMacro("__riscv_v_fixed_vlen",
+                        Twine(VScale->first * llvm::RISCV::RVVBitsPerBlock));
+
+  if (FastUnalignedAccess)
+    Builder.defineMacro("__riscv_misaligned_fast");
+  else
+    Builder.defineMacro("__riscv_misaligned_avoid");
 }
 
 static constexpr Builtin::Info BuiltinInfo[] = {
@@ -315,12 +330,17 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   if (ABI.empty())
     ABI = ISAInfo->computeDefaultABI().str();
 
+  if (ISAInfo->hasExtension("zfh") || ISAInfo->hasExtension("zhinx"))
+    HasLegalHalfType = true;
+
+  FastUnalignedAccess = llvm::is_contained(Features, "+unaligned-scalar-mem");
+
   return true;
 }
 
 bool RISCVTargetInfo::isValidCPUName(StringRef Name) const {
   bool Is64Bit = getTriple().isArch64Bit();
-  return llvm::RISCV::checkCPUKind(llvm::RISCV::parseCPUKind(Name), Is64Bit);
+  return llvm::RISCV::parseCPU(Name, Is64Bit);
 }
 
 void RISCVTargetInfo::fillValidCPUList(
@@ -331,8 +351,7 @@ void RISCVTargetInfo::fillValidCPUList(
 
 bool RISCVTargetInfo::isValidTuneCPUName(StringRef Name) const {
   bool Is64Bit = getTriple().isArch64Bit();
-  return llvm::RISCV::checkTuneCPUKind(
-      llvm::RISCV::parseTuneCPUKind(Name, Is64Bit), Is64Bit);
+  return llvm::RISCV::parseTuneCPU(Name, Is64Bit);
 }
 
 void RISCVTargetInfo::fillValidTuneCPUList(

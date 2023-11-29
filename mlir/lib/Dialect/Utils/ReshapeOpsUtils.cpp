@@ -149,7 +149,7 @@ unsigned getMaxPosOfType(ArrayRef<ReassociationExprs> exprArrays) {
   for (const auto &exprs : exprArrays) {
     for (auto expr : exprs) {
       expr.walk([&pos](AffineExpr e) {
-        if (auto d = e.dyn_cast<AffineExprTy>())
+        if (auto d = dyn_cast<AffineExprTy>(e))
           pos = std::max(pos, d.getPosition());
       });
     }
@@ -162,7 +162,7 @@ ArrayAttr mlir::getReassociationIndicesAttribute(
   SmallVector<Attribute, 4> reassociationAttr =
       llvm::to_vector<4>(llvm::map_range(
           reassociation, [&](const ReassociationIndices &indices) -> Attribute {
-            return b.getI64ArrayAttr(indices).cast<Attribute>();
+            return cast<Attribute>(b.getI64ArrayAttr(indices));
           }));
   return b.getArrayAttr(reassociationAttr);
 }
@@ -174,7 +174,7 @@ SmallVector<ReassociationIndices, 2> mlir::convertReassociationMapsToIndices(
     ReassociationIndices indices;
     indices.reserve(exprs.size());
     for (const auto &expr : exprs)
-      indices.push_back(expr.cast<AffineDimExpr>().getPosition());
+      indices.push_back(cast<AffineDimExpr>(expr).getPosition());
     reassociationIndices.push_back(indices);
   }
   return reassociationIndices;
@@ -208,7 +208,7 @@ bool mlir::isReassociationValid(ArrayRef<AffineMap> reassociation,
       return false;
     }
     for (auto e : m.getResults()) {
-      auto d = e.dyn_cast<AffineDimExpr>();
+      auto d = dyn_cast<AffineDimExpr>(e);
       if (!d || d.getPosition() != nextExpectedDim++) {
         if (invalidIndex)
           *invalidIndex = it.index();
@@ -267,7 +267,7 @@ LogicalResult mlir::reshapeLikeShapesAreCompatible(
 }
 
 bool mlir::hasNonIdentityLayout(Type type) {
-  if (auto memrefType = type.dyn_cast<MemRefType>())
+  if (auto memrefType = dyn_cast<MemRefType>(type))
     return !memrefType.getLayout().isIdentity();
   return false;
 }
@@ -356,7 +356,7 @@ SliceFromCollapseHelper::getInsertSliceParams(MLIRContext *ctx,
 
 /// Returns the index of the only non-unit dimension among `indices` of `shape`,
 /// if such a dimension exists and `indices` has more than one element.
-/// Otherwise, return none.
+/// Otherwise, return std::nullopt.
 static std::optional<int64_t> getUniqueNonUnitDim(ArrayRef<int64_t> indices,
                                                   ArrayRef<int64_t> shape) {
   // Return false if more than one of the dimensions in this group are not 1.
@@ -480,6 +480,7 @@ PackingMetadata mlir::computePackingMetadata(int64_t packedRank,
                            res.insertPositions.end());
   res.reassociations.reserve(packedRank);
   for (int64_t i = 1; i <= packedRank; ++i) {
+    res.outerPositions.push_back(i - 1);
     if (!posSet.contains(i)) {
       res.reassociations.push_back(ReassociationIndices{i - 1});
       continue;

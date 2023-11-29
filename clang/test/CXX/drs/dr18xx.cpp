@@ -3,12 +3,23 @@
 // RUN: %clang_cc1 -std=c++14 -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++17 -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++20 -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++2b -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++23 -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-unknown %s -verify -fexceptions -Wno-deprecated-builtins -fcxx-exceptions -pedantic-errors
 
 #if __cplusplus < 201103L
 // expected-error@+1 {{variadic macro}}
 #define static_assert(...) __extension__ _Static_assert(__VA_ARGS__)
 #endif
+
+namespace dr1812 { // dr1812: no
+                   // NB: dup 1710
+#if __cplusplus >= 201103L
+template <typename T> struct A {
+  using B = typename T::C<int>;
+  // expected-error@-1 {{use 'template' keyword to treat 'C' as a dependent template name}}
+};
+#endif
+} // namespace dr1812
 
 namespace dr1813 { // dr1813: 7
   struct B { int i; };
@@ -50,6 +61,22 @@ namespace dr1815 { // dr1815: no
   B b; // expected-note {{here}}
 #endif
 }
+
+namespace dr1821 { // dr1821: yes
+struct A {
+  template <typename> struct B {
+    void f();
+  };
+  template <typename T> void B<T>::f(){};
+  // expected-error@-1 {{non-friend class member 'f' cannot have a qualified name}}
+
+  struct C {
+    void f();
+  };
+  void C::f() {}
+  // expected-error@-1 {{non-friend class member 'f' cannot have a qualified name}}
+};
+} // namespace dr1821
 
 namespace dr1822 { // dr1822: yes
 #if __cplusplus >= 201103L

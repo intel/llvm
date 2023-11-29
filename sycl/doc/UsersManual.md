@@ -22,6 +22,14 @@ and not recommended to use in production environment.
     You can specify more than one target, comma separated. Default just in time
     (JIT) compilation target can be added to the list to produce a combination
     of AOT and JIT code in the resulting fat binary.
+
+    Normally, '-fsycl-targets' is specified when linking an application, in
+    which case the AOT compiled device binaries are embedded within the
+    application’s fat executable.  However, this option may also be used in
+    combination with '-c' and '-fno-sycl-rdc' when compiling a source file.
+    In this case, the AOT compiled device binaries are embedded within the fat
+    object file.
+
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
@@ -32,25 +40,32 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * native_cpu - allows to run SYCL applications with no need of an 
+    additional backend (note that this feature is WIP and experimental, and 
+    currently overrides all the other specified SYCL targets when enabled.)
+
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
-    * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
-    * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
-    * intel_gpu_acm_g10 - Alchemist G10 Intel graphics architecture
+    * intel_gpu_acm_g12, intel_gpu_dg2_g12 - Alchemist G12 Intel graphics architecture
+    * intel_gpu_acm_g11, intel_gpu_dg2_g11 - Alchemist G11 Intel graphics architecture
+    * intel_gpu_acm_g10, intel_gpu_dg2_g10 - Alchemist G10 Intel graphics architecture
     * intel_gpu_dg1, intel_gpu_12_10_0 - DG1 Intel graphics architecture
     * intel_gpu_adl_n - Alder Lake N Intel graphics architecture
     * intel_gpu_adl_p - Alder Lake P Intel graphics architecture
-    * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture
+    * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture (equal to intel_gpu_adl_s)
     * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
     * intel_gpu_rkl - Rocket Lake Intel graphics architecture
     * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
+    * intel_gpu_jsl - Jasper Lake Intel graphics architecture (equal to intel_gpu_ehl)
+    * intel_gpu_ehl - Elkhart Lake Intel graphics architecture
     * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
     * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
     * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
     * intel_gpu_whl, intel_gpu_9_5_0 - Whiskey Lake Intel graphics architecture
     * intel_gpu_glk, intel_gpu_9_4_0 - Gemini Lake Intel graphics architecture
+    * intel_gpu_bxt - Broxton Intel graphics architecture (equal to intel_gpu_apl)
     * intel_gpu_apl, intel_gpu_9_3_0 - Apollo Lake Intel graphics architecture
     * intel_gpu_cfl, intel_gpu_9_2_9 - Coffee Lake Intel graphics architecture
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
@@ -285,11 +300,13 @@ and not recommended to use in production environment.
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
 
-**`-f[no-]sycl-link-huge-device-code`**
+**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
 
     Place device code later in the linked binary in order to avoid precluding
     32-bit PC relative relocations between surrounding ELF sections when device
     code is larger than 2GiB. This is disabled by default.
+
+    Deprecated in favor of `-f[no-]link-huge-device-code`.
 
     NOTE: This option is currently only supported on Linux.
 
@@ -344,11 +361,17 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
+**`-f[no-]sycl-use-bitcode`** [DEPRECATED]
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+
+**`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
+
+    Specify format of device code stored in the resulting object. The <arg> can
+    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
 
@@ -409,6 +432,34 @@ and not recommended to use in production environment.
     of 4Gb per surface.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
+
+**`-ftarget-compile-fast`** [EXPERIMENTAL]
+
+    Instructs the target backend to reduce compilation time, potentially
+    at the cost of runtime performance. Currently only supported on Intel GPUs.
+
+**`-f[no-]target-export-symbols`**
+
+    Exposes exported symbols in a generated target library to allow for
+    visibility to other modules.
+
+    NOTE: This flag is only supported for spir64_gen AOT targets.
+
+**`-ftarget-register-alloc-mode=<arg>`**
+
+    Specify a register allocation mode for specific hardware for use by supported
+    target backends. The format of the argument is "Device0:Mode0[,Device1:Mode1...]".
+    Currently the only supported Device is "pvc". The supported modes are
+    "default","small","large", and "auto".
+
+**`-fpreview-breaking-changes`**
+
+    When specified, it informs the compiler driver and compilation phases
+    that it is allowed to break backward compatibility. When this option is
+    specified the compiler will also set the macro
+    __INTEL_PREVIEW_BREAKING_CHANGES.
+    When this option is used in conjunction with -fsycl, the driver will link
+    against an alternate form of libsycl, libsycl-preview.
 
 # Example: SYCL device code compilation
 

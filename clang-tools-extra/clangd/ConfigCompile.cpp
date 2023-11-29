@@ -35,6 +35,7 @@
 #include "support/Trace.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -196,6 +197,7 @@ struct FragmentCompiler {
     compile(std::move(F.Completion));
     compile(std::move(F.Hover));
     compile(std::move(F.InlayHints));
+    compile(std::move(F.SemanticTokens));
     compile(std::move(F.Style));
   }
 
@@ -322,11 +324,11 @@ struct FragmentCompiler {
 
   void compile(Fragment::IndexBlock &&F) {
     if (F.Background) {
-      if (auto Val = compileEnum<Config::BackgroundPolicy>("Background",
-                                                           **F.Background)
-                         .map("Build", Config::BackgroundPolicy::Build)
-                         .map("Skip", Config::BackgroundPolicy::Skip)
-                         .value())
+      if (auto Val =
+              compileEnum<Config::BackgroundPolicy>("Background", *F.Background)
+                  .map("Build", Config::BackgroundPolicy::Build)
+                  .map("Skip", Config::BackgroundPolicy::Skip)
+                  .value())
         Out.Apply.push_back(
             [Val](const Params &, Config &C) { C.Index.Background = *Val; });
     }
@@ -449,13 +451,6 @@ struct FragmentCompiler {
       }
     }
 
-    if (F.AllowStalePreamble) {
-      if (auto Val = F.AllowStalePreamble)
-        Out.Apply.push_back([Val](const Params &, Config &C) {
-          C.Diagnostics.AllowStalePreamble = **Val;
-        });
-    }
-
     if (F.MissingIncludes)
       if (auto Val = compileEnum<Config::IncludesPolicy>("MissingIncludes",
                                                          **F.MissingIncludes)
@@ -499,11 +494,31 @@ struct FragmentCompiler {
       diag(Error, "Invalid clang-tidy check name", Arg.Range);
       return;
     }
-    if (!Str.contains('*') && !isRegisteredTidyCheck(Str)) {
-      diag(Warning,
-           llvm::formatv("clang-tidy check '{0}' was not found", Str).str(),
-           Arg.Range);
-      return;
+    if (!Str.contains('*')) {
+      if (!isRegisteredTidyCheck(Str)) {
+        diag(Warning,
+             llvm::formatv("clang-tidy check '{0}' was not found", Str).str(),
+             Arg.Range);
+        return;
+      }
+      auto Fast = isFastTidyCheck(Str);
+      if (!Fast.has_value()) {
+        diag(Warning,
+             llvm::formatv(
+                 "Latency of clang-tidy check '{0}' is not known. "
+                 "It will only run if ClangTidy.FastCheckFilter is Loose or None",
+                 Str)
+                 .str(),
+             Arg.Range);
+      } else if (!*Fast) {
+        diag(Warning,
+             llvm::formatv(
+                 "clang-tidy check '{0}' is slow. "
+                 "It will only run if ClangTidy.FastCheckFilter is None",
+                 Str)
+                 .str(),
+             Arg.Range);
+      }
     }
     CurSpec += ',';
     if (!IsPositive)
@@ -539,6 +554,16 @@ struct FragmentCompiler {
                   StringPair.first, StringPair.second);
           });
     }
+    if (F.FastCheckFilter.has_value())
+      if (auto Val = compileEnum<Config::FastCheckPolicy>("FastCheckFilter",
+                                                          *F.FastCheckFilter)
+                         .map("Strict", Config::FastCheckPolicy::Strict)
+                         .map("Loose", Config::FastCheckPolicy::Loose)
+                         .map("None", Config::FastCheckPolicy::None)
+                         .value())
+        Out.Apply.push_back([Val](const Params &, Config &C) {
+          C.Diagnostics.ClangTidy.FastCheckFilter = *Val;
+        });
   }
 
   void compile(Fragment::DiagnosticsBlock::IncludesBlock &&F) {
@@ -611,6 +636,46 @@ struct FragmentCompiler {
       Out.Apply.push_back([Value(**F.Designators)](const Params &, Config &C) {
         C.InlayHints.Designators = Value;
       });
+    if (F.BlockEnd)
+      Out.Apply.push_back([Value(**F.BlockEnd)](const Params &, Config &C) {
+        C.InlayHints.BlockEnd = Value;
+      });
+    if (F.TypeNameLimit)
+      Out.Apply.push_back(
+          [Value(**F.TypeNameLimit)](const Params &, Config &C) {
+            C.InlayHints.TypeNameLimit = Value;
+          });
+  }
+
+  void compile(Fragment::SemanticTokensBlock &&F) {
+    if (!F.DisabledKinds.empty()) {
+      std::vector<std::string> DisabledKinds;
+      for (auto &Kind : F.DisabledKinds)
+        DisabledKinds.push_back(std::move(*Kind));
+
+      Out.Apply.push_back(
+          [DisabledKinds(std::move(DisabledKinds))](const Params &, Config &C) {
+            for (auto &Kind : DisabledKinds) {
+              auto It = llvm::find(C.SemanticTokens.DisabledKinds, Kind);
+              if (It == C.SemanticTokens.DisabledKinds.end())
+                C.SemanticTokens.DisabledKinds.push_back(std::move(Kind));
+            }
+          });
+    }
+    if (!F.DisabledModifiers.empty()) {
+      std::vector<std::string> DisabledModifiers;
+      for (auto &Kind : F.DisabledModifiers)
+        DisabledModifiers.push_back(std::move(*Kind));
+
+      Out.Apply.push_back([DisabledModifiers(std::move(DisabledModifiers))](
+                              const Params &, Config &C) {
+        for (auto &Kind : DisabledModifiers) {
+          auto It = llvm::find(C.SemanticTokens.DisabledModifiers, Kind);
+          if (It == C.SemanticTokens.DisabledModifiers.end())
+            C.SemanticTokens.DisabledModifiers.push_back(std::move(Kind));
+        }
+      });
+    }
   }
 
   constexpr static llvm::SourceMgr::DiagKind Error = llvm::SourceMgr::DK_Error;

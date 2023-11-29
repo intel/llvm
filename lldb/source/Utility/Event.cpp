@@ -11,9 +11,12 @@
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Endian.h"
+#include "lldb/Utility/Listener.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/lldb-enumerations.h"
+
+#include "llvm/ADT/StringExtras.h"
 
 #include <algorithm>
 
@@ -58,13 +61,13 @@ void Event::Dump(Stream *s) const {
       s->Printf("%p Event: broadcaster = %p (%s), type = 0x%8.8x (%s), data = ",
                 static_cast<const void *>(this),
                 static_cast<void *>(broadcaster),
-                broadcaster->GetBroadcasterName().GetCString(), m_type,
+                broadcaster->GetBroadcasterName().c_str(), m_type,
                 event_name.GetData());
     else
       s->Printf("%p Event: broadcaster = %p (%s), type = 0x%8.8x, data = ",
                 static_cast<const void *>(this),
                 static_cast<void *>(broadcaster),
-                broadcaster->GetBroadcasterName().GetCString(), m_type);
+                broadcaster->GetBroadcasterName().c_str(), m_type);
   } else
     s->Printf("%p Event: broadcaster = NULL, type = 0x%8.8x, data = ",
               static_cast<const void *>(this), m_type);
@@ -78,8 +81,16 @@ void Event::Dump(Stream *s) const {
 }
 
 void Event::DoOnRemoval() {
+  std::lock_guard<std::mutex> guard(m_listeners_mutex);
+
   if (m_data_sp)
     m_data_sp->DoOnRemoval(this);
+  // Now that the event has been handled by the primary event Listener, forward
+  // it to the other Listeners.
+  EventSP me_sp = shared_from_this();
+  for (auto listener_sp : m_pending_listeners)
+    listener_sp->AddEvent(me_sp);
+  m_pending_listeners.clear();
 }
 
 #pragma mark -

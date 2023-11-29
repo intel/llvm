@@ -32,7 +32,6 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace llvm;
@@ -272,13 +271,11 @@ public:
 #include "WebAssemblyGenAsmMatcher.inc"
 
   // TODO: This is required to be implemented, but appears unused.
-  bool parseRegister(MCRegister & /*RegNo*/, SMLoc & /*StartLoc*/,
-                     SMLoc & /*EndLoc*/) override {
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
     llvm_unreachable("parseRegister is not implemented.");
   }
-  OperandMatchResultTy tryParseRegister(MCRegister & /*RegNo*/,
-                                        SMLoc & /*StartLoc*/,
-                                        SMLoc & /*EndLoc*/) override {
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                               SMLoc &EndLoc) override {
     llvm_unreachable("tryParseRegister is not implemented.");
   }
 
@@ -785,31 +782,23 @@ public:
   // This function processes wasm-specific directives streamed to
   // WebAssemblyTargetStreamer, all others go to the generic parser
   // (see WasmAsmParser).
-  bool ParseDirective(AsmToken DirectiveID) override {
-    // This function has a really weird return value behavior that is different
-    // from all the other parsing functions:
-    // - return true && no tokens consumed -> don't know this directive / let
-    //   the generic parser handle it.
-    // - return true && tokens consumed -> a parsing error occurred.
-    // - return false -> processed this directive successfully.
+  ParseStatus parseDirective(AsmToken DirectiveID) override {
     assert(DirectiveID.getKind() == AsmToken::Identifier);
     auto &Out = getStreamer();
     auto &TOut =
         reinterpret_cast<WebAssemblyTargetStreamer &>(*Out.getTargetStreamer());
     auto &Ctx = Out.getContext();
 
-    // TODO: any time we return an error, at least one token must have been
-    // consumed, otherwise this will not signal an error to the caller.
     if (DirectiveID.getString() == ".globaltype") {
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       if (expect(AsmToken::Comma, ","))
-        return true;
+        return ParseStatus::Failure;
       auto TypeTok = Lexer.getTok();
       auto TypeName = expectIdent();
       if (TypeName.empty())
-        return true;
+        return ParseStatus::Failure;
       auto Type = WebAssembly::parseType(TypeName);
       if (!Type)
         return error("Unknown type in .globaltype directive: ", TypeTok);
@@ -820,6 +809,8 @@ public:
       if (isNext(AsmToken::Comma)) {
         TypeTok = Lexer.getTok();
         auto Id = expectIdent();
+        if (Id.empty())
+          return ParseStatus::Failure;
         if (Id == "immutable")
           Mutable = false;
         else
@@ -839,14 +830,14 @@ public:
       // .tabletype SYM, ELEMTYPE[, MINSIZE[, MAXSIZE]]
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       if (expect(AsmToken::Comma, ","))
-        return true;
+        return ParseStatus::Failure;
 
       auto ElemTypeTok = Lexer.getTok();
       auto ElemTypeName = expectIdent();
       if (ElemTypeName.empty())
-        return true;
+        return ParseStatus::Failure;
       std::optional<wasm::ValType> ElemType =
           WebAssembly::parseType(ElemTypeName);
       if (!ElemType)
@@ -854,7 +845,7 @@ public:
 
       wasm::WasmLimits Limits = DefaultLimits();
       if (isNext(AsmToken::Comma) && parseLimits(&Limits))
-        return true;
+        return ParseStatus::Failure;
 
       // Now that we have the name and table type, we can actually create the
       // symbol
@@ -874,7 +865,7 @@ public:
       // parses the locals separately.
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       if (WasmSym->isDefined()) {
         // We push 'Function' either when a label is parsed or a .functype
@@ -890,7 +881,7 @@ public:
         if (CurrentState != FunctionLabel) {
           // This .functype indicates a start of a function.
           if (ensureEmptyNestingStack())
-            return true;
+            return ParseStatus::Failure;
           push(Function);
         }
         CurrentState = FunctionStart;
@@ -898,7 +889,7 @@ public:
       }
       auto Signature = std::make_unique<wasm::WasmSignature>();
       if (parseSignature(Signature.get()))
-        return true;
+        return ParseStatus::Failure;
       TC.funcDecl(*Signature);
       WasmSym->setSignature(Signature.get());
       addSignature(std::move(Signature));
@@ -911,47 +902,56 @@ public:
     if (DirectiveID.getString() == ".export_name") {
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       if (expect(AsmToken::Comma, ","))
-        return true;
+        return ParseStatus::Failure;
       auto ExportName = expectIdent();
+      if (ExportName.empty())
+        return ParseStatus::Failure;
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       WasmSym->setExportName(storeName(ExportName));
       TOut.emitExportName(WasmSym, ExportName);
+      return expect(AsmToken::EndOfStatement, "EOL");
     }
 
     if (DirectiveID.getString() == ".import_module") {
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       if (expect(AsmToken::Comma, ","))
-        return true;
+        return ParseStatus::Failure;
       auto ImportModule = expectIdent();
+      if (ImportModule.empty())
+        return ParseStatus::Failure;
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       WasmSym->setImportModule(storeName(ImportModule));
       TOut.emitImportModule(WasmSym, ImportModule);
+      return expect(AsmToken::EndOfStatement, "EOL");
     }
 
     if (DirectiveID.getString() == ".import_name") {
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       if (expect(AsmToken::Comma, ","))
-        return true;
+        return ParseStatus::Failure;
       auto ImportName = expectIdent();
+      if (ImportName.empty())
+        return ParseStatus::Failure;
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       WasmSym->setImportName(storeName(ImportName));
       TOut.emitImportName(WasmSym, ImportName);
+      return expect(AsmToken::EndOfStatement, "EOL");
     }
 
     if (DirectiveID.getString() == ".tagtype") {
       auto SymName = expectIdent();
       if (SymName.empty())
-        return true;
+        return ParseStatus::Failure;
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       auto Signature = std::make_unique<wasm::WasmSignature>();
       if (parseRegTypeList(Signature->Params))
-        return true;
+        return ParseStatus::Failure;
       WasmSym->setSignature(Signature.get());
       addSignature(std::move(Signature));
       WasmSym->setType(wasm::WASM_SYMBOL_TYPE_TAG);
@@ -966,7 +966,7 @@ public:
                      Lexer.getTok());
       SmallVector<wasm::ValType, 4> Locals;
       if (parseRegTypeList(Locals))
-        return true;
+        return ParseStatus::Failure;
       TC.localDecl(Locals);
       TOut.emitLocal(Locals);
       CurrentState = FunctionLocals;
@@ -978,7 +978,7 @@ public:
         DirectiveID.getString() == ".int32" ||
         DirectiveID.getString() == ".int64") {
       if (CheckDataSection())
-        return true;
+        return ParseStatus::Failure;
       const MCExpr *Val;
       SMLoc End;
       if (Parser.parseExpression(Val, End))
@@ -991,7 +991,7 @@ public:
 
     if (DirectiveID.getString() == ".asciz") {
       if (CheckDataSection())
-        return true;
+        return ParseStatus::Failure;
       std::string S;
       if (Parser.parseEscapedString(S))
         return error("Cannot parse string constant: ", Lexer.getTok());
@@ -999,7 +999,7 @@ public:
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
-    return true; // We didn't process this directive.
+    return ParseStatus::NoMatch; // We didn't process this directive.
   }
 
   // Called either when the first instruction is parsed of the function ends.

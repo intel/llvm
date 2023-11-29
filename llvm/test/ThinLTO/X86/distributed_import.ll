@@ -1,12 +1,12 @@
 ; Test distributed build thin link output from llvm-lto2
 
 ; Generate bitcode files with summary, as well as minimized bitcode containing just the summary
-; RUN: opt -opaque-pointers -thinlto-bc %s -thin-link-bitcode-file=%t1.thinlink.bc -o %t1.bc
-; RUN: opt -opaque-pointers -thinlto-bc %p/Inputs/distributed_import.ll -thin-link-bitcode-file=%t2.thinlink.bc -o %t2.bc
+; RUN: opt -thinlto-bc %s -thin-link-bitcode-file=%t1.thinlink.bc -o %t1.bc
+; RUN: opt -thinlto-bc %p/Inputs/distributed_import.ll -thin-link-bitcode-file=%t2.thinlink.bc -o %t2.bc
 ; RUN: llvm-bcanalyzer -dump %t1.thinlink.bc | FileCheck --check-prefix=THINLINKBITCODE %s
 
 ; First perform the thin link on the normal bitcode file.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-distributed-indexes \
 ; RUN:     -r=%t1.bc,g, \
 ; RUN:     -r=%t1.bc,analias, \
@@ -14,8 +14,8 @@
 ; RUN:     -r=%t2.bc,g,px \
 ; RUN:     -r=%t2.bc,analias,px \
 ; RUN:     -r=%t2.bc,aliasee,px
-; RUN: opt -opaque-pointers -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.bc.thinlto.bc %t1.bc -o %t1.out
-; RUN: opt -opaque-pointers -passes=function-import -import-all-index -summary-file %t2.bc.thinlto.bc %t2.bc -o %t2.out
+; RUN: opt -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.bc.thinlto.bc %t1.bc -o %t1.out
+; RUN: opt -passes=function-import -import-all-index -summary-file %t2.bc.thinlto.bc %t2.bc -o %t2.out
 ; RUN: llvm-dis -o - %t1.out | FileCheck %s --check-prefix=IMPORT
 ; RUN: llvm-dis -o - %t2.out | FileCheck %s --check-prefix=EXPORT
 
@@ -34,7 +34,7 @@
 ; Next perform the thin link on the minimized bitcode files, and compare dumps
 ; of the resulting indexes to the above dumps to ensure they are identical.
 ; RUN: rm -f %t1.bc.thinlto.bc %t2.bc.thinlto.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -thinlto-distributed-indexes \
 ; RUN:     -r=%t1.bc,g, \
 ; RUN:     -r=%t1.bc,analias, \
@@ -48,8 +48,8 @@
 ; Make sure importing occurs as expected
 ; RUN: cp %t1.bc.sv %t1.bc
 ; RUN: cp %t2.bc.sv %t2.bc
-; RUN: opt -opaque-pointers -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.bc.thinlto.bc %t1.bc -o %t1.out
-; RUN: opt -opaque-pointers -passes=function-import -import-all-index -summary-file %t2.bc.thinlto.bc %t2.bc -o %t2.out
+; RUN: opt -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.bc.thinlto.bc %t1.bc -o %t1.out
+; RUN: opt -passes=function-import -import-all-index -summary-file %t2.bc.thinlto.bc %t2.bc -o %t2.out
 ; RUN: llvm-dis -o - %t1.out | FileCheck %s --check-prefix=IMPORT
 ; RUN: llvm-dis -o - %t2.out | FileCheck %s --check-prefix=EXPORT
 

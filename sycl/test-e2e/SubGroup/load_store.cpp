@@ -1,11 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// Missing __spirv_SubgroupBlockReadINTEL, __spirv_SubgroupBlockWriteINTEL on
-// AMD
-// XFAIL: hip_amd
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
@@ -35,7 +29,7 @@ template <typename T, int N> void check(queue &Queue) {
     buffer<T> syclbuf(G + max_sg_size * N);
     buffer<size_t> sgsizebuf(1);
     {
-      auto acc = syclbuf.template get_access<access::mode::read_write>();
+      host_accessor acc(syclbuf);
       for (int i = 0; i < G; i++) {
         acc[i] = i;
         acc[i] += 0.25; // Check that floating point types are not casted to int
@@ -46,7 +40,7 @@ template <typename T, int N> void check(queue &Queue) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       local_accessor<T, 1> LocalMem({L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         auto SGid = SG.get_group_id().get(0);
         auto SGsize = SG.get_max_local_range().get(0);
         /* Avoid overlapping data ranges inside and between local groups */
@@ -84,8 +78,8 @@ template <typename T, int N> void check(queue &Queue) {
           sgsizeacc[0] = SGsize;
       });
     });
-    auto acc = syclbuf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(syclbuf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     for (int j = 0; j < (G - (sg_size * N)); j++) {
@@ -125,7 +119,7 @@ template <typename T> void check(queue &Queue) {
     buffer<T> syclbuf(G);
     buffer<size_t> sgsizebuf(1);
     {
-      auto acc = syclbuf.template get_access<access::mode::read_write>();
+      host_accessor acc(syclbuf);
       for (int i = 0; i < G; i++) {
         acc[i] = i;
         acc[i] += 0.1; // Check that floating point types are not casted to int
@@ -137,7 +131,7 @@ template <typename T> void check(queue &Queue) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       local_accessor<T, 1> LocalMem({L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
         size_t SGOffset =
@@ -168,8 +162,8 @@ template <typename T> void check(queue &Queue) {
           SG.store<T>(mp, t);
       });
     });
-    auto acc = syclbuf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(syclbuf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     for (int j = 0; j < G; j++) {

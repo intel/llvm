@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -o %t.out %s
-// RUN: cd %T
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==--- kernel_functor.cpp -
 // This test illustrates defining kernels as named function objects (functors)
@@ -58,7 +56,25 @@ private:
 };
 } // namespace ns
 
-// Case 2:
+// Case 3:
+// - functor class is defined in the translation unit scope.
+// - the functor has two call operators defined.
+
+class FunctorMulti {
+public:
+  FunctorMulti(int X_,
+               sycl::accessor<int, 1, sycl_read_write, sycl_device> &Acc_)
+      : X(X_), Acc(Acc_) {}
+
+  void operator()(sycl::id<1> id = 0) const { Acc[id] += X; }
+  void operator()(sycl::id<2> id) const {}
+
+private:
+  int X;
+  sycl::accessor<int, 1, sycl_read_write, sycl_device> Acc;
+};
+
+// Case 4:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type sycl::id<1> (to be used in 'parallel_for').
@@ -75,7 +91,7 @@ private:
   sycl::accessor<T, 1, sycl_read_write, sycl_device> Acc;
 };
 
-// Case 3:
+// Case 5:
 // - functor class is templated and defined in the translation unit scope
 // - the '()' operator:
 //   * has a parameter of type sycl::id<1> (to be used in 'parallel_for').
@@ -158,14 +174,39 @@ template <typename T> T bar(T X) {
   return res;
 }
 
+int multi(int X) {
+  int A[] = {10};
+  {
+    sycl::queue Q;
+    sycl::buffer<int, 1> Buf(A, 1);
+
+    Q.submit([&](sycl::handler &cgh) {
+      auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
+      FunctorMulti F(X, Acc);
+      cgh.parallel_for(sycl::range<1>(X), F);
+    });
+  }
+  return A[0];
+}
+
 int main() {
   const int Res1 = foo(10);
   const int Res2 = bar(10);
   const int Gold1 = 40;
   const int Gold2 = 80;
-
   assert(Res1 == Gold1);
   assert(Res2 == Gold2);
+
+  sycl::queue deviceQueue;
+  // This test case is currently enabled only for GPUs, and fails on CPU and
+  // Accelerator RT.
+  // TODO: Remove this conditional check after the RT issues in CPU and
+  // Accelerator are fixed.
+  if (deviceQueue.get_device().is_gpu()) {
+    const int Res3 = multi(10);
+    const int Gold3 = 20;
+    assert(Res3 == Gold3);
+  }
 
   return 0;
 }

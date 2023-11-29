@@ -28,7 +28,7 @@ namespace {
 
 class AMDGPUAsmBackend : public MCAsmBackend {
 public:
-  AMDGPUAsmBackend(const Target &T) : MCAsmBackend(support::little) {}
+  AMDGPUAsmBackend(const Target &T) : MCAsmBackend(llvm::endianness::little) {}
 
   unsigned getNumFixupKinds() const override { return AMDGPU::NumTargetFixupKinds; };
 
@@ -185,6 +185,8 @@ const MCFixupKindInfo &AMDGPUAsmBackend::getFixupKindInfo(
   if (Kind < FirstTargetFixupKind)
     return MCAsmBackend::getFixupKindInfo(Kind);
 
+  assert(unsigned(Kind - FirstTargetFixupKind) < getNumFixupKinds() &&
+         "Invalid kind!");
   return Infos[Kind - FirstTargetFixupKind];
 }
 

@@ -30,6 +30,17 @@ namespace mlir::omp {
 struct OffloadModuleDefaultModel
     : public OffloadModuleInterface::ExternalModel<OffloadModuleDefaultModel,
                                                    mlir::ModuleOp> {};
+
+template <typename T>
+struct DeclareTargetDefaultModel
+    : public DeclareTargetInterface::ExternalModel<DeclareTargetDefaultModel<T>,
+                                                   T> {};
+
+template <typename T>
+struct EarlyOutliningDefaultModel
+    : public EarlyOutliningInterface::ExternalModel<
+          EarlyOutliningDefaultModel<T>, T> {};
+
 } // namespace mlir::omp
 
 #endif // MLIR_DIALECT_OPENMP_OPENMPINTERFACES_H_

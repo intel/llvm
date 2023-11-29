@@ -6,15 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H
 
 #include "FEnvImpl.h"
 #include "FPBits.h"
+#include "rounding_mode.h"
 #include "src/__support/CPP/optional.h"
 #include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 namespace fputil {
 
@@ -52,7 +53,7 @@ template <typename T, size_t N> struct ExceptValues {
     for (size_t i = 0; i < N; ++i) {
       if (LIBC_UNLIKELY(x_bits == values[i].input)) {
         UIntType out_bits = values[i].rnd_towardzero_result;
-        switch (fputil::get_round()) {
+        switch (fputil::quick_get_round()) {
         case FE_UPWARD:
           out_bits += values[i].rnd_upward_offset;
           break;
@@ -74,7 +75,7 @@ template <typename T, size_t N> struct ExceptValues {
     for (size_t i = 0; i < N; ++i) {
       if (LIBC_UNLIKELY(x_abs == values[i].input)) {
         UIntType out_bits = values[i].rnd_towardzero_result;
-        switch (fputil::get_round()) {
+        switch (fputil::quick_get_round()) {
         case FE_UPWARD:
           out_bits += sign ? values[i].rnd_downward_offset
                            : values[i].rnd_upward_offset;
@@ -99,20 +100,22 @@ template <typename T, size_t N> struct ExceptValues {
 };
 
 // Helper functions to set results for exceptional cases.
-LIBC_INLINE float round_result_slightly_down(float value_rn) {
-  volatile float tmp = value_rn;
-  tmp = tmp - 0x1.0p-100f;
+template <typename T> LIBC_INLINE T round_result_slightly_down(T value_rn) {
+  volatile T tmp = value_rn;
+  const T MIN_NORMAL = FPBits<T>::min_normal();
+  tmp = tmp - MIN_NORMAL;
   return tmp;
 }
 
-LIBC_INLINE float round_result_slightly_up(float value_rn) {
-  volatile float tmp = value_rn;
-  tmp = tmp + 0x1.0p-100f;
+template <typename T> LIBC_INLINE T round_result_slightly_up(T value_rn) {
+  volatile T tmp = value_rn;
+  const T MIN_NORMAL = FPBits<T>::min_normal();
+  tmp = tmp + MIN_NORMAL;
   return tmp;
 }
 
 } // namespace fputil
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_EXCEPT_VALUE_UTILS_H

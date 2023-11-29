@@ -15,7 +15,7 @@
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental::esimd::detail {
 
 template <unsigned int N, unsigned int M>
@@ -30,10 +30,9 @@ template <typename...> struct is_one_of {
 
 template <typename Checked, typename First, typename... Other>
 struct is_one_of<Checked, First, Other...> {
-  static constexpr bool value =
-      std::is_same<typename std::remove_const<Checked>::type,
-                   typename std::remove_const<First>::type>::value ||
-      is_one_of<Checked, Other...>::value;
+  static constexpr bool value = std::is_same_v<std::remove_const_t<Checked>,
+                                               std::remove_const_t<First>> ||
+                                is_one_of<Checked, Other...>::value;
 };
 template <typename Checked, typename... T>
 inline constexpr bool is_one_of_v = is_one_of<Checked, T...>::value;
@@ -54,7 +53,7 @@ template <typename enumClass, enumClass... T>
 inline constexpr bool is_one_of_enum_v = is_one_of_enum<enumClass, T...>::value;
 
 } // namespace ext::intel::experimental::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

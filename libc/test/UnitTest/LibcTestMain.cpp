@@ -12,7 +12,11 @@ static const char *getTestFilter(int argc, char *argv[]) {
   return argc > 1 ? argv[1] : nullptr;
 }
 
-int main(int argc, char *argv[]) {
+extern "C" int main(int argc, char **argv, char **envp) {
+  LIBC_NAMESPACE::testing::argc = argc;
+  LIBC_NAMESPACE::testing::argv = argv;
+  LIBC_NAMESPACE::testing::envp = envp;
+
   const char *TestFilter = getTestFilter(argc, argv);
-  return __llvm_libc::testing::Test::runTests(TestFilter);
+  return LIBC_NAMESPACE::testing::Test::runTests(TestFilter);
 }

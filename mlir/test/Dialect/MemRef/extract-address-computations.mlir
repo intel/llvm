@@ -1,4 +1,4 @@
-// RUN: mlir-opt -test-transform-dialect-interpreter %s --split-input-file --verify-diagnostics | FileCheck %s
+// RUN: mlir-opt -transform-interpreter %s --split-input-file --verify-diagnostics | FileCheck %s
 
 // Simple test: check that we extract the address computation of a load into
 // a dedicated subview.
@@ -21,12 +21,16 @@ func.func @test_load(%base : memref<2x16x16xf32>, %offset : index) -> f32 {
   return %loaded_val : f32
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
-  // Verify that the returned handle is usable.
-  transform.test_print_remark_at_operand %1, "transformed" : !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    // Verify that the returned handle is usable.
+    transform.test_print_remark_at_operand %0, "transformed" : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -47,10 +51,14 @@ func.func @test_load_nontemporal(%base : memref<2x16x16xf32>, %offset : index) -
   return %loaded_val : f32
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -76,10 +84,14 @@ func.func @test_store(%base : memref<2x16x16xf32>, %offset : index) -> () {
   return
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -102,10 +114,14 @@ func.func @test_store_nontemporal(%base : memref<2x16x16xf32>, %offset : index) 
   return
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -156,10 +172,14 @@ func.func @testWithLoop(%base : memref<?x?x?xf32, strided<[?,?,?], offset: ?>>) 
   return %sum_res2 : f32
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -194,10 +214,14 @@ func.func @test_ldmatrix(%base : memref<4x32x32xf16, 3>,
   return %loaded_val : vector<4x2xf16>
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -228,10 +252,14 @@ func.func @test_ldmatrix(%base : memref<?x?x?xf16, 3>,
   return %loaded_val : vector<4x2xf16>
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -263,10 +291,14 @@ func.func @test_transfer_read_op(%base : memref<?x?x?xf16>,
   return %loaded_val : vector<4x2xf16>
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -291,10 +323,14 @@ func.func @test_transfer_read_op_with_tensor(%base : tensor<?x?x?xf16>,
   return %loaded_val : vector<4x2xf16>
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -325,10 +361,14 @@ func.func @test_transfer_write_op(%base : memref<?x?x?xf16>,
   return
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
 
 // -----
@@ -360,11 +400,16 @@ func.func @test_transfer_write_op_with_strides(%base : memref<?x?x?xf16, strided
   return
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
+
 // -----
 
 // Same as test_transfer_write_op but with tensors.
@@ -386,8 +431,13 @@ func.func @test_transfer_write_op_with_tensor(%base : tensor<?x?x?xf16>,
   return %res : tensor<?x?x?xf16>
 }
 
-transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+module attributes {transform.with_named_sequence} {
+  transform.named_sequence @__transform_main(%arg1: !transform.any_op {transform.readonly}) {
+    %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    transform.apply_patterns to %0 {
+      transform.apply_patterns.memref.extract_address_computations
+    } : !transform.any_op
+    transform.yield
+  }
 }
+

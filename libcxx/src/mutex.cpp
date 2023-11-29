@@ -7,27 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #include <__assert>
+#include <__thread/id.h>
+#include <__utility/exception_guard.h>
 #include <limits>
 #include <mutex>
 
 #include "include/atomic_support.h"
 
-#ifndef _LIBCPP_HAS_NO_THREADS
-#  if defined(__ELF__) && defined(_LIBCPP_LINK_PTHREAD_LIB)
-#    pragma comment(lib, "pthread")
-#  endif
+#if defined(__ELF__) && defined(_LIBCPP_LINK_PTHREAD_LIB)
+#  pragma comment(lib, "pthread")
 #endif
 
 _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-#ifndef _LIBCPP_HAS_NO_THREADS
-
-const defer_lock_t  defer_lock{};
-const try_to_lock_t try_to_lock{};
-const adopt_lock_t  adopt_lock{};
 
 // ~mutex is defined elsewhere
 
@@ -50,7 +44,7 @@ mutex::unlock() noexcept
 {
     int ec = __libcpp_mutex_unlock(&__m_);
     (void)ec;
-    _LIBCPP_ASSERT(ec == 0, "call to mutex::unlock failed");
+    _LIBCPP_ASSERT_UNCATEGORIZED(ec == 0, "call to mutex::unlock failed");
 }
 
 // recursive_mutex
@@ -66,7 +60,7 @@ recursive_mutex::~recursive_mutex()
 {
     int e = __libcpp_recursive_mutex_destroy(&__m_);
     (void)e;
-    _LIBCPP_ASSERT(e == 0, "call to ~recursive_mutex() failed");
+    _LIBCPP_ASSERT_UNCATEGORIZED(e == 0, "call to ~recursive_mutex() failed");
 }
 
 void
@@ -82,7 +76,7 @@ recursive_mutex::unlock() noexcept
 {
     int e = __libcpp_recursive_mutex_unlock(&__m_);
     (void)e;
-    _LIBCPP_ASSERT(e == 0, "call to recursive_mutex::unlock() failed");
+    _LIBCPP_ASSERT_UNCATEGORIZED(e == 0, "call to recursive_mutex::unlock() failed");
 }
 
 bool
@@ -189,76 +183,6 @@ recursive_timed_mutex::unlock() noexcept
         lk.unlock();
         __cv_.notify_one();
     }
-}
-
-#endif // !_LIBCPP_HAS_NO_THREADS
-
-// If dispatch_once_f ever handles C++ exceptions, and if one can get to it
-// without illegal macros (unexpected macros not beginning with _UpperCase or
-// __lowercase), and if it stops spinning waiting threads, then call_once should
-// call into dispatch_once_f instead of here. Relevant radar this code needs to
-// keep in sync with:  7741191.
-
-#ifndef _LIBCPP_HAS_NO_THREADS
-static constinit __libcpp_mutex_t mut = _LIBCPP_MUTEX_INITIALIZER;
-static constinit __libcpp_condvar_t cv = _LIBCPP_CONDVAR_INITIALIZER;
-#endif
-
-void __call_once(volatile once_flag::_State_type& flag, void* arg,
-                 void (*func)(void*))
-{
-#if defined(_LIBCPP_HAS_NO_THREADS)
-    if (flag == 0)
-    {
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
-        try
-        {
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
-            flag = 1;
-            func(arg);
-            flag = ~once_flag::_State_type(0);
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
-        }
-        catch (...)
-        {
-            flag = 0;
-            throw;
-        }
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
-    }
-#else // !_LIBCPP_HAS_NO_THREADS
-    __libcpp_mutex_lock(&mut);
-    while (flag == 1)
-        __libcpp_condvar_wait(&cv, &mut);
-    if (flag == 0)
-    {
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
-        try
-        {
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
-            __libcpp_relaxed_store(&flag, once_flag::_State_type(1));
-            __libcpp_mutex_unlock(&mut);
-            func(arg);
-            __libcpp_mutex_lock(&mut);
-            __libcpp_atomic_store(&flag, ~once_flag::_State_type(0),
-                                  _AO_Release);
-            __libcpp_mutex_unlock(&mut);
-            __libcpp_condvar_broadcast(&cv);
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
-        }
-        catch (...)
-        {
-            __libcpp_mutex_lock(&mut);
-            __libcpp_relaxed_store(&flag, once_flag::_State_type(0));
-            __libcpp_mutex_unlock(&mut);
-            __libcpp_condvar_broadcast(&cv);
-            throw;
-        }
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
-    }
-    else
-        __libcpp_mutex_unlock(&mut);
-#endif // !_LIBCPP_HAS_NO_THREADS
 }
 
 _LIBCPP_END_NAMESPACE_STD

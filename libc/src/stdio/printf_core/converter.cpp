@@ -21,12 +21,29 @@
 
 #include <stddef.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace printf_core {
 
 int convert(Writer *writer, const FormatSection &to_conv) {
   if (!to_conv.has_conv)
     return writer->write(to_conv.raw_string);
+
+#if !defined(LIBC_COPT_PRINTF_DISABLE_FLOAT) &&                                \
+    defined(LIBC_COPT_PRINTF_HEX_LONG_DOUBLE)
+  if (to_conv.length_modifier == LengthModifier::L) {
+    switch (to_conv.conv_name) {
+    case 'f':
+    case 'F':
+    case 'e':
+    case 'E':
+    case 'g':
+    case 'G':
+      return convert_float_hex_exp(writer, to_conv);
+    default:
+      break;
+    }
+  }
+#endif // LIBC_COPT_PRINTF_DISABLE_FLOAT
 
   switch (to_conv.conv_name) {
   case '%':
@@ -69,4 +86,4 @@ int convert(Writer *writer, const FormatSection &to_conv) {
 }
 
 } // namespace printf_core
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

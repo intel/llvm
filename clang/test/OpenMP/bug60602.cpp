@@ -124,7 +124,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP42:%.*]] = icmp ne i32 [[TMP41]], 0
 // CHECK-NEXT:    br i1 [[TMP42]], label [[OMP_OFFLOAD_FAILED:%.*]], label [[OMP_OFFLOAD_CONT:%.*]]
 // CHECK:       omp_offload.failed:
-// CHECK-NEXT:    call void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l9(i64 [[TMP3]], ptr [[TMP4]], ptr [[TMP5]]) #[[ATTR3:[0-9]+]]
+// CHECK-NEXT:    call void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l9(i64 [[TMP3]], ptr [[TMP4]], ptr [[TMP5]]) #[[ATTR2:[0-9]+]]
 // CHECK-NEXT:    br label [[OMP_OFFLOAD_CONT]]
 // CHECK:       omp_offload.cont:
 // CHECK-NEXT:    [[TMP43:%.*]] = load i32, ptr [[N_ADDR]], align 4
@@ -144,7 +144,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP53:%.*]] = load i32, ptr [[N_ADDR]], align 4
 // CHECK-NEXT:    [[CONV7:%.*]] = sext i32 [[TMP53]] to i64
 // CHECK-NEXT:    [[TMP54:%.*]] = mul nuw i64 [[CONV7]], 4
-// CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[DOTOFFLOAD_SIZES11]], ptr align 8 @.offload_sizes.3, i64 24, i1 false)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[DOTOFFLOAD_SIZES11]], ptr align 8 @.offload_sizes.1, i64 24, i1 false)
 // CHECK-NEXT:    [[TMP55:%.*]] = getelementptr inbounds [3 x ptr], ptr [[DOTOFFLOAD_BASEPTRS8]], i32 0, i32 0
 // CHECK-NEXT:    store i64 [[TMP44]], ptr [[TMP55]], align 8
 // CHECK-NEXT:    [[TMP56:%.*]] = getelementptr inbounds [3 x ptr], ptr [[DOTOFFLOAD_PTRS9]], i32 0, i32 0
@@ -191,7 +191,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP77:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS14]], i32 0, i32 4
 // CHECK-NEXT:    store ptr [[TMP68]], ptr [[TMP77]], align 8
 // CHECK-NEXT:    [[TMP78:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS14]], i32 0, i32 5
-// CHECK-NEXT:    store ptr @.offload_maptypes.4, ptr [[TMP78]], align 8
+// CHECK-NEXT:    store ptr @.offload_maptypes.2, ptr [[TMP78]], align 8
 // CHECK-NEXT:    [[TMP79:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS14]], i32 0, i32 6
 // CHECK-NEXT:    store ptr null, ptr [[TMP79]], align 8
 // CHECK-NEXT:    [[TMP80:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS14]], i32 0, i32 7
@@ -210,7 +210,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP87:%.*]] = icmp ne i32 [[TMP86]], 0
 // CHECK-NEXT:    br i1 [[TMP87]], label [[OMP_OFFLOAD_FAILED15:%.*]], label [[OMP_OFFLOAD_CONT16:%.*]]
 // CHECK:       omp_offload.failed15:
-// CHECK-NEXT:    call void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13(i64 [[TMP44]], ptr [[TMP45]], ptr [[TMP46]]) #[[ATTR3]]
+// CHECK-NEXT:    call void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13(i64 [[TMP44]], ptr [[TMP45]], ptr [[TMP46]]) #[[ATTR2]]
 // CHECK-NEXT:    br label [[OMP_OFFLOAD_CONT16]]
 // CHECK:       omp_offload.cont16:
 // CHECK-NEXT:    br label [[FOR_INC:%.*]]
@@ -244,12 +244,12 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[N_CASTED]], align 8
 // CHECK-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[A_ADDR]], align 8
 // CHECK-NEXT:    [[TMP3:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB2]], i32 3, ptr @.omp_outlined., i64 [[TMP1]], ptr [[TMP2]], ptr [[TMP3]])
+// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB2]], i32 3, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l9.omp_outlined, i64 [[TMP1]], ptr [[TMP2]], ptr [[TMP3]])
 // CHECK-NEXT:    ret void
 //
 //
-// CHECK-LABEL: define internal void @.omp_outlined.
-// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR2:[0-9]+]] {
+// CHECK-LABEL: define internal void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l9.omp_outlined
+// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR1]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -347,7 +347,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 //
 //
 // CHECK-LABEL: define internal void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13
-// CHECK-SAME: (i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR2]] {
+// CHECK-SAME: (i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR1]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[N_ADDR:%.*]] = alloca i64, align 8
 // CHECK-NEXT:    [[A_ADDR:%.*]] = alloca ptr, align 8
@@ -361,12 +361,12 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[N_CASTED]], align 8
 // CHECK-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[A_ADDR]], align 8
 // CHECK-NEXT:    [[TMP3:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_teams(ptr @[[GLOB2]], i32 3, ptr @.omp_outlined..1, i64 [[TMP1]], ptr [[TMP2]], ptr [[TMP3]])
+// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_teams(ptr @[[GLOB2]], i32 3, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13.omp_outlined, i64 [[TMP1]], ptr [[TMP2]], ptr [[TMP3]])
 // CHECK-NEXT:    ret void
 //
 //
-// CHECK-LABEL: define internal void @.omp_outlined..1
-// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR2]] {
+// CHECK-LABEL: define internal void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13.omp_outlined
+// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR1]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -441,7 +441,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    [[TMP18:%.*]] = load i64, ptr [[N_CASTED]], align 8
 // CHECK-NEXT:    [[TMP19:%.*]] = load ptr, ptr [[A_ADDR]], align 8
 // CHECK-NEXT:    [[TMP20:%.*]] = load ptr, ptr [[B_ADDR]], align 8
-// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB2]], i32 5, ptr @.omp_outlined..2, i64 [[TMP14]], i64 [[TMP16]], i64 [[TMP18]], ptr [[TMP19]], ptr [[TMP20]])
+// CHECK-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB2]], i32 5, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13.omp_outlined.omp_outlined, i64 [[TMP14]], i64 [[TMP16]], i64 [[TMP18]], ptr [[TMP19]], ptr [[TMP20]])
 // CHECK-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]
 // CHECK:       omp.inner.for.inc:
 // CHECK-NEXT:    [[TMP21:%.*]] = load i32, ptr [[DOTOMP_IV]], align 4
@@ -460,8 +460,8 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 // CHECK-NEXT:    ret void
 //
 //
-// CHECK-LABEL: define internal void @.omp_outlined..2
-// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[DOTPREVIOUS_LB_:%.*]], i64 noundef [[DOTPREVIOUS_UB_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR2]] {
+// CHECK-LABEL: define internal void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z18kernel_within_loopPiS_ii_l13.omp_outlined.omp_outlined
+// CHECK-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[DOTPREVIOUS_LB_:%.*]], i64 noundef [[DOTPREVIOUS_UB_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[A:%.*]], ptr noundef [[B:%.*]]) #[[ATTR1]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca ptr, align 8
@@ -571,7 +571,7 @@ int kernel_within_loop(int *a, int *b, int N, int num_iters) {
 //
 //
 // CHECK-LABEL: define internal void @.omp_offloading.requires_reg
-// CHECK-SAME: () #[[ATTR5:[0-9]+]] {
+// CHECK-SAME: () #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    call void @__tgt_register_requires(i64 1)
 // CHECK-NEXT:    ret void

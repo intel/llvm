@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
@@ -21,7 +22,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -41,8 +42,9 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
-              KernelBundleImplPtr KernelBundleImpl);
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr Context,
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask = nullptr);
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
   ///
@@ -57,9 +59,10 @@ public:
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-              KernelBundleImplPtr KernelBundleImpl);
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
   /// kernel_bundle and / PiKernel.
@@ -67,9 +70,10 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
-              KernelBundleImplPtr KernelBundleImpl);
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -101,7 +105,7 @@ public:
           "This instance of kernel doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_KERNEL);
     }
-    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
 
@@ -110,7 +114,7 @@ public:
   /// \return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext->is_host(); }
 
-  const plugin &getPlugin() const { return MContext->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -140,12 +144,12 @@ public:
   /// Get a reference to a raw kernel object.
   ///
   /// \return a reference to a valid PiKernel instance with raw kernel object.
-  RT::PiKernel &getHandleRef() { return MKernel; }
+  sycl::detail::pi::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid PiKernel instance with raw
   /// kernel object.
-  const RT::PiKernel &getHandleRef() const { return MKernel; }
+  const sycl::detail::pi::PiKernel &getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -156,13 +160,13 @@ public:
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   pi_native_handle getNative() const {
-    const plugin &Plugin = MContext->getPlugin();
+    const PluginPtr &Plugin = MContext->getPlugin();
 
-    if (Plugin.getBackend() == backend::opencl)
-      Plugin.call<PiApiKind::piKernelRetain>(MKernel);
+    if (MContext->getBackend() == backend::opencl)
+      Plugin->call<PiApiKind::piKernelRetain>(MKernel);
 
     pi_native_handle NativeKernel = 0;
-    Plugin.call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
+    Plugin->call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     return NativeKernel;
   }
@@ -172,13 +176,16 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
     return MNoncacheableEnqueueMutex;
   }
 
+  const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
+
 private:
-  RT::PiKernel MKernel;
+  sycl::detail::pi::PiKernel MKernel;
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
@@ -186,6 +193,7 @@ private:
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
   std::mutex MNoncacheableEnqueueMutex;
+  const KernelArgMask *MKernelArgMaskPtr;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -248,5 +256,5 @@ kernel_impl::get_info(const device &Device,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

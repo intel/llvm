@@ -4,7 +4,7 @@
 2 Capability Kernel
 2 Capability Int64
 3 MemoryModel 2 2
-10 EntryPoint 6 1 "shift_right_arithmetic"
+9 EntryPoint 6 1 "shift_right_arithmetic" 
 3 Source 3 102000
 3 Name 2 "in"
 4 Decorate 3 BuiltIn 28
@@ -44,7 +44,7 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: %{{[0-9]*}} = ashr i64 %{{[0-9]*}}, 10

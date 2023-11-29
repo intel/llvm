@@ -12,6 +12,7 @@
 
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Analysis/VectorUtils.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -19,6 +20,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/xxhash.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "moduleutils"
@@ -94,7 +96,7 @@ static void appendToUsedList(Module &M, StringRef Name, ArrayRef<GlobalValue *> 
   if (GV)
     GV->eraseFromParent();
 
-  Type *ArrayEltTy = llvm::Type::getInt8PtrTy(M.getContext());
+  Type *ArrayEltTy = llvm::PointerType::getUnqual(M.getContext());
   for (auto *V : Values)
     Init.insert(ConstantExpr::getPointerBitCastOrAddrSpaceCast(V, ArrayEltTy));
 
@@ -299,7 +301,7 @@ std::string llvm::getUniqueModuleId(Module *M) {
   MD5 Md5;
   bool ExportsSymbols = false;
   auto AddGlobal = [&](GlobalValue &GV) {
-    if (GV.isDeclaration() || GV.getName().startswith("llvm.") ||
+    if (GV.isDeclaration() || GV.getName().starts_with("llvm.") ||
         !GV.hasExternalLinkage() || GV.hasComdat())
       return;
     ExportsSymbols = true;
@@ -392,9 +394,7 @@ bool llvm::lowerGlobalIFuncUsersAsGlobalCtor(
   const DataLayout &DL = M.getDataLayout();
 
   PointerType *TableEntryTy =
-      Ctx.supportsTypedPointers()
-          ? PointerType::get(Type::getInt8Ty(Ctx), DL.getProgramAddressSpace())
-          : PointerType::get(Ctx, DL.getProgramAddressSpace());
+      PointerType::get(Ctx, DL.getProgramAddressSpace());
 
   ArrayType *FuncPtrTableTy =
       ArrayType::get(TableEntryTy, IFuncsToLower.size());
@@ -464,9 +464,7 @@ bool llvm::lowerGlobalIFuncUsersAsGlobalCtor(
 
   InitBuilder.CreateRetVoid();
 
-  PointerType *ConstantDataTy = Ctx.supportsTypedPointers()
-                                    ? PointerType::get(Type::getInt8Ty(Ctx), 0)
-                                    : PointerType::get(Ctx, 0);
+  PointerType *ConstantDataTy = PointerType::get(Ctx, 0);
 
   // TODO: Is this the right priority? Probably should be before any other
   // constructors?

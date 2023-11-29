@@ -1,7 +1,7 @@
 // REQUIRES: opencl-aot, accelerator
 
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/sycl.hpp>

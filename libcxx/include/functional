@@ -34,7 +34,7 @@ struct binary_function
 template <class T>
 class reference_wrapper
     : public unary_function<T1, R> // if wrapping a unary functor
-    : public binary_function<T1, T2, R> // if wraping a binary functor
+    : public binary_function<T1, T2, R> // if wrapping a binary functor
 {
 public:
     // types
@@ -456,13 +456,13 @@ template <class R, class ... ArgTypes>
   bool operator==(const function<R(ArgTypes...)>&, nullptr_t) noexcept;
 
 template <class R, class ... ArgTypes>
-  bool operator==(nullptr_t, const function<R(ArgTypes...)>&) noexcept;
+  bool operator==(nullptr_t, const function<R(ArgTypes...)>&) noexcept; // removed in C++20
 
 template <class R, class ... ArgTypes>
-  bool operator!=(const function<R(ArgTypes...)>&, nullptr_t) noexcept;
+  bool operator!=(const function<R(ArgTypes...)>&, nullptr_t) noexcept; // removed in C++20
 
 template <class  R, class ... ArgTypes>
-  bool operator!=(nullptr_t, const function<R(ArgTypes...)>&) noexcept;
+  bool operator!=(nullptr_t, const function<R(ArgTypes...)>&) noexcept; // removed in C++20
 
 // specialized algorithms:
 template <class  R, class ... ArgTypes>
@@ -516,7 +516,6 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__compare/compare_three_way.h>
 #include <__config>
-#include <__debug>
 #include <__functional/binary_function.h>
 #include <__functional/binary_negate.h>
 #include <__functional/bind.h>
@@ -541,10 +540,8 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 #include <__functional/reference_wrapper.h>
 #include <__functional/unary_function.h>
 #include <__functional/unary_negate.h>
-#include <__functional/unwrap_ref.h>
+#include <__type_traits/unwrap_ref.h>
 #include <__utility/forward.h>
-#include <memory> // TODO: find out why removing this breaks the modules build
-#include <typeinfo>
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -556,8 +553,12 @@ POLICY:  For non-variadic implementations, the number of arguments is limited
 #  include <concepts>
 #  include <cstdlib>
 #  include <exception>
+#  include <iosfwd>
+#  include <memory>
+#  include <stdexcept>
 #  include <tuple>
 #  include <type_traits>
+#  include <typeinfo>
 #  include <utility>
 #endif
 

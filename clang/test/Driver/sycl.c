@@ -28,17 +28,11 @@
 // DISABLED-NOT: "-sycl-std={{.*}}"
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-nvidia-cuda-sycldevice -fno-sycl-libspirv -nocudalib -### -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
-// CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
-// CHECK_WARNING: argument 'nvptx64-nvidia-cuda-sycldevice' is deprecated, use 'nvptx64-nvidia-cuda' instead
-// CHECK_WARNING: clang{{.*}} "-triple" "spir64-unknown-unknown"
-// CHECK_WARNING: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
-
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir64
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fsycl-device-obj=spirv -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir64
 // RUN: %clang -### -target spir64-unknown-linux -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED -DSPIRARCH=spir64
 // RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
@@ -49,7 +43,7 @@
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
-// RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir
+// RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fsycl-device-obj=spirv -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir
 // RUN: %clang -### -target spir-unknown-linux -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED -DSPIRARCH=spir
 // RUN: %clangxx -### -target i386-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
@@ -160,3 +154,12 @@
 // RUN: %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86 -c -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE_TARGETS
 // MULTIPLE_TARGETS: offload, "device-sycl (nvptx64-nvidia-cuda:sm_86)"
 // MULTIPLE_TARGETS: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)"
+
+/// Verify debug format for spir target.
+// RUN: %clang -### -target x86_64-windows-msvc -fsycl -g -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
+// RUN: %clang_cl -### -fsycl -Zi -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
+// DEBUG-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
+// DEBUG-WIN: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
+// DEBUG-WIN-NOT: dwarf-version

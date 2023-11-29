@@ -245,7 +245,7 @@ public:
 #include "llvm/IR/Instruction.def"
 
   static BinaryOperator *
-  CreateWithCopiedFlags(BinaryOps Opc, Value *V1, Value *V2, Instruction *CopyO,
+  CreateWithCopiedFlags(BinaryOps Opc, Value *V1, Value *V2, Value *CopyO,
                         const Twine &Name = "",
                         Instruction *InsertBefore = nullptr) {
     BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
@@ -692,6 +692,20 @@ public:
   }
 };
 
+/// Instruction that can have a nneg flag (only zext).
+class PossiblyNonNegInst : public CastInst {
+public:
+  enum { NonNeg = (1 << 0) };
+
+  static bool classof(const Instruction *I) {
+    return I->getOpcode() == Instruction::ZExt;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
+
 //===----------------------------------------------------------------------===//
 //                               CmpInst Class
 //===----------------------------------------------------------------------===//
@@ -835,6 +849,17 @@ public:
 
   Predicate getOrderedPredicate() const {
     return getOrderedPredicate(getPredicate());
+  }
+
+  /// Returns the unordered variant of a floating point compare.
+  ///
+  /// For example, OEQ -> UEQ, OLT -> ULT, OEQ -> UEQ
+  static Predicate getUnorderedPredicate(Predicate Pred) {
+    return static_cast<Predicate>(Pred | FCMP_UNO);
+  }
+
+  Predicate getUnorderedPredicate() const {
+    return getUnorderedPredicate(getPredicate());
   }
 
   /// For example, EQ -> NE, UGT -> ULE, SLT -> SGE,
@@ -1450,7 +1475,6 @@ public:
   /// type.
   void setCalledFunction(FunctionType *FTy, Value *Fn) {
     this->FTy = FTy;
-    assert(cast<PointerType>(Fn->getType())->isOpaqueOrPointeeTypeMatches(FTy));
     // This function doesn't mutate the return type, only the function
     // type. Seems broken, but I'm just gonna stick an assert in for now.
     assert(getType() == FTy->getReturnType());
@@ -1556,6 +1580,11 @@ public:
 
   /// Removes the attribute from the function
   void removeFnAttr(Attribute::AttrKind Kind) {
+    Attrs = Attrs.removeFnAttribute(getContext(), Kind);
+  }
+
+  /// Removes the attribute from the function
+  void removeFnAttr(StringRef Kind) {
     Attrs = Attrs.removeFnAttribute(getContext(), Kind);
   }
 
@@ -1939,7 +1968,7 @@ public:
     return Attrs.hasAttrSomewhere(Attribute::ByVal);
   }
 
-  ///@{
+  ///@}
   // End of attribute API.
 
   /// \name Operand Bundle API

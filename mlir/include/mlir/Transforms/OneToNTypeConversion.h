@@ -151,7 +151,9 @@ protected:
 /// conversions.
 class OneToNPatternRewriter : public PatternRewriter {
 public:
-  OneToNPatternRewriter(MLIRContext *context) : PatternRewriter(context) {}
+  OneToNPatternRewriter(MLIRContext *context,
+                        OpBuilder::Listener *listener = nullptr)
+      : PatternRewriter(context, listener) {}
 
   /// Replaces the results of the operation with the specified list of values
   /// mapped back to the original types as specified in the provided type
@@ -225,12 +227,12 @@ public:
   public:
     using RangeT = ArrayRef<ValueRange>;
     using BaseT = typename SourceOp::template GenericAdaptor<RangeT>;
+    using Properties = typename SourceOp::template InferredProperties<SourceOp>;
 
     OpAdaptor(const OneToNTypeMapping *operandMapping,
               const OneToNTypeMapping *resultMapping,
-              const ValueRange *convertedOperands, RangeT values,
-              DictionaryAttr attrs = nullptr, RegionRange regions = {})
-        : BaseT(values, attrs, regions), operandMapping(operandMapping),
+              const ValueRange *convertedOperands, RangeT values, SourceOp op)
+        : BaseT(values, op), operandMapping(operandMapping),
           resultMapping(resultMapping), convertedOperands(convertedOperands) {}
 
     /// Get the type mapping of the original operands to the converted operands.
@@ -271,7 +273,7 @@ public:
       valueRanges.push_back(values);
     }
     OpAdaptor adaptor(&operandMapping, &resultMapping, &convertedOperands,
-                      valueRanges, op->getAttrDictionary(), op->getRegions());
+                      valueRanges, cast<SourceOp>(op));
 
     // Call overload implemented by the derived class.
     return matchAndRewrite(cast<SourceOp>(op), adaptor, rewriter);

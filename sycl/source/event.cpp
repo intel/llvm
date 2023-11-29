@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/backend_impl.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -20,17 +21,17 @@
 #include <unordered_set>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {
+          detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  impl->getPlugin().call<detail::PiApiKind::piEventRetain>(
-      detail::pi::cast<RT::PiEvent>(ClEvent));
+  impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
+      detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent));
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
@@ -110,5 +111,5 @@ std::vector<pi_native_handle> event::getNativeVector() const {
   return ReturnVector;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

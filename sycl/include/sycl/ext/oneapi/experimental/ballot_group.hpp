@@ -7,20 +7,34 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
+#include <sycl/aspects.hpp>
+#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
+#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for GetMask
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/id.hpp>                        // for id
+#include <sycl/memory_enums.hpp>              // for memory_scope
+#include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>                 // for sub_group
+
+#include <type_traits> // for enable_if_t, decay_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <typename ParentGroup> class ballot_group;
 
 template <typename Group>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_ballot_group)]]
+#endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        ballot_group<Group>>
-get_ballot_group(Group group, bool predicate);
+                        ballot_group<Group>> get_ballot_group(Group group,
+                                                              bool predicate);
 
 template <typename ParentGroup> class ballot_group {
 public:
@@ -41,7 +55,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::CallerPositionInMask(Mask);
+    return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -112,15 +126,17 @@ public:
 #endif
   }
 
-private:
-  sub_group_mask Mask;
-  bool Predicate;
-
 protected:
+  const sub_group_mask Mask;
+  const bool Predicate;
+
   ballot_group(sub_group_mask m, bool p) : Mask(m), Predicate(p) {}
 
   friend ballot_group<ParentGroup>
   get_ballot_group<ParentGroup>(ParentGroup g, bool predicate);
+
+  friend sub_group_mask sycl::detail::GetMask<ballot_group<ParentGroup>>(
+      ballot_group<ParentGroup> Group);
 };
 
 template <typename Group>
@@ -130,6 +146,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_ballot_group(Group group, bool predicate) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__) || defined(__NVPTX__)
   // ballot_group partitions into two groups using the predicate
   // Membership mask for one group is negation of the other
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, predicate);
@@ -138,6 +155,7 @@ get_ballot_group(Group group, bool predicate) {
   } else {
     return ballot_group<sycl::sub_group>(~mask, predicate);
   }
+#endif
 #else
   (void)predicate;
   throw runtime_error("Non-uniform groups are not supported on host device.",
@@ -149,5 +167,10 @@ template <typename ParentGroup>
 struct is_user_constructed_group<ballot_group<ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+
+template <typename ParentGroup>
+struct is_group<ext::oneapi::experimental::ballot_group<ParentGroup>>
+    : std::true_type {};
+
+} // namespace _V1
 } // namespace sycl

@@ -1,16 +1,18 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-//
 // TODO: enable when Jira ticket resolved
 // XFAIL: gpu
 //
 // Check that full compilation works:
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
-// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
 // VISALTO enable run
-// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
+//
+// RUN: %{build} -DUNIFORM_RET_TYPE -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t2.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t2.out
+//
+// VISALTO enable run
+// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t2.out
 
 /*
  * Test case #1
@@ -102,17 +104,35 @@ template <class T>
  * returning the scalar as a SIMD type seems to work fine.
  */
 template <class T>
-__attribute__((always_inline)) T
+__attribute__((always_inline))
+#ifdef UNIFORM_RET_TYPE
+uniform<T>
+#else
+T
+#endif
 ESIMD_CALLEE_return_uniform_scalar(esimd::simd<T, VL> x,
                                    T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+  return uniform<T>{n};
+#else
   return n;
+#endif
 }
 
 template <class T>
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
-    T __regcall SIMD_CALLEE_return_uniform_scalar(simd<T, VL> x,
-                                                  T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+    uniform<T>
+#else
+    T
+#endif
+    __regcall SIMD_CALLEE_return_uniform_scalar(simd<T, VL> x,
+                                                T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+  uniform<T> r = ESIMD_CALLEE_return_uniform_scalar<T>(x, n);
+#else
   T r = ESIMD_CALLEE_return_uniform_scalar<T>(x, n);
+#endif
   return r;
 }
 

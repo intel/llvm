@@ -19,7 +19,7 @@
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
@@ -73,5 +73,5 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
   return Interface;
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

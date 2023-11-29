@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp16
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // OpenCL CPU driver does not support cl_khr_fp16 extension for this reason this
 // test is compiled with the -fsycl-device-code-split flag
@@ -14,12 +13,6 @@
 int main() {
 
   sycl::queue q;
-
-  if (!q.get_device().has(sycl::aspect::fp16)) {
-    std::cout << "skipping fp16 tests: requires fp16 device aspect."
-              << std::endl;
-    return 0;
-  }
 
   const sycl::half tv[16] = {-2.0, -1.5, -1.0, 0.0, 2.0,  1.5, 1.0,   0.0,
                              -1.7, 1.7,  -1.2, 1.2, -3.0, 3.0, -10.0, 10.0};

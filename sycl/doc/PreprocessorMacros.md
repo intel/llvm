@@ -19,11 +19,6 @@ This file describes macros that have effect on SYCL compiler and run-time.
   the underlying pointer types return pointers without any additional qualifiers
   so it's disabled by default.
 
-- **DISABLE_SYCL_INSTRUMENTATION_METADATA**
-
-  This macro is used to disable passing of code location information to public
-  methods.
-
 - **SYCL2020_DISABLE_DEPRECATION_WARNINGS**
 
   Disables warnings coming from usage of SYCL 1.2.1 APIs, that are deprecated in
@@ -33,6 +28,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
   Disables all deprecation warnings in SYCL runtime headers, including SYCL
   1.2.1 deprecations.
+
+- **SYCL_DISABLE_IMAGE_ASPECT_WARNING**
+
+  Disables warning diagnostic issued when calling `device::has(aspect::image)`
+  and `platform::has(aspect::image)`.
 
 - **SYCL_FALLBACK_ASSERT**
 
@@ -48,10 +48,12 @@ This file describes macros that have effect on SYCL compiler and run-time.
   support for `assert()` via `aspect::ext_oneapi_native_assert`.
   This macro is undefined by default.
 
-- **SYCL2020_CONFORMANT_APIS**
+- **SYCL2020_CONFORMANT_APIS (deprecated)**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
   Defining this macro currently has no effect on the API.
+  This preprocessor macro has been deprecated in favor of the
+  `-fpreview-breaking-changes` compiler option.
 
 ## Version macros
 

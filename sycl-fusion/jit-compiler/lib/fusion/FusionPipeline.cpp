@@ -24,6 +24,7 @@
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
@@ -35,9 +36,24 @@ using namespace llvm;
 using namespace jit_compiler;
 using namespace jit_compiler::fusion;
 
+static unsigned getFlatAddressSpace(Module &Mod) {
+  // Ideally, we could get this information from the TargetTransformInfo, but
+  // the SPIR-V backend does not yet seem to have an implementation for that.
+  llvm::Triple Tri(Mod.getTargetTriple());
+  if (Tri.isNVPTX() || Tri.isAMDGCN()) {
+    return 0;
+  }
+  if (Tri.isSPIRV() || Tri.isSPIR()) {
+    return 4;
+  }
+  // Identical to the definition of "UninitializedAddressSpace" in
+  // "InferAddressSpaces.cpp".
+  return std::numeric_limits<unsigned>::max();
+}
+
 std::unique_ptr<SYCLModuleInfo>
 FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
-                                int BarriersFlags) {
+                                BarrierFlags BarriersFlags) {
   // Perform the actual kernel fusion, i.e., generate a kernel function for the
   // fused kernel from the kernel functions of the input kernels. This is done
   // by the SYCLKernelFusion LLVM pass, which is run here through a custom LLVM
@@ -86,10 +102,12 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
     // Run the InferAddressSpace pass to remove as many address-space casts
     // to/from generic address-space as possible, because these hinder
     // internalization.
-    // FIXME: TTI should tell the pass which address space to use.
     // Ideally, the static compiler should have performed that job.
-    constexpr unsigned FlatAddressSpace = 4;
+    const unsigned FlatAddressSpace = getFlatAddressSpace(Mod);
     FPM.addPass(InferAddressSpacesPass(FlatAddressSpace));
+    // Run CFG simplification to prevent unreachable code from obscuring
+    // internalization opportunities.
+    FPM.addPass(SimplifyCFGPass{});
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   // Run dataflow internalization and runtime constant propagation.

@@ -62,7 +62,7 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
 
   auto AddAffected = [&Affected](Value *V, unsigned Idx =
                                                AssumptionCache::ExprResultIdx) {
-    if (isa<Argument>(V)) {
+    if (isa<Argument>(V) || isa<GlobalValue>(V)) {
       Affected.push_back({V, Idx});
     } else if (auto *I = dyn_cast<Instruction>(V)) {
       Affected.push_back({I, Idx});
@@ -94,13 +94,7 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
     if (Pred == ICmpInst::ICMP_EQ) {
       // For equality comparisons, we handle the case of bit inversion.
       auto AddAffectedFromEq = [&AddAffected](Value *V) {
-        Value *A;
-        if (match(V, m_Not(m_Value(A)))) {
-          AddAffected(A);
-          V = A;
-        }
-
-        Value *B;
+        Value *A, *B;
         // (A & B) or (A | B) or (A ^ B).
         if (match(V, m_BitwiseLogic(m_Value(A), m_Value(B)))) {
           AddAffected(A);
@@ -188,7 +182,7 @@ void AssumptionCache::unregisterAssumption(AssumeInst *CI) {
       AffectedValues.erase(AVI);
   }
 
-  erase_value(AssumeHandles, CI);
+  llvm::erase(AssumeHandles, CI);
 }
 
 void AssumptionCache::AffectedValueCallbackVH::deleted() {

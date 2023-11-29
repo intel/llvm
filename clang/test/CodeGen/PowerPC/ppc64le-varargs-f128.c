@@ -9,7 +9,7 @@
 // RUN:   -target-feature +float128 -mabi=ieeelongdouble -fopenmp \
 // RUN:   -fopenmp-targets=ppc64le -o %t-ppc-host.bc
 // RUN: %clang_cc1 -triple ppc64le -aux-triple ppc64le %s -target-cpu pwr9 \
-// RUN:   -target-feature +float128 -fopenmp -fopenmp-is-device -emit-llvm \
+// RUN:   -target-feature +float128 -fopenmp -fopenmp-is-target-device -emit-llvm \
 // RUN:   -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s \
 // RUN:   -check-prefix=OMP-TARGET
 // RUN: %clang_cc1 -triple ppc64le %t-ppc-host.bc -emit-llvm -o - | FileCheck %s \
@@ -25,7 +25,7 @@ void foo_ls(ldbl128_s);
 
 // Verify cases when OpenMP target's and host's long-double semantics differ.
 
-// OMP-TARGET-LABEL: define internal void @.omp_outlined.(
+// OMP-TARGET-LABEL: define internal void @__omp_offloading_{{.+}}_omp_{{.+}}.omp_outlined(
 // OMP-TARGET: %[[CUR:[0-9a-zA-Z_.]+]] = load ptr, ptr
 // OMP-TARGET: %[[V3:[0-9a-zA-Z_.]+]] = load ppc_fp128, ptr %[[CUR]], align 8
 // OMP-TARGET: call void @foo_ld(ppc_fp128 noundef %[[V3]])

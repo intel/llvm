@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
   set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
@@ -11,13 +11,6 @@ include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(lld)
   set(LLD_BUILT_STANDALONE TRUE)
-  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-    message(WARNING
-      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-      "minimum version of CMake required to build LLVM will become 3.20.0, and "
-      "using an older CMake will become an error. Please upgrade your CMake to "
-      "at least 3.20.0 now to avoid issues in the future!")
-  endif()
 endif()
 
 # Must go below project(..)
@@ -68,7 +61,7 @@ if(LLD_BUILT_STANDALONE)
 
     if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
       # Note: path not really used, except for checking if lit was found
-      set(LLVM_LIT ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
+      set(LLVM_EXTERNAL_LIT ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
       if(NOT LLVM_UTILS_PROVIDED)
         add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/FileCheck utils/FileCheck)
         add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/not utils/not)
@@ -81,13 +74,13 @@ if(LLD_BUILT_STANDALONE)
       endif()
     else()
       # Seek installed Lit.
-      find_program(LLVM_LIT
+      find_program(LLVM_EXTERNAL_LIT
                    NAMES llvm-lit lit.py lit
                    PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
                    DOC "Path to lit.py")
     endif()
 
-    if(LLVM_LIT)
+    if(LLVM_EXTERNAL_LIT)
       # Define the default arguments to use with 'lit', and an option for the user
       # to override.
       set(LIT_ARGS_DEFAULT "-sv")
@@ -105,10 +98,6 @@ if(LLD_BUILT_STANDALONE)
     else()
       set(LLVM_INCLUDE_TESTS OFF)
     endif()
-  endif()
-
-  if(LLVM_HAVE_LIBXAR)
-    set(XAR_LIB xar)
   endif()
 endif() # standalone
 
@@ -202,6 +191,8 @@ add_subdirectory(Common)
 add_subdirectory(tools/lld)
 
 if (LLVM_INCLUDE_TESTS)
+  add_custom_target(LLDUnitTests)
+  llvm_add_unittests(LLD_UNITTESTS_ADDED)
   add_subdirectory(test)
 endif()
 

@@ -485,13 +485,7 @@ BranchFolder::MergePotentialsElt::operator<(const MergePotentialsElt &o) const {
     return true;
   if (getBlock()->getNumber() > o.getBlock()->getNumber())
     return false;
-  // _GLIBCXX_DEBUG checks strict weak ordering, which involves comparing
-  // an object with itself.
-#ifndef _GLIBCXX_DEBUG
-  llvm_unreachable("Predecessor appears twice");
-#else
   return false;
-#endif
 }
 
 /// CountTerminators - Count the number of terminators in the given
@@ -860,6 +854,14 @@ void BranchFolder::mergeCommonTails(unsigned commonTailIndex) {
       for (Register Reg : NewLiveIns) {
         if (!LiveRegs.available(*MRI, Reg))
           continue;
+
+        // Skip the register if we are about to add one of its super registers.
+        // TODO: Common this up with the same logic in addLineIns().
+        if (any_of(TRI->superregs(Reg), [&](MCPhysReg SReg) {
+              return NewLiveIns.contains(SReg) && !MRI->isReserved(SReg);
+            }))
+          continue;
+
         DebugLoc DL;
         BuildMI(*Pred, InsertBefore, DL, TII->get(TargetOpcode::IMPLICIT_DEF),
                 Reg);
@@ -1877,8 +1879,8 @@ MachineBasicBlock::iterator findHoistingInsertPosAndDeps(MachineBasicBlock *MBB,
     } else {
       if (Uses.erase(Reg)) {
         if (Reg.isPhysical()) {
-          for (MCSubRegIterator SubRegs(Reg, TRI); SubRegs.isValid(); ++SubRegs)
-            Uses.erase(*SubRegs); // Use sub-registers to be conservative
+          for (MCPhysReg SubReg : TRI->subregs(Reg))
+            Uses.erase(SubReg); // Use sub-registers to be conservative
         }
       }
       addRegAndItsAliases(Reg, TRI, Defs);
@@ -1989,8 +1991,8 @@ bool BranchFolder::HoistCommonCodeInSuccs(MachineBasicBlock *MBB) {
       break;
 
     // Remove kills from ActiveDefsSet, these registers had short live ranges.
-    for (const MachineOperand &MO : TIB->operands()) {
-      if (!MO.isReg() || !MO.isUse() || !MO.isKill())
+    for (const MachineOperand &MO : TIB->all_uses()) {
+      if (!MO.isKill())
         continue;
       Register Reg = MO.getReg();
       if (!Reg)
@@ -2007,8 +2009,8 @@ bool BranchFolder::HoistCommonCodeInSuccs(MachineBasicBlock *MBB) {
     }
 
     // Track local defs so we can update liveins.
-    for (const MachineOperand &MO : TIB->operands()) {
-      if (!MO.isReg() || !MO.isDef() || MO.isDead())
+    for (const MachineOperand &MO : TIB->all_defs()) {
+      if (MO.isDead())
         continue;
       Register Reg = MO.getReg();
       if (!Reg || Reg.isVirtual())

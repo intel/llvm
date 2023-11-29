@@ -49,7 +49,7 @@ def DLTI_Dialect : Dialect {
 
 def DLTI_DataLayoutEntryAttr : DialectAttr<
     DLTI_Dialect,
-    CPred<"$_self.isa<::mlir::DataLayoutEntryAttr>()">,
+    CPred<"::llvm::isa<::mlir::DataLayoutEntryAttr>($_self)">,
     "Target data layout entry"> {
   let storageType = "::mlir::DataLayoutEntryAttr";
   let returnType = "::mlir::DataLayoutEntryAttr";
@@ -58,7 +58,7 @@ def DLTI_DataLayoutEntryAttr : DialectAttr<
 
 def DLTI_DataLayoutSpecAttr : DialectAttr<
     DLTI_Dialect,
-    CPred<"$_self.isa<::mlir::DataLayoutSpecAttr>()">,
+    CPred<"::llvm::isa<::mlir::DataLayoutSpecAttr>($_self)">,
     "Target data layout specification"> {
   let storageType = "::mlir::DataLayoutSpecAttr";
   let returnType = "::mlir::DataLayoutSpecAttr";

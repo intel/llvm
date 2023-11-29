@@ -1,10 +1,9 @@
-// TODO: Re-enable this test on Windows after fixing the following issue:
-// https://github.com/intel/llvm/issues/8975
-// UNSUPPORTED: windows
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} %{mathflags} -fpreview-breaking-changes -o %t_preview.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #include <sycl/sycl.hpp>
 
@@ -44,7 +43,7 @@
           cgh.single_task([=]() {                                              \
             sycl::multi_ptr<sycl::marray<PTR_TYPE, DIM>,                       \
                             sycl::access::address_space::global_space,         \
-                            sycl::access::decorated::yes>                      \
+                            sycl::access::decorated::no>                       \
                 ptr(res_ptr_access);                                           \
             sycl::marray<MARRAY_ELEM_TYPE, DIM> res = FUNC(__VA_ARGS__, ptr);  \
             for (int i = 0; i < DIM; i++)                                      \
@@ -100,10 +99,7 @@ int main() {
   TEST(sycl::ldexp, float, 3, EXPECTED(float, 360, 360, 360), 0, ma3, ma4);
   TEST(sycl::ldexp, float, 3, EXPECTED(float, 5760, 5760, 5760), 0, ma3, 5);
   TEST(sycl::pown, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, ma4);
-  TEST(sycl::pown, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, 1);
   TEST(sycl::rootn, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, ma4);
-  TEST(sycl::rootn, float, 3, EXPECTED(float, 2.82523, 2.82523, 2.82523),
-       0.00001, ma3, 5);
   TEST2(sycl::fract, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
         EXPECTED(float, 1, 4, 5), 0.0001, ma6);
   TEST2(sycl::modf, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
@@ -119,7 +115,8 @@ int main() {
   TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
         EXPECTED(int, 0, 0, 0), 0.0001, ma6, ma3);
   TEST3(sycl::nan, float, 3, ma7);
-  TEST3(sycl::nan, double, 3, ma8);
+  if (deviceQueue.get_device().has(sycl::aspect::fp64))
+    TEST3(sycl::nan, double, 3, ma8);
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        ma1);
 

@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
+// RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 
@@ -60,7 +58,7 @@ bool CheckResults(float *out, float *in, unsigned n) {
                     in[(i + 5) * n + (j + 0)] * 0.02f;
 
         // check result
-        if (abs(res - out[i * n + j]) >= 0.0015f) {
+        if (std::abs(res - out[i * n + j]) >= 0.0015f) {
           std::cout << "out[" << i << "][" << j << "] = " << out[i * n + j]
                     << " expect result " << res << std::endl;
           return false;

@@ -8,11 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for IsCompileTi...
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for HasValue
+
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
@@ -65,10 +67,10 @@ template <typename V, typename O, typename = void> struct is_property_value_of {
 };
 // Specialization for compile-time-constant properties
 template <typename V>
-struct is_property_value<V, sycl::detail::void_t<typename V::key_t>>
+struct is_property_value<V, std::void_t<typename V::key_t>>
     : is_property_key<typename V::key_t> {};
 template <typename V, typename O>
-struct is_property_value_of<V, O, sycl::detail::void_t<typename V::key_t>>
+struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
     : is_property_key_of<typename V::key_t, O> {};
 
 namespace detail {
@@ -85,5 +87,5 @@ struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

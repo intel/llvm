@@ -135,14 +135,14 @@ namespace llvm {
           IgnoreXCOFFVisibility(false), XCOFFTracebackTable(true),
           UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
           TrapUnreachable(false), NoTrapAfterNoreturn(false), TLSSize(0),
-          EmulatedTLS(false), ExplicitEmulatedTLS(false), EnableIPRA(false),
-          EmitStackSizeSection(false), EnableMachineOutliner(false),
-          EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
-          EmitAddrsig(false), EmitCallSiteInfo(false),
-          SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
-          ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
-          XRayOmitFunctionIndex(false), DebugStrictDwarf(false),
-          Hotpatch(false), PPCGenScalarMASSEntries(false), JMCInstrument(false),
+          EmulatedTLS(false), EnableIPRA(false), EmitStackSizeSection(false),
+          EnableMachineOutliner(false), EnableMachineFunctionSplitter(false),
+          SupportsDefaultOutlining(false), EmitAddrsig(false),
+          EmitCallSiteInfo(false), SupportsDebugEntryValues(false),
+          EnableDebugEntryValues(false), ValueTrackingVariableLocations(false),
+          ForceDwarfFrameSection(false), XRayFunctionIndex(true),
+          DebugStrictDwarf(false), Hotpatch(false),
+          PPCGenScalarMASSEntries(false), JMCInstrument(false),
           EnableCFIFixup(false), MisExpect(false), XCOFFReadOnlyPointers(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
@@ -285,9 +285,6 @@ namespace llvm {
     /// function in the runtime library..
     unsigned EmulatedTLS : 1;
 
-    /// Whether -emulated-tls or -no-emulated-tls is set.
-    unsigned ExplicitEmulatedTLS : 1;
-
     /// This flag enables InterProcedural Register Allocation (IPRA).
     unsigned EnableIPRA : 1;
 
@@ -337,7 +334,7 @@ namespace llvm {
     unsigned ForceDwarfFrameSection : 1;
 
     /// Emit XRay Function Index section
-    unsigned XRayOmitFunctionIndex : 1;
+    unsigned XRayFunctionIndex : 1;
 
     /// When set to true, don't use DWARF extensions in later DWARF versions.
     /// By default, it is set to false.

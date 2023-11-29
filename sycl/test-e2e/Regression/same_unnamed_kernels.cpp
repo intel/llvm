@@ -1,9 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out -fsycl-unnamed-lambda
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: gpu
-// UNSUPPORTED: hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //
@@ -41,7 +37,9 @@ int main() {
         acc[0] *= 2;
       });
 
-  if (A[0] != 0 || B[0] != 2)
+  sycl::host_accessor hostA{bufA, sycl::read_only};
+  sycl::host_accessor hostB{bufB, sycl::read_only};
+  if (hostA[0] != 0 || hostB[0] != 2)
     return -1;
 
   return 0;

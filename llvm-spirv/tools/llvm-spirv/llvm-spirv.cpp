@@ -154,19 +154,6 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if SPIRV_ENABLE_OPAQUE_POINTERS
-constexpr static bool SPIRVOpaquePointersDefault = true;
-#else
-constexpr static bool SPIRVOpaquePointersDefault = false;
-#endif
-
-static cl::opt<bool>
-    EmitOpaquePointers("emit-opaque-pointers",
-                       cl::init(SPIRVOpaquePointersDefault),
-                       cl::desc("Emit opaque instead of typed LLVM pointers "
-                                "for the translation from SPIR-V."),
-                       cl::Hidden);
-
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -260,6 +247,16 @@ static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
     cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
              "instruction from OpenCL extended instruction set"),
     cl::init(true));
+
+static cl::opt<SPIRV::BuiltinFormat> SPIRVBuiltinFormat(
+    "spirv-builtin-format",
+    cl::desc("Set LLVM-IR representation of SPIR-V builtin variables:"),
+    cl::init(SPIRV::BuiltinFormat::Function),
+    cl::values(
+        clEnumValN(SPIRV::BuiltinFormat::Function, "function",
+                   "Use functions to represent SPIR-V builtin variables"),
+        clEnumValN(SPIRV::BuiltinFormat::Global, "global",
+                   "Use globals to represent SPIR-V builtin variables")));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -378,8 +375,7 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
-  Context.setOpaquePointers(EmitOpaquePointers);
-
+  
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
   std::string Err;
@@ -706,7 +702,7 @@ int main(int Ac, char **Av) {
   SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
   if (BIsRepresentation.getNumOccurrences() != 0) {
     if (!IsReverse) {
-      errs() << "Note: --spirv-ocl-builtins-version option ignored as it only "
+      errs() << "Note: --spirv-target-env option ignored as it only "
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
@@ -714,6 +710,15 @@ int main(int Ac, char **Av) {
   }
 
   Opts.setFPContractMode(FPCMode);
+
+  if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-builtin-format option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setBuiltinFormat(SPIRVBuiltinFormat);
+    }
+  }
 
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);

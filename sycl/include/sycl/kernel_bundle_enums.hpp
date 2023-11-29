@@ -9,9 +9,20 @@
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
-enum class bundle_state : char { input = 0, object = 1, executable = 2 };
+enum class bundle_state : char {
+  input = 0,
+  object = 1,
+  executable = 2,
+  ext_oneapi_source = 3
+};
 
-}
+namespace ext::oneapi::experimental {
+
+enum class source_language : int { opencl = 0 /* sycl , spir-v, cuda */ };
+
+} // namespace ext::oneapi::experimental
+
+} // namespace _V1
 } // namespace sycl

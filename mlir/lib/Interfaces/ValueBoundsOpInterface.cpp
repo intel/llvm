@@ -10,6 +10,8 @@
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/Support/Debug.h"
 
@@ -23,27 +25,50 @@ namespace mlir {
 #include "mlir/Interfaces/ValueBoundsOpInterface.cpp.inc"
 } // namespace mlir
 
+HyperrectangularSlice::HyperrectangularSlice(ArrayRef<OpFoldResult> offsets,
+                                             ArrayRef<OpFoldResult> sizes,
+                                             ArrayRef<OpFoldResult> strides)
+    : mixedOffsets(offsets), mixedSizes(sizes), mixedStrides(strides) {
+  assert(offsets.size() == sizes.size() &&
+         "expected same number of offsets, sizes, strides");
+  assert(offsets.size() == strides.size() &&
+         "expected same number of offsets, sizes, strides");
+}
+
+HyperrectangularSlice::HyperrectangularSlice(ArrayRef<OpFoldResult> offsets,
+                                             ArrayRef<OpFoldResult> sizes)
+    : mixedOffsets(offsets), mixedSizes(sizes) {
+  assert(offsets.size() == sizes.size() &&
+         "expected same number of offsets and sizes");
+  // Assume that all strides are 1.
+  if (offsets.empty())
+    return;
+  MLIRContext *ctx = offsets.front().getContext();
+  mixedStrides.append(offsets.size(), Builder(ctx).getIndexAttr(1));
+}
+
+HyperrectangularSlice::HyperrectangularSlice(OffsetSizeAndStrideOpInterface op)
+    : HyperrectangularSlice(op.getMixedOffsets(), op.getMixedSizes(),
+                            op.getMixedStrides()) {}
+
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 static std::optional<int64_t> getConstantIntValue(OpFoldResult ofr) {
   // Case 1: Check for Constant integer.
-  if (auto val = ofr.dyn_cast<Value>()) {
+  if (auto val = llvm::dyn_cast_if_present<Value>(ofr)) {
     APSInt intVal;
     if (matchPattern(val, m_ConstantInt(&intVal)))
       return intVal.getSExtValue();
     return std::nullopt;
   }
   // Case 2: Check for IntegerAttr.
-  Attribute attr = ofr.dyn_cast<Attribute>();
-  if (auto intAttr = attr.dyn_cast_or_null<IntegerAttr>())
+  Attribute attr = llvm::dyn_cast_if_present<Attribute>(ofr);
+  if (auto intAttr = dyn_cast_or_null<IntegerAttr>(attr))
     return intAttr.getValue().getSExtValue();
   return std::nullopt;
 }
 
-ValueBoundsConstraintSet::ValueBoundsConstraintSet(Value value,
-                                                   std::optional<int64_t> dim)
-    : builder(value.getContext()) {
-  insert(value, dim, /*isSymbol=*/false);
-}
+ValueBoundsConstraintSet::ValueBoundsConstraintSet(MLIRContext *ctx)
+    : builder(ctx) {}
 
 #ifndef NDEBUG
 static void assertValidValueDim(Value value, std::optional<int64_t> dim) {
@@ -87,7 +112,7 @@ AffineExpr ValueBoundsConstraintSet::getExpr(Value value,
       return builder.getAffineConstantExpr(shapedType.getDimSize(*dim));
   } else {
     // Constant index value: return directly.
-    if (auto constInt = getConstantIntValue(value))
+    if (auto constInt = ::getConstantIntValue(value))
       return builder.getAffineConstantExpr(*constInt);
   }
 
@@ -102,9 +127,9 @@ AffineExpr ValueBoundsConstraintSet::getExpr(Value value,
 }
 
 AffineExpr ValueBoundsConstraintSet::getExpr(OpFoldResult ofr) {
-  if (Value value = ofr.dyn_cast<Value>())
+  if (Value value = llvm::dyn_cast_if_present<Value>(ofr))
     return getExpr(value, /*dim=*/std::nullopt);
-  auto constInt = getConstantIntValue(ofr);
+  auto constInt = ::getConstantIntValue(ofr);
   assert(constInt.has_value() && "expected Integer constant");
   return builder.getAffineConstantExpr(*constInt);
 }
@@ -127,9 +152,21 @@ int64_t ValueBoundsConstraintSet::insert(Value value,
   positionToValueDim.insert(positionToValueDim.begin() + pos, valueDim);
   // Update reverse mapping.
   for (int64_t i = pos, e = positionToValueDim.size(); i < e; ++i)
-    valueDimToPosition[positionToValueDim[i]] = i;
+    if (positionToValueDim[i].has_value())
+      valueDimToPosition[*positionToValueDim[i]] = i;
 
   worklist.push(pos);
+  return pos;
+}
+
+int64_t ValueBoundsConstraintSet::insert(bool isSymbol) {
+  int64_t pos = isSymbol ? cstr.appendVar(VarKind::Symbol)
+                         : cstr.appendVar(VarKind::SetDim);
+  positionToValueDim.insert(positionToValueDim.begin() + pos, std::nullopt);
+  // Update reverse mapping.
+  for (int64_t i = pos, e = positionToValueDim.size(); i < e; ++i)
+    if (positionToValueDim[i].has_value())
+      valueDimToPosition[*positionToValueDim[i]] = i;
   return pos;
 }
 
@@ -137,8 +174,8 @@ int64_t ValueBoundsConstraintSet::getPos(Value value,
                                          std::optional<int64_t> dim) const {
 #ifndef NDEBUG
   assertValidValueDim(value, dim);
-  assert((value.isa<OpResult>() ||
-          value.cast<BlockArgument>().getOwner()->isEntryBlock()) &&
+  assert((isa<OpResult>(value) ||
+          cast<BlockArgument>(value).getOwner()->isEntryBlock()) &&
          "unstructured control flow is not supported");
 #endif // NDEBUG
 
@@ -149,7 +186,7 @@ int64_t ValueBoundsConstraintSet::getPos(Value value,
 }
 
 static Operation *getOwnerOfValue(Value value) {
-  if (auto bbArg = value.dyn_cast<BlockArgument>())
+  if (auto bbArg = dyn_cast<BlockArgument>(value))
     return bbArg.getOwner()->getParentOp();
   return value.getDefiningOp();
 }
@@ -158,7 +195,9 @@ void ValueBoundsConstraintSet::processWorklist(StopConditionFn stopCondition) {
   while (!worklist.empty()) {
     int64_t pos = worklist.front();
     worklist.pop();
-    ValueDim valueDim = positionToValueDim[pos];
+    assert(positionToValueDim[pos].has_value() &&
+           "did not expect std::nullopt on worklist");
+    ValueDim valueDim = *positionToValueDim[pos];
     Value value = valueDim.first;
     int64_t dim = valueDim.second;
 
@@ -180,13 +219,23 @@ void ValueBoundsConstraintSet::processWorklist(StopConditionFn stopCondition) {
     // the worklist.
     auto valueBoundsOp =
         dyn_cast<ValueBoundsOpInterface>(getOwnerOfValue(value));
-    if (!valueBoundsOp)
+    if (valueBoundsOp) {
+      if (dim == kIndexValue) {
+        valueBoundsOp.populateBoundsForIndexValue(value, *this);
+      } else {
+        valueBoundsOp.populateBoundsForShapedValueDim(value, dim, *this);
+      }
       continue;
-    if (dim == kIndexValue) {
-      valueBoundsOp.populateBoundsForIndexValue(value, *this);
-    } else {
-      valueBoundsOp.populateBoundsForShapedValueDim(value, dim, *this);
     }
+
+    // If the op does not implement `ValueBoundsOpInterface`, check if it
+    // implements the `DestinationStyleOpInterface`. OpResults of such ops are
+    // tied to OpOperands. Tied values have the same shape.
+    auto dstOp = value.getDefiningOp<DestinationStyleOpInterface>();
+    if (!dstOp || dim == kIndexValue)
+      continue;
+    Value tiedOperand = dstOp.getTiedOpOperand(cast<OpResult>(value))->get();
+    bound(value)[dim] == getExpr(tiedOperand, dim);
   }
 }
 
@@ -194,20 +243,24 @@ void ValueBoundsConstraintSet::projectOut(int64_t pos) {
   assert(pos >= 0 && pos < static_cast<int64_t>(positionToValueDim.size()) &&
          "invalid position");
   cstr.projectOut(pos);
-  bool erased = valueDimToPosition.erase(positionToValueDim[pos]);
-  (void)erased;
-  assert(erased && "inconsistent reverse mapping");
+  if (positionToValueDim[pos].has_value()) {
+    bool erased = valueDimToPosition.erase(*positionToValueDim[pos]);
+    (void)erased;
+    assert(erased && "inconsistent reverse mapping");
+  }
   positionToValueDim.erase(positionToValueDim.begin() + pos);
   // Update reverse mapping.
   for (int64_t i = pos, e = positionToValueDim.size(); i < e; ++i)
-    valueDimToPosition[positionToValueDim[i]] = i;
+    if (positionToValueDim[i].has_value())
+      valueDimToPosition[*positionToValueDim[i]] = i;
 }
 
 void ValueBoundsConstraintSet::projectOut(
     function_ref<bool(ValueDim)> condition) {
   int64_t nextPos = 0;
   while (nextPos < static_cast<int64_t>(positionToValueDim.size())) {
-    if (condition(positionToValueDim[nextPos])) {
+    if (positionToValueDim[nextPos].has_value() &&
+        condition(*positionToValueDim[nextPos])) {
       projectOut(nextPos);
       // The column was projected out so another column is now at that position.
       // Do not increase the counter.
@@ -246,7 +299,8 @@ LogicalResult ValueBoundsConstraintSet::computeBound(
   // Process the backward slice of `value` (i.e., reverse use-def chain) until
   // `stopCondition` is met.
   ValueDim valueDim = std::make_pair(value, dim.value_or(kIndexValue));
-  ValueBoundsConstraintSet cstr(value, dim);
+  ValueBoundsConstraintSet cstr(value.getContext());
+  int64_t pos = cstr.insert(value, dim, /*isSymbol=*/false);
   cstr.processWorklist(stopCondition);
 
   // Project out all variables (apart from `valueDim`) that do not match the
@@ -261,7 +315,6 @@ LogicalResult ValueBoundsConstraintSet::computeBound(
   });
 
   // Compute lower and upper bounds for `valueDim`.
-  int64_t pos = cstr.getPos(value, dim);
   SmallVector<AffineMap> lb(1), ub(1);
   cstr.cstr.getSliceBounds(pos, 1, value.getContext(), &lb, &ub,
                            /*getClosedUB=*/true);
@@ -335,7 +388,9 @@ LogicalResult ValueBoundsConstraintSet::computeBound(
       replacementSymbols.push_back(b.getAffineSymbolExpr(numSymbols++));
     }
 
-    ValueBoundsConstraintSet::ValueDim valueDim = cstr.positionToValueDim[i];
+    assert(cstr.positionToValueDim[i].has_value() &&
+           "cannot build affine map in terms of anonymous column");
+    ValueBoundsConstraintSet::ValueDim valueDim = *cstr.positionToValueDim[i];
     Value value = valueDim.first;
     int64_t dim = valueDim.second;
     if (dim == ValueBoundsConstraintSet::kIndexValue) {
@@ -356,7 +411,7 @@ LogicalResult ValueBoundsConstraintSet::computeBound(
   return success();
 }
 
-LogicalResult ValueBoundsConstraintSet::computeBound(
+LogicalResult ValueBoundsConstraintSet::computeDependentBound(
     AffineMap &resultMap, ValueDimList &mapOperands, presburger::BoundType type,
     Value value, std::optional<int64_t> dim, ValueDimList dependencies,
     bool closedUB) {
@@ -368,6 +423,40 @@ LogicalResult ValueBoundsConstraintSet::computeBound(
       closedUB);
 }
 
+LogicalResult ValueBoundsConstraintSet::computeIndependentBound(
+    AffineMap &resultMap, ValueDimList &mapOperands, presburger::BoundType type,
+    Value value, std::optional<int64_t> dim, ValueRange independencies,
+    bool closedUB) {
+  // Return "true" if the given value is independent of all values in
+  // `independencies`. I.e., neither the value itself nor any value in the
+  // backward slice (reverse use-def chain) is contained in `independencies`.
+  auto isIndependent = [&](Value v) {
+    SmallVector<Value> worklist;
+    DenseSet<Value> visited;
+    worklist.push_back(v);
+    while (!worklist.empty()) {
+      Value next = worklist.pop_back_val();
+      if (visited.contains(next))
+        continue;
+      visited.insert(next);
+      if (llvm::is_contained(independencies, next))
+        return false;
+      // TODO: DominanceInfo could be used to stop the traversal early.
+      Operation *op = next.getDefiningOp();
+      if (!op)
+        continue;
+      worklist.append(op->getOperands().begin(), op->getOperands().end());
+    }
+    return true;
+  };
+
+  // Reify bounds in terms of any independent values.
+  return computeBound(
+      resultMap, mapOperands, type, value, dim,
+      [&](Value v, std::optional<int64_t> d) { return isIndependent(v); },
+      closedUB);
+}
+
 FailureOr<int64_t> ValueBoundsConstraintSet::computeConstantBound(
     presburger::BoundType type, Value value, std::optional<int64_t> dim,
     StopConditionFn stopCondition, bool closedUB) {
@@ -375,10 +464,35 @@ FailureOr<int64_t> ValueBoundsConstraintSet::computeConstantBound(
   assertValidValueDim(value, dim);
 #endif // NDEBUG
 
-  // Process the backward slice of `value` (i.e., reverse use-def chain) until
-  // `stopCondition` is met.
-  ValueBoundsConstraintSet cstr(value, dim);
-  int64_t pos = cstr.getPos(value, dim);
+  AffineMap map =
+      AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0,
+                     Builder(value.getContext()).getAffineDimExpr(0));
+  return computeConstantBound(type, map, {{value, dim}}, stopCondition,
+                              closedUB);
+}
+
+FailureOr<int64_t> ValueBoundsConstraintSet::computeConstantBound(
+    presburger::BoundType type, AffineMap map, ValueDimList operands,
+    StopConditionFn stopCondition, bool closedUB) {
+  assert(map.getNumResults() == 1 && "expected affine map with one result");
+  ValueBoundsConstraintSet cstr(map.getContext());
+  int64_t pos = cstr.insert(/*isSymbol=*/false);
+
+  // Add map and operands to the constraint set. Dimensions are converted to
+  // symbols. All operands are added to the worklist.
+  auto mapper = [&](std::pair<Value, std::optional<int64_t>> v) {
+    return cstr.getExpr(v.first, v.second);
+  };
+  SmallVector<AffineExpr> dimReplacements = llvm::to_vector(
+      llvm::map_range(ArrayRef(operands).take_front(map.getNumDims()), mapper));
+  SmallVector<AffineExpr> symReplacements = llvm::to_vector(
+      llvm::map_range(ArrayRef(operands).drop_front(map.getNumDims()), mapper));
+  cstr.addBound(
+      presburger::BoundType::EQ, pos,
+      map.getResult(0).replaceDimsAndSymbols(dimReplacements, symReplacements));
+
+  // Process the backward slice of `operands` (i.e., reverse use-def chain)
+  // until `stopCondition` is met.
   if (stopCondition) {
     cstr.processWorklist(stopCondition);
   } else {
@@ -395,6 +509,176 @@ FailureOr<int64_t> ValueBoundsConstraintSet::computeConstantBound(
   if (auto bound = cstr.cstr.getConstantBound64(type, pos))
     return type == BoundType::UB ? *bound + ubAdjustment : *bound;
   return failure();
+}
+
+FailureOr<int64_t> ValueBoundsConstraintSet::computeConstantBound(
+    presburger::BoundType type, AffineMap map, ArrayRef<Value> operands,
+    StopConditionFn stopCondition, bool closedUB) {
+  ValueDimList valueDims;
+  for (Value v : operands) {
+    assert(v.getType().isIndex() && "expected index type");
+    valueDims.emplace_back(v, std::nullopt);
+  }
+  return computeConstantBound(type, map, valueDims, stopCondition, closedUB);
+}
+
+FailureOr<int64_t>
+ValueBoundsConstraintSet::computeConstantDelta(Value value1, Value value2,
+                                               std::optional<int64_t> dim1,
+                                               std::optional<int64_t> dim2) {
+#ifndef NDEBUG
+  assertValidValueDim(value1, dim1);
+  assertValidValueDim(value2, dim2);
+#endif // NDEBUG
+
+  Builder b(value1.getContext());
+  AffineMap map = AffineMap::get(/*dimCount=*/2, /*symbolCount=*/0,
+                                 b.getAffineDimExpr(0) - b.getAffineDimExpr(1));
+  return computeConstantBound(presburger::BoundType::EQ, map,
+                              {{value1, dim1}, {value2, dim2}});
+}
+
+FailureOr<bool>
+ValueBoundsConstraintSet::areEqual(Value value1, Value value2,
+                                   std::optional<int64_t> dim1,
+                                   std::optional<int64_t> dim2) {
+  // Subtract the two values/dimensions from each other. If the result is 0,
+  // both are equal.
+  FailureOr<int64_t> delta = computeConstantDelta(value1, value2, dim1, dim2);
+  if (failed(delta))
+    return failure();
+  return *delta == 0;
+}
+
+FailureOr<bool> ValueBoundsConstraintSet::areEqual(OpFoldResult ofr1,
+                                                   OpFoldResult ofr2) {
+  Builder b(ofr1.getContext());
+  AffineMap map =
+      AffineMap::get(/*dimCount=*/0, /*symbolCount=*/2,
+                     b.getAffineSymbolExpr(0) - b.getAffineSymbolExpr(1));
+  SmallVector<OpFoldResult> ofrOperands;
+  ofrOperands.push_back(ofr1);
+  ofrOperands.push_back(ofr2);
+  SmallVector<Value> valueOperands;
+  AffineMap foldedMap =
+      foldAttributesIntoMap(b, map, ofrOperands, valueOperands);
+  ValueDimList valueDims;
+  for (Value v : valueOperands) {
+    assert(v.getType().isIndex() && "expected index type");
+    valueDims.emplace_back(v, std::nullopt);
+  }
+  FailureOr<int64_t> delta =
+      computeConstantBound(presburger::BoundType::EQ, foldedMap, valueDims);
+  if (failed(delta))
+    return failure();
+  return *delta == 0;
+}
+
+FailureOr<bool>
+ValueBoundsConstraintSet::areOverlappingSlices(MLIRContext *ctx,
+                                               HyperrectangularSlice slice1,
+                                               HyperrectangularSlice slice2) {
+  assert(slice1.getMixedOffsets().size() == slice1.getMixedOffsets().size() &&
+         "expected slices of same rank");
+  assert(slice1.getMixedSizes().size() == slice1.getMixedSizes().size() &&
+         "expected slices of same rank");
+  assert(slice1.getMixedStrides().size() == slice1.getMixedStrides().size() &&
+         "expected slices of same rank");
+
+  Builder b(ctx);
+  bool foundUnknownBound = false;
+  for (int64_t i = 0, e = slice1.getMixedOffsets().size(); i < e; ++i) {
+    AffineMap map =
+        AffineMap::get(/*dimCount=*/0, /*symbolCount=*/4,
+                       b.getAffineSymbolExpr(0) +
+                           b.getAffineSymbolExpr(1) * b.getAffineSymbolExpr(2) -
+                           b.getAffineSymbolExpr(3));
+    {
+      // Case 1: Slices are guaranteed to be non-overlapping if
+      // offset1 + size1 * stride1 <= offset2 (for at least one dimension).
+      SmallVector<OpFoldResult> ofrOperands;
+      ofrOperands.push_back(slice1.getMixedOffsets()[i]);
+      ofrOperands.push_back(slice1.getMixedSizes()[i]);
+      ofrOperands.push_back(slice1.getMixedStrides()[i]);
+      ofrOperands.push_back(slice2.getMixedOffsets()[i]);
+      SmallVector<Value> valueOperands;
+      AffineMap foldedMap =
+          foldAttributesIntoMap(b, map, ofrOperands, valueOperands);
+      FailureOr<int64_t> constBound = computeConstantBound(
+          presburger::BoundType::EQ, foldedMap, valueOperands);
+      foundUnknownBound |= failed(constBound);
+      if (succeeded(constBound) && *constBound <= 0)
+        return false;
+    }
+    {
+      // Case 2: Slices are guaranteed to be non-overlapping if
+      // offset2 + size2 * stride2 <= offset1 (for at least one dimension).
+      SmallVector<OpFoldResult> ofrOperands;
+      ofrOperands.push_back(slice2.getMixedOffsets()[i]);
+      ofrOperands.push_back(slice2.getMixedSizes()[i]);
+      ofrOperands.push_back(slice2.getMixedStrides()[i]);
+      ofrOperands.push_back(slice1.getMixedOffsets()[i]);
+      SmallVector<Value> valueOperands;
+      AffineMap foldedMap =
+          foldAttributesIntoMap(b, map, ofrOperands, valueOperands);
+      FailureOr<int64_t> constBound = computeConstantBound(
+          presburger::BoundType::EQ, foldedMap, valueOperands);
+      foundUnknownBound |= failed(constBound);
+      if (succeeded(constBound) && *constBound <= 0)
+        return false;
+    }
+  }
+
+  // If at least one bound could not be computed, we cannot be certain that the
+  // slices are really overlapping.
+  if (foundUnknownBound)
+    return failure();
+
+  // All bounds could be computed and none of the above cases applied.
+  // Therefore, the slices are guaranteed to overlap.
+  return true;
+}
+
+FailureOr<bool>
+ValueBoundsConstraintSet::areEquivalentSlices(MLIRContext *ctx,
+                                              HyperrectangularSlice slice1,
+                                              HyperrectangularSlice slice2) {
+  assert(slice1.getMixedOffsets().size() == slice1.getMixedOffsets().size() &&
+         "expected slices of same rank");
+  assert(slice1.getMixedSizes().size() == slice1.getMixedSizes().size() &&
+         "expected slices of same rank");
+  assert(slice1.getMixedStrides().size() == slice1.getMixedStrides().size() &&
+         "expected slices of same rank");
+
+  // The two slices are equivalent if all of their offsets, sizes and strides
+  // are equal. If equality cannot be determined for at least one of those
+  // values, equivalence cannot be determined and this function returns
+  // "failure".
+  for (auto [offset1, offset2] :
+       llvm::zip_equal(slice1.getMixedOffsets(), slice2.getMixedOffsets())) {
+    FailureOr<bool> equal = areEqual(offset1, offset2);
+    if (failed(equal))
+      return failure();
+    if (!equal.value())
+      return false;
+  }
+  for (auto [size1, size2] :
+       llvm::zip_equal(slice1.getMixedSizes(), slice2.getMixedSizes())) {
+    FailureOr<bool> equal = areEqual(size1, size2);
+    if (failed(equal))
+      return failure();
+    if (!equal.value())
+      return false;
+  }
+  for (auto [stride1, stride2] :
+       llvm::zip_equal(slice1.getMixedStrides(), slice2.getMixedStrides())) {
+    FailureOr<bool> equal = areEqual(stride1, stride2);
+    if (failed(equal))
+      return failure();
+    if (!equal.value())
+      return false;
+  }
+  return true;
 }
 
 ValueBoundsConstraintSet::BoundBuilder &

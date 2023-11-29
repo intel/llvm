@@ -21,12 +21,8 @@
 
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/iostream_proxy.hpp>
-#endif // __SYCL_DEVICE_ONLY__
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -106,8 +102,8 @@ public:
   /// @tparam To the scalar type
   /// @return this object's single element value converted to the result type.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<
-                (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
+            class = std::enable_if_t<(T::length == 1) &&
+                                     detail::is_valid_simd_elem_type_v<To>>>
   operator To() const {
     __esimd_dbg_print(operator To());
     return detail::convert_scalar<To, element_type>(base_type::data()[0]);
@@ -124,6 +120,11 @@ public:
                                   Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
   operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
+  }
+
+  /// Copy assignment operator.
+  simd &operator=(const simd &other) noexcept {
+    return base_type::operator=(other);
   }
 
   /// Prefix increment, increments elements of this object.
@@ -200,7 +201,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @ingroup sycl_esimd_misc
@@ -212,13 +213,6 @@ std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
     {}
 #else
 {
-  OS << "{";
-  for (int I = 0; I < N; I++) {
-    OS << V[I];
-    if (I < N - 1)
-      OS << ",";
-  }
-  OS << "}";
-  return OS;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__

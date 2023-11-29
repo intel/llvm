@@ -310,7 +310,13 @@ template <typename Tp> class __avgs_op {
 
 public:
   UTp operator()(const Tp &x, const Tp &y) {
-    return static_cast<UTp>(__srhadd(x, y));
+    int32_t z = static_cast<int32_t>(x) + static_cast<int32_t>(y);
+    if ((z & 1) == 0)
+      return static_cast<UTp>(z / 2);
+    else if (z > 0)
+      return static_cast<UTp>(z / 2 + 1);
+    else
+      return static_cast<UTp>(z / 2 - 1);
   }
 };
 

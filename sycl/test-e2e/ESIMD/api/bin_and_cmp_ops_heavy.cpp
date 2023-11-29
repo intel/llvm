@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // Exclude PVC not to run same test cases twice (via the *_pvc.cpp variant).
-// REQUIRES: gpu && !gpu-intel-pvc
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: gpu-intel-pvc
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // Tests various binary operations applied to simd objects.
 
@@ -213,7 +212,7 @@ template <class T1, class T2, class OpClass> struct verify_n {
     using Tint = esimd_test::int_type_t<sizeof(T)>;
     Tint res_bits = *(Tint *)&res;
     Tint gold_bits = *(Tint *)&gold;
-    return (abs(gold_bits - res_bits) > n) ? false : true;
+    return (std::abs(gold_bits - res_bits) > n) ? false : true;
   }
 };
 

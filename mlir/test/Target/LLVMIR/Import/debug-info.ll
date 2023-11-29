@@ -1,17 +1,17 @@
 ; RUN: mlir-translate -import-llvm -mlir-print-debuginfo -split-input-file %s | FileCheck %s
 
-; CHECK: #[[$MODULELOC:.+]] = loc({{.*}}debug-info.ll{{.*}}:0:0)
+; CHECK: #[[$UNKNOWN_LOC:.+]] = loc(unknown)
 
 ; CHECK-LABEL: @module_loc(
 define i32 @module_loc(i32 %0) {
 entry:
   br label %next
 end:
-  ; CHECK: ^{{.*}}(%{{.+}}: i32 loc({{.*}}debug-info.ll{{.*}}:0:0)):
+  ; CHECK: ^{{.*}}(%{{.+}}: i32 loc(unknown)):
   %1 = phi i32 [ %2, %next ]
   ret i32 %1
 next:
-  ; CHECK: = llvm.mul %{{.+}}, %{{.+}} : i32 loc(#[[$MODULELOC]])
+  ; CHECK: = llvm.mul %{{.+}}, %{{.+}} : i32 loc(#[[$UNKNOWN_LOC]])
   %2 = mul i32 %0, %0
   br label %end
 }
@@ -159,11 +159,12 @@ define void @derived_type() !dbg !3 {
 
 ; CHECK-DAG: #[[INT:.+]] = #llvm.di_basic_type<tag = DW_TAG_base_type, name = "int">
 ; CHECK-DAG: #[[FILE:.+]] = #llvm.di_file<"debug-info.ll" in "/">
-; CHECK-DAG: #[[COMP1:.+]] = #llvm.di_composite_type<tag = DW_TAG_array_type, name = "array1", line = 10, sizeInBits = 128, alignInBits = 32>
+; CHECK-DAG: #[[COMP1:.+]] = #llvm.di_composite_type<tag = DW_TAG_array_type, name = "array1", line = 10, baseType = #[[INT]], sizeInBits = 128, alignInBits = 32>
 ; CHECK-DAG: #[[COMP2:.+]] = #llvm.di_composite_type<{{.*}}, file = #[[FILE]], scope = #[[FILE]], baseType = #[[INT]]>
 ; CHECK-DAG: #[[COMP3:.+]] = #llvm.di_composite_type<{{.*}}, flags = Vector, elements = #llvm.di_subrange<count = 4 : i64>>
 ; CHECK-DAG: #[[COMP4:.+]] = #llvm.di_composite_type<{{.*}}, flags = Vector, elements = #llvm.di_subrange<lowerBound = 0 : i64, upperBound = 4 : i64, stride = 1 : i64>>
-; CHECK-DAG: #llvm.di_subroutine_type<types = #[[COMP1]], #[[COMP2]], #[[COMP3]], #[[COMP4]]>
+; CHECK-DAG: #[[COMP5:.+]] = #llvm.di_composite_type<{{.*}}, flags = Vector>
+; CHECK-DAG: #llvm.di_subroutine_type<types = #[[COMP1]], #[[COMP2]], #[[COMP3]], #[[COMP4]], #[[COMP5]]>
 
 define void @composite_type() !dbg !3 {
   ret void
@@ -176,16 +177,22 @@ define void @composite_type() !dbg !3 {
 !2 = !DIFile(filename: "debug-info.ll", directory: "/")
 !3 = distinct !DISubprogram(name: "composite_type", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1, type: !4)
 !4 = !DISubroutineType(types: !5)
-!5 = !{!7, !8, !9, !10}
+!5 = !{!7, !8, !9, !10, !18}
 !6 = !DIBasicType(name: "int")
-!7 = !DICompositeType(tag: DW_TAG_array_type, name: "array1", line: 10, size: 128, align: 32)
+!7 = !DICompositeType(tag: DW_TAG_array_type, name: "array1", line: 10, size: 128, align: 32, baseType: !6)
 !8 = !DICompositeType(tag: DW_TAG_array_type, name: "array2", file: !2, scope: !2, baseType: !6)
-!9 = !DICompositeType(tag: DW_TAG_array_type, name: "array3", flags: DIFlagVector, elements: !13)
-!10 = !DICompositeType(tag: DW_TAG_array_type, name: "array4", flags: DIFlagVector, elements: !14)
+!9 = !DICompositeType(tag: DW_TAG_array_type, name: "array3", flags: DIFlagVector, elements: !13, baseType: !6)
+!10 = !DICompositeType(tag: DW_TAG_array_type, name: "array4", flags: DIFlagVector, elements: !14, baseType: !6)
 !11 = !DISubrange(count: 4)
 !12 = !DISubrange(lowerBound: 0, upperBound: 4, stride: 1)
 !13 = !{!11}
 !14 = !{!12}
+
+; Verifies that unsupported subrange nodes are skipped.
+!15 = !DISubrange(count: !16)
+!16 = !DILocalVariable(scope: !3, name: "size")
+!17 = !{!15}
+!18 = !DICompositeType(tag: DW_TAG_array_type, name: "unsupported_elements", flags: DIFlagVector, elements: !17, baseType: !6)
 
 ; // -----
 
@@ -215,15 +222,18 @@ define void @subprogram() !dbg !3 {
 define void @func_loc() !dbg !3 {
   ret void
 }
-; CHECK: #[[SP:.+]] =  #llvm.di_subprogram<compileUnit = #{{.*}}, scope = #{{.*}}, name = "func_loc", file = #{{.*}}, subprogramFlags = Definition>
-; CHECK: loc(fused<#[[SP]]>[
+; CHECK-DAG: #[[NAME_LOC:.+]] = loc("func_loc")
+; CHECK-DAG: #[[FILE_LOC:.+]] = loc("debug-info.ll":42:0)
+; CHECK-DAG: #[[SP:.+]] =  #llvm.di_subprogram<compileUnit = #{{.*}}, scope = #{{.*}}, name = "func_loc", file = #{{.*}}, line = 42, subprogramFlags = Definition>
+
+; CHECK: loc(fused<#[[SP]]>[#[[NAME_LOC]], #[[FILE_LOC]]]
 
 !llvm.dbg.cu = !{!1}
 !llvm.module.flags = !{!0}
 !0 = !{i32 2, !"Debug Info Version", i32 3}
 !1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
 !2 = !DIFile(filename: "debug-info.ll", directory: "/")
-!3 = distinct !DISubprogram(name: "func_loc", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
+!3 = distinct !DISubprogram(name: "func_loc", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1, line: 42)
 
 ; // -----
 
@@ -233,26 +243,34 @@ source_filename = "debug-info.ll"
 
 ; // -----
 
+; NOTE: The debug intrinsics are reordered as a side-effect of the dominance-
+;       preserving measures needed to import LLVM IR.
+
+; CHECK: #[[FILE:.+]] = #llvm.di_file<
 ; CHECK: #[[$SP:.+]] = #llvm.di_subprogram<
-; CHECK: #[[$VAR0:.+]] = #llvm.di_local_variable<scope = #[[$SP]], name = "arg", file = #{{.*}}, line = 1, arg = 1, alignInBits = 32, type = #{{.*}}>
+; CHECK: #[[$LABEL:.+]] = #llvm.di_label<scope = #[[$SP]], name = "label", file = #[[FILE]], line = 42>
 ; CHECK: #[[$VAR1:.+]] = #llvm.di_local_variable<scope = #[[$SP]], name = "arg">
+; CHECK: #[[$VAR0:.+]] = #llvm.di_local_variable<scope = #[[$SP]], name = "arg", file = #[[FILE]], line = 1, arg = 1, alignInBits = 32, type = #{{.*}}>
 
 ; CHECK-LABEL: @intrinsic
 ; CHECK-SAME:  %[[ARG0:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
 define void @intrinsic(i64 %0, ptr %1) {
-  ; CHECK: llvm.intr.dbg.value #[[$VAR0]] = %[[ARG0]] : i64 loc(#[[LOC0:.+]])
-  call void @llvm.dbg.value(metadata i64 %0, metadata !5, metadata !DIExpression()), !dbg !7
   ; CHECK: llvm.intr.dbg.declare #[[$VAR1]] = %[[ARG1]] : !llvm.ptr loc(#[[LOC1:.+]])
+  ; CHECK: llvm.intr.dbg.value #[[$VAR0]] #llvm.di_expr<[4096, 0, 8]> = %[[ARG0]] : i64 loc(#[[LOC0:.+]])
+  call void @llvm.dbg.value(metadata i64 %0, metadata !5, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 8)), !dbg !7
   call void @llvm.dbg.declare(metadata ptr %1, metadata !6, metadata !DIExpression()), !dbg !9
+  ; CHECK: llvm.intr.dbg.label #[[$LABEL]] loc(#[[LOC1:.+]])
+  call void @llvm.dbg.label(metadata !10), !dbg !9
   ret void
 }
 
-; CHECK: #[[LOC0]] = loc(fused<#[[$SP]]>[{{.*}}])
 ; CHECK: #[[LOC1]] = loc(fused<#[[$SP]]>[{{.*}}])
+; CHECK: #[[LOC0]] = loc(fused<#[[$SP]]>[{{.*}}])
 
 declare void @llvm.dbg.value(metadata, metadata, metadata)
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
+declare void @llvm.dbg.label(metadata)
 
 !llvm.dbg.cu = !{!1}
 !llvm.module.flags = !{!0}
@@ -266,6 +284,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 !7 = !DILocation(line: 1, column: 2, scope: !3)
 !8 = !DILocation(line: 2, column: 2, scope: !3)
 !9 = !DILocation(line: 3, column: 2, scope: !3)
+!10 = !DILabel(scope: !3, name: "label", file: !2, line: 42)
 
 ; // -----
 
@@ -344,6 +363,8 @@ declare !dbg !3 void @variadic_func()
 ; // -----
 
 define void @dbg_use_before_def(ptr %arg) {
+  ; CHECK: llvm.getelementptr
+  ; CHECK-NEXT: llvm.intr.dbg.value
   call void @llvm.dbg.value(metadata ptr %dbg_arg, metadata !7, metadata !DIExpression()), !dbg !9
   %dbg_arg = getelementptr double, ptr %arg, i64 16
   ret void
@@ -362,6 +383,101 @@ declare void @llvm.dbg.value(metadata, metadata, metadata)
 !6 = !DIDerivedType(tag: DW_TAG_member, name: "call_field", file: !2, baseType: !5)
 !7 = !DILocalVariable(scope: !8, name: "var", file: !2, type: !5);
 !8 = distinct !DISubprogram(name: "dbg_use_before_def", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
+!9 = !DILocation(line: 1, column: 2, scope: !8)
+
+; // -----
+
+; This test checks that broken dominance doesn't break the metadata import.
+
+; CHECK-LABEL: @dbg_broken_dominance
+define void @dbg_broken_dominance(ptr %arg, i1 %cond) {
+  br i1 %cond, label %b1, label %b2
+b1:
+  br label %b3
+b2:
+  %dbg_arg = getelementptr double, ptr %arg, i64 16
+  ; CHECK: llvm.getelementptr
+  ; CHECK-NEXT: llvm.intr.dbg.value
+  br label %b3
+b3:
+  call void @llvm.dbg.value(metadata ptr %dbg_arg, metadata !7, metadata !DIExpression()), !dbg !9
+  ret void
+}
+
+declare void @llvm.dbg.value(metadata, metadata, metadata)
+
+!llvm.dbg.cu = !{!1}
+!llvm.module.flags = !{!0}
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "debug-info.ll", directory: "/")
+!3 = !DICompositeType(tag: DW_TAG_class_type, name: "class_field", file: !2, line: 42, flags: DIFlagTypePassByReference | DIFlagNonTrivial, elements: !4)
+!4 = !{!6}
+!5 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !3, flags: DIFlagArtificial | DIFlagObjectPointer)
+!6 = !DIDerivedType(tag: DW_TAG_member, name: "call_field", file: !2, baseType: !5)
+!7 = !DILocalVariable(scope: !8, name: "var", file: !2, type: !5);
+!8 = distinct !DISubprogram(name: "dbg_use_before_def", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
+!9 = !DILocation(line: 1, column: 2, scope: !8)
+
+; // -----
+
+declare i64 @callee()
+declare i32 @personality(...)
+
+; CHECK-LABEL: @dbg_broken_dominance_invoke
+define void @dbg_broken_dominance_invoke() personality ptr @personality {
+  %1 = invoke i64 @callee()
+          to label %b1 unwind label %b2
+b1:
+; CHECK: llvm.intr.dbg.value
+  call void @llvm.dbg.value(metadata i64 %1, metadata !7, metadata !DIExpression()), !dbg !9
+  ret void
+b2:
+  %2 = landingpad { ptr, i32 }
+          cleanup
+  ret void
+}
+
+declare void @llvm.dbg.value(metadata, metadata, metadata)
+
+!llvm.dbg.cu = !{!1}
+!llvm.module.flags = !{!0}
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "debug-info.ll", directory: "/")
+!7 = !DILocalVariable(scope: !8, name: "var", file: !2);
+!8 = distinct !DISubprogram(name: "dbg_broken_dominance_invoke", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
+!9 = !DILocation(line: 1, column: 2, scope: !8)
+
+; // -----
+
+declare i64 @callee()
+declare i32 @personality(...)
+
+; CHECK-LABEL: @dbg_broken_dominance_invoke_reordered
+define void @dbg_broken_dominance_invoke_reordered() personality ptr @personality {
+  %1 = invoke i64 @callee()
+          to label %b2 unwind label %b1
+b1:
+; CHECK: landingpad
+; CHECK: llvm.intr.dbg.value
+  %2 = landingpad { ptr, i32 }
+          cleanup
+  call void @llvm.dbg.value(metadata i64 %1, metadata !7, metadata !DIExpression()), !dbg !9
+  ret void
+b2:
+  ret void
+}
+
+declare void @llvm.dbg.value(metadata, metadata, metadata)
+
+!llvm.dbg.cu = !{!1}
+!llvm.module.flags = !{!0}
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "debug-info.ll", directory: "/")
+!7 = !DILocalVariable(scope: !8, name: "var", file: !2);
+!8 = distinct !DISubprogram(name: "dbg_broken_dominance_invoke", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
 !9 = !DILocation(line: 1, column: 2, scope: !8)
 
 ; // -----
@@ -421,3 +537,53 @@ define void @noname_subprogram(ptr %arg) !dbg !8 {
 !1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
 !2 = !DIFile(filename: "debug-info.ll", directory: "/")
 !8 = distinct !DISubprogram(scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1);
+
+; // -----
+
+; CHECK:      #[[MODULE:.+]] = #llvm.di_module<
+; CHECK-SAME: file = #{{.*}}, scope = #{{.*}}, name = "module",
+; CHECK-SAME: configMacros = "bar", includePath = "/",
+; CHECK-SAME: apinotes = "/", line = 42, isDecl = true
+; CHECK-SAME: >
+; CHECK: #[[SUBPROGRAM:.+]] = #llvm.di_subprogram<compileUnit = #{{.*}}, scope = #[[MODULE]], name = "func_in_module"
+
+define void @func_in_module(ptr %arg) !dbg !8 {
+  ret void
+}
+
+!llvm.dbg.cu = !{!1}
+!llvm.module.flags = !{!0}
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "debug-info.ll", directory: "/")
+!8 = distinct !DISubprogram(name: "func_in_module", scope: !10, file: !2, unit: !1);
+!10 = !DIModule(scope: !2, name: "module", configMacros: "bar", includePath: "/", apinotes: "/", file: !2, line: 42, isDecl: true)
+
+; // -----
+
+; Verifies that array types that have an unimportable base type are removed to
+; avoid producing invalid IR.
+; CHECK: #[[DI_LOCAL_VAR:.+]] = #llvm.di_local_variable<
+; CHECK-NOT: type =
+
+; CHECK-LABEL: @array_with_cyclic_base_type
+define i32 @array_with_cyclic_base_type(ptr %0) !dbg !3 {
+  call void @llvm.dbg.value(metadata ptr %0, metadata !4, metadata !DIExpression()), !dbg !7
+  ret i32 0
+}
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare void @llvm.dbg.value(metadata, metadata, metadata)
+
+
+!llvm.module.flags = !{!0}
+!llvm.dbg.cu = !{!1}
+
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "debug-info.ll", directory: "/")
+!3 = distinct !DISubprogram(name: "func", scope: !2, file: !2, line: 46, scopeLine: 48, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !1)
+!4 = !DILocalVariable(name: "op", arg: 5, scope: !3, file: !2, line: 47, type: !5)
+!5 = !DICompositeType(tag: DW_TAG_array_type, size: 42, baseType: !6)
+!6 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !5)
+!7 = !DILocation(line: 0, scope: !3)

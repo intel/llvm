@@ -16,7 +16,7 @@
 #include <sycl/accessor.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Checks that given type is a SYCL accessor type. Sets its static field
@@ -44,8 +44,8 @@ using accessor_mode_cap_val_t = bool;
 
 // Denotes an accessor's capability - whether it can read or write.
 struct accessor_mode_cap {
-  static inline constexpr accessor_mode_cap_val_t can_read = false;
-  static inline constexpr accessor_mode_cap_val_t can_write = true;
+  static constexpr accessor_mode_cap_val_t can_read = false;
+  static constexpr accessor_mode_cap_val_t can_write = true;
 };
 
 template <sycl::access::mode Mode, accessor_mode_cap_val_t Cap>
@@ -63,24 +63,60 @@ constexpr bool accessor_mode_has_capability() {
          (Mode == sycl::access::mode::read);
 }
 
+template <typename T> struct local_accessor_access_mode {
+  static constexpr sycl::access::mode mode =
+      static_cast<sycl::access::mode>(-1);
+};
+
+template <typename DataT, int Dimensions>
+struct local_accessor_access_mode<local_accessor<DataT, Dimensions>> {
+  static constexpr sycl::access::mode mode =
+      sycl::detail::accessModeFromConstness<DataT>();
+};
+
 // Checks that given type is a SYCL accessor type with given capability and
 // target.
-template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget>
-struct is_sycl_accessor_with
+template <typename T, accessor_mode_cap_val_t Capability>
+struct is_device_accessor_with
     : public std::conditional_t<
           accessor_mode_has_capability<is_sycl_accessor<T>::mode,
                                        Capability>() &&
-              (is_sycl_accessor<T>::target == AccessTarget),
+              (is_sycl_accessor<T>::target == sycl::access::target::device),
           std::true_type, std::false_type> {};
 
-template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget, typename RetT>
-using EnableIfAccessor = sycl::detail::enable_if_t<
-    detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
+template <typename T, accessor_mode_cap_val_t Capability>
+struct is_local_accessor_with
+    : public std::conditional_t<
+          sycl::detail::acc_properties::is_local_accessor_v<T> &&
+              accessor_mode_has_capability<local_accessor_access_mode<T>::mode,
+                                           Capability>(),
+          std::true_type, std::false_type> {};
+
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_local_accessor_with_v =
+    is_local_accessor_with<T, Capability>::value;
+
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_device_accessor_with_v =
+    is_device_accessor_with<T, Capability>::value;
+
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_accessor_with_v =
+    is_device_accessor_with_v<T, Capability> ||
+    is_local_accessor_with_v<T, Capability>;
+
+template <typename T, accessor_mode_cap_val_t Capability, typename RetT>
+using EnableIfAccessor =
+    std::enable_if_t<detail::is_device_accessor_with_v<T, Capability>, RetT>;
+
+template <typename T, int Dimensions>
+__ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
+  return static_cast<uint32_t>(
+      reinterpret_cast<std::uintptr_t>(acc.get_pointer().get()));
+}
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

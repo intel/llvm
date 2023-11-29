@@ -1,4 +1,5 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 add_flang_library(flangFrontend
   CompilerInstance.cpp
@@ -18,6 +19,7 @@ add_flang_library(flangFrontend
   HLFIRDialect
   MLIRIR
   ${dialect_libs}
+  ${extension_libs}
 
   LINK_LIBS
   FortranParser
@@ -39,6 +41,7 @@ add_flang_library(flangFrontend
   MLIRSCFToControlFlow
   MLIRTargetLLVMIRImport
   ${dialect_libs}
+  ${extension_libs}
 
   LINK_COMPONENTS
   Passes
@@ -49,18 +52,11 @@ add_flang_library(flangFrontend
   Support
   Target
   TargetParser
+  FrontendDriver
   FrontendOpenACC
   FrontendOpenMP
-)
 
-if(CLANG_LINK_CLANG_DYLIB)
-  add_dependencies(flangFrontend clang-cpp)
-else()
-  add_dependencies(flangFrontend clangBasic)
-endif()
-
-clang_target_link_libraries(flangFrontend
-  PRIVATE
+  CLANG_LIBS
   clangBasic
   clangDriver
 )

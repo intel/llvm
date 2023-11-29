@@ -127,11 +127,10 @@ to zero.
 
 |`template <typename T, std::size_t K> sub_group_mask(const sycl::marray<T, K>& &val)`
 |Constructs a group mask with the first `N` bit positions to the
-corresponding bit values in _val_. `T` must be a SYCL `marray` of integral
-types. `N` is a size of a group mask and it corresponds to max local range of
-the sub-group which work-item belongs to. If size of a group mask is bigger than
-number of bits in the value representation of `T`, the remaining positions are
-initialized to zero.
+corresponding bit values in _val_. `T` must be an integer type. `N` is a size
+of a group mask and it corresponds to max local range of the sub-group which
+work-item belongs to. If size of a group mask is bigger than number of bits in
+the value representation of `T`, the remaining positions are initialized to zero.
 
 |`sub_group_mask(const sub_group_mask &other) = default`
 |Constructs a group mask as a copy of _other_. Size of _other_ group mask must

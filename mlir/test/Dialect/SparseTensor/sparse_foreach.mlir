@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s --post-sparsification-rewrite="enable-runtime-library=false enable-foreach=true" --canonicalize | FileCheck %s
+// RUN: mlir-opt %s --lower-sparse-foreach-to-scf --canonicalize | FileCheck %s
 
 // CHECK-LABEL: func.func @sparse_foreach_constant
 // CHECK-DAG:   %[[C1:.*]] = arith.constant 1 : index
@@ -29,13 +29,11 @@ func.func @sparse_foreach_constant() -> () {
 }
 
 #CSR_SLICE = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  slice = [ (0, 4, 1), (2, 4, 1) ]
+  map = (d0 : #sparse_tensor<slice(0, 4, 1)>, d1 : #sparse_tensor<slice(2, 4, 1)>) -> (d0 : compressed, d1 : compressed)
 }>
 
 #CSR_SLICE_DYN = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  slice = [ (?, ?, ?), (?, ?, ?) ]
+  map = (d0 : #sparse_tensor<slice(?, ?, ?)>, d1 : #sparse_tensor<slice(?, ?, ?)>) -> (d0 : compressed, d1 : compressed)
 }>
 
 
@@ -45,12 +43,12 @@ func.func @sparse_foreach_constant() -> () {
 // CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1 : index
 // CHECK-DAG:       %[[VAL_3:.*]] = sparse_tensor.positions %[[VAL_0]] {level = 0 : index} : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_4:.*]] = sparse_tensor.coordinates %[[VAL_0]] {level = 0 : index} : tensor<?x?xf64,
-// CHECK-DAG:       %[[VAL_5:.*]] = tensor.dim %[[VAL_0]], %[[VAL_1]] : tensor<?x?xf64,
+// CHECK-DAG:       %[[VAL_5:.*]] = sparse_tensor.lvl %[[VAL_0]], %[[VAL_1]] : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_6:.*]] = sparse_tensor.slice.offset %[[VAL_0]] at 0 : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_7:.*]] = sparse_tensor.slice.stride %[[VAL_0]] at 0 : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_8:.*]] = sparse_tensor.positions %[[VAL_0]] {level = 1 : index} : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_9:.*]] = sparse_tensor.coordinates %[[VAL_0]] {level = 1 : index} : tensor<?x?xf64,
-// CHECK-DAG:       %[[VAL_10:.*]] = tensor.dim %[[VAL_0]], %[[VAL_2]] : tensor<?x?xf64,
+// CHECK-DAG:       %[[VAL_10:.*]] = sparse_tensor.lvl %[[VAL_0]], %[[VAL_2]] : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_11:.*]] = sparse_tensor.slice.offset %[[VAL_0]] at 1 : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_12:.*]] = sparse_tensor.slice.stride %[[VAL_0]] at 1 : tensor<?x?xf64,
 // CHECK-DAG:       %[[VAL_13:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<?x?xf64,
@@ -135,6 +133,38 @@ func.func @foreach_print_slice_dyn(%A: tensor<?x?xf64, #CSR_SLICE_DYN>) {
 func.func @foreach_print_slice(%A: tensor<4x4xf64, #CSR_SLICE>) {
   sparse_tensor.foreach in %A : tensor<4x4xf64, #CSR_SLICE> do {
   ^bb0(%1: index, %2: index, %v: f64) :
+    "test.use" (%v) : (f64) -> ()
+  }
+  return
+}
+
+#BCOO = #sparse_tensor.encoding<{
+  map = (d0, d1, d2) -> (d0 : dense, d1 : loose_compressed(nonunique), d2 : singleton)
+}>
+
+// CHECK-LABEL:   func.func @foreach_bcoo(
+// CHECK-SAME:      %[[VAL_0:.*]]: tensor<4x4x4xf64, #sparse{{[0-9]*}}>) {
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 4 : index
+// CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 0 : index
+// CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 2 : index
+// CHECK-DAG:       %[[VAL_5:.*]] = sparse_tensor.positions %[[VAL_0]] {level = 1 : index} : tensor<4x4x4xf64, #sparse{{[0-9]*}}> to memref<?xindex>
+// CHECK-DAG:       %[[VAL_6:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<4x4x4xf64, #sparse{{[0-9]*}}> to memref<?xf64>
+// CHECK:           scf.for %[[VAL_7:.*]] = %[[VAL_2]] to %[[VAL_1]] step %[[VAL_3]] {
+// CHECK:             %[[VAL_8:.*]] = arith.muli %[[VAL_7]], %[[VAL_4]] : index
+// CHECK:             %[[VAL_9:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_8]]] : memref<?xindex>
+// CHECK:             %[[VAL_10:.*]] = arith.addi %[[VAL_8]], %[[VAL_3]] : index
+// CHECK:             %[[VAL_11:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xindex>
+// CHECK:             scf.for %[[VAL_12:.*]] = %[[VAL_9]] to %[[VAL_11]] step %[[VAL_3]] {
+// CHECK:               %[[VAL_13:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_12]]] : memref<?xf64>
+// CHECK:               "test.use"(%[[VAL_13]]) : (f64) -> ()
+// CHECK:             } {"Emitted from" = "sparse_tensor.foreach"}
+// CHECK:           } {"Emitted from" = "sparse_tensor.foreach"}
+// CHECK:           return
+// CHECK:         }
+func.func @foreach_bcoo(%A: tensor<4x4x4xf64, #BCOO>) {
+  sparse_tensor.foreach in %A : tensor<4x4x4xf64, #BCOO> do {
+  ^bb0(%1: index, %2: index, %3: index,  %v: f64) :
     "test.use" (%v) : (f64) -> ()
   }
   return

@@ -81,9 +81,7 @@ def AttrWithTrait : Test_Attr<"AttrWithTrait", [TestAttrTrait]> {
 }
 
 // Test support for ElementsAttrInterface.
-def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
-    ElementsAttrInterface, TypedAttrInterface
-  ]> {
+def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [ElementsAttrInterface]> {
   let mnemonic = "i64_elements";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
@@ -269,9 +267,7 @@ def TestOverrideBuilderAttr : Test_Attr<"TestOverrideBuilder"> {
 }
 
 // Test simple extern 1D vector using ElementsAttrInterface.
-def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [
-    ElementsAttrInterface, TypedAttrInterface
-  ]> {
+def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [ElementsAttrInterface]> {
   let mnemonic = "e1di64_elements";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
@@ -326,6 +322,17 @@ def Test_IteratorTypeEnum
 def Test_IteratorTypeArrayAttr
     : TypedArrayAttrBase<Test_IteratorTypeEnum,
   "Iterator type should be an enum.">;
+
+def TestParamCopyCount : AttrParameter<"CopyCount", "", "const CopyCount &"> {}
+
+// Test overridding attribute builders with a custom builder.
+def TestCopyCount : Test_Attr<"TestCopyCount"> {
+  let mnemonic = "copy_count";
+  let parameters = (ins TestParamCopyCount:$copy_count);
+  let assemblyFormat = "`<` $copy_count `>`";
+}
+
+
 
 
 #endif // TEST_ATTRDEFS

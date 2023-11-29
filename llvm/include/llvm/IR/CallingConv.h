@@ -52,8 +52,8 @@ namespace CallingConv {
     /// Used by the High-Performance Erlang Compiler (HiPE).
     HiPE = 11,
 
-    /// Used for stack based JavaScript calls
-    WebKit_JS = 12,
+    /// OBSOLETED - Used for stack based JavaScript calls
+    // WebKit_JS = 12,
 
     /// Used for dynamic register based calls (e.g. stackmap and patchpoint
     /// intrinsics).
@@ -236,6 +236,20 @@ namespace CallingConv {
 
     /// Preserve X2-X15, X19-X29, SP, Z0-Z31, P0-P15.
     AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2 = 103,
+
+    /// Used on AMDGPUs to give the middle-end more control over argument
+    /// placement.
+    AMDGPU_CS_Chain = 104,
+
+    /// Used on AMDGPUs to give the middle-end more control over argument
+    /// placement. Preserves active lane values for input VGPRs.
+    AMDGPU_CS_ChainPreserve = 105,
+
+    /// Used for M68k rtd-based CC (similar to X86's stdcall).
+    M68k_RTD = 106,
+
+    /// Used by GraalVM. Two additional registers are reserved.
+    GRAAL = 107,
 
     /// The highest possible ID. Must be some 2^k - 1.
     MaxID = 1023

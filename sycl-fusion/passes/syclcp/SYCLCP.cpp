@@ -41,7 +41,7 @@ static Expected<SmallVector<ConstantInfo>> getCPFromMD(Function *F) {
   MDNode *MD = F->getMetadata(SYCLCP::Key);
   if (!MD) {
     return createStringError(inconvertibleErrorCode(),
-                             "Private promotion metadata not available");
+                             "Constant progagation metadata not available");
   }
   for (auto I : enumerate(MD->operands())) {
     Expected<SmallVector<unsigned char>> Val =
@@ -205,7 +205,8 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
   return Changed;
 }
 
-static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
+static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
+                          TargetFusionInfo &TFI) {
   SmallVector<Function *> ToProcess;
   for (auto &F : M) {
     if (F.hasMetadata(SYCLCP::Key)) {
@@ -219,14 +220,13 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
       if (const auto *MDS = dyn_cast<MDString>(I.value().get())) {
         // A value is masked-out if it has a non-empty MDString
         if (MDS->getLength() > 0) {
-          // And is either an integer or a FP number.
           NewArgInfo.push_back(jit_compiler::ArgUsage::Unused);
           continue;
         }
       }
       NewArgInfo.push_back(jit_compiler::ArgUsage::Used);
     }
-    fullCleanup(NewArgInfo, F, AM, {SYCLCP::Key});
+    fullCleanup(NewArgInfo, F, AM, TFI, {SYCLCP::Key});
   }
 }
 
@@ -249,8 +249,10 @@ PreservedAnalyses SYCLCP::run(Module &M, ModuleAnalysisManager &AM) {
     Changed = propagateConstants(F, *ConstantsOrErr) || Changed;
   }
 
+  TargetFusionInfo TFI{&M};
+
   if (Changed) {
-    moduleCleanup(M, AM);
+    moduleCleanup(M, AM, TFI);
   }
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();

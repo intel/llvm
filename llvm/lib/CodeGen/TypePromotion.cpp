@@ -235,8 +235,6 @@ bool TypePromotionImpl::isSource(Value *V) {
     return true;
   else if (isa<LoadInst>(V))
     return true;
-  else if (isa<BitCastInst>(V))
-    return true;
   else if (auto *Call = dyn_cast<CallInst>(V))
     return Call->hasRetAttr(Attribute::AttrKind::ZExt);
   else if (auto *Trunc = dyn_cast<TruncInst>(V))
@@ -494,11 +492,13 @@ void IRPromoter::PromoteTree() {
         // SafeWrap because SafeWrap.size() is used elsewhere.
         // For cmp, we need to sign extend a constant appearing in either
         // operand. For add, we should only sign extend the RHS.
-        Constant *NewConst = (SafeWrap.contains(I) &&
+        Constant *NewConst =
+            ConstantInt::get(Const->getContext(),
+                             (SafeWrap.contains(I) &&
                               (I->getOpcode() == Instruction::ICmp || i == 1) &&
                               I->getOpcode() != Instruction::Sub)
-                                 ? ConstantExpr::getSExt(Const, ExtTy)
-                                 : ConstantExpr::getZExt(Const, ExtTy);
+                                 ? Const->getValue().sext(PromotedWidth)
+                                 : Const->getValue().zext(PromotedWidth));
         I->setOperand(i, NewConst);
       } else if (isa<UndefValue>(Op))
         I->setOperand(i, ConstantInt::get(ExtTy, 0));
@@ -724,8 +724,9 @@ bool TypePromotionImpl::isSupportedValue(Value *V) {
     case Instruction::Ret:
     case Instruction::Load:
     case Instruction::Trunc:
-    case Instruction::BitCast:
       return isSupportedType(I);
+    case Instruction::BitCast:
+      return I->getOperand(0)->getType() == I->getType();
     case Instruction::ZExt:
       return isSupportedType(I->getOperand(0));
     case Instruction::ICmp:
@@ -1015,11 +1016,8 @@ bool TypePromotionLegacy::runOnFunction(Function &F) {
   if (skipFunction(F))
     return false;
 
-  auto *TPC = getAnalysisIfAvailable<TargetPassConfig>();
-  if (!TPC)
-    return false;
-
-  auto *TM = &TPC->getTM<TargetMachine>();
+  auto &TPC = getAnalysis<TargetPassConfig>();
+  auto *TM = &TPC.getTM<TargetMachine>();
   auto &TTI = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
   auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 

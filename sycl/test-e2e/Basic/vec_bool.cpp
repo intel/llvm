@@ -1,7 +1,8 @@
-// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 //==-------------- vec_bool.cpp - SYCL vec<> for bool test -----------------==//
 //
@@ -46,7 +47,7 @@ int main() {
 
   // Test negate (operator ~)
   {
-    init_arr(expected, false);
+    init_arr(expected, true);
 
     sycl::buffer<sycl::vec<bool, size>> bufVecTrue(&vec_true, 1);
     sycl::buffer<sycl::vec<bool, size>> bufResVec(&resVec, 1);
@@ -58,6 +59,31 @@ int main() {
      }).wait_and_throw();
   }
   check_result(resVec, expected);
+
+  // Test negate (operator -)
+  bool res = true;
+  {
+    sycl::buffer<bool, 1> bufResVec(&res, 1);
+
+    q.submit([&](sycl::handler &cgh) {
+       sycl::accessor accRes(bufResVec, cgh, sycl::write_only);
+       cgh.single_task([=]() {
+         std::array<bool, size> arrTrue;
+         for (int i = 0; i < size; ++i) {
+           arrTrue[i] = -(static_cast<bool>(1));
+         }
+         auto vecTrue = sycl::vec<bool, size>(static_cast<bool>(1));
+         sycl::vec<bool, size> resVec = -vecTrue;
+         // Check that the vector matches the array.
+         for (int i = 0; i < size; ++i) {
+           if (resVec[i] != arrTrue[i]) {
+             accRes[0] = false;
+           }
+         }
+       });
+     }).wait_and_throw();
+  }
+  assert(res && "Incorrect result");
 
   // Test left shift (operator <<) 1
   {
@@ -466,4 +492,31 @@ int main() {
      }).wait_and_throw();
   }
   check_result(resVec, expected);
+
+  // Test convert()
+  bool resConv = true;
+  {
+    sycl::buffer<bool, 1> bufResVec(&resConv, 1);
+
+    q.submit([&](sycl::handler &cgh) {
+       sycl::accessor accRes(bufResVec, cgh, sycl::write_only);
+       cgh.single_task([=]() {
+         // Check that converting a value not representable by a bool (2) is
+         // correctly converted to bool.
+         auto inputVec = sycl::vec<int, size>(2);
+         sycl::vec<bool, size> expectedVec;
+         for (size_t i = 0; i < size; ++i) {
+           expectedVec[i] = (bool)inputVec[i];
+         }
+         auto convertVec = inputVec.convert<bool>();
+         // Check that the two vectors are equal.
+         for (int i = 0; i < size; ++i) {
+           if (expectedVec[i] != convertVec[i]) {
+             accRes[0] = false;
+           }
+         }
+       });
+     }).wait_and_throw();
+  }
+  assert(resConv && "Incorrect result");
 }

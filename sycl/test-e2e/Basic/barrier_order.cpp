@@ -1,9 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-usm_shared_allocations
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// Temporarily disabled on HIP, CUDA and L0 due to sporadic failures.
-// UNSUPPORTED: hip, level_zero, cuda
+// Hangs on that platform (at least on gpu-intel-pvc),
+// https://github.com/intel/llvm/issues/7330.
+// UNSUPPORTED: opencl && gpu
 
 #include <iostream>
 #include <stdlib.h>
@@ -17,9 +18,11 @@ int main() {
 
   int error = 0;
 
+  constexpr int N_ITERS = 64;
+
   // test barrier without arguments
   *x = 0;
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < N_ITERS; i++) {
     q.single_task([=]() {
       // do some busywork
       volatile float y = *x;
@@ -34,14 +37,20 @@ int main() {
     q.ext_oneapi_submit_barrier();
   }
 
-  std::cout << std::bitset<8 * sizeof(unsigned long long)>(*x) << std::endl;
-
   q.wait_and_throw();
-  error |= (*x != (unsigned long long)-1);
+  auto Check = [&]() {
+    std::bitset<8 * sizeof(*x)> bits(*x);
+    std::bitset<8 * sizeof(*x)> ref;
+    for (int i = 0; i < N_ITERS; ++i)
+      ref[i] = 1;
+    std::cout << "got: " << bits << "\nref: " << ref << std::endl;
+    error |= (bits != ref);
+  };
+  Check();
 
   // test barrier when events are passed arguments
   *x = 0;
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < N_ITERS; i++) {
     sycl::event e = q.single_task([=]() {
       // do some busywork
       volatile float y = *x;
@@ -57,9 +66,7 @@ int main() {
   }
 
   q.wait_and_throw();
-  error |= (*x != (unsigned long long)-1);
-
-  std::cout << std::bitset<8 * sizeof(unsigned long long)>(*x) << std::endl;
+  Check();
 
   std::cout << (error ? "failed\n" : "passed\n");
 

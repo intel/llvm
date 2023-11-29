@@ -16,9 +16,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -43,7 +45,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cassert>
 #include <utility>
@@ -204,6 +205,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   NF->setComdat(F.getComdat());
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
   NF->takeName(&F);
+  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites
   // to pass in a smaller number of arguments into the new function.
@@ -278,7 +280,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     NF->addMetadata(KindID, *Node);
 
   // Fix up any BlockAddresses that refer to the function.
-  F.replaceAllUsesWith(ConstantExpr::getBitCast(NF, F.getType()));
+  F.replaceAllUsesWith(NF);
   // Delete the bitcast that we just created, so that NF does not
   // appear to be address-taken.
   NF->removeDeadConstantUsers();
@@ -575,12 +577,10 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
 
   // We can't modify arguments if the function is not local
   // but we can do so for SYCL kernel functions.
-  // DAE is not currently supported for ESIMD kernels.
-  bool FuncIsSyclNonEsimdKernel =
+  bool FuncIsSyclKernel =
       CheckSYCLKernels &&
-      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F)) &&
-      !F.getMetadata("sycl_explicit_simd");
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclNonEsimdKernel;
+      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     markLive(F);
     return;
@@ -820,6 +820,37 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       MDOmitArgs.push_back(AliveArg ? MDOmitArgFalse : MDOmitArgTrue);
     F->setMetadata("sycl_kernel_omit_args",
                    llvm::MDNode::get(F->getContext(), MDOmitArgs));
+
+    // Update metadata inserted by the SYCL FE to match the new kernel
+    // signature.
+    auto FixupMetadata = [&](StringRef MDName) {
+      auto MDToFixup = F->getMetadata(MDName);
+      if (MDToFixup) {
+        assert(MDToFixup->getNumOperands() == MDOmitArgs.size() &&
+               "Unexpected metadata operands");
+        SmallVector<Metadata *, 10> NewMDOps;
+        for (unsigned int i = 0; i < MDToFixup->getNumOperands(); i++) {
+          const auto *MDConst = cast<ConstantAsMetadata>(MDOmitArgs[i]);
+          bool ArgWasRemoved =
+              static_cast<bool>(cast<ConstantInt>(MDConst->getValue())
+                                    ->getValue()
+                                    .getZExtValue());
+          if (!ArgWasRemoved)
+            NewMDOps.push_back(MDToFixup->getOperand(i));
+        }
+        F->setMetadata(MDName, llvm::MDNode::get(F->getContext(), NewMDOps));
+      }
+    };
+    FixupMetadata("kernel_arg_buffer_location");
+    FixupMetadata("kernel_arg_runtime_aligned");
+    FixupMetadata("kernel_arg_exclusive_ptr");
+    FixupMetadata("kernel_arg_addr_space");
+    FixupMetadata("kernel_arg_access_qual");
+    FixupMetadata("kernel_arg_type");
+    FixupMetadata("kernel_arg_base_type");
+    FixupMetadata("kernel_arg_type_qual");
+    FixupMetadata("kernel_arg_accessor_ptr");
+    FixupMetadata("kernel_arg_name");
   }
 
   // Find out the new return value.
@@ -927,6 +958,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // it again.
   F->getParent()->getFunctionList().insert(F->getIterator(), NF);
   NF->takeName(F);
+  NF->IsNewDbgInfoFormat = F->IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites to
   // pass in a smaller number of arguments into the new function.

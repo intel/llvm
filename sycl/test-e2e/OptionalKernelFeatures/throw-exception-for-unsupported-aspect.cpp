@@ -1,7 +1,7 @@
 // REQUIRES: cpu
 
-// RUN: %clangxx -fsycl -O0 %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O0 -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

@@ -28,6 +28,8 @@ void foo() {
   [[intel::loop_count(8)]] int m[10];
   // expected-error@+1 {{'max_reinvocation_delay' attribute cannot be applied to a declaration}}
   [[intel::max_reinvocation_delay(1)]] int n[10];
+  // expected-error@+1{{'enable_loop_pipelining' attribute cannot be applied to a declaration}}
+  [[intel::enable_loop_pipelining]] int o[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -127,6 +129,9 @@ void boo() {
   // expected-error@+1 {{'max_reinvocation_delay' attribute takes one argument}}
   [[intel::max_reinvocation_delay(5, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // expected-error@+1 {{'enable_loop_pipelining' attribute takes no arguments}}
+  [[intel::enable_loop_pipelining(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -150,8 +155,11 @@ void goo() {
   // expected-error@+1 {{'loop_coalesce' attribute requires a positive integral compile time constant expression}}
   [[intel::loop_coalesce(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute requires a non-negative integral compile time constant expression}}
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(-1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
+  [[intel::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'speculated_iterations' attribute requires a non-negative integral compile time constant expression}}
   [[intel::speculated_iterations(-1)]] for (int i = 0; i != 10; ++i)
@@ -227,6 +235,10 @@ void goo() {
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::max_reinvocation_delay("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -276,7 +288,7 @@ void zoo() {
   [[intel::max_interleaving(1)]]
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
   [[intel::speculated_iterations(1)]]
-  [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i)
+  [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::speculated_iterations(1)]]
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'speculated_iterations'}}
@@ -350,6 +362,11 @@ void zoo() {
   // expected-error@+1{{duplicate Intel FPGA loop attribute 'max_reinvocation_delay'}}
   [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::enable_loop_pipelining]]
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'enable_loop_pipelining'}}
+  [[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -358,9 +375,11 @@ void loop_attrs_compatibility() {
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+2 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
+  // no diagnostics are expected
   [[intel::disable_loop_pipelining]] [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::max_interleaving(1)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
@@ -394,6 +413,13 @@ void loop_attrs_compatibility() {
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::max_reinvocation_delay(1)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // no diagnostics are expected
+  [[intel::enable_loop_pipelining]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'disable_loop_pipelining' and 'enable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::enable_loop_pipelining]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -422,7 +448,8 @@ void ivdep_dependent() {
       a[i] = 0;
 
   (void)[]() {
-  // expected-warning@+3 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
+  // expected-warning@+4 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
+  // expected-note@-2 2{{while substituting into a lambda expression here}}
   // expected-note@+1 2{{previous attribute is here}}
   [[intel::ivdep]]
   [[intel::ivdep]] while (true);
@@ -462,18 +489,23 @@ void max_concurrency_dependent() {
 template <int A, int B, int C, int D>
 void max_interleaving_dependent() {
   int a[10];
-  // expected-error@+1 {{'max_interleaving' attribute requires a non-negative integral compile time constant expression}}
-  [[intel::max_interleaving(C)]] for (int i = 0; i != 10; ++i)
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
+  [[intel::max_interleaving(A)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
-  [[intel::max_interleaving(A)]]
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
   // max_interleaving attribute accepts value 0.
+  [[intel::max_interleaving(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{duplicate Intel FPGA loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(C)]]
   [[intel::max_interleaving(D)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
 }
 
 template <int A, int B, int C, int D>
@@ -595,7 +627,7 @@ void check_max_interleaving_expression() {
 
   // Test that checks expression is a constant expression.
   constexpr int bar = 0;
-  [[intel::max_interleaving(bar + 2)]] for (int i = 0; i != 10; ++i) // OK
+  [[intel::max_interleaving(bar + 1)]] for (int i = 0; i != 10; ++i) // OK
       a[i] = 0;
 }
 
@@ -744,7 +776,7 @@ int main() {
       ii_dependent<2, 4, -1>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
       max_concurrency_dependent<1, 4, -2, 0>(); // expected-note{{in instantiation of function template specialization 'max_concurrency_dependent<1, 4, -2, 0>' requested here}}
-      max_interleaving_dependent<1, 4, -1, 0>(); // expected-note{{in instantiation of function template specialization 'max_interleaving_dependent<1, 4, -1, 0>' requested here}}
+      max_interleaving_dependent<-1, 4, 0, 1>(); // expected-note{{in instantiation of function template specialization 'max_interleaving_dependent<-1, 4, 0, 1>' requested here}}
       speculated_iterations_dependent<1, 8, -3, 0>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0>' requested here}}
       loop_coalesce_dependent<-1, 4,  0>(); // expected-note{{in instantiation of function template specialization 'loop_coalesce_dependent<-1, 4, 0>' requested here}}
       loop_count_control_dependent<3, 2, -1>(); // expected-note{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}

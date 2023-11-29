@@ -94,34 +94,24 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM-SPIRV
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM-SPIRV
 
-; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_payload_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_payload_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ref_payload_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_sic_payload_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_result_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ref_result_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_sic_result_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_single_reference_streamout_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_dual_reference_streamout_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_single_reference_streamin_t = type opaque
-; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_dual_reference_streamin_t = type opaque
-
-; CHECK-LLVM-SPIRV: %spirv.AvcMcePayloadINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImePayloadINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcRefPayloadINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcSicPayloadINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcMceResultINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImeResultINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcRefResultINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcSicResultINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImeResultSingleReferenceStreamoutINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImeResultDualReferenceStreamoutINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImeSingleReferenceStreaminINTEL = type opaque
-; CHECK-LLVM-SPIRV: %spirv.AvcImeDualReferenceStreaminINTEL = type opaque
+; CHECK-LLVM-NOT: target("spirv.")
 
 ; CHECK-COMMON: define spir_func void @foo()
+
+; CHECK-LLVM-SPIRV: target("spirv.AvcMcePayloadINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImePayloadINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcRefPayloadINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcSicPayloadINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcMceResultINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImeResultINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcRefResultINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcSicResultINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImeResultSingleReferenceStreamoutINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImeResultDualReferenceStreamoutINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImeSingleReferenceStreaminINTEL")
+; CHECK-LLVM-SPIRV: target("spirv.AvcImeDualReferenceStreaminINTEL")
+

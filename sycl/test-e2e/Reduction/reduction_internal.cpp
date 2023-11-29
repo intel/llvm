@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
@@ -79,8 +77,8 @@ static void test(RedStorage &Storage, RangeTy Range) {
          return reduction(Red, cgh, BinOpTy{});
      }();
      detail::reduction_parallel_for<detail::auto_name, Strategy>(
-         cgh, Range, ext::oneapi::experimental::detail::empty_properties_t{},
-         RedSycl, [=](auto Item, auto &Red) { Red.combine(T{1}); });
+         cgh, Range, ext::oneapi::experimental::empty_properties_t{}, RedSycl,
+         [=](auto Item, auto &Red) { Red.combine(T{1}); });
    }).wait();
 
   auto *Result = malloc_shared<T>(1, q);

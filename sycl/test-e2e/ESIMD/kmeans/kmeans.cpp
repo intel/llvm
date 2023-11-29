@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %S/points.csv
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -I%S/.. -o %t.out
+// RUN: %{run} %t.out %S/points.csv
 
 #include "kmeans.h"
 #include "esimd_test_utils.hpp"
@@ -77,13 +75,14 @@ bool verify_result(Centroid4 *centroids4, // gpu centroids result
   int k = 0;
   int j = 0;
   for (auto i = 0; i < NUM_CENTROIDS_ACTUAL; i++) {
-    float errX = fabs(centroids4[j].x[k] - centroids[i].x) /
-                 max(fabs(centroids4[j].x[k]), fabs(centroids[i].x));
-    float errY = fabs(centroids4[j].y[k] - centroids[i].y) /
-                 max(fabs(centroids4[j].y[k]), fabs(centroids[i].y));
+    float errX = std::fabs(centroids4[j].x[k] - centroids[i].x) /
+                 max(std::fabs(centroids4[j].x[k]), std::fabs(centroids[i].x));
+    float errY = std::fabs(centroids4[j].y[k] - centroids[i].y) /
+                 max(std::fabs(centroids4[j].y[k]), std::fabs(centroids[i].y));
     float errSize =
-        abs(centroids4[j].num_points[k] - centroids[i].num_points) /
-        max(abs(centroids4[j].num_points[k]), abs(centroids[i].num_points));
+        std::abs(centroids4[j].num_points[k] - centroids[i].num_points) /
+        max(std::abs(centroids4[j].num_points[k]),
+            std::abs(centroids[i].num_points));
     // std::cout << i << ": Wanted (" << centroids[i].x << ", " <<
     // centroids[i].y
     //        << ", " << centroids[i].num_points << ")" << std::endl;

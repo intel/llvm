@@ -139,12 +139,14 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                             QueueImplA, DefaultHostQueue};
     testCommandEnqueue(&MemCpyCmdHost, QueueImplB, MockReq);
 
-    std::unique_ptr<detail::CG> CG{new detail::CGFill(/*Pattern*/ {}, &MockReq,
-                                                      /*ArgsStorage*/ {},
-                                                      /*AccStorage*/ {},
-                                                      /*SharedPtrStorage*/ {},
-                                                      /*Requirements*/ {},
-                                                      /*Events*/ {})};
+    std::unique_ptr<detail::CG> CG{
+        new detail::CGFill(/*Pattern*/ {}, &MockReq,
+                           detail::CG::StorageInitHelper(
+                               /*ArgsStorage*/ {},
+                               /*AccStorage*/ {},
+                               /*SharedPtrStorage*/ {},
+                               /*Requirements*/ {},
+                               /*Events*/ {}))};
     detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA};
     MockReq.MDims = 1;
     (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),

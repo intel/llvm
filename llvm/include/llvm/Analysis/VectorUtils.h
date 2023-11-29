@@ -182,27 +182,6 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 std::optional<VFInfo> tryDemangleForVFABI(StringRef MangledName,
                                           const Module &M);
 
-/// This routine mangles the given VectorName according to the LangRef
-/// specification for vector-function-abi-variant attribute and is specific to
-/// the TLI mappings. It is the responsibility of the caller to make sure that
-/// this is only used if all parameters in the vector function are vector type.
-/// This returned string holds scalar-to-vector mapping:
-///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
-///
-/// where:
-///
-/// <isa> = "_LLVM_"
-/// <mask> = "M" if masked, "N" if no mask.
-/// <vlen> = Number of concurrent lanes, stored in the `VectorizationFactor`
-///          field of the `VecDesc` struct. If the number of lanes is scalable
-///          then 'x' is printed instead.
-/// <vparams> = "v", as many as are the numArgs.
-/// <scalarname> = the name of the scalar function.
-/// <vectorname> = the name of the vector function.
-std::string mangleTLIVectorName(StringRef VectorName, StringRef ScalarName,
-                                unsigned numArgs, ElementCount VF,
-                                bool Masked = false);
-
 /// Retrieve the `VFParamKind` from a string token.
 VFParamKind getVFParamKindFromString(const StringRef Token);
 
@@ -311,7 +290,6 @@ public:
 
 template <typename T> class ArrayRef;
 class DemandedBits;
-class GetElementPtrInst;
 template <typename InstTy> class InterleaveGroup;
 class IRBuilderBase;
 class Loop;
@@ -347,9 +325,9 @@ bool isTriviallyVectorizable(Intrinsic::ID ID);
 bool isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
                                         unsigned ScalarOpdIdx);
 
-/// Identifies if the vector form of the intrinsic has a operand that has
-/// an overloaded type.
-bool isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID, unsigned OpdIdx);
+/// Identifies if the vector form of the intrinsic is overloaded on the type of
+/// the operand at index \p OpdIdx, or on the return type if \p OpdIdx is -1.
+bool isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID, int OpdIdx);
 
 /// Returns intrinsic ID for call.
 /// For the input call instruction it finds mapping intrinsic and returns
@@ -671,7 +649,7 @@ public:
       return false;
 
     // Skip if there is already a member with the same index.
-    if (Members.find(Key) != Members.end())
+    if (Members.contains(Key))
       return false;
 
     if (Key > LargestKey) {
@@ -917,7 +895,7 @@ private:
   /// Collect all the accesses with a constant stride in program order.
   void collectConstStrideAccesses(
       MapVector<Instruction *, StrideDescriptor> &AccessStrideInfo,
-      const ValueToValueMap &Strides);
+      const DenseMap<Value *, const SCEV *> &Strides);
 
   /// Returns true if \p Stride is allowed in an interleaved group.
   static bool isStrided(int Stride);

@@ -619,6 +619,12 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 * If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents is not copied back to the Level Zero memory allocation.
 * If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
+## 5. Device information descriptors
+
+|Device descriptors|Value|
+|-------------|:------------|
+|`info::device::backend_version`|The Level Zero backend does not define the value of this information descriptor. Applications should not use it, and implementations are encouraged to return the empty string.
+
 ## Revision History
 |Rev|Date|Author|Changes|
 |-------------|:------------|:------------|:------------|

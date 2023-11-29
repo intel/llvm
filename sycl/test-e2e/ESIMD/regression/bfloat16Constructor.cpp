@@ -1,8 +1,6 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 || cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: gpu && !esimd_emulator
+// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==- bfloat16Constructor.cpp - Test to verify use of bfloat16 constructor -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,10 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 // This is basic test to verify use of bfloat16 constructor in kernel.
-// TODO: Enable the test once the GPU RT supporting the functionality reaches
-// the CI
 
 #include <CL/sycl.hpp>
 #include <ext/intel/esimd.hpp>
@@ -44,7 +39,7 @@ int main() {
       using namespace __ESIMD_ENS;
       simd<bf16, 32> data_bf16 = bf16(0);
       simd<float, 32> data = data_bf16;
-      lsc_block_store<float, 32>(C, data);
+      data.copy_to(C);
     });
   });
   e.wait();

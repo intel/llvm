@@ -29,7 +29,7 @@
 ;;   return 0;
 ;; }
 ;;
-;; Code compiled with -mllvm -memprof-min-lifetime-cold-threshold=5 so that the
+;; Code compiled with -mllvm -memprof-ave-lifetime-cold-threshold=5 so that the
 ;; memory freed after sleep(10) results in cold lifetimes.
 ;;
 ;; Both foo and baz are inlined into main, at both foo callsites.
@@ -44,6 +44,7 @@
 
 ; RUN: opt -thinlto-bc %s >%t.o
 ; RUN: llvm-lto2 run %t.o -enable-memprof-context-disambiguation \
+; RUN:  -supports-hot-cold-new \
 ; RUN:  -r=%t.o,main,plx \
 ; RUN:  -r=%t.o,_Z3barv,plx \
 ; RUN:  -r=%t.o,_Z3bazv,plx \

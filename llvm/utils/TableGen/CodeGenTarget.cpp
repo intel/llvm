@@ -15,6 +15,7 @@
 
 #include "CodeGenTarget.h"
 #include "CodeGenInstruction.h"
+#include "CodeGenRegisters.h"
 #include "CodeGenSchedule.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -42,7 +43,7 @@ static cl::opt<unsigned>
 
 /// getValueType - Return the MVT::SimpleValueType that the specified TableGen
 /// record corresponds to.
-MVT::SimpleValueType llvm::getValueType(Record *Rec) {
+MVT::SimpleValueType llvm::getValueType(const Record *Rec) {
   return (MVT::SimpleValueType)Rec->getValueAsInt("Value");
 }
 
@@ -429,6 +430,10 @@ void CodeGenTarget::ReadRegAltNameIndices() const {
 /// return it.
 const CodeGenRegister *CodeGenTarget::getRegisterByName(StringRef Name) const {
   return getRegBank().getRegistersByName().lookup(Name);
+}
+
+const CodeGenRegisterClass &CodeGenTarget::getRegisterClass(Record *R) const {
+  return *getRegBank().getRegClass(R);
 }
 
 std::vector<ValueTypeByHwMode> CodeGenTarget::getRegisterVTs(Record *R)

@@ -2,7 +2,7 @@
 2 Capability Addresses
 2 Capability Shader
 3 MemoryModel 2 2
-6 EntryPoint 6 2 "foo"
+4 EntryPoint 6 2 "foo"
 3 Name 3 "res"
 2 TypeVoid 12
 3 TypeFloat 13 32

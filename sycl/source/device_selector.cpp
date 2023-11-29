@@ -10,6 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/device.hpp>
@@ -24,7 +25,7 @@
 #include <regex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -40,7 +41,7 @@ static int getDevicePreference(const device &Device) {
     Score += 1000;
 
   // Prefer level_zero backend devices.
-  if (detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+  if (detail::getSyclObjImpl(Device)->getBackend() ==
       backend::ext_oneapi_level_zero)
     Score += 50;
 
@@ -348,5 +349,5 @@ device filter_selector::select_device() const {
   return ext::oneapi::filter_selector::select_device();
 }
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

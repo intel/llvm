@@ -5,18 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: aspect-fp16
 // REQUIRES: matrix-xmx8
+// REQUIRES: matrix-fp16
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// Only run on the GPU because half is not supported on AMX hardware
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../joint_matrix_half_impl.hpp"

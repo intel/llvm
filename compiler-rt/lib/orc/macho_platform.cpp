@@ -577,7 +577,7 @@ Error MachOPlatformRuntimeState::deregisterObjectPlatformSections(
   // TODO: Add a JITDylib prepare-for-teardown operation that clears all
   //       registered sections, causing this function to take the fast-path.
   ORC_RT_DEBUG({
-    printdbg("MachOPlatform: Registering object sections for %p.\n",
+    printdbg("MachOPlatform: Deregistering object sections for %p.\n",
              HeaderAddr.toPtr<void *>());
   });
 
@@ -861,14 +861,17 @@ Error MachOPlatformRuntimeState::registerObjCRegistrationObjects(
     JITDylibState &JDS) {
   ORC_RT_DEBUG(printdbg("Registering Objective-C / Swift metadata.\n"));
 
+  std::vector<char *> RegObjBases;
+  JDS.ObjCRuntimeRegistrationObjects.processNewSections(
+      [&](span<char> RegObj) { RegObjBases.push_back(RegObj.data()); });
+
+  if (RegObjBases.empty())
+    return Error::success();
+
   if (!_objc_map_images || !_objc_load_image)
     return make_error<StringError>(
         "Could not register Objective-C / Swift metadata: _objc_map_images / "
         "_objc_load_image not found");
-
-  std::vector<char *> RegObjBases;
-  JDS.ObjCRuntimeRegistrationObjects.processNewSections(
-      [&](span<char> RegObj) { RegObjBases.push_back(RegObj.data()); });
 
   std::vector<char *> Paths;
   Paths.resize(RegObjBases.size());

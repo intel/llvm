@@ -17,13 +17,33 @@ namespace mlir {
 namespace linalg {
 namespace {
 
-/// Helper structure that iterates over all LinalgOps in `OpTys` and registers
-/// the `ValueBoundsOpInterface` with each of them.
-template <typename... Ops> struct LinalgValueBoundsOpInterfaceHelper {
-  static void registerOpInterface(MLIRContext *ctx) {
-    (Ops::template attachInterface<DstValueBoundsOpInterfaceExternalModel<Ops>>(
-         *ctx),
-     ...);
+struct IndexOpInterface
+    : public ValueBoundsOpInterface::ExternalModel<IndexOpInterface, IndexOp> {
+  void populateBoundsForIndexValue(Operation *op, Value value,
+                                   ValueBoundsConstraintSet &cstr) const {
+    auto indexOp = cast<IndexOp>(op);
+    auto linalgOp = indexOp->getParentOfType<LinalgOp>();
+    assert(value == indexOp.getResult() && "invalid value");
+
+    // index >= 0
+    cstr.bound(value) >= 0;
+
+    // index < dim size
+    int64_t flatDimPos =
+        cast<AffineDimExpr>(
+            linalgOp.getShapesToLoopsMap().getResult(indexOp.getDim()))
+            .getPosition();
+    // Find the `flatDimPos`-th operand dimension.
+    int64_t flatDimCtr = 0;
+    for (Value operand : linalgOp->getOperands()) {
+      assert(flatDimPos >= flatDimCtr && "invalid pos");
+      auto shapedType = llvm::cast<ShapedType>(operand.getType());
+      if (flatDimPos < flatDimCtr + shapedType.getRank()) {
+        cstr.bound(value) < cstr.getExpr(operand, flatDimPos - flatDimCtr);
+        break;
+      }
+      flatDimCtr += shapedType.getRank();
+    }
   }
 };
 
@@ -34,10 +54,8 @@ template <typename... Ops> struct LinalgValueBoundsOpInterfaceHelper {
 void mlir::linalg::registerValueBoundsOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, linalg::LinalgDialect *dialect) {
-    // Register all Linalg structured ops.
-    LinalgValueBoundsOpInterfaceHelper<
-#define GET_OP_LIST
-#include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
-        >::registerOpInterface(ctx);
+    IndexOp::attachInterface<IndexOpInterface>(*ctx);
+    // Note: ValueBoundsOpInterface implementation is not required for ops that
+    // implement `DestinationStyleOpInterface` (for querying shaped OpResults).
   });
 }

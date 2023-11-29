@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // This test implements parallel radix sort on GPU
 

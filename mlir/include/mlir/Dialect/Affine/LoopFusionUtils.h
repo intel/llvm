@@ -21,9 +21,11 @@
 #include "llvm/ADT/SmallVector.h"
 
 namespace mlir {
+class Operation;
+
+namespace affine {
 class AffineForOp;
 struct ComputationSliceState;
-class Operation;
 
 // TODO: Extend this module to include utility functions for querying fusion
 // cost/storage reduction, and for performing the loop fusion transformation.
@@ -108,7 +110,6 @@ private:
 /// returns a FusionResult explaining why fusion is not feasible.
 /// NOTE: This function is not feature complete and should only be used in
 /// testing.
-/// TODO: Update comments when this function is fully implemented.
 FusionResult
 canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp, unsigned dstLoopDepth,
              ComputationSliceState *srcSlice,
@@ -165,6 +166,8 @@ bool getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
 void gatherProducerConsumerMemrefs(ArrayRef<Operation *> srcOps,
                                    ArrayRef<Operation *> dstOps,
                                    DenseSet<Value> &producerConsumerMemrefs);
+
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_LOOPFUSIONUTILS_H

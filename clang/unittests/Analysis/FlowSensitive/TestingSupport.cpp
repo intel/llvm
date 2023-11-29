@@ -15,6 +15,7 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Testing/Annotations/Annotations.h"
+#include "gtest/gtest.h"
 #include <cassert>
 #include <functional>
 #include <memory>
@@ -153,10 +154,83 @@ test::buildStatementToAnnotationMapping(const FunctionDecl *Func,
   return Result;
 }
 
+llvm::Error test::checkDataflowWithNoopAnalysis(
+    llvm::StringRef Code,
+    std::function<
+        void(const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &,
+             ASTContext &)>
+        VerifyResults,
+    DataflowAnalysisOptions Options, LangStandard::Kind Std,
+    llvm::StringRef TargetFun) {
+  return checkDataflowWithNoopAnalysis(Code, ast_matchers::hasName(TargetFun),
+                                       VerifyResults, Options, Std);
+}
+
+llvm::Error test::checkDataflowWithNoopAnalysis(
+    llvm::StringRef Code,
+    ast_matchers::internal::Matcher<FunctionDecl> TargetFuncMatcher,
+    std::function<
+        void(const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &,
+             ASTContext &)>
+        VerifyResults,
+    DataflowAnalysisOptions Options, LangStandard::Kind Std) {
+  llvm::SmallVector<std::string, 3> ASTBuildArgs = {
+      // -fnodelayed-template-parsing is the default everywhere but on Windows.
+      // Set it explicitly so that tests behave the same on Windows as on other
+      // platforms.
+      "-fsyntax-only", "-fno-delayed-template-parsing",
+      "-std=" +
+          std::string(LangStandard::getLangStandardForKind(Std).getName())};
+  AnalysisInputs<NoopAnalysis> AI(
+      Code, TargetFuncMatcher,
+      [UseBuiltinModel = Options.BuiltinOpts.has_value()](ASTContext &C,
+                                                          Environment &Env) {
+        return NoopAnalysis(
+            C,
+            DataflowAnalysisOptions{
+                UseBuiltinModel ? Env.getDataflowAnalysisContext().getOptions()
+                                : std::optional<BuiltinOptions>()});
+      });
+  AI.ASTBuildArgs = ASTBuildArgs;
+  if (Options.BuiltinOpts)
+    AI.BuiltinOptions = *Options.BuiltinOpts;
+  return checkDataflow<NoopAnalysis>(
+      std::move(AI),
+      /*VerifyResults=*/
+      [&VerifyResults](
+          const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+          const AnalysisOutputs &AO) { VerifyResults(Results, AO.ASTCtx); });
+}
+
 const ValueDecl *test::findValueDecl(ASTContext &ASTCtx, llvm::StringRef Name) {
-  auto TargetNodes = match(valueDecl(hasName(Name)).bind("v"), ASTCtx);
+  auto TargetNodes = match(
+      valueDecl(unless(indirectFieldDecl()), hasName(Name)).bind("v"), ASTCtx);
   assert(TargetNodes.size() == 1 && "Name must be unique");
   auto *const Result = selectFirst<ValueDecl>("v", TargetNodes);
   assert(Result != nullptr);
+  return Result;
+}
+
+const IndirectFieldDecl *test::findIndirectFieldDecl(ASTContext &ASTCtx,
+                                                     llvm::StringRef Name) {
+  auto TargetNodes = match(indirectFieldDecl(hasName(Name)).bind("i"), ASTCtx);
+  assert(TargetNodes.size() == 1 && "Name must be unique");
+  const auto *Result = selectFirst<IndirectFieldDecl>("i", TargetNodes);
+  assert(Result != nullptr);
+  return Result;
+}
+
+std::vector<const Formula *> test::parseFormulas(Arena &A, StringRef Lines) {
+  std::vector<const Formula *> Result;
+  while (!Lines.empty()) {
+    auto [First, Rest] = Lines.split('\n');
+    Lines = Rest;
+    if (First.trim().empty())
+      continue;
+    if (auto F = A.parseFormula(First))
+      Result.push_back(&*F);
+    else
+      ADD_FAILURE() << llvm::toString(F.takeError());
+  }
   return Result;
 }

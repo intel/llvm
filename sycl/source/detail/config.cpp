@@ -17,12 +17,17 @@
 #include <limits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
+
+// Stringify an argument to pass it in _Pragma directive below.
+#ifndef __SYCL_STRINGIFY
+#define __SYCL_STRINGIFY(x) #x
+#endif // __SYCL_STRINGIFY
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
@@ -172,18 +177,19 @@ getSyclDeviceTypeMap() {
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"esimd_emulator", backend::ext_intel_esimd_emulator},
+       {"native_cpu", backend::ext_native_cpu},
        {"*", backend::all}}};
   return SyclBeMap;
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

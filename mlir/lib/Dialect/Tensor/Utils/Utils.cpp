@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 
 using namespace mlir;
 using namespace mlir::tensor;
@@ -23,9 +24,8 @@ using namespace mlir::tensor;
 PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
                                     Value pad, bool nofold, Location loc,
                                     OpBuilder &b) {
-  auto zero = b.createOrFold<arith::ConstantIndexOp>(loc, 0);
-  SmallVector<OpFoldResult> low(type.getRank(), zero);
-  SmallVector<OpFoldResult> high(type.getRank(), zero);
+  SmallVector<OpFoldResult> low(type.getRank(), b.getIndexAttr(0));
+  SmallVector<OpFoldResult> high(type.getRank(), b.getIndexAttr(0));
   for (const auto &en : enumerate(type.getShape())) {
     // Pad only the static dimensions of the result tensor type.
     if (ShapedType::isDynamic(en.value()))
@@ -33,9 +33,9 @@ PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
     // Compute the padding width.
     AffineExpr d0;
     bindDims(b.getContext(), d0);
-    auto dimOp = b.createOrFold<tensor::DimOp>(loc, source, en.index());
+    OpFoldResult sz = tensor::getMixedSize(b, loc, source, en.index());
     high[en.index()] =
-        makeComposedAffineApply(b, loc, en.value() - d0, {dimOp}).getResult();
+        affine::makeComposedFoldedAffineApply(b, loc, en.value() - d0, {sz});
   }
   return b.create<PadOp>(loc, type, source, low, high, pad, nofold);
 }
@@ -43,7 +43,7 @@ PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
 SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
                                                         Location loc,
                                                         Value rankedTensor) {
-  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  auto tensorTy = cast<RankedTensorType>(rankedTensor.getType());
   SmallVector<Value> dynamicDims;
   for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
     if (en.value() == ShapedType::kDynamic)
@@ -51,35 +51,6 @@ SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
           b.create<tensor::DimOp>(loc, rankedTensor, en.index()));
   }
   return dynamicDims;
-}
-
-FailureOr<OpFoldResult> mlir::tensor::createDimValue(OpBuilder &b, Location loc,
-                                                     Value rankedTensor,
-                                                     int64_t dim) {
-  auto tensorTy = rankedTensor.getType().dyn_cast<RankedTensorType>();
-  if (!tensorTy)
-    return failure();
-  auto shape = tensorTy.getShape();
-  if (dim >= static_cast<int64_t>(shape.size()))
-    return failure();
-  if (ShapedType::isDynamic(shape[dim]))
-    return OpFoldResult(b.createOrFold<tensor::DimOp>(loc, rankedTensor, dim));
-  return OpFoldResult(b.getIndexAttr(shape[dim]));
-}
-
-SmallVector<OpFoldResult>
-mlir::tensor::createDimValues(OpBuilder &b, Location loc, Value rankedTensor) {
-  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
-  SmallVector<OpFoldResult> dims;
-  for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
-    if (ShapedType::isDynamic(en.value())) {
-      dims.push_back(
-          b.createOrFold<tensor::DimOp>(loc, rankedTensor, en.index()));
-    } else {
-      dims.push_back(b.getIndexAttr(en.value()));
-    }
-  }
-  return dims;
 }
 
 FailureOr<RankedTensorType>
@@ -100,4 +71,48 @@ mlir::tensor::computeTransposedType(RankedTensorType rankedTensorType,
   RankedTensorType transposedTensorType =
       RTTBuilder(rankedTensorType).setShape(transposedShape);
   return transposedTensorType;
+}
+
+bool mlir::tensor::isCastLikeInsertSliceOp(InsertSliceOp op) {
+  llvm::SmallBitVector droppedDims = op.getDroppedDims();
+  int64_t srcDim = 0;
+  // Source dims and destination dims (apart from dropped dims) must have the
+  // same size.
+  for (int64_t resultDim = 0; resultDim < op.getDestType().getRank();
+       ++resultDim) {
+    if (droppedDims.test(resultDim)) {
+      continue;
+    }
+    FailureOr<bool> equalDimSize = ValueBoundsConstraintSet::areEqual(
+        op.getSource(), op.getResult(), srcDim, resultDim);
+    if (failed(equalDimSize) || !*equalDimSize)
+      return false;
+    ++srcDim;
+  }
+
+  return true;
+}
+
+bool mlir::tensor::isCastLikeExtractSliceOp(ExtractSliceOp op) {
+  llvm::SmallBitVector droppedDims = op.getDroppedDims();
+  int64_t resultDim = 0;
+  // Source dims and result dims (apart from dropped dims) must have the same
+  // size.
+  RankedTensorType sourceType = op.getSourceType();
+  for (int64_t dim = 0, e = sourceType.getRank(); dim < e; ++dim) {
+    if (droppedDims.test(dim)) {
+      // ExtractSlice may drop unit dimensions that result from taking a size-1
+      // slice from a non-size-1 source dimension.
+      if (sourceType.getDimSize(dim) != 1)
+        return false;
+      continue;
+    }
+    FailureOr<bool> equalDimSize = ValueBoundsConstraintSet::areEqual(
+        op.getSource(), op.getResult(), dim, resultDim);
+    if (failed(equalDimSize) || !*equalDimSize)
+      return false;
+    ++resultDim;
+  }
+
+  return true;
 }

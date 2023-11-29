@@ -6,39 +6,139 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <deque>
 #include <iostream>
 #include <mutex>
+#include <set>
 #include <string>
 #include <string_view>
 #include <thread>
 
 std::deque<std::pair<uint16_t, std::string>> GReceivedNotifications;
+std::set<uint16_t> GAnalyzedTraceTypes;
+
+XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t TraceType) {
+  GAnalyzedTraceTypes.insert(TraceType);
+}
+
+XPTI_CALLBACK_API void clearAnalyzedTraceTypes() {
+  GAnalyzedTraceTypes.clear();
+}
+
 XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t * /*Parent*/,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t /*Instance*/,
                                     const void *UserData) {
-  if (TraceType != xpti::trace_diagnostics)
+  if (GAnalyzedTraceTypes.find(TraceType) == GAnalyzedTraceTypes.end())
     return;
 
-  std::string AggregatedData;
-  if (Event && Event->reserved.payload && Event->reserved.payload->name &&
-      Event->reserved.payload->source_file) {
-    auto Payload = Event->reserved.payload;
-    const char Delimiter[] = ";";
-    AggregatedData.append(Payload->name);
-    AggregatedData.append(Delimiter);
-    AggregatedData.append(Payload->source_file);
-    AggregatedData.append(Delimiter);
-    AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
-                          std::to_string(Payload->column_no) + Delimiter);
-  } else
-    AggregatedData.append("code location unknown;");
-  AggregatedData.append(static_cast<const char *>(UserData));
-  GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
+  if (TraceType == xpti::trace_diagnostics) {
+    std::string AggregatedData;
+    if (Event && Event->reserved.payload && Event->reserved.payload->name &&
+        Event->reserved.payload->source_file) {
+      auto Payload = Event->reserved.payload;
+      const char Delimiter[] = ";";
+      AggregatedData.append(Payload->name);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(Payload->source_file);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
+                            std::to_string(Payload->column_no) + Delimiter);
+    } else
+      AggregatedData.append("code location unknown;");
+    AggregatedData.append(static_cast<const char *>(UserData));
+    GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
+  } else if (TraceType == xpti::trace_node_create) {
+    std::string UData(static_cast<const char *>(UserData));
+    if (UData.find("command_group_node") != std::string::npos) {
+      auto Payload = xptiQueryPayload(Event);
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "kernel_name") {
+          GReceivedNotifications.push_back(
+              std::make_pair(TraceType, UData + std::string(Payload->name)));
+        }
+      }
+    } else if (UData.find("memory_transfer_node") != std::string::npos) {
+      GReceivedNotifications.push_back(std::make_pair(TraceType, UData));
+    }
+  } else if (TraceType == xpti::trace_queue_create) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("create:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
+          Message.append(";");
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_queue_destroy) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("destroy:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
+          Message.append(";");
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_task_begin) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_begin:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_task_end) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_end:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  }
 }
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
@@ -47,6 +147,13 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      const char * /*StreamName*/) {
   uint8_t StreamID = xptiRegisterStream("sycl");
   xptiRegisterCallback(StreamID, xpti::trace_diagnostics, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_node_create, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_queue_create, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_queue_destroy, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char * /*StreamName*/) {}

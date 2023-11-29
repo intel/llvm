@@ -8,24 +8,60 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/half_type.hpp>                 // for half
 
-#include <array>
-#include <tuple>
-#include <type_traits>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for true_type, false_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+namespace detail {
+template <class T> struct is_fixed_size_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+class SwizzleOp;
+} // namespace detail
+
 template <int Dimensions> class group;
+struct sub_group;
 namespace ext::oneapi {
 struct sub_group;
 
 namespace experimental {
 template <typename Group, std::size_t Extent> class group_with_scratchpad;
+
+template <class T> struct is_fixed_topology_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_fixed_topology_group_v =
+    is_fixed_topology_group<T>::value;
+
+#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
+template <> struct is_fixed_topology_group<root_group> : std::true_type {};
+#endif
+
+template <int Dimensions>
+struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
+
+template <>
+struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
+};
+template <> struct is_fixed_topology_group<sycl::sub_group> : std::true_type {};
+
+template <class T> struct is_user_constructed_group : std::false_type {};
+
+template <class T>
+inline constexpr bool is_user_constructed_group_v =
+    is_user_constructed_group<T>::value;
 
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
@@ -47,6 +83,7 @@ struct is_group<group<Dimensions>> : std::true_type {};
 template <typename T> struct is_sub_group : std::false_type {};
 
 template <> struct is_sub_group<ext::oneapi::sub_group> : std::true_type {};
+template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group
@@ -94,7 +131,8 @@ template <typename T> struct vector_size_impl : int_constant<1> {};
 template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
-struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
+struct vector_size
+    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -107,11 +145,32 @@ template <typename T, int N> struct vector_element_impl<vec<T, N>> {
   using type = T;
 };
 template <typename T> struct vector_element {
-  using type = copy_cv_qualifiers_t<T, vector_element_impl_t<remove_cv_t<T>>>;
+  using type =
+      copy_cv_qualifiers_t<T, vector_element_impl_t<std::remove_cv_t<T>>>;
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
 template <class T> using marray_element_t = typename T::value_type;
+
+// get_elem_type
+// Get the element type of T. If T is a scalar, the element type is considered
+// the type of the scalar.
+template <typename T> struct get_elem_type {
+  using type = T;
+};
+template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
+  using type = T;
+};
+template <typename T, int N> struct get_elem_type<vec<T, N>> {
+  using type = T;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
+};
+template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
@@ -145,100 +204,63 @@ struct copy_cv_qualifiers_impl<const volatile T, R> {
 };
 
 template <typename T, typename R> struct copy_cv_qualifiers {
-  using type = typename copy_cv_qualifiers_impl<T, remove_cv_t<R>>::type;
+  using type = typename copy_cv_qualifiers_impl<T, std::remove_cv_t<R>>::type;
 };
 
 // make_signed with support SYCL vec class
-template <typename T, typename Enable = void> struct make_signed_impl;
-
-template <typename T>
-using make_signed_impl_t = typename make_signed_impl<T, T>::type;
-
-template <typename T>
-struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
-  using type = typename std::make_signed<T>::type;
-};
-
-template <typename T>
-struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
-  using base_type = make_signed_impl_t<vector_element_t<T>>;
-  using type = change_base_type_t<T, base_type>;
-};
-
-// TODO Delete this specialization after solving the problems in the test
-// infrastructure.
-template <typename T>
-struct make_signed_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
-  using type = T;
-};
-
 template <typename T> struct make_signed {
-  using new_type_wo_cv_qualifiers = make_signed_impl_t<remove_cv_t<T>>;
-  using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
+  using type = std::make_signed_t<T>;
 };
-
 template <typename T> using make_signed_t = typename make_signed<T>::type;
+template <class T> struct make_signed<const T> {
+  using type = const make_signed_t<T>;
+};
+template <class T, int N> struct make_signed<vec<T, N>> {
+  using type = vec<make_signed_t<T>, N>;
+};
+template <class T, std::size_t N> struct make_signed<marray<T, N>> {
+  using type = marray<make_signed_t<T>, N>;
+};
 
 // make_unsigned with support SYCL vec class
-template <typename T, typename Enable = void> struct make_unsigned_impl;
-
-template <typename T>
-using make_unsigned_impl_t = typename make_unsigned_impl<T, T>::type;
-
-template <typename T>
-struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
-  using type = typename std::make_unsigned<T>::type;
-};
-
-template <typename T>
-struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
-  using base_type = make_unsigned_impl_t<vector_element_t<T>>;
-  using type = change_base_type_t<T, base_type>;
-};
-
-// TODO Delete this specialization after solving the problems in the test
-// infrastructure.
-template <typename T>
-struct make_unsigned_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
-  using type = T;
-};
-
 template <typename T> struct make_unsigned {
-  using new_type_wo_cv_qualifiers = make_unsigned_impl_t<remove_cv_t<T>>;
-  using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
+  using type = std::make_unsigned_t<T>;
 };
-
-template <typename T, size_t N> struct make_unsigned<marray<T, N>> {
-  using base_type = marray_element_t<marray<T, N>>;
-  using new_type_wo_cv_qualifiers =
-      make_unsigned_impl_t<remove_cv_t<base_type>>;
-  using type = marray<copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>, N>;
-};
-
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
+template <class T> struct make_unsigned<const T> {
+  using type = const make_unsigned_t<T>;
+};
+template <class T, int N> struct make_unsigned<vec<T, N>> {
+  using type = vec<make_unsigned_t<T>, N>;
+};
+template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
+  using type = marray<make_unsigned_t<T>, N>;
+};
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
-using is_gen_based_on_type_sizeof =
-    bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+inline constexpr bool is_gen_based_on_type_sizeof_v =
+    S<T>::value && (sizeof(vector_element_t<T>) == N);
 
 template <typename> struct is_vec : std::false_type {};
-template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
 
 template <typename> struct get_vec_size {
-  static constexpr std::size_t size = 1;
+  static constexpr int size = 1;
 };
 
-template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
-  static constexpr std::size_t size = N;
+template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr int size = N;
 };
+
+// is_marray
+template <typename> struct is_marray : std::false_type {};
+template <typename T, size_t N>
+struct is_marray<sycl::marray<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
@@ -252,33 +274,35 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<remove_cv_t<vector_element_t<T>>> {};
+    : is_floating_point_impl<std::remove_cv_t<vector_element_t<T>>> {};
 
 // is_arithmetic
 template <typename T>
 struct is_arithmetic
-    : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
+    : std::bool_constant<is_integral<T>::value || is_floating_point<T>::value> {
+};
 
 template <typename T>
 struct is_scalar_arithmetic
-    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
 
 template <typename T>
 struct is_vector_arithmetic
-    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
 // is_bool
 template <typename T>
 struct is_scalar_bool
-    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
+    : std::bool_constant<std::is_same_v<std::remove_cv_t<T>, bool>> {};
 
 template <typename T>
 struct is_vector_bool
-    : bool_constant<is_vec<T>::value &&
-                    is_scalar_bool<vector_element_t<T>>::value> {};
+    : std::bool_constant<is_vec<T>::value &&
+                         is_scalar_bool<vector_element_t<T>>::value> {};
 
 template <typename T>
-struct is_bool : bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+struct is_bool
+    : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
@@ -290,7 +314,47 @@ template <typename T, access::address_space Space,
 struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 };
 
-template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
+template <typename T>
+struct is_pointer : is_pointer_impl<std::remove_cv_t<T>> {};
+
+template <typename T> inline constexpr bool is_pointer_v = is_pointer<T>::value;
+
+// is_multi_ptr
+template <typename T> struct is_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct is_multi_ptr<multi_ptr<ElementType, Space, IsDecorated>>
+    : std::true_type {};
+
+template <class T>
+inline constexpr bool is_multi_ptr_v = is_multi_ptr<T>::value;
+
+// is_non_legacy_multi_ptr
+template <typename T> struct is_non_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::yes>> : std::true_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_non_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::no>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_non_legacy_multi_ptr_v =
+    is_non_legacy_multi_ptr<T>::value;
+
+// is_legacy_multi_ptr
+template <typename T> struct is_legacy_multi_ptr : std::false_type {};
+
+template <typename ElementType, access::address_space Space>
+struct is_legacy_multi_ptr<
+    multi_ptr<ElementType, Space, access::decorated::legacy>> : std::true_type {
+};
+
+template <class T>
+inline constexpr bool is_legacy_multi_ptr_v = is_legacy_multi_ptr<T>::value;
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl {
@@ -308,7 +372,7 @@ struct remove_pointer_impl<multi_ptr<T, Space, DecorateAddress>> {
 };
 
 template <typename T>
-struct remove_pointer : remove_pointer_impl<remove_cv_t<T>> {};
+struct remove_pointer : remove_pointer_impl<std::remove_cv_t<T>> {};
 
 template <typename T> using remove_pointer_t = typename remove_pointer<T>::type;
 
@@ -323,11 +387,15 @@ template <typename T, typename SpaceList, access::address_space Space,
           access::decorated DecorateAddress>
 struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
                                        SpaceList>
-    : bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
+    : std::bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
 
 template <typename T, typename SpaceList>
 struct is_address_space_compliant
-    : is_address_space_compliant_impl<remove_cv_t<T>, SpaceList> {};
+    : is_address_space_compliant_impl<std::remove_cv_t<T>, SpaceList> {};
+
+template <typename T, typename SpaceList>
+inline constexpr bool is_address_space_compliant_v =
+    is_address_space_compliant<T, SpaceList>::value;
 
 // make_type_t
 template <typename T, typename TL> struct make_type_impl {
@@ -346,21 +414,21 @@ using make_type_t = typename make_type_impl<T, TL>::type;
 template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
 struct make_larger_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_floating_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value,
+                        T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_signed_integer_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
+    T, std::enable_if_t<
+           is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_unsigned_integer_list, T>;
 };
 
@@ -368,8 +436,8 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
-  static constexpr bool found = !std::is_same<upper_type, void>::value;
-  using type = conditional_t<found, new_type, void>;
+  static constexpr bool found = !std::is_same_v<upper_type, void>;
+  using type = std::conditional_t<found, new_type, void>;
 };
 
 template <typename T, size_t N>
@@ -377,8 +445,8 @@ struct make_larger_impl<marray<T, N>, marray<T, N>> {
   using base_type = marray_element_t<marray<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = marray<upper_type, N>;
-  static constexpr bool found = !std::is_same<upper_type, void>::value;
-  using type = conditional_t<found, new_type, void>;
+  static constexpr bool found = !std::is_same_v<upper_type, void>;
+  using type = std::conditional_t<found, new_type, void>;
 };
 
 template <typename T> struct make_larger {
@@ -405,5 +473,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

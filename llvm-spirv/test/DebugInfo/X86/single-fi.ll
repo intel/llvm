@@ -1,7 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -o - %t.ll -filetype=obj \
+; RUN:   | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -o - %t.ll -filetype=obj \
+; RUN:   | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
@@ -12,11 +21,11 @@ target triple = "spir64-unknown-unknown"
 ;                                          fbreg -8
 ; CHECK-NEXT: DW_AT_location {{.*}} (DW_OP_fbreg -8)
 ; CHECK-NEXT: DW_AT_name {{.*}} "dipsy"
-define void @tinkywinky(i8* %dipsy) !dbg !6 {
+define void @tinkywinky(ptr %dipsy) !dbg !6 {
 entry:
-  %dipsy.addr = alloca i8*
-  store i8* %dipsy, i8** %dipsy.addr
-  call void @llvm.dbg.declare(metadata i8** %dipsy.addr, metadata !12, metadata
+  %dipsy.addr = alloca ptr
+  store ptr %dipsy, ptr %dipsy.addr
+  call void @llvm.dbg.declare(metadata ptr %dipsy.addr, metadata !12, metadata
 !13), !dbg !14
   ret void, !dbg !15
 }

@@ -1,7 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
-// RUN: %clangxx -fsycl -D__NO_EXT_VECTOR_TYPE_ON_HOST__ %s -o %t_noext.out
-// RUN: %t_noext.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t_vec.out %}
+// RUN: %if preview-breaking-changes-supported %{ %t_vec.out %}
+
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
 
 #include <cstddef>
@@ -26,18 +26,32 @@ void check_vectors(sycl::int4 a, sycl::int4 b, sycl::int4 c, sycl::int4 gold) {
 template <typename From, typename To> void check_convert() {
   sycl::vec<From, 4> vec{1, 2, 3, 4};
   sycl::vec<To, 4> result = vec.template convert<To>();
-  assert((int)result.x() == (int)vec.x());
-  assert((int)result.y() == (int)vec.y());
-  assert((int)result.z() == (int)vec.z());
-  assert((int)result.w() == (int)vec.w());
+  if constexpr (std::is_same_v<To, bool>) {
+    assert((bool)result.x() == (bool)vec.x());
+    assert((bool)result.y() == (bool)vec.y());
+    assert((bool)result.z() == (bool)vec.z());
+    assert((bool)result.w() == (bool)vec.w());
+  } else {
+    assert((int)result.x() == (int)vec.x());
+    assert((int)result.y() == (int)vec.y());
+    assert((int)result.z() == (int)vec.z());
+    assert((int)result.w() == (int)vec.w());
+  }
 }
+
+template <class T>
+constexpr auto has_unsigned_v =
+    std::is_integral_v<T> && !std::is_same_v<T, bool>;
 
 template <typename From, typename To> void check_signed_unsigned_convert_to() {
   check_convert<From, To>();
-  check_convert<From, sycl::detail::make_unsigned_t<To>>();
-  check_convert<sycl::detail::make_unsigned_t<From>, To>();
-  check_convert<sycl::detail::make_unsigned_t<From>,
-                sycl::detail::make_unsigned_t<To>>();
+  if constexpr (has_unsigned_v<To>)
+    check_convert<From, sycl::detail::make_unsigned_t<To>>();
+  if constexpr (has_unsigned_v<From>)
+    check_convert<sycl::detail::make_unsigned_t<From>, To>();
+  if constexpr (has_unsigned_v<To> && has_unsigned_v<From>)
+    check_convert<sycl::detail::make_unsigned_t<From>,
+                  sycl::detail::make_unsigned_t<To>>();
 }
 
 template <typename From> void check_convert_from() {
@@ -45,7 +59,9 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, int16_t>();
   check_signed_unsigned_convert_to<From, int32_t>();
   check_signed_unsigned_convert_to<From, int64_t>();
+  check_signed_unsigned_convert_to<From, bool>();
   check_signed_unsigned_convert_to<From, char>();
+  check_signed_unsigned_convert_to<From, signed char>();
   check_signed_unsigned_convert_to<From, short>();
   check_signed_unsigned_convert_to<From, int>();
   check_signed_unsigned_convert_to<From, long>();
@@ -55,17 +71,44 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, double>();
 }
 
+template <typename T, typename OpT> void check_ops(OpT op, T c1, T c2) {
+  auto check = [&](sycl::vec<T, 2> vres) {
+    assert(op(c1, c2) == vres[0]);
+    assert(op(c1, c2) == vres[1]);
+  };
+
+  sycl::vec<T, 2> v1(c1);
+  sycl::vec<T, 2> v2(c2);
+  check(op(v1.template swizzle<0, 1>(), v2.template swizzle<0, 1>()));
+  check(op(v1.template swizzle<0, 1>(), v2));
+  check(op(v1.template swizzle<0, 1>(), c2));
+  check(op(c1, v2.template swizzle<0, 1>()));
+  check(op(c1, v2));
+  check(op(v1, v2.template swizzle<0, 1>()));
+  check(op(v1, v2));
+  check(op(v1, c2));
+
+  sycl::vec<T, 2> v3 = {c1, c2};
+  sycl::vec<T, 2> v4 = op(v3, v3.template swizzle<1, 0>());
+  assert(v4[0] == op(c1, c2) && v4[1] == op(c2, c1));
+  sycl::vec<T, 2> v5 = op(v3.template swizzle<1, 1>(), v3);
+  assert(v5[0] == op(c2, c1) && v5[1] == op(c2, c2));
+  sycl::vec<T, 2> v6 =
+      op(v3.template swizzle<1, 1>(), v3.template swizzle<0, 0>());
+  assert(v6[0] == op(c2, c1) && v6[1] == op(c2, c1));
+}
+
 int main() {
   sycl::int4 a = {1, 2, 3, 4};
   const sycl::int4 b = {10, 20, 30, 40};
   const sycl::int4 gold = {21, 42, 90, 120};
-  const sycl::int2 a_xy = a.xy();
+  const sycl::int2 a_xy = a.lo();
   check_vectors(a, b, {1, 2, 30, 40}, gold);
   check_vectors(a, b, {a.x(), a.y(), b.z(), b.w()}, gold);
   check_vectors(a, b, {a.x(), 2, b.z(), 40}, gold);
-  check_vectors(a, b, {a.x(), 2, b.zw()}, gold);
-  check_vectors(a, b, {a_xy, b.z(), 40}, gold);
-  check_vectors(a, b, {a.xy(), b.zw()}, gold);
+  check_vectors(a, b, {a.x(), 2, b.hi()}, gold);
+  check_vectors(a, b, {a.lo(), b.z(), 40}, gold);
+  check_vectors(a, b, {a.lo(), b.hi()}, gold);
 
   // Constructing vector from a scalar
   sycl::vec<int, 1> vec_from_one_elem(1);
@@ -91,6 +134,11 @@ int main() {
   assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.5));
+  b_vec.swizzle<0, 1, 2, 3>() = 0.6;
+  assert(static_cast<float>(b_vec.x()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.6));
+  assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.6));
 
   // Check that vector with 'unsigned long long' elements has enough bits to
   // store value.
@@ -99,10 +147,26 @@ int main() {
   unsigned long long ull_val = ull_vec.template swizzle<sycl::elem::s0>();
   assert(ull_val == ull_ref);
 
+  // Check the swizzle vec class interface.
+  static_assert(
+      std::is_same_v<
+          decltype(a.template swizzle<sycl::elem::s0>())::element_type, int>);
+  const int &b_elem0_const = b.template swizzle<sycl::elem::s0>()[0];
+  const int &a_elem0_const = a.template swizzle<sycl::elem::s0>()[0];
+  int &a_elem0 = a.template swizzle<sycl::elem::s0>()[0];
+  assert(b_elem0_const == 10);
+  assert(a_elem0_const == 1);
+  assert(a_elem0 == 1);
+
   // Check that the function as() in swizzle vec class is working correctly
   sycl::vec<int8_t, 2> inputVec = sycl::vec<int8_t, 2>(0, 1);
   auto asVec = inputVec.template swizzle<sycl::elem::s0, sycl::elem::s1>()
                    .template as<sycl::vec<int16_t, 1>>();
+  auto test = inputVec.as<sycl::vec<bool, 2>>();
+  assert(!test[0] && test[1]);
+  sycl::vec<int8_t, 4> inputVec4 = sycl::vec<int8_t, 4>(0, 1, 1, 0);
+  assert((!inputVec4.lo().as<sycl::vec<bool, 2>>()[0]));
+  assert((inputVec4.lo().as<sycl::vec<bool, 2>>()[1]));
 
   // Check that [u]long[n] type aliases match vec<[u]int64_t, n> types.
   assert((std::is_same<sycl::vec<std::int64_t, 2>, sycl::long2>::value));
@@ -122,6 +186,7 @@ int main() {
   check_convert_from<int32_t>();
   check_convert_from<int64_t>();
   check_convert_from<char>();
+  check_convert_from<signed char>();
   check_convert_from<short>();
   check_convert_from<int>();
   check_convert_from<long>();
@@ -130,6 +195,8 @@ int main() {
   check_convert_from<float>();
   check_convert_from<double>();
   check_convert_from<bool>();
+
+  check_ops<int>(std::modulus(), 6, 3);
 
   return 0;
 }

@@ -1,8 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // The test checks functionality of the slm_gather_rgba/slm_scatter_rgba ESIMD
 // API.
@@ -68,16 +65,16 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
     simd<T, VL *numChannels> valsOut =
         slm_gather_rgba<T, VL, CH_MASK>(byteOffsets, pred);
     // replace undefined values in the masked out lane with something verifiable
-    valsOut.template select<NUM_RGBA_CHANNELS, VL>(VL - MASKED_LANE_NUM_REV) =
-        marker<T>;
-
-    // Copy results to the output USM buffer. Maximum write block size must be
-    // at most 8 owords, so conservatively write in chunks of 8 elements.
-    uint32_t global_offset = i * VL * NUM_RGBA_CHANNELS;
-    for (unsigned i = 0; i < (VL * numChannels) / 8; i++) {
-      simd<T, 8> valsToWrite = valsOut.template select<8, 1>(i * 8);
-      valsToWrite.copy_to(bufOut + global_offset + i * 8);
+    if constexpr (numChannels == 1) {
+      valsOut.template select<numChannels, 1>(VL - MASKED_LANE_NUM_REV) =
+          marker<T>;
+    } else {
+      valsOut.template select<numChannels, VL>(VL - MASKED_LANE_NUM_REV) =
+          marker<T>;
     }
+
+    uint32_t global_offset = i * VL * NUM_RGBA_CHANNELS;
+    valsOut.copy_to(bufOut + global_offset);
   }
 };
 

@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 1
+// REQUIRES: aspect-fp64
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out 1
 //
 // Reduced version of dgetrf.cpp - M = 8, N = 8, single batch.
 //
@@ -269,9 +267,6 @@ static int dgetrfnp_batch_strided_check(int64_t m, int64_t n, double *a_in,
 
 int main(int argc, char *argv[]) {
   queue queue((gpu_selector()));
-
-  if (!queue.get_device().has(aspect::fp64))
-    return 0;
 
   int exit_status = 0;
   constexpr int64_t m = 8, n = 8, lda = 8;

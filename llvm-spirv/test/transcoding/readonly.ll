@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Decorate [[PARAM:[0-9]+]] FuncParamAttr 6
 ; CHECK-SPIRV: FunctionParameter {{.*}} [[PARAM]]
@@ -14,7 +14,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(1) readonly %{{.*}})
 ; Function Attrs: norecurse nounwind readonly willreturn
-define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function(i32 addrspace(1)* readonly %_arg_) local_unnamed_addr #0 {
+define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(1) readonly %_arg_) local_unnamed_addr #0 {
 entry:
   ret void
 }

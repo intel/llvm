@@ -1,12 +1,12 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
 ; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 ; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -19,42 +19,42 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[OrderOffsetId:[0-9]+]] 4272
 
 ; Function Attrs: nounwind
-define spir_kernel void @f(%opencl.image2d_ro_t addrspace(1)* %img, i32 addrspace(1)* nocapture %type, i32 addrspace(1)* nocapture %order) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @f(ptr addrspace(1) %img, ptr addrspace(1) nocapture %type, ptr addrspace(1) nocapture %order) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 ; CHECK-LLVM-DAG: [[DTCALL:%.+]] ={{.*}} call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(
 ; CHECK-LLVM: [[DTSUB:%.+]] = sub i32 [[DTCALL]], 4304
 ; CHECK-LLVM: [[DTADD:%.+]] = add i32 [[DTSUB]], 4304
 ; CHECK-LLVM: store i32 [[DTADD]]
 
-; CHECK-LLVM-SPIRV: [[DTCALL:%.+]] = call spir_func i32 @_Z24__spirv_ImageQueryFormatPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: [[DTCALL:%.+]] = call spir_func i32 @_Z24__spirv_ImageQueryFormatPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %img)
 ; CHECK-LLVM-SPIRV: add i32 [[DTCALL]], 4304
 
 ; CHECK-SPIRV: 4 ImageQueryFormat {{[0-9]+}} [[DataTypeID:[0-9]+]]
 ; CHECK-SPIRV: 5 IAdd {{[0-9]+}} [[DTAddID:[0-9]+]] [[DataTypeID]] [[DataTypeOffsetId]]
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} [[DTAddID]]
 
-  %1 = tail call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %img) #2
-  store i32 %1, i32 addrspace(1)* %type, align 4
+  %1 = tail call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(ptr addrspace(1) %img) #2
+  store i32 %1, ptr addrspace(1) %type, align 4
 
 ; CHECK-LLVM-DAG: [[OCALL:%.+]] ={{.*}} call spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(
 ; CHECK-LLVM: [[OSUB:%.+]] = sub i32 [[OCALL]], 4272
 ; CHECK-LLVM: [[OADD:%.+]] = add i32 [[OSUB]], 4272
 ; CHECK-LLVM: store i32 [[OADD]]
 
-; CHECK-LLVM-SPIRV: [[OCALL:%.+]] = call spir_func i32 @_Z23__spirv_ImageQueryOrderPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: [[OCALL:%.+]] = call spir_func i32 @_Z23__spirv_ImageQueryOrderPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %img)
 ; CHECK-LLVM-SPIRV: add i32 [[OCALL]], 4272
 
 ; CHECK-SPIRV: 4 ImageQueryOrder {{[0-9]+}} [[OrderID:[0-9]+]]
 ; CHECK-SPIRV: 5 IAdd {{[0-9]+}} [[OrderAddID:[0-9]+]] [[OrderID]] [[OrderOffsetId]]
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} [[OrderAddID]]
 
-  %2 = tail call spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %img) #2
-  store i32 %2, i32 addrspace(1)* %order, align 4
+  %2 = tail call spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(ptr addrspace(1) %img) #2
+  store i32 %2, ptr addrspace(1) %order, align 4
   ret void
 }
 
-declare spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(ptr addrspace(1)) #1
 
-declare spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(ptr addrspace(1)) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

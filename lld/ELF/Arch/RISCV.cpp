@@ -306,6 +306,8 @@ RelExpr RISCV::getRelExpr(const RelType type, const Symbol &s,
   case R_RISCV_TPREL_ADD:
   case R_RISCV_RELAX:
     return config->relax ? R_RELAX_HINT : R_NONE;
+  case R_RISCV_SET_ULEB128:
+    return R_RISCV_LEB128;
   default:
     error(getErrorLocation(loc) + "unknown relocation (" + Twine(type) +
           ") against symbol " + toString(s));
@@ -550,10 +552,18 @@ static void initSymbolAnchors() {
   }
   // Store anchors (st_value and st_value+st_size) for symbols relative to text
   // sections.
+  //
+  // For a defined symbol foo, we may have `d->file != file` with --wrap=foo.
+  // We should process foo, as the defining object file's symbol table may not
+  // contain foo after redirectSymbols changed the foo entry to __wrap_foo. To
+  // avoid adding a Defined that is undefined in one object file, use
+  // `!d->scriptDefined` to exclude symbols that are definitely not wrapped.
+  //
+  // `relaxAux->anchors` may contain duplicate symbols, but that is fine.
   for (InputFile *file : ctx.objectFiles)
     for (Symbol *sym : file->getSymbols()) {
       auto *d = dyn_cast<Defined>(sym);
-      if (!d || d->file != file)
+      if (!d || (d->file != file && !d->scriptDefined))
         continue;
       if (auto *sec = dyn_cast_or_null<InputSection>(d->section))
         if (sec->flags & SHF_EXECINSTR && sec->relaxAux) {
@@ -662,23 +672,8 @@ static bool relax(InputSection &sec) {
   const uint64_t secAddr = sec.getVA();
   auto &aux = *sec.relaxAux;
   bool changed = false;
-
-  // Get st_value delta for symbols relative to this section from the previous
-  // iteration.
-  DenseMap<const Defined *, uint64_t> valueDelta;
   ArrayRef<SymbolAnchor> sa = ArrayRef(aux.anchors);
-  uint32_t delta = 0;
-  for (auto [i, r] : llvm::enumerate(sec.relocs())) {
-    for (; sa.size() && sa[0].offset <= r.offset; sa = sa.slice(1))
-      if (!sa[0].end)
-        valueDelta[sa[0].d] = delta;
-    delta = aux.relocDeltas[i];
-  }
-  for (const SymbolAnchor &sa : sa)
-    if (!sa.end)
-      valueDelta[sa.d] = delta;
-  sa = ArrayRef(aux.anchors);
-  delta = 0;
+  uint64_t delta = 0;
 
   std::fill_n(aux.relocTypes.get(), sec.relocs().size(), R_RISCV_NONE);
   aux.writes.clear();
@@ -725,7 +720,7 @@ static bool relax(InputSection &sec) {
       if (sa[0].end)
         sa[0].d->size = sa[0].offset - delta - sa[0].d->value;
       else
-        sa[0].d->value -= delta - valueDelta.find(sa[0].d)->second;
+        sa[0].d->value = sa[0].offset - delta;
     }
     delta += remove;
     if (delta != cur) {
@@ -738,11 +733,11 @@ static bool relax(InputSection &sec) {
     if (a.end)
       a.d->size = a.offset - delta - a.d->value;
     else
-      a.d->value -= delta - valueDelta.find(a.d)->second;
+      a.d->value = a.offset - delta;
   }
   // Inform assignAddresses that the size has changed.
-  if (!isUInt<16>(delta))
-    fatal("section size decrease is too large");
+  if (!isUInt<32>(delta))
+    fatal("section size decrease is too large: " + Twine(delta));
   sec.bytesDropped = delta;
   return changed;
 }
@@ -940,7 +935,7 @@ mergeAttributesSection(const SmallVector<InputSectionBase *, 0> &sections) {
   const auto &attributesTags = RISCVAttrs::getRISCVAttributeTags();
   for (const InputSectionBase *sec : sections) {
     RISCVAttributeParser parser;
-    if (Error e = parser.parse(sec->content(), support::little))
+    if (Error e = parser.parse(sec->content(), llvm::endianness::little))
       warn(toString(sec) + ": " + llvm::toString(std::move(e)));
     for (const auto &tag : attributesTags) {
       switch (RISCVAttrs::AttrType(tag.attr)) {

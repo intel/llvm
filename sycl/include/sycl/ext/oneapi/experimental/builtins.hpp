@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/builtins.hpp>                   // for to_vec2
+#include <sycl/builtins_utils_vec.hpp>         // for to_vec, to_marray...
+#include <sycl/detail/builtins.hpp>            // for __invoke_exp2, __invo...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
+#include <sycl/detail/memcpy.hpp>              // detail::memcpy
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/types.hpp>                      // for vec
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <cstring>     // for size_t
+#include <stdio.h>     // for printf
+#include <type_traits> // for enable_if_t
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -27,7 +32,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Provides functionality to print data from kernels in a C way:
@@ -86,11 +91,9 @@ namespace native {
 // sycl::native::tanh is only implemented on nvptx backend so far. For other
 // backends we revert to the sycl::tanh impl.
 template <typename T>
-inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
-                                  sycl::detail::is_svgenfloath<T>::value,
-                              T>
-    tanh(T x) __NOEXC {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
+tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
   _ocl_T arg1 = sycl::detail::convertDataToType<T, _ocl_T>(x);
@@ -121,7 +124,7 @@ inline __SYCL_ALWAYS_INLINE
     auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
         sycl::detail::to_vec2(x, i * 2));
 #endif
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -139,7 +142,7 @@ inline __SYCL_ALWAYS_INLINE
 // For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    sycl::detail::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
+    std::enable_if_t<sycl::detail::is_svgenfloath_v<T>, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
@@ -164,7 +167,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
     auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
         sycl::detail::to_vec2(x, i * 2));
 #endif
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -179,7 +182,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 } // namespace native
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_CONSTANT_AS

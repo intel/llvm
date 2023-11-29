@@ -13,6 +13,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/MathExtras.h"
 
 #include <string>
 
@@ -121,8 +122,30 @@ public:
     // The negated constraint R is obtained by multiplying by -1 and adding 1 to
     // the constant.
     R[0] += 1;
+    return negateOrEqual(R);
+  }
+
+  /// Multiplies each coefficient in the given vector by -1. Does not modify the
+  /// original vector.
+  ///
+  /// \param R The vector of coefficients to be negated.
+  static SmallVector<int64_t, 8> negateOrEqual(SmallVector<int64_t, 8> R) {
+    // The negated constraint R is obtained by multiplying by -1.
     for (auto &C : R)
-      C *= -1;
+      if (MulOverflow(C, int64_t(-1), C))
+        return {};
+    return R;
+  }
+
+  /// Converts the given vector to form a strict less than inequality. Does not
+  /// modify the original vector.
+  ///
+  /// \param R The vector of coefficients to be converted.
+  static SmallVector<int64_t, 8> toStrictLessThan(SmallVector<int64_t, 8> R) {
+    // The strict less than is obtained by subtracting 1 from the constant.
+    if (SubOverflow(R[0], int64_t(1), R[0])) {
+      return {};
+    }
     return R;
   }
 

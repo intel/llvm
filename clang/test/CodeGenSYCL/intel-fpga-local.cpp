@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEVICE,CHECK-BOTH
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-HOST,CHECK-BOTH
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEVICE,CHECK-BOTH
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-HOST,CHECK-BOTH
 
 // CHECK-BOTH: @_ZZ15attrs_on_staticvE15static_numbanks = internal{{.*}}constant i32 20, align 4
 // CHECK-DEVICE:  [[ANN_numbanks_4:@.str]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:4}

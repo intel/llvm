@@ -1,15 +1,14 @@
 // Test hangs on AMD with https://github.com/intel/llvm/pull/8412
 // UNSUPPORTED: hip_amd
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s  -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t_O0.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_O0.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_O0.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_O0.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -O0 -o %t_O0.out
+// RUN: %{run} %t_O0.out
 
 /*
     test performs a lattice reduction.
@@ -92,7 +91,7 @@ int main() {
     }
     for (int j = 0; j < NV; j++) {
       auto d = s[j] - r[k * NV + j];
-      if (abs(d) > 1e-10) {
+      if (std::abs(d) > 1e-10) {
         printf("partial fail ");
         printf("%i\t%i\t%g\t%g\n", k, j, s[j], r[k * NV + j]);
         fails++;

@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorOr.h"
@@ -67,8 +68,9 @@ void Denormalize(llvm::SmallVectorImpl<char> &path, FileSpec::Style style) {
 FileSpec::FileSpec() : m_style(GetNativeStyle()) {}
 
 // Default constructor that can take an optional full path to a file on disk.
-FileSpec::FileSpec(llvm::StringRef path, Style style) : m_style(style) {
-  SetFile(path, style);
+FileSpec::FileSpec(llvm::StringRef path, Style style, const Checksum &checksum)
+    : m_checksum(checksum), m_style(style) {
+  SetFile(path, style, checksum);
 }
 
 FileSpec::FileSpec(llvm::StringRef path, const llvm::Triple &triple)
@@ -170,9 +172,11 @@ void FileSpec::SetFile(llvm::StringRef pathname) { SetFile(pathname, m_style); }
 // Update the contents of this object with a new path. The path will be split
 // up into a directory and filename and stored as uniqued string values for
 // quick comparison and efficient memory usage.
-void FileSpec::SetFile(llvm::StringRef pathname, Style style) {
+void FileSpec::SetFile(llvm::StringRef pathname, Style style,
+                       const Checksum &checksum) {
   Clear();
   m_style = (style == Style::native) ? GetNativeStyle() : style;
+  m_checksum = checksum;
 
   if (pathname.empty())
     return;
@@ -399,9 +403,8 @@ void FileSpec::GetPath(llvm::SmallVectorImpl<char> &path,
     Denormalize(path, m_style);
 }
 
-ConstString FileSpec::GetFileNameExtension() const {
-  return ConstString(
-      llvm::sys::path::extension(m_filename.GetStringRef(), m_style));
+llvm::StringRef FileSpec::GetFileNameExtension() const {
+  return llvm::sys::path::extension(m_filename.GetStringRef(), m_style);
 }
 
 ConstString FileSpec::GetFileNameStrippingExtension() const {
@@ -428,12 +431,6 @@ FileSpec FileSpec::CopyByRemovingLastPathComponent() const {
     return FileSpec(llvm::sys::path::parent_path(current_path, m_style),
                     m_style);
   return *this;
-}
-
-ConstString FileSpec::GetLastPathComponent() const {
-  llvm::SmallString<64> current_path;
-  GetPath(current_path, false);
-  return ConstString(llvm::sys::path::filename(current_path, m_style));
 }
 
 void FileSpec::PrependPathComponent(llvm::StringRef component) {
@@ -470,6 +467,26 @@ bool FileSpec::RemoveLastPathComponent() {
   }
   return false;
 }
+
+std::vector<llvm::StringRef> FileSpec::GetComponents() const {
+  std::vector<llvm::StringRef> components;
+
+  auto dir_begin = llvm::sys::path::begin(m_directory.GetStringRef(), m_style);
+  auto dir_end = llvm::sys::path::end(m_directory.GetStringRef());
+
+  for (auto iter = dir_begin; iter != dir_end; ++iter) {
+    if (*iter == "/" || *iter == ".")
+      continue;
+
+    components.push_back(*iter);
+  }
+
+  if (!m_filename.IsEmpty() && m_filename != "/" && m_filename != ".")
+    components.push_back(m_filename.GetStringRef());
+
+  return components;
+}
+
 /// Returns true if the filespec represents an implementation source
 /// file (files with a ".c", ".cpp", ".m", ".mm" (many more)
 /// extension).
@@ -478,8 +495,8 @@ bool FileSpec::RemoveLastPathComponent() {
 ///     \b true if the filespec represents an implementation source
 ///     file, \b false otherwise.
 bool FileSpec::IsSourceImplementationFile() const {
-  ConstString extension(GetFileNameExtension());
-  if (!extension)
+  llvm::StringRef extension = GetFileNameExtension();
+  if (extension.empty())
     return false;
 
   static RegularExpression g_source_file_regex(llvm::StringRef(
@@ -487,7 +504,7 @@ bool FileSpec::IsSourceImplementationFile() const {
       "cC][pP]|[sS]|[aA][sS][mM]|[fF]|[fF]77|[fF]90|[fF]95|[fF]03|[fF][oO]["
       "rR]|[fF][tT][nN]|[fF][pP][pP]|[aA][dD][aA]|[aA][dD][bB]|[aA][dD][sS])"
       "$"));
-  return g_source_file_regex.Execute(extension.GetStringRef());
+  return g_source_file_regex.Execute(extension);
 }
 
 bool FileSpec::IsRelative() const {

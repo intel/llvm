@@ -530,54 +530,92 @@ TEST(CompletionTest, HeuristicsForMemberFunctionCompletion) {
 
   Annotations Code(R"cpp(
       struct Foo {
-        static int staticMethod();
-        int method() const;
+        static int staticMethod(int);
+        int method(int) const;
+        template <typename T, typename U, typename V = int>
+        T generic(U, V);
+        template <typename T, int U>
+        static T staticGeneric();
         Foo() {
-          this->$keepSnippet^
-          $keepSnippet^
-          Foo::$keepSnippet^
+          this->$canBeCall^
+          $canBeCall^
+          Foo::$canBeCall^
         }
       };
 
       struct Derived : Foo {
+        using Foo::method;
+        using Foo::generic;
         Derived() {
-          Foo::$keepSnippet^
+          Foo::$canBeCall^
         }
       };
 
       struct OtherClass {
         OtherClass() {
           Foo f;
-          f.$keepSnippet^
-          &Foo::$noSnippet^
+          Derived d;
+          f.$canBeCall^
+          ; // Prevent parsing as 'f.f'
+          f.Foo::$canBeCall^
+          &Foo::$canNotBeCall^
+          ;
+          d.Foo::$canBeCall^
+          ;
+          d.Derived::$canBeCall^
         }
       };
 
       int main() {
         Foo f;
-        f.$keepSnippet^
-        &Foo::$noSnippet^
+        Derived d;
+        f.$canBeCall^
+        ; // Prevent parsing as 'f.f'
+        f.Foo::$canBeCall^
+        &Foo::$canNotBeCall^
+        ;
+        d.Foo::$canBeCall^
+        ;
+        d.Derived::$canBeCall^
       }
       )cpp");
   auto TU = TestTU::withCode(Code.code());
 
-  for (const auto &P : Code.points("noSnippet")) {
+  for (const auto &P : Code.points("canNotBeCall")) {
     auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
     EXPECT_THAT(Results.Completions,
-                Contains(AllOf(named("method"), snippetSuffix(""))));
+                Contains(AllOf(named("method"), signature("(int) const"),
+                               snippetSuffix(""))));
+    // We don't have any arguments to deduce against if this isn't a call.
+    // Thus, we should emit these deducible template arguments explicitly.
+    EXPECT_THAT(
+        Results.Completions,
+        Contains(AllOf(named("generic"),
+                       signature("<typename T, typename U>(U, V)"),
+                       snippetSuffix("<${1:typename T}, ${2:typename U}>"))));
   }
 
-  for (const auto &P : Code.points("keepSnippet")) {
+  for (const auto &P : Code.points("canBeCall")) {
     auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
     EXPECT_THAT(Results.Completions,
-                Contains(AllOf(named("method"), snippetSuffix("()"))));
+                Contains(AllOf(named("method"), signature("(int) const"),
+                               snippetSuffix("(${1:int})"))));
+    EXPECT_THAT(
+        Results.Completions,
+        Contains(AllOf(named("generic"), signature("<typename T>(U, V)"),
+                       snippetSuffix("<${1:typename T}>(${2:U}, ${3:V})"))));
   }
 
   // static method will always keep the snippet
   for (const auto &P : Code.points()) {
     auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
     EXPECT_THAT(Results.Completions,
-                Contains(AllOf(named("staticMethod"), snippetSuffix("()"))));
+                Contains(AllOf(named("staticMethod"), signature("(int)"),
+                               snippetSuffix("(${1:int})"))));
+    EXPECT_THAT(Results.Completions,
+                Contains(AllOf(
+                    named("staticGeneric"), signature("<typename T, int U>()"),
+                    snippetSuffix("<${1:typename T}, ${2:int U}>()"))));
   }
 }
 
@@ -1397,20 +1435,37 @@ TEST(SignatureHelpTest, Overloads) {
 }
 
 TEST(SignatureHelpTest, FunctionPointers) {
-  auto FunctionPointerResults = signatures(R"cpp(
+  llvm::StringLiteral Tests[] = {
+      // Variable of function pointer type
+      R"cpp(
     void (*foo)(int x, int y);
     int main() { foo(^); }
-  )cpp");
-  EXPECT_THAT(FunctionPointerResults.signatures,
-              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
-
-  auto FunctionPointerTypedefResults = signatures(R"cpp(
+  )cpp",
+      // Wrapped in an AttributedType
+      R"cpp(
+    void (__stdcall *foo)(int x, int y);
+    int main() { foo(^); }
+  )cpp",
+      // Another syntax for an AttributedType
+      R"cpp(
+    void (__attribute__(stdcall) *foo)(int x, int y);
+    int main() { foo(^); },
+  )cpp",
+      // Wrapped in a typedef
+      R"cpp(
     typedef void (*fn)(int x, int y);
     fn foo;
     int main() { foo(^); }
-  )cpp");
-  EXPECT_THAT(FunctionPointerTypedefResults.signatures,
-              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+  )cpp",
+      // Wrapped in both a typedef and an AttributedTyped
+      R"cpp(
+    typedef void (__stdcall *fn)(int x, int y);
+    fn foo;
+    int main() { foo(^); }
+  )cpp"};
+  for (auto Test : Tests)
+    EXPECT_THAT(signatures(Test).signatures,
+                UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
 }
 
 TEST(SignatureHelpTest, Constructors) {
@@ -2093,7 +2148,8 @@ TEST(CompletionTest, Render) {
   Opts.EnableSnippets = false;
 
   auto R = C.render(Opts);
-  EXPECT_EQ(R.label, "Foo::x(bool) const");
+  EXPECT_EQ(R.label, "Foo::x");
+  EXPECT_EQ(R.labelDetails->detail, "(bool) const");
   EXPECT_EQ(R.insertText, "Foo::x");
   EXPECT_EQ(R.insertTextFormat, InsertTextFormat::PlainText);
   EXPECT_EQ(R.filterText, "x");
@@ -2121,12 +2177,14 @@ TEST(CompletionTest, Render) {
 
   Include.Insertion.emplace();
   R = C.render(Opts);
-  EXPECT_EQ(R.label, "^Foo::x(bool) const");
+  EXPECT_EQ(R.label, "^Foo::x");
+  EXPECT_EQ(R.labelDetails->detail, "(bool) const");
   EXPECT_THAT(R.additionalTextEdits, Not(IsEmpty()));
 
   Opts.ShowOrigins = true;
   R = C.render(Opts);
-  EXPECT_EQ(R.label, "^[AS]Foo::x(bool) const");
+  EXPECT_EQ(R.label, "^[AS]Foo::x");
+  EXPECT_EQ(R.labelDetails->detail, "(bool) const");
 
   C.BundleSize = 2;
   R = C.render(Opts);
@@ -3431,6 +3489,20 @@ TEST(CompletionTest, ObjectiveCCategoryFromIndexIgnored) {
   EXPECT_THAT(Results.Completions, IsEmpty());
 }
 
+TEST(CompletionTest, ObjectiveCForwardDeclFromIndex) {
+  Symbol FoodClass = objcClass("FoodClass");
+  FoodClass.IncludeHeaders.emplace_back("\"Foo.h\"", 2, Symbol::Import);
+  Symbol SymFood = objcProtocol("Food");
+  auto Results = completions("@class Foo^", {SymFood, FoodClass},
+                             /*Opts=*/{}, "Foo.m");
+
+  // Should only give class names without any include insertion.
+  EXPECT_THAT(Results.Completions,
+              UnorderedElementsAre(AllOf(named("FoodClass"),
+                                         kind(CompletionItemKind::Class),
+                                         Not(insertInclude()))));
+}
+
 TEST(CompletionTest, CursorInSnippets) {
   clangd::CodeCompleteOptions Options;
   Options.EnableSnippets = true;
@@ -3820,6 +3892,29 @@ TEST(CompletionTest, FunctionArgsExist) {
                              kind(CompletionItemKind::Function))));
 }
 
+TEST(CompletionTest, FunctionArgsExist_Issue1785) {
+  // This is a scenario where the implementation of our check for
+  // "is there a function argument list right after the cursor"
+  // gave a bogus result.
+  clangd::CodeCompleteOptions Opts;
+  Opts.EnableSnippets = true;
+  // The whitespace in this testcase is important!
+  std::string Code = R"cpp(
+void waldo(int);
+
+int main()
+{
+  wal^
+
+
+  // (    )
+}
+  )cpp";
+  EXPECT_THAT(
+      completions(Code, {}, Opts).Completions,
+      Contains(AllOf(labeled("waldo(int)"), snippetSuffix("(${1:int})"))));
+}
+
 TEST(CompletionTest, NoCrashDueToMacroOrdering) {
   EXPECT_THAT(completions(R"cpp(
     #define ECHO(X) X
@@ -3944,26 +4039,54 @@ TEST(CompletionTest, Concepts) {
     template<$tparam^A U>
     int foo();
 
-    template<class T>
-    concept b = $other^A<T> && $other^sizeof(T) % 2 == 0 || $other^A<T> && sizeof(T) == 1;
+    template<typename T>
+    int bar(T t) requires $expr^A<int>;
 
-    $other^A<T> auto i = 19;
+    template<class T>
+    concept b = $expr^A && $expr^sizeof(T) % 2 == 0 || $expr^A && sizeof(T) == 1;
+
+    $toplevel^A auto i = 19;
+
+    template<$toplevel^A auto i> void constrainedNTTP();
+
+    // FIXME: The first parameter should be dropped in this case.
+    void abbreviated($expr^A auto x) {}
   )cpp");
   TestTU TU;
   TU.Code = Code.code().str();
   TU.ExtraArgs = {"-std=c++20"};
 
-  std::vector<Symbol> Syms = {conceptSym("same_as")};
+  auto Sym = conceptSym("same_as");
+  Sym.Signature = "<typename Tp, typename Up>";
+  Sym.CompletionSnippetSuffix = "<${1:typename Tp}, ${2:typename Up}>";
+  std::vector<Symbol> Syms = {Sym};
   for (auto P : Code.points("tparam")) {
-    ASSERT_THAT(completions(TU, P, Syms).Completions,
-                AllOf(Contains(named("A")), Contains(named("same_as")),
-                      Contains(named("class")), Contains(named("typename"))))
+    ASSERT_THAT(
+        completions(TU, P, Syms).Completions,
+        AllOf(Contains(AllOf(named("A"), signature(""), snippetSuffix(""))),
+              Contains(AllOf(named("same_as"), signature("<typename Up>"),
+                             snippetSuffix("<${2:typename Up}>"))),
+              Contains(named("class")), Contains(named("typename"))))
         << "Completing template parameter at position " << P;
   }
 
-  for (auto P : Code.points("other")) {
-    EXPECT_THAT(completions(TU, P, Syms).Completions,
-                AllOf(Contains(named("A")), Contains(named("same_as"))))
+  for (auto P : Code.points("toplevel")) {
+    EXPECT_THAT(
+        completions(TU, P, Syms).Completions,
+        AllOf(Contains(AllOf(named("A"), signature(""), snippetSuffix(""))),
+              Contains(AllOf(named("same_as"), signature("<typename Up>"),
+                             snippetSuffix("<${2:typename Up}>")))))
+        << "Completing 'requires' expression at position " << P;
+  }
+
+  for (auto P : Code.points("expr")) {
+    EXPECT_THAT(
+        completions(TU, P, Syms).Completions,
+        AllOf(Contains(AllOf(named("A"), signature("<class T>"),
+                             snippetSuffix("<${1:class T}>"))),
+              Contains(AllOf(
+                  named("same_as"), signature("<typename Tp, typename Up>"),
+                  snippetSuffix("<${1:typename Tp}, ${2:typename Up}>")))))
         << "Completing 'requires' expression at position " << P;
   }
 }
@@ -4000,6 +4123,19 @@ TEST(SignatureHelp, TemplateArguments) {
   EXPECT_THAT(Second.signatures,
               ElementsAre(sig("foo<[[int I]], [[int]]>() -> bool")));
   EXPECT_EQ(Second.activeParameter, 1);
+}
+
+TEST(CompletionTest, DoNotCrash) {
+  llvm::StringLiteral Cases[] = {
+      R"cpp(
+    template <typename = int> struct Foo {};
+    auto a = [x(3)](Foo<^>){};
+    )cpp",
+  };
+  for (auto Case : Cases) {
+    SCOPED_TRACE(Case);
+    auto Completions = completions(Case);
+  }
 }
 
 } // namespace

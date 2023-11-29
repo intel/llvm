@@ -19,6 +19,32 @@
 #include <queue>
 
 namespace mlir {
+class OffsetSizeAndStrideOpInterface;
+
+/// A hyperrectangular slice, represented as a list of offsets, sizes and
+/// strides.
+class HyperrectangularSlice {
+public:
+  HyperrectangularSlice(ArrayRef<OpFoldResult> offsets,
+                        ArrayRef<OpFoldResult> sizes,
+                        ArrayRef<OpFoldResult> strides);
+
+  /// Create a hyperrectangular slice with unit strides.
+  HyperrectangularSlice(ArrayRef<OpFoldResult> offsets,
+                        ArrayRef<OpFoldResult> sizes);
+
+  /// Infer a hyperrectangular slice from `OffsetSizeAndStrideOpInterface`.
+  HyperrectangularSlice(OffsetSizeAndStrideOpInterface op);
+
+  ArrayRef<OpFoldResult> getMixedOffsets() const { return mixedOffsets; }
+  ArrayRef<OpFoldResult> getMixedSizes() const { return mixedSizes; }
+  ArrayRef<OpFoldResult> getMixedStrides() const { return mixedStrides; }
+
+private:
+  SmallVector<OpFoldResult> mixedOffsets;
+  SmallVector<OpFoldResult> mixedSizes;
+  SmallVector<OpFoldResult> mixedStrides;
+};
 
 using ValueDimList = SmallVector<std::pair<Value, std::optional<int64_t>>>;
 
@@ -77,7 +103,7 @@ protected:
 
     ValueBoundsConstraintSet &cstr;
     Value value;
-    std::optional<int64_t> dim = std::nullopt;
+    std::optional<int64_t> dim;
   };
 
 public:
@@ -114,18 +140,31 @@ public:
   /// Compute a bound in terms of the values/dimensions in `dependencies`. The
   /// computed bound consists of only constant terms and dependent values (or
   /// dimension sizes thereof).
-  static LogicalResult computeBound(AffineMap &resultMap,
-                                    ValueDimList &mapOperands,
-                                    presburger::BoundType type, Value value,
-                                    std::optional<int64_t> dim,
-                                    ValueDimList dependencies,
-                                    bool closedUB = false);
+  static LogicalResult
+  computeDependentBound(AffineMap &resultMap, ValueDimList &mapOperands,
+                        presburger::BoundType type, Value value,
+                        std::optional<int64_t> dim, ValueDimList dependencies,
+                        bool closedUB = false);
 
-  /// Compute a constant bound for the given index-typed value or shape
-  /// dimension size.
+  /// Compute a bound in that is independent of all values in `independencies`.
   ///
-  /// `dim` must be `nullopt` if and only if `value` is index-typed. This
-  /// function traverses the backward slice of the given value in a
+  /// Independencies are the opposite of dependencies. The computed bound does
+  /// not contain any SSA values that are part of `independencies`. E.g., this
+  /// function can be used to make ops hoistable from loops. To that end, ops
+  /// must be made independent of loop induction variables (in the case of "for"
+  /// loops). Loop induction variables are the independencies; they may not
+  /// appear in the computed bound.
+  static LogicalResult
+  computeIndependentBound(AffineMap &resultMap, ValueDimList &mapOperands,
+                          presburger::BoundType type, Value value,
+                          std::optional<int64_t> dim, ValueRange independencies,
+                          bool closedUB = false);
+
+  /// Compute a constant bound for the given affine map, where dims and symbols
+  /// are bound to the given operands. The affine map must have exactly one
+  /// result.
+  ///
+  /// This function traverses the backward slice of the given operands in a
   /// worklist-driven manner until `stopCondition` evaluates to "true". The
   /// constraint set is populated according to `ValueBoundsOpInterface` for each
   /// visited value. (No constraints are added for values for which the stop
@@ -142,6 +181,60 @@ public:
                        std::optional<int64_t> dim = std::nullopt,
                        StopConditionFn stopCondition = nullptr,
                        bool closedUB = false);
+  static FailureOr<int64_t> computeConstantBound(
+      presburger::BoundType type, AffineMap map, ValueDimList mapOperands,
+      StopConditionFn stopCondition = nullptr, bool closedUB = false);
+  static FailureOr<int64_t> computeConstantBound(
+      presburger::BoundType type, AffineMap map, ArrayRef<Value> mapOperands,
+      StopConditionFn stopCondition = nullptr, bool closedUB = false);
+
+  /// Compute a constant delta between the given two values. Return "failure"
+  /// if a constant delta could not be determined.
+  ///
+  /// `dim1`/`dim2` must be `nullopt` if and only if `value1`/`value2` are
+  /// index-typed.
+  static FailureOr<int64_t>
+  computeConstantDelta(Value value1, Value value2,
+                       std::optional<int64_t> dim1 = std::nullopt,
+                       std::optional<int64_t> dim2 = std::nullopt);
+
+  /// Compute whether the given values/dimensions are equal. Return "failure" if
+  /// equality could not be determined.
+  ///
+  /// `dim1`/`dim2` must be `nullopt` if and only if `value1`/`value2` are
+  /// index-typed.
+  static FailureOr<bool> areEqual(Value value1, Value value2,
+                                  std::optional<int64_t> dim1 = std::nullopt,
+                                  std::optional<int64_t> dim2 = std::nullopt);
+
+  /// Compute whether the given values/attributes are equal. Return "failure" if
+  /// equality could not be determined.
+  ///
+  /// `ofr1`/`ofr2` must be of index type.
+  static FailureOr<bool> areEqual(OpFoldResult ofr1, OpFoldResult ofr2);
+
+  /// Return "true" if the given slices are guaranteed to be overlapping.
+  /// Return "false" if the given slices are guaranteed to be non-overlapping.
+  /// Return "failure" if unknown.
+  ///
+  /// Slices are overlapping if for all dimensions:
+  /// *      offset1 + size1 * stride1 <= offset2
+  /// * and  offset2 + size2 * stride2 <= offset1
+  ///
+  /// Slice are non-overlapping if the above constraint is not satisfied for
+  /// at least one dimension.
+  static FailureOr<bool> areOverlappingSlices(MLIRContext *ctx,
+                                              HyperrectangularSlice slice1,
+                                              HyperrectangularSlice slice2);
+
+  /// Return "true" if the given slices are guaranteed to be equivalent.
+  /// Return "false" if the given slices are guaranteed to be non-equivalent.
+  /// Return "failure" if unknown.
+  ///
+  /// Slices are equivalent if their offsets, sizes and strices are equal.
+  static FailureOr<bool> areEquivalentSlices(MLIRContext *ctx,
+                                             HyperrectangularSlice slice1,
+                                             HyperrectangularSlice slice2);
 
   /// Add a bound for the given index-typed value or shaped value. This function
   /// returns a builder that adds the bound.
@@ -170,7 +263,7 @@ protected:
   /// An index-typed value or the dimension of a shaped-type value.
   using ValueDim = std::pair<Value, int64_t>;
 
-  ValueBoundsConstraintSet(Value value, std::optional<int64_t> dim);
+  ValueBoundsConstraintSet(MLIRContext *ctx);
 
   /// Iteratively process all elements on the worklist until an index-typed
   /// value or shaped value meets `stopCondition`. Such values are not processed
@@ -186,12 +279,22 @@ protected:
   int64_t getPos(Value value, std::optional<int64_t> dim = std::nullopt) const;
 
   /// Insert a value/dimension into the constraint set. If `isSymbol` is set to
-  /// "false", a dimension is added.
+  /// "false", a dimension is added. The value/dimension is added to the
+  /// worklist.
   ///
   /// Note: There are certain affine restrictions wrt. dimensions. E.g., they
   /// cannot be multiplied. Furthermore, bounds can only be queried for
   /// dimensions but not for symbols.
   int64_t insert(Value value, std::optional<int64_t> dim, bool isSymbol = true);
+
+  /// Insert an anonymous column into the constraint set. The column is not
+  /// bound to any value/dimension. If `isSymbol` is set to "false", a dimension
+  /// is added.
+  ///
+  /// Note: There are certain affine restrictions wrt. dimensions. E.g., they
+  /// cannot be multiplied. Furthermore, bounds can only be queried for
+  /// dimensions but not for symbols.
+  int64_t insert(bool isSymbol = true);
 
   /// Project out the given column in the constraint set.
   void projectOut(int64_t pos);
@@ -200,7 +303,7 @@ protected:
   void projectOut(function_ref<bool(ValueDim)> condition);
 
   /// Mapping of columns to values/shape dimensions.
-  SmallVector<ValueDim> positionToValueDim;
+  SmallVector<std::optional<ValueDim>> positionToValueDim;
   /// Reverse mapping of values/shape dimensions to columns.
   DenseMap<ValueDim, int64_t> valueDimToPosition;
 
@@ -217,25 +320,5 @@ protected:
 } // namespace mlir
 
 #include "mlir/Interfaces/ValueBoundsOpInterface.h.inc"
-
-namespace mlir {
-
-/// Default implementation for destination style ops: Tied OpResults and
-/// OpOperands have the same type.
-template <typename ConcreteOp>
-struct DstValueBoundsOpInterfaceExternalModel
-    : public ValueBoundsOpInterface::ExternalModel<
-          DstValueBoundsOpInterfaceExternalModel<ConcreteOp>, ConcreteOp> {
-  void populateBoundsForShapedValueDim(Operation *op, Value value, int64_t dim,
-                                       ValueBoundsConstraintSet &cstr) const {
-    auto dstOp = cast<DestinationStyleOpInterface>(op);
-    assert(value.getDefiningOp() == dstOp);
-
-    Value tiedOperand = dstOp.getTiedOpOperand(value.cast<OpResult>())->get();
-    cstr.bound(value)[dim] == cstr.getExpr(tiedOperand, dim);
-  }
-};
-
-} // namespace mlir
 
 #endif // MLIR_INTERFACES_VALUEBOUNDSOPINTERFACE_H_

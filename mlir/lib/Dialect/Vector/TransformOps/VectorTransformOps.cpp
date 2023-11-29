@@ -7,10 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Vector/TransformOps/VectorTransformOps.h"
+
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
 #include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
@@ -23,37 +27,64 @@ using namespace mlir::vector;
 using namespace mlir::transform;
 
 //===----------------------------------------------------------------------===//
-// ApplyRankReducingSubviewPatternsOp
+// Apply...ConversionPatternsOp
 //===----------------------------------------------------------------------===//
+
+void transform::ApplyVectorToLLVMConversionPatternsOp::populatePatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  populateVectorToLLVMConversionPatterns(
+      static_cast<LLVMTypeConverter &>(typeConverter), patterns,
+      getReassociateFpReductions(), getForce_32bitVectorIndices());
+}
+
+LogicalResult
+transform::ApplyVectorToLLVMConversionPatternsOp::verifyTypeConverter(
+    transform::TypeConverterBuilderOpInterface builder) {
+  if (builder.getTypeConverterType() != "LLVMTypeConverter")
+    return emitOpError("expected LLVMTypeConverter");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Apply...PatternsOp
+//===----------------------------------------------------------------------===//
+
+void transform::ApplyCastAwayVectorLeadingOneDimPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
+}
+
+void transform::ApplyFoldArithExtensionPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateFoldArithExtensionPatterns(patterns);
+}
+
+void transform::ApplyVectorReductionToContractPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateVectorReductionToContractPatterns(patterns);
+}
+
+void transform::ApplyLowerCreateMaskPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateVectorMaskOpLoweringPatterns(patterns);
+}
 
 void transform::ApplyRankReducingSubviewPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::populateVectorTransferDropUnitDimsPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// ApplyTransferPermutationPatternsOp
-//===----------------------------------------------------------------------===//
-
 void transform::ApplyTransferPermutationPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::populateVectorTransferPermutationMapLoweringPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerBroadcastOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerBroadcastOp::populatePatterns(
+void transform::ApplyLowerBroadcastPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   populateVectorBroadcastLoweringPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerContractionOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerContractionOp::populatePatterns(
+void transform::ApplyLowerContractionPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::VectorTransformsOptions vectorTransformOptions;
   vectorTransformOptions.setVectorTransformsOptions(getLoweringStrategy());
@@ -62,37 +93,23 @@ void transform::LowerContractionOp::populatePatterns(
                                          /*disableOuterProductLowering=*/true);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerMasksOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerMasksOp::populatePatterns(RewritePatternSet &patterns) {
+void transform::ApplyLowerMasksPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
   populateVectorMaskOpLoweringPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerMaskedTransfersOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerMaskedTransfersOp::populatePatterns(
+void transform::ApplyLowerMaskedTransfersPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   populateVectorMaskLoweringPatternsForSideEffectingOps(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// MaterializeMasksOp
-//===----------------------------------------------------------------------===//
-
-void transform::MaterializeMasksOp::populatePatterns(RewritePatternSet &patterns) {
+void transform::ApplyMaterializeMasksPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
   populateVectorMaskMaterializationPatterns(patterns,
                                             /*force32BitVectorIndices=*/false);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerMultiReductionOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerMultiReductionOp::populatePatterns(
+void transform::ApplyLowerMultiReductionPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::VectorTransformsOptions vectorTransformOptions;
   vectorTransformOptions.setVectorMultiReductionLowering(getLoweringStrategy());
@@ -100,38 +117,33 @@ void transform::LowerMultiReductionOp::populatePatterns(
       patterns, vectorTransformOptions.vectorMultiReductionLowering);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerOuterProductOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerOuterProductOp::populatePatterns(
+void transform::ApplyLowerOuterProductPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   populateVectorOuterProductLoweringPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerShapeCastOp
-//===----------------------------------------------------------------------===//
+void transform::ApplyLowerGatherPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateVectorGatherLoweringPatterns(patterns);
+}
 
-void transform::LowerShapeCastOp::populatePatterns(
+void transform::ApplyLowerScanPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  vector::populateVectorScanLoweringPatterns(patterns);
+}
+
+void transform::ApplyLowerShapeCastPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::populateVectorShapeCastLoweringPatterns(patterns);
 }
 
-//===----------------------------------------------------------------------===//
-// LowerTransferOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerTransferOp::populatePatterns(RewritePatternSet &patterns) {
+void transform::ApplyLowerTransferPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
   vector::populateVectorTransferLoweringPatterns(patterns,
                                                  getMaxTransferRank());
 }
 
-//===----------------------------------------------------------------------===//
-// LowerTransposeOp
-//===----------------------------------------------------------------------===//
-
-void transform::LowerTransposeOp::populatePatterns(
+void transform::ApplyLowerTransposePatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::populateVectorTransposeLoweringPatterns(
       patterns, vector::VectorTransformsOptions().setVectorTransposeLowering(
@@ -147,22 +159,20 @@ void transform::LowerTransposeOp::populatePatterns(
   }
 }
 
-//===----------------------------------------------------------------------===//
-// SplitTransferFullPartialOp
-//===----------------------------------------------------------------------===//
+void transform::ApplyRewriteNarrowTypePatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  populateVectorNarrowTypeRewritePatterns(patterns);
+}
 
-void transform::SplitTransferFullPartialOp::populatePatterns(
+void transform::ApplySplitTransferFullPartialPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   vector::VectorTransformsOptions vectorTransformOptions;
   vectorTransformOptions.setVectorTransferSplit(getSplitTransferStrategy());
   populateVectorTransferFullPartialPatterns(patterns, vectorTransformOptions);
 }
 
-//===----------------------------------------------------------------------===//
-// TransferToScfOp
-//===----------------------------------------------------------------------===//
-
-void transform::TransferToScfOp::populatePatterns(RewritePatternSet &patterns) {
+void transform::ApplyTransferToScfPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
   VectorTransferToSCFOptions vectorTransferToSCFOptions =
       VectorTransferToSCFOptions()
           .enableFullUnroll(getFullUnroll())

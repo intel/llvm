@@ -71,6 +71,13 @@ public:
   // NestedNameSpecifier, but no namespace.
   EXPECT_UNAVAILABLE(Header + "class Foo {}; class F^oo foo;");
 
+  // Nested macro case.
+  EXPECT_AVAILABLE(R"cpp(
+  #define ID2(X) X
+  #define ID(Y, X) Y;ID2(X)
+  namespace ns { struct Foo{}; }
+  ID(int xyz, ns::F^oo) f;)cpp");
+
   // Check that we do not trigger in header files.
   FileName = "test.h";
   ExtraArgs.push_back("-xc++-header"); // .h file is treated a C by default.
@@ -498,6 +505,30 @@ void foo() {
   switch(one::two::ee{}) { case ee_one:break; }
 }
 )cpp"},
+      {R"cpp(
+#include "test.hpp"
+void foo() {
+  one::f^unc_temp<int>();
+})cpp",
+       R"cpp(
+#include "test.hpp"
+using one::func_temp;
+
+void foo() {
+  func_temp<int>();
+})cpp"},
+      {R"cpp(
+#include "test.hpp"
+void foo() {
+  one::va^r_temp<int>;
+})cpp",
+       R"cpp(
+#include "test.hpp"
+using one::var_temp;
+
+void foo() {
+  var_temp<int>;
+})cpp"},
   };
   llvm::StringMap<std::string> EditedFiles;
   for (const auto &Case : Cases) {
@@ -515,6 +546,8 @@ public:
 }
 using uu = two::cc;
 template<typename T> struct vec {};
+template <typename T> void func_temp();
+template <typename T> T var_temp();
 })cpp";
     // Typo correction is disabled in msvc-compatibility mode.
     ExtraArgs.push_back("-fno-ms-compatibility");

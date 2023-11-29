@@ -13,7 +13,6 @@ add_llvm_component_library(LLVMOrcJIT
   CompileUtils.cpp
   Core.cpp
   DebugObjectManagerPlugin.cpp
-  DebuggerSupportPlugin.cpp
   DebugUtils.cpp
   EPCDynamicLibrarySearchGenerator.cpp
   EPCDebugObjectRegistrar.cpp
@@ -68,7 +67,6 @@ add_llvm_component_library(LLVMOrcJIT
   OrcTargetProcess
   WindowsDriver
   MC
-  MCDisassembler
   Passes
   RuntimeDyld
   Support
@@ -77,6 +75,7 @@ add_llvm_component_library(LLVMOrcJIT
   TransformUtils
   )
 
+add_subdirectory(Debugging)
 add_subdirectory(Shared)
 add_subdirectory(TargetProcess)
 

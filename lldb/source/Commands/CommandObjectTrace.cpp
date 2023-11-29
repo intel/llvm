@@ -96,19 +96,18 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   ~CommandObjectTraceSave() override = default;
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.size() != 1) {
       result.AppendError("a single path to a directory where the trace bundle "
                          "will be created is required");
-      return false;
+      return;
     }
 
     FileSpec bundle_dir(command[0].ref());
@@ -126,8 +125,6 @@ protected:
     } else {
       result.AppendError(toString(desc_file.takeError()));
     }
-
-    return result.Succeeded();
   }
 
   CommandOptions m_options;
@@ -186,9 +183,8 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   ~CommandObjectTraceLoad() override = default;
@@ -196,11 +192,11 @@ public:
   Options *GetOptions() override { return &m_options; }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.size() != 1) {
       result.AppendError("a single path to a JSON file containing a the "
                          "description of the trace bundle is required");
-      return false;
+      return;
     }
 
     const FileSpec trace_description_file(command[0].ref());
@@ -212,7 +208,7 @@ protected:
     if (!trace_or_err) {
       result.AppendErrorWithFormat(
           "%s\n", llvm::toString(trace_or_err.takeError()).c_str());
-      return false;
+      return;
     }
 
     if (m_options.m_verbose) {
@@ -221,7 +217,6 @@ protected:
     }
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
-    return true;
   }
 
   CommandOptions m_options;
@@ -278,7 +273,7 @@ public:
   Options *GetOptions() override { return &m_options; }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     Status error;
     // TODO: fill in the dumping code here!
     if (error.Success()) {
@@ -286,7 +281,6 @@ protected:
     } else {
       result.AppendErrorWithFormat("%s\n", error.AsCString());
     }
-    return result.Succeeded();
   }
 
   CommandOptions m_options;
@@ -347,12 +341,12 @@ public:
   Options *GetOptions() override { return &m_options; }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     Status error;
     if (command.empty()) {
       result.AppendError(
           "trace schema cannot be invoked without a plug-in as argument");
-      return false;
+      return;
     }
 
     StringRef plugin_name(command[0].c_str());
@@ -378,7 +372,6 @@ protected:
     } else {
       result.AppendErrorWithFormat("%s\n", error.AsCString());
     }
-    return result.Succeeded();
   }
 
   CommandOptions m_options;

@@ -1,33 +1,47 @@
+//===- device_architecture.hpp --------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class architecture {
   x86_64,
+  intel_cpu_spr,
+  intel_cpu_gnr,
   intel_gpu_bdw,
   intel_gpu_skl,
   intel_gpu_kbl,
   intel_gpu_cfl,
   intel_gpu_apl,
+  intel_gpu_bxt = intel_gpu_apl,
   intel_gpu_glk,
   intel_gpu_whl,
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
+  intel_gpu_ehl,
+  intel_gpu_jsl = intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
-  intel_gpu_rpl_s,
+  intel_gpu_rpl_s = intel_gpu_adl_s,
   intel_gpu_adl_p,
   intel_gpu_adl_n,
   intel_gpu_dg1,
   intel_gpu_acm_g10,
+  intel_gpu_dg2_g10 = intel_gpu_acm_g10,
   intel_gpu_acm_g11,
+  intel_gpu_dg2_g11 = intel_gpu_acm_g11,
   intel_gpu_acm_g12,
+  intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
   // NVIDIA architectures
   nvidia_gpu_sm_50,
@@ -122,6 +136,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_INTEL_GPU_ICLLP__
 #define __SYCL_TARGET_INTEL_GPU_ICLLP__ 0
 #endif
+#ifndef __SYCL_TARGET_INTEL_GPU_EHL__
+#define __SYCL_TARGET_INTEL_GPU_EHL__ 0
+#endif
 #ifndef __SYCL_TARGET_INTEL_GPU_TGLLP__
 #define __SYCL_TARGET_INTEL_GPU_TGLLP__ 0
 #endif
@@ -130,9 +147,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ADL_S__
 #define __SYCL_TARGET_INTEL_GPU_ADL_S__ 0
-#endif
-#ifndef __SYCL_TARGET_INTEL_GPU_RPL_S__
-#define __SYCL_TARGET_INTEL_GPU_RPL_S__ 0
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ADL_P__
 #define __SYCL_TARGET_INTEL_GPU_ADL_P__ 0
@@ -281,10 +295,10 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_AML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_CML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_RKL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_RPL_S__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_P__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_N__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_DG1__ == 1) ||
@@ -358,14 +372,14 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_CML__ == 1;
     arr[static_cast<int>(arch::intel_gpu_icllp)] =
         __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
+    arr[static_cast<int>(arch::intel_gpu_ehl)] =
+        __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_tgllp)] =
         __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
     arr[static_cast<int>(arch::intel_gpu_rkl)] =
         __SYCL_TARGET_INTEL_GPU_RKL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_s)] =
         __SYCL_TARGET_INTEL_GPU_ADL_S__ == 1;
-    arr[static_cast<int>(arch::intel_gpu_rpl_s)] =
-        __SYCL_TARGET_INTEL_GPU_RPL_S__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_p)] =
         __SYCL_TARGET_INTEL_GPU_ADL_P__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_n)] =
@@ -479,11 +493,10 @@ constexpr static bool device_architecture_is() {
 // user's function.
 template <bool MakeCall> class if_architecture_helper {
 public:
-  template <ext::oneapi::experimental::architecture... Archs, typename T,
-            typename... Args>
-  constexpr auto else_if_architecture_is(T fnTrue, Args... args) {
+  template <ext::oneapi::experimental::architecture... Archs, typename T>
+  constexpr auto else_if_architecture_is(T fnTrue) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
-      fnTrue(args...);
+      fnTrue();
       return if_architecture_helper<false>{};
     } else {
       (void)fnTrue;
@@ -491,10 +504,9 @@ public:
     }
   }
 
-  template <typename T, typename... Args>
-  constexpr void otherwise(T fn, Args... args) {
+  template <typename T> constexpr void otherwise(T fn) {
     if constexpr (MakeCall) {
-      fn(args...);
+      fn();
     }
   }
 };
@@ -502,14 +514,14 @@ public:
 
 namespace ext::oneapi::experimental {
 
-template <architecture... Archs, typename T, typename... Args>
-constexpr static auto if_architecture_is(T fnTrue, Args... args) {
+template <architecture... Archs, typename T>
+constexpr static auto if_architecture_is(T fnTrue) {
   static_assert(sycl::detail::allowable_aot_mode<Archs...>(),
                 "The if_architecture_is function may only be used when AOT "
                 "compiling with '-fsycl-targets=spir64_x86_64' or "
                 "'-fsycl-targets=*_gpu_*'");
   if constexpr (sycl::detail::device_architecture_is<Archs...>()) {
-    fnTrue(args...);
+    fnTrue();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
     (void)fnTrue;
@@ -518,5 +530,5 @@ constexpr static auto if_architecture_is(T fnTrue, Args... args) {
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

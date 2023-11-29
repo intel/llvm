@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++2b %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++23 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 // FIXME: This is included to avoid a diagnostic with no source location
 // pointing at the implicit operator new. We can't match such a diagnostic
@@ -771,10 +771,15 @@ namespace dr574 { // dr574: yes
   };
 #if __cplusplus >= 201103L
   struct C {
-    C &operator=(const C&) &; // expected-note {{not viable}} expected-note {{candidate}} expected-note {{here}}
+    C &operator=(const C&) &; // #574-overload1 \
+                              // expected-note {{not viable}} \
+                              // expected-note {{here}}
+
   };
   struct D {
-    D &operator=(const D&) &&; // expected-note {{not viable}} expected-note {{candidate}} expected-note {{here}}
+    D &operator=(const D&) &&; // #574-overload2 \
+                               // expected-note {{not viable}} \
+                               // expected-note {{here}}
   };
   void test(C c, D d) {
     c = c;
@@ -786,10 +791,17 @@ namespace dr574 { // dr574: yes
   struct Test {
     friend A &A::operator=(const A&); // expected-error {{does not match}}
     friend B &B::operator=(const B&); // expected-error {{does not match}}
-#if __cplusplus >= 201103L
+#if __cplusplus >= 202302L
+    friend C &C::operator=(const C&); // expected-error {{conflicting types for 'operator='}}
+    friend D &D::operator=(const D&); // expected-error {{conflicting types for 'operator='}} __cplusplus >= 201103L
+#elif __cplusplus >= 201103L
     // FIXME: We shouldn't produce the 'cannot overload' diagnostics here.
-    friend C &C::operator=(const C&); // expected-error {{does not match}} expected-error {{cannot overload}}
-    friend D &D::operator=(const D&); // expected-error {{does not match}} expected-error {{cannot overload}}
+    friend C &C::operator=(const C&); // expected-error {{does not match}} \
+                                      // expected-error {{cannot overload}} \
+                                      // expected-note@#574-overload1 {{candidate}}
+    friend D &D::operator=(const D&); // expected-error {{does not match}} \
+                                      // expected-error {{cannot overload}} \
+                                      // expected-note@#574-overload2 {{candidate}}
 #endif
   };
 }

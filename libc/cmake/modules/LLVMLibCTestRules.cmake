@@ -15,44 +15,59 @@
 function(get_object_files_for_test result skipped_entrypoints_list)
   set(object_files "")
   set(skipped_list "")
-  foreach(dep IN LISTS ARGN)
-    if (NOT TARGET ${dep})
-      # Skip any tests whose dependencies have not been defined.
-      list(APPEND skipped_list ${dep})
-      continue()
-    endif()
-    get_target_property(dep_type ${dep} "TARGET_TYPE")
-    if(NOT dep_type)
-      # Target for which TARGET_TYPE property is not set do not
-      # provide any object files.
-      continue()
-    endif()
+  set(checked_list "")
+  set(unchecked_list "${ARGN}")
+  list(REMOVE_DUPLICATES unchecked_list)
+  list(LENGTH unchecked_list length)
 
-    if(${dep_type} STREQUAL ${OBJECT_LIBRARY_TARGET_TYPE})
-      get_target_property(dep_object_files ${dep} "OBJECT_FILES")
-      if(dep_object_files)
-        list(APPEND object_files ${dep_object_files})
-      endif()
-    elseif(${dep_type} STREQUAL ${ENTRYPOINT_OBJ_TARGET_TYPE})
-      get_target_property(is_skipped ${dep} "SKIPPED")
-      if(is_skipped)
+  while(length)
+    set(indirect_list "")
+
+    foreach(dep IN LISTS unchecked_list)
+      if (NOT TARGET ${dep})
+        # Skip tests with undefined dependencies.
         list(APPEND skipped_list ${dep})
         continue()
       endif()
-      get_target_property(object_file_raw ${dep} "OBJECT_FILE_RAW")
-      if(object_file_raw)
-        list(APPEND object_files ${object_file_raw})
+      get_target_property(dep_type ${dep} "TARGET_TYPE")
+      if(NOT dep_type)
+        # Skip tests with no object dependencies.
+        continue()
       endif()
-    endif()
 
-    get_target_property(indirect_deps ${dep} "DEPS")
-    get_object_files_for_test(
-        indirect_objfiles indirect_skipped_list ${indirect_deps})
-    list(APPEND object_files ${indirect_objfiles})
-    if(indirect_skipped_list)
-      list(APPEND skipped_list ${indirect_skipped_list})
-    endif()
-  endforeach(dep)
+      if(${dep_type} STREQUAL ${OBJECT_LIBRARY_TARGET_TYPE})
+        get_target_property(dep_object_files ${dep} "OBJECT_FILES")
+        if(dep_object_files)
+          list(APPEND object_files ${dep_object_files})
+        endif()
+      elseif(${dep_type} STREQUAL ${ENTRYPOINT_OBJ_TARGET_TYPE})
+        get_target_property(is_skipped ${dep} "SKIPPED")
+        if(is_skipped)
+          list(APPEND skipped_list ${dep})
+          continue()
+        endif()
+        get_target_property(object_file_raw ${dep} "OBJECT_FILE_RAW")
+        if(object_file_raw)
+          list(APPEND object_files ${object_file_raw})
+        endif()
+      elseif(${dep_type} STREQUAL ${ENTRYPOINT_OBJ_VENDOR_TARGET_TYPE})
+        # Skip tests for externally implemented entrypoints.
+        list(APPEND skipped_list ${dep})
+        continue()
+      endif()
+
+      get_target_property(indirect_deps ${dep} "DEPS")
+      list(APPEND indirect_list "${indirect_deps}")
+    endforeach(dep)
+
+    # Only add new indirect dependencies to check.
+    list(APPEND checked_list "${unchecked_list}")
+    list(REMOVE_DUPLICATES indirect_list)
+    list(REMOVE_ITEM indirect_list checked_list)
+    set(unchecked_list "${indirect_list}")
+    list(LENGTH unchecked_list length)
+  endwhile()
+
   list(REMOVE_DUPLICATES object_files)
   set(${result} ${object_files} PARENT_SCOPE)
   list(REMOVE_DUPLICATES skipped_list)
@@ -77,7 +92,7 @@ function(create_libc_unittest fq_target_name)
 
   cmake_parse_arguments(
     "LIBC_UNITTEST"
-    "NO_RUN_POSTBUILD;NO_LIBC_UNITTEST_TEST_MAIN" # Optional arguments
+    "NO_RUN_POSTBUILD" # Optional arguments
     "SUITE;CXX_STANDARD" # Single value arguments
     "SRCS;HDRS;DEPENDS;COMPILE_OPTIONS;LINK_LIBRARIES;FLAGS" # Multi-value arguments
     ${ARGN}
@@ -92,6 +107,9 @@ function(create_libc_unittest fq_target_name)
   endif()
 
   get_fq_deps_list(fq_deps_list ${LIBC_UNITTEST_DEPENDS})
+  list(APPEND fq_deps_list libc.src.__support.StringUtil.error_to_string
+                           libc.test.UnitTest.ErrnoSetterMatcher)
+  list(REMOVE_DUPLICATES fq_deps_list)
   get_object_files_for_test(
       link_object_files skipped_entrypoints_list ${fq_deps_list})
   if(skipped_entrypoints_list)
@@ -141,17 +159,18 @@ function(create_libc_unittest fq_target_name)
     ${LIBC_UNITTEST_SRCS}
     ${LIBC_UNITTEST_HDRS}
   )
-  target_include_directories(
-    ${fq_build_target_name}
-    PRIVATE
-      ${LIBC_SOURCE_DIR}
-      ${LIBC_BUILD_DIR}
-      ${LIBC_BUILD_DIR}/include
-  )
+  target_include_directories(${fq_build_target_name} SYSTEM PRIVATE ${LIBC_INCLUDE_DIR})
+  target_include_directories(${fq_build_target_name} PRIVATE ${LIBC_SOURCE_DIR})
   target_compile_options(
     ${fq_build_target_name}
     PRIVATE -fpie ${LIBC_COMPILE_OPTIONS_DEFAULT}
   )
+  if(LLVM_LIBC_FULL_BUILD)
+    target_compile_options(
+      ${fq_build_target_name}
+      PRIVATE -ffreestanding
+    )
+  endif()
   if(LIBC_UNITTEST_COMPILE_OPTIONS)
     target_compile_options(
       ${fq_build_target_name}
@@ -167,8 +186,15 @@ function(create_libc_unittest fq_target_name)
       CXX_STANDARD ${LIBC_UNITTEST_CXX_STANDARD}
   )
 
+  set(link_libraries ${link_object_files})
   # Test object files will depend on LINK_LIBRARIES passed down from `add_fp_unittest`
-  set(link_libraries ${link_object_files} ${LIBC_UNITTEST_LINK_LIBRARIES})
+  foreach(lib IN LISTS LIBC_UNITTEST_LINK_LIBRARIES)
+    if(TARGET ${lib}.unit)
+      list(APPEND link_libraries ${lib}.unit)
+    else()
+      list(APPEND link_libraries ${lib})
+    endif()
+  endforeach()
 
   set_target_properties(${fq_build_target_name}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -178,19 +204,15 @@ function(create_libc_unittest fq_target_name)
     ${fq_deps_list}
   )
 
-  # LibcUnitTest and libc_test_utils should not depend on anything in LINK_LIBRARIES.
-  if(NO_LIBC_UNITTEST_TEST_MAIN)
-    list(APPEND link_libraries LibcUnitTest libc_test_utils)
-  else()
-    list(APPEND link_libraries LibcUnitTest LibcUnitTestMain libc_test_utils)
-  endif()
+  # LibcUnitTest should not depend on anything in LINK_LIBRARIES.
+  list(APPEND link_libraries LibcDeathTestExecutors.unit LibcTest.unit)
 
   target_link_libraries(${fq_build_target_name} PRIVATE ${link_libraries})
 
   if(NOT LIBC_UNITTEST_NO_RUN_POSTBUILD)
     add_custom_target(
       ${fq_target_name}
-      COMMAND $<TARGET_FILE:${fq_build_target_name}>
+      COMMAND ${fq_build_target_name}
       COMMENT "Running unit test ${fq_target_name}"
     )
   endif()
@@ -201,6 +223,7 @@ function(create_libc_unittest fq_target_name)
       ${fq_target_name}
     )
   endif()
+  add_dependencies(libc-unit-tests ${fq_target_name})
 endfunction(create_libc_unittest)
 
 # Internal function, used by `add_libc_unittest`.
@@ -298,11 +321,6 @@ function(add_libc_unittest target_name)
   )
 endfunction(add_libc_unittest)
 
-function(add_libc_testsuite suite_name)
-  add_custom_target(${suite_name})
-  add_dependencies(libc-unit-tests ${suite_name})
-endfunction(add_libc_testsuite)
-
 function(add_libc_exhaustive_testsuite suite_name)
   add_custom_target(${suite_name})
   add_dependencies(exhaustive-check-libc ${suite_name})
@@ -324,7 +342,7 @@ endfunction(add_libc_long_running_testsuite)
 function(add_libc_fuzzer target_name)
   cmake_parse_arguments(
     "LIBC_FUZZER"
-    "" # No optional arguments
+    "NEED_MPFR" # Optional arguments
     "" # Single value arguments
     "SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi-value arguments
     ${ARGN}
@@ -337,6 +355,16 @@ function(add_libc_fuzzer target_name)
     message(FATAL_ERROR "'add_libc_fuzzer' target requires a DEPENDS list of "
                         "'add_entrypoint_object' targets.")
   endif()
+
+  list(APPEND LIBC_FUZZER_LINK_LIBRARIES "")
+  if(LIBC_FUZZER_NEED_MPFR)
+    if(NOT LIBC_TESTS_CAN_USE_MPFR)
+      message(VERBOSE "Fuzz test ${name} will be skipped as MPFR library is not available.")
+      return()
+    endif()
+    list(APPEND LIBC_FUZZER_LINK_LIBRARIES mpfr gmp)
+  endif()
+
 
   get_fq_target_name(${target_name} fq_target_name)
   get_fq_deps_list(fq_deps_list ${LIBC_FUZZER_DEPENDS})
@@ -365,15 +393,13 @@ function(add_libc_fuzzer target_name)
     ${LIBC_FUZZER_SRCS}
     ${LIBC_FUZZER_HDRS}
   )
-  target_include_directories(
-    ${fq_target_name}
-    PRIVATE
-      ${LIBC_SOURCE_DIR}
-      ${LIBC_BUILD_DIR}
-      ${LIBC_BUILD_DIR}/include
-  )
+  target_include_directories(${fq_target_name} SYSTEM PRIVATE ${LIBC_INCLUDE_DIR})
+  target_include_directories(${fq_target_name} PRIVATE ${LIBC_SOURCE_DIR})
 
-  target_link_libraries(${fq_target_name} PRIVATE ${link_object_files})
+  target_link_libraries(${fq_target_name} PRIVATE 
+    ${link_object_files} 
+    ${LIBC_FUZZER_LINK_LIBRARIES}
+  )
 
   set_target_properties(${fq_target_name}
       PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -390,6 +416,8 @@ function(add_libc_fuzzer target_name)
 
 endfunction(add_libc_fuzzer)
 
+# DEPRECATED: Use add_hermetic_test instead.
+#
 # Rule to add an integration test. An integration test is like a unit test
 # but does not use the system libc. Not even the startup objects from the
 # system libc are linked in to the final executable. The final exe is fully
@@ -421,7 +449,7 @@ function(add_integration_test test_name)
     "INTEGRATION_TEST"
     "" # No optional arguments
     "SUITE" # Single value arguments
-    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS;LOADER_ARGS" # Multi-value arguments
     ${ARGN}
   )
 
@@ -485,38 +513,38 @@ function(add_integration_test test_name)
     ${fq_build_target_name}
     EXCLUDE_FROM_ALL
     # The NVIDIA 'nvlink' linker does not currently support static libraries.
-    $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${link_object_files}>
+    $<$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>:${link_object_files}>
     ${INTEGRATION_TEST_SRCS}
     ${INTEGRATION_TEST_HDRS}
   )
   set_target_properties(${fq_build_target_name}
       PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-  target_include_directories(
-    ${fq_build_target_name}
-    PRIVATE
-      ${LIBC_SOURCE_DIR}
-      ${LIBC_BUILD_DIR}
-      ${LIBC_BUILD_DIR}/include
-  )
+  target_include_directories(${fq_build_target_name} SYSTEM PRIVATE ${LIBC_INCLUDE_DIR})
+  target_include_directories(${fq_build_target_name} PRIVATE ${LIBC_SOURCE_DIR})
   target_compile_options(${fq_build_target_name}
-                         PRIVATE -fpie -ffreestanding ${INTEGRATION_TEST_COMPILE_OPTIONS})
+      PRIVATE -fpie -ffreestanding -fno-exceptions -fno-rtti ${INTEGRATION_TEST_COMPILE_OPTIONS})
   # The GPU build requires overriding the default CMake triple and architecture.
   if(LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
     target_compile_options(${fq_build_target_name} PRIVATE
-                           -mcpu=${LIBC_GPU_TARGET_ARCHITECTURE} -flto
-                           --target=${LIBC_GPU_TARGET_TRIPLE})
+                           -nogpulib -mcpu=${LIBC_GPU_TARGET_ARCHITECTURE}
+                           -flto --target=${LIBC_GPU_TARGET_TRIPLE}
+                           -mcode-object-version=${LIBC_GPU_CODE_OBJECT_VERSION})
   elseif(LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+    get_nvptx_compile_options(nvptx_options ${LIBC_GPU_TARGET_ARCHITECTURE})
     target_compile_options(${fq_build_target_name} PRIVATE
-                           --cuda-path=${LIBC_CUDA_ROOT}
-                           -march=${LIBC_GPU_TARGET_ARCHITECTURE}
+                           -nogpulib ${nvptx_options} -fno-use-cxa-atexit
                            --target=${LIBC_GPU_TARGET_TRIPLE})
   endif()
 
-  target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+    target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  else()
+    target_link_options(${fq_build_target_name} PRIVATE -nolibc -nostartfiles -nostdlib++ -static)
+  endif()
   target_link_libraries(
     ${fq_build_target_name}
     # The NVIDIA 'nvlink' linker does not currently support static libraries.
-    $<$<NOT:$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>>:${fq_target_name}.__libc__>
+    $<$<NOT:$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>>:${fq_target_name}.__libc__>
     libc.startup.${LIBC_TARGET_OS}.crt1
     libc.test.IntegrationTest.test)
   add_dependencies(${fq_build_target_name}
@@ -525,15 +553,220 @@ function(add_integration_test test_name)
 
   # Tests on the GPU require an external loader utility to launch the kernel.
   if(TARGET libc.utils.gpu.loader)
+    add_dependencies(${fq_build_target_name} libc.utils.gpu.loader)
     get_target_property(gpu_loader_exe libc.utils.gpu.loader "EXECUTABLE")
   endif()
 
+  # We have to use a separate var to store the command as a list because
+  # the COMMAND option of `add_custom_target` cannot handle empty vars in the
+  # command. For example, if INTEGRATION_TEST_ENV is empty, the actual
+  # command also will not run. So, we use this list and tell `add_custom_target`
+  # to expand the list (by including the option COMMAND_EXPAND_LISTS). This
+  # makes `add_custom_target` construct the correct command and execute it.
+  set(test_cmd
+      ${INTEGRATION_TEST_ENV}
+      $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${gpu_loader_exe}>
+      ${CMAKE_CROSSCOMPILING_EMULATOR}
+      ${INTEGRATION_TEST_LOADER_ARGS}
+      $<TARGET_FILE:${fq_build_target_name}> ${INTEGRATION_TEST_ARGS})
   add_custom_target(
     ${fq_target_name}
-    COMMAND ${INTEGRATION_TEST_ENV}
-            $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${gpu_loader_exe}>
-            $<TARGET_FILE:${fq_build_target_name}> ${INTEGRATION_TEST_ARGS}
+    COMMAND ${test_cmd}
+    COMMAND_EXPAND_LISTS
     COMMENT "Running integration test ${fq_target_name}"
   )
   add_dependencies(${INTEGRATION_TEST_SUITE} ${fq_target_name})
 endfunction(add_integration_test)
+
+set(LIBC_HERMETIC_TEST_COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_DEFAULT}
+    -fpie -ffreestanding -fno-exceptions -fno-rtti)
+# The GPU build requires overriding the default CMake triple and architecture.
+if(LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
+  list(APPEND LIBC_HERMETIC_TEST_COMPILE_OPTIONS
+       -nogpulib -mcpu=${LIBC_GPU_TARGET_ARCHITECTURE} -flto
+       --target=${LIBC_GPU_TARGET_TRIPLE}
+       -mcode-object-version=${LIBC_GPU_CODE_OBJECT_VERSION})
+elseif(LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+  get_nvptx_compile_options(nvptx_options ${LIBC_GPU_TARGET_ARCHITECTURE})
+  list(APPEND LIBC_HERMETIC_TEST_COMPILE_OPTIONS
+       -nogpulib ${nvptx_options} -fno-use-cxa-atexit --target=${LIBC_GPU_TARGET_TRIPLE})
+endif()
+
+# Rule to add a hermetic test. A hermetic test is one whose executable is fully
+# statically linked and consists of pieces drawn only from LLVM's libc. Nothing,
+# including the startup objects, come from the system libc.
+#
+# Usage:
+#   add_libc_hermetic_test(
+#     <target name>
+#     SUITE <the suite to which the test should belong>
+#     SRCS <src1.cpp> [src2.cpp ...]
+#     HDRS [hdr1.cpp ...]
+#     DEPENDS <list of entrypoint or other object targets>
+#     ARGS <list of command line arguments to be passed to the test>
+#     ENV <list of environment variables to set before running the test>
+#     COMPILE_OPTIONS <list of special compile options for the test>
+#     LINK_LIBRARIES <list of linking libraries for this target>
+#     LOADER_ARGS <list of special args to loaders (like the GPU loader)>
+#   )
+function(add_libc_hermetic_test test_name)
+  if(NOT TARGET libc.startup.${LIBC_TARGET_OS}.crt1)
+    message(VERBOSE "Skipping ${fq_target_name} as it is not available on ${LIBC_TARGET_OS}.")
+    return()
+  endif()
+  cmake_parse_arguments(
+    "HERMETIC_TEST"
+    "" # No optional arguments
+    "SUITE" # Single value arguments
+    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS;LINK_LIBRARIES;LOADER_ARGS" # Multi-value arguments
+    ${ARGN}
+  )
+
+  if(NOT HERMETIC_TEST_SUITE)
+    message(FATAL_ERROR "SUITE not specified for ${fq_target_name}")
+  endif()
+  if(NOT HERMETIC_TEST_SRCS)
+    message(FATAL_ERROR "The SRCS list for add_integration_test is missing.")
+  endif()
+
+  get_fq_target_name(${test_name} fq_target_name)
+  get_fq_target_name(${test_name}.libc fq_libc_target_name)
+
+  get_fq_deps_list(fq_deps_list ${HERMETIC_TEST_DEPENDS})
+  list(APPEND fq_deps_list
+      # Hermetic tests use the platform's startup object. So, their deps also
+      # have to be collected.
+      libc.startup.${LIBC_TARGET_OS}.crt1
+      # We always add the memory functions objects. This is because the
+      # compiler's codegen can emit calls to the C memory functions.
+      libc.src.string.bcmp
+      libc.src.string.bzero
+      libc.src.string.memcmp
+      libc.src.string.memcpy
+      libc.src.string.memmove
+      libc.src.string.memset
+      libc.src.__support.StringUtil.error_to_string
+  )
+
+  if(TARGET libc.src.time.clock)
+    # We will link in the 'clock' implementation if it exists for test timing.
+    list(APPEND fq_deps_list libc.src.time.clock)
+  endif()
+
+  list(REMOVE_DUPLICATES fq_deps_list)
+
+  # TODO: Instead of gathering internal object files from entrypoints,
+  # collect the object files with public names of entrypoints.
+  get_object_files_for_test(
+      link_object_files skipped_entrypoints_list ${fq_deps_list})
+  if(skipped_entrypoints_list)
+    set(msg "Skipping unittest ${fq_target_name} as it has missing deps: "
+            "${skipped_entrypoints_list}.")
+    message(STATUS ${msg})
+    return()
+  endif()
+  list(REMOVE_DUPLICATES link_object_files)
+
+  # Make a library of all deps
+  add_library(
+    ${fq_target_name}.__libc__
+    STATIC
+    EXCLUDE_FROM_ALL
+    ${link_object_files}
+  )
+  set_target_properties(${fq_target_name}.__libc__
+      PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(${fq_target_name}.__libc__
+      PROPERTIES ARCHIVE_OUTPUT_NAME ${fq_target_name}.libc)
+
+  set(fq_build_target_name ${fq_target_name}.__build__)
+  add_executable(
+    ${fq_build_target_name}
+    EXCLUDE_FROM_ALL
+    # The NVIDIA 'nvlink' linker does not currently support static libraries.
+    $<$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>:${link_object_files}>
+    ${HERMETIC_TEST_SRCS}
+    ${HERMETIC_TEST_HDRS}
+  )
+  set_target_properties(${fq_build_target_name}
+    PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      #OUTPUT_NAME ${fq_target_name}
+  )
+  target_include_directories(${fq_build_target_name} SYSTEM PRIVATE ${LIBC_INCLUDE_DIR})
+  target_include_directories(${fq_build_target_name} PRIVATE ${LIBC_SOURCE_DIR})
+  target_compile_options(${fq_build_target_name}
+      PRIVATE ${LIBC_HERMETIC_TEST_COMPILE_OPTIONS} ${HERMETIC_TEST_COMPILE_OPTIONS})
+
+  set(link_libraries "")
+  foreach(lib IN LISTS HERMETIC_TEST_LINK_LIBRARIES)
+    if(TARGET ${lib}.hermetic)
+      list(APPEND link_libraries ${lib}.hermetic)
+    else()
+      list(APPEND link_libraries ${lib})
+    endif()
+  endforeach()
+
+  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+    target_link_options(${fq_build_target_name} PRIVATE -nostdlib -static)
+  else()
+    target_link_options(${fq_build_target_name} PRIVATE -nolibc -nostartfiles -nostdlib++ -static)
+  endif()
+  target_link_libraries(
+    ${fq_build_target_name}
+    PRIVATE
+      libc.startup.${LIBC_TARGET_OS}.crt1
+      ${link_libraries}
+      LibcTest.hermetic
+      LibcHermeticTestSupport.hermetic
+      # The NVIDIA 'nvlink' linker does not currently support static libraries.
+      $<$<NOT:$<BOOL:${LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX}>>:${fq_target_name}.__libc__>)
+  add_dependencies(${fq_build_target_name}
+                   LibcTest.hermetic
+                   libc.test.UnitTest.ErrnoSetterMatcher
+                   ${fq_deps_list})
+
+  # Tests on the GPU require an external loader utility to launch the kernel.
+  if(TARGET libc.utils.gpu.loader)
+    add_dependencies(${fq_build_target_name} libc.utils.gpu.loader)
+    get_target_property(gpu_loader_exe libc.utils.gpu.loader "EXECUTABLE")
+  endif()
+
+  set(test_cmd ${HERMETIC_TEST_ENV}
+      $<$<BOOL:${LIBC_TARGET_ARCHITECTURE_IS_GPU}>:${gpu_loader_exe}> ${CMAKE_CROSSCOMPILING_EMULATOR} ${HERMETIC_TEST_LOADER_ARGS}
+      $<TARGET_FILE:${fq_build_target_name}> ${HERMETIC_TEST_ARGS})
+  add_custom_target(
+    ${fq_target_name}
+    COMMAND ${test_cmd}
+    COMMAND_EXPAND_LISTS
+    COMMENT "Running hermetic test ${fq_target_name}"
+    ${LIBC_HERMETIC_TEST_JOB_POOL}
+  )
+
+  add_dependencies(${HERMETIC_TEST_SUITE} ${fq_target_name})
+  add_dependencies(libc-hermetic-tests ${fq_target_name})
+endfunction(add_libc_hermetic_test)
+
+# A convenience function to add both a unit test as well as a hermetic test.
+function(add_libc_test test_name)
+  cmake_parse_arguments(
+    "LIBC_TEST"
+    "UNIT_TEST_ONLY;HERMETIC_TEST_ONLY" # Optional arguments
+    "" # Single value arguments
+    "" # Multi-value arguments
+    ${ARGN}
+  )
+  if(LIBC_ENABLE_UNITTESTS AND NOT LIBC_TEST_HERMETIC_TEST_ONLY)
+    add_libc_unittest(${test_name}.__unit__ ${LIBC_TEST_UNPARSED_ARGUMENTS})
+  endif()
+  if(LIBC_ENABLE_HERMETIC_TESTS AND NOT LIBC_TEST_UNIT_TEST_ONLY)
+    add_libc_hermetic_test(${test_name}.__hermetic__ ${LIBC_TEST_UNPARSED_ARGUMENTS})
+    get_fq_target_name(${test_name} fq_test_name)
+    if(TARGET ${fq_test_name}.__hermetic__ AND TARGET ${fq_test_name}.__unit__)
+      # Tests like the file tests perform file operations on disk file. If we
+      # don't chain up the unit test and hermetic test, then those tests will
+      # step on each other's files.
+      add_dependencies(${fq_test_name}.__hermetic__ ${fq_test_name}.__unit__)
+    endif()
+  endif()
+endfunction(add_libc_test)

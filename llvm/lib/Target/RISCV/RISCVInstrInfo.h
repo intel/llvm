@@ -25,6 +25,11 @@ namespace llvm {
 
 class RISCVSubtarget;
 
+static const MachineMemOperand::Flags MONontemporalBit0 =
+    MachineMemOperand::MOTargetFlag1;
+static const MachineMemOperand::Flags MONontemporalBit1 =
+    MachineMemOperand::MOTargetFlag2;
+
 namespace RISCVCC {
 
 enum CondCode {
@@ -38,6 +43,7 @@ enum CondCode {
 };
 
 CondCode getOppositeBranchCondition(CondCode);
+unsigned getBrCond(CondCode CC);
 
 } // end of namespace RISCVCC
 
@@ -58,6 +64,10 @@ public:
   unsigned isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex,
                               unsigned &MemBytes) const override;
 
+  void copyPhysRegVector(MachineBasicBlock &MBB,
+                         MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
+                         MCRegister DstReg, MCRegister SrcReg, bool KillSrc,
+                         unsigned Opc, unsigned NF = 1) const;
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                    const DebugLoc &DL, MCRegister DstReg, MCRegister SrcReg,
                    bool KillSrc) const override;
@@ -86,7 +96,8 @@ public:
   // Materializes the given integer Val into DstReg.
   void movImm(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
               const DebugLoc &DL, Register DstReg, uint64_t Val,
-              MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
+              MachineInstr::MIFlag Flag = MachineInstr::NoFlags,
+              bool DstRenamable = false, bool DstIsDead = false) const;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
@@ -111,6 +122,8 @@ public:
   bool
   reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
+  bool optimizeCondBranch(MachineInstr &MI) const override;
+
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
 
   bool isBranchOffsetInRange(unsigned BranchOpc,
@@ -131,6 +144,13 @@ public:
 
   bool verifyInstruction(const MachineInstr &MI,
                          StringRef &ErrInfo) const override;
+
+  bool canFoldIntoAddrMode(const MachineInstr &MemI, Register Reg,
+                           const MachineInstr &AddrI,
+                           ExtAddrMode &AM) const override;
+
+  MachineInstr *emitLdStWithAddr(MachineInstr &MemI,
+                                 const ExtAddrMode &AM) const override;
 
   bool getMemOperandWithOffsetWidth(const MachineInstr &LdSt,
                                     const MachineOperand *&BaseOp,
@@ -176,6 +196,9 @@ public:
   insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
                      outliner::Candidate &C) const override;
+
+  std::optional<RegImmPair> isAddImmediate(const MachineInstr &MI,
+                                           Register Reg) const override;
 
   bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
@@ -227,8 +250,14 @@ public:
 
   std::optional<unsigned> getInverseOpcode(unsigned Opcode) const override;
 
+  ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+  getSerializableMachineMemOperandTargetFlags() const override;
+
 protected:
   const RISCVSubtarget &STI;
+
+private:
+  unsigned getInstBundleLength(const MachineInstr &MI) const;
 };
 
 namespace RISCV {
@@ -254,9 +283,29 @@ int16_t getNamedOperandIdx(uint16_t Opcode, uint16_t NamedIndex);
 // one of the instructions does not have rounding mode, false will be returned.
 bool hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2);
 
+// If \p Opcode is a .vx vector instruction, returns the lower number of bits
+// that are used from the scalar .x operand for a given \p Log2SEW. Otherwise
+// returns null.
+std::optional<unsigned> getVectorLowDemandedScalarBits(uint16_t Opcode,
+                                                       unsigned Log2SEW);
+
+// Returns the MC opcode of RVV pseudo instruction.
+unsigned getRVVMCOpcode(unsigned RVVPseudoOpcode);
+
 // Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
 static constexpr int64_t VLMaxSentinel = -1LL;
 
+// Mask assignments for floating-point
+static constexpr unsigned FPMASK_Negative_Infinity = 0x001;
+static constexpr unsigned FPMASK_Negative_Normal = 0x002;
+static constexpr unsigned FPMASK_Negative_Subnormal = 0x004;
+static constexpr unsigned FPMASK_Negative_Zero = 0x008;
+static constexpr unsigned FPMASK_Positive_Zero = 0x010;
+static constexpr unsigned FPMASK_Positive_Subnormal = 0x020;
+static constexpr unsigned FPMASK_Positive_Normal = 0x040;
+static constexpr unsigned FPMASK_Positive_Infinity = 0x080;
+static constexpr unsigned FPMASK_Signaling_NaN = 0x100;
+static constexpr unsigned FPMASK_Quiet_NaN = 0x200;
 } // namespace RISCV
 
 namespace RISCVVPseudosTable {

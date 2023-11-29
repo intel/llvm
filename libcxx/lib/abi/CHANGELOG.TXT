@@ -13,8 +13,70 @@ To generate a summary, re-generate the new ABI list using the
 New entries should be added directly below the "Version" header.
 
 ------------
+Version 18.0
+------------
+
+* [libc++] Simplify the implementation of locale::id
+
+  This patch removes a symbol defined in the library for std::locale::id::__init().
+  The symbol '__init' was defined as a private static function as part of the locale::id
+  class and was never visible from outside the dylib. The addition of this symbol to the
+  ABI was most likely accidental. The deletion of the symbol should not be a breaking change.
+
+  All platforms
+  -------------
+  Symbol removed: _ZNSt3__16locale2id6__initEv
+
+* [libc++] Remove symbol for std::system_error from the dylib
+
+  This patch removes a symbol defined in the library for std::system_error.
+  The symbol '__init' was defined as a private static function as part of the
+  system_error class and was never visible. The addition of this symbol to the ABI was most likely accidental.
+  The function '__init' is replaced by another equivalent function which is placed in the
+  anonymous namespace of the std::system_error source code file.
+  There are no internal references to this symbol which seems to support the reasoning that
+  this was never used outside of the dylib.
+  The deletion of the symbol should not be a breaking change.
+
+  All platforms
+  -------------
+  Symbol removed: _ZNSt3__112system_error6__initERKNS_10error_codeENS_12basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEE
+
+------------
 Version 17.0
 ------------
+
+* [libc++] Remove symbols for a std::allocator_arg & friends from the dylib
+
+  This patch removes the symbols defined in the library for std::allocator_arg,
+  std::defer_lock, std::try_to_lock, std::adopt_lock, and std::piecewise_construct.
+  Those were defined in the library because we provided them in C++03 as an
+  extension, and in C++03 it was impossible to define them as `constexpr`
+  variables, as required by the Standard.
+
+  This is technically an ABI break since we are removing symbols from the
+  library. However, in practice, only programs compiled in C++03 mode that
+  take the address of those objects (or pass them as a reference) will have
+  an undefined ref to those symbols. In practice, this is expected to be
+  rare. First, those are C++11 features that we happen to provide in C++03,
+  and only the C++03 definition can potentially lead to code referencing
+  the dylib definition. So any code that is using these objects but compiling
+  in C++11 mode (as they should) is not at risk. Second, all uses of these
+  types in the library is done by passing those types by value to a function
+  that can get inlined. Since they are empty types, the compiler won't
+  generate an undefined reference if passed by value, since there's nothing
+  to pass anyway.
+
+  Long story short, the risk for code actually containing an undefined
+  reference to one of these types is rather small (but non-zero).
+
+  All platforms
+  -------------
+  Symbol removed: _ZNSt3__110adopt_lockE
+  Symbol removed: _ZNSt3__110defer_lockE
+  Symbol removed: _ZNSt3__111try_to_lockE
+  Symbol removed: _ZNSt3__113allocator_argE
+  Symbol removed: _ZNSt3__119piecewise_constructE
 
 * [libc++] Remove explicit instantiations of __insertion_sort_incomplete and __sort5 from the dylib
 

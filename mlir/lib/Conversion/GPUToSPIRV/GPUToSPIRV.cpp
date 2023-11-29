@@ -222,7 +222,7 @@ LogicalResult WorkGroupSizeConversion::matchAndRewrite(
 
 // Legalizes a GPU function as an entry SPIR-V function.
 static spirv::FuncOp
-lowerAsEntryFunction(gpu::GPUFuncOp funcOp, TypeConverter &typeConverter,
+lowerAsEntryFunction(gpu::GPUFuncOp funcOp, const TypeConverter &typeConverter,
                      ConversionPatternRewriter &rewriter,
                      spirv::EntryPointABIAttr entryPointInfo,
                      ArrayRef<spirv::InterfaceVarABIAttr> argABIInfo) {
@@ -495,9 +495,9 @@ static std::optional<Value> createGroupReduceOp(OpBuilder &builder,
   Type type = arg.getType();
   using MembptrT = FuncT OpHandler::*;
   MembptrT handlerPtr;
-  if (type.isa<FloatType>()) {
+  if (isa<FloatType>(type)) {
     handlerPtr = &OpHandler::floatFunc;
-  } else if (type.isa<IntegerType>()) {
+  } else if (isa<IntegerType>(type)) {
     handlerPtr = &OpHandler::intFunc;
   } else {
     return std::nullopt;

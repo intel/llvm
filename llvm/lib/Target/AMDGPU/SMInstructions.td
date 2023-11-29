@@ -8,8 +8,7 @@
 
 def smrd_offset_8 : ImmOperand<i32, "SMRDOffset8", 1>;
 
-let OperandType = "OPERAND_IMMEDIATE",
-    EncoderMethod = "getSMEMOffsetEncoding",
+let EncoderMethod = "getSMEMOffsetEncoding",
     DecoderMethod = "decodeSMEMOffset" in {
 def smem_offset : ImmOperand<i32, "SMEMOffset", 1>;
 def smem_offset_mod : NamedIntOperand<i32, "offset", "SMEMOffsetMod">;
@@ -115,6 +114,7 @@ class SM_Load_Pseudo <string opName, RegisterClass baseClass,
               " $sdst, $sbase, " # offsets.Asm # "$cpol", []> {
   RegisterClass BaseClass = baseClass;
   let mayLoad = 1;
+  let isReMaterializable = 1;
   let mayStore = 0;
   let has_glc = 1;
   let has_dlc = 1;
@@ -234,8 +234,6 @@ class SM_Atomic_Pseudo <string opName,
 
   let IsAtomicNoRet = !not(isRet);
   let IsAtomicRet = isRet;
-
-  let AsmMatchConverter = "cvtSMEMAtomic";
 }
 
 class SM_Pseudo_Atomic<string opName,
@@ -245,7 +243,7 @@ class SM_Pseudo_Atomic<string opName,
                        bit isRet,
                        string opNameWithSuffix =
                          opName # offsets.Variant # !if(isRet, "_RTN", ""),
-                       Operand CPolTy = !if(isRet, CPol_GLC1, CPol)> :
+                       Operand CPolTy = !if(isRet, CPol_GLC, CPol_NonGLC)> :
   SM_Atomic_Pseudo<opName,
                    !if(isRet, (outs dataClass:$sdst), (outs)),
                    !con((ins dataClass:$sdata, baseClass:$sbase), offsets.Ins,
@@ -815,8 +813,14 @@ multiclass SMRD_Pattern <string Instr, ValueType vt> {
   // 3. SGPR offset
   def : GCNPat <
     (smrd_load (SMRDSgpr i64:$sbase, i32:$soffset)),
-    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $soffset, 0))
-  >;
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $soffset, 0))> {
+    let OtherPredicates = [isNotGFX9Plus];
+  }
+  def : GCNPat <
+    (smrd_load (SMRDSgpr i64:$sbase, i32:$soffset)),
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR_IMM") $sbase, $soffset, 0, 0))> {
+    let OtherPredicates = [isGFX9Plus];
+  }
 
   // 4. SGPR+IMM offset
   def : GCNPat <
@@ -852,8 +856,14 @@ multiclass SMLoad_Pattern <string Instr, ValueType vt> {
   // 3. Offset loaded in an 32bit SGPR
   def : GCNPat <
     (SIsbuffer_load v4i32:$sbase, i32:$soffset, timm:$cachepolicy),
-    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") SReg_128:$sbase, SReg_32:$soffset, (extract_cpol $cachepolicy)))
-  >;
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") SReg_128:$sbase, SReg_32:$soffset, (extract_cpol $cachepolicy)))> {
+    let OtherPredicates = [isNotGFX9Plus];
+  }
+  def : GCNPat <
+    (SIsbuffer_load v4i32:$sbase, i32:$soffset, timm:$cachepolicy),
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR_IMM") SReg_128:$sbase, SReg_32:$soffset, 0, (extract_cpol $cachepolicy)))> {
+    let OtherPredicates = [isGFX9Plus];
+  }
 
   // 4. Offset as an 32-bit SGPR + immediate
   def : GCNPat <

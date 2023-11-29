@@ -389,7 +389,7 @@ public:
       Mods = getNextModifiers(Proto, Pos);
     }
 
-    for (auto Type : Types) {
+    for (const auto &Type : Types) {
       // If this builtin takes an immediate argument, we need to #define it rather
       // than use a standard declaration, so that SemaChecking can range check
       // the immediate passed by the user.
@@ -736,17 +736,17 @@ Type Type::fromTypedefName(StringRef Name) {
     Name = Name.drop_front();
   }
 
-  if (Name.startswith("float")) {
+  if (Name.starts_with("float")) {
     T.Kind = Float;
     Name = Name.drop_front(5);
-  } else if (Name.startswith("poly")) {
+  } else if (Name.starts_with("poly")) {
     T.Kind = Poly;
     Name = Name.drop_front(4);
-  } else if (Name.startswith("bfloat")) {
+  } else if (Name.starts_with("bfloat")) {
     T.Kind = BFloat16;
     Name = Name.drop_front(6);
   } else {
-    assert(Name.startswith("int"));
+    assert(Name.starts_with("int"));
     Name = Name.drop_front(3);
   }
 
@@ -787,7 +787,7 @@ Type Type::fromTypedefName(StringRef Name) {
     Name = Name.drop_front(I);
   }
 
-  assert(Name.startswith("_t") && "Malformed typedef!");
+  assert(Name.starts_with("_t") && "Malformed typedef!");
   return T;
 }
 
@@ -1655,7 +1655,7 @@ std::pair<Type, std::string> Intrinsic::DagEmitter::emitDagShuffle(DagInit *DI){
   std::string S = "__builtin_shufflevector(" + Arg1.second + ", " + Arg2.second;
   for (auto &E : Elts) {
     StringRef Name = E->getName();
-    assert_with_loc(Name.startswith("sv"),
+    assert_with_loc(Name.starts_with("sv"),
                     "Incorrect element kind in shuffle mask!");
     S += ", " + Name.drop_front(2).str();
   }
@@ -2049,10 +2049,10 @@ void NeonEmitter::genOverloadTypeCheckCode(raw_ostream &OS,
   // definitions may extend the number of permitted types (i.e. augment the
   // Mask). Use std::map to avoid sorting the table by hash number.
   struct OverloadInfo {
-    uint64_t Mask;
-    int PtrArgNum;
-    bool HasConstPtr;
-    OverloadInfo() : Mask(0ULL), PtrArgNum(0), HasConstPtr(false) {}
+    uint64_t Mask = 0ULL;
+    int PtrArgNum = 0;
+    bool HasConstPtr = false;
+    OverloadInfo() = default;
   };
   std::map<std::string, OverloadInfo> OverloadMap;
 
@@ -2086,12 +2086,13 @@ void NeonEmitter::genOverloadTypeCheckCode(raw_ostream &OS,
 
     std::string Name = Def->getName();
     // Omit type checking for the pointer arguments of vld1_lane, vld1_dup,
-    // and vst1_lane intrinsics.  Using a pointer to the vector element
-    // type with one of those operations causes codegen to select an aligned
-    // load/store instruction.  If you want an unaligned operation,
-    // the pointer argument needs to have less alignment than element type,
-    // so just accept any pointer type.
-    if (Name == "vld1_lane" || Name == "vld1_dup" || Name == "vst1_lane") {
+    // vst1_lane, vldap1_lane, and vstl1_lane intrinsics.  Using a pointer to
+    // the vector element type with one of those operations causes codegen to
+    // select an aligned load/store instruction.  If you want an unaligned
+    // operation, the pointer argument needs to have less alignment than element
+    // type, so just accept any pointer type.
+    if (Name == "vld1_lane" || Name == "vld1_dup" || Name == "vst1_lane" ||
+        Name == "vldap1_lane" || Name == "vstl1_lane") {
       PtrArgNum = -1;
       HasConstPtr = false;
     }
@@ -2353,7 +2354,6 @@ void NeonEmitter::run(raw_ostream &OS) {
   OS << "#include <stdint.h>\n\n";
 
   OS << "#include <arm_bf16.h>\n";
-  OS << "typedef __bf16 bfloat16_t;\n";
 
   // Emit NEON-specific scalar typedefs.
   OS << "typedef float float32_t;\n";

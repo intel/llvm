@@ -13,7 +13,7 @@
 #include <sycl/pointers.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 constexpr uint8_t BURST_COALESCE = 0x1;
@@ -200,5 +200,5 @@ private:
 };
 
 } // namespace ext::intel::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

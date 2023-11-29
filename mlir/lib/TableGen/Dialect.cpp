@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/Dialect.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 
@@ -33,7 +32,7 @@ StringRef Dialect::getCppNamespace() const {
 std::string Dialect::getCppClassName() const {
   // Simply use the name and remove any '_' tokens.
   std::string cppName = def->getName().str();
-  llvm::erase_value(cppName, '_');
+  llvm::erase(cppName, '_');
   return cppName;
 }
 
@@ -101,6 +100,10 @@ bool Dialect::useDefaultTypePrinterParser() const {
 
 bool Dialect::isExtensible() const {
   return def->getValueAsBit("isExtensible");
+}
+
+bool Dialect::usePropertiesForAttributes() const {
+  return def->getValueAsBit("usePropertiesForAttributes");
 }
 
 bool Dialect::operator==(const Dialect &other) const {

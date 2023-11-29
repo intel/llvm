@@ -215,9 +215,9 @@ FuncBranchData::getDirectCallBranch(uint64_t From) const {
     }
   };
   auto Range = std::equal_range(Data.begin(), Data.end(), From, Compare());
-  for (auto I = Range.first; I != Range.second; ++I)
-    if (I->From.Name != I->To.Name)
-      return *I;
+  for (const auto &RI : llvm::make_range(Range))
+    if (RI.From.Name != RI.To.Name)
+      return RI;
 
   return make_error_code(llvm::errc::invalid_argument);
 }
@@ -698,7 +698,8 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
       if (!BC.MIB->isNoop(Instr))
         break;
 
-      Offset += BC.MIB->getAnnotationWithDefault<uint32_t>(Instr, "Size");
+      if (std::optional<uint32_t> Size = BC.MIB->getSize(Instr))
+        Offset += *Size;
     }
 
     if (To == Offset)
@@ -785,9 +786,8 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
         FTBI.MispredictedCount += Mispreds;
       ToBB = FTSuccessor;
     } else {
-      LLVM_DEBUG(dbgs() << "invalid branch in " << BF << '\n'
-                        << Twine::utohexstr(From) << " -> "
-                        << Twine::utohexstr(To) << '\n');
+      LLVM_DEBUG(dbgs() << "invalid branch in " << BF
+                        << formatv(": {0:x} -> {1:x}\n", From, To));
       return false;
     }
   }

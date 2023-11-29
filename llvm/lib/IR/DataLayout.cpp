@@ -45,21 +45,30 @@ using namespace llvm;
 // Support for StructLayout
 //===----------------------------------------------------------------------===//
 
-StructLayout::StructLayout(StructType *ST, const DataLayout &DL) {
+StructLayout::StructLayout(StructType *ST, const DataLayout &DL)
+    : StructSize(TypeSize::getFixed(0)) {
   assert(!ST->isOpaque() && "Cannot get layout of opaque structs");
-  StructSize = 0;
   IsPadded = false;
   NumElements = ST->getNumElements();
 
   // Loop over each of the elements, placing them in memory.
   for (unsigned i = 0, e = NumElements; i != e; ++i) {
     Type *Ty = ST->getElementType(i);
+    if (i == 0 && Ty->isScalableTy())
+      StructSize = TypeSize::getScalable(0);
+
     const Align TyAlign = ST->isPacked() ? Align(1) : DL.getABITypeAlign(Ty);
 
     // Add padding if necessary to align the data element properly.
-    if (!isAligned(TyAlign, StructSize)) {
+    // Currently the only structure with scalable size will be the homogeneous
+    // scalable vector types. Homogeneous scalable vector types have members of
+    // the same data type so no alignment issue will happen. The condition here
+    // assumes so and needs to be adjusted if this assumption changes (e.g. we
+    // support structures with arbitrary scalable data type, or structure that
+    // contains both fixed size and scalable size data type members).
+    if (!StructSize.isScalable() && !isAligned(TyAlign, StructSize)) {
       IsPadded = true;
-      StructSize = alignTo(StructSize, TyAlign);
+      StructSize = TypeSize::getFixed(alignTo(StructSize, TyAlign));
     }
 
     // Keep track of maximum alignment constraint.
@@ -67,28 +76,39 @@ StructLayout::StructLayout(StructType *ST, const DataLayout &DL) {
 
     getMemberOffsets()[i] = StructSize;
     // Consume space for this data item
-    StructSize += DL.getTypeAllocSize(Ty).getFixedValue();
+    StructSize += DL.getTypeAllocSize(Ty);
   }
 
   // Add padding to the end of the struct so that it could be put in an array
   // and all array elements would be aligned correctly.
-  if (!isAligned(StructAlignment, StructSize)) {
+  if (!StructSize.isScalable() && !isAligned(StructAlignment, StructSize)) {
     IsPadded = true;
-    StructSize = alignTo(StructSize, StructAlignment);
+    StructSize = TypeSize::getFixed(alignTo(StructSize, StructAlignment));
   }
 }
 
 /// getElementContainingOffset - Given a valid offset into the structure,
 /// return the structure index that contains it.
-unsigned StructLayout::getElementContainingOffset(uint64_t Offset) const {
-  ArrayRef<uint64_t> MemberOffsets = getMemberOffsets();
-  auto SI = llvm::upper_bound(MemberOffsets, Offset);
+unsigned StructLayout::getElementContainingOffset(uint64_t FixedOffset) const {
+  assert(!StructSize.isScalable() &&
+         "Cannot get element at offset for structure containing scalable "
+         "vector types");
+  TypeSize Offset = TypeSize::getFixed(FixedOffset);
+  ArrayRef<TypeSize> MemberOffsets = getMemberOffsets();
+
+  const auto *SI =
+      std::upper_bound(MemberOffsets.begin(), MemberOffsets.end(), Offset,
+                       [](TypeSize LHS, TypeSize RHS) -> bool {
+                         return TypeSize::isKnownLT(LHS, RHS);
+                       });
   assert(SI != MemberOffsets.begin() && "Offset not in structure type!");
   --SI;
-  assert(*SI <= Offset && "upper_bound didn't work");
-  assert((SI == MemberOffsets.begin() || *(SI - 1) <= Offset) &&
-         (SI + 1 == MemberOffsets.end() || *(SI + 1) > Offset) &&
-         "Upper bound didn't work!");
+  assert(TypeSize::isKnownLE(*SI, Offset) && "upper_bound didn't work");
+  assert(
+      (SI == MemberOffsets.begin() || TypeSize::isKnownLE(*(SI - 1), Offset)) &&
+      (SI + 1 == MemberOffsets.end() ||
+       TypeSize::isKnownGT(*(SI + 1), Offset)) &&
+      "Upper bound didn't work!");
 
   // Multiple fields can have the same offset if any of them are zero sized.
   // For example, in { i32, [0 x i32], i32 }, searching for offset 4 will stop
@@ -151,7 +171,7 @@ const char *DataLayout::getManglingComponent(const Triple &T) {
     return "-m:l";
   if (T.isOSBinFormatMachO())
     return "-m:o";
-  if (T.isOSWindows() && T.isOSBinFormatCOFF())
+  if ((T.isOSWindows() || T.isUEFI()) && T.isOSBinFormatCOFF())
     return T.getArch() == Triple::x86 ? "-m:x" : "-m:w";
   if (T.isOSBinFormatXCOFF())
     return "-m:a";
@@ -629,6 +649,8 @@ Error DataLayout::setPointerAlignmentInBits(uint32_t AddrSpace, Align ABIAlign,
   if (PrefAlign < ABIAlign)
     return reportError(
         "Preferred alignment cannot be less than the ABI alignment");
+  if (IndexBitWidth > TypeBitWidth)
+    return reportError("Index width cannot be larger than pointer width");
 
   auto I = lower_bound(Pointers, AddrSpace,
                        [](const PointerAlignElem &A, uint32_t AddressSpace) {
@@ -706,7 +728,7 @@ const StructLayout *DataLayout::getStructLayout(StructType *Ty) const {
   // Otherwise, create the struct layout.  Because it is variable length, we
   // malloc it, then use placement new.
   StructLayout *L = (StructLayout *)safe_malloc(
-      StructLayout::totalSizeToAlloc<uint64_t>(Ty->getNumElements()));
+      StructLayout::totalSizeToAlloc<TypeSize>(Ty->getNumElements()));
 
   // Set SL before calling StructLayout's ctor.  The ctor could cause other
   // entries to be added to TheMap, invalidating our reference.
@@ -838,11 +860,6 @@ Align DataLayout::getAlignment(Type *Ty, bool abi_or_pref) const {
   default:
     llvm_unreachable("Bad type for getAlignment!!!");
   }
-}
-
-/// TODO: Remove this function once the transition to Align is over.
-uint64_t DataLayout::getABITypeAlignment(Type *Ty) const {
-  return getABITypeAlign(Ty).value();
 }
 
 Align DataLayout::getABITypeAlign(Type *Ty) const {

@@ -4,10 +4,11 @@
 ; RUN: opt < %s -passes=LowerWGScope -S | FileCheck %s
 ; RUN: opt < %s -passes=LowerWGScope --mtriple=nvptx -S | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PTX
 
+target datalayout = "e-i64:64-v16:16-v32:32-n16:32:64"
 
 %struct.baz = type { i64 }
 
-define internal spir_func void @wibble(%struct.baz* byval(%struct.baz) %arg1) !work_group_scope !0 {
+define internal spir_func void @wibble(ptr byval(%struct.baz) %arg1) !work_group_scope !0 {
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_xv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_yv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_zv()

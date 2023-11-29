@@ -24,8 +24,7 @@ using namespace mlir;
 MemRefDescriptor::MemRefDescriptor(Value descriptor)
     : StructBuilder(descriptor) {
   assert(value != nullptr && "value cannot be null");
-  indexType = value.getType()
-                  .cast<LLVM::LLVMStructType>()
+  indexType = cast<LLVM::LLVMStructType>(value.getType())
                   .getBody()[kOffsetPosInMemRefDescriptor];
 }
 
@@ -42,20 +41,19 @@ MemRefDescriptor MemRefDescriptor::undef(OpBuilder &builder, Location loc,
 /// type.
 MemRefDescriptor
 MemRefDescriptor::fromStaticShape(OpBuilder &builder, Location loc,
-                                  LLVMTypeConverter &typeConverter,
+                                  const LLVMTypeConverter &typeConverter,
                                   MemRefType type, Value memory) {
   return fromStaticShape(builder, loc, typeConverter, type, memory, memory);
 }
 
 MemRefDescriptor MemRefDescriptor::fromStaticShape(
-    OpBuilder &builder, Location loc, LLVMTypeConverter &typeConverter,
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
     MemRefType type, Value memory, Value alignedMemory) {
   assert(type.hasStaticShape() && "unexpected dynamic shape");
 
   // Extract all strides and offsets and verify they are static.
   auto [strides, offset] = getStridesAndOffset(type);
-  assert(!ShapedType::isDynamic(offset) &&
-         "expected static offset");
+  assert(!ShapedType::isDynamic(offset) && "expected static offset");
   assert(!llvm::any_of(strides, ShapedType::isDynamic) &&
          "expected static strides");
 
@@ -135,27 +133,19 @@ Value MemRefDescriptor::size(OpBuilder &builder, Location loc, Value pos,
                              int64_t rank) {
   auto arrayTy = LLVM::LLVMArrayType::get(indexType, rank);
 
-  LLVM::LLVMPointerType indexPtrTy;
-  LLVM::LLVMPointerType arrayPtrTy;
-
-  if (useOpaquePointers()) {
-    arrayPtrTy = indexPtrTy = LLVM::LLVMPointerType::get(builder.getContext());
-  } else {
-    indexPtrTy = LLVM::LLVMPointerType::get(indexType);
-    arrayPtrTy = LLVM::LLVMPointerType::get(arrayTy);
-  }
+  auto ptrTy = LLVM::LLVMPointerType::get(builder.getContext());
 
   // Copy size values to stack-allocated memory.
   auto one = createIndexAttrConstant(builder, loc, indexType, 1);
   auto sizes = builder.create<LLVM::ExtractValueOp>(
       loc, value, llvm::ArrayRef<int64_t>({kSizePosInMemRefDescriptor}));
-  auto sizesPtr = builder.create<LLVM::AllocaOp>(loc, arrayPtrTy, arrayTy, one,
+  auto sizesPtr = builder.create<LLVM::AllocaOp>(loc, ptrTy, arrayTy, one,
                                                  /*alignment=*/0);
   builder.create<LLVM::StoreOp>(loc, sizes, sizesPtr);
 
   // Load an return size value of interest.
-  auto resultPtr = builder.create<LLVM::GEPOp>(
-      loc, indexPtrTy, arrayTy, sizesPtr, ArrayRef<LLVM::GEPArg>{0, pos});
+  auto resultPtr = builder.create<LLVM::GEPOp>(loc, ptrTy, arrayTy, sizesPtr,
+                                               ArrayRef<LLVM::GEPArg>{0, pos});
   return builder.create<LLVM::LoadOp>(loc, indexType, resultPtr);
 }
 
@@ -193,10 +183,33 @@ void MemRefDescriptor::setConstantStride(OpBuilder &builder, Location loc,
 }
 
 LLVM::LLVMPointerType MemRefDescriptor::getElementPtrType() {
-  return value.getType()
-      .cast<LLVM::LLVMStructType>()
-      .getBody()[kAlignedPtrPosInMemRefDescriptor]
-      .cast<LLVM::LLVMPointerType>();
+  return cast<LLVM::LLVMPointerType>(
+      cast<LLVM::LLVMStructType>(value.getType())
+          .getBody()[kAlignedPtrPosInMemRefDescriptor]);
+}
+
+Value MemRefDescriptor::bufferPtr(OpBuilder &builder, Location loc,
+                                  const LLVMTypeConverter &converter,
+                                  MemRefType type) {
+  // When we convert to LLVM, the input memref must have been normalized
+  // beforehand. Hence, this call is guaranteed to work.
+  auto [strides, offsetCst] = getStridesAndOffset(type);
+
+  Value ptr = alignedPtr(builder, loc);
+  // For zero offsets, we already have the base pointer.
+  if (offsetCst == 0)
+    return ptr;
+
+  // Otherwise add the offset to the aligned base.
+  Type indexType = converter.getIndexType();
+  Value offsetVal =
+      ShapedType::isDynamic(offsetCst)
+          ? offset(builder, loc)
+          : createIndexAttrConstant(builder, loc, indexType, offsetCst);
+  Type elementType = converter.convertType(type.getElementType());
+  ptr = builder.create<LLVM::GEPOp>(loc, ptr.getType(), elementType, ptr,
+                                    offsetVal);
+  return ptr;
 }
 
 /// Creates a MemRef descriptor structure from a list of individual values
@@ -208,8 +221,8 @@ LLVM::LLVMPointerType MemRefDescriptor::getElementPtrType() {
 /// - <rank> shapes;
 /// where <rank> is the MemRef rank as provided in `type`.
 Value MemRefDescriptor::pack(OpBuilder &builder, Location loc,
-                             LLVMTypeConverter &converter, MemRefType type,
-                             ValueRange values) {
+                             const LLVMTypeConverter &converter,
+                             MemRefType type, ValueRange values) {
   Type llvmType = converter.convertType(type);
   auto d = MemRefDescriptor::undef(builder, loc, llvmType);
 
@@ -249,10 +262,6 @@ void MemRefDescriptor::unpack(OpBuilder &builder, Location loc, Value packed,
 unsigned MemRefDescriptor::getNumUnpackedValues(MemRefType type) {
   // Two pointers, offset, <rank> sizes, <rank> shapes.
   return 3 + 2 * type.getRank();
-}
-
-bool MemRefDescriptor::useOpaquePointers() {
-  return getElementPtrType().isOpaque();
 }
 
 //===----------------------------------------------------------------------===//
@@ -318,7 +327,7 @@ void UnrankedMemRefDescriptor::setMemRefDescPtr(OpBuilder &builder,
 /// - rank of the memref;
 /// - pointer to the memref descriptor.
 Value UnrankedMemRefDescriptor::pack(OpBuilder &builder, Location loc,
-                                     LLVMTypeConverter &converter,
+                                     const LLVMTypeConverter &converter,
                                      UnrankedMemRefType type,
                                      ValueRange values) {
   Type llvmType = converter.convertType(type);
@@ -341,7 +350,7 @@ void UnrankedMemRefDescriptor::unpack(OpBuilder &builder, Location loc,
 }
 
 void UnrankedMemRefDescriptor::computeSizes(
-    OpBuilder &builder, Location loc, LLVMTypeConverter &typeConverter,
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
     ArrayRef<UnrankedMemRefDescriptor> values, ArrayRef<unsigned> addressSpaces,
     SmallVectorImpl<Value> &sizes) {
   if (values.empty())
@@ -391,50 +400,25 @@ void UnrankedMemRefDescriptor::computeSizes(
 Value UnrankedMemRefDescriptor::allocatedPtr(
     OpBuilder &builder, Location loc, Value memRefDescPtr,
     LLVM::LLVMPointerType elemPtrType) {
-
-  Value elementPtrPtr;
-  if (elemPtrType.isOpaque())
-    elementPtrPtr = memRefDescPtr;
-  else
-    elementPtrPtr = builder.create<LLVM::BitcastOp>(
-        loc, LLVM::LLVMPointerType::get(elemPtrType), memRefDescPtr);
-
-  return builder.create<LLVM::LoadOp>(loc, elemPtrType, elementPtrPtr);
+  return builder.create<LLVM::LoadOp>(loc, elemPtrType, memRefDescPtr);
 }
 
 void UnrankedMemRefDescriptor::setAllocatedPtr(
     OpBuilder &builder, Location loc, Value memRefDescPtr,
     LLVM::LLVMPointerType elemPtrType, Value allocatedPtr) {
-  Value elementPtrPtr;
-  if (elemPtrType.isOpaque())
-    elementPtrPtr = memRefDescPtr;
-  else
-    elementPtrPtr = builder.create<LLVM::BitcastOp>(
-        loc, LLVM::LLVMPointerType::get(elemPtrType), memRefDescPtr);
-
-  builder.create<LLVM::StoreOp>(loc, allocatedPtr, elementPtrPtr);
+  builder.create<LLVM::StoreOp>(loc, allocatedPtr, memRefDescPtr);
 }
 
 static std::pair<Value, Type>
 castToElemPtrPtr(OpBuilder &builder, Location loc, Value memRefDescPtr,
                  LLVM::LLVMPointerType elemPtrType) {
-  Value elementPtrPtr;
-  Type elemPtrPtrType;
-  if (elemPtrType.isOpaque()) {
-    elementPtrPtr = memRefDescPtr;
-    elemPtrPtrType = LLVM::LLVMPointerType::get(builder.getContext());
-  } else {
-    elemPtrPtrType = LLVM::LLVMPointerType::get(elemPtrType);
-    elementPtrPtr =
-        builder.create<LLVM::BitcastOp>(loc, elemPtrPtrType, memRefDescPtr);
-  }
-  return {elementPtrPtr, elemPtrPtrType};
+  auto elemPtrPtrType = LLVM::LLVMPointerType::get(builder.getContext());
+  return {memRefDescPtr, elemPtrPtrType};
 }
 
-Value UnrankedMemRefDescriptor::alignedPtr(OpBuilder &builder, Location loc,
-                                           LLVMTypeConverter &typeConverter,
-                                           Value memRefDescPtr,
-                                           LLVM::LLVMPointerType elemPtrType) {
+Value UnrankedMemRefDescriptor::alignedPtr(
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
+    Value memRefDescPtr, LLVM::LLVMPointerType elemPtrType) {
   auto [elementPtrPtr, elemPtrPtrType] =
       castToElemPtrPtr(builder, loc, memRefDescPtr, elemPtrType);
 
@@ -444,11 +428,9 @@ Value UnrankedMemRefDescriptor::alignedPtr(OpBuilder &builder, Location loc,
   return builder.create<LLVM::LoadOp>(loc, elemPtrType, alignedGep);
 }
 
-void UnrankedMemRefDescriptor::setAlignedPtr(OpBuilder &builder, Location loc,
-                                             LLVMTypeConverter &typeConverter,
-                                             Value memRefDescPtr,
-                                             LLVM::LLVMPointerType elemPtrType,
-                                             Value alignedPtr) {
+void UnrankedMemRefDescriptor::setAlignedPtr(
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
+    Value memRefDescPtr, LLVM::LLVMPointerType elemPtrType, Value alignedPtr) {
   auto [elementPtrPtr, elemPtrPtrType] =
       castToElemPtrPtr(builder, loc, memRefDescPtr, elemPtrType);
 
@@ -459,34 +441,27 @@ void UnrankedMemRefDescriptor::setAlignedPtr(OpBuilder &builder, Location loc,
 }
 
 Value UnrankedMemRefDescriptor::offsetBasePtr(
-    OpBuilder &builder, Location loc, LLVMTypeConverter &typeConverter,
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
     Value memRefDescPtr, LLVM::LLVMPointerType elemPtrType) {
   auto [elementPtrPtr, elemPtrPtrType] =
       castToElemPtrPtr(builder, loc, memRefDescPtr, elemPtrType);
 
-  Value offsetGep =
-      builder.create<LLVM::GEPOp>(loc, elemPtrPtrType, elemPtrType,
-                                  elementPtrPtr, ArrayRef<LLVM::GEPArg>{2});
-
-  if (!elemPtrType.isOpaque()) {
-    offsetGep = builder.create<LLVM::BitcastOp>(
-        loc, LLVM::LLVMPointerType::get(typeConverter.getIndexType()),
-        offsetGep);
-  }
-  return offsetGep;
+  return builder.create<LLVM::GEPOp>(loc, elemPtrPtrType, elemPtrType,
+                                     elementPtrPtr, ArrayRef<LLVM::GEPArg>{2});
 }
 
 Value UnrankedMemRefDescriptor::offset(OpBuilder &builder, Location loc,
-                                       LLVMTypeConverter &typeConverter,
+                                       const LLVMTypeConverter &typeConverter,
                                        Value memRefDescPtr,
                                        LLVM::LLVMPointerType elemPtrType) {
   Value offsetPtr =
       offsetBasePtr(builder, loc, typeConverter, memRefDescPtr, elemPtrType);
-  return builder.create<LLVM::LoadOp>(loc, offsetPtr);
+  return builder.create<LLVM::LoadOp>(loc, typeConverter.getIndexType(),
+                                      offsetPtr);
 }
 
 void UnrankedMemRefDescriptor::setOffset(OpBuilder &builder, Location loc,
-                                         LLVMTypeConverter &typeConverter,
+                                         const LLVMTypeConverter &typeConverter,
                                          Value memRefDescPtr,
                                          LLVM::LLVMPointerType elemPtrType,
                                          Value offset) {
@@ -495,83 +470,70 @@ void UnrankedMemRefDescriptor::setOffset(OpBuilder &builder, Location loc,
   builder.create<LLVM::StoreOp>(loc, offset, offsetPtr);
 }
 
-Value UnrankedMemRefDescriptor::sizeBasePtr(OpBuilder &builder, Location loc,
-                                            LLVMTypeConverter &typeConverter,
-                                            Value memRefDescPtr,
-                                            LLVM::LLVMPointerType elemPtrType) {
+Value UnrankedMemRefDescriptor::sizeBasePtr(
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
+    Value memRefDescPtr, LLVM::LLVMPointerType elemPtrType) {
   Type indexTy = typeConverter.getIndexType();
   Type structTy = LLVM::LLVMStructType::getLiteral(
       indexTy.getContext(), {elemPtrType, elemPtrType, indexTy, indexTy});
-  Value structPtr;
-  if (elemPtrType.isOpaque()) {
-    structPtr = memRefDescPtr;
-  } else {
-    Type structPtrTy = LLVM::LLVMPointerType::get(structTy);
-    structPtr =
-        builder.create<LLVM::BitcastOp>(loc, structPtrTy, memRefDescPtr);
-  }
-
-  auto resultType = elemPtrType.isOpaque()
-                        ? LLVM::LLVMPointerType::get(indexTy.getContext())
-                        : LLVM::LLVMPointerType::get(indexTy);
-  return builder.create<LLVM::GEPOp>(loc, resultType, structTy, structPtr,
+  auto resultType = LLVM::LLVMPointerType::get(builder.getContext());
+  return builder.create<LLVM::GEPOp>(loc, resultType, structTy, memRefDescPtr,
                                      ArrayRef<LLVM::GEPArg>{0, 3});
 }
 
 Value UnrankedMemRefDescriptor::size(OpBuilder &builder, Location loc,
-                                     LLVMTypeConverter &typeConverter,
+                                     const LLVMTypeConverter &typeConverter,
                                      Value sizeBasePtr, Value index) {
 
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
   Value sizeStoreGep =
-      builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr, index);
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, index);
   return builder.create<LLVM::LoadOp>(loc, indexTy, sizeStoreGep);
 }
 
 void UnrankedMemRefDescriptor::setSize(OpBuilder &builder, Location loc,
-                                       LLVMTypeConverter &typeConverter,
+                                       const LLVMTypeConverter &typeConverter,
                                        Value sizeBasePtr, Value index,
                                        Value size) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
   Value sizeStoreGep =
-      builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr, index);
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, index);
   builder.create<LLVM::StoreOp>(loc, size, sizeStoreGep);
 }
 
-Value UnrankedMemRefDescriptor::strideBasePtr(OpBuilder &builder, Location loc,
-                                              LLVMTypeConverter &typeConverter,
-                                              Value sizeBasePtr, Value rank) {
+Value UnrankedMemRefDescriptor::strideBasePtr(
+    OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
+    Value sizeBasePtr, Value rank) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  return builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr,
-                                     rank);
+  return builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, rank);
 }
 
 Value UnrankedMemRefDescriptor::stride(OpBuilder &builder, Location loc,
-                                       LLVMTypeConverter &typeConverter,
+                                       const LLVMTypeConverter &typeConverter,
                                        Value strideBasePtr, Value index,
                                        Value stride) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  Value strideStoreGep = builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy,
-                                                     strideBasePtr, index);
+  Value strideStoreGep =
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, strideBasePtr, index);
   return builder.create<LLVM::LoadOp>(loc, indexTy, strideStoreGep);
 }
 
 void UnrankedMemRefDescriptor::setStride(OpBuilder &builder, Location loc,
-                                         LLVMTypeConverter &typeConverter,
+                                         const LLVMTypeConverter &typeConverter,
                                          Value strideBasePtr, Value index,
                                          Value stride) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  Value strideStoreGep = builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy,
-                                                     strideBasePtr, index);
+  Value strideStoreGep =
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, strideBasePtr, index);
   builder.create<LLVM::StoreOp>(loc, stride, strideStoreGep);
 }

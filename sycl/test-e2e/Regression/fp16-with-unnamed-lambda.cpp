@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp16
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 #include <sycl/sycl.hpp>
 
 #include <iostream>
@@ -20,8 +19,6 @@ int main() {
   sycl::queue Q(AsyncHandler);
 
   sycl::device D = Q.get_device();
-  if (!D.has(sycl::aspect::fp16))
-    return 0; // Skip the test if halfs are not supported
 
   sycl::buffer<sycl::half> Buf(1);
 
@@ -32,7 +29,7 @@ int main() {
 
   Q.wait_and_throw();
 
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  auto Acc = Buf.get_host_access();
   if (1 != Acc[0]) {
     std::cerr << "Incorrect result, got: " << Acc[0] << ", expected: 1"
               << std::endl;

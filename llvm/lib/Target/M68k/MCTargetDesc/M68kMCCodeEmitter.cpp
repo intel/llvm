@@ -65,7 +65,7 @@ public:
 
   ~M68kMCCodeEmitter() override {}
 
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
+  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
 };
@@ -199,25 +199,25 @@ void M68kMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &Op,
   }
 }
 
-void M68kMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
+void M68kMCCodeEmitter::encodeInstruction(const MCInst &MI,
+                                          SmallVectorImpl<char> &CB,
                                           SmallVectorImpl<MCFixup> &Fixups,
                                           const MCSubtargetInfo &STI) const {
-  unsigned Opcode = MI.getOpcode();
-
-  LLVM_DEBUG(dbgs() << "EncodeInstruction: " << MCII.getName(Opcode) << "("
-                    << Opcode << ")\n");
+  LLVM_DEBUG(dbgs() << "EncodeInstruction: " << MCII.getName(MI.getOpcode())
+                    << "(" << MI.getOpcode() << ")\n");
+  (void)MCII;
 
   // Try using the new method first.
   APInt EncodedInst(16, 0U);
-  APInt Scratch(16, 0U);
+  APInt Scratch(64, 0U); // One APInt word is enough.
   getBinaryCodeForInstr(MI, Fixups, EncodedInst, Scratch, STI);
 
   ArrayRef<uint64_t> Data(EncodedInst.getRawData(), EncodedInst.getNumWords());
   int64_t InstSize = EncodedInst.getBitWidth();
   for (uint64_t Word : Data) {
     for (int i = 0; i < 4 && InstSize > 0; ++i, InstSize -= 16) {
-      support::endian::write<uint16_t>(OS, static_cast<uint16_t>(Word),
-                                       support::big);
+      support::endian::write<uint16_t>(CB, static_cast<uint16_t>(Word),
+                                       llvm::endianness::big);
       Word >>= 16;
     }
   }

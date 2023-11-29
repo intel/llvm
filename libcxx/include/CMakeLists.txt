@@ -24,6 +24,7 @@ set(files
   __algorithm/find_if_not.h
   __algorithm/for_each.h
   __algorithm/for_each_n.h
+  __algorithm/for_each_segment.h
   __algorithm/generate.h
   __algorithm/generate_n.h
   __algorithm/half_positive.h
@@ -69,6 +70,36 @@ set(files
   __algorithm/partition_point.h
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
+  __algorithm/pstl_any_all_none_of.h
+  __algorithm/pstl_backend.h
+  __algorithm/pstl_backends/cpu_backend.h
+  __algorithm/pstl_backends/cpu_backends/any_of.h
+  __algorithm/pstl_backends/cpu_backends/backend.h
+  __algorithm/pstl_backends/cpu_backends/fill.h
+  __algorithm/pstl_backends/cpu_backends/find_if.h
+  __algorithm/pstl_backends/cpu_backends/for_each.h
+  __algorithm/pstl_backends/cpu_backends/libdispatch.h
+  __algorithm/pstl_backends/cpu_backends/merge.h
+  __algorithm/pstl_backends/cpu_backends/serial.h
+  __algorithm/pstl_backends/cpu_backends/stable_sort.h
+  __algorithm/pstl_backends/cpu_backends/thread.h
+  __algorithm/pstl_backends/cpu_backends/transform.h
+  __algorithm/pstl_backends/cpu_backends/transform_reduce.h
+  __algorithm/pstl_copy.h
+  __algorithm/pstl_count.h
+  __algorithm/pstl_fill.h
+  __algorithm/pstl_find.h
+  __algorithm/pstl_for_each.h
+  __algorithm/pstl_frontend_dispatch.h
+  __algorithm/pstl_generate.h
+  __algorithm/pstl_is_partitioned.h
+  __algorithm/pstl_merge.h
+  __algorithm/pstl_move.h
+  __algorithm/pstl_replace.h
+  __algorithm/pstl_rotate_copy.h
+  __algorithm/pstl_sort.h
+  __algorithm/pstl_stable_sort.h
+  __algorithm/pstl_transform.h
   __algorithm/push_heap.h
   __algorithm/ranges_adjacent_find.h
   __algorithm/ranges_all_of.h
@@ -81,6 +112,7 @@ set(files
   __algorithm/ranges_copy_n.h
   __algorithm/ranges_count.h
   __algorithm/ranges_count_if.h
+  __algorithm/ranges_ends_with.h
   __algorithm/ranges_equal.h
   __algorithm/ranges_equal_range.h
   __algorithm/ranges_fill.h
@@ -151,6 +183,7 @@ set(files
   __algorithm/ranges_sort_heap.h
   __algorithm/ranges_stable_partition.h
   __algorithm/ranges_stable_sort.h
+  __algorithm/ranges_starts_with.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/ranges_transform.h
   __algorithm/ranges_unique.h
@@ -219,11 +252,10 @@ set(files
   __bit/countr.h
   __bit/endian.h
   __bit/has_single_bit.h
+  __bit/invert_if.h
   __bit/popcount.h
   __bit/rotate.h
   __bit_reference
-  __bsd_locale_defaults.h
-  __bsd_locale_fallbacks.h
   __charconv/chars_format.h
   __charconv/from_chars_integral.h
   __charconv/from_chars_result.h
@@ -254,6 +286,8 @@ set(files
   __chrono/steady_clock.h
   __chrono/system_clock.h
   __chrono/time_point.h
+  __chrono/tzdb.h
+  __chrono/tzdb_list.h
   __chrono/weekday.h
   __chrono/year.h
   __chrono/year_month.h
@@ -300,8 +334,8 @@ set(files
   __coroutine/coroutine_traits.h
   __coroutine/noop_coroutine_handle.h
   __coroutine/trivial_awaitables.h
-  __debug
   __debug_utils/randomize_range.h
+  __debug_utils/strict_weak_ordering_check.h
   __exception/exception.h
   __exception/exception_ptr.h
   __exception/nested_exception.h
@@ -357,6 +391,8 @@ set(files
   __format/range_default_formatter.h
   __format/range_formatter.h
   __format/unicode.h
+  __format/width_estimation_table.h
+  __format/write_escaped.h
   __functional/binary_function.h
   __functional/binary_negate.h
   __functional/bind.h
@@ -383,14 +419,21 @@ set(files
   __functional/reference_wrapper.h
   __functional/unary_function.h
   __functional/unary_negate.h
-  __functional/unwrap_ref.h
   __functional/weak_result_type.h
   __fwd/array.h
+  __fwd/bit_reference.h
+  __fwd/fstream.h
   __fwd/get.h
   __fwd/hash.h
+  __fwd/ios.h
+  __fwd/istream.h
+  __fwd/mdspan.h
   __fwd/memory_resource.h
+  __fwd/ostream.h
   __fwd/pair.h
   __fwd/span.h
+  __fwd/sstream.h
+  __fwd/streambuf.h
   __fwd/string.h
   __fwd/string_view.h
   __fwd/subrange.h
@@ -404,6 +447,7 @@ set(files
   __iterator/common_iterator.h
   __iterator/concepts.h
   __iterator/counted_iterator.h
+  __iterator/cpp17_iterator_concepts.h
   __iterator/data.h
   __iterator/default_sentinel.h
   __iterator/distance.h
@@ -429,6 +473,7 @@ set(files
   __iterator/permutable.h
   __iterator/prev.h
   __iterator/projected.h
+  __iterator/ranges_iterator_traits.h
   __iterator/readable_traits.h
   __iterator/reverse_access.h
   __iterator/reverse_iterator.h
@@ -438,7 +483,35 @@ set(files
   __iterator/unreachable_sentinel.h
   __iterator/wrap_iter.h
   __locale
+  __locale_dir/locale_base_api/bsd_locale_defaults.h
+  __locale_dir/locale_base_api/bsd_locale_fallbacks.h
+  __locale_dir/locale_base_api/locale_guard.h
+  __math/abs.h
+  __math/copysign.h
+  __math/error_functions.h
+  __math/exponential_functions.h
+  __math/fdim.h
+  __math/fma.h
+  __math/gamma.h
+  __math/hyperbolic_functions.h
+  __math/hypot.h
+  __math/inverse_hyperbolic_functions.h
+  __math/inverse_trigonometric_functions.h
+  __math/logarithms.h
+  __math/min_max.h
+  __math/modulo.h
+  __math/remainder.h
+  __math/roots.h
+  __math/rounding_functions.h
+  __math/traits.h
+  __math/trigonometric_functions.h
   __mbstate_t.h
+  __mdspan/default_accessor.h
+  __mdspan/extents.h
+  __mdspan/layout_left.h
+  __mdspan/layout_right.h
+  __mdspan/layout_stride.h
+  __mdspan/mdspan.h
   __memory/addressof.h
   __memory/align.h
   __memory/aligned_alloc.h
@@ -476,6 +549,7 @@ set(files
   __memory_resource/unsynchronized_pool_resource.h
   __mutex/lock_guard.h
   __mutex/mutex.h
+  __mutex/once_flag.h
   __mutex/tag_types.h
   __mutex/unique_lock.h
   __node_handle
@@ -488,6 +562,8 @@ set(files
   __numeric/iota.h
   __numeric/midpoint.h
   __numeric/partial_sum.h
+  __numeric/pstl_reduce.h
+  __numeric/pstl_transform_reduce.h
   __numeric/reduce.h
   __numeric/transform_exclusive_scan.h
   __numeric/transform_inclusive_scan.h
@@ -532,9 +608,10 @@ set(files
   __ranges/access.h
   __ranges/all.h
   __ranges/as_rvalue_view.h
+  __ranges/chunk_by_view.h
   __ranges/common_view.h
   __ranges/concepts.h
-  __ranges/copyable_box.h
+  __ranges/container_compatible_range.h
   __ranges/counted.h
   __ranges/dangling.h
   __ranges/data.h
@@ -546,16 +623,19 @@ set(files
   __ranges/enable_borrowed_range.h
   __ranges/enable_view.h
   __ranges/filter_view.h
+  __ranges/from_range.h
   __ranges/iota_view.h
   __ranges/istream_view.h
   __ranges/join_view.h
   __ranges/lazy_split_view.h
+  __ranges/movable_box.h
   __ranges/non_propagating_cache.h
   __ranges/owning_view.h
   __ranges/range_adaptor.h
   __ranges/rbegin.h
   __ranges/ref_view.h
   __ranges/rend.h
+  __ranges/repeat_view.h
   __ranges/reverse_view.h
   __ranges/single_view.h
   __ranges/size.h
@@ -563,11 +643,21 @@ set(files
   __ranges/subrange.h
   __ranges/take_view.h
   __ranges/take_while_view.h
+  __ranges/to.h
   __ranges/transform_view.h
   __ranges/view_interface.h
   __ranges/views.h
   __ranges/zip_view.h
   __split_buffer
+  __std_clang_module
+  __std_mbstate_t.h
+  __stop_token/atomic_unique_lock.h
+  __stop_token/intrusive_list_view.h
+  __stop_token/intrusive_shared_ptr.h
+  __stop_token/stop_callback.h
+  __stop_token/stop_source.h
+  __stop_token/stop_state.h
+  __stop_token/stop_token.h
   __string/char_traits.h
   __string/constexpr_c_functions.h
   __string/extern_template_lists.h
@@ -580,9 +670,6 @@ set(files
   __support/musl/xlocale.h
   __support/newlib/xlocale.h
   __support/openbsd/xlocale.h
-  __support/solaris/floatingpoint.h
-  __support/solaris/wchar.h
-  __support/solaris/xlocale.h
   __support/win32/locale_win32.h
   __support/xlocale/__nop_locale_mgmt.h
   __support/xlocale/__posix_l_fallback.h
@@ -592,11 +679,15 @@ set(files
   __system_error/error_code.h
   __system_error/error_condition.h
   __system_error/system_error.h
+  __thread/formatter.h
+  __thread/id.h
+  __thread/jthread.h
   __thread/poll_with_backoff.h
+  __thread/this_thread.h
+  __thread/thread.h
   __thread/timed_backoff_policy.h
   __threading_support
   __tree
-  __tuple/apply_cv.h
   __tuple/make_tuple_types.h
   __tuple/pair_like.h
   __tuple/sfinae_helpers.h
@@ -623,6 +714,7 @@ set(files
   __type_traits/conjunction.h
   __type_traits/copy_cv.h
   __type_traits/copy_cvref.h
+  __type_traits/datasizeof.h
   __type_traits/decay.h
   __type_traits/dependent_type.h
   __type_traits/disjunction.h
@@ -631,6 +723,7 @@ set(files
   __type_traits/has_unique_object_representation.h
   __type_traits/has_virtual_destructor.h
   __type_traits/integral_constant.h
+  __type_traits/invoke.h
   __type_traits/is_abstract.h
   __type_traits/is_aggregate.h
   __type_traits/is_allocator.h
@@ -656,6 +749,7 @@ set(files
   __type_traits/is_empty.h
   __type_traits/is_enum.h
   __type_traits/is_equality_comparable.h
+  __type_traits/is_execution_policy.h
   __type_traits/is_final.h
   __type_traits/is_floating_point.h
   __type_traits/is_function.h
@@ -702,6 +796,7 @@ set(files
   __type_traits/is_trivially_copyable.h
   __type_traits/is_trivially_default_constructible.h
   __type_traits/is_trivially_destructible.h
+  __type_traits/is_trivially_lexicographically_comparable.h
   __type_traits/is_trivially_move_assignable.h
   __type_traits/is_trivially_move_constructible.h
   __type_traits/is_unbounded_array.h
@@ -720,6 +815,7 @@ set(files
   __type_traits/nat.h
   __type_traits/negation.h
   __type_traits/noexcept_move_assign_container.h
+  __type_traits/operation_traits.h
   __type_traits/predicate_traits.h
   __type_traits/promote.h
   __type_traits/rank.h
@@ -737,6 +833,7 @@ set(files
   __type_traits/type_identity.h
   __type_traits/type_list.h
   __type_traits/underlying_type.h
+  __type_traits/unwrap_ref.h
   __type_traits/void_t.h
   __undef_macros
   __utility/as_const.h
@@ -744,17 +841,20 @@ set(files
   __utility/cmp.h
   __utility/convert_to_integral.h
   __utility/declval.h
+  __utility/empty.h
   __utility/exception_guard.h
   __utility/exchange.h
   __utility/forward.h
   __utility/forward_like.h
   __utility/in_place.h
   __utility/integer_sequence.h
+  __utility/is_pointer_in_range.h
   __utility/move.h
   __utility/pair.h
   __utility/piecewise_construct.h
   __utility/priority_tag.h
   __utility/rel_ops.h
+  __utility/small_buffer.h
   __utility/swap.h
   __utility/to_underlying.h
   __utility/unreachable.h
@@ -809,11 +909,23 @@ set(files
   expected
   experimental/__config
   experimental/__memory
+  experimental/__simd/abi_tag.h
+  experimental/__simd/aligned_tag.h
+  experimental/__simd/declaration.h
+  experimental/__simd/internal_declaration.h
+  experimental/__simd/reference.h
+  experimental/__simd/scalar.h
+  experimental/__simd/simd.h
+  experimental/__simd/simd_mask.h
+  experimental/__simd/traits.h
+  experimental/__simd/utility.h
+  experimental/__simd/vec_ext.h
   experimental/deque
   experimental/forward_list
   experimental/iterator
   experimental/list
   experimental/map
+  experimental/memory
   experimental/memory_resource
   experimental/propagate_const
   experimental/regex
@@ -847,12 +959,12 @@ set(files
   latch
   libcxx.imp
   limits
-  limits.h
   list
   locale
   locale.h
   map
   math.h
+  mdspan
   memory
   memory_resource
   mutex
@@ -861,6 +973,7 @@ set(files
   numeric
   optional
   ostream
+  print
   queue
   random
   ranges
@@ -869,7 +982,6 @@ set(files
   scoped_allocator
   semaphore
   set
-  setjmp.h
   shared_mutex
   source_location
   span
@@ -882,11 +994,13 @@ set(files
   stdint.h
   stdio.h
   stdlib.h
+  stop_token
   streambuf
   string
   string.h
   string_view
   strstream
+  syncstream
   system_error
   tgmath.h
   thread
@@ -906,7 +1020,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()
@@ -932,8 +1046,10 @@ add_custom_target(generate-cxx-headers ALL DEPENDS ${_all_includes})
 add_library(cxx-headers INTERFACE)
 target_link_libraries(cxx-headers INTERFACE libcxx-abi-headers)
 add_dependencies(cxx-headers generate-cxx-headers)
-target_include_directories(cxx-headers INTERFACE ${LIBCXX_GENERATED_INCLUDE_DIR}
-                                                 ${LIBCXX_GENERATED_INCLUDE_TARGET_DIR})
+# It's important that the arch directory be included first so that its header files
+# which interpose on the default include dir be included instead of the default ones.
+target_include_directories(cxx-headers INTERFACE ${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}
+                                                 ${LIBCXX_GENERATED_INCLUDE_DIR})
 
 if (LIBCXX_INSTALL_HEADERS)
   foreach(file ${files})

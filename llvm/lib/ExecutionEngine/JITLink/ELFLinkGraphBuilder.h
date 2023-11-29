@@ -51,7 +51,7 @@ private:
   Section *CommonSection = nullptr;
 };
 
-/// Ling-graph building code that's specific to the given ELFT, but common
+/// LinkGraph building code that's specific to the given ELFT, but common
 /// across all architectures.
 template <typename ELFT>
 class ELFLinkGraphBuilder : public ELFLinkGraphBuilderBase {
@@ -59,7 +59,7 @@ class ELFLinkGraphBuilder : public ELFLinkGraphBuilderBase {
 
 public:
   ELFLinkGraphBuilder(const object::ELFFile<ELFT> &Obj, Triple TT,
-                      StringRef FileName,
+                      SubtargetFeatures Features, StringRef FileName,
                       LinkGraph::GetEdgeKindNameFunction GetEdgeKindName);
 
   /// Debug sections are included in the graph by default. Use
@@ -91,10 +91,7 @@ protected:
   }
 
   Block *getGraphBlock(ELFSectionIndex SecIndex) {
-    auto I = GraphBlocks.find(SecIndex);
-    if (I == GraphBlocks.end())
-      return nullptr;
-    return I->second;
+    return GraphBlocks.lookup(SecIndex);
   }
 
   void setGraphSymbol(ELFSymbolIndex SymIndex, Symbol &Sym) {
@@ -103,10 +100,7 @@ protected:
   }
 
   Symbol *getGraphSymbol(ELFSymbolIndex SymIndex) {
-    auto I = GraphSymbols.find(SymIndex);
-    if (I == GraphSymbols.end())
-      return nullptr;
-    return I->second;
+    return GraphSymbols.lookup(SymIndex);
   }
 
   Expected<std::pair<Linkage, Scope>>
@@ -195,11 +189,11 @@ protected:
 
 template <typename ELFT>
 ELFLinkGraphBuilder<ELFT>::ELFLinkGraphBuilder(
-    const ELFFile &Obj, Triple TT, StringRef FileName,
-    LinkGraph::GetEdgeKindNameFunction GetEdgeKindName)
+    const ELFFile &Obj, Triple TT, SubtargetFeatures Features,
+    StringRef FileName, LinkGraph::GetEdgeKindNameFunction GetEdgeKindName)
     : ELFLinkGraphBuilderBase(std::make_unique<LinkGraph>(
-          FileName.str(), Triple(std::move(TT)), ELFT::Is64Bits ? 8 : 4,
-          support::endianness(ELFT::TargetEndianness),
+          FileName.str(), Triple(std::move(TT)), std::move(Features),
+          ELFT::Is64Bits ? 8 : 4, llvm::endianness(ELFT::TargetEndianness),
           std::move(GetEdgeKindName))),
       Obj(Obj) {
   LLVM_DEBUG(
@@ -372,7 +366,7 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
       GraphSec = &G->createSection(*Name, Prot);
       // Non-SHF_ALLOC sections get NoAlloc memory lifetimes.
       if (!(Sec.sh_flags & ELF::SHF_ALLOC)) {
-        GraphSec->setMemLifetimePolicy(orc::MemLifetimePolicy::NoAlloc);
+        GraphSec->setMemLifetime(orc::MemLifetime::NoAlloc);
         LLVM_DEBUG({
           dbgs() << "      " << SecIndex << ": \"" << *Name
                  << "\" is not a SHF_ALLOC section. Using NoAlloc lifetime.\n";
@@ -380,7 +374,14 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
       }
     }
 
-    assert(GraphSec->getMemProt() == Prot && "MemProt should match");
+    if (GraphSec->getMemProt() != Prot) {
+      std::string ErrMsg;
+      raw_string_ostream(ErrMsg)
+          << "In " << G->getName() << ", section " << *Name
+          << " is present more than once with different permissions: "
+          << GraphSec->getMemProt() << " vs " << Prot;
+      return make_error<JITLinkError>(std::move(ErrMsg));
+    }
 
     Block *B = nullptr;
     if (Sec.sh_type != ELF::SHT_NOBITS) {
@@ -505,6 +506,22 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
         TargetFlagsType Flags = makeTargetFlags(Sym);
         orc::ExecutorAddrDiff Offset = getRawOffset(Sym, Flags);
 
+        if (Offset + Sym.st_size > B->getSize()) {
+          std::string ErrMsg;
+          raw_string_ostream ErrStream(ErrMsg);
+          ErrStream << "In " << G->getName() << ", symbol ";
+          if (!Name->empty())
+            ErrStream << *Name;
+          else
+            ErrStream << "<anon>";
+          ErrStream << " (" << (B->getAddress() + Offset) << " -- "
+                    << (B->getAddress() + Offset + Sym.st_size) << ") extends "
+                    << formatv("{0:x}", Offset + Sym.st_size - B->getSize())
+                    << " bytes past the end of its containing block ("
+                    << B->getRange() << ")";
+          return make_error<JITLinkError>(std::move(ErrMsg));
+        }
+
         // In RISCV, temporary symbols (Used to generate dwarf, eh_frame
         // sections...) will appear in object code's symbol table, and LLVM does
         // not use names on these temporary symbols (RISCV gnu toolchain uses
@@ -539,6 +556,21 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
       // If L is Linkage::Weak that means this is a weakly referenced symbol.
       auto &GSym = G->addExternalSymbol(*Name, Sym.st_size,
                                         Sym.getBinding() == ELF::STB_WEAK);
+      setGraphSymbol(SymIndex, GSym);
+    } else if (Sym.isUndefined() && Sym.st_value == 0 && Sym.st_size == 0 &&
+               Sym.getType() == ELF::STT_NOTYPE &&
+               Sym.getBinding() == ELF::STB_LOCAL && Name->empty()) {
+      // Some relocations (e.g., R_RISCV_ALIGN) don't have a target symbol and
+      // use this kind of null symbol as a placeholder.
+      LLVM_DEBUG({
+        dbgs() << "      " << SymIndex << ": Creating null graph symbol\n";
+      });
+
+      auto SymName =
+          G->allocateContent("__jitlink_ELF_SYM_UND_" + Twine(SymIndex));
+      auto SymNameRef = StringRef(SymName.data(), SymName.size());
+      auto &GSym = G->addAbsoluteSymbol(SymNameRef, orc::ExecutorAddr(0), 0,
+                                        Linkage::Strong, Scope::Local, false);
       setGraphSymbol(SymIndex, GSym);
     } else {
       LLVM_DEBUG({

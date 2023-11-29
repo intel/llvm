@@ -12,6 +12,7 @@
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
+include "mlir/Interfaces/MemorySlotInterfaces.td"
 
 /// Base class for all LLVM dialect types.
 class LLVMType<string typeName, string typeMnemonic, list<Trait> traits = []>
@@ -24,7 +25,8 @@ class LLVMType<string typeName, string typeMnemonic, list<Trait> traits = []>
 //===----------------------------------------------------------------------===//
 
 def LLVMArrayType : LLVMType<"LLVMArray", "array", [
-    DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["getTypeSize"]>]> {
+    DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["getTypeSize"]>,
+    DeclareTypeInterfaceMethods<DestructurableTypeInterface>]> {
   let summary = "LLVM array type";
   let description = [{
     The `!llvm.array` type represents a fixed-size array of element types.
@@ -125,42 +127,27 @@ def LLVMPointerType : LLVMType<"LLVMPointer", "ptr", [
   let summary = "LLVM pointer type";
   let description = [{
     The `!llvm.ptr` type is an LLVM pointer type. This type typically represents
-    a reference to an object in memory. Pointers may be opaque or parameterized
-    by the element type. Both opaque and non-opaque pointers are additionally
-    parameterized by the address space.
+    a reference to an object in memory. Pointers are optionally parameterized
+    by the address space.
 
     Example:
 
     ```mlir
-    !llvm.ptr<i8>
     !llvm.ptr
     ```
   }];
 
-  let parameters = (ins DefaultValuedParameter<"Type", "Type()">:$elementType,
-                        DefaultValuedParameter<"unsigned", "0">:$addressSpace);
+  let parameters = (ins DefaultValuedParameter<"unsigned", "0">:$addressSpace);
   let assemblyFormat = [{
-    (`<` custom<Pointer>($elementType, $addressSpace)^ `>`)?
+    (`<` $addressSpace^ `>`)?
   }];
 
-  let genVerifyDecl = 1;
-
+  let skipDefaultBuilders = 1;
   let builders = [
-    TypeBuilderWithInferredContext<(ins "Type":$elementType,
-                                         CArg<"unsigned", "0">:$addressSpace)>,
     TypeBuilder<(ins CArg<"unsigned", "0">:$addressSpace), [{
-      return $_get($_ctxt, Type(), addressSpace);
+      return $_get($_ctxt, addressSpace);
     }]>
   ];
-
-  let extraClassDeclaration = [{
-    /// Returns `true` if this type is the opaque pointer type, i.e., it has no
-    /// pointed-to type.
-    bool isOpaque() const { return !getElementType(); }
-
-    /// Checks if the given type can have a pointer type pointing to it.
-    static bool isValidElementType(Type type);
-  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -220,6 +207,42 @@ def LLVMScalableVectorType : LLVMType<"LLVMScalableVector", "vec"> {
   let extraClassDeclaration = [{
     /// Checks if the given type can be used in a vector type.
     static bool isValidElementType(Type type);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// LLVMTargetExtType
+//===----------------------------------------------------------------------===//
+
+def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
+  let summary = "LLVM target-specific extension type";
+  let description = [{
+    LLVM dialect target extension type, which are generally unintrospectable
+    from target-independent optimizations.
+
+    Target extension types have a string name, and optionally have type and/or
+    integer parameters. The exact meaning of any parameters is dependent on the
+    target.
+  }];
+
+  let parameters = (ins StringRefParameter<>:$extTypeName,
+                        OptionalArrayRefParameter<"Type">:$typeParams,
+                        OptionalArrayRefParameter<"unsigned int">:$intParams);
+
+  let assemblyFormat = [{
+    `<` $extTypeName (`,` custom<ExtTypeParams>($typeParams, $intParams)^ )? `>`
+  }];
+
+  let extraClassDeclaration = [{
+    enum Property {
+      /// zeroinitializer is valid for this target extension type.
+      HasZeroInit = 1U << 0,
+      /// This type may be used as the value type of a global variable.
+      CanBeGlobal = 1U << 1,
+    };
+
+    bool hasProperty(Property Prop) const;
+    bool supportsMemOps() const;
   }];
 }
 

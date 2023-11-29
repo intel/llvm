@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu-intel-pvc
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // 64 bit offset variant of the test - uses 64 bit offsets.
 
 #define USE_64_BIT_OFFSET

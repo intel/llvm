@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -42,7 +43,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -278,12 +278,12 @@ LanaiTargetLowering::getSingleConstraintMatchWeight(
 // LowerAsmOperandForConstraint - Lower the specified operand into the Ops
 // vector.  If it is invalid, don't add anything to Ops.
 void LanaiTargetLowering::LowerAsmOperandForConstraint(
-    SDValue Op, std::string &Constraint, std::vector<SDValue> &Ops,
+    SDValue Op, StringRef Constraint, std::vector<SDValue> &Ops,
     SelectionDAG &DAG) const {
   SDValue Result;
 
   // Only support length 1 constraints for now.
-  if (Constraint.length() > 1)
+  if (Constraint.size() > 1)
     return;
 
   char ConstraintLetter = Constraint[0];
@@ -519,7 +519,7 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
   if (IsVarArg) {
     // Record the frame index of the first variable argument
     // which is a value necessary to VASTART.
-    int FI = MFI.CreateFixedObject(4, CCInfo.getNextStackOffset(), true);
+    int FI = MFI.CreateFixedObject(4, CCInfo.getStackSize(), true);
     LanaiMFI->setVarArgsFrameIndex(FI);
   }
 
@@ -627,7 +627,7 @@ SDValue LanaiTargetLowering::LowerCCCCallTo(
   }
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = CCInfo.getNextStackOffset();
+  unsigned NumBytes = CCInfo.getStackSize();
 
   // Create local copies for byval args.
   SmallVector<SDValue, 8> ByValArgs;
@@ -1499,7 +1499,7 @@ void LanaiTargetLowering::computeKnownBitsForTargetNode(
     KnownBits Known2;
     Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
     Known2 = DAG.computeKnownBits(Op->getOperand(1), Depth + 1);
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
 }

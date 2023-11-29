@@ -9,13 +9,13 @@
 #ifndef LLDB_SYMBOL_COMPILEUNIT_H
 #define LLDB_SYMBOL_COMPILEUNIT_H
 
-#include "lldb/Core/FileSpecList.h"
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Core/SourceLocationSpec.h"
 #include "lldb/Symbol/DebugMacros.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/SourceModule.h"
+#include "lldb/Utility/FileSpecList.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/UserID.h"
 #include "lldb/lldb-enumerations.h"
@@ -331,8 +331,7 @@ public:
   ///     A line table object pointer that this object now owns.
   void SetLineTable(LineTable *line_table);
 
-  void SetSupportFiles(const FileSpecList &support_files);
-  void SetSupportFiles(FileSpecList &&support_files);
+  void SetSupportFiles(FileSpecList support_files);
 
   void SetDebugMacros(const DebugMacrosSP &debug_macros);
 

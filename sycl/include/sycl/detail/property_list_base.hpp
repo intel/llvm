@@ -8,16 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/exception.hpp>              // for invalid_object_error
 
-#include <bitset>
-#include <memory>
-#include <vector>
+#include <algorithm>   // for iter_swap
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr, __shared_ptr_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class PropertyListBase {
 protected:
@@ -32,8 +35,7 @@ protected:
   void ctorHelper() {}
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>>
   ctorHelper(PropT &, PropsT... Props) {
     const int PropKind = static_cast<int>(PropT::getKind());
     MDataLessProps[PropKind] = true;
@@ -41,8 +43,7 @@ protected:
   }
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>>
   ctorHelper(PropT &Prop, PropsT... Props) {
     MPropsWithData.emplace_back(new PropT(Prop));
     ctorHelper(Props...);
@@ -50,16 +51,15 @@ protected:
 
   // Compile-time-constant properties are simply skipped
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      !std::is_base_of<PropertyWithDataBase, PropT>::value &&
-      !std::is_base_of<DataLessPropertyBase, PropT>::value>
+  typename std::enable_if_t<!std::is_base_of_v<PropertyWithDataBase, PropT> &&
+                            !std::is_base_of_v<DataLessPropertyBase, PropT>>
   ctorHelper(PropT &, PropsT... Props) {
     ctorHelper(Props...);
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
@@ -68,8 +68,8 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
@@ -79,16 +79,16 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of_v<DataLessPropertyBase, PropT>,
+                            PropT>
   get_property_helper() const {
     // In case of simple property we can just construct it
     return PropT{};
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
+                            PropT>
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
@@ -133,5 +133,5 @@ protected:
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

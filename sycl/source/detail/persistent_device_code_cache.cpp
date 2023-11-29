@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cstdio>
+#include <fstream>
 #include <optional>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
@@ -22,7 +23,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /* Lock file suffix */
@@ -48,7 +49,8 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+static bool
+IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
   return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
          Format == PI_DEVICE_BINARY_TYPE_NATIVE;
 }
@@ -85,7 +87,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
 void PersistentDeviceCodeCache::putItemToDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const RT::PiProgram &NativePrg) {
+    const sycl::detail::pi::PiProgram &NativePrg) {
 
   if (!isImageCached(Img))
     return;
@@ -106,12 +108,12 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   unsigned int DeviceNum = 0;
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -122,9 +124,9 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
-                                           sizeof(char *) * Pointers.size(),
-                                           Pointers.data(), nullptr);
+  Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
 
   try {
     OSUtil::makeDir(DirName.c_str());
@@ -367,5 +369,5 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -171,9 +171,10 @@ public:
   llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
-  lldb_private::CompilerDeclContext FindNamespace(
-      lldb_private::ConstString name,
-      const lldb_private::CompilerDeclContext &parent_decl_ctx) override;
+  lldb_private::CompilerDeclContext
+  FindNamespace(lldb_private::ConstString name,
+                const lldb_private::CompilerDeclContext &parent_decl_ctx,
+                bool only_root_namespaces) override;
 
   std::vector<std::unique_ptr<lldb_private::CallEdge>>
   ParseCallEdgesInFunction(UserID func_id) override;
@@ -225,6 +226,11 @@ public:
   }
   void SetDebugInfoHadFrameVariableErrors() override {
     return m_sym_file_impl->SetDebugInfoHadFrameVariableErrors();
+  }
+
+  bool GetSeparateDebugInfo(StructuredData::Dictionary &d,
+                            bool errors_only) override {
+    return m_sym_file_impl->GetSeparateDebugInfo(d, errors_only);
   }
 
   lldb::TypeSP MakeType(lldb::user_id_t uid, ConstString name,

@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
-#define LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H
+#define LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H
 
 #include "src/__support/CPP/limits.h"
 #include "src/__support/CPP/optional.h"
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/FPUtil/dyadic_float.h"
+#include "src/__support/FPUtil/rounding_mode.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/builtin_wrappers.h"
 #include "src/__support/common.h"
@@ -23,7 +25,7 @@
 #include "src/__support/str_to_num_result.h"
 #include "src/errno/libc_errno.h" // For ERANGE
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace internal {
 
 template <class T> struct ExpandedFloat {
@@ -265,10 +267,15 @@ eisel_lemire<long double>(ExpandedFloat<long double> init_num,
   UInt128 approx_upper = static_cast<UInt128>(high64(mantissa)) *
                          static_cast<UInt128>(power_of_ten[1]);
 
-  UInt128 approx_middle = static_cast<UInt128>(high64(mantissa)) *
-                              static_cast<UInt128>(power_of_ten[0]) +
-                          static_cast<UInt128>(low64(mantissa)) *
-                              static_cast<UInt128>(power_of_ten[1]);
+  UInt128 approx_middle_a = static_cast<UInt128>(high64(mantissa)) *
+                            static_cast<UInt128>(power_of_ten[0]);
+  UInt128 approx_middle_b = static_cast<UInt128>(low64(mantissa)) *
+                            static_cast<UInt128>(power_of_ten[1]);
+
+  UInt128 approx_middle = approx_middle_a + approx_middle_b;
+
+  // Handle overflow in the middle
+  approx_upper += (approx_middle < approx_middle_a) ? UInt128(1) << 64 : 0;
 
   UInt128 approx_lower = static_cast<UInt128>(low64(mantissa)) *
                          static_cast<UInt128>(power_of_ten[0]);
@@ -295,7 +302,8 @@ eisel_lemire<long double>(ExpandedFloat<long double> init_num,
   }
 
   // Shifting to 65 bits for 80 bit floats and 113 bits for 128 bit floats
-  BitsType msb = final_approx_upper >> (BITS_IN_MANTISSA - 1);
+  uint32_t msb =
+      static_cast<uint32_t>(final_approx_upper >> (BITS_IN_MANTISSA - 1));
   BitsType final_mantissa =
       final_approx_upper >>
       (msb + BITS_IN_MANTISSA -
@@ -565,7 +573,16 @@ clinger_fast_path(ExpandedFloat<T> init_num,
   }
 
   fputil::FPBits<T> result;
-  T float_mantissa = static_cast<T>(mantissa);
+  T float_mantissa;
+  if constexpr (cpp::is_same_v<typename fputil::FPBits<T>::UIntType,
+                               cpp::UInt<128>>) {
+    float_mantissa = static_cast<T>(fputil::DyadicFloat<128>(
+        false, 0,
+        fputil::DyadicFloat<128>::MantissaType(
+            {uint64_t(mantissa), uint64_t(mantissa >> 64)})));
+  } else {
+    float_mantissa = static_cast<T>(mantissa);
+  }
 
   if (exp10 == 0) {
     result = fputil::FPBits<T>(float_mantissa);
@@ -800,7 +817,7 @@ LIBC_INLINE FloatConvertReturn<T> binary_exp_to_float(ExpandedFloat<T> init_num,
 
   BitsType round_bit_mask = BitsType(1) << (amount_to_shift_right - 1);
   BitsType sticky_mask = round_bit_mask - 1;
-  bool round_bit = mantissa & round_bit_mask;
+  bool round_bit = static_cast<bool>(mantissa & round_bit_mask);
   bool sticky_bit = static_cast<bool>(mantissa & sticky_mask) || truncated;
 
   if (amount_to_shift_right < NUMBITS) {
@@ -810,7 +827,7 @@ LIBC_INLINE FloatConvertReturn<T> binary_exp_to_float(ExpandedFloat<T> init_num,
   } else {
     mantissa = 0;
   }
-  bool least_significant_bit = mantissa & BitsType(1);
+  bool least_significant_bit = static_cast<bool>(mantissa & BitsType(1));
 
   // TODO: check that this rounding behavior is correct.
 
@@ -928,8 +945,11 @@ decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
     return output;
 
   if (tolower(src[index]) == EXPONENT_MARKER) {
-    if (src[index + 1] == '+' || src[index + 1] == '-' ||
-        isdigit(src[index + 1])) {
+    bool has_sign = false;
+    if (src[index + 1] == '+' || src[index + 1] == '-') {
+      has_sign = true;
+    }
+    if (isdigit(src[index + 1 + static_cast<size_t>(has_sign)])) {
       ++index;
       auto result = strtointeger<int32_t>(src + index, 10);
       if (result.has_error())
@@ -1036,8 +1056,11 @@ hexadecimal_string_to_float(const char *__restrict src,
   exponent *= 4;
 
   if (tolower(src[index]) == EXPONENT_MARKER) {
-    if (src[index + 1] == '+' || src[index + 1] == '-' ||
-        isdigit(src[index + 1])) {
+    bool has_sign = false;
+    if (src[index + 1] == '+' || src[index + 1] == '-') {
+      has_sign = true;
+    }
+    if (isdigit(src[index + 1 + static_cast<size_t>(has_sign)])) {
       ++index;
       auto result = strtointeger<int32_t>(src + index, 10);
       if (result.has_error())
@@ -1052,13 +1075,12 @@ hexadecimal_string_to_float(const char *__restrict src,
 
       // If the result is in the valid range, then we use it. The valid range is
       // also within the int32 range, so this prevents overflow issues.
-      if (temp_exponent < fputil::FPBits<T>::MAX_EXPONENT &&
-          temp_exponent > -fputil::FPBits<T>::MAX_EXPONENT) {
-        exponent = static_cast<int32_t>(temp_exponent);
-      } else if (temp_exponent > fputil::FPBits<T>::MAX_EXPONENT) {
+      if (temp_exponent > fputil::FPBits<T>::MAX_EXPONENT) {
         exponent = fputil::FPBits<T>::MAX_EXPONENT;
-      } else {
+      } else if (temp_exponent < -fputil::FPBits<T>::MAX_EXPONENT) {
         exponent = -fputil::FPBits<T>::MAX_EXPONENT;
+      } else {
+        exponent = static_cast<int32_t>(temp_exponent);
       }
     }
   }
@@ -1110,7 +1132,7 @@ LIBC_INLINE StrToNumResult<T> strtofloatingpoint(const char *__restrict src) {
 
     RoundDirection round_direction = RoundDirection::Nearest;
 
-    switch (fputil::get_round()) {
+    switch (fputil::quick_get_round()) {
     case FE_TONEAREST:
       round_direction = RoundDirection::Nearest;
       break;
@@ -1158,7 +1180,9 @@ LIBC_INLINE StrToNumResult<T> strtofloatingpoint(const char *__restrict src) {
       if (src[index] == '(') {
         size_t left_paren = index;
         ++index;
-        while (isalnum(src[index]))
+        // Apparently it's common for underscores to also be accepted. No idea
+        // why, but it's causing fuzz failures.
+        while (isalnum(src[index]) || src[index] == '_')
           ++index;
         if (src[index] == ')') {
           ++index;
@@ -1174,7 +1198,7 @@ LIBC_INLINE StrToNumResult<T> strtofloatingpoint(const char *__restrict src) {
             if (strtoint_result.has_error()) {
               error = strtoint_result.error;
             }
-            nan_mantissa = strtoint_result.value;
+            nan_mantissa = static_cast<BitsType>(strtoint_result.value);
             if (src[left_paren + 1 + strtoint_result.parsed_len] != ')')
               nan_mantissa = 0;
           }
@@ -1196,9 +1220,9 @@ LIBC_INLINE StrToNumResult<T> strtofloatingpoint(const char *__restrict src) {
         tolower(src[index + 2]) == inf_string[2]) {
       seen_digit = true;
       if (result.get_sign())
-        result = result.neg_inf();
+        result = fputil::FPBits<T>(result.neg_inf());
       else
-        result = result.inf();
+        result = fputil::FPBits<T>(result.inf());
       if (tolower(src[index + 3]) == inf_string[3] &&
           tolower(src[index + 4]) == inf_string[4] &&
           tolower(src[index + 5]) == inf_string[5] &&
@@ -1223,6 +1247,6 @@ LIBC_INLINE StrToNumResult<T> strtofloatingpoint(const char *__restrict src) {
 }
 
 } // namespace internal
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
+#endif // LLVM_LIBC_SRC___SUPPORT_STR_TO_FLOAT_H

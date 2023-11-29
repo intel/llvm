@@ -1,0 +1,582 @@
+= sycl_ext_intel_fpga_mem
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes. This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation. All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
+
+Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
+
+* link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
+
+== Status
+Proposed
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+[NOTE]
+====
+In this document, we use `fpga_mem` to indicate the proposed `sycl::ext::intel::experimental::fpga_mem`.
+====
+
+The purpose of this document is to clearly describe and specify `fpga_mem` and 
+related concepts, types, and mechanisms, and to give examples and context for their usage.
+
+=== Motivation
+`fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design, but don't change functional behavior.
+
+=== Example
+[source,c++]
+----
+struct MyClass {
+  bool x;
+};
+
+namespace intelexp = sycl::ext::intel::experimental;
+namespace oneapiexp = sycl::ext::oneapi::experimental;
+
+sycl::queue q;
+q.single_task([=] {
+  intelexp::fpga_mem<int[4],
+                     decltype(oneapiexp::properties(intelexp::resource_mlab))>
+      fm1{1, 3, 5, 7};
+  intelexp::fpga_mem<MyClass,
+                     decltype(oneapiexp::properties(intelexp::resource_mlab))>
+      fm2;
+  fm2.get().x = fm1[0];
+});
+----
+
+Above we see an example that declares `fpga_mem` variables `fm1`, `fm2`, and accesses them. 
+`fm1` creates an allocation on the device that is private to the kernel and contains an array of four `int` types that is initialized to `{1, 3, 5, 7}`. `fm2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized. Both variables will be implemented using the MLAB hardware resource. For more details on supported properties see below.
+
+`fpga_mem` has reference wrapper-like semantics, and is implicitly convertible to the wrapped type. Of note,
+because {cpp} doesn't allow for overloading of the "dot operator", a `get()`
+member of `fpga_mem` allows a reference to be extracted, to which the usual
+dot operator may be applied.
+
+== Specification
+
+`fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design.
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FPGA_MEM` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Representation of FPGA memory
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+  namespace oneapiexp = sycl::ext::oneapi::experimental;
+  template <typename T, typename PropListT = oneapiexp::empty_properties_t>
+  class fpga_mem {
+  ...
+----
+
+`fpga_mem` is a class template, parameterized by the type of the underlying
+allocation _T_, and a list of properties _PropListT_. The type of the
+allocation _T_ also encodes the size of the allocation.
+
+`fpga_mem` initializes the underlying object `T` with the values passed into its constructor. If no values are passed into the constructor the underlying object `T` is default initialized.
+
+Properties may be specified for a `fpga_mem` to provide optimization hints to the compiler. See below for a list of the properties that are allowed.
+
+[NOTE]
+====
+
+`fpga_mem` has similar semantics to a reference wrapper. An fpga_mem templated on a type T can implicitly convert to T, thereby allowing it to be used in most places that an object of type T could be used. The dot operator
+(`operator.`) cannot be overloaded, so a `get()` member is provided to allow a
+reference to be extracted directly when needed.
+====
+
+=== FPGA Memory Interface
+
+The section below and the table following describe the constructors and member functions for `fpga_mem`.
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+  namespace oneapiexp = sycl::ext::oneapi::experimental;
+
+  template <typename T, typename PropertyListT = oneapiexp::empty_properties_t>
+  class fpga_mem {
+  public:
+    template <typename... S> constexpr fpga_mem(S... args);
+
+    fpga_mem() = default;
+
+    fpga_mem(const fpga_mem &) = default;
+    fpga_mem(fpga_mem &&) = default;
+    fpga_mem &operator=(const fpga_mem &) = default;
+    fpga_mem &operator=(fpga_mem &&) = default;
+
+    // Access the underlying data
+    operator T &() noexcept;
+    constexpr operator const T &() const noexcept;
+
+    T &get() noexcept;
+    constexpr const T &get() const noexcept;
+
+    // Enable assignments from underlying type
+    fpga_mem &operator=(const T &) noexcept;
+
+    // Note that there is no need for "fpga_mem" to define member functions
+    // for operators like "++", "[]", "->", comparison, etc. Instead, the type
+    // "T" need only define these operators as non-member functions. Because
+    // there is an implicit conversion from "fpga_mem" to "T&", the operations
+    // can be applied to objects of type "fpga_mem<T>"
+
+    template <typename propertyT> static constexpr bool has_property();
+
+    // The return type is an unspecified internal class used to represent
+    // instances of propertyT
+    template <typename propertyT>
+    static constexpr /*unspecified*/ get_property();
+  };
+
+} // namespace sycl::ext::intel::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Functions |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename ... S>
+constexpr fpga_mem(S ... args);
+----
+|
+Constructs a `fpga_mem` object, and implicit storage for `T`. `T` 's constructor will be called with `args`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_mem() = default;
+----
+|
+Compiler generated default constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_mem(const fpga_mem &) = default;
+----
+|
+Compiler generated copy constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_mem(fpga_mem &&) = default;
+----
+|
+Compiler generated move constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_mem &operator=(const fpga_mem &) = default;
+----
+|
+Compiler generated copy assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_mem &operator=(fpga_mem &&) = default;
+----
+|
+Compiler generated move assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+operator T&() noexcept;
+constexpr operator const T&() const noexcept;
+----
+|
+Implicit conversion to a reference to the underlying `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T& get() noexcept;
+constexpr const T& get() const noexcept;
+----
+|
+Returns a reference to the underlying `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr bool has_property();
+----
+| Returns true if the `PropertyListT` contains the property specified by `propertyT`. Returns false if it does not.
+Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::intel::experimental::fpga_mem>` is true.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr auto get_property();
+----
+| Returns an object of the class used to represent the value of property `propertyT`.
+Must produce a compiler diagnostic if `PropertyListT` does not contain a `propertyT` property.
+Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::intel::experimental::fpga_mem>` is true.
+
+|===
+
+=== Interactions with other SYCL extensions
+
+Below are some non-obvious interactions between `fpga_mem` and other SYCL extensions.
+
+* Since fpga_mem and fpga_datapath apply to the entire object that they wrap, conflicting hints may be applied to the same object, such as in the example below.
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
+
+struct foo {
+  int b; 
+  intelexp::fpga_datapath<int> c;
+};
+
+const intelexp::fpga_mem<foo> mem1; 
+----
+
+In cases of nested hints the outermost hint will take precedence, and all inner hints will be ignored. In this example `mem1.b`, and `mem1.c` will both be implemented in memory, the hint on `mem1.c` is ignored. Below are more examples of this behavior.
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
+
+struct foo {
+  int b; 
+  intelexp::fpga_datapath<int> c;
+};
+
+// mem2 will be implemented in memory, fpga_datapath hint is ignored
+intelexp::fpga_mem<intelexp::fpga_datapath<int[10]>> mem2;
+
+// The compiler is not constrained how to implemented mem3.b
+// mem3.c will be implemented in the datapath
+const foo mem3; 
+
+class bar {
+  intelexp::fpga_mem<int[5]> a;
+  intelexp::fpga_datapath<int[4]> b;
+}
+
+// mem4.a will be implemented off the datapath, in memory
+// mem4.b will be implemented in the datapath
+const bar mem4;
+----
+
+=== Properties for fpga memory 
+
+The `fpga_mem` class supports several compile-time-constant properties. If
+specified, these properties are included in the `PropListT` template parameter
+as shown in this example:
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
+namespace oneapiexp = sycl::ext::oneapi::experimental;
+
+intelexp::fpga_mem<MyClass, decltype(oneapiexp::properties(intelexp::resource_mlab))> dm1;
+----
+
+The following code synopsis shows the set of supported properties,
+and the following table describes their effect.
+
+[source, c++]
+----
+namespace sycl::ext::intel::experimental {
+
+  enum class resource_enum : /*unspecified*/ { mlab, block_ram };
+
+  struct resource_key {
+    template <resource_enum Resource>
+    using value_t =
+        property_value<resource_key,
+                        std::integral_constant<resource_enum, Resource>>;
+  };
+
+  struct num_banks_key {
+    template <size_t elements>
+    using value_t =
+        property_value<num_banks_key, std::integral_constant<size_t, elements>>;
+  };
+
+  struct stride_size_key {
+    template <size_t elements>
+    using value_t =
+        property_value<stride_size_key, std::integral_constant<size_t, elements>>;
+  };
+
+  struct word_size_key {
+    template <size_t elements>
+    using value_t =
+        property_value<word_size_key, std::integral_constant<size_t, elements>>;
+  };
+
+  struct bi_directional_ports_key {
+    template <bool Enable>
+    using value_t = property_value<
+        bi_directional_ports_key, std::bool_constant<Enable>>;
+  };
+
+  struct clock_2x_key {
+    template <bool Enable>
+    using value_t = property_value<clock_2x_key, std::bool_constant<Enable>>;
+  };
+
+  enum class ram_stitching_enum : /*unspecified*/ { min_ram, max_fmax };
+
+  struct ram_stitching_key {
+    template <ram_stitching_enum Ram_stritching>
+    using value_t = property_value<
+        ram_stitching_key,
+        std::integral_constant<ram_stitching_enum, Ram_stritching>>;
+  };
+
+  struct max_private_copies_key {
+    template <size_t n>
+    using value_t =
+        property_value<max_private_copies_key, std::integral_constant<size_t, n>>;
+  };
+
+  struct num_replicates_key {
+    template <size_t n>
+    using value_t =
+        property_value<num_replicates_key, std::integral_constant<size_t, n>>;
+  };
+
+  // Convenience aliases
+  template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
+  inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
+  inline constexpr resource_key::value_t<resource_enum::block_ram>
+      resource_block_ram;
+
+  template <size_t e> inline constexpr num_banks_key::value_t<e> num_banks;
+
+  template <size_t e> inline constexpr stride_size_key::value_t<e> stride_size;
+
+  template <size_t e> inline constexpr word_size_key::value_t<e> word_size;
+
+  template <bool b>
+  inline constexpr bi_directional_ports_key::value_t<b> bi_directional_ports;
+  inline constexpr bi_directional_ports_key::value_t<false>
+      bi_directional_ports_false;
+  inline constexpr bi_directional_ports_key::value_t<true>
+      bi_directional_ports_true;
+
+  template <bool b>
+  inline constexpr clock_2x_key::value_t<b> clock_2x;
+  inline constexpr clock_2x_key::value_t<true> clock_2x_true;
+  inline constexpr clock_2x_key::value_t<false> clock_2x_false;
+
+  template <ram_stitching_enum d>
+  inline constexpr ram_stitching_key::value_t<d> ram_stitching;
+  inline constexpr ram_stitching_key::value_t<ram_stitching_enum::min_ram>
+      ram_stitching_min_ram;
+  inline constexpr ram_stitching_key::value_t<ram_stitching_enum::max_fmax>
+      ram_stitching_max_fmax;
+
+  template <size_t n>
+  inline constexpr max_private_copies_key::value_t<n> max_private_copies;
+
+  template <size_t n>
+  inline constexpr num_replicates_key::value_t<n> num_replicates;
+
+} // namespace sycl::ext::intel::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+a|
+[source,c++]
+----
+resource
+----
+a|
+Specifies which FPGA memory resources to use to implement the variable.
+
+The following values are supported:
+
+* `mlab`: data is stored in special Adaptive Logic Modules (ALMs), called memory-logic array blocks 
+* `block_ram`: data is stored in dedicated block RAM modules
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+num_banks
+----
+a|
+The number of banks that the array is divided into. If the `stride_size` property is not specified in conjunction with the `num_banks` property, the memory will be divided using a cyclic partitioning strategy, where consecutive words will be placed in different banks.
+
+Must be greater than zero and less than or equal to the number of array elements.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+stride_size
+----
+a|
+The number of consecutive elements in an array that will be part of the same bank. If the `num_banks` property is not specified in conjunction with `stride_size` property, memory will be divided using a block partitioning strategy, where consecutive words will be placed in the same bank until `stride_size` worth of elements is reached, at which point further words will be added to a new bank.
+
+Must be greater than zero and less than or equal to the number of array elements.
+
+If the `word_size` property is specified, `stride_size` must be a multiple of `word_size`. 
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+word_size
+----
+a|
+Size in elements of a single memory transaction.
+
+If the `stride_size` property is specified, `stride_size` must be a multiple of `word_size`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+bi_directional_ports
+----
+a|
+The following values are supported:
+
+* `false`: Specifies that a port to the memory can only service read or write requests, but not both.
+* `true`: Specifies that a port to the memory can service both read and write requests.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+clock_2x
+----
+a|
+The following values are supported:
+
+* `false`: Specifies that the memory implementing the variable must operate at the same clock frequency as the kernel accessing it.
+* `true`: Specifies that the memory implementing the variable must be clocked at twice the rate as the kernel accessing it. This allows for twice as many memory accesses per kernel clock cycle but may reduce the maximum kernel clock frequency.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+ram_stitching
+----
+a|
+If the size of the data is too big for a single RAM to hold it, multiple RAMs  need to be stitched together. The following values are supported:
+
+* `min_ram`: Specifies that the widths and depths of the individual RAMs may be different to minimize the number of RAMs needed to hold the data. This may result in more complicated logic being implemented to index into the RAMs, reducing the fmax.
+* `max_fmax`: Specifies that the RAMs should be of uniform width and depth, which allows for simple indexing logic to be generated. This may result in more RAMs being used than strictly necessary. 
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+max_private_copies
+----
+a|
+Specifies that the memory has no more than the specified number of independent instances to allow simultaneous iterations of a loop at any given time. Each simultaneous iteration uses a different instance of the variable.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+max_replicates
+----
+a|
+Specifies that the memory has no more than the specified number of replicates to enable simultaneous reads from the datapath. 
+
+|===
+

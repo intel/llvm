@@ -118,7 +118,7 @@ RecognizableInstrBase::RecognizableInstrBase(const CodeGenInstruction &insn) {
   AdSize = byteFromRec(Rec, "AdSizeBits");
   HasREX_W = Rec->getValueAsBit("hasREX_W");
   HasVEX_4V = Rec->getValueAsBit("hasVEX_4V");
-  IgnoresVEX_W = Rec->getValueAsBit("IgnoresVEX_W");
+  IgnoresW = Rec->getValueAsBit("IgnoresW");
   IgnoresVEX_L = Rec->getValueAsBit("ignoresVEX_L");
   HasEVEX_L2 = Rec->getValueAsBit("hasEVEX_L2");
   HasEVEX_K = Rec->getValueAsBit("hasEVEX_K");
@@ -129,6 +129,8 @@ RecognizableInstrBase::RecognizableInstrBase(const CodeGenInstruction &insn) {
   ForceDisassemble = Rec->getValueAsBit("ForceDisassemble");
   CD8_Scale = byteFromRec(Rec, "CD8_Scale");
   HasVEX_L = Rec->getValueAsBit("hasVEX_L");
+  ExplicitREX2Prefix =
+      byteFromRec(Rec, "explicitOpPrefixBits") == X86Local::ExplicitREX2;
 
   EncodeRC = HasEVEX_B &&
              (Form == X86Local::MRMDestReg || Form == X86Local::MRMSrcReg);
@@ -340,6 +342,8 @@ InstructionContext RecognizableInstr::insnContext() const {
       insnContext = IC_64BIT_XD;
     else if (OpPrefix == X86Local::XS)
       insnContext = IC_64BIT_XS;
+    else if (ExplicitREX2Prefix)
+      insnContext = IC_64BIT_REX2;
     else if (HasREX_W)
       insnContext = IC_64BIT_REXW;
     else
@@ -531,7 +535,7 @@ void RecognizableInstr::emitInstructionSpecifier() {
     // Operand 3 (optional) is an immediate.
     assert(numPhysicalOperands >= 2 + additionalOperands &&
            numPhysicalOperands <= 3 + additionalOperands &&
-           "Unexpected number of operands for MRMDestRegFrm");
+           "Unexpected number of operands for MRMDestReg");
 
     HANDLE_OPERAND(rmRegister)
     if (HasEVEX_K)
@@ -791,6 +795,7 @@ void RecognizableInstr::emitDecodePath(DisassemblerTables &tables) const {
   case X86Local::ThreeDNow: opcodeType = THREEDNOW_MAP; break;
   case X86Local::T_MAP5:    opcodeType = MAP5;          break;
   case X86Local::T_MAP6:    opcodeType = MAP6;          break;
+  case X86Local::T_MAP7:    opcodeType = MAP7;          break;
   }
 
   std::unique_ptr<ModRMFilter> filter;
@@ -882,11 +887,11 @@ void RecognizableInstr::emitDecodePath(DisassemblerTables &tables) const {
       tables.setTableFields(*opcodeType, insnContext(), currentOpcode, *filter,
                             UID, Is32Bit, OpPrefix == 0,
                             IgnoresVEX_L || EncodeRC,
-                            IgnoresVEX_W, AddressSize);
+                            IgnoresW, AddressSize);
   } else {
     tables.setTableFields(*opcodeType, insnContext(), opcodeToSet, *filter, UID,
                           Is32Bit, OpPrefix == 0, IgnoresVEX_L || EncodeRC,
-                          IgnoresVEX_W, AddressSize);
+                          IgnoresW, AddressSize);
   }
 
 #undef MAP

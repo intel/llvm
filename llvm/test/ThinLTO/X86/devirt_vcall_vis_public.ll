@@ -6,7 +6,7 @@
 ; Index based WPD
 ; Generate unsplit module with summary for ThinLTO index-based WPD.
 ; RUN: opt -thinlto-bc -o %t2.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,px \
@@ -18,13 +18,13 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=CHECK-TT
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Hybrid WPD
 ; Generate split module with summary for hybrid Thin/Regular LTO WPD.
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
@@ -43,12 +43,12 @@
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
 ; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK --dump-input=fail
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=CHECK-TT
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Regular LTO WPD
 ; RUN: opt -o %t4.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t4.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t5 \
 ; RUN:   -r=%t4.o,test,px \
@@ -72,7 +72,7 @@
 ; WPD fails
 
 ; Index based WPD
-; RUN: llvm-lto2 run -opaque-pointers %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,px \
 ; RUN:   -r=%t2.o,test_public,px \
@@ -83,11 +83,11 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=CHECK-TT
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; Hybrid WPD
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,test_public,px \
@@ -105,11 +105,11 @@
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
 ; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=CHECK-TT
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; Regular LTO WPD
-; RUN: llvm-lto2 run -opaque-pointers %t4.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -o %t5 \
 ; RUN:   -r=%t4.o,test,px \
 ; RUN:   -r=%t4.o,test_public,px \
@@ -126,7 +126,7 @@
 ; Try index-based WPD again with both -whole-program-visibility and
 ; -disable-whole-program-visibility to confirm the latter overrides
 ; the former and that WPD fails.
-; RUN: llvm-lto2 run -opaque-pointers %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -disable-whole-program-visibility \
 ; RUN:   -o %t3 \
@@ -139,7 +139,7 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=CHECK-TT
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; CHECK-TT-NOT: call {{.*}}@llvm.public.type.test

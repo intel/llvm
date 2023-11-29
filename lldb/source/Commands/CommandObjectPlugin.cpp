@@ -39,18 +39,17 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     size_t argc = command.GetArgumentCount();
 
     if (argc != 1) {
       result.AppendError("'plugin load' requires one argument");
-      return false;
+      return;
     }
 
     Status error;
@@ -63,8 +62,6 @@ protected:
     else {
       result.AppendError(error.AsCString());
     }
-
-    return result.Succeeded();
   }
 };
 

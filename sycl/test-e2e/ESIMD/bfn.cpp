@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks binary function (bfn) operations. Combinations of
 // - argument type - uint16_t, uint32_t.
@@ -38,11 +38,11 @@ template <class T> struct InitOps {
 
 // --- Test boolean control functions.
 
-using bfn_t = experimental::esimd::bfn_t;
+using bfn_t = esimd::bfn_t;
 
-constexpr experimental::esimd::bfn_t F1 = bfn_t::x | bfn_t::y | bfn_t::z;
-constexpr experimental::esimd::bfn_t F2 = bfn_t::x & bfn_t::y & bfn_t::z;
-constexpr experimental::esimd::bfn_t F3 = ~bfn_t::x | bfn_t::y ^ bfn_t::z;
+constexpr esimd::bfn_t F1 = bfn_t::x | bfn_t::y | bfn_t::z;
+constexpr esimd::bfn_t F2 = bfn_t::x & bfn_t::y & bfn_t::z;
+constexpr esimd::bfn_t F3 = ~bfn_t::x | bfn_t::y ^ bfn_t::z;
 
 // --- Template functions calculating given boolean operation on host and device
 
@@ -51,19 +51,19 @@ enum ArgKind {
   AllSca,
 };
 
-template <class T, experimental::esimd::bfn_t Op> struct HostFunc;
+template <class T, esimd::bfn_t Op> struct HostFunc;
 
 #define DEFINE_HOST_OP(FUNC_CTRL)                                              \
   template <class T> struct HostFunc<T, FUNC_CTRL> {                           \
     T operator()(T X0, T X1, T X2) {                                           \
       T res = 0;                                                               \
       for (unsigned i = 0; i < sizeof(X0) * 8; i++) {                          \
-        T mask = 0x1UL << i;                                                   \
+        T mask = T(0x1) << i;                                                  \
         res = (res & ~mask) |                                                  \
               ((static_cast<uint8_t>(FUNC_CTRL) >>                             \
-                    ((((X0 >> i) & 0x1UL)) + (((X1 >> i) & 0x1UL) << 1) +      \
-                     (((X2 >> i) & 0x1UL) << 2)) &                             \
-                0x1UL)                                                         \
+                    ((((X0 >> i) & T(0x1))) + (((X1 >> i) & T(0x1)) << 1) +    \
+                     (((X2 >> i) & T(0x1)) << 2)) &                            \
+                T(0x1))                                                        \
                << i);                                                          \
       }                                                                        \
       return res;                                                              \
@@ -76,20 +76,19 @@ DEFINE_HOST_OP(F3);
 
 // --- Specializations per each boolean operation.
 
-template <class T, int N, experimental::esimd::bfn_t Op, int Args = AllVec>
-struct ESIMDf;
+template <class T, int N, esimd::bfn_t Op, int Args = AllVec> struct ESIMDf;
 
 #define DEFINE_ESIMD_DEVICE_OP(FUNC_CTRL)                                      \
   template <class T, int N> struct ESIMDf<T, N, FUNC_CTRL, AllVec> {           \
     esimd::simd<T, N>                                                          \
     operator()(esimd::simd<T, N> X0, esimd::simd<T, N> X1,                     \
                esimd::simd<T, N> X2) const SYCL_ESIMD_FUNCTION {               \
-      return experimental::esimd::bfn<FUNC_CTRL, T, N>(X0, X1, X2);            \
+      return esimd::bfn<FUNC_CTRL, T, N>(X0, X1, X2);                          \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct ESIMDf<T, N, FUNC_CTRL, AllSca> {           \
     esimd::simd<T, N> operator()(T X0, T X1, T X2) const SYCL_ESIMD_FUNCTION { \
-      return experimental::esimd::bfn<FUNC_CTRL, T, N>(X0, X1, X2);            \
+      return esimd::bfn<FUNC_CTRL, T, N>(X0, X1, X2);                          \
     }                                                                          \
   };
 
@@ -99,8 +98,8 @@ DEFINE_ESIMD_DEVICE_OP(F3);
 
 // --- Generic kernel calculating a binary function operation on array elements.
 
-template <class T, int N, experimental::esimd::bfn_t Op,
-          template <class, int, experimental::esimd::bfn_t, int> class Kernel>
+template <class T, int N, esimd::bfn_t Op,
+          template <class, int, esimd::bfn_t, int> class Kernel>
 struct DeviceFunc {
   const T *In0, *In1, *In2;
   T *Out;
@@ -136,8 +135,8 @@ struct DeviceFunc {
 
 // --- Generic test function for boolean function.
 
-template <class T, int N, experimental::esimd::bfn_t Op, int Range,
-          template <class, int, experimental::esimd::bfn_t, int> class Kernel,
+template <class T, int N, esimd::bfn_t Op, int Range,
+          template <class, int, esimd::bfn_t, int> class Kernel,
           typename InitF = InitOps<T>>
 bool test(queue &Q, const std::string &Name, InitF Init = InitOps<T>{}) {
   constexpr size_t Size = Range * N;

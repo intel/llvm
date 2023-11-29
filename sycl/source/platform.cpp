@@ -16,14 +16,14 @@
 #include <sycl/platform.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
   impl = detail::platform_impl::getOrMakePlatformImpl(
-      detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-      detail::RT::getPlugin<backend::opencl>());
+      detail::pi::cast<sycl::detail::pi::PiPlatform>(PlatformId),
+      sycl::detail::pi::getPlugin<backend::opencl>());
 }
 
 // protected constructor for internal use
@@ -54,7 +54,7 @@ std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
-backend platform::get_backend() const noexcept { return getImplBackend(impl); }
+backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type
@@ -95,5 +95,14 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+namespace detail {
+
+void enable_ext_oneapi_default_context(bool Val) {
+  const char *StringVal = Val ? "1" : "0";
+  detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::resetWithValue(
+      StringVal);
+}
+
+} // namespace detail
+} // namespace _V1
 } // namespace sycl

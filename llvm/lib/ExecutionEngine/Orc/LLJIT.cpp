@@ -704,6 +704,14 @@ Error LLJITBuilderState::prepareForConstruction() {
       dbgs() << "\n";
   });
 
+  // Create DL if not specified.
+  if (!DL) {
+    if (auto DLOrErr = JTMB->getDefaultDataLayoutForTarget())
+      DL = std::move(*DLOrErr);
+    else
+      return DLOrErr.takeError();
+  }
+
   // If neither ES nor EPC has been set then create an EPC instance.
   if (!ES && !EPC) {
     LLVM_DEBUG({
@@ -740,7 +748,13 @@ Error LLJITBuilderState::prepareForConstruction() {
       UseJITLink = !TT.isOSBinFormatCOFF();
       break;
     case Triple::x86_64:
-      UseJITLink = TT.isOSBinFormatMachO();
+      UseJITLink = !TT.isOSBinFormatCOFF();
+      break;
+    case Triple::ppc64:
+      UseJITLink = TT.isPPC64ELFv2ABI();
+      break;
+    case Triple::ppc64le:
+      UseJITLink = TT.isOSBinFormatELF();
       break;
     default:
       break;
@@ -761,6 +775,22 @@ Error LLJITBuilderState::prepareForConstruction() {
         return std::move(ObjLinkingLayer);
       };
     }
+  }
+
+  // If we need a process JITDylib but no setup function has been given then
+  // create a default one.
+  if (!SetupProcessSymbolsJITDylib && LinkProcessSymbolsByDefault) {
+    LLVM_DEBUG(dbgs() << "Creating default Process JD setup function\n");
+    SetupProcessSymbolsJITDylib = [this](LLJIT &J) -> Expected<JITDylibSP> {
+      auto &JD =
+          J.getExecutionSession().createBareJITDylib("<Process Symbols>");
+      auto G = orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+          DL->getGlobalPrefix());
+      if (!G)
+        return G.takeError();
+      JD.addGenerator(std::move(*G));
+      return &JD;
+    };
   }
 
   return Error::success();
@@ -906,7 +936,7 @@ LLJIT::createCompileFunction(LLJITBuilderState &S,
 }
 
 LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
-    : DL(""), TT(S.JTMB->getTargetTriple()) {
+    : DL(std::move(*S.DL)), TT(S.JTMB->getTargetTriple()) {
 
   ErrorAsOutParameter _(&Err);
 
@@ -923,15 +953,6 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
       Err = EPC.takeError();
       return;
     }
-  }
-
-  if (S.DL)
-    DL = std::move(*S.DL);
-  else if (auto DLOrErr = S.JTMB->getDefaultDataLayoutForTarget())
-    DL = std::move(*DLOrErr);
-  else {
-    Err = DLOrErr.takeError();
-    return;
   }
 
   auto ObjLayer = createObjectLinkingLayer(S, *ES);
@@ -972,19 +993,17 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
     });
   }
 
-  if (S.LinkProcessSymbolsByDefault && !S.SetupProcessSymbolsJITDylib)
-    S.SetupProcessSymbolsJITDylib = [this](JITDylib &JD) -> Error {
-      auto G = orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
-          DL.getGlobalPrefix());
-      if (!G)
-        return G.takeError();
-      JD.addGenerator(std::move(*G));
-      return Error::success();
-    };
-
   if (S.SetupProcessSymbolsJITDylib) {
-    ProcessSymbols = &ES->createBareJITDylib("<Process Symbols>");
-    if (auto Err2 = S.SetupProcessSymbolsJITDylib(*ProcessSymbols)) {
+    if (auto ProcSymsJD = S.SetupProcessSymbolsJITDylib(*this)) {
+      ProcessSymbols = ProcSymsJD->get();
+    } else {
+      Err = ProcSymsJD.takeError();
+      return;
+    }
+  }
+
+  if (S.PrePlatformSetup) {
+    if (auto Err2 = S.PrePlatformSetup(*this)) {
       Err = std::move(Err2);
       return;
     }
@@ -1048,7 +1067,7 @@ class LoadAndLinkDynLibrary {
 public:
   LoadAndLinkDynLibrary(LLJIT &J) : J(J) {}
   Error operator()(JITDylib &JD, StringRef DLLName) {
-    if (!DLLName.endswith_insensitive(".dll"))
+    if (!DLLName.ends_with_insensitive(".dll"))
       return make_error<StringError>("DLLName not ending with .dll",
                                      inconvertibleErrorCode());
     auto DLLNameStr = DLLName.str(); // Guarantees null-termination.
@@ -1076,7 +1095,7 @@ Expected<JITDylibSP> ExecutorNativePlatform::operator()(LLJIT &J) {
 
   if (!ObjLinkingLayer)
     return make_error<StringError>(
-        "SetUpTargetPlatform requires ObjectLinkingLayer",
+        "ExecutorNativePlatform requires ObjectLinkingLayer",
         inconvertibleErrorCode());
 
   std::unique_ptr<MemoryBuffer> RuntimeArchiveBuffer;

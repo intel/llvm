@@ -1,5 +1,5 @@
 ! Test lowering of intrinsic assignments to HLFIR
-! RUN: bbc -emit-fir -hlfir -o - %s 2>&1 | FileCheck %s
+! RUN: bbc -emit-hlfir -o - %s 2>&1 | FileCheck %s
 
 ! -----------------------------------------------------------------------------
 !     Test assignments with scalar variable LHS and RHS
@@ -74,7 +74,8 @@ end subroutine
 ! CHECK-LABEL: func.func @_QPscalar_logical_2(
 ! CHECK:  %[[VAL_1:.*]]:2 = hlfir.declare {{.*}}  {uniq_name = "_QFscalar_logical_2Ex"} : (!fir.ref<!fir.logical<4>>) -> (!fir.ref<!fir.logical<4>>, !fir.ref<!fir.logical<4>>)
 ! CHECK:  %[[VAL_2:.*]] = arith.constant true
-! CHECK:  hlfir.assign %[[VAL_2]] to %[[VAL_1]]#0 : i1, !fir.ref<!fir.logical<4>>
+! CHECK:  %[[VAL_3:.*]] = fir.convert %[[VAL_2]] : (i1) -> !fir.logical<4>
+! CHECK:  hlfir.assign %[[VAL_3]] to %[[VAL_1]]#0 : !fir.logical<4>, !fir.ref<!fir.logical<4>>
 
 subroutine scalar_real_2(x)
   real :: x
@@ -104,7 +105,7 @@ subroutine scalar_character_2(x)
 end subroutine
 ! CHECK-LABEL: func.func @_QPscalar_character_2(
 ! CHECK:  %[[VAL_2:.*]]:2 = hlfir.declare {{.*}} {uniq_name = "_QFscalar_character_2Ex"} : (!fir.ref<!fir.char<1,?>>, index) -> (!fir.boxchar<1>, !fir.ref<!fir.char<1,?>>)
-! CHECK:  %[[VAL_5:.*]]:2 = hlfir.declare {{.*}} {fortran_attrs = #fir.var_attrs<parameter>, uniq_name = "_QQcl.68656C6C6F"} : (!fir.ref<!fir.char<1,5>>, index) -> (!fir.ref<!fir.char<1,5>>, !fir.ref<!fir.char<1,5>>)
+! CHECK:  %[[VAL_5:.*]]:2 = hlfir.declare {{.*}} {fortran_attrs = #fir.var_attrs<parameter>, uniq_name = "_QQclX68656C6C6F"} : (!fir.ref<!fir.char<1,5>>, index) -> (!fir.ref<!fir.char<1,5>>, !fir.ref<!fir.char<1,5>>)
 ! CHECK:  hlfir.assign %[[VAL_5]]#0 to %[[VAL_2]]#0 : !fir.ref<!fir.char<1,5>>, !fir.boxchar<1>
 
 ! -----------------------------------------------------------------------------

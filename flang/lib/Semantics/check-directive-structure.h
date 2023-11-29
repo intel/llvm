@@ -156,7 +156,7 @@ private:
 // Generic structure checker for directives/clauses language such as OpenMP
 // and OpenACC.
 // typename D is the directive enumeration.
-// tyepname C is the clause enumeration.
+// typename C is the clause enumeration.
 // typename PC is the parser class defined in parse-tree.h for the clauses.
 template <typename D, typename C, typename PC, std::size_t ClauseEnumSize>
 class DirectiveStructureChecker : public virtual BaseChecker {
@@ -331,9 +331,9 @@ protected:
   // Check that only clauses in set are after the specific clauses.
   void CheckOnlyAllowedAfter(C clause, common::EnumSet<C, ClauseEnumSize> set);
 
-  void CheckRequireAtLeastOneOf();
+  void CheckRequireAtLeastOneOf(bool warnInsteadOfError = false);
 
-  void CheckAllowed(C clause);
+  void CheckAllowed(C clause, bool warnInsteadOfError = false);
 
   void CheckAtLeastOneClause();
 
@@ -422,18 +422,29 @@ DirectiveStructureChecker<D, C, PC, ClauseEnumSize>::ClauseSetToString(
 // directive.
 template <typename D, typename C, typename PC, std::size_t ClauseEnumSize>
 void DirectiveStructureChecker<D, C, PC,
-    ClauseEnumSize>::CheckRequireAtLeastOneOf() {
-  if (GetContext().requiredClauses.empty())
+    ClauseEnumSize>::CheckRequireAtLeastOneOf(bool warnInsteadOfError) {
+  if (GetContext().requiredClauses.empty()) {
     return;
+  }
   for (auto cl : GetContext().actualClauses) {
-    if (GetContext().requiredClauses.test(cl))
+    if (GetContext().requiredClauses.test(cl)) {
       return;
+    }
   }
   // No clause matched in the actual clauses list
-  context_.Say(GetContext().directiveSource,
-      "At least one of %s clause must appear on the %s directive"_err_en_US,
-      ClauseSetToString(GetContext().requiredClauses),
-      ContextDirectiveAsFortran());
+  if (warnInsteadOfError) {
+    if (context_.ShouldWarn(common::UsageWarning::Portability)) {
+      context_.Say(GetContext().directiveSource,
+          "At least one of %s clause should appear on the %s directive"_port_en_US,
+          ClauseSetToString(GetContext().requiredClauses),
+          ContextDirectiveAsFortran());
+    }
+  } else {
+    context_.Say(GetContext().directiveSource,
+        "At least one of %s clause must appear on the %s directive"_err_en_US,
+        ClauseSetToString(GetContext().requiredClauses),
+        ContextDirectiveAsFortran());
+  }
 }
 
 template <typename D, typename C, typename PC, std::size_t ClauseEnumSize>
@@ -446,15 +457,25 @@ std::string DirectiveStructureChecker<D, C, PC,
 // Check that clauses present on the directive are allowed clauses.
 template <typename D, typename C, typename PC, std::size_t ClauseEnumSize>
 void DirectiveStructureChecker<D, C, PC, ClauseEnumSize>::CheckAllowed(
-    C clause) {
+    C clause, bool warnInsteadOfError) {
   if (!GetContext().allowedClauses.test(clause) &&
       !GetContext().allowedOnceClauses.test(clause) &&
       !GetContext().allowedExclusiveClauses.test(clause) &&
       !GetContext().requiredClauses.test(clause)) {
-    context_.Say(GetContext().clauseSource,
-        "%s clause is not allowed on the %s directive"_err_en_US,
-        parser::ToUpperCaseLetters(getClauseName(clause).str()),
-        parser::ToUpperCaseLetters(GetContext().directiveSource.ToString()));
+    if (warnInsteadOfError) {
+      if (context_.ShouldWarn(common::UsageWarning::Portability)) {
+        context_.Say(GetContext().clauseSource,
+            "%s clause is not allowed on the %s directive and will be ignored"_port_en_US,
+            parser::ToUpperCaseLetters(getClauseName(clause).str()),
+            parser::ToUpperCaseLetters(
+                GetContext().directiveSource.ToString()));
+      }
+    } else {
+      context_.Say(GetContext().clauseSource,
+          "%s clause is not allowed on the %s directive"_err_en_US,
+          parser::ToUpperCaseLetters(getClauseName(clause).str()),
+          parser::ToUpperCaseLetters(GetContext().directiveSource.ToString()));
+    }
     return;
   }
   if ((GetContext().allowedOnceClauses.test(clause) ||

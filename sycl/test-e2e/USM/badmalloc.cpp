@@ -1,10 +1,8 @@
 // UNSUPPORTED: windows
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
+// UNSUPPORTED: ze_debug
 
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //

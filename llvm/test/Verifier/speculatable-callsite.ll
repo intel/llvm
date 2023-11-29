@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers %s -o /dev/null
+; RUN: llvm-as %s -o /dev/null
 
 ; Make sure speculatable is accepted on a call site if the declaration
 ; is also speculatable.

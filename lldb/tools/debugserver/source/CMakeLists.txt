@@ -3,9 +3,7 @@ include(CheckLibraryExists)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 include_directories(${LLDB_SOURCE_DIR}/source)
 include_directories(MacOSX)
-include_directories(MacOSX/i386)
 include_directories(MacOSX/x86_64)
-include_directories(MacOSX/arm)
 include_directories(MacOSX/arm64)
 
 function(check_certificate identity result_valid)
@@ -21,8 +19,8 @@ endfunction()
 
 function(get_debugserver_codesign_identity result)
   string(CONCAT not_found_help
-    "This will cause failures in the test suite."
-    "Pass '-DLLDB_USE_SYSTEM_DEBUGSERVER=ON' to use the system one instead."
+    "This will cause failures in the test suite. "
+    "Pass '-DLLDB_USE_SYSTEM_DEBUGSERVER=ON' to use the system one instead. "
     "See 'Code Signing on macOS' in the documentation."
   )
 
@@ -228,9 +226,7 @@ set(lldbDebugserverCommonSources
   MacOSX/MachVMMemory.cpp
   MacOSX/MachVMRegion.cpp
   MacOSX/OsLogger.cpp
-  MacOSX/arm/DNBArchImpl.cpp
   MacOSX/arm64/DNBArchImplARM64.cpp
-  MacOSX/i386/DNBArchImplI386.cpp
   MacOSX/x86_64/DNBArchImplX86_64.cpp
   ${generated_mach_interfaces}
   ${DEBUGSERVER_VERS_GENERATED_FILE})

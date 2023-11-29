@@ -690,7 +690,7 @@ func.func @bad_array_modify(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %
 func.func @slice_must_be_integral() {
   %0 = arith.constant 42 : i32
   %1 = fir.field_index field, !fir.type<t(param:i32){field:i32}> (%0 : i32)
-  // expected-error@+1 {{'fir.slice' op operand #0 must be any integer, but got '!fir.field'}}
+  // expected-error@+1 {{'fir.slice' op operand #0 must be variadic of any integer, but got '!fir.field'}}
   %2 = fir.slice %1, %1, %1 : (!fir.field, !fir.field, !fir.field) -> !fir.slice<1>
   return
 }
@@ -945,4 +945,20 @@ func.func @invalid_selector(%arg : !fir.box<!fir.ref<i32>>) -> i32 {
 ^bb5 :
   %zero = arith.constant 0 : i32
   return %zero : i32
+}
+
+// -----
+
+func.func @logical_to_fp(%arg0: !fir.logical<4>) -> f32 {
+  // expected-error@+1{{'fir.convert' op invalid type conversion}}
+  %0 = fir.convert %arg0 : (!fir.logical<4>) -> f32
+  return %0 : f32
+}
+
+// -----
+
+func.func @fp_to_logical(%arg0: f32) -> !fir.logical<4> {
+  // expected-error@+1{{'fir.convert' op invalid type conversion}}
+  %0 = fir.convert %arg0 : (f32) -> !fir.logical<4>
+  return %0 : !fir.logical<4>
 }

@@ -11,7 +11,7 @@
 #include <sycl/usm.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 namespace usm {
 
@@ -24,5 +24,5 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl);
 
 } // namespace usm
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

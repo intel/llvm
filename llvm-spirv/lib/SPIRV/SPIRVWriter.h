@@ -106,9 +106,18 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
-  bool transWorkItemBuiltinCallsToVariables();
   bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
+  enum class FPBuiltinType {
+    REGULAR_MATH,
+    EXT_1OPS,
+    EXT_2OPS,
+    EXT_3OPS,
+    UNKNOWN
+  };
+  FPBuiltinType getFPBuiltinType(IntrinsicInst *II, StringRef &);
+  SPIRVValue *transFPBuiltinIntrinsicInst(IntrinsicInst *II,
+                                          SPIRVBasicBlock *BB);
   SPIRVValue *transFenceInst(FenceInst *FI, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -137,7 +146,7 @@ public:
   SPIRVValue *transConstant(Value *V);
   /// Translate a reference to a constant in a constant expression. This may
   /// involve inserting extra bitcasts to correct type issues.
-  SPIRVValue *transConstantUse(Constant *V);
+  SPIRVValue *transConstantUse(Constant *V, SPIRVType *ExpectedType);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true,
                          FuncTransMode FuncTrans = FuncTransMode::Decl);
@@ -249,6 +258,8 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+  std::vector<SPIRVId> collectEntryPointInterfaces(SPIRVFunction *BF,
+                                                   Function *F);
 };
 
 class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {

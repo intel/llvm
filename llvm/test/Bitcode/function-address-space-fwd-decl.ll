@@ -1,5 +1,5 @@
 ; Verify that forward declarations from call instructions work even with non-zero AS
-; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s
 
 define void @call_named() {
 entry:

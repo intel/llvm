@@ -240,14 +240,14 @@ namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename T,
             std::size_t ElementsPerWorkItem,
-            typename Properties = ext::oneapi::experimental::properties<>>
+            typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_over_group(GroupHelper gh,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Properties properties = {}); // (1)
 
   template <typename GroupHelper, typename T,
             std::size_t ElementsPerWorkItem, typename Compare,
-            typename Properties = ext::oneapi::experimental::properties<>>
+            typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_over_group(GroupHelper gh,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Compare comp,
@@ -255,7 +255,7 @@ namespace sycl::ext::oneapi::experimental {
 
   template<typename Group, typename T, std::size_t ElementsPerWorkItem,
            typename Sorter,
-           typename Properties = ext::oneapi::experimental::properties<>>
+           typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_over_group(Group g,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Sorter sorter,
@@ -263,7 +263,7 @@ namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename T, typename U,
             std::size_t ElementsPerWorkItem,
-            typename Properties = ext::oneapi::experimental::properties<>>
+            typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_key_value_over_group(GroupHelper gh,
                                  sycl::span<T, ElementsPerWorkItem> keys,
                                  sycl::span<U, ElementsPerWorkItem> values,
@@ -272,7 +272,7 @@ namespace sycl::ext::oneapi::experimental {
   template <typename GroupHelper, typename T, typename U,
             std::size_t ElementsPerWorkItem,
             typename Compare,
-            typename Properties = ext::oneapi::experimental::properties<>>
+            typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_key_value_over_group(GroupHelper gh,
                                  sycl::span<T, ElementsPerWorkItem> keys,
                                  sycl::span<U, ElementsPerWorkItem> values,
@@ -282,7 +282,7 @@ namespace sycl::ext::oneapi::experimental {
   template<typename Group, typename T, typename U,
            std::size_t ElementsPerWorkItem,
            typename Sorter,
-           typename Properties = ext::oneapi::experimental::properties<>>
+           typename Properties = ext::oneapi::experimental::empty_properties_t>
   void sort_key_value_over_group(Group g,
                                  sycl::span<T, ElementsPerWorkItem> keys,
                                  sycl::span<U, ElementsPerWorkItem> values,

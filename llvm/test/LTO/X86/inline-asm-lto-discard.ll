@@ -7,7 +7,7 @@
 ; RUN: opt %t/t3.ll -o %t3
 ; RUN: opt %t/t4.ll -o %t4
 
-; RUN: llvm-lto2 run -opaque-pointers -o %to1 -save-temps %t1 %t2 \
+; RUN: llvm-lto2 run -o %to1 -save-temps %t1 %t2 \
 ; RUN:  -r %t1,foo,px \
 ; RUN:  -r %t2,foo, \
 ; RUN:  -r %t2,bar,pl
@@ -16,7 +16,7 @@
 ; RUN: llvm-objdump --no-print-imm-hex -d --disassemble-symbols=foo %to1.0 \
 ; RUN:   | FileCheck %s --check-prefix=DEF
 
-; RUN: llvm-lto2 run -opaque-pointers -o %to2 -save-temps %t2 %t3 \
+; RUN: llvm-lto2 run -o %to2 -save-temps %t2 %t3 \
 ; RUN:  -r %t2,foo, \
 ; RUN:  -r %t2,bar,pl \
 ; RUN:  -r %t3,foo,px
@@ -26,7 +26,7 @@
 ; RUN:   | FileCheck %s --check-prefix=DEF
 
 ; Check that ".symver" is properly handled.
-; RUN: llvm-lto2 run -opaque-pointers -o %to3 -save-temps %t4 \
+; RUN: llvm-lto2 run -o %to3 -save-temps %t4 \
 ; RUN:  -r %t4,bar, \
 ; RUN:  -r %t4,foo, \
 ; RUN:  -r %t4,foo@@VER1,px

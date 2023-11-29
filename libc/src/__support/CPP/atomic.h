@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_CPP_ATOMIC_H
-#define LLVM_LIBC_SRC_SUPPORT_CPP_ATOMIC_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_CPP_ATOMIC_H
+#define LLVM_LIBC_SRC___SUPPORT_CPP_ATOMIC_H
 
 #include "src/__support/macros/attributes.h"
 #include "src/__support/macros/properties/architectures.h"
 
 #include "type_traits.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace cpp {
 
 enum class MemoryOrder : int {
@@ -86,6 +86,14 @@ public:
     return __atomic_fetch_add(&val, increment, int(mem_ord));
   }
 
+  T fetch_or(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
+    return __atomic_fetch_or(&val, mask, int(mem_ord));
+  }
+
+  T fetch_and(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
+    return __atomic_fetch_and(&val, mask, int(mem_ord));
+  }
+
   T fetch_sub(T decrement, MemoryOrder mem_ord = MemoryOrder::SEQ_CST) {
     return __atomic_fetch_sub(&val, decrement, int(mem_ord));
   }
@@ -108,6 +116,6 @@ LIBC_INLINE void atomic_thread_fence(MemoryOrder mem_ord) {
 }
 
 } // namespace cpp
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_CPP_ATOMIC_H
+#endif // LLVM_LIBC_SRC___SUPPORT_CPP_ATOMIC_H

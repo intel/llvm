@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -filetype=asm -asm-verbose=0 -O0 < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=%triple -filetype=obj -O0 < %t.ll | llvm-dwarfdump -debug-line - | FileCheck %s --check-prefix=INT
@@ -37,14 +37,13 @@ target triple = "spir64-unknown-unknown"
 
 ; INT: {{^}}Address
 ; INT: -----
-; INT-NEXT: 2 0 1 0 0 is_stmt{{$}}
-; INT-NEXT: 3 3 1 0 0 is_stmt prologue_end{{$}}
-; INT-NEXT: 3 9 1 0 0 {{$}}
-; INT-NEXT: 3 15 1 0 0 {{$}}
-; INT-NEXT: 4 3 1 0 0 is_stmt{{$}}
-; INT-NEXT: 4 9 1 0 0 {{$}}
-; INT-NEXT: 4 15 1 0 0 {{$}}
-; INT-NEXT: 5 1 1 0 0 is_stmt{{( epilogue_begin)?}}{{$}}
+; INT:      3 3 1 0 0 0 is_stmt prologue_end{{$}}
+; INT-NEXT: 3 9 1 0 0 0 {{$}}
+; INT-NEXT: 3 15 1 0 0 0 {{$}}
+; INT-NEXT: 4 3 1 0 0 0 is_stmt{{$}}
+; INT-NEXT: 4 9 1 0 0 0 {{$}}
+; INT-NEXT: 4 15 1 0 0 0 {{$}}
+; INT-NEXT: 5 1 1 0 0 0 is_stmt{{( epilogue_begin)?}}{{$}}
 
 
 ; Function Attrs: nounwind uwtable

@@ -15,13 +15,13 @@
 #include <sys/stat.h>
 #include <sys/syscall.h> // For syscall numbers.
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 LLVM_LIBC_FUNCTION(int, mkdirat, (int dfd, const char *path, mode_t mode)) {
 #ifdef SYS_mkdirat
-  long ret = __llvm_libc::syscall_impl(SYS_mkdirat, dfd, path, mode);
+  int ret = LIBC_NAMESPACE::syscall_impl<int>(SYS_mkdirat, dfd, path, mode);
 #else
-#error "mkdirat syscalls not available."
+#error "mkdirat syscall not available."
 #endif
 
   if (ret < 0) {
@@ -31,4 +31,4 @@ LLVM_LIBC_FUNCTION(int, mkdirat, (int dfd, const char *path, mode_t mode)) {
   return 0;
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

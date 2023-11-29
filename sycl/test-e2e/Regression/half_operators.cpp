@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -fsycl-unnamed-lambda %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: gpu
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 #include <iostream>
 #include <sycl.hpp>
 #include <vector>
@@ -15,9 +15,10 @@ template <typename T> using shared_vector = std::vector<T, shared_allocator<T>>;
 template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   constexpr size_t size{sizeof(T)};
 
-  // Such type-punning is OK from the point of strict aliasing rules
-  const auto &lhs_bytes = reinterpret_cast<const unsigned char(&)[size]>(lhs);
-  const auto &rhs_bytes = reinterpret_cast<const unsigned char(&)[size]>(rhs);
+  std::array<char, size> lhs_bytes;
+  std::array<char, size> rhs_bytes;
+  std::memcpy(lhs_bytes.data(), &lhs, size);
+  std::memcpy(rhs_bytes.data(), &rhs, size);
 
   bool result{true};
   for (size_t i = 0; i < size; ++i) {

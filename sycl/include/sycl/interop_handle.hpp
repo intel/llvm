@@ -8,17 +8,29 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/access/access.hpp>     // for target, mode, place...
+#include <sycl/accessor.hpp>          // for AccessorBaseHost
+#include <sycl/backend_types.hpp>     // for backend, backend_re...
+#include <sycl/context.hpp>           // for context
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>    // for context_impl
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+#include <sycl/detail/pi.h>           // for _pi_mem, pi_native_...
+#include <sycl/device.hpp>            // for device, device_impl
+#include <sycl/exception.hpp>         // for invalid_object_error
+#include <sycl/exception_list.hpp>    // for queue_impl
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
+#include <sycl/image.hpp>                             // for image
+#include <sycl/properties/buffer_properties.hpp>      // for buffer
 
-#include <memory>
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move, pair
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 class AccessorBaseHost;
@@ -50,8 +62,8 @@ public:
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh,
             typename PropertyListT = ext::oneapi::accessor_property_list<>>
-  detail::enable_if_t<Target != access::target::image,
-                      backend_return_t<Backend, buffer<DataT, Dims>>>
+  std::enable_if_t<Target != access::target::image,
+                   backend_return_t<Backend, buffer<DataT, Dims>>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT>
                      &Acc) const {
     static_assert(Target == access::target::device ||
@@ -117,7 +129,9 @@ public:
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
                                  PI_ERROR_INVALID_MEM_OBJECT);
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
+    int32_t NativeHandleDesc;
+    return reinterpret_cast<backend_return_t<Backend, queue>>(
+        getNativeQueue(NativeHandleDesc));
 #else
     // we believe this won't be ever called on device side
     return 0;
@@ -197,7 +211,8 @@ private:
 
   __SYCL_EXPORT pi_native_handle
   getNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
 
@@ -208,5 +223,5 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

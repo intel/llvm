@@ -1649,7 +1649,7 @@ bool ScopBuilder::buildAccessCallInst(MemAccInst Inst, ScopStmt *Stmt) {
     return true;
 
   if (ME.onlyAccessesArgPointees()) {
-    ModRefInfo ArgMR = ME.getModRef(MemoryEffects::ArgMem);
+    ModRefInfo ArgMR = ME.getModRef(IRMemLocation::ArgMem);
     auto AccType =
         !isModSet(ArgMR) ? MemoryAccess::READ : MemoryAccess::MAY_WRITE;
     Loop *L = LI.getLoopFor(Inst->getParent());
@@ -2671,10 +2671,9 @@ void ScopBuilder::addUserContext() {
     if (NameContext != NameUserContext) {
       std::string SpaceStr = stringFromIslObj(Space, "null");
       errs() << "Error: the name of dimension " << i
-             << " provided in -polly-context "
-             << "is '" << NameUserContext << "', but the name in the computed "
-             << "context is '" << NameContext
-             << "'. Due to this name mismatch, "
+             << " provided in -polly-context " << "is '" << NameUserContext
+             << "', but the name in the computed " << "context is '"
+             << NameContext << "'. Due to this name mismatch, "
              << "the -polly-context option is ignored. Please provide "
              << "the context in the parameter space: " << SpaceStr << ".\n";
       return;

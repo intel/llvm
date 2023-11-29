@@ -10,7 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Func/Extensions/AllExtensions.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Support/LogicalResult.h"
+#include "toy/AST.h"
 #include "toy/Dialect.h"
+#include "toy/Lexer.h"
 #include "toy/MLIRGen.h"
 #include "toy/Parser.h"
 #include "toy/Passes.h"
@@ -25,7 +30,6 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -33,6 +37,7 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
@@ -40,6 +45,11 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cassert>
+#include <memory>
+#include <string>
+#include <system_error>
+#include <utility>
 
 using namespace toy;
 namespace cl = llvm::cl;
@@ -167,8 +177,8 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
 
     // Add optimizations if enabled.
     if (enableOpt) {
-      optPM.addPass(mlir::createLoopFusionPass());
-      optPM.addPass(mlir::createAffineScalarReplacementPass());
+      optPM.addPass(mlir::affine::createLoopFusionPass());
+      optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
     }
   }
 
@@ -290,8 +300,10 @@ int main(int argc, char **argv) {
     return dumpAST();
 
   // If we aren't dumping the AST, then we are compiling with/to MLIR.
+  mlir::DialectRegistry registry;
+  mlir::func::registerAllExtensions(registry);
 
-  mlir::MLIRContext context;
+  mlir::MLIRContext context(registry);
   // Load our Dialect in this MLIR Context.
   context.getOrLoadDialect<mlir::toy::ToyDialect>();
 

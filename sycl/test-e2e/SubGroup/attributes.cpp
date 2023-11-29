@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -137,8 +135,8 @@ int main() {
         break;
       }
       default:
-        throw feature_not_supported("sub-group size is not supported",
-                                    PI_ERROR_INVALID_OPERATION);
+        throw sycl::exception(sycl::errc::feature_not_supported,
+                              "sub-group size is not supported");
       }
 
       auto Kernel = TheKernel[0];

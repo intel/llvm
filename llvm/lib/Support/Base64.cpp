@@ -234,14 +234,14 @@ public:
     return DstOff;
   }
 
-  static Expected<std::unique_ptr<byte>> decode(const char *Src,
-                                                size_t SrcSize) {
+  static Expected<std::unique_ptr<byte[]>> decode(const char *Src,
+                                                  size_t SrcSize) {
     size_t DstSize = getDecodedSize(SrcSize);
-    byte *Dst = new byte[DstSize];
-    Expected<size_t> Res = decode(Src, Dst, SrcSize);
+    std::unique_ptr<byte[]> Dst(new byte[DstSize]);
+    Expected<size_t> Res = decode(Src, Dst.get(), SrcSize);
     if (!Res)
       return Res.takeError();
-    return std::unique_ptr<byte>(Dst);
+    return Expected<std::unique_ptr<byte[]>>(std::move(Dst));
   }
 };
 
@@ -265,7 +265,7 @@ Expected<size_t> Base64::decode(const char *Src, byte *Dst, size_t SrcSize) {
   return Base64Impl::decode(Src, Dst, SrcSize);
 }
 
-Expected<std::unique_ptr<byte>> Base64::decode(const char *Src,
-                                               size_t SrcSize) {
+Expected<std::unique_ptr<byte[]>> Base64::decode(const char *Src,
+                                                 size_t SrcSize) {
   return Base64Impl::decode(Src, SrcSize);
 }

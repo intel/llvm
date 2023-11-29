@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 //==-------------- pointer_query.cpp - Pointer Query test ------------------==//
 //
@@ -92,10 +90,8 @@ int main() {
   try {
     D = get_pointer_device(array, ctxt);
   } catch (runtime_error) {
+    free(array);
     return 0;
   }
   return 13;
-  free(array);
-
-  return 0;
 }

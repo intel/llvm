@@ -41,6 +41,10 @@ extern int targetDataUpdate(ident_t *Loc, DeviceTy &Device, int32_t ArgNum,
 extern int target(ident_t *Loc, DeviceTy &Device, void *HostPtr,
                   KernelArgsTy &KernelArgs, AsyncInfoTy &AsyncInfo);
 
+extern int target_activate_rr(DeviceTy &Device, uint64_t MemorySize,
+                              void *ReqAddr, bool isRecord, bool SaveOutput,
+                              uint64_t &ReqPtrArgOffset);
+
 extern int target_replay(ident_t *Loc, DeviceTy &Device, void *HostPtr,
                          void *DeviceMemory, int64_t DeviceMemorySize,
                          void **TgtArgs, ptrdiff_t *TgtOffsets, int32_t NumArgs,
@@ -250,6 +254,17 @@ struct TargetMemcpyArgsTy {
         DstOffsets(DstOffsets), SrcOffsets(SrcOffsets),
         DstDimensions(DstDimensions), SrcDimensions(SrcDimensions){};
 };
+
+struct TargetMemsetArgsTy {
+  // Common attributes of a memset operation
+  void *Ptr;
+  int C;
+  size_t N;
+  int DeviceNum;
+
+  // no constructors defined, because this is a PoD
+};
+
 // Invalid GTID as defined by libomp; keep in sync
 #define KMP_GTID_DNE (-2)
 #ifdef __cplusplus
@@ -257,7 +272,9 @@ struct TargetMemcpyArgsTy {
 #endif
 
 #define TARGET_NAME Libomptarget
+#ifndef DEBUG_PREFIX
 #define DEBUG_PREFIX GETNAME(TARGET_NAME)
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /// dump a table of all the host-target pointer pairs on failure
@@ -424,9 +441,15 @@ public:
 #define TIMESCOPE_WITH_NAME_AND_IDENT(NAME, IDENT)                             \
   SourceInfo SI(IDENT);                                                        \
   llvm::TimeTraceScope TimeScope(NAME, SI.getProfileLocation())
+#define TIMESCOPE_WITH_RTM_AND_IDENT(RegionTypeMsg, IDENT)                     \
+  SourceInfo SI(IDENT);                                                        \
+  std::string ProfileLocation = SI.getProfileLocation();                       \
+  std::string RTM = RegionTypeMsg;                                             \
+  llvm::TimeTraceScope TimeScope(__FUNCTION__, ProfileLocation + RTM)
 #else
 #define TIMESCOPE()
 #define TIMESCOPE_WITH_IDENT(IDENT)
 #define TIMESCOPE_WITH_NAME_AND_IDENT(NAME, IDENT)
+#define TIMESCOPE_WITH_RTM_AND_IDENT(RegionTypeMsg, IDENT)
 
 #endif

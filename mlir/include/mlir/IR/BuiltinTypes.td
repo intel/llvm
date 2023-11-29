@@ -199,6 +199,13 @@ def Builtin_Float16 : Builtin_FloatType<"Float16"> {
 }
 
 //===----------------------------------------------------------------------===//
+// FloatTF32Type
+
+def Builtin_FloatTF32 : Builtin_FloatType<"FloatTF32"> {
+  let summary = "TF32 floating-point type";
+}
+
+//===----------------------------------------------------------------------===//
 // Float32Type
 
 def Builtin_Float32 : Builtin_FloatType<"Float32"> {
@@ -629,7 +636,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", [
       "unsigned":$memorySpaceInd)>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<MemRefType>::clone;
+    using BaseMemRefType::clone;
     using ShapedType::Trait<MemRefType>::getElementTypeBitWidth;
     using ShapedType::Trait<MemRefType>::getRank;
     using ShapedType::Trait<MemRefType>::getNumElements;
@@ -794,7 +801,7 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<RankedTensorType>::clone;
+    using TensorType::clone;
     using ShapedType::Trait<RankedTensorType>::getElementTypeBitWidth;
     using ShapedType::Trait<RankedTensorType>::getRank;
     using ShapedType::Trait<RankedTensorType>::getNumElements;
@@ -807,6 +814,12 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
     /// This is a builder type that keeps local references to arguments.
     /// Arguments that are passed into the builder must outlive the builder.
     class Builder;
+
+    /// Return a clone of this type with the given new element type and the same
+    /// shape as this type.
+    RankedTensorType clone(::mlir::Type elementType) {
+      return ::llvm::cast<RankedTensorType>(cloneWith(getShape(), elementType));
+    }
   }];
   let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
@@ -900,7 +913,7 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     arguments of any rank without versioning the functions based on the rank.
     Other uses of this type are disallowed or will have undefined behavior.
 
-    See [MemRefType](#builtin_memref-memreftype) for more information on
+    See [MemRefType](#memreftype) for more information on
     memref types.
 
     Examples:
@@ -931,7 +944,7 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<UnrankedMemRefType>::clone;
+    using BaseMemRefType::clone;
     using ShapedType::Trait<UnrankedMemRefType>::getElementTypeBitWidth;
     using ShapedType::Trait<UnrankedMemRefType>::getRank;
     using ShapedType::Trait<UnrankedMemRefType>::getNumElements;
@@ -946,6 +959,12 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     /// [deprecated] Returns the memory space in old raw integer representation.
     /// New `Attribute getMemorySpace()` method should be used instead.
     unsigned getMemorySpaceAsInt() const;
+
+    /// Return a clone of this type with the given new element type and the same
+    /// shape as this type.
+    MemRefType clone(::mlir::Type elementType) {
+      return ::llvm::cast<MemRefType>(cloneWith(getShape(), elementType));
+    }
   }];
   let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
@@ -967,7 +986,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
     ```
 
     An unranked tensor is a type of tensor in which the set of dimensions have
-    unknown rank. See [RankedTensorType](#builtin_rankedtensor-rankedtensortype)
+    unknown rank. See [RankedTensorType](#rankedtensortype)
     for more information on tensor types.
 
     Examples:
@@ -984,7 +1003,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<UnrankedTensorType>::clone;
+    using TensorType::clone;
     using ShapedType::Trait<UnrankedTensorType>::getElementTypeBitWidth;
     using ShapedType::Trait<UnrankedTensorType>::getRank;
     using ShapedType::Trait<UnrankedTensorType>::getNumElements;
@@ -1012,8 +1031,9 @@ def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
     ```
     vector-type ::= `vector` `<` vector-dim-list vector-element-type `>`
     vector-element-type ::= float-type | integer-type | index-type
-    vector-dim-list := (static-dim-list `x`)? (`[` static-dim-list `]` `x`)?
-    static-dim-list ::= decimal-literal (`x` decimal-literal)*
+    vector-dim-list := (static-dim-list `x`)?
+    static-dim-list ::= static-dim (`x` static-dim)*
+    static-dim ::= (decimal-literal | `[` decimal-literal `]`)
     ```
 
     The vector type represents a SIMD style vector used by target-specific
@@ -1021,10 +1041,7 @@ def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
     vectors (e.g. vector<16 x f32>) we also support multidimensional registers
     on targets that support them (like TPUs). The dimensions of a vector type
     can be fixed-length, scalable, or a combination of the two. The scalable
-    dimensions in a vector are indicated between square brackets ([ ]), and
-    all fixed-length dimensions, if present, must precede the set of scalable
-    dimensions. That is, a `vector<2x[4]xf32>` is valid, but `vector<[4]x2xf32>`
-    is not.
+    dimensions in a vector are indicated between square brackets ([ ]).
 
     Vector shapes must be positive decimal integers. 0D vectors are allowed by
     omitting the dimension: `vector<f32>`.
@@ -1042,25 +1059,35 @@ def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
     // A 1D scalable-length vector that contains a multiple of 4 f32 elements.
     vector<[4]xf32>
 
-    // A 2D scalable-length vector that contains a multiple of 2x8 i8 elements.
-    vector<[2x8]xf32>
+    // A 2D scalable-length vector that contains a multiple of 2x8 f32 elements.
+    vector<[2]x[8]xf32>
 
     // A 2D mixed fixed/scalable vector that contains 4 scalable vectors of 4 f32 elements.
     vector<4x[4]xf32>
+
+    // A 3D mixed fixed/scalable vector in which only the inner dimension is
+    // scalable.
+    vector<2x[4]x8xf32>
     ```
   }];
   let parameters = (ins
     ArrayRefParameter<"int64_t">:$shape,
     "Type":$elementType,
-    "unsigned":$numScalableDims
+    ArrayRefParameter<"bool">:$scalableDims
   );
   let builders = [
     TypeBuilderWithInferredContext<(ins
       "ArrayRef<int64_t>":$shape, "Type":$elementType,
-      CArg<"unsigned", "0">:$numScalableDims
+      CArg<"ArrayRef<bool>", "{}">:$scalableDims
     ), [{
-      return $_get(elementType.getContext(), shape, elementType,
-                   numScalableDims);
+      // While `scalableDims` is optional, its default value should be
+      // `false` for every dim in `shape`.
+      SmallVector<bool> isScalableVec;
+      if (scalableDims.empty()) {
+        isScalableVec.resize(shape.size(), false);
+        scalableDims = isScalableVec;
+      }
+      return $_get(elementType.getContext(), shape, elementType, scalableDims);
     }]>
   ];
   let extraClassDeclaration = [{
@@ -1072,12 +1099,18 @@ def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
     /// type. In particular, vectors can consist of integer, index, or float
     /// primitives.
     static bool isValidElementType(Type t) {
-      return t.isa<IntegerType, IndexType, FloatType>();
+      return ::llvm::isa<IntegerType, IndexType, FloatType>(t);
     }
 
     /// Returns true if the vector contains scalable dimensions.
     bool isScalable() const {
-      return getNumScalableDims() > 0;
+      return llvm::is_contained(getScalableDims(), true);
+    }
+    bool allDimsScalable() const {
+      // Treat 0-d vectors as fixed size.
+      if (getRank() == 0)
+        return false;
+      return !llvm::is_contained(getScalableDims(), false);
     }
 
     /// Get or create a new VectorType with the same shape as `this` and an
@@ -1089,7 +1122,7 @@ def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
     bool hasRank() const { return true; }
 
     /// Clone this vector type with the given shape and element type. If the
-    /// provided shape is `None`, the current shape of the type is used.
+    /// provided shape is `std::nullopt`, the current shape of the type is used.
     VectorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                          Type elementType) const;
   }];

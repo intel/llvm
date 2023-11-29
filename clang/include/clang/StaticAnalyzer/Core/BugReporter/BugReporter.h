@@ -26,7 +26,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymExpr.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/ImmutableSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -608,8 +607,9 @@ public:
 
   /// Iterator over the set of BugReports tracked by the BugReporter.
   using EQClasses_iterator = llvm::FoldingSet<BugReportEquivClass>::iterator;
-  EQClasses_iterator EQClasses_begin() { return EQClasses.begin(); }
-  EQClasses_iterator EQClasses_end() { return EQClasses.end(); }
+  llvm::iterator_range<EQClasses_iterator> equivalenceClasses() {
+    return EQClasses;
+  }
 
   ASTContext &getContext() { return D.getASTContext(); }
 

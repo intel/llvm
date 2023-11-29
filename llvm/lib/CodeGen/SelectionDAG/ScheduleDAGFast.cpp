@@ -69,7 +69,7 @@ private:
   /// LiveRegDefs - A set of physical registers and their definition
   /// that are "live". These nodes must be scheduled before any other nodes that
   /// modifies the registers can be scheduled.
-  unsigned NumLiveRegs;
+  unsigned NumLiveRegs = 0u;
   std::vector<SUnit*> LiveRegDefs;
   std::vector<unsigned> LiveRegCycles;
 
@@ -498,12 +498,12 @@ bool ScheduleDAGFast::DelayForLiveRegsBottomUp(SUnit *SU,
       for (unsigned i = InlineAsm::Op_FirstOperand; i != NumOps;) {
         unsigned Flags =
           cast<ConstantSDNode>(Node->getOperand(i))->getZExtValue();
-        unsigned NumVals = InlineAsm::getNumOperandRegisters(Flags);
+        const InlineAsm::Flag F(Flags);
+        unsigned NumVals = F.getNumOperandRegisters();
 
         ++i; // Skip the ID value.
-        if (InlineAsm::isRegDefKind(Flags) ||
-            InlineAsm::isRegDefEarlyClobberKind(Flags) ||
-            InlineAsm::isClobberKind(Flags)) {
+        if (F.isRegDefKind() || F.isRegDefEarlyClobberKind() ||
+            F.isClobberKind()) {
           // Check for def of register or earlyclobber register.
           for (; NumVals; --NumVals, ++i) {
             unsigned Reg = cast<RegisterSDNode>(Node->getOperand(i))->getReg();
@@ -808,12 +808,12 @@ ScheduleDAGLinearize::EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 //                         Public Constructor Functions
 //===----------------------------------------------------------------------===//
 
-llvm::ScheduleDAGSDNodes *
-llvm::createFastDAGScheduler(SelectionDAGISel *IS, CodeGenOpt::Level) {
+llvm::ScheduleDAGSDNodes *llvm::createFastDAGScheduler(SelectionDAGISel *IS,
+                                                       CodeGenOptLevel) {
   return new ScheduleDAGFast(*IS->MF);
 }
 
-llvm::ScheduleDAGSDNodes *
-llvm::createDAGLinearizer(SelectionDAGISel *IS, CodeGenOpt::Level) {
+llvm::ScheduleDAGSDNodes *llvm::createDAGLinearizer(SelectionDAGISel *IS,
+                                                    CodeGenOptLevel) {
   return new ScheduleDAGLinearize(*IS->MF);
 }

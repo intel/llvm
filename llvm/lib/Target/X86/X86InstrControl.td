@@ -188,6 +188,9 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
   }
 }
 
+def JMPABS64i : Ii64<0xA1, RawFrm, (outs), (ins i64imm:$dst), "jmpabs\t$dst", []>,
+                ExplicitREX2Prefix, Requires<[In64BitMode]>, Sched<[WriteJumpLd]>;
+
 // Loop instructions
 let isBranch = 1, isTerminator = 1, SchedRW = [WriteJump] in {
 def LOOP   : Ii8PCRel<0xE2, RawFrm, (outs), (ins brtarget8:$dst), "loop\t$dst", []>;
@@ -212,7 +215,7 @@ let isCall = 1 in
       def CALLpcrel16 : Ii16PCRel<0xE8, RawFrm,
                              (outs), (ins i16imm_brtarget:$dst),
                              "call{w}\t$dst", []>, OpSize16,
-                        Sched<[WriteJump]>;
+                        Requires<[Not64BitMode]>, Sched<[WriteJump]>;
     def CALL16r     : I<0xFF, MRM2r, (outs), (ins GR16:$dst),
                         "call{w}\t{*}$dst", [(X86call GR16:$dst)]>,
                       OpSize16, Requires<[Not64BitMode]>, Sched<[WriteJump]>;

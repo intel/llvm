@@ -11,12 +11,12 @@ set(LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "
 
 set(LLVM_ENABLE_BACKTRACES OFF CACHE BOOL "")
 set(LLVM_ENABLE_DIA_SDK OFF CACHE BOOL "")
+set(LLVM_ENABLE_HTTPLIB ON CACHE BOOL "")
 set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")
 set(LLVM_ENABLE_LIBEDIT OFF CACHE BOOL "")
 set(LLVM_ENABLE_LLD ON CACHE BOOL "")
 set(LLVM_ENABLE_LTO ON CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ON CACHE BOOL "")
-set(LLVM_ENABLE_PIC OFF CACHE BOOL "")
 set(LLVM_ENABLE_PLUGINS OFF CACHE BOOL "")
 set(LLVM_ENABLE_TERMINFO OFF CACHE BOOL "")
 set(LLVM_ENABLE_UNWIND_TABLES OFF CACHE BOOL "")
@@ -30,8 +30,10 @@ set(LLDB_ENABLE_CURSES OFF CACHE BOOL "")
 set(LLDB_ENABLE_LIBEDIT OFF CACHE BOOL "")
 
 if(WIN32)
-  set(LLVM_USE_CRT_RELEASE "MT" CACHE STRING "")
-else()
+  set(FUCHSIA_DISABLE_DRIVER_BUILD ON)
+endif()
+
+if (NOT FUCHSIA_DISABLE_DRIVER_BUILD)
   set(LLVM_TOOL_LLVM_DRIVER_BUILD ON CACHE BOOL "")
   set(LLVM_DRIVER_TARGET llvm-driver)
 endif()
@@ -47,6 +49,12 @@ set(CLANG_PLUGIN_SUPPORT OFF CACHE BOOL "")
 
 set(ENABLE_LINKER_BUILD_ID ON CACHE BOOL "")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL "")
+
+# TODO(#67176): relative-vtables doesn't play well with different default
+# visibilities. Making everything hidden visibility causes other complications
+# let's choose default visibility for our entire toolchain.
+set(CMAKE_C_VISIBILITY_PRESET default CACHE STRING "")
+set(CMAKE_CXX_VISIBILITY_PRESET default CACHE STRING "")
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 if (APPLE)
@@ -73,6 +81,7 @@ if(APPLE)
   set(LIBCXX_ABI_VERSION 2 CACHE STRING "")
   set(LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(LIBCXX_ENABLE_STATIC_ABI_LIBRARY ON CACHE BOOL "")
+  set(LIBCXX_HARDENING_MODE "none" CACHE STRING "")
   set(LIBCXX_USE_COMPILER_RT ON CACHE BOOL "")
   set(RUNTIMES_CMAKE_ARGS "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13;-DCMAKE_OSX_ARCHITECTURES=arm64|x86_64" CACHE STRING "")
 endif()
@@ -119,7 +128,6 @@ if(WIN32 OR LLVM_WINSYSROOT)
   set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Windows CACHE STRING "")
   set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
   set(RUNTIMES_${target}_LIBCXX_ABI_VERSION 2 CACHE STRING "")
-  set(RUNTIMES_${target}_LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_ABI_LINKER_SCRIPT OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx" CACHE STRING "")
@@ -130,13 +138,12 @@ if(WIN32 OR LLVM_WINSYSROOT)
   set(RUNTIMES_${target}_CMAKE_MODULE_LINKER_FLAGS ${WINDOWS_LINK_FLAGS} CACHE STRING "")
 endif()
 
-foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unknown-linux-gnu;x86_64-unknown-linux-gnu)
+foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unknown-linux-gnu;riscv64-unknown-linux-gnu;x86_64-unknown-linux-gnu)
   if(LINUX_${target}_SYSROOT)
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}")
     set(BUILTINS_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
-    set(BUILTINS_${target}_CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
     set(BUILTINS_${target}_CMAKE_C_FLAGS "--target=${target}" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_CXX_FLAGS "--target=${target}" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_ASM_FLAGS "--target=${target}" CACHE STRING "")
@@ -144,12 +151,12 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(BUILTINS_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_EXE_LINKER_FLAG "-fuse-ld=lld" CACHE STRING "")
+    set(BUILTINS_${target}_COMPILER_RT_BUILD_STANDALONE_LIBATOMIC ON CACHE BOOL "")
 
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}")
     set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
-    set(RUNTIMES_${target}_CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
     set(RUNTIMES_${target}_CMAKE_C_FLAGS "--target=${target}" CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_CXX_FLAGS "--target=${target}" CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_ASM_FLAGS "--target=${target}" CACHE STRING "")
@@ -161,6 +168,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(RUNTIMES_${target}_COMPILER_RT_USE_BUILTINS_LIBRARY ON CACHE BOOL "")
     set(RUNTIMES_${target}_COMPILER_RT_USE_LLVM_UNWINDER ON CACHE BOOL "")
     set(RUNTIMES_${target}_COMPILER_RT_CAN_EXECUTE_TESTS ON CACHE BOOL "")
+    set(RUNTIMES_${target}_COMPILER_RT_BUILD_STANDALONE_LIBATOMIC ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBUNWIND_ENABLE_SHARED OFF CACHE BOOL "")
     set(RUNTIMES_${target}_LIBUNWIND_USE_COMPILER_RT ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXXABI_USE_COMPILER_RT ON CACHE BOOL "")
@@ -200,7 +208,6 @@ if(FUCHSIA_SDK)
     list(APPEND BUILTIN_TARGETS "${target}")
     set(BUILTINS_${target}_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
-    set(BUILTINS_${target}_CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
     set(BUILTINS_${target}_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_CXX_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -216,7 +223,6 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "")
-    set(RUNTIMES_${target}_CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
     set(RUNTIMES_${target}_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_CXX_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -299,9 +305,9 @@ set(LLVM_INSTALL_TOOLCHAIN_ONLY ON CACHE BOOL "")
 set(LLVM_TOOLCHAIN_TOOLS
   dsymutil
   llvm-ar
-  llvm-bolt
   llvm-cov
   llvm-cxxfilt
+  llvm-debuginfod
   llvm-debuginfod-find
   llvm-dlltool
   ${LLVM_DRIVER_TARGET}
@@ -325,6 +331,7 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-readelf
   llvm-readobj
   llvm-size
+  llvm-strings
   llvm-strip
   llvm-symbolizer
   llvm-undname
@@ -334,6 +341,7 @@ set(LLVM_TOOLCHAIN_TOOLS
   CACHE STRING "")
 
 set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
+  bolt
   clang
   lld
   clang-apply-replacements
@@ -356,12 +364,17 @@ set(_FUCHSIA_DISTRIBUTIONS Toolchain)
 if(FUCHSIA_ENABLE_LLDB)
   list(APPEND _FUCHSIA_ENABLE_PROJECTS lldb)
   list(APPEND _FUCHSIA_DISTRIBUTIONS Debugger)
-  set(LLVM_Debugger_DISTRIBUTION_COMPONENTS
+  set(_FUCHSIA_LLDB_COMPONENTS
     lldb
     liblldb
     lldb-server
     lldb-argdumper
-    CACHE STRING "")
+    lldb-dap
+  )
+  if(LLDB_ENABLE_PYTHON)
+    list(APPEND _FUCHSIA_LLDB_COMPONENTS lldb-python-scripts)
+  endif()
+  set(LLVM_Debugger_DISTRIBUTION_COMPONENTS ${_FUCHSIA_LLDB_COMPONENTS} CACHE STRING "")
 endif()
 
 set(LLVM_DISTRIBUTIONS ${_FUCHSIA_DISTRIBUTIONS} CACHE STRING "")

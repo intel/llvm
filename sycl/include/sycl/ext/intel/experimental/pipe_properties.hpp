@@ -9,20 +9,17 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <cstdint>     // for uint16_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
-
-struct min_capacity_key {
-  template <int Capacity>
-  using value_t = oneapi::experimental::property_value<
-      min_capacity_key, std::integral_constant<int, Capacity>>;
-};
 
 struct ready_latency_key {
   template <int Latency>
@@ -44,13 +41,6 @@ struct uses_valid_key {
                                            std::bool_constant<Valid>>;
 };
 
-struct in_csr_key {
-  template <bool Enable>
-  using value_t =
-      oneapi::experimental::property_value<in_csr_key,
-                                           std::bool_constant<Enable>>;
-};
-
 struct first_symbol_in_high_order_bits_key {
   template <bool HighOrder>
   using value_t =
@@ -59,10 +49,10 @@ struct first_symbol_in_high_order_bits_key {
 };
 
 enum class protocol_name : std::uint16_t {
-  AVALON_STREAMING = 0,
-  AVALON_STREAMING_USES_READY = 1,
-  AVALON_MM = 2,
-  AVALON_MM_USES_READY = 3
+  avalon_streaming = 0,
+  avalon_streaming_uses_ready = 1,
+  avalon_mm = 2,
+  avalon_mm_uses_ready = 3
 };
 
 struct protocol_key {
@@ -70,9 +60,6 @@ struct protocol_key {
   using value_t = oneapi::experimental::property_value<
       protocol_key, std::integral_constant<protocol_name, Protocol>>;
 };
-
-template <int Capacity>
-inline constexpr min_capacity_key::value_t<Capacity> min_capacity;
 
 template <int Latency>
 inline constexpr ready_latency_key::value_t<Latency> ready_latency;
@@ -85,10 +72,6 @@ inline constexpr uses_valid_key::value_t<Valid> uses_valid;
 inline constexpr uses_valid_key::value_t<true> uses_valid_on;
 inline constexpr uses_valid_key::value_t<false> uses_valid_off;
 
-template <bool Enable> inline constexpr in_csr_key::value_t<Enable> in_csr;
-inline constexpr in_csr_key::value_t<true> in_csr_on;
-inline constexpr in_csr_key::value_t<false> in_csr_off;
-
 template <bool HighOrder>
 inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
     first_symbol_in_high_order_bits;
@@ -99,14 +82,14 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<false>
 
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING>
+inline constexpr protocol_key::value_t<protocol_name::avalon_streaming>
     protocol_avalon_streaming;
 inline constexpr protocol_key::value_t<
-    protocol_name::AVALON_STREAMING_USES_READY>
+    protocol_name::avalon_streaming_uses_ready>
     protocol_avalon_streaming_uses_ready;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_MM>
+inline constexpr protocol_key::value_t<protocol_name::avalon_mm>
     protocol_avalon_mm;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_MM_USES_READY>
+inline constexpr protocol_key::value_t<protocol_name::avalon_mm_uses_ready>
     protocol_avalon_mm_uses_ready;
 
 } // namespace experimental
@@ -116,9 +99,6 @@ namespace oneapi {
 namespace experimental {
 
 template <>
-struct is_property_key<intel::experimental::min_capacity_key> : std::true_type {
-};
-template <>
 struct is_property_key<intel::experimental::ready_latency_key>
     : std::true_type {};
 template <>
@@ -127,17 +107,12 @@ struct is_property_key<intel::experimental::bits_per_symbol_key>
 template <>
 struct is_property_key<intel::experimental::uses_valid_key> : std::true_type {};
 template <>
-struct is_property_key<intel::experimental::in_csr_key> : std::true_type {};
-template <>
 struct is_property_key<intel::experimental::first_symbol_in_high_order_bits_key>
     : std::true_type {};
 template <>
 struct is_property_key<intel::experimental::protocol_key> : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<intel::experimental::min_capacity_key> {
-  static constexpr PropKind Kind = PropKind::MinCapacity;
-};
 template <> struct PropertyToKind<intel::experimental::ready_latency_key> {
   static constexpr PropKind Kind = PropKind::ReadyLatency;
 };
@@ -146,9 +121,6 @@ template <> struct PropertyToKind<intel::experimental::bits_per_symbol_key> {
 };
 template <> struct PropertyToKind<intel::experimental::uses_valid_key> {
   static constexpr PropKind Kind = PropKind::UsesValid;
-};
-template <> struct PropertyToKind<intel::experimental::in_csr_key> {
-  static constexpr PropKind Kind = PropKind::ImplementInCSR;
 };
 template <>
 struct PropertyToKind<
@@ -160,9 +132,6 @@ template <> struct PropertyToKind<intel::experimental::protocol_key> {
 };
 
 template <>
-struct IsCompileTimeProperty<intel::experimental::min_capacity_key>
-    : std::true_type {};
-template <>
 struct IsCompileTimeProperty<intel::experimental::ready_latency_key>
     : std::true_type {};
 template <>
@@ -171,9 +140,6 @@ struct IsCompileTimeProperty<intel::experimental::bits_per_symbol_key>
 template <>
 struct IsCompileTimeProperty<intel::experimental::uses_valid_key>
     : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::in_csr_key> : std::true_type {
-};
 template <>
 struct IsCompileTimeProperty<
     intel::experimental::first_symbol_in_high_order_bits_key> : std::true_type {
@@ -186,5 +152,5 @@ struct IsCompileTimeProperty<intel::experimental::protocol_key>
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

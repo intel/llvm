@@ -14,6 +14,10 @@
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBDefines.h"
 
+namespace lldb_private {
+class CommandPluginInterfaceImplementation;
+}
+
 namespace lldb {
 
 class SBCommandInterpreter {
@@ -26,6 +30,7 @@ public:
     eBroadcastBitAsynchronousErrorData = (1 << 4)
   };
 
+  SBCommandInterpreter();
   SBCommandInterpreter(const lldb::SBCommandInterpreter &rhs);
 
   ~SBCommandInterpreter();
@@ -263,9 +268,6 @@ public:
   bool SetCommandOverrideCallback(const char *command_name,
                                   lldb::CommandOverrideCallback callback,
                                   void *baton);
-  SBCommandInterpreter(
-      lldb_private::CommandInterpreter *interpreter_ptr =
-          nullptr); // Access using SBDebugger::GetCommandInterpreter();
 #endif
 
   /// Return true if the command interpreter is the active IO handler.
@@ -314,6 +316,10 @@ public:
   void ResolveCommand(const char *command_line, SBCommandReturnObject &result);
 
 protected:
+  friend class lldb_private::CommandPluginInterfaceImplementation;
+
+  /// Access using SBDebugger::GetCommandInterpreter();
+  SBCommandInterpreter(lldb_private::CommandInterpreter *interpreter_ptr);
   lldb_private::CommandInterpreter &ref();
 
   lldb_private::CommandInterpreter *get();

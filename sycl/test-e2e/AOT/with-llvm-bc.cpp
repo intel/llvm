@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Only CPU supports LLVM IR bitcode as a binary
 // REQUIRES: cpu, dump_ir
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -c %S/Inputs/aot.cpp -o %t.o
@@ -13,5 +14,4 @@
 // RUN: llvm-spirv -r %t.spv -o %t.bc
 // RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.bc %t.o -o %t.out
 //
-// Only CPU supports LLVM IR bitcode as a binary
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out

@@ -15,7 +15,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include <optional>
@@ -67,7 +66,7 @@ static bool runCGProfilePass(
     if (F.isDeclaration() || !F.getEntryCount())
       continue;
     auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
-    if (BFI.getEntryFreq() == 0)
+    if (BFI.getEntryFreq() == BlockFrequency(0))
       continue;
     TargetTransformInfo &TTI = FAM.getResult<TargetIRAnalysis>(F);
     for (auto &BB : F) {

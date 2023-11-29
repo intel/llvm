@@ -162,6 +162,9 @@ class Sema;
     /// Arm SVE Vector conversions
     ICK_SVE_Vector_Conversion,
 
+    /// RISC-V RVV Vector conversions
+    ICK_RVV_Vector_Conversion,
+
     /// A vector splat from an arithmetic type
     ICK_Vector_Splat,
 
@@ -188,6 +191,9 @@ class Sema;
 
     /// C-only conversion between pointers with incompatible types
     ICK_Incompatible_Pointer_Conversion,
+
+    /// Fixed point type conversions according to N1169.
+    ICK_Fixed_Point_Conversion,
 
     /// The number of conversion kinds
     ICK_Num_Conversion_Kinds,

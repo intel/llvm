@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++2b %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++23 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 // PR13819 -- __SIZE_TYPE__ is incompatible.
 typedef __SIZE_TYPE__ size_t; // expected-error 0-1 {{extension}}
@@ -500,6 +500,7 @@ namespace dr243 { // dr243: yes
 }
 
 namespace dr244 { // dr244: 11
+                  // NB: this test is reused by dr399
   struct B {}; // expected-note {{type 'dr244::B' found by destructor name lookup}}
   struct D : B {};
 

@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -g %s -o %t.out
-// RUN: %clangxx -fsycl -g -O0 %s -o %t.out
-// RUN: %clangxx -fsycl -g -O2 %s -o %t.out
+// RUN: %{build} -g -o %t.out
+// RUN: %{build} -g -O0 -o %t.out
+// RUN: %{build} -g -O2 -o %t.out
 //
 // The idea of this test is to make sure that we can compile the following
 // simple example without crashes/assertions firing at llvm-spirv step due to
@@ -22,7 +22,7 @@ int main() {
         Acc[0] = kh.get_specialization_constant<test_id_1>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    auto Acc = Buf.get_host_access();
     assert(Acc[0] == 1);
   }
   return 0;

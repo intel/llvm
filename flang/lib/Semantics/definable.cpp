@@ -95,9 +95,7 @@ static std::optional<parser::Message> WhyNotDefinableBase(parser::CharBlock at,
   bool acceptAllocatable{flags.test(DefinabilityFlag::AcceptAllocatable)};
   bool isTargetDefinition{!isPointerDefinition && IsPointer(ultimate)};
   if (const auto *association{ultimate.detailsIf<AssocEntityDetails>()}) {
-    if (association->rank().has_value()) {
-      return std::nullopt; // SELECT RANK always modifiable variable
-    } else if (!IsVariable(association->expr())) {
+    if (!IsVariable(association->expr())) {
       return BlameSymbol(at,
           "'%s' is construct associated with an expression"_en_US, original);
     } else if (evaluate::HasVectorSubscript(association->expr().value())) {
@@ -134,6 +132,33 @@ static std::optional<parser::Message> WhyNotDefinableBase(parser::CharBlock at,
           original, visible->name());
     }
   }
+  if (const Scope * deviceContext{FindCUDADeviceContext(&scope)}) {
+    bool isOwnedByDeviceCode{deviceContext->Contains(ultimate.owner())};
+    if (isPointerDefinition && !acceptAllocatable) {
+      return BlameSymbol(at,
+          "'%s' is a pointer and may not be associated in a device subprogram"_err_en_US,
+          original);
+    } else if (auto cudaDataAttr{GetCUDADataAttr(&ultimate)}) {
+      if (*cudaDataAttr == common::CUDADataAttr::Constant) {
+        return BlameSymbol(at,
+            "'%s' has ATTRIBUTES(CONSTANT) and is not definable in a device subprogram"_err_en_US,
+            original);
+      } else if (acceptAllocatable && !isOwnedByDeviceCode) {
+        return BlameSymbol(at,
+            "'%s' is a host-associated allocatable and is not definable in a device subprogram"_err_en_US,
+            original);
+      } else if (*cudaDataAttr != common::CUDADataAttr::Device &&
+          *cudaDataAttr != common::CUDADataAttr::Managed) {
+        return BlameSymbol(at,
+            "'%s' is not device or managed data and is not definable in a device subprogram"_err_en_US,
+            original);
+      }
+    } else if (!isOwnedByDeviceCode) {
+      return BlameSymbol(at,
+          "'%s' is a host variable and is not definable in a device subprogram"_err_en_US,
+          original);
+    }
+  }
   return std::nullopt;
 }
 
@@ -142,7 +167,7 @@ static std::optional<parser::Message> WhyNotDefinableLast(parser::CharBlock at,
   const Symbol &ultimate{original.GetUltimate()};
   if (flags.test(DefinabilityFlag::PointerDefinition)) {
     if (flags.test(DefinabilityFlag::AcceptAllocatable)) {
-      if (!IsAllocatableOrPointer(ultimate)) {
+      if (!IsAllocatableOrObjectPointer(&ultimate)) {
         return BlameSymbol(
             at, "'%s' is neither a pointer nor an allocatable"_en_US, original);
       }
@@ -217,6 +242,47 @@ std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
   return WhyNotDefinableLast(at, scope, flags, original);
 }
 
+class DuplicatedSubscriptFinder
+    : public evaluate::AnyTraverse<DuplicatedSubscriptFinder, bool> {
+  using Base = evaluate::AnyTraverse<DuplicatedSubscriptFinder, bool>;
+
+public:
+  explicit DuplicatedSubscriptFinder(evaluate::FoldingContext &foldingContext)
+      : Base{*this}, foldingContext_{foldingContext} {}
+  using Base::operator();
+  bool operator()(const evaluate::ActualArgument &) {
+    return false; // don't descend into argument expressions
+  }
+  bool operator()(const evaluate::ArrayRef &aRef) {
+    bool anyVector{false};
+    for (const auto &ss : aRef.subscript()) {
+      if (ss.Rank() > 0) {
+        anyVector = true;
+        if (const auto *vecExpr{
+                std::get_if<evaluate::IndirectSubscriptIntegerExpr>(&ss.u)}) {
+          auto folded{evaluate::Fold(foldingContext_,
+              evaluate::Expr<evaluate::SubscriptInteger>{vecExpr->value()})};
+          if (const auto *con{
+                  evaluate::UnwrapConstantValue<evaluate::SubscriptInteger>(
+                      folded)}) {
+            std::set<std::int64_t> values;
+            for (const auto &j : con->values()) {
+              if (auto pair{values.emplace(j.ToInt64())}; !pair.second) {
+                return true; // duplicate
+              }
+            }
+          }
+          return false;
+        }
+      }
+    }
+    return anyVector ? false : (*this)(aRef.base());
+  }
+
+private:
+  evaluate::FoldingContext &foldingContext_;
+};
+
 std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
     const Scope &scope, DefinabilityFlags flags,
     const evaluate::Expr<evaluate::SomeType> &expr) {
@@ -260,6 +326,11 @@ std::optional<parser::Message> WhyNotDefinable(parser::CharBlock at,
               spec = parent ? parent->AsDerived() : nullptr;
             }
           }
+        }
+        if (!flags.test(DefinabilityFlag::DuplicatesAreOk) &&
+            DuplicatedSubscriptFinder{scope.context().foldingContext()}(expr)) {
+          return parser::Message{at,
+              "Variable has a vector subscript with a duplicated element"_because_en_US};
         }
       } else {
         return parser::Message{at,

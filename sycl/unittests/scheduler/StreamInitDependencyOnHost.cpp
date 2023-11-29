@@ -25,13 +25,14 @@ public:
   std::unique_ptr<detail::CG> finalize() {
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
-    case detail::CG::Kernel:
-    case detail::CG::RunOnHostIntel: {
+    case detail::CG::Kernel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
-          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
-          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          std::move(MImpl->MKernelBundle),
+          detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
+                                        getSharedPtrStorage(),
+                                        getRequirements(), getEvents()),
+          getArgs(), getKernelName(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
           getCodeLoc()));
       break;

@@ -17,7 +17,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename, int, access::mode, access::target, access::placeholder,
           typename>
 class accessor;
@@ -53,9 +53,32 @@ public:
         MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
         MIsPlaceH(false) {}
 
+  // TODO: Remove when ABI break is allowed.
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {})
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(IsPlaceH) {}
+
+  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, size_t OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {})
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(false) {}
+
+  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
@@ -110,7 +133,7 @@ public:
 
   unsigned int MDims;
   unsigned int MElemSize;
-  unsigned int MOffsetInBytes;
+  size_t MOffsetInBytes;
   bool MIsSubBuffer;
 
   void *&MData = MAccData.MData;
@@ -147,8 +170,45 @@ public:
 
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
+class UnsampledImageAccessorImplHost : public AccessorImplHost {
+public:
+  UnsampledImageAccessorImplHost(range<3> Size, access_mode AccessMode,
+                                 void *SYCLMemObject, int Dims, int ElemSize,
+                                 id<3> Pitch, image_channel_type ChannelType,
+                                 image_channel_order ChannelOrder,
+                                 const property_list &PropertyList)
+      : AccessorImplHost(id<3>{0, 0, 0}, Size, Size, AccessMode, SYCLMemObject,
+                         Dims, ElemSize, 0, false, PropertyList),
+        MPitch{Pitch}, MChannelType{ChannelType}, MChannelOrder{ChannelOrder} {}
+
+  id<3> MPitch;
+  image_channel_type MChannelType;
+  image_channel_order MChannelOrder;
+};
+
+class SampledImageAccessorImplHost : public UnsampledImageAccessorImplHost {
+public:
+  SampledImageAccessorImplHost(range<3> Size, void *SYCLMemObject, int Dims,
+                               int ElemSize, id<3> Pitch,
+                               image_channel_type ChannelType,
+                               image_channel_order ChannelOrder,
+                               image_sampler Sampler,
+                               const property_list &PropertyList)
+      : UnsampledImageAccessorImplHost(Size, access_mode::read, SYCLMemObject,
+                                       Dims, ElemSize, Pitch, ChannelType,
+                                       ChannelOrder, PropertyList),
+        MSampler{Sampler} {}
+
+  image_sampler MSampler;
+};
+
+using UnsampledImageAccessorImplPtr =
+    std::shared_ptr<UnsampledImageAccessorImplHost>;
+using SampledImageAccessorImplPtr =
+    std::shared_ptr<SampledImageAccessorImplHost>;
+
 using Requirement = AccessorImplHost;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -143,7 +143,7 @@ ElementCount EVT::getExtendedVectorElementCount() const {
 TypeSize EVT::getExtendedSizeInBits() const {
   assert(isExtended() && "Type is not extended!");
   if (IntegerType *ITy = dyn_cast<IntegerType>(LLVMTy))
-    return TypeSize::Fixed(ITy->getBitWidth());
+    return TypeSize::getFixed(ITy->getBitWidth());
   if (VectorType *VTy = dyn_cast<VectorType>(LLVMTy))
     return VTy->getPrimitiveSizeInBits();
   llvm_unreachable("Unrecognized extended type!");
@@ -571,6 +571,7 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
 /// pointers as MVT::iPTR.  If HandleUnknown is true, unknown types are returned
 /// as Other, otherwise they are invalid.
 MVT MVT::getVT(Type *Ty, bool HandleUnknown){
+  assert(Ty != nullptr && "Invalid type");
   switch (Ty->getTypeID()) {
   default:
     if (HandleUnknown) return MVT(MVT::Other);
@@ -636,6 +637,9 @@ void MVT::dump() const {
 #endif
 
 void MVT::print(raw_ostream &OS) const {
-  OS << EVT(*this).getEVTString();
+  if (SimpleTy == INVALID_SIMPLE_VALUE_TYPE)
+    OS << "invalid";
+  else
+    OS << EVT(*this).getEVTString();
 }
 

@@ -529,6 +529,8 @@ Value *Mapper::mapValue(const Value *V) {
     return getVM()[V] = UndefValue::get(NewTy);
   if (isa<ConstantAggregateZero>(C))
     return getVM()[V] = ConstantAggregateZero::get(NewTy);
+  if (isa<ConstantTargetNone>(C))
+    return getVM()[V] = Constant::getNullValue(NewTy);
   assert(isa<ConstantPointerNull>(C));
   return getVM()[V] = ConstantPointerNull::get(cast<PointerType>(NewTy));
 }
@@ -1032,7 +1034,7 @@ void Mapper::mapAppendingVariable(GlobalVariable &GV, Constant *InitPrefix,
   if (IsOldCtorDtor) {
     // FIXME: This upgrade is done during linking to support the C API.  See
     // also IRLinker::linkAppendingVarProto() in IRMover.cpp.
-    VoidPtrTy = Type::getInt8Ty(GV.getContext())->getPointerTo();
+    VoidPtrTy = PointerType::getUnqual(GV.getContext());
     auto &ST = *cast<StructType>(NewMembers.front()->getType());
     Type *Tys[3] = {ST.getElementType(0), ST.getElementType(1), VoidPtrTy};
     EltTy = StructType::get(GV.getContext(), Tys, false);

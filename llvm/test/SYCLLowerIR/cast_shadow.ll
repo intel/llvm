@@ -12,24 +12,22 @@ target triple = "nvptx64-nvidia-cuda"
 
 ; CHECK: @[[SHADOW:[a-zA-Z0-9]+]] = internal unnamed_addr addrspace(3) global %struct.spam undef
 
-define internal void @wobble(%struct.baz* %arg, %struct.spam* byval(%struct.spam) %arg1) !work_group_scope !0 {
-; CHECK:    [[TMP10:%.*]] = bitcast %struct.spam* [[ARG1:%.*]] to i8*
-; CHECK:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 16 bitcast (%struct.spam addrspace(3)* @[[SHADOW]] to i8 addrspace(3)*), i8* [[TMP10]], i64 32, i1 false)
+define internal void @wobble(ptr %arg, ptr byval(%struct.spam) %arg1) !work_group_scope !0 {
+; CHECK:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @[[SHADOW]], ptr [[ARG1:%.*]], i64 32, i1 false)
 ; CHECK:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
-; CHECK:    [[TMP11:%.*]] = bitcast %struct.spam* %arg1 to i8*
-; CHECK:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* [[TMP11:%.*]], i8 addrspace(3)* align 16 bitcast (%struct.spam addrspace(3)* @[[SHADOW]] to i8
-; CHECK:    call void @widget(%struct.spam* %arg1, %struct.quux* byval(%struct.quux) [[TMP2:%.*]])
+; CHECK:    call void @llvm.memcpy.p0.p3.i64(ptr [[TMP11:%.*]], ptr addrspace(3) align 16 @[[SHADOW]]
+; CHECK:    call void @widget(ptr %arg1, ptr byval(%struct.quux) [[TMP2:%.*]])
 ;
 bb:
-  %tmp = alloca %struct.baz*
+  %tmp = alloca ptr
   %tmp2 = alloca %struct.quux
-  store %struct.baz* %arg, %struct.baz** %tmp
-  %tmp3 = load %struct.baz*, %struct.baz** %tmp
-  call void @widget(%struct.spam* %arg1, %struct.quux* byval(%struct.quux) %tmp2)
+  store ptr %arg, ptr %tmp
+  %tmp3 = load ptr, ptr %tmp
+  call void @widget(ptr %arg1, ptr byval(%struct.quux) %tmp2)
   ret void
 }
 
-define internal void @widget(%struct.spam* %arg, %struct.quux* byval(%struct.quux) %arg1) !work_item_scope !0 !parallel_for_work_item !0 {
+define internal void @widget(ptr %arg, ptr byval(%struct.quux) %arg1) !work_item_scope !0 !parallel_for_work_item !0 {
 bb:
   ret void
 }

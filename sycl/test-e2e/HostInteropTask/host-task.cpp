@@ -1,15 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 1
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 1
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 1
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out 1
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 2
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 2
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 2
+// RUN: %{run} %t.out 2
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 3
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 3
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 3
+// RUN: %{run} %t.out 3
 
 #include <chrono>
 #include <iostream>
@@ -50,7 +44,7 @@ void test2(queue &Q) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.size(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
@@ -58,16 +52,16 @@ void test2(queue &Q) {
     auto AccDst = Buffer2.template get_access<mode::write>(CGH);
 
     auto Func = [=] {
-      for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < AccDst.size(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
     };
     CGH.host_task(Func);
   });
 
   {
-    auto Acc = Buffer2.get_access<mode::read>();
+    auto Acc = Buffer2.get_host_access();
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
       std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
       assert(Acc[Idx] == 123);
     }

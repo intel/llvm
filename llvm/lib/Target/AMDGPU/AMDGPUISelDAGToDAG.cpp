@@ -19,6 +19,7 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "MCTargetDesc/R600MCTargetDesc.h"
 #include "R600RegisterInfo.h"
+#include "SIISelLowering.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -81,10 +82,9 @@ static bool isExtractHiElt(SDValue In, SDValue &Out) {
 // same register.
 static SDValue stripExtractLoElt(SDValue In) {
   if (In.getOpcode() == ISD::EXTRACT_VECTOR_ELT) {
-    if (ConstantSDNode *Idx = dyn_cast<ConstantSDNode>(In.getOperand(1))) {
-      if (Idx->isZero() && In.getValueSizeInBits() <= 32)
-        return In.getOperand(0);
-    }
+    SDValue Idx = In.getOperand(1);
+    if (isNullConstant(Idx) && In.getValueSizeInBits() <= 32)
+      return In.getOperand(0);
   }
 
   if (In.getOpcode() == ISD::TRUNCATE) {
@@ -113,12 +113,12 @@ INITIALIZE_PASS_END(AMDGPUDAGToDAGISel, "amdgpu-isel",
 /// This pass converts a legalized DAG into a AMDGPU-specific
 // DAG, ready for instruction scheduling.
 FunctionPass *llvm::createAMDGPUISelDag(TargetMachine &TM,
-                                        CodeGenOpt::Level OptLevel) {
+                                        CodeGenOptLevel OptLevel) {
   return new AMDGPUDAGToDAGISel(TM, OptLevel);
 }
 
 AMDGPUDAGToDAGISel::AMDGPUDAGToDAGISel(TargetMachine &TM,
-                                       CodeGenOpt::Level OptLevel)
+                                       CodeGenOptLevel OptLevel)
     : SelectionDAGISel(ID, TM, OptLevel) {
   EnableLateStructurizeCFG = AMDGPUTargetMachine::EnableLateStructurizeCFG;
 }
@@ -164,10 +164,12 @@ bool AMDGPUDAGToDAGISel::fp16SrcZerosHighBits(unsigned Opc) const {
   case ISD::FTRUNC:
   case ISD::FRINT:
   case ISD::FNEARBYINT:
+  case ISD::FROUNDEVEN:
   case ISD::FROUND:
   case ISD::FFLOOR:
   case ISD::FMINNUM:
   case ISD::FMAXNUM:
+  case ISD::FLDEXP:
   case AMDGPUISD::FRACT:
   case AMDGPUISD::CLAMP:
   case AMDGPUISD::COS_HW:
@@ -179,7 +181,6 @@ bool AMDGPUDAGToDAGISel::fp16SrcZerosHighBits(unsigned Opc) const {
   case AMDGPUISD::RCP:
   case AMDGPUISD::RSQ:
   case AMDGPUISD::RCP_IFLAG:
-  case AMDGPUISD::LDEXP:
     // On gfx10, all 16-bit instructions preserve the high bits.
     return Subtarget->getGeneration() <= AMDGPUSubtarget::GFX9;
   case ISD::FP_ROUND:
@@ -527,8 +528,8 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
     SelectADD_SUB_I64(N);
     return;
   }
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY:
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY:
     if (N->getValueType(0) != MVT::i32)
       break;
 
@@ -596,11 +597,15 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
       break;
 
     uint64_t Imm;
-    if (ConstantFPSDNode *FP = dyn_cast<ConstantFPSDNode>(N))
+    if (ConstantFPSDNode *FP = dyn_cast<ConstantFPSDNode>(N)) {
       Imm = FP->getValueAPF().bitcastToAPInt().getZExtValue();
-    else {
+      if (AMDGPU::isValid32BitLiteral(Imm, true))
+        break;
+    } else {
       ConstantSDNode *C = cast<ConstantSDNode>(N);
       Imm = C->getZExtValue();
+      if (AMDGPU::isValid32BitLiteral(Imm, false))
+        break;
     }
 
     SDLoc DL(N);
@@ -664,6 +669,9 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
   case ISD::BRCOND:
     SelectBRCOND(N);
     return;
+  case ISD::FP_EXTEND:
+    SelectFP_EXTEND(N);
+    return;
   case AMDGPUISD::CVT_PKRTZ_F16_F32:
   case AMDGPUISD::CVT_PKNORM_I16_F32:
   case AMDGPUISD::CVT_PKNORM_U16_F32:
@@ -690,6 +698,14 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
   }
   case ISD::INTRINSIC_VOID: {
     SelectINTRINSIC_VOID(N);
+    return;
+  }
+  case AMDGPUISD::WAVE_ADDRESS: {
+    SelectWAVE_ADDRESS(N);
+    return;
+  }
+  case ISD::STACKRESTORE: {
+    SelectSTACKRESTORE(N);
     return;
   }
   }
@@ -808,7 +824,7 @@ SDValue AMDGPUDAGToDAGISel::getMaterializedScalarImm32(int64_t Val,
   return SDValue(Mov, 0);
 }
 
-// FIXME: Should only handle addcarry/subcarry
+// FIXME: Should only handle uaddo_carry/usubo_carry
 void AMDGPUDAGToDAGISel::SelectADD_SUB_I64(SDNode *N) {
   SDLoc DL(N);
   SDValue LHS = N->getOperand(0);
@@ -885,15 +901,15 @@ void AMDGPUDAGToDAGISel::SelectAddcSubb(SDNode *N) {
   SDValue CI = N->getOperand(2);
 
   if (N->isDivergent()) {
-    unsigned Opc = N->getOpcode() == ISD::ADDCARRY ? AMDGPU::V_ADDC_U32_e64
-                                                   : AMDGPU::V_SUBB_U32_e64;
+    unsigned Opc = N->getOpcode() == ISD::UADDO_CARRY ? AMDGPU::V_ADDC_U32_e64
+                                                      : AMDGPU::V_SUBB_U32_e64;
     CurDAG->SelectNodeTo(
         N, Opc, N->getVTList(),
         {LHS, RHS, CI,
          CurDAG->getTargetConstant(0, {}, MVT::i1) /*clamp bit*/});
   } else {
-    unsigned Opc = N->getOpcode() == ISD::ADDCARRY ? AMDGPU::S_ADD_CO_PSEUDO
-                                                   : AMDGPU::S_SUB_CO_PSEUDO;
+    unsigned Opc = N->getOpcode() == ISD::UADDO_CARRY ? AMDGPU::S_ADD_CO_PSEUDO
+                                                      : AMDGPU::S_SUB_CO_PSEUDO;
     CurDAG->SelectNodeTo(N, Opc, N->getVTList(), {LHS, RHS, CI});
   }
 }
@@ -908,8 +924,8 @@ void AMDGPUDAGToDAGISel::SelectUADDO_USUBO(SDNode *N) {
   for (SDNode::use_iterator UI = N->use_begin(), E = N->use_end(); UI != E;
        ++UI)
     if (UI.getUse().getResNo() == 1) {
-      if ((IsAdd && (UI->getOpcode() != ISD::ADDCARRY)) ||
-          (!IsAdd && (UI->getOpcode() != ISD::SUBCARRY))) {
+      if ((IsAdd && (UI->getOpcode() != ISD::UADDO_CARRY)) ||
+          (!IsAdd && (UI->getOpcode() != ISD::USUBO_CARRY))) {
         IsVALU = true;
         break;
       }
@@ -2249,6 +2265,34 @@ bool AMDGPUDAGToDAGISel::isCBranchSCC(const SDNode *N) const {
   return false;
 }
 
+static SDValue combineBallotPattern(SDValue VCMP, bool &Negate) {
+  assert(VCMP->getOpcode() == AMDGPUISD::SETCC);
+  // Special case for amdgcn.ballot:
+  // %Cond = i1 (and/or combination of i1 ISD::SETCCs)
+  // %VCMP = i(WaveSize) AMDGPUISD::SETCC (ext %Cond), 0, setne/seteq
+  // =>
+  // Use i1 %Cond value instead of i(WaveSize) %VCMP.
+  // This is possible because divergent ISD::SETCC is selected as V_CMP and
+  // Cond becomes a i(WaveSize) full mask value.
+  // Note that ballot doesn't use SETEQ condition but its easy to support it
+  // here for completeness, so in this case Negate is set true on return.
+  auto VCMP_CC = cast<CondCodeSDNode>(VCMP.getOperand(2))->get();
+  auto *VCMP_CRHS = dyn_cast<ConstantSDNode>(VCMP.getOperand(1));
+  if ((VCMP_CC == ISD::SETEQ || VCMP_CC == ISD::SETNE) && VCMP_CRHS &&
+      VCMP_CRHS->isZero()) {
+
+    auto Cond = VCMP.getOperand(0);
+    if (ISD::isExtOpcode(Cond->getOpcode())) // Skip extension.
+      Cond = Cond.getOperand(0);
+
+    if (isBoolSGPR(Cond)) {
+      Negate = VCMP_CC == ISD::SETEQ;
+      return Cond;
+    }
+  }
+  return SDValue();
+}
+
 void AMDGPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
   SDValue Cond = N->getOperand(1);
 
@@ -2262,11 +2306,50 @@ void AMDGPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
   const SIRegisterInfo *TRI = ST->getRegisterInfo();
 
   bool UseSCCBr = isCBranchSCC(N) && isUniformBr(N);
-  unsigned BrOp = UseSCCBr ? AMDGPU::S_CBRANCH_SCC1 : AMDGPU::S_CBRANCH_VCCNZ;
+  bool AndExec = !UseSCCBr;
+  bool Negate = false;
+
+  if (Cond.getOpcode() == ISD::SETCC &&
+      Cond->getOperand(0)->getOpcode() == AMDGPUISD::SETCC) {
+    SDValue VCMP = Cond->getOperand(0);
+    auto CC = cast<CondCodeSDNode>(Cond->getOperand(2))->get();
+    auto *CRHS = dyn_cast<ConstantSDNode>(Cond->getOperand(1));
+    if ((CC == ISD::SETEQ || CC == ISD::SETNE) && CRHS && CRHS->isZero() &&
+        // TODO: make condition below an assert after fixing ballot bitwidth.
+        VCMP.getValueType().getSizeInBits() == ST->getWavefrontSize()) {
+      // %VCMP = i(WaveSize) AMDGPUISD::SETCC ...
+      // %C = i1 ISD::SETCC %VCMP, 0, setne/seteq
+      // BRCOND i1 %C, %BB
+      // =>
+      // %VCMP = i(WaveSize) AMDGPUISD::SETCC ...
+      // VCC = COPY i(WaveSize) %VCMP
+      // S_CBRANCH_VCCNZ/VCCZ %BB
+      Negate = CC == ISD::SETEQ;
+      bool NegatedBallot = false;
+      if (auto BallotCond = combineBallotPattern(VCMP, NegatedBallot)) {
+        Cond = BallotCond;
+        UseSCCBr = !BallotCond->isDivergent();
+        Negate = Negate ^ NegatedBallot;
+      } else {
+        // TODO: don't use SCC here assuming that AMDGPUISD::SETCC is always
+        // selected as V_CMP, but this may change for uniform condition.
+        Cond = VCMP;
+        UseSCCBr = false;
+      }
+    }
+    // Cond is either V_CMP resulted from AMDGPUISD::SETCC or a combination of
+    // V_CMPs resulted from ballot or ballot has uniform condition and SCC is
+    // used.
+    AndExec = false;
+  }
+
+  unsigned BrOp =
+      UseSCCBr ? (Negate ? AMDGPU::S_CBRANCH_SCC0 : AMDGPU::S_CBRANCH_SCC1)
+               : (Negate ? AMDGPU::S_CBRANCH_VCCZ : AMDGPU::S_CBRANCH_VCCNZ);
   Register CondReg = UseSCCBr ? AMDGPU::SCC : TRI->getVCC();
   SDLoc SL(N);
 
-  if (!UseSCCBr) {
+  if (AndExec) {
     // This is the case that we are selecting to S_CBRANCH_VCCNZ.  We have not
     // analyzed what generates the vcc value, so we do not know whether vcc
     // bits for disabled lanes are 0.  Thus we need to mask out bits for
@@ -2294,6 +2377,22 @@ void AMDGPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
   CurDAG->SelectNodeTo(N, BrOp, MVT::Other,
                        N->getOperand(2), // Basic Block
                        VCC.getValue(0));
+}
+
+void AMDGPUDAGToDAGISel::SelectFP_EXTEND(SDNode *N) {
+  if (Subtarget->hasSALUFloatInsts() && N->getValueType(0) == MVT::f32 &&
+      !N->isDivergent()) {
+    SDValue Src = N->getOperand(0);
+    if (Src.getValueType() == MVT::f16) {
+      if (isExtractHiElt(Src, Src)) {
+        CurDAG->SelectNodeTo(N, AMDGPU::S_CVT_HI_F32_F16, N->getVTList(),
+                             {Src});
+        return;
+      }
+    }
+  }
+
+  SelectCode(N);
 }
 
 void AMDGPUDAGToDAGISel::SelectDSAppendConsume(SDNode *N, unsigned IntrID) {
@@ -2369,8 +2468,9 @@ static unsigned gwsIntrinToOpcode(unsigned IntrID) {
 }
 
 void AMDGPUDAGToDAGISel::SelectDS_GWS(SDNode *N, unsigned IntrID) {
-  if (IntrID == Intrinsic::amdgcn_ds_gws_sema_release_all &&
-      !Subtarget->hasGWSSemaReleaseAll()) {
+  if (!Subtarget->hasGWS() ||
+      (IntrID == Intrinsic::amdgcn_ds_gws_sema_release_all &&
+       !Subtarget->hasGWSSemaReleaseAll())) {
     // Let this error.
     SelectCode(N);
     return;
@@ -2568,15 +2668,63 @@ void AMDGPUDAGToDAGISel::SelectINTRINSIC_VOID(SDNode *N) {
   SelectCode(N);
 }
 
+void AMDGPUDAGToDAGISel::SelectWAVE_ADDRESS(SDNode *N) {
+  SDValue Log2WaveSize =
+    CurDAG->getTargetConstant(Subtarget->getWavefrontSizeLog2(), SDLoc(N), MVT::i32);
+  CurDAG->SelectNodeTo(N, AMDGPU::S_LSHR_B32, N->getVTList(),
+                       {N->getOperand(0), Log2WaveSize});
+}
+
+void AMDGPUDAGToDAGISel::SelectSTACKRESTORE(SDNode *N) {
+  SDValue SrcVal = N->getOperand(1);
+  if (SrcVal.getValueType() != MVT::i32) {
+    SelectCode(N); // Emit default error
+    return;
+  }
+
+  SDValue CopyVal;
+  Register SP = TLI->getStackPointerRegisterToSaveRestore();
+  SDLoc SL(N);
+
+  if (SrcVal.getOpcode() == AMDGPUISD::WAVE_ADDRESS) {
+    CopyVal = SrcVal.getOperand(0);
+  } else {
+    SDValue Log2WaveSize = CurDAG->getTargetConstant(
+        Subtarget->getWavefrontSizeLog2(), SL, MVT::i32);
+
+    if (N->isDivergent()) {
+      SrcVal = SDValue(CurDAG->getMachineNode(AMDGPU::V_READFIRSTLANE_B32, SL,
+                                              MVT::i32, SrcVal),
+                       0);
+    }
+
+    CopyVal = SDValue(CurDAG->getMachineNode(AMDGPU::S_LSHL_B32, SL, MVT::i32,
+                                             {SrcVal, Log2WaveSize}),
+                      0);
+  }
+
+  SDValue CopyToSP = CurDAG->getCopyToReg(N->getOperand(0), SL, SP, CopyVal);
+  CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), CopyToSP);
+}
+
 bool AMDGPUDAGToDAGISel::SelectVOP3ModsImpl(SDValue In, SDValue &Src,
                                             unsigned &Mods,
+                                            bool IsCanonicalizing,
                                             bool AllowAbs) const {
-  Mods = 0;
+  Mods = SISrcMods::NONE;
   Src = In;
 
   if (Src.getOpcode() == ISD::FNEG) {
     Mods |= SISrcMods::NEG;
     Src = Src.getOperand(0);
+  } else if (Src.getOpcode() == ISD::FSUB && IsCanonicalizing) {
+    // Fold fsub [+-]0 into fneg. This may not have folded depending on the
+    // denormal mode, but we're implicitly canonicalizing in a source operand.
+    auto *LHS = dyn_cast<ConstantFPSDNode>(Src.getOperand(0));
+    if (LHS && LHS->isZero()) {
+      Mods |= SISrcMods::NEG;
+      Src = Src.getOperand(1);
+    }
   }
 
   if (AllowAbs && Src.getOpcode() == ISD::FABS) {
@@ -2590,7 +2738,20 @@ bool AMDGPUDAGToDAGISel::SelectVOP3ModsImpl(SDValue In, SDValue &Src,
 bool AMDGPUDAGToDAGISel::SelectVOP3Mods(SDValue In, SDValue &Src,
                                         SDValue &SrcMods) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods, /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/true)) {
+    SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
+    return true;
+  }
+
+  return false;
+}
+
+bool AMDGPUDAGToDAGISel::SelectVOP3ModsNonCanonicalizing(
+    SDValue In, SDValue &Src, SDValue &SrcMods) const {
+  unsigned Mods;
+  if (SelectVOP3ModsImpl(In, Src, Mods, /*IsCanonicalizing=*/false,
+                         /*AllowAbs=*/true)) {
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
     return true;
   }
@@ -2601,7 +2762,9 @@ bool AMDGPUDAGToDAGISel::SelectVOP3Mods(SDValue In, SDValue &Src,
 bool AMDGPUDAGToDAGISel::SelectVOP3BMods(SDValue In, SDValue &Src,
                                          SDValue &SrcMods) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods, /* AllowAbs */ false)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods,
+                         /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/false)) {
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
     return true;
   }
@@ -2621,7 +2784,9 @@ bool AMDGPUDAGToDAGISel::SelectVINTERPModsImpl(SDValue In, SDValue &Src,
                                                SDValue &SrcMods,
                                                bool OpSel) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods, /* AllowAbs */ false)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods,
+                         /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/false)) {
     if (OpSel)
       Mods |= SISrcMods::OP_SEL_0;
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
@@ -2674,9 +2839,10 @@ bool AMDGPUDAGToDAGISel::SelectVOP3OMods(SDValue In, SDValue &Src,
 
 bool AMDGPUDAGToDAGISel::SelectVOP3PMods(SDValue In, SDValue &Src,
                                          SDValue &SrcMods, bool IsDOT) const {
-  unsigned Mods = 0;
+  unsigned Mods = SISrcMods::NONE;
   Src = In;
 
+  // TODO: Handle G_FSUB 0 as fneg
   if (Src.getOpcode() == ISD::FNEG) {
     Mods ^= (SISrcMods::NEG | SISrcMods::NEG_HI);
     Src = Src.getOperand(0);
@@ -2755,7 +2921,7 @@ bool AMDGPUDAGToDAGISel::SelectVOP3PMods(SDValue In, SDValue &Src,
       uint64_t Lit = cast<ConstantFPSDNode>(Lo)->getValueAPF()
                       .bitcastToAPInt().getZExtValue();
       if (AMDGPU::isInlinableLiteral32(Lit, Subtarget->hasInv2PiInlineImm())) {
-        Src = CurDAG->getTargetConstant(Lit, SDLoc(In), MVT::i64);;
+        Src = CurDAG->getTargetConstant(Lit, SDLoc(In), MVT::i64);
         SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
         return true;
       }
@@ -2921,7 +3087,7 @@ bool AMDGPUDAGToDAGISel::isVGPRImm(const SDNode * N) const {
     if (!RC || SIRI->isSGPRClass(RC))
       return false;
 
-    if (RC != &AMDGPU::VS_32RegClass) {
+    if (RC != &AMDGPU::VS_32RegClass && RC != &AMDGPU::VS_64RegClass) {
       AllUsesAcceptSReg = false;
       SDNode * User = *U;
       if (User->isMachineOpcode()) {
@@ -2933,7 +3099,8 @@ bool AMDGPUDAGToDAGISel::isVGPRImm(const SDNode * N) const {
           if (SII->findCommutedOpIndices(Desc, OpIdx, CommuteIdx1)) {
             unsigned CommutedOpNo = CommuteIdx1 - Desc.getNumDefs();
             const TargetRegisterClass *CommutedRC = getOperandRegClass(*U, CommutedOpNo);
-            if (CommutedRC == &AMDGPU::VS_32RegClass)
+            if (CommutedRC == &AMDGPU::VS_32RegClass ||
+                CommutedRC == &AMDGPU::VS_64RegClass)
               AllUsesAcceptSReg = true;
           }
         }

@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 //==-- generic_shuffle.cpp - SYCL sub_group generic shuffle test *- C++ -*--==//
 //
@@ -39,7 +37,7 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
 
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
-            ext::oneapi::sub_group SG = NdItem.get_sub_group();
+            sycl::sub_group SG = NdItem.get_sub_group();
             uint32_t wggid = NdItem.get_global_id(0);
             uint32_t sgid = SG.get_group_id().get(0);
             if (wggid == 0)
@@ -62,11 +60,11 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
                 SG.shuffle_xor(ptr, sgid % SG.get_max_local_range()[0]);
           });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto acc_up = buf_up.template get_access<access::mode::read_write>();
-    auto acc_down = buf_down.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor acc_up(buf_up);
+    host_accessor acc_down(buf_down);
+    host_accessor acc_xor(buf_xor);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
@@ -141,7 +139,7 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
 
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
-            ext::oneapi::sub_group SG = NdItem.get_sub_group();
+            sycl::sub_group SG = NdItem.get_sub_group();
             uint32_t wggid = NdItem.get_global_id(0);
             uint32_t sgid = SG.get_group_id().get(0);
             if (wggid == 0)
@@ -164,11 +162,11 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
                 SG.shuffle_xor(val, sgid % SG.get_max_local_range()[0]);
           });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto acc_up = buf_up.template get_access<access::mode::read_write>();
-    auto acc_down = buf_down.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor acc_up(buf_up);
+    host_accessor acc_down(buf_down);
+    host_accessor acc_xor(buf_xor);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;

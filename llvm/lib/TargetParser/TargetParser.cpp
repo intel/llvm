@@ -13,7 +13,6 @@
 
 #include "llvm/TargetParser/TargetParser.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
@@ -105,21 +104,25 @@ constexpr GPUInfo AMDGCNGPUs[] = {
   {{"gfx90a"},    {"gfx90a"},  GK_GFX90A,  FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_XNACK|FEATURE_SRAMECC},
   {{"gfx90c"},    {"gfx90c"},  GK_GFX90C,  FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_XNACK},
   {{"gfx940"},    {"gfx940"},  GK_GFX940,  FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_XNACK|FEATURE_SRAMECC},
-  {{"gfx1010"},   {"gfx1010"}, GK_GFX1010, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK},
-  {{"gfx1011"},   {"gfx1011"}, GK_GFX1011, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK},
-  {{"gfx1012"},   {"gfx1012"}, GK_GFX1012, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK},
-  {{"gfx1013"},   {"gfx1013"}, GK_GFX1013, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK},
-  {{"gfx1030"},   {"gfx1030"}, GK_GFX1030, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1031"},   {"gfx1031"}, GK_GFX1031, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1032"},   {"gfx1032"}, GK_GFX1032, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1033"},   {"gfx1033"}, GK_GFX1033, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1034"},   {"gfx1034"}, GK_GFX1034, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1035"},   {"gfx1035"}, GK_GFX1035, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1036"},   {"gfx1036"}, GK_GFX1036, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1100"},   {"gfx1100"}, GK_GFX1100, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1101"},   {"gfx1101"}, GK_GFX1101, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1102"},   {"gfx1102"}, GK_GFX1102, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
-  {{"gfx1103"},   {"gfx1103"}, GK_GFX1103, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
+  {{"gfx941"},    {"gfx941"},  GK_GFX941,  FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_XNACK|FEATURE_SRAMECC},
+  {{"gfx942"},    {"gfx942"},  GK_GFX942,  FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_XNACK|FEATURE_SRAMECC},
+  {{"gfx1010"},   {"gfx1010"}, GK_GFX1010, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK|FEATURE_WGP},
+  {{"gfx1011"},   {"gfx1011"}, GK_GFX1011, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK|FEATURE_WGP},
+  {{"gfx1012"},   {"gfx1012"}, GK_GFX1012, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK|FEATURE_WGP},
+  {{"gfx1013"},   {"gfx1013"}, GK_GFX1013, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_XNACK|FEATURE_WGP},
+  {{"gfx1030"},   {"gfx1030"}, GK_GFX1030, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1031"},   {"gfx1031"}, GK_GFX1031, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1032"},   {"gfx1032"}, GK_GFX1032, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1033"},   {"gfx1033"}, GK_GFX1033, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1034"},   {"gfx1034"}, GK_GFX1034, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1035"},   {"gfx1035"}, GK_GFX1035, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1036"},   {"gfx1036"}, GK_GFX1036, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1100"},   {"gfx1100"}, GK_GFX1100, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1101"},   {"gfx1101"}, GK_GFX1101, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1102"},   {"gfx1102"}, GK_GFX1102, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1103"},   {"gfx1103"}, GK_GFX1103, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1150"},   {"gfx1150"}, GK_GFX1150, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
+  {{"gfx1151"},   {"gfx1151"}, GK_GFX1151, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32|FEATURE_WGP},
 };
 
 const GPUInfo *getArchEntry(AMDGPU::GPUKind AK, ArrayRef<GPUInfo> Table) {
@@ -130,7 +133,7 @@ const GPUInfo *getArchEntry(AMDGPU::GPUKind AK, ArrayRef<GPUInfo> Table) {
         return A.Kind < B.Kind;
       });
 
-  if (I == Table.end())
+  if (I == Table.end() || I->Kind != Search.Kind)
     return nullptr;
   return I;
 }
@@ -224,6 +227,8 @@ AMDGPU::IsaVersion AMDGPU::getIsaVersion(StringRef GPU) {
   case GK_GFX90A:  return {9, 0, 10};
   case GK_GFX90C:  return {9, 0, 12};
   case GK_GFX940:  return {9, 4, 0};
+  case GK_GFX941:  return {9, 4, 1};
+  case GK_GFX942:  return {9, 4, 2};
   case GK_GFX1010: return {10, 1, 0};
   case GK_GFX1011: return {10, 1, 1};
   case GK_GFX1012: return {10, 1, 2};
@@ -239,6 +244,8 @@ AMDGPU::IsaVersion AMDGPU::getIsaVersion(StringRef GPU) {
   case GK_GFX1101: return {11, 0, 1};
   case GK_GFX1102: return {11, 0, 2};
   case GK_GFX1103: return {11, 0, 3};
+  case GK_GFX1150: return {11, 5, 0};
+  case GK_GFX1151: return {11, 5, 1};
   default:         return {0, 0, 0};
   }
 }
@@ -257,6 +264,8 @@ void AMDGPU::fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
   // XXX - What does the member GPU mean if device name string passed here?
   if (T.isAMDGCN()) {
     switch (parseArchAMDGCN(GPU)) {
+    case GK_GFX1151:
+    case GK_GFX1150:
     case GK_GFX1103:
     case GK_GFX1102:
     case GK_GFX1101:
@@ -276,6 +285,8 @@ void AMDGPU::fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
       Features["gfx10-3-insts"] = true;
       Features["gfx11-insts"] = true;
       Features["atomic-fadd-rtn-insts"] = true;
+      Features["image-insts"] = true;
+      Features["gws"] = true;
       break;
     case GK_GFX1036:
     case GK_GFX1035:
@@ -298,8 +309,10 @@ void AMDGPU::fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
       Features["gfx9-insts"] = true;
       Features["gfx10-insts"] = true;
       Features["gfx10-3-insts"] = true;
+      Features["image-insts"] = true;
       Features["s-memrealtime"] = true;
       Features["s-memtime-inst"] = true;
+      Features["gws"] = true;
       break;
     case GK_GFX1012:
     case GK_GFX1011:
@@ -319,16 +332,41 @@ void AMDGPU::fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
       Features["gfx8-insts"] = true;
       Features["gfx9-insts"] = true;
       Features["gfx10-insts"] = true;
+      Features["image-insts"] = true;
       Features["s-memrealtime"] = true;
       Features["s-memtime-inst"] = true;
+      Features["gws"] = true;
       break;
+    case GK_GFX942:
+    case GK_GFX941:
     case GK_GFX940:
       Features["gfx940-insts"] = true;
       Features["fp8-insts"] = true;
       Features["atomic-ds-pk-add-16-insts"] = true;
       Features["atomic-flat-pk-add-16-insts"] = true;
       Features["atomic-global-pk-add-bf16-inst"] = true;
-      [[fallthrough]];
+      Features["gfx90a-insts"] = true;
+      Features["atomic-buffer-global-pk-add-f16-insts"] = true;
+      Features["atomic-fadd-rtn-insts"] = true;
+      Features["dot3-insts"] = true;
+      Features["dot4-insts"] = true;
+      Features["dot5-insts"] = true;
+      Features["dot6-insts"] = true;
+      Features["mai-insts"] = true;
+      Features["dl-insts"] = true;
+      Features["dot1-insts"] = true;
+      Features["dot2-insts"] = true;
+      Features["dot7-insts"] = true;
+      Features["dot10-insts"] = true;
+      Features["gfx9-insts"] = true;
+      Features["gfx8-insts"] = true;
+      Features["16-bit-insts"] = true;
+      Features["dpp"] = true;
+      Features["s-memrealtime"] = true;
+      Features["ci-insts"] = true;
+      Features["s-memtime-inst"] = true;
+      Features["gws"] = true;
+      break;
     case GK_GFX90A:
       Features["gfx90a-insts"] = true;
       Features["atomic-buffer-global-pk-add-f16-insts"] = true;
@@ -376,7 +414,9 @@ void AMDGPU::fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
     case GK_GFX602:
     case GK_GFX601:
     case GK_GFX600:
+      Features["image-insts"] = true;
       Features["s-memtime-inst"] = true;
+      Features["gws"] = true;
       break;
     case GK_NONE:
       break;
@@ -418,6 +458,8 @@ static bool isWave32Capable(StringRef GPU, const Triple &T) {
   // XXX - What does the member GPU mean if device name string passed here?
   if (T.isAMDGCN()) {
     switch (parseArchAMDGCN(GPU)) {
+    case GK_GFX1151:
+    case GK_GFX1150:
     case GK_GFX1103:
     case GK_GFX1102:
     case GK_GFX1101:

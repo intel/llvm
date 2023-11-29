@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -triple i386-unknown-unknown -fblocks -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple i386-unknown-unknown -fblocks -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: %[[STRUCT_A:.*]] = type { i8 }
 
@@ -11,7 +11,7 @@ int foo(A);
 void bar(A &a)
 {
     // CHECK: call void asm
-    asm("" : : "r"(foo(a)) ); // rdar://8540491
+    asm("" : : "r"(foo(a)) );
     // CHECK: call void @_ZN1AD1Ev
 }
 

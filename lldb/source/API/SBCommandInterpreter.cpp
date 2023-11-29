@@ -33,6 +33,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
+namespace lldb_private {
 class CommandPluginInterfaceImplementation : public CommandObjectParsed {
 public:
   CommandPluginInterfaceImplementation(CommandInterpreter &interpreter,
@@ -69,17 +70,20 @@ public:
   }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     SBCommandReturnObject sb_return(result);
     SBCommandInterpreter sb_interpreter(&m_interpreter);
     SBDebugger debugger_sb(m_interpreter.GetDebugger().shared_from_this());
-    bool ret = m_backend->DoExecute(
-        debugger_sb, command.GetArgumentVector(), sb_return);
-    return ret;
+    m_backend->DoExecute(debugger_sb, command.GetArgumentVector(), sb_return);
   }
   std::shared_ptr<lldb::SBCommandPluginInterface> m_backend;
   std::optional<std::string> m_auto_repeat_command;
 };
+} // namespace lldb_private
+
+SBCommandInterpreter::SBCommandInterpreter() : m_opaque_ptr() {
+  LLDB_INSTRUMENT_VA(this);
+}
 
 SBCommandInterpreter::SBCommandInterpreter(CommandInterpreter *interpreter)
     : m_opaque_ptr(interpreter) {
@@ -153,11 +157,12 @@ bool SBCommandInterpreter::InterruptCommand() {
 const char *SBCommandInterpreter::GetIOHandlerControlSequence(char ch) {
   LLDB_INSTRUMENT_VA(this, ch);
 
-  return (IsValid()
-              ? m_opaque_ptr->GetDebugger()
-                    .GetTopIOHandlerControlSequence(ch)
-                    .GetCString()
-              : nullptr);
+  if (!IsValid())
+    return nullptr;
+
+  return ConstString(
+             m_opaque_ptr->GetDebugger().GetTopIOHandlerControlSequence(ch))
+      .GetCString();
 }
 
 lldb::ReturnStatus
@@ -514,14 +519,16 @@ const char *SBCommandInterpreter::GetArgumentTypeAsCString(
     const lldb::CommandArgumentType arg_type) {
   LLDB_INSTRUMENT_VA(arg_type);
 
-  return CommandObject::GetArgumentTypeAsCString(arg_type);
+  return ConstString(CommandObject::GetArgumentTypeAsCString(arg_type))
+      .GetCString();
 }
 
 const char *SBCommandInterpreter::GetArgumentDescriptionAsCString(
     const lldb::CommandArgumentType arg_type) {
   LLDB_INSTRUMENT_VA(arg_type);
 
-  return CommandObject::GetArgumentDescriptionAsCString(arg_type);
+  return ConstString(CommandObject::GetArgumentDescriptionAsCString(arg_type))
+      .GetCString();
 }
 
 bool SBCommandInterpreter::EventIsCommandInterpreterEvent(

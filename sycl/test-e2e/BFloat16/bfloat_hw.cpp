@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // "Hello world" bfloat16 test which checks conversion algorithms on host.
 

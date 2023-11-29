@@ -24,7 +24,7 @@ using namespace sycl;
 struct CudaKernelsTest : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin =
+  std::optional<detail::PluginPtr> &plugin =
       pi::initializeAndGet(backend::ext_oneapi_cuda);
   pi_platform platform_;
   pi_device device_;
@@ -38,7 +38,7 @@ protected:
     }
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
+    ASSERT_EQ(plugin->hasBackend(backend::ext_oneapi_cuda), PI_SUCCESS);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
@@ -347,7 +347,7 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 0, &memObj)),
+                kern, 0, nullptr, &memObj)),
             PI_SUCCESS);
 
   size_t workDim = 1;
@@ -397,11 +397,11 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 0, &memObj)),
+                kern, 0, nullptr, &memObj)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 1, &memObj2)),
+                kern, 1, nullptr, &memObj2)),
             PI_SUCCESS);
 
   size_t workDim = 1;

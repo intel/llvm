@@ -161,6 +161,9 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMergeINTEL, "MergeINTEL");
   add(DecorationBankBitsINTEL, "BankBitsINTEL");
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
+  add(DecorationStridesizeINTEL, "StridesizeINTEL");
+  add(DecorationWordsizeINTEL, "WordsizeINTEL");
+  add(DecorationTrueDualPortINTEL, "TrueDualPortINTEL");
   add(DecorationBurstCoalesceINTEL, "BurstCoalesceINTEL");
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
@@ -211,6 +214,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
   add(DecorationLatencyControlLabelINTEL, "LatencyControlLabelINTEL");
   add(DecorationLatencyControlConstraintINTEL, "LatencyControlConstraintINTEL");
+  add(DecorationFPMaxErrorDecorationINTEL, "FPMaxErrorDecorationINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -221,6 +225,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationInitModeINTEL, "InitModeINTEL");
   add(internal::DecorationImplementInCSRINTEL, "ImplementInCSRINTEL");
   add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
+  add(internal::DecorationCacheControlLoadINTEL, "CacheControlLoadINTEL");
+  add(internal::DecorationCacheControlStoreINTEL, "CacheControlStoreINTEL");
 
   add(DecorationMax, "Max");
 }
@@ -618,6 +624,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDotProduct, "DotProduct");
   add(CapabilityDotProductKHR, "DotProductKHR");
   add(CapabilityRayCullMaskKHR, "RayCullMaskKHR");
+  add(CapabilityCooperativeMatrixKHR, "CooperativeMatrixKHR");
   add(CapabilityBitInstructions, "BitInstructions");
   add(CapabilityGroupNonUniformRotateKHR, "GroupNonUniformRotateKHR");
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
@@ -636,6 +643,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityMax, "Max");
   add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGALatencyControlINTEL, "FPGALatencyControlINTEL");
+  add(CapabilityFPMaxErrorINTEL, "FPMaxErrorINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
@@ -660,6 +668,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "JointMatrixPackedInt2ComponentTypeINTEL");
   add(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
       "JointMatrixPackedInt4ComponentTypeINTEL");
+  add(internal::CapabilityCacheControlsINTEL, "CacheControlsINTEL");
+  add(internal::CapabilityCooperativeMatrixPrefetchINTEL,
+      "CooperativeMatrixPrefetchINTEL");
+  add(internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL,
+      "CooperativeMatrixInvocationInstructionsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

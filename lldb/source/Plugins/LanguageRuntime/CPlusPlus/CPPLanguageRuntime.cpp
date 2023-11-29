@@ -34,6 +34,9 @@ using namespace lldb;
 using namespace lldb_private;
 
 static ConstString g_this = ConstString("this");
+// Artificial coroutine-related variables emitted by clang.
+static ConstString g_promise = ConstString("__promise");
+static ConstString g_coro_frame = ConstString("__coro_frame");
 
 char CPPLanguageRuntime::ID = 0;
 
@@ -41,7 +44,7 @@ CPPLanguageRuntime::CPPLanguageRuntime(Process *process)
     : LanguageRuntime(process) {}
 
 bool CPPLanguageRuntime::IsAllowedRuntimeValue(ConstString name) {
-  return name == g_this;
+  return name == g_this || name == g_promise || name == g_coro_frame;
 }
 
 bool CPPLanguageRuntime::GetObjectDescription(Stream &str,
@@ -138,12 +141,10 @@ CPPLanguageRuntime::FindLibCppStdFunctionCallableInfo(
   //    we will obtain the name from this pointer.
   // 5) a free function. A pointer to the function will stored after the vtable
   //    we will obtain the name from this pointer.
-  ValueObjectSP member_f_(
-      valobj_sp->GetChildMemberWithName(ConstString("__f_"), true));
+  ValueObjectSP member_f_(valobj_sp->GetChildMemberWithName("__f_"));
 
   if (member_f_) {
-    ValueObjectSP sub_member_f_(
-       member_f_->GetChildMemberWithName(ConstString("__f_"), true));
+    ValueObjectSP sub_member_f_(member_f_->GetChildMemberWithName("__f_"));
 
     if (sub_member_f_)
         member_f_ = sub_member_f_;

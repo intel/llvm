@@ -1,5 +1,7 @@
-reflect.ll
-atomic/loadstore_helpers.ll
+reflect.cl
+atomic/loadstore_helpers_release.ll
+atomic/loadstore_helpers_acquire.ll
+atomic/loadstore_helpers_seq_cst.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 integer/mul24.cl
 integer/mul_hi.cl
@@ -93,7 +95,7 @@ images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl
-group/group_ballot.cl
+group/group_non_uniform.cl
 atomic/atomic_add.cl
 atomic/atomic_and.cl
 atomic/atomic_cmpxchg.cl

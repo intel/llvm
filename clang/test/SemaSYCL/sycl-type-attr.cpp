@@ -17,11 +17,6 @@ class [[__sycl_detail__::sycl_type()]] B {};
 // expected-error@+1{{'sycl_type' attribute argument 'NotValidType' is not supported}}
 class [[__sycl_detail__::sycl_type(NotValidType)]] C {};
 
-// expected-note@+1{{previous attribute is here}}
-class [[__sycl_detail__::sycl_type(spec_constant)]] spec_constant;
-// expected-error@+1{{attribute 'sycl_type' is already applied with different arguments}}
-class [[__sycl_detail__::sycl_type(accessor)]] spec_constant {};
-
 // expected-error@+2{{attribute 'sycl_type' is already applied with different arguments}}
 // expected-note@+1{{previous attribute is here}}
 class [[__sycl_detail__::sycl_type(group)]] [[__sycl_detail__::sycl_type(accessor)]] group {};

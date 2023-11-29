@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 ZE_DEBUG=1 %t.out 2>&1 | FileCheck %s
 // REQUIRES: level_zero
+// UNSUPPORTED: ze_debug
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //
@@ -31,9 +32,11 @@ class MyKernel;
 void test() {
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
+  sycl::device Device = Queue.get_device();
 
   auto BundleInput =
-      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context);
+      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context,
+                                                                   {Device});
   auto BundleObject = sycl::compile(BundleInput);
   sycl::link(BundleObject);
 

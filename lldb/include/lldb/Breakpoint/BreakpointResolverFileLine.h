@@ -27,7 +27,7 @@ public:
       const SourceLocationSpec &location_spec,
       std::optional<llvm::StringRef> removed_prefix_opt = std::nullopt);
 
-  static BreakpointResolver *
+  static lldb::BreakpointResolverSP
   CreateFromStructuredData(const lldb::BreakpointSP &bkpt,
                            const StructuredData::Dictionary &data_dict,
                            Status &error);
@@ -59,7 +59,7 @@ public:
 
 protected:
   void FilterContexts(SymbolContextList &sc_list);
-  void DeduceSourceMapping(SymbolContextList &sc_list);
+  void DeduceSourceMapping(const SymbolContextList &sc_list);
 
   friend class Breakpoint;
   SourceLocationSpec m_location_spec;

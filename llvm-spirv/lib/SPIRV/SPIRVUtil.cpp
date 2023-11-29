@@ -113,7 +113,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
     return "float";
   if (Ty->isDoubleTy())
     return "double";
-  if (auto IntTy = dyn_cast<IntegerType>(Ty)) {
+  if (const auto *IntTy = dyn_cast<IntegerType>(Ty)) {
     std::string SignPrefix;
     std::string Stem;
     if (!Signed)
@@ -137,7 +137,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
     }
     return SignPrefix + Stem;
   }
-  if (auto VecTy = dyn_cast<FixedVectorType>(Ty)) {
+  if (const auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
     unsigned Size = VecTy->getNumElements();
     std::stringstream Ss;
@@ -151,11 +151,8 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   // value of some SPIR-V instructions may be represented as pointer to a struct
   // in LLVM IR) we can mangle the type.
   BuiltinFuncMangleInfo MangleInfo;
-  if (Ty->isPointerTy()) {
-    assert(cast<PointerType>(const_cast<Type *>(Ty))
-               ->isOpaqueOrPointeeTypeMatches(PET));
+  if (Ty->isPointerTy())
     Ty = TypedPointerType::get(PET, Ty->getPointerAddressSpace());
-  }
   std::string MangledName =
       mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
   // Remove "_Z0"(3 characters) from the front of the name
@@ -163,7 +160,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
 }
 
 StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name) {
-  auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
+  auto *OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
   return OpaqueType;
@@ -271,7 +268,7 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
     report_fatal_error(llvm::Twine(SS.str()), false);
   }
   if (!F || F->getFunctionType() != FT) {
-    auto NewF =
+    auto *NewF =
         Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
     if (F && TakeName) {
       NewF->takeName(F);
@@ -386,7 +383,7 @@ SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target) {
 SPIRVValue *addDecorations(SPIRVValue *Target,
                            const SmallVectorImpl<std::string> &Decs) {
   for (auto &I : Decs)
-    if (auto Dec = mapPostfixToDecorate(I, Target))
+    if (auto *Dec = mapPostfixToDecorate(I, Target))
       Target->addDecorate(Dec);
   return Target;
 }
@@ -564,7 +561,7 @@ bool containsUnsignedAtomicType(StringRef Name) {
 }
 
 Constant *castToVoidFuncPtr(Function *F) {
-  auto T = getVoidFuncPtrType(F->getParent());
+  auto *T = getVoidFuncPtrType(F->getParent());
   return ConstantExpr::getBitCast(F, T);
 }
 
@@ -658,8 +655,7 @@ public:
 } // unnamed namespace
 
 static StringRef stringify(const itanium_demangle::NameType *Node) {
-  const itanium_demangle::StringView Str = Node->getName();
-  return StringRef(Str.begin(), Str.size());
+  return Node->getName();
 }
 
 /// Convert a mangled name that represents a basic integer, floating-point,
@@ -730,7 +726,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     while (true) {
       if (auto *VendorTy = dyn_cast<VendorExtQualType>(Pointee)) {
         Pointee = VendorTy->getTy();
-        StringRef Qualifier(VendorTy->getExt().begin(),
+        StringRef Qualifier(&*VendorTy->getExt().begin(),
                             VendorTy->getExt().size());
         if (Qualifier.consume_front("AS")) {
           Qualifier.getAsInteger(10, AS);
@@ -821,11 +817,12 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       assert(!HasSret && &Arg == F->getArg(0) &&
              "sret parameter should only appear on the first argument");
       HasSret = true;
+      unsigned AS = Arg.getType()->getPointerAddressSpace();
       if (auto *STy = dyn_cast<StructType>(Ty))
         ArgTys.push_back(
-            TypedPointerType::get(GetStructType(STy->getName()), 0));
+            TypedPointerType::get(GetStructType(STy->getName()), AS));
       else
-        ArgTys.push_back(TypedPointerType::get(Ty, 0));
+        ArgTys.push_back(TypedPointerType::get(Ty, AS));
     } else {
       ArgTys.push_back(Arg.getType());
     }
@@ -896,6 +893,11 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       DemangledSuccessfully = false;
     } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
+    if (auto *TPT = dyn_cast<TypedPointerType>(DemangledTy))
+      if (ArgTy->isPointerTy() &&
+          TPT->getAddressSpace() != ArgTy->getPointerAddressSpace())
+        DemangledTy = TypedPointerType::get(TPT->getElementType(),
+                                            ArgTy->getPointerAddressSpace());
     *ArgIter++ = DemangledTy;
   }
   return DemangledSuccessfully;
@@ -914,7 +916,7 @@ CallInst *mutateCallInst(
     InstName = CI->getName().str();
     CI->setName(InstName + ".old");
   }
-  auto NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
+  auto *NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
                            InstName, TakeFuncName);
   NewCI->setDebugLoc(CI->getDebugLoc());
   LLVM_DEBUG(dbgs() << " => " << *NewCI << '\n');
@@ -935,9 +937,9 @@ Instruction *mutateCallInst(
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
   StringRef InstName = CI->getName();
-  auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
+  auto *NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
                            TakeFuncName);
-  auto NewI = RetMutate(NewCI);
+  auto *NewI = RetMutate(NewCI);
   NewI->takeName(CI);
   NewI->setDebugLoc(CI->getDebugLoc());
   LLVM_DEBUG(dbgs() << " => " << *NewI << '\n');
@@ -951,9 +953,9 @@ void mutateFunction(
     Function *F,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
     BuiltinFuncMangleInfo *Mangle, AttributeList *Attrs, bool TakeFuncName) {
-  auto M = F->getParent();
+  auto *M = F->getParent();
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
-    if (auto CI = dyn_cast<CallInst>(*I++))
+    if (auto *CI = dyn_cast<CallInst>(*I++))
       mutateCallInst(M, CI, ArgMutate, Mangle, Attrs, TakeFuncName);
   }
   if (F->use_empty())
@@ -980,10 +982,10 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
                       Instruction *Pos, BuiltinFuncMangleInfo *Mangle,
                       StringRef InstName, bool TakeFuncName) {
 
-  auto F = getOrCreateFunction(M, RetTy, getTypes(Args), FuncName, Mangle,
+  auto *F = getOrCreateFunction(M, RetTy, getTypes(Args), FuncName, Mangle,
                                Attrs, TakeFuncName);
   // Cannot assign a Name to void typed values
-  auto CI = CallInst::Create(F, Args, RetTy->isVoidTy() ? "" : InstName, Pos);
+  auto *CI = CallInst::Create(F, Args, RetTy->isVoidTy() ? "" : InstName, Pos);
   CI->setCallingConv(F->getCallingConv());
   CI->setAttributes(F->getAttributes());
   return CI;
@@ -995,12 +997,9 @@ CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            Instruction *Pos, StringRef InstName) {
   BuiltinFuncMangleInfo BtnInfo;
   for (unsigned I = 0; I < PointerElementTypes.size(); I++) {
-    if (Args[I]->getType()->isPointerTy()) {
-      assert(cast<PointerType>(Args[I]->getType())
-                 ->isOpaqueOrPointeeTypeMatches(PointerElementTypes[I]));
+    if (Args[I]->getType()->isPointerTy())
       BtnInfo.getTypeMangleInfo(I).PointerTy = TypedPointerType::get(
           PointerElementTypes[I], Args[I]->getType()->getPointerAddressSpace());
-    }
   }
   return addCallInst(M, FuncName, RetTy, Args, Attrs, Pos, &BtnInfo, InstName);
 }
@@ -1015,7 +1014,7 @@ Value *addVector(Instruction *InsPos, ValueVecRange Range) {
     return *Range.first;
   assert(isValidVectorSize(VecSize) && "Invalid vector size");
   IRBuilder<> Builder(InsPos);
-  auto Vec = Builder.CreateVectorSplat(VecSize, *Range.first);
+  auto *Vec = Builder.CreateVectorSplat(VecSize, *Range.first);
   unsigned Index = 1;
   for (++Range.first; Range.first != Range.second; ++Range.first, ++Index)
     Vec = Builder.CreateInsertElement(
@@ -1026,17 +1025,17 @@ Value *addVector(Instruction *InsPos, ValueVecRange Range) {
 
 void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
                 ValueVecRange Range) {
-  auto Vec = addVector(InsPos, Range);
+  auto *Vec = addVector(InsPos, Range);
   Ops.erase(Range.first, Range.second);
   Ops.push_back(Vec);
 }
 
 Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
-  return ConstantExpr::getBitCast(V, Type::getInt8PtrTy(V->getContext(), Addr));
+  return ConstantExpr::getBitCast(V, PointerType::get(V->getContext(), Addr));
 }
 
 PointerType *getInt8PtrTy(PointerType *T) {
-  return Type::getInt8PtrTy(T->getContext(), T->getAddressSpace());
+  return PointerType::get(T->getContext(), T->getAddressSpace());
 }
 
 Value *castToInt8Ptr(Value *V, Instruction *Pos) {
@@ -1347,11 +1346,14 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
   }
   if (auto *TargetTy = dyn_cast<TargetExtType>(Ty)) {
     std::string FullName;
+    unsigned AS = 0;
     {
       raw_string_ostream OS(FullName);
       StringRef Name = TargetTy->getName();
       if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
         OS << "__spirv_" << Name;
+        AS = getOCLOpaqueTypeAddrSpace(
+            SPIRVOpaqueTypeOpCodeMap::map(Name.str()));
       } else {
         OS << Name;
       }
@@ -1362,7 +1364,12 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       for (unsigned Param : TargetTy->int_params())
         OS << "_" << Param;
     }
-    return SPIR::RefParamType(new SPIR::UserDefinedType(FullName));
+    // Translate as if it's a pointer to the named struct.
+    auto *Inner = new SPIR::UserDefinedType(FullName);
+    auto *PT = new SPIR::PointerType(Inner);
+    PT->setAddressSpace(static_cast<SPIR::TypeAttributeEnum>(
+        AS + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
+    return SPIR::RefParamType(PT);
   }
 
   if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
@@ -1371,7 +1378,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     if (isa<FunctionType>(ET)) {
       assert(isVoidFuncTy(cast<FunctionType>(ET)) && "Not supported");
       EPT = new SPIR::BlockType;
-    } else if (auto StructTy = dyn_cast<StructType>(ET)) {
+    } else if (auto *StructTy = dyn_cast<StructType>(ET)) {
       LLVM_DEBUG(dbgs() << "ptr to struct: " << *Ty << '\n');
       auto TyName = StructTy->getStructName();
       if (TyName.startswith(kSPR2TypeName::OCLPrefix)) {
@@ -1385,13 +1392,13 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       auto Prim = getOCLTypePrimitiveEnum(TyName);
       if (StructTy->isOpaque()) {
         if (TyName == "opencl.block") {
-          auto BlockTy = new SPIR::BlockType;
+          auto *BlockTy = new SPIR::BlockType;
           // Handle block with local memory arguments according to OpenCL 2.0
           // spec.
           if (Info.IsLocalArgBlock) {
             SPIR::RefParamType VoidTyRef(
                 new SPIR::PrimitiveType(SPIR::PRIMITIVE_VOID));
-            auto VoidPtrTy = new SPIR::PointerType(VoidTyRef);
+            auto *VoidPtrTy = new SPIR::PointerType(VoidTyRef);
             VoidPtrTy->setAddressSpace(SPIR::ATTR_LOCAL);
             // "__local void *"
             BlockTy->setParam(0, SPIR::RefParamType(VoidPtrTy));
@@ -1404,7 +1411,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
           if (Prim == SPIR::PRIMITIVE_PIPE_RO_T ||
               Prim == SPIR::PRIMITIVE_PIPE_WO_T) {
             SPIR::RefParamType OpaqueTyRef(new SPIR::PrimitiveType(Prim));
-            auto OpaquePtrTy = new SPIR::PointerType(OpaqueTyRef);
+            auto *OpaquePtrTy = new SPIR::PointerType(OpaqueTyRef);
             OpaquePtrTy->setAddressSpace(getOCLOpaqueTypeAddrSpace(Prim));
             EPT = OpaquePtrTy;
           } else {
@@ -1436,20 +1443,33 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   if (!V->getType()->isPointerTy())
     return V;
-  auto GEP = cast<GEPOperator>(V);
-  assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
-  assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
-  [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
-  [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
-  assert(OP1->getZExtValue() == 0);
-  assert(OP2->getZExtValue() == 0);
-  return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
+  Type *SourceTy;
+  Value *Addr;
+  if (auto *GV = dyn_cast<GlobalVariable>(V)) {
+    SourceTy = GV->getValueType();
+    Addr = GV;
+  } else if (auto *AI = dyn_cast<AllocaInst>(V)) {
+    SourceTy = AI->getAllocatedType();
+    Addr = AI;
+  } else if (auto *GEP = dyn_cast<GEPOperator>(V)) {
+    assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
+    SourceTy = GEP->getSourceElementType();
+    [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
+    [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
+    assert(OP1->getZExtValue() == 0);
+    assert(OP2->getZExtValue() == 0);
+    Addr = GEP->getOperand(0);
+  } else {
+    llvm_unreachable("Unknown array type");
+  }
+  assert(SourceTy->getArrayNumElements() == Size);
+  return new LoadInst(SourceTy, Addr, "", Pos);
 }
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
-  if (auto IT = dyn_cast<IntegerType>(T))
+  if (auto *IT = dyn_cast<IntegerType>(T))
     return ConstantInt::get(IT, V);
-  if (auto VT = dyn_cast<FixedVectorType>(T)) {
+  if (auto *VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
         getScalarOrVectorConstantInt(VT->getElementType(), V, IsSigned));
@@ -1461,7 +1481,7 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
 
 Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
                                    uint64_t V, bool IsSigned) {
-  if (auto IT = dyn_cast<IntegerType>(T)) {
+  if (auto *IT = dyn_cast<IntegerType>(T)) {
     assert(Len == 1 && "Invalid length");
     return ConstantInt::get(IT, V, IsSigned);
   }
@@ -1469,25 +1489,23 @@ Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
     unsigned PointerSize =
         Pos->getModule()->getDataLayout().getPointerTypeSizeInBits(T);
     auto *ET = Type::getIntNTy(T->getContext(), PointerSize);
-    assert(cast<PointerType>(T)->isOpaqueOrPointeeTypeMatches(ET) &&
-           "Pointer-to-non-size_t arguments are not valid for this call");
-    auto AT = ArrayType::get(ET, Len);
+    auto *AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
-    auto CA = ConstantArray::get(AT, EV);
-    auto Alloca = new AllocaInst(AT, 0, "", Pos);
+    auto *CA = ConstantArray::get(AT, EV);
+    auto *Alloca = new AllocaInst(AT, 0, "", Pos);
     new StoreInst(CA, Alloca, Pos);
-    auto Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
+    auto *Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
     Value *Index[] = {Zero, Zero};
     auto *Ret = GetElementPtrInst::CreateInBounds(AT, Alloca, Index, "", Pos);
     LLVM_DEBUG(dbgs() << "[getScalarOrArrayConstantInt] Alloca: " << *Alloca
                       << ", Return: " << *Ret << '\n');
     return Ret;
   }
-  if (auto AT = dyn_cast<ArrayType>(T)) {
-    auto ET = AT->getArrayElementType();
+  if (auto *AT = dyn_cast<ArrayType>(T)) {
+    auto *ET = AT->getArrayElementType();
     assert(AT->getArrayNumElements() == Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
-    auto Ret = ConstantArray::get(AT, EV);
+    auto *Ret = ConstantArray::get(AT, EV);
     LLVM_DEBUG(dbgs() << "[getScalarOrArrayConstantInt] Array type: " << *AT
                       << ", Return: " << *Ret << '\n');
     return Ret;
@@ -1636,8 +1654,8 @@ bool eraseIfNoUse(Function *F) {
 
   dumpUsers(F, "[eraseIfNoUse] ");
   for (auto UI = F->user_begin(), UE = F->user_end(); UI != UE;) {
-    auto U = *UI++;
-    if (auto CE = dyn_cast<ConstantExpr>(U)) {
+    auto *U = *UI++;
+    if (auto *CE = dyn_cast<ConstantExpr>(U)) {
       if (CE->use_empty()) {
         CE->dropAllReferences();
         Changed = true;
@@ -1712,7 +1730,7 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
     for (unsigned I = 0, E = BIVarArgNegative ? ArgTypes.size()
                                               : (unsigned)BtnInfo->getVarArg();
          I != E; ++I) {
-      auto T = ArgTypes[I];
+      auto *T = ArgTypes[I];
       auto MangleInfo = BtnInfo->getTypeMangleInfo(I);
       if (MangleInfo.PointerTy && T->isPointerTy()) {
         T = MangleInfo.PointerTy;
@@ -1973,19 +1991,20 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 /// are accumulated in the AccumulatedOffset parameter, which will eventually be
 /// used to figure out which index of a variable is being used.
 static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
-                                    Function *ReplacementFunc) {
+                                    Function *ReplacementFunc,
+                                    GlobalVariable *GV) {
   const DataLayout &DL = ReplacementFunc->getParent()->getDataLayout();
   SmallVector<Instruction *, 4> InstsToRemove;
   for (User *U : V->users()) {
     if (auto *Cast = dyn_cast<CastInst>(U)) {
-      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc);
+      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(Cast);
     } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
       APInt NewOffset = AccumulatedOffset.sextOrTrunc(
           DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
       if (!GEP->accumulateConstantOffset(DL, NewOffset))
         llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
-      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc);
+      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(GEP);
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
@@ -2008,7 +2027,12 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
       } else {
         // The function has an index parameter.
         if (auto *VecTy = dyn_cast<FixedVectorType>(Load->getType())) {
-          if (!Index.isZero())
+          // Reconstruct the original global variable vector because
+          // the load type may not match.
+          // global <3 x i64>, load <6 x i32>
+          VecTy = cast<FixedVectorType>(GV->getValueType());
+          if (!Index.isZero() || DL.getTypeSizeInBits(VecTy) !=
+                                     DL.getTypeSizeInBits(Load->getType()))
             llvm_unreachable("Illegal use of a SPIR-V builtin variable");
           Replacement = UndefValue::get(VecTy);
           for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
@@ -2018,6 +2042,19 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
                     Builder.CreateCall(ReplacementFunc, {Builder.getInt32(I)})),
                 Builder.getInt32(I));
           }
+          // Insert a bitcast from the reconstructed vector to the load vector
+          // type in case they are different.
+          // Input:
+          // %1 = load <6 x i32>, ptr addrspace(1) %0, align 32
+          // %2 = extractelement <6 x i32> %1, i32 0
+          // %3 = add i32 5, %2
+          // Modified:
+          // < reconstruct global vector elements 0 and 1 >
+          // %2 = insertelement <3 x i64> %0, i64 %1, i32 2
+          // %3 = bitcast <3 x i64> %2 to <6 x i32>
+          // %4 = extractelement <6 x i32> %3, i32 0
+          // %5 = add i32 5, %4
+          Replacement = Builder.CreateBitCast(Replacement, Load->getType());
         } else if (Load->getType() == ScalarTy) {
           Replacement = setAttrByCalledFunc(Builder.CreateCall(
               ReplacementFunc, {Builder.getInt32(Index.getZExtValue())}));
@@ -2071,7 +2108,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setDoesNotAccessMemory();
   }
 
-  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func);
+  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func, GV);
   return true;
 }
 
@@ -2089,6 +2126,82 @@ bool lowerBuiltinVariablesToCalls(Module *M) {
     I->eraseFromParent();
   }
 
+  return true;
+}
+
+/// Transforms SPV-IR work-item builtin calls to SPIRV builtin variables.
+/// e.g.
+///  SPV-IR: @_Z33__spirv_BuiltInGlobalInvocationIdi(i)
+///    is transformed as:
+///  x = load GlobalInvocationId; extract x, i
+/// e.g.
+///  SPV-IR: @_Z22__spirv_BuiltInWorkDim()
+///    is transformed as:
+///  load WorkDim
+bool lowerBuiltinCallsToVariables(Module *M) {
+  LLVM_DEBUG(dbgs() << "Enter lowerBuiltinCallsToVariables\n");
+  // Store instructions and functions that need to be removed.
+  SmallVector<Value *, 16> ToRemove;
+  for (auto &F : *M) {
+    // Builtins should be declaration only.
+    if (!F.isDeclaration())
+      continue;
+    StringRef DemangledName;
+    if (!oclIsBuiltin(F.getName(), DemangledName))
+      continue;
+    LLVM_DEBUG(dbgs() << "Function demangled name: " << DemangledName << '\n');
+    SmallVector<StringRef, 2> Postfix;
+    // Deprefix "__spirv_"
+    StringRef Name = dePrefixSPIRVName(DemangledName, Postfix);
+    // Lookup SPIRV Builtin map.
+    if (!SPIRVBuiltInNameMap::rfind(Name.str(), nullptr))
+      continue;
+    std::string BuiltinVarName = DemangledName.str();
+    LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
+    bool IsVec = F.getFunctionType()->getNumParams() > 0;
+    Type *GVType =
+        IsVec ? FixedVectorType::get(F.getReturnType(), 3) : F.getReturnType();
+    auto *BV = new GlobalVariable(
+        *M, GVType, /*isConstant=*/true, GlobalValue::ExternalLinkage, nullptr,
+        BuiltinVarName, 0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    for (auto *U : F.users()) {
+      auto *CI = dyn_cast<CallInst>(U);
+      assert(CI && "invalid instruction");
+      const DebugLoc &DLoc = CI->getDebugLoc();
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      if (DLoc)
+        NewValue->setDebugLoc(DLoc);
+      LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
+      if (IsVec) {
+        NewValue =
+            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        if (DLoc)
+          NewValue->setDebugLoc(DLoc);
+        LLVM_DEBUG(dbgs() << *NewValue << '\n');
+      }
+      NewValue->takeName(CI);
+      CI->replaceAllUsesWith(NewValue);
+      ToRemove.push_back(CI);
+    }
+    ToRemove.push_back(&F);
+  }
+  for (auto *V : ToRemove) {
+    if (auto *I = dyn_cast<Instruction>(V))
+      I->eraseFromParent();
+    else if (auto *F = dyn_cast<Function>(V))
+      F->eraseFromParent();
+    else
+      llvm_unreachable("Unexpected value to remove!");
+  }
+  return true;
+}
+
+bool lowerBuiltins(SPIRVModule *BM, Module *M) {
+  auto Format = BM->getBuiltinFormat();
+  if (Format == BuiltinFormat::Function && !lowerBuiltinVariablesToCalls(M))
+    return false;
+  if (Format == BuiltinFormat::Global && !lowerBuiltinCallsToVariables(M))
+    return false;
   return true;
 }
 
@@ -2345,6 +2458,14 @@ public:
       break;
     case OpSubgroupAvcSicConfigureSkcINTEL:
       addUnsignedArgs(0, 4);
+      break;
+    case OpUDotKHR:
+    case OpUDotAccSatKHR:
+      addUnsignedArg(-1);
+      break;
+    case OpSUDotKHR:
+    case OpSUDotAccSatKHR:
+      addUnsignedArg(1);
       break;
     default:;
       // No special handling is needed

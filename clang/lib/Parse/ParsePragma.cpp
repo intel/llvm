@@ -19,6 +19,7 @@
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -165,16 +166,49 @@ struct PragmaFPHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
-struct PragmaNoOpenMPHandler : public PragmaHandler {
-  PragmaNoOpenMPHandler() : PragmaHandler("omp") { }
+// A pragma handler to be the base of the NoOpenMPHandler and NoOpenACCHandler,
+// which are identical other than the name given to them, and the diagnostic
+// emitted.
+template <diag::kind IgnoredDiag>
+struct PragmaNoSupportHandler : public PragmaHandler {
+  PragmaNoSupportHandler(StringRef Name) : PragmaHandler(Name) {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &FirstToken) override;
 };
 
-struct PragmaOpenMPHandler : public PragmaHandler {
-  PragmaOpenMPHandler() : PragmaHandler("omp") { }
+struct PragmaNoOpenMPHandler
+    : public PragmaNoSupportHandler<diag::warn_pragma_omp_ignored> {
+  PragmaNoOpenMPHandler() : PragmaNoSupportHandler("omp") {}
+};
+
+struct PragmaNoOpenACCHandler
+    : public PragmaNoSupportHandler<diag::warn_pragma_acc_ignored> {
+  PragmaNoOpenACCHandler() : PragmaNoSupportHandler("acc") {}
+};
+
+// A pragma handler to be the base for the OpenMPHandler and OpenACCHandler,
+// which are identical other than the tokens used for the start/end of a pragma
+// section, and some diagnostics.
+template <tok::TokenKind StartTok, tok::TokenKind EndTok,
+          diag::kind UnexpectedDiag>
+struct PragmaSupportHandler : public PragmaHandler {
+  PragmaSupportHandler(StringRef Name) : PragmaHandler(Name) {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &FirstToken) override;
+};
+
+struct PragmaOpenMPHandler
+    : public PragmaSupportHandler<tok::annot_pragma_openmp,
+                                  tok::annot_pragma_openmp_end,
+                                  diag::err_omp_unexpected_directive> {
+  PragmaOpenMPHandler() : PragmaSupportHandler("omp") {}
+};
+
+struct PragmaOpenACCHandler
+    : public PragmaSupportHandler<tok::annot_pragma_openacc,
+                                  tok::annot_pragma_openacc_end,
+                                  diag::err_acc_unexpected_directive> {
+  PragmaOpenACCHandler() : PragmaSupportHandler("acc") {}
 };
 
 /// PragmaCommentHandler - "\#pragma comment ...".
@@ -422,6 +456,12 @@ void Parser::initializePragmaHandlers() {
     OpenMPHandler = std::make_unique<PragmaNoOpenMPHandler>();
   PP.AddPragmaHandler(OpenMPHandler.get());
 
+  if (getLangOpts().OpenACC)
+    OpenACCHandler = std::make_unique<PragmaOpenACCHandler>();
+  else
+    OpenACCHandler = std::make_unique<PragmaNoOpenACCHandler>();
+  PP.AddPragmaHandler(OpenACCHandler.get());
+
   if (getLangOpts().MicrosoftExt ||
       getTargetInfo().getTriple().isOSBinFormatELF()) {
     MSCommentHandler = std::make_unique<PragmaCommentHandler>(Actions);
@@ -540,6 +580,9 @@ void Parser::resetPragmaHandlers() {
   }
   PP.RemovePragmaHandler(OpenMPHandler.get());
   OpenMPHandler.reset();
+
+  PP.RemovePragmaHandler(OpenACCHandler.get());
+  OpenACCHandler.reset();
 
   if (getLangOpts().MicrosoftExt ||
       getTargetInfo().getTriple().isOSBinFormatELF()) {
@@ -1818,7 +1861,8 @@ void Parser::HandlePragmaAttribute() {
     ConsumeToken();
   };
 
-  if (Tok.is(tok::l_square) && NextToken().is(tok::l_square)) {
+  if ((Tok.is(tok::l_square) && NextToken().is(tok::l_square)) ||
+      Tok.isRegularKeywordAttribute()) {
     // Parse the CXX11 style attribute.
     ParseCXX11AttributeSpecifier(Attrs);
   } else if (Tok.is(tok::kw___attribute)) {
@@ -2608,42 +2652,42 @@ void PragmaOpenCLExtensionHandler::HandlePragma(Preprocessor &PP,
                                                StateLoc, State);
 }
 
-/// Handle '#pragma omp ...' when OpenMP is disabled.
-///
-void PragmaNoOpenMPHandler::HandlePragma(Preprocessor &PP,
-                                         PragmaIntroducer Introducer,
-                                         Token &FirstTok) {
-  if (!PP.getDiagnostics().isIgnored(diag::warn_pragma_omp_ignored,
-                                     FirstTok.getLocation())) {
-    PP.Diag(FirstTok, diag::warn_pragma_omp_ignored);
-    PP.getDiagnostics().setSeverity(diag::warn_pragma_omp_ignored,
-                                    diag::Severity::Ignored, SourceLocation());
+/// Handle '#pragma omp ...' when OpenMP is disabled and '#pragma acc ...' when
+/// OpenACC is disabled.
+template <diag::kind IgnoredDiag>
+void PragmaNoSupportHandler<IgnoredDiag>::HandlePragma(
+    Preprocessor &PP, PragmaIntroducer Introducer, Token &FirstTok) {
+  if (!PP.getDiagnostics().isIgnored(IgnoredDiag, FirstTok.getLocation())) {
+    PP.Diag(FirstTok, IgnoredDiag);
+    PP.getDiagnostics().setSeverity(IgnoredDiag, diag::Severity::Ignored,
+                                    SourceLocation());
   }
   PP.DiscardUntilEndOfDirective();
 }
 
-/// Handle '#pragma omp ...' when OpenMP is enabled.
-///
-void PragmaOpenMPHandler::HandlePragma(Preprocessor &PP,
-                                       PragmaIntroducer Introducer,
-                                       Token &FirstTok) {
+/// Handle '#pragma omp ...' when OpenMP is enabled, and handle '#pragma acc...'
+/// when OpenACC is enabled.
+template <tok::TokenKind StartTok, tok::TokenKind EndTok,
+          diag::kind UnexpectedDiag>
+void PragmaSupportHandler<StartTok, EndTok, UnexpectedDiag>::HandlePragma(
+    Preprocessor &PP, PragmaIntroducer Introducer, Token &FirstTok) {
   SmallVector<Token, 16> Pragma;
   Token Tok;
   Tok.startToken();
-  Tok.setKind(tok::annot_pragma_openmp);
+  Tok.setKind(StartTok);
   Tok.setLocation(Introducer.Loc);
 
   while (Tok.isNot(tok::eod) && Tok.isNot(tok::eof)) {
     Pragma.push_back(Tok);
     PP.Lex(Tok);
-    if (Tok.is(tok::annot_pragma_openmp)) {
-      PP.Diag(Tok, diag::err_omp_unexpected_directive) << 0;
+    if (Tok.is(StartTok)) {
+      PP.Diag(Tok, UnexpectedDiag) << 0;
       unsigned InnerPragmaCnt = 1;
       while (InnerPragmaCnt != 0) {
         PP.Lex(Tok);
-        if (Tok.is(tok::annot_pragma_openmp))
+        if (Tok.is(StartTok))
           ++InnerPragmaCnt;
-        else if (Tok.is(tok::annot_pragma_openmp_end))
+        else if (Tok.is(EndTok))
           --InnerPragmaCnt;
       }
       PP.Lex(Tok);
@@ -2651,7 +2695,7 @@ void PragmaOpenMPHandler::HandlePragma(Preprocessor &PP,
   }
   SourceLocation EodLoc = Tok.getLocation();
   Tok.startToken();
-  Tok.setKind(tok::annot_pragma_openmp_end);
+  Tok.setKind(EndTok);
   Tok.setLocation(EodLoc);
   Pragma.push_back(Tok);
 
@@ -4024,6 +4068,7 @@ void PragmaMaxTokensTotalHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle '#pragma clang riscv intrinsic vector'.
+//        '#pragma clang riscv intrinsic sifive_vector'.
 void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
                                       PragmaIntroducer Introducer,
                                       Token &FirstToken) {
@@ -4039,9 +4084,10 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
 
   PP.Lex(Tok);
   II = Tok.getIdentifierInfo();
-  if (!II || !II->isStr("vector")) {
+  if (!II || !(II->isStr("vector") || II->isStr("sifive_vector"))) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
-        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'vector'";
+        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true
+        << "'vector' or 'sifive_vector'";
     return;
   }
 
@@ -4052,5 +4098,8 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  Actions.DeclareRISCVVBuiltins = true;
+  if (II->isStr("vector"))
+    Actions.DeclareRISCVVBuiltins = true;
+  else if (II->isStr("sifive_vector"))
+    Actions.DeclareRISCVSiFiveVectorBuiltins = true;
 }

@@ -34,7 +34,7 @@ struct ConstantOpInterface
       return constantOp->emitError("could not infer memory space");
 
     // Only ranked tensors are supported.
-    if (!constantOp.getType().isa<RankedTensorType>())
+    if (!isa<RankedTensorType>(constantOp.getType()))
       return failure();
 
     // Only constants inside a module are supported.
@@ -58,7 +58,7 @@ struct ConstantOpInterface
   bool isWritable(Operation *op, Value value,
                   const AnalysisState &state) const {
     // Memory locations returned by memref::GetGlobalOp may not be written to.
-    assert(value.isa<OpResult>());
+    assert(isa<OpResult>(value));
     return false;
   }
 };
@@ -76,29 +76,29 @@ struct IndexCastOpInterface
     return false;
   }
 
-  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     return {{op->getResult(0), BufferRelation::Equivalent}};
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto castOp = cast<arith::IndexCastOp>(op);
-    auto resultTensorType = castOp.getType().cast<TensorType>();
+    auto resultTensorType = cast<TensorType>(castOp.getType());
 
     FailureOr<Value> source = getBuffer(rewriter, castOp.getIn(), options);
     if (failed(source))
       return failure();
-    auto sourceType = source->getType().cast<BaseMemRefType>();
+    auto sourceType = cast<BaseMemRefType>(source->getType());
 
     // Result type should have same layout and address space as the source type.
     BaseMemRefType resultType;
-    if (auto rankedMemRefType = sourceType.dyn_cast<MemRefType>()) {
+    if (auto rankedMemRefType = dyn_cast<MemRefType>(sourceType)) {
       resultType = MemRefType::get(
           rankedMemRefType.getShape(), resultTensorType.getElementType(),
           rankedMemRefType.getLayout(), rankedMemRefType.getMemorySpace());
     } else {
-      auto unrankedMemrefType = sourceType.cast<UnrankedMemRefType>();
+      auto unrankedMemrefType = cast<UnrankedMemRefType>(sourceType);
       resultType = UnrankedMemRefType::get(resultTensorType.getElementType(),
                                            unrankedMemrefType.getMemorySpace());
     }
@@ -123,8 +123,8 @@ struct SelectOpInterface
     return false;
   }
 
-  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     return {{op->getOpResult(0) /*result*/, BufferRelation::Equivalent,
              /*isDefinite=*/false}};
   }
@@ -133,6 +133,13 @@ struct SelectOpInterface
                           const BufferizationOptions &options) const {
     auto selectOp = cast<arith::SelectOp>(op);
     Location loc = selectOp.getLoc();
+
+    // Elementwise conditions are not supported yet. To bufferize such an op,
+    // it could be lowered to an elementwise "linalg.generic" with a new
+    // "tensor.empty" out tensor, followed by "empty tensor elimination". Such
+    // IR will bufferize.
+    if (!selectOp.getCondition().getType().isInteger(1))
+      return op->emitOpError("only i1 condition values are supported");
 
     // TODO: It would be more efficient to copy the result of the `select` op
     // instead of its OpOperands. In the worst case, 2 copies are inserted at
@@ -155,10 +162,12 @@ struct SelectOpInterface
           bufferization::getBufferType(selectOp.getResult(), options);
       if (failed(targetType))
         return failure();
-      trueBuffer =
-          rewriter.create<memref::CastOp>(loc, *targetType, trueBuffer);
-      falseBuffer =
-          rewriter.create<memref::CastOp>(loc, *targetType, falseBuffer);
+      if (trueBuffer.getType() != *targetType)
+        trueBuffer =
+            rewriter.create<memref::CastOp>(loc, *targetType, trueBuffer);
+      if (falseBuffer.getType() != *targetType)
+        falseBuffer =
+            rewriter.create<memref::CastOp>(loc, *targetType, falseBuffer);
     }
 
     replaceOpWithNewBufferizedOp<arith::SelectOp>(
@@ -168,13 +177,13 @@ struct SelectOpInterface
 
   FailureOr<BaseMemRefType>
   getBufferType(Operation *op, Value value, const BufferizationOptions &options,
-                const DenseMap<Value, BaseMemRefType> &fixedTypes) const {
+                SmallVector<Value> &invocationStack) const {
     auto selectOp = cast<arith::SelectOp>(op);
     assert(value == selectOp.getResult() && "invalid value");
     auto trueType = bufferization::getBufferType(selectOp.getTrueValue(),
-                                                 options, fixedTypes);
+                                                 options, invocationStack);
     auto falseType = bufferization::getBufferType(selectOp.getFalseValue(),
-                                                  options, fixedTypes);
+                                                  options, invocationStack);
     if (failed(trueType) || failed(falseType))
       return failure();
     if (*trueType == *falseType)
@@ -184,7 +193,7 @@ struct SelectOpInterface
 
     // If the buffers have different types, they differ only in their layout
     // map.
-    auto memrefType = trueType->cast<MemRefType>();
+    auto memrefType = llvm::cast<MemRefType>(*trueType);
     return getMemRefTypeWithFullyDynamicLayout(
         RankedTensorType::get(memrefType.getShape(),
                               memrefType.getElementType()),

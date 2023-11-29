@@ -13,6 +13,7 @@
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/FPUtil/PolyEval.h"
 #include "src/__support/FPUtil/multiply_add.h"
+#include "src/__support/FPUtil/rounding_mode.h"
 #include "src/__support/common.h"
 #include "src/__support/macros/optimization.h"            // LIBC_UNLIKELY
 #include "src/__support/macros/properties/cpu_features.h" // LIBC_TARGET_CPU_HAS_FMA
@@ -25,7 +26,7 @@
 #include "range_reduction.h"
 #endif
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
   using FPBits = typename fputil::FPBits<float>;
@@ -126,7 +127,7 @@ LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
 
   if (LIBC_UNLIKELY(x_abs == 0x4619'9998U)) { // x = 0x1.33333p13
     float r = -0x1.63f4bap-2f;
-    int rounding = fputil::get_round();
+    int rounding = fputil::quick_get_round();
     bool sign = xbits.get_sign();
     if ((rounding == FE_DOWNWARD && !sign) || (rounding == FE_UPWARD && sign))
       r = -0x1.63f4bcp-2f;
@@ -154,4 +155,4 @@ LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
       sin_y, cos_k, fputil::multiply_add(cosm1_y, sin_k, sin_k)));
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

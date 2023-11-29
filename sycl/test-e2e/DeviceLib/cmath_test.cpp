@@ -1,12 +1,15 @@
-// UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-builtin %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: hip
+// RUN: %{build} -fno-builtin %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
+//
+// // Check that --fast-math works with cmath funcs for CUDA
+// RUN: %if cuda %{ %{build} -fno-builtin %{mathflags} -o %t.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if cuda %{ %{run} %t.out %}
 
 #include "math_utils.hpp"
 #include <cmath>
@@ -18,12 +21,12 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 59
+#define TEST_NUM 61
 
-float ref[TEST_NUM] = {1, 0, 0,   0,   0,   0,   0, 1, 1, 0.5, 0, 0, 1, 0, 2,
-                       0, 0, 0,   0,   0,   1,   0, 1, 2, 0,   1, 2, 5, 0, 0,
-                       0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0,   0, 0, 0, 0, 0,
-                       0, 0, 0,   0,   0,   0,   0, 0, 0, 0,   0, 0, 0, 0};
+float ref[TEST_NUM] = {1, 0, 1,   1,   0,   0,   0, 0, 0, 1, 1, 0.5, 0, 0, 1, 0,
+                       2, 0, 0,   0,   0,   0,   1, 0, 1, 2, 0, 1,   2, 5, 0, 0,
+                       0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,   0, 0, 0, 0,
+                       0, 0, 0,   0,   0,   0,   0, 0, 0, 0, 0, 0,   0};
 
 float refIptr = 1;
 
@@ -55,6 +58,8 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
 
         res_access[i++] = std::cos(0.0f);
         res_access[i++] = std::sin(0.0f);
+        res_access[i++] = std::round(1.0f);
+        res_access[i++] = std::floor(1.0f);
         res_access[i++] = std::log(1.0f);
         res_access[i++] = std::acos(1.0f);
         res_access[i++] = std::asin(0.0f);
@@ -93,6 +98,9 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
 
         res_access[i++] = !(std::signbit(infinity) == 0);
         res_access[i++] = !(std::signbit(minus_infinity) != 0);
+
+#ifndef SYCL_E2E_FASTMATH
+        // -ffast-math is not guaranteed to correctly detect nan etc.
         res_access[i++] = !(std::isunordered(minus_nan, nan) != 0);
         res_access[i++] = !(std::isunordered(minus_infinity, infinity) == 0);
         res_access[i++] = !(std::isgreater(minus_infinity, infinity) == 0);
@@ -114,6 +122,11 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         res_access[i++] = !(std::isnormal(minus_infinity) == 0);
         res_access[i++] = !(std::isnormal(subnormal) == 0);
         res_access[i++] = !(std::isnormal(1.0f) != 0);
+#else
+        for (; i < static_cast<int>(TEST_NUM);) {
+          res_access[i++] = 0;
+        }
+#endif
       });
     });
   }

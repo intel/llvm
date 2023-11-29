@@ -7,11 +7,10 @@
 // - test that specialization constant values can be set through kernel_bundle
 //   API and correctly retrieved within a kernel
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out \
-// RUN:          -fsycl-dead-args-optimization
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{run} %t.out
 // FIXME: ACC devices use emulation path, which is not yet supported
+// UNSUPPORTED: accelerator
 // UNSUPPORTED: hip
 
 #include <cstdlib>
@@ -103,18 +102,17 @@ bool test_default_values(sycl::queue q) {
     });
   });
 
-  auto int_acc = int_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc(int_buffer, sycl::read_only);
   if (!check_value(
           0, int_acc[0],
           "integer specialization constant (defined without default value)"))
     return false;
 
-  auto float_acc = float_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor float_acc(float_buffer, sycl::read_only);
   if (!check_value(3.14f, float_acc[0], "float specialization constant"))
     return false;
 
-  auto custom_type_acc =
-      custom_type_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor custom_type_acc(custom_type_buffer, sycl::read_only);
   const custom_type custom_type_ref;
   if (!check_value(custom_type_ref, custom_type_acc[0],
                    "custom_type specialization constant"))
@@ -246,18 +244,17 @@ bool test_set_and_get_on_device(sycl::queue q) {
     });
   });
 
-  auto int_acc = int_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc(int_buffer, sycl::read_only);
   if (!check_value(new_int_value, int_acc[0],
                    "integer specialization constant"))
     return false;
 
-  auto float_acc = float_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor float_acc(float_buffer, sycl::read_only);
   if (!check_value(new_float_value, float_acc[0],
                    "float specialization constant"))
     return false;
 
-  auto custom_type_acc =
-      custom_type_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor custom_type_acc(custom_type_buffer, sycl::read_only);
   if (!check_value(new_custom_type_value, custom_type_acc[0],
                    "custom_type specialization constant"))
     return false;
@@ -266,9 +263,32 @@ bool test_set_and_get_on_device(sycl::queue q) {
 }
 
 bool test_native_specialization_constant(sycl::queue q) {
+  {
+    q.submit([&](sycl::handler &cgh) {
+      cgh.single_task<class Kernel>([=](sycl::kernel_handler h) {
+        h.get_specialization_constant<int_id>();
+      });
+    });
+
+    auto inputBundle =
+        sycl::get_kernel_bundle<class Kernel, sycl::bundle_state::input>(
+            q.get_context(), {q.get_device()});
+    auto objectBundle = sycl::compile(inputBundle);
+    auto execBundleViaLink = sycl::link(objectBundle);
+    auto BE = q.get_backend();
+    bool expected = (BE == sycl::backend::opencl ||
+                     BE == sycl::backend::ext_oneapi_level_zero)
+                        ? true
+                        : false;
+    if (!check_value(expected,
+                     execBundleViaLink.native_specialization_constant(),
+                     "linked bundle native specialization constant"))
+      return false;
+  }
+
   const auto always_false_selector = [](auto device_image) { return false; };
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       q.get_context(), always_false_selector);
-  return check_value(bundle.native_specialization_constant(), false,
+  return check_value(false, bundle.native_specialization_constant(),
                      "empty bundle native specialization constant");
 }

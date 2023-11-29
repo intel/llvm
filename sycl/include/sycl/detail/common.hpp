@@ -8,21 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                   // for pi_int32
 
-#include <cstdint>
-#include <string>
+#include <array>       // for array
+#include <cassert>     // for assert
+#include <cstddef>     // for size_t
+#include <string>      // for allocator, operator+
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_sequence, make_i...
 
 // Default signature enables the passing of user code location information to
-// public methods as a default argument. If the end-user wants to disable the
-// code location information, they must compile the code with
-// -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
+// public methods as a default argument.
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // The check for output iterator is commented out as it blocks set_final_data
@@ -30,12 +30,12 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+using EnableIfOutputPointerT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
+using EnableIfOutputIteratorT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -96,29 +96,6 @@ private:
   unsigned long MColumnNo;
 };
 
-// The C++ FE may instrument user calls with code location metadata.
-// If it does then that will appear as an extra last argument.
-// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc).
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAMDEF(a) , const detail::code_location a
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
-
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
 /// the code location information where the SYCL API was called by the
@@ -171,23 +148,15 @@ private:
   bool MLocalScope = true;
 };
 
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
 
-static inline std::string codeToString(pi_int32 code) {
+inline std::string codeToString(pi_int32 code) {
   return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
                      ")");
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -282,43 +251,8 @@ static inline std::string codeToString(pi_int32 code) {
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-
-// Helper function for extracting implementation from SYCL's interface objects.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-//
-// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
-// may not recognize the usage of this function in friend member declarations
-// if the template parameter name there is not equal to the name used here,
-// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
-// would trigger that error in MSVC:
-//   template <class T>
-//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
-template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
-  assert(SyclObject.impl && "every constructor should create an impl");
-  return SyclObject.impl;
-}
-
-// Returns the raw pointer to the impl object of given face object. The caller
-// must make sure the returned pointer is not captured in a field or otherwise
-// stored - i.e. must live only as on-stack value.
-template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-getRawSyclObjImpl(const T &SyclObject) {
-  return SyclObject.impl.get();
-}
-
-// Helper function for creation SYCL interface objects from implementations.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
-  return T(ImplObj);
-}
-
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
@@ -437,15 +371,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-// Kernel set ID, used to group kernels (represented by OSModule & kernel name
-// pairs) into disjoint sets based on the kernel distribution among device
-// images.
-using KernelSetId = size_t;
-// Kernel set ID for kernels contained within the SPIR-V file specified via
-// environment.
-constexpr KernelSetId SpvFileKSId = 0;
-constexpr KernelSetId LastKSId = SpvFileKSId;
-
 template <typename T> struct InlineVariableHelper {
   static constexpr T value{};
 };
@@ -519,5 +444,5 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

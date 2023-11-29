@@ -14,6 +14,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -45,8 +46,10 @@ OptionEnumMapping<
           {readability::IdentifierNamingCheck::CT_CamelSnakeCase,
            "Camel_Snake_Case"},
           {readability::IdentifierNamingCheck::CT_CamelSnakeBack,
-           "camel_Snake_Back"}};
-  return llvm::ArrayRef(Mapping);
+           "camel_Snake_Back"},
+          {readability::IdentifierNamingCheck::CT_LeadingUpperSnakeCase,
+           "Leading_upper_snake_case"}};
+  return {Mapping};
 }
 
 template <>
@@ -61,7 +64,7 @@ struct OptionEnumMapping<
         {HungarianPrefixType::HPT_On, "On"},
         {HungarianPrefixType::HPT_LowerCase, "LowerCase"},
         {HungarianPrefixType::HPT_CamelCase, "CamelCase"}};
-    return llvm::ArrayRef(Mapping);
+    return {Mapping};
   }
 };
 
@@ -121,6 +124,7 @@ namespace readability {
     m(TypeAlias) \
     m(MacroDefinition) \
     m(ObjcIvar) \
+    m(Concept) \
 
 enum StyleKind : int {
 #define ENUMERATE(v) SK_ ## v,
@@ -337,10 +341,10 @@ std::string IdentifierNamingCheck::HungarianNotation::getDeclTypeName(
         Type.replace(Pos, Kw.size(), "");
       }
     }
-    TypeName = Type.erase(0, Type.find_first_not_of(" "));
+    TypeName = Type.erase(0, Type.find_first_not_of(' '));
 
     // Remove template parameters
-    const size_t Pos = Type.find("<");
+    const size_t Pos = Type.find('<');
     if (Pos != std::string::npos) {
       TypeName = Type.erase(Pos, Type.size() - Pos);
     }
@@ -377,14 +381,14 @@ std::string IdentifierNamingCheck::HungarianNotation::getDeclTypeName(
       }
     }
 
-    TypeName = Type.erase(0, Type.find_first_not_of(" "));
+    TypeName = Type.erase(0, Type.find_first_not_of(' '));
     if (!RedundantRemoved) {
-      std::size_t FoundSpace = Type.find(" ");
+      std::size_t FoundSpace = Type.find(' ');
       if (FoundSpace != std::string::npos)
         Type = Type.substr(0, FoundSpace);
     }
 
-    TypeName = Type.erase(0, Type.find_first_not_of(" "));
+    TypeName = Type.erase(0, Type.find_first_not_of(' '));
 
     QualType QT = VD->getType();
     if (!QT.isNull() && QT->isArrayType())
@@ -396,7 +400,7 @@ std::string IdentifierNamingCheck::HungarianNotation::getDeclTypeName(
 
 IdentifierNamingCheck::IdentifierNamingCheck(StringRef Name,
                                              ClangTidyContext *Context)
-    : RenamerClangTidyCheck(Name, Context), Context(Context), CheckName(Name),
+    : RenamerClangTidyCheck(Name, Context), Context(Context),
       GetConfigPerFile(Options.get("GetConfigPerFile", true)),
       IgnoreFailedSplit(Options.get("IgnoreFailedSplit", false)) {
 
@@ -586,7 +590,7 @@ std::string IdentifierNamingCheck::HungarianNotation::getDataTypePrefix(
       if (PrefixStr.empty())
         PrefixStr = HNOption.DerivedType.lookup("Array");
     } else if (QT->isReferenceType()) {
-      size_t Pos = ModifiedTypeName.find_last_of("&");
+      size_t Pos = ModifiedTypeName.find_last_of('&');
       if (Pos != std::string::npos)
         ModifiedTypeName = ModifiedTypeName.substr(0, Pos);
     }
@@ -648,12 +652,12 @@ std::string IdentifierNamingCheck::HungarianNotation::getClassPrefix(
 
 std::string IdentifierNamingCheck::HungarianNotation::getEnumPrefix(
     const EnumConstantDecl *ECD) const {
-  const EnumDecl *ED = cast<EnumDecl>(ECD->getDeclContext());
+  const auto *ED = cast<EnumDecl>(ECD->getDeclContext());
 
   std::string Name = ED->getName().str();
   if (std::string::npos != Name.find("enum")) {
     Name = Name.substr(strlen("enum"), Name.length() - strlen("enum"));
-    Name = Name.erase(0, Name.find_first_not_of(" "));
+    Name = Name.erase(0, Name.find_first_not_of(' '));
   }
 
   static llvm::Regex Splitter(
@@ -671,13 +675,13 @@ std::string IdentifierNamingCheck::HungarianNotation::getEnumPrefix(
       if (!Splitter.match(Substr, &Groups))
         break;
 
-      if (Groups[2].size() > 0) {
+      if (!Groups[2].empty()) {
         Words.push_back(Groups[1]);
         Substr = Substr.substr(Groups[0].size());
-      } else if (Groups[3].size() > 0) {
+      } else if (!Groups[3].empty()) {
         Words.push_back(Groups[3]);
         Substr = Substr.substr(Groups[0].size() - Groups[4].size());
-      } else if (Groups[5].size() > 0) {
+      } else if (!Groups[5].empty()) {
         Words.push_back(Groups[5]);
         Substr = Substr.substr(Groups[0].size() - Groups[6].size());
       }
@@ -868,8 +872,9 @@ bool IdentifierNamingCheck::matchesStyle(
       llvm::Regex("^[a-z][a-zA-Z0-9]*$"),
       llvm::Regex("^[A-Z][A-Z0-9_]*$"),
       llvm::Regex("^[A-Z][a-zA-Z0-9]*$"),
-      llvm::Regex("^[A-Z]([a-z0-9]*(_[A-Z])?)*"),
-      llvm::Regex("^[a-z]([a-z0-9]*(_[A-Z])?)*"),
+      llvm::Regex("^[A-Z]+([a-z0-9]*_[A-Z0-9]+)*[a-z0-9]*$"),
+      llvm::Regex("^[a-z]+([a-z0-9]*_[A-Z0-9]+)*[a-z0-9]*$"),
+      llvm::Regex("^[A-Z]([a-z0-9_]*[a-z])*$"),
   };
 
   if (!Name.consume_front(Style.Prefix))
@@ -912,13 +917,13 @@ std::string IdentifierNamingCheck::fixupWithCase(
       if (!Splitter.match(Substr, &Groups))
         break;
 
-      if (Groups[2].size() > 0) {
+      if (!Groups[2].empty()) {
         Words.push_back(Groups[1]);
         Substr = Substr.substr(Groups[0].size());
-      } else if (Groups[3].size() > 0) {
+      } else if (!Groups[3].empty()) {
         Words.push_back(Groups[3]);
         Substr = Substr.substr(Groups[0].size() - Groups[4].size());
-      } else if (Groups[5].size() > 0) {
+      } else if (!Groups[5].empty()) {
         Words.push_back(Groups[5]);
         Substr = Substr.substr(Groups[0].size() - Groups[6].size());
       }
@@ -990,6 +995,18 @@ std::string IdentifierNamingCheck::fixupWithCase(
         Fixup += tolower(Word.front());
       }
       Fixup += Word.substr(1).lower();
+    }
+    break;
+
+  case IdentifierNamingCheck::CT_LeadingUpperSnakeCase:
+    for (auto const &Word : Words) {
+      if (&Word != &Words.front()) {
+        Fixup += "_";
+        Fixup += Word.lower();
+      } else {
+        Fixup += toupper(Word.front());
+        Fixup += Word.substr(1).lower();
+      }
     }
     break;
   }
@@ -1135,34 +1152,34 @@ StyleKind IdentifierNamingCheck::findStyleKind(
     return SK_Invalid;
   }
 
-  if (const auto *Decl = dyn_cast<CXXRecordDecl>(D)) {
+  if (const auto *Decl = dyn_cast<RecordDecl>(D)) {
     if (Decl->isAnonymousStructOrUnion())
       return SK_Invalid;
 
-    if (!Decl->getCanonicalDecl()->isThisDeclarationADefinition())
-      return SK_Invalid;
+    if (const auto *Definition = Decl->getDefinition()) {
+      if (const auto *CxxRecordDecl = dyn_cast<CXXRecordDecl>(Definition)) {
+        if (CxxRecordDecl->isAbstract() && NamingStyles[SK_AbstractClass])
+          return SK_AbstractClass;
+      }
 
-    if (Decl->hasDefinition() && Decl->isAbstract() &&
-        NamingStyles[SK_AbstractClass])
-      return SK_AbstractClass;
+      if (Definition->isStruct() && NamingStyles[SK_Struct])
+        return SK_Struct;
 
-    if (Decl->isStruct() && NamingStyles[SK_Struct])
-      return SK_Struct;
+      if (Definition->isStruct() && NamingStyles[SK_Class])
+        return SK_Class;
 
-    if (Decl->isStruct() && NamingStyles[SK_Class])
-      return SK_Class;
+      if (Definition->isClass() && NamingStyles[SK_Class])
+        return SK_Class;
 
-    if (Decl->isClass() && NamingStyles[SK_Class])
-      return SK_Class;
+      if (Definition->isClass() && NamingStyles[SK_Struct])
+        return SK_Struct;
 
-    if (Decl->isClass() && NamingStyles[SK_Struct])
-      return SK_Struct;
+      if (Definition->isUnion() && NamingStyles[SK_Union])
+        return SK_Union;
 
-    if (Decl->isUnion() && NamingStyles[SK_Union])
-      return SK_Union;
-
-    if (Decl->isEnum() && NamingStyles[SK_Enum])
-      return SK_Enum;
+      if (Definition->isEnum() && NamingStyles[SK_Enum])
+        return SK_Enum;
+    }
 
     return SK_Invalid;
   }
@@ -1375,6 +1392,9 @@ StyleKind IdentifierNamingCheck::findStyleKind(
     return SK_Invalid;
   }
 
+  if (isa<ConceptDecl>(D) && NamingStyles[SK_Concept])
+    return SK_Concept;
+
   return SK_Invalid;
 }
 
@@ -1461,6 +1481,7 @@ IdentifierNamingCheck::getStyleForFile(StringRef FileName) const {
   if (Iter != NamingStylesCache.end())
     return Iter->getValue();
 
+  llvm::StringRef CheckName = getID();
   ClangTidyOptions Options = Context->getOptionsForFile(FileName);
   if (Options.Checks && GlobList(*Options.Checks).contains(CheckName)) {
     auto It = NamingStylesCache.try_emplace(

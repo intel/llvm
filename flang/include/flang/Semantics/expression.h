@@ -352,7 +352,6 @@ private:
       const parser::ProcComponentRef &, ActualArguments &&, bool isSubroutine);
   std::optional<characteristics::Procedure> CheckCall(
       parser::CharBlock, const ProcedureDesignator &, ActualArguments &);
-  bool CheckPPCIntrinsic(const ProcedureDesignator &, ActualArguments &);
   using AdjustActuals =
       std::optional<std::function<bool(const Symbol &, ActualArguments &)>>;
   bool ResolveForward(const Symbol &);
@@ -381,6 +380,7 @@ private:
   }
   bool CheckIsValidForwardReference(const semantics::DerivedTypeSpec &);
   MaybeExpr AnalyzeComplex(MaybeExpr &&re, MaybeExpr &&im, const char *what);
+  std::optional<Chevrons> AnalyzeChevrons(const parser::CallStmt &);
 
   MaybeExpr IterativelyAnalyzeSubexpressions(const parser::Expr &);
 

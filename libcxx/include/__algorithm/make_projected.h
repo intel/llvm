@@ -32,13 +32,14 @@ struct _ProjectedPred {
   _Pred& __pred; // Can be a unary or a binary predicate.
   _Proj& __proj;
 
-  _LIBCPP_CONSTEXPR _ProjectedPred(_Pred& __pred_arg, _Proj& __proj_arg) : __pred(__pred_arg), __proj(__proj_arg) {}
+  _LIBCPP_CONSTEXPR _LIBCPP_HIDE_FROM_ABI _ProjectedPred(_Pred& __pred_arg, _Proj& __proj_arg)
+      : __pred(__pred_arg), __proj(__proj_arg) {}
 
   template <class _Tp>
   typename __invoke_of<_Pred&,
                        decltype(std::__invoke(std::declval<_Proj&>(), std::declval<_Tp>()))
   >::type
-  _LIBCPP_CONSTEXPR operator()(_Tp&& __v) const {
+  _LIBCPP_CONSTEXPR _LIBCPP_HIDE_FROM_ABI operator()(_Tp&& __v) const {
     return std::__invoke(__pred, std::__invoke(__proj, std::forward<_Tp>(__v)));
   }
 
@@ -47,7 +48,7 @@ struct _ProjectedPred {
                        decltype(std::__invoke(std::declval<_Proj&>(), std::declval<_T1>())),
                        decltype(std::__invoke(std::declval<_Proj&>(), std::declval<_T2>()))
   >::type
-  _LIBCPP_CONSTEXPR operator()(_T1&& __lhs, _T2&& __rhs) const {
+  _LIBCPP_CONSTEXPR _LIBCPP_HIDE_FROM_ABI operator()(_T1&& __lhs, _T2&& __rhs) const {
     return std::__invoke(__pred,
                       std::__invoke(__proj, std::forward<_T1>(__lhs)),
                       std::__invoke(__proj, std::forward<_T2>(__rhs)));
@@ -95,7 +96,7 @@ decltype(auto) __make_projected_comp(_Comp& __comp, _Proj1& __proj1, _Proj2& __p
     return __comp;
 
   } else {
-    return [&](auto&& __lhs, auto&& __rhs) {
+    return [&](auto&& __lhs, auto&& __rhs) -> bool {
       return std::invoke(__comp,
                         std::invoke(__proj1, std::forward<decltype(__lhs)>(__lhs)),
                         std::invoke(__proj2, std::forward<decltype(__rhs)>(__rhs)));

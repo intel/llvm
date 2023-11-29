@@ -172,7 +172,7 @@
 class MockScheduler;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class queue_impl;
 class event_impl;
@@ -367,9 +367,16 @@ public:
   /// It's called by SYCL's queue.submit.
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
+  /// \param Queue Queue that is registering the command-group.
+  /// \param CommandBuffer Optional command buffer to enqueue to instead of
+  /// directly to the queue.
+  /// \param Dependencies Optional list of dependency
+  /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     const QueueImplPtr &Queue);
+  EventImplPtr
+  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -431,6 +438,8 @@ public:
 
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
+  /// \return true if an instance of the scheduler object exists.
+  static bool isInstanceAlive();
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
@@ -442,6 +451,8 @@ public:
 
   void startFusion(QueueImplPtr Queue);
 
+  void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
+
   void cancelFusion(QueueImplPtr Queue);
 
   EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
@@ -450,7 +461,7 @@ public:
 
   Scheduler();
   ~Scheduler();
-  void releaseResources();
+  void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
   void enqueueCommandForCG(EventImplPtr NewEvent,
@@ -481,9 +492,32 @@ protected:
     return Lock;
   }
 
+  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
+  /// avoidance to the Fusion map
+  WriteLockT acquireFusionWriteLock() {
+#ifdef _WIN32
+    WriteLockT Lock(MFusionMapLock, std::defer_lock);
+    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
+      // Without yield while loop acts like endless while loop and occupies the
+      // whole CPU when multiple command groups are created in multiple host
+      // threads
+      std::this_thread::yield();
+    }
+#else
+    WriteLockT Lock(MFusionMapLock);
+    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+    // try_lock in the loop above will be executed, so using a single lock here
+#endif // _WIN32
+    return Lock;
+  }
+
   /// Provides shared access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
+
+  /// Provides shared access to std::shared_timed_mutex object with deadlock
+  /// avoidance to the Fusion map
+  ReadLockT acquireFusionReadLock() { return ReadLockT{MFusionMapLock}; }
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
@@ -526,13 +560,19 @@ protected:
     /// Registers \ref CG "command group" and adds it to the dependency graph.
     ///
     /// \sa queue::submit, Scheduler::addCG
+    /// \param CommandBuffer Optional command buffer to enqueue to instead of
+    /// directly to the queue.
+    /// \param Dependencies Optional list of dependency
+    /// sync points when enqueuing to a command buffer.
     ///
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup,
-                           const QueueImplPtr &Queue,
-                           std::vector<Command *> &ToEnqueue);
+    GraphBuildResult addCG(
+        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+        std::vector<Command *> &ToEnqueue,
+        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
+        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -613,6 +653,10 @@ protected:
                              std::vector<Command *> &ToCleanUp);
 
     void startFusion(QueueImplPtr Queue);
+
+    /// Clean up the internal fusion commands held for the given queue.
+    /// @param Queue the queue for which to remove the fusion commands.
+    void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
 
     void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
 
@@ -857,6 +901,7 @@ protected:
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
+  RWLockT MFusionMapLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
@@ -869,21 +914,6 @@ protected:
   std::mutex MAuxiliaryResourcesMutex;
 
   QueueImplPtr DefaultHostQueue;
-
-  // This thread local flag is a workaround for a problem with managing
-  // auxiliary resources. We would like to release internal buffers used for
-  // reductions in a deferred manner, but marking them individually isn't an
-  // option since all auxiliary resources (buffers, host memory, USM) are passed
-  // to the library as type erased shared pointers. This flag makes it so that
-  // release of every memory object is deferred while it's set, and it should
-  // only be set during release of auxiliary resources.
-  // TODO Remove once ABI breaking changes are allowed.
-  friend class SYCLMemObjT;
-  static thread_local bool ForceDeferredMemObjRelease;
-  struct ForceDeferredReleaseWrapper {
-    ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = true; };
-    ~ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = false; };
-  };
 
   friend class Command;
   friend class DispatchHostTask;
@@ -898,5 +928,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

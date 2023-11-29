@@ -1,15 +1,14 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-//
 // Test not intended to run on PVC
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-pvc
+//
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 //
 // Check that full compilation works:
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
-// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
 // VISALTO enable run
-// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 /* Tests invoke_simd support in the compiler/headers
  * Test checks support for different subgroup sizes in combination with
@@ -20,6 +19,7 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include "../../invoke_simd_utils.hpp"
 #include "Inputs/common.hpp"
 
 int main(void) {
@@ -27,6 +27,7 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+
   bool passed = true;
 
   // simd_size 8

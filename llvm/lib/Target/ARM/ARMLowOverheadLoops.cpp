@@ -60,7 +60,6 @@
 #include "Thumb2InstrInfo.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -426,11 +425,6 @@ namespace {
     // Check that any values available outside of the loop will be the same
     // after tail predication conversion.
     bool ValidateLiveOuts();
-
-    // Is it safe to define LR with DLS/WLS?
-    // LR can be defined if it is the operand to start, because it's the same
-    // value, or if it's going to be equivalent to the operand to Start.
-    MachineInstr *isSafeToDefineLR();
 
     // Check the branch targets are within range and we satisfy our
     // restrictions.

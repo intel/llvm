@@ -1,12 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp64
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
 
@@ -60,11 +57,6 @@ int main(int, char **) {
   std::cout << "Running on "
             << device_queue.get_device().get_info<s::info::device::name>()
             << "\n";
-  if (!device_queue.get_device().has(sycl::aspect::fp64)) {
-    std::cout << "Test skipped on platform without fp64 support." << std::endl;
-    return 0;
-  }
-
   {
     std::initializer_list<double> input_vals = {0.0,
                                                 2.5,

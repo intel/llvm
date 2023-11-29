@@ -108,9 +108,17 @@ ScriptedProcess::ScriptedProcess(lldb::TargetSP target_sp,
   ExecutionContext exe_ctx(target_sp, /*get_process=*/false);
 
   // Create process script object
-  StructuredData::GenericSP object_sp = GetInterface().CreatePluginObject(
+  auto obj_or_err = GetInterface().CreatePluginObject(
       m_scripted_metadata.GetClassName(), exe_ctx,
       m_scripted_metadata.GetArgsSP());
+
+  if (!obj_or_err) {
+    llvm::consumeError(obj_or_err.takeError());
+    error.SetErrorString("Failed to create script object.");
+    return;
+  }
+
+  StructuredData::GenericSP object_sp = *obj_or_err;
 
   if (!object_sp || !object_sp->IsValid()) {
     error.SetErrorStringWithFormat("ScriptedProcess::%s () - ERROR: %s",
@@ -122,6 +130,12 @@ ScriptedProcess::ScriptedProcess(lldb::TargetSP target_sp,
 
 ScriptedProcess::~ScriptedProcess() {
   Clear();
+  // If the interface is not valid, we can't call Finalize(). When that happens
+  // it means that the Scripted Process instanciation failed and the
+  // CreateProcess function returns a nullptr, so no one besides this class
+  // should have access to that bogus process object.
+  if (!m_interface_up)
+    return;
   // We need to call finalize on the process before destroying ourselves to
   // make sure all of the broadcaster cleanup goes as planned. If we destruct
   // this class, then Process::~Process() might have problems trying to fully
@@ -150,22 +164,15 @@ Status ScriptedProcess::DoLoadCore() {
 
 Status ScriptedProcess::DoLaunch(Module *exe_module,
                                  ProcessLaunchInfo &launch_info) {
-  /* FIXME: This doesn't reflect how lldb actually launches a process.
-           In reality, it attaches to debugserver, then resume the process. */
+  LLDB_LOGF(GetLog(LLDBLog::Process), "ScriptedProcess::%s launching process", __FUNCTION__);
+  
+  /* MARK: This doesn't reflect how lldb actually launches a process.
+           In reality, it attaches to debugserver, then resume the process.
+           That's not true in all cases.  If debugserver is remote, lldb
+           asks debugserver to launch the process for it. */
   Status error = GetInterface().Launch();
-  SetPrivateState(eStateRunning);
-
-  if (error.Fail())
-    return error;
-
-  // TODO: Fetch next state from stopped event queue then send stop event
-  //  const StateType state = SetThreadStopInfo(response);
-  //  if (state != eStateInvalid) {
-  //    SetPrivateState(state);
-
   SetPrivateState(eStateStopped);
-
-  return {};
+  return error;
 }
 
 void ScriptedProcess::DidLaunch() { m_pid = GetInterface().GetProcessID(); }
@@ -173,29 +180,12 @@ void ScriptedProcess::DidLaunch() { m_pid = GetInterface().GetProcessID(); }
 void ScriptedProcess::DidResume() {
   // Update the PID again, in case the user provided a placeholder pid at launch
   m_pid = GetInterface().GetProcessID();
-  GetLoadedDynamicLibrariesInfos();
 }
 
 Status ScriptedProcess::DoResume() {
-  Log *log = GetLog(LLDBLog::Process);
-  // FIXME: Fetch data from thread.
-  const StateType thread_resume_state = eStateRunning;
-  LLDB_LOGF(log, "ScriptedProcess::%s thread_resume_state = %s", __FUNCTION__,
-            StateAsCString(thread_resume_state));
+  LLDB_LOGF(GetLog(LLDBLog::Process), "ScriptedProcess::%s resuming process", __FUNCTION__);
 
-  bool resume = (thread_resume_state == eStateRunning);
-  assert(thread_resume_state == eStateRunning && "invalid thread resume state");
-
-  Status error;
-  if (resume) {
-    LLDB_LOGF(log, "ScriptedProcess::%s sending resume", __FUNCTION__);
-
-    SetPrivateState(eStateRunning);
-    SetPrivateState(eStateStopped);
-    error = GetInterface().Resume();
-  }
-
-  return error;
+  return GetInterface().Resume();
 }
 
 Status ScriptedProcess::DoAttach(const ProcessAttachInfo &attach_info) {
@@ -224,19 +214,6 @@ Status ScriptedProcess::DoAttachToProcessWithName(
 
 void ScriptedProcess::DidAttach(ArchSpec &process_arch) {
   process_arch = GetArchitecture();
-}
-
-Status ScriptedProcess::DoStop() {
-  Log *log = GetLog(LLDBLog::Process);
-
-  if (GetInterface().ShouldStop()) {
-    SetPrivateState(eStateStopped);
-    LLDB_LOGF(log, "ScriptedProcess::%s Immediate stop", __FUNCTION__);
-    return {};
-  }
-
-  LLDB_LOGF(log, "ScriptedProcess::%s Delayed stop", __FUNCTION__);
-  return GetInterface().Stop();
 }
 
 Status ScriptedProcess::DoDestroy() { return Status(); }
@@ -283,6 +260,23 @@ size_t ScriptedProcess::DoWriteMemory(lldb::addr_t vm_addr, const void *buf,
   // `bytes_written` is different from `size`.
 
   return bytes_written;
+}
+
+Status ScriptedProcess::EnableBreakpointSite(BreakpointSite *bp_site) {
+  assert(bp_site != nullptr);
+
+  if (bp_site->IsEnabled()) {
+    return {};
+  }
+
+  if (bp_site->HardwareRequired()) {
+    return Status("Scripted Processes don't support hardware breakpoints");
+  }
+
+  Status error;
+  GetInterface().CreateBreakpoint(bp_site->GetLoadAddress(), error);
+
+  return error;
 }
 
 ArchSpec ScriptedProcess::GetArchitecture() {
@@ -476,7 +470,7 @@ ScriptedProcess::GetLoadedDynamicLibrariesInfos() {
       return error_with_message("Couldn't create or get module.");
 
     lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
-    lldb::addr_t slide = LLDB_INVALID_OFFSET;
+    lldb::offset_t slide = LLDB_INVALID_OFFSET;
     dict->GetValueForKeyAsInteger("load_addr", load_addr);
     dict->GetValueForKeyAsInteger("slide", slide);
     if (load_addr == LLDB_INVALID_ADDRESS)

@@ -134,7 +134,8 @@ void AMDGPUMCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) const {
     OutMI.addOperand(Dest);
     OutMI.addOperand(Src);
     return;
-  } else if (Opcode == AMDGPU::SI_TCRETURN) {
+  } else if (Opcode == AMDGPU::SI_TCRETURN ||
+             Opcode == AMDGPU::SI_TCRETURN_GFX) {
     // TODO: How to use branch immediate and avoid register+add?
     Opcode = AMDGPU::S_SETPC_B64;
   }
@@ -286,7 +287,7 @@ void AMDGPUAsmPrinter::emitInstruction(const MachineInstr *MI) {
       SmallVector<MCFixup, 4> Fixups;
       SmallVector<char, 16> CodeBytes;
 
-      std::unique_ptr<MCCodeEmitter> InstEmitter(createSIMCCodeEmitter(
+      std::unique_ptr<MCCodeEmitter> InstEmitter(createAMDGPUMCCodeEmitter(
           *STI.getInstrInfo(), OutContext));
       InstEmitter->encodeInstruction(TmpInst, CodeBytes, Fixups, STI);
 

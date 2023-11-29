@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // Test complete fusion with private internalization specified on the
 // accessors for a device kernel with sycl::vec::load and sycl::vec::store.
@@ -48,11 +46,14 @@ int main() {
       cgh.parallel_for<class KernelOne>(numVec, [=](id<1> i) {
         size_t offset = i;
         vec<int, VEC> in1;
-        in1.load(offset, accIn1.get_pointer());
+        in1.load(offset,
+                 accIn1.template get_multi_ptr<access::decorated::no>());
         vec<int, VEC> in2;
-        in2.load(offset, accIn2.get_pointer());
+        in2.load(offset,
+                 accIn2.template get_multi_ptr<access::decorated::no>());
         auto tmp = in1 + in2;
-        tmp.store(offset, accTmp.get_pointer());
+        tmp.store(offset,
+                  accTmp.template get_multi_ptr<sycl::access::decorated::no>());
       });
     });
 
@@ -64,11 +65,14 @@ int main() {
       cgh.parallel_for<class KernelTwo>(numVec, [=](id<1> i) {
         size_t offset = i;
         vec<int, VEC> tmp;
-        tmp.load(offset, accTmp.get_pointer());
+        tmp.load(offset,
+                 accTmp.template get_multi_ptr<sycl::access::decorated::no>());
         vec<int, VEC> in3;
-        in3.load(offset, accIn3.get_pointer());
+        in3.load(offset,
+                 accIn3.template get_multi_ptr<access::decorated::no>());
         auto out = tmp * in3;
-        out.store(offset, accOut.get_pointer());
+        out.store(offset,
+                  accOut.template get_multi_ptr<access::decorated::no>());
       });
     });
 

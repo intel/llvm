@@ -1,6 +1,6 @@
 ;; -fsanitize=thread requires the (potentially concurrent) counter updates to be atomic.
 ; RUN: mkdir -p %t && cd %t
-; RUN: opt -opaque-pointers < %s -S -passes=insert-gcov-profiling -gcov-atomic-counter | FileCheck %s
+; RUN: opt < %s -S -passes=insert-gcov-profiling -gcov-atomic-counter | FileCheck %s
 
 ; CHECK-LABEL: void @empty()
 ; CHECK-NEXT:  entry:

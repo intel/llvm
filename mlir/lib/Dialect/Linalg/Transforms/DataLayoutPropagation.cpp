@@ -76,10 +76,10 @@ getPackingInfoFromOperand(OpOperand *opOperand, linalg::GenericOp genericOp,
        llvm::zip_equal(llvm::seq<unsigned>(0, innerDimsPos.size()),
                        innerDimsPos, packOrUnPackOp.getMixedTiles())) {
     auto expr = exprs[innerDimPos];
-    if (!expr.template isa<AffineDimExpr>())
+    if (!isa<AffineDimExpr>(expr))
       return failure();
     int64_t domainDimPos =
-        exprs[innerDimPos].template cast<AffineDimExpr>().getPosition();
+        cast<AffineDimExpr>(exprs[innerDimPos]).getPosition();
     if (!isParallelIterator(iterators[domainDimPos]))
       return failure();
     packInfo.tiledDimsPos.push_back(domainDimPos);
@@ -99,7 +99,7 @@ getPackingInfoFromOperand(OpOperand *opOperand, linalg::GenericOp genericOp,
   auto areAllAffineDimExpr = [&](int dim) {
     for (AffineMap map : indexingMaps) {
       if (llvm::any_of(map.getResults(), [dim](AffineExpr expr) {
-            return expr.isFunctionOfDim(dim) && !expr.isa<AffineDimExpr>();
+            return expr.isFunctionOfDim(dim) && !isa<AffineDimExpr>(expr);
           })) {
         return false;
       }
@@ -126,7 +126,7 @@ getPackingInfoFromOperand(OpOperand *opOperand, linalg::GenericOp genericOp,
   SmallVector<int64_t> permutedOuterDims;
   for (auto [index, dim] : llvm::enumerate(packOrUnPackOp.getOuterDimsPerm())) {
     auto permutedExpr = indexingMap.getResult(dim);
-    if (auto dimExpr = permutedExpr.template dyn_cast<AffineDimExpr>()) {
+    if (auto dimExpr = dyn_cast<AffineDimExpr>(permutedExpr)) {
       permutedOuterDims.push_back(dimExpr.getPosition());
       continue;
     }
@@ -177,7 +177,7 @@ static SmallVector<int64_t> computeOuterDims(ArrayRef<int64_t> perm,
     // Here we rely on the assumption that the outer dims permutation
     // when propagating currently requires that non-affine dim expressions
     // are not permuted, thus allowing the identity assignment below.
-    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>())
+    if (auto dimExpr = dyn_cast<AffineDimExpr>(expr))
       currentPositionTileLoops[dimExpr.getPosition()] = pos;
     else
       currentPositionTileLoops[pos] = pos;
@@ -229,6 +229,8 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
   AffineMap origIndexingMap = genericOp.getMatchingIndexingMap(opOperand);
   llvm::DenseMap<int64_t, int64_t> domainDimToOperandDim;
   SmallVector<AffineExpr> exprs(origIndexingMap.getResults());
+
+  // If the OpOperand is a scalar or a zero-rank tensor, no need to pack.
   if (genericOp.isScalar(opOperand) || exprs.empty())
     return std::make_tuple(opOperand->get(),
                            AffineMap::get(numLoops, 0, exprs, b.getContext()));
@@ -236,7 +238,7 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
   // Step 1. Construct the information of packing data dimensions; append inner
   // dimensions to the indexing maps for the operand.
   for (auto [index, expr] : llvm::enumerate(exprs)) {
-    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>()) {
+    if (auto dimExpr = dyn_cast<AffineDimExpr>(expr)) {
       int64_t dimPos = dimExpr.getPosition();
       domainDimToOperandDim[dimPos] = index;
       continue;
@@ -262,12 +264,12 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
     SmallVector<int64_t> inversedOuterPerm =
         invertPermutationVector(packInfo.outerDimsOnDomainPerm);
     for (auto i : llvm::seq<unsigned>(0, origIndexingMap.getNumResults())) {
-      if (auto dimExpr = exprs[i].dyn_cast<AffineDimExpr>()) {
+      if (auto dimExpr = dyn_cast<AffineDimExpr>(exprs[i])) {
         int64_t dimPos = dimExpr.getPosition();
         exprs[i] = b.getAffineDimExpr(inversedOuterPerm[dimPos]);
         continue;
       }
-      assert(exprs[i].isa<AffineConstantExpr>() &&
+      assert(isa<AffineConstantExpr>(exprs[i]) &&
              "Attempted to permute non-constant and non-affine dim expression");
     }
     // Step 2.2: Undo the transposition on `exprs` and propagate the
@@ -293,10 +295,10 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
   return std::make_tuple(packedOperand, indexingMap);
 }
 
-/// Pack an element-wise genericOp and return it.
-static GenericOp packElementWiseOp(RewriterBase &rewriter, GenericOp genericOp,
-                                   Value dest, AffineMap packedOutIndexingMap,
-                                   const PackInfo &packInfo) {
+/// Pack a genericOp and return it.
+static GenericOp packGenericOp(RewriterBase &rewriter, GenericOp genericOp,
+                               Value dest, AffineMap packedOutIndexingMap,
+                               const PackInfo &packInfo) {
   Location loc = genericOp.getLoc();
   SmallVector<Value> inputOperands;
   SmallVector<AffineMap> indexingMaps;
@@ -434,16 +436,16 @@ bubbleUpPackOpThroughGenericOp(RewriterBase &rewriter, tensor::PackOp packOp,
       getOrCreatePackedViewOfOperand(rewriter, genericOp.getLoc(), *packInfo,
                                      genericOp, opOperand);
 
-  // We'll replace the init operand with the destination of pack op if the init
-  // operand has not users in the body of the linalg.generic (pure elementwise).
-  // If it has users we need to pack the init operand too and replace the init
-  // with the packing result.
-  Value dest = (genericOp.getRegionOutputArgs()[0].use_empty())
-                   ? packOpDest
-                   : packedOutOperand;
-
-  return packElementWiseOp(rewriter, genericOp, dest, packedOutIndexingMap,
-                           *packInfo);
+  // If the dps init operand of the generic is a tensor.empty forward the pack
+  // op destination.
+  Value dest = packedOutOperand;
+  if (auto initTensor = genericOp.getDpsInitOperand(0)
+                            ->get()
+                            .getDefiningOp<tensor::EmptyOp>()) {
+    dest = packOpDest;
+  }
+  return packGenericOp(rewriter, genericOp, dest, packedOutIndexingMap,
+                       *packInfo);
 }
 
 /// Wrapper pattern that applies bubbleUpPackOpThroughGenericOp method.
@@ -468,7 +470,7 @@ private:
   ControlPropagationFn controlFn;
 };
 
-// TODO: Relax this restriction. We should unpack an elementwise also
+// TODO: Relax this restriction. We should unpack a generic op also
 // in the presence of multiple unpack ops as producers.
 /// Return the unpacked operand, if present, for the current generic op.
 static FailureOr<OpOperand *> getUnPackedOperand(GenericOp genericOp) {
@@ -486,7 +488,7 @@ static FailureOr<OpOperand *> getUnPackedOperand(GenericOp genericOp) {
   return unPackedOperand;
 }
 
-/// Push down a tensor.unpack op through elementwise generic op.
+/// Push down a tensor.unpack op through a generic op.
 /// The new generic op works on packed domain; pack ops are created for input
 /// and output operands. A tensor.unpack op is inserted right after the packed
 /// generic. E.g.
@@ -560,8 +562,8 @@ pushDownUnPackOpThroughGenericOp(RewriterBase &rewriter, GenericOp genericOp) {
   }
 
   // Pack the genericOp.
-  GenericOp newGenericOp = packElementWiseOp(rewriter, genericOp, dest,
-                                             packedOutIndexingMap, *packInfo);
+  GenericOp newGenericOp =
+      packGenericOp(rewriter, genericOp, dest, packedOutIndexingMap, *packInfo);
   Value newResult =
       newGenericOp.getTiedOpResult(newGenericOp.getDpsInitOperand(0));
 
@@ -579,7 +581,7 @@ pushDownUnPackOpThroughGenericOp(RewriterBase &rewriter, GenericOp genericOp) {
   auto loc = genericOp.getLoc();
   Value unPackDest = producerUnPackOp.getDest();
   auto genericOutType =
-      genericOp.getDpsInitOperand(0)->get().getType().cast<RankedTensorType>();
+      cast<RankedTensorType>(genericOp.getDpsInitOperand(0)->get().getType());
   if (producerUnPackOp.getDestType() != genericOutType ||
       !genericOutType.hasStaticShape()) {
     unPackDest = tensor::UnPackOp::createDestinationTensor(

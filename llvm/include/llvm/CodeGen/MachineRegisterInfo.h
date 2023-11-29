@@ -57,7 +57,7 @@ public:
     virtual ~Delegate() = default;
 
     virtual void MRI_NoteNewVirtualRegister(Register Reg) = 0;
-    virtual void MRI_NotecloneVirtualRegister(Register NewReg,
+    virtual void MRI_NoteCloneVirtualRegister(Register NewReg,
                                               Register SrcReg) {
       MRI_NoteNewVirtualRegister(NewReg);
     }
@@ -181,7 +181,7 @@ public:
 
   void noteCloneVirtualRegister(Register NewReg, Register SrcReg) {
     for (auto *TheDelegate : TheDelegates)
-      TheDelegate->MRI_NotecloneVirtualRegister(NewReg, SrcReg);
+      TheDelegate->MRI_NoteCloneVirtualRegister(NewReg, SrcReg);
   }
 
   //===--------------------------------------------------------------------===//
@@ -229,7 +229,8 @@ public:
   }
   bool shouldTrackSubRegLiveness(Register VReg) const {
     assert(VReg.isVirtual() && "Must pass a VReg");
-    return shouldTrackSubRegLiveness(*getRegClass(VReg));
+    const TargetRegisterClass *RC = getRegClassOrNull(VReg);
+    return LLVM_LIKELY(RC) ? shouldTrackSubRegLiveness(*RC) : false;
   }
   bool subRegLivenessEnabled() const {
     return TracksSubRegLiveness;
@@ -660,9 +661,9 @@ public:
   /// This shouldn't be used directly unless \p Reg has a register class.
   /// \see getRegClassOrNull when this might happen.
   const TargetRegisterClass *getRegClass(Register Reg) const {
-    assert(VRegInfo[Reg.id()].first.is<const TargetRegisterClass *>() &&
+    assert(isa<const TargetRegisterClass *>(VRegInfo[Reg.id()].first) &&
            "Register class not set, wrong accessor");
-    return VRegInfo[Reg.id()].first.get<const TargetRegisterClass *>();
+    return cast<const TargetRegisterClass *>(VRegInfo[Reg.id()].first);
   }
 
   /// Return the register class of \p Reg, or null if Reg has not been assigned
@@ -678,7 +679,7 @@ public:
   /// the select pass, using getRegClass is safe.
   const TargetRegisterClass *getRegClassOrNull(Register Reg) const {
     const RegClassOrRegBank &Val = VRegInfo[Reg].first;
-    return Val.dyn_cast<const TargetRegisterClass *>();
+    return dyn_cast_if_present<const TargetRegisterClass *>(Val);
   }
 
   /// Return the register bank of \p Reg, or null if Reg has not been assigned
@@ -687,7 +688,7 @@ public:
   /// RegisterBankInfo::getRegBankFromRegClass.
   const RegisterBank *getRegBankOrNull(Register Reg) const {
     const RegClassOrRegBank &Val = VRegInfo[Reg].first;
-    return Val.dyn_cast<const RegisterBank *>();
+    return dyn_cast_if_present<const RegisterBank *>(Val);
   }
 
   /// Return the register bank or register class of \p Reg.

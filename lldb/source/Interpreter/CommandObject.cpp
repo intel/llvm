@@ -23,11 +23,11 @@
 
 // These are for the Sourcename completers.
 // FIXME: Make a separate file for the completers.
-#include "lldb/Core/FileSpecList.h"
 #include "lldb/DataFormatters/FormatManager.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/FileSpecList.h"
 
 #include "lldb/Target/Language.h"
 
@@ -715,7 +715,7 @@ Thread *CommandObject::GetDefaultThread() {
     return nullptr;
 }
 
-bool CommandObjectParsed::Execute(const char *args_string,
+void CommandObjectParsed::Execute(const char *args_string,
                                   CommandReturnObject &result) {
   bool handled = false;
   Args cmd_args(args_string);
@@ -746,18 +746,17 @@ bool CommandObjectParsed::Execute(const char *args_string,
           result.AppendErrorWithFormatv("'{0}' doesn't take any arguments.",
                                         GetCommandName());
           Cleanup();
-          return false;
+          return;
         }
-        handled = DoExecute(cmd_args, result);
+        DoExecute(cmd_args, result);
       }
     }
 
     Cleanup();
   }
-  return handled;
 }
 
-bool CommandObjectRaw::Execute(const char *args_string,
+void CommandObjectRaw::Execute(const char *args_string,
                                CommandReturnObject &result) {
   bool handled = false;
   if (HasOverrideCallback()) {
@@ -770,9 +769,8 @@ bool CommandObjectRaw::Execute(const char *args_string,
   }
   if (!handled) {
     if (CheckRequirements(result))
-      handled = DoExecute(args_string, result);
+      DoExecute(args_string, result);
 
     Cleanup();
   }
-  return handled;
 }

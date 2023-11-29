@@ -23,7 +23,7 @@ namespace tools {
 
 /// Visual studio tools.
 namespace visualstudio {
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("visualstudio::Linker", "linker", TC) {}
 
@@ -56,7 +56,6 @@ public:
   TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
                 Action::OffloadKind DeviceOffloadKind) const override;
 
-  bool IsIntegratedAssemblerDefault() const override;
   UnwindTableLevel
   getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;

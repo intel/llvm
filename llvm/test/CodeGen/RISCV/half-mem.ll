@@ -3,10 +3,18 @@
 ; RUN:   -target-abi ilp32f < %s | FileCheck -check-prefixes=CHECKIZFH,RV32IZFH %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zfh -verify-machineinstrs \
 ; RUN:   -target-abi lp64f < %s | FileCheck -check-prefixes=CHECKIZFH,RV64IZFH %s
+; RUN: llc -mtriple=riscv32 -mattr=+zhinx -verify-machineinstrs \
+; RUN:   -target-abi ilp32 < %s | FileCheck -check-prefixes=CHECKIZHINX,RV32IZHINX %s
+; RUN: llc -mtriple=riscv64 -mattr=+zhinx -verify-machineinstrs \
+; RUN:   -target-abi lp64 < %s | FileCheck -check-prefixes=CHECKIZHINX,RV64IZHINX %s
 ; RUN: llc -mtriple=riscv32 -mattr=+zfhmin -verify-machineinstrs \
 ; RUN:   -target-abi ilp32f < %s | FileCheck -check-prefixes=CHECKIZFHMIN,RV32IZFHMIN %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zfhmin -verify-machineinstrs \
 ; RUN:   -target-abi lp64f < %s | FileCheck -check-prefixes=CHECKIZFHMIN,RV64IZFHMIN %s
+; RUN: llc -mtriple=riscv32 -mattr=+zhinxmin -verify-machineinstrs \
+; RUN:   -target-abi ilp32 < %s | FileCheck -check-prefixes=CHECKIZHINXMIN,RV32IZHINXMIN %s
+; RUN: llc -mtriple=riscv64 -mattr=+zhinxmin -verify-machineinstrs \
+; RUN:   -target-abi lp64 < %s | FileCheck -check-prefixes=CHECKIZHINXMIN,RV64IZHINXMIN %s
 
 define half @flh(ptr %a) nounwind {
 ; CHECKIZFH-LABEL: flh:
@@ -15,6 +23,13 @@ define half @flh(ptr %a) nounwind {
 ; CHECKIZFH-NEXT:    flh fa4, 6(a0)
 ; CHECKIZFH-NEXT:    fadd.h fa0, fa5, fa4
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECKIZHINX-LABEL: flh:
+; CHECKIZHINX:       # %bb.0:
+; CHECKIZHINX-NEXT:    lh a1, 0(a0)
+; CHECKIZHINX-NEXT:    lh a0, 6(a0)
+; CHECKIZHINX-NEXT:    fadd.h a0, a1, a0
+; CHECKIZHINX-NEXT:    ret
 ;
 ; CHECKIZFHMIN-LABEL: flh:
 ; CHECKIZFHMIN:       # %bb.0:
@@ -25,6 +40,16 @@ define half @flh(ptr %a) nounwind {
 ; CHECKIZFHMIN-NEXT:    fadd.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKIZHINXMIN-LABEL: flh:
+; CHECKIZHINXMIN:       # %bb.0:
+; CHECKIZHINXMIN-NEXT:    lh a1, 6(a0)
+; CHECKIZHINXMIN-NEXT:    lh a0, 0(a0)
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKIZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECKIZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKIZHINXMIN-NEXT:    ret
   %1 = load half, ptr %a
   %2 = getelementptr half, ptr %a, i32 3
   %3 = load half, ptr %2
@@ -44,6 +69,13 @@ define dso_local void @fsh(ptr %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fsh fa5, 16(a0)
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECKIZHINX-LABEL: fsh:
+; CHECKIZHINX:       # %bb.0:
+; CHECKIZHINX-NEXT:    fadd.h a1, a1, a2
+; CHECKIZHINX-NEXT:    sh a1, 0(a0)
+; CHECKIZHINX-NEXT:    sh a1, 16(a0)
+; CHECKIZHINX-NEXT:    ret
+;
 ; CHECKIZFHMIN-LABEL: fsh:
 ; CHECKIZFHMIN:       # %bb.0:
 ; CHECKIZFHMIN-NEXT:    fcvt.s.h fa5, fa1
@@ -53,6 +85,16 @@ define dso_local void @fsh(ptr %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsh fa5, 0(a0)
 ; CHECKIZFHMIN-NEXT:    fsh fa5, 16(a0)
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKIZHINXMIN-LABEL: fsh:
+; CHECKIZHINXMIN:       # %bb.0:
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKIZHINXMIN-NEXT:    fadd.s a1, a1, a2
+; CHECKIZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKIZHINXMIN-NEXT:    sh a1, 0(a0)
+; CHECKIZHINXMIN-NEXT:    sh a1, 16(a0)
+; CHECKIZHINXMIN-NEXT:    ret
   %1 = fadd half %b, %c
   store half %1, ptr %a
   %2 = getelementptr half, ptr %a, i32 8
@@ -77,6 +119,17 @@ define half @flh_fsh_global(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fsh fa0, 18(a1)
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECKIZHINX-LABEL: flh_fsh_global:
+; CHECKIZHINX:       # %bb.0:
+; CHECKIZHINX-NEXT:    fadd.h a0, a0, a1
+; CHECKIZHINX-NEXT:    lui a1, %hi(G)
+; CHECKIZHINX-NEXT:    lh zero, %lo(G)(a1)
+; CHECKIZHINX-NEXT:    addi a2, a1, %lo(G)
+; CHECKIZHINX-NEXT:    sh a0, %lo(G)(a1)
+; CHECKIZHINX-NEXT:    lh zero, 18(a2)
+; CHECKIZHINX-NEXT:    sh a0, 18(a2)
+; CHECKIZHINX-NEXT:    ret
+;
 ; CHECKIZFHMIN-LABEL: flh_fsh_global:
 ; CHECKIZFHMIN:       # %bb.0:
 ; CHECKIZFHMIN-NEXT:    fcvt.s.h fa5, fa1
@@ -90,6 +143,20 @@ define half @flh_fsh_global(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    flh fa5, 18(a1)
 ; CHECKIZFHMIN-NEXT:    fsh fa0, 18(a1)
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKIZHINXMIN-LABEL: flh_fsh_global:
+; CHECKIZHINXMIN:       # %bb.0:
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKIZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKIZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECKIZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKIZHINXMIN-NEXT:    lui a1, %hi(G)
+; CHECKIZHINXMIN-NEXT:    lh zero, %lo(G)(a1)
+; CHECKIZHINXMIN-NEXT:    addi a2, a1, %lo(G)
+; CHECKIZHINXMIN-NEXT:    sh a0, %lo(G)(a1)
+; CHECKIZHINXMIN-NEXT:    lh zero, 18(a2)
+; CHECKIZHINXMIN-NEXT:    sh a0, 18(a2)
+; CHECKIZHINXMIN-NEXT:    ret
   %1 = fadd half %a, %b
   %2 = load volatile half, ptr @G
   store half %1, ptr @G
@@ -118,6 +185,23 @@ define half @flh_fsh_constant(half %a) nounwind {
 ; RV64IZFH-NEXT:    fsh fa0, -273(a0)
 ; RV64IZFH-NEXT:    ret
 ;
+; RV32IZHINX-LABEL: flh_fsh_constant:
+; RV32IZHINX:       # %bb.0:
+; RV32IZHINX-NEXT:    lui a1, 912092
+; RV32IZHINX-NEXT:    lh a2, -273(a1)
+; RV32IZHINX-NEXT:    fadd.h a0, a0, a2
+; RV32IZHINX-NEXT:    sh a0, -273(a1)
+; RV32IZHINX-NEXT:    ret
+;
+; RV64IZHINX-LABEL: flh_fsh_constant:
+; RV64IZHINX:       # %bb.0:
+; RV64IZHINX-NEXT:    lui a1, 228023
+; RV64IZHINX-NEXT:    slli a1, a1, 2
+; RV64IZHINX-NEXT:    lh a2, -273(a1)
+; RV64IZHINX-NEXT:    fadd.h a0, a0, a2
+; RV64IZHINX-NEXT:    sh a0, -273(a1)
+; RV64IZHINX-NEXT:    ret
+;
 ; RV32IZFHMIN-LABEL: flh_fsh_constant:
 ; RV32IZFHMIN:       # %bb.0:
 ; RV32IZFHMIN-NEXT:    lui a0, 912092
@@ -140,6 +224,29 @@ define half @flh_fsh_constant(half %a) nounwind {
 ; RV64IZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; RV64IZFHMIN-NEXT:    fsh fa0, -273(a0)
 ; RV64IZFHMIN-NEXT:    ret
+;
+; RV32IZHINXMIN-LABEL: flh_fsh_constant:
+; RV32IZHINXMIN:       # %bb.0:
+; RV32IZHINXMIN-NEXT:    lui a1, 912092
+; RV32IZHINXMIN-NEXT:    lh a2, -273(a1)
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; RV32IZHINXMIN-NEXT:    fadd.s a0, a0, a2
+; RV32IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV32IZHINXMIN-NEXT:    sh a0, -273(a1)
+; RV32IZHINXMIN-NEXT:    ret
+;
+; RV64IZHINXMIN-LABEL: flh_fsh_constant:
+; RV64IZHINXMIN:       # %bb.0:
+; RV64IZHINXMIN-NEXT:    lui a1, 228023
+; RV64IZHINXMIN-NEXT:    slli a1, a1, 2
+; RV64IZHINXMIN-NEXT:    lh a2, -273(a1)
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; RV64IZHINXMIN-NEXT:    fadd.s a0, a0, a2
+; RV64IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV64IZHINXMIN-NEXT:    sh a0, -273(a1)
+; RV64IZHINXMIN-NEXT:    ret
   %1 = inttoptr i32 3735928559 to ptr
   %2 = load volatile half, ptr %1
   %3 = fadd half %a, %2
@@ -180,6 +287,36 @@ define half @flh_stack(half %a) nounwind {
 ; RV64IZFH-NEXT:    addi sp, sp, 16
 ; RV64IZFH-NEXT:    ret
 ;
+; RV32IZHINX-LABEL: flh_stack:
+; RV32IZHINX:       # %bb.0:
+; RV32IZHINX-NEXT:    addi sp, sp, -16
+; RV32IZHINX-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IZHINX-NEXT:    sw s0, 8(sp) # 4-byte Folded Spill
+; RV32IZHINX-NEXT:    mv s0, a0
+; RV32IZHINX-NEXT:    addi a0, sp, 4
+; RV32IZHINX-NEXT:    call notdead@plt
+; RV32IZHINX-NEXT:    lh a0, 4(sp)
+; RV32IZHINX-NEXT:    fadd.h a0, a0, s0
+; RV32IZHINX-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IZHINX-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
+; RV32IZHINX-NEXT:    addi sp, sp, 16
+; RV32IZHINX-NEXT:    ret
+;
+; RV64IZHINX-LABEL: flh_stack:
+; RV64IZHINX:       # %bb.0:
+; RV64IZHINX-NEXT:    addi sp, sp, -32
+; RV64IZHINX-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
+; RV64IZHINX-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
+; RV64IZHINX-NEXT:    mv s0, a0
+; RV64IZHINX-NEXT:    addi a0, sp, 12
+; RV64IZHINX-NEXT:    call notdead@plt
+; RV64IZHINX-NEXT:    lh a0, 12(sp)
+; RV64IZHINX-NEXT:    fadd.h a0, a0, s0
+; RV64IZHINX-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
+; RV64IZHINX-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
+; RV64IZHINX-NEXT:    addi sp, sp, 32
+; RV64IZHINX-NEXT:    ret
+;
 ; RV32IZFHMIN-LABEL: flh_stack:
 ; RV32IZFHMIN:       # %bb.0:
 ; RV32IZFHMIN-NEXT:    addi sp, sp, -16
@@ -215,6 +352,42 @@ define half @flh_stack(half %a) nounwind {
 ; RV64IZFHMIN-NEXT:    flw fs0, 4(sp) # 4-byte Folded Reload
 ; RV64IZFHMIN-NEXT:    addi sp, sp, 16
 ; RV64IZFHMIN-NEXT:    ret
+;
+; RV32IZHINXMIN-LABEL: flh_stack:
+; RV32IZHINXMIN:       # %bb.0:
+; RV32IZHINXMIN-NEXT:    addi sp, sp, -16
+; RV32IZHINXMIN-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IZHINXMIN-NEXT:    sw s0, 8(sp) # 4-byte Folded Spill
+; RV32IZHINXMIN-NEXT:    mv s0, a0
+; RV32IZHINXMIN-NEXT:    addi a0, sp, 4
+; RV32IZHINXMIN-NEXT:    call notdead@plt
+; RV32IZHINXMIN-NEXT:    lh a0, 4(sp)
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a1, s0
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV32IZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; RV32IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV32IZHINXMIN-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IZHINXMIN-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
+; RV32IZHINXMIN-NEXT:    addi sp, sp, 16
+; RV32IZHINXMIN-NEXT:    ret
+;
+; RV64IZHINXMIN-LABEL: flh_stack:
+; RV64IZHINXMIN:       # %bb.0:
+; RV64IZHINXMIN-NEXT:    addi sp, sp, -32
+; RV64IZHINXMIN-NEXT:    sd ra, 24(sp) # 8-byte Folded Spill
+; RV64IZHINXMIN-NEXT:    sd s0, 16(sp) # 8-byte Folded Spill
+; RV64IZHINXMIN-NEXT:    mv s0, a0
+; RV64IZHINXMIN-NEXT:    addi a0, sp, 12
+; RV64IZHINXMIN-NEXT:    call notdead@plt
+; RV64IZHINXMIN-NEXT:    lh a0, 12(sp)
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a1, s0
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV64IZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; RV64IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV64IZHINXMIN-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
+; RV64IZHINXMIN-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
+; RV64IZHINXMIN-NEXT:    addi sp, sp, 32
+; RV64IZHINXMIN-NEXT:    ret
   %1 = alloca half, align 4
   call void @notdead(ptr %1)
   %2 = load half, ptr %1
@@ -247,6 +420,30 @@ define dso_local void @fsh_stack(half %a, half %b) nounwind {
 ; RV64IZFH-NEXT:    addi sp, sp, 16
 ; RV64IZFH-NEXT:    ret
 ;
+; RV32IZHINX-LABEL: fsh_stack:
+; RV32IZHINX:       # %bb.0:
+; RV32IZHINX-NEXT:    addi sp, sp, -16
+; RV32IZHINX-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IZHINX-NEXT:    fadd.h a0, a0, a1
+; RV32IZHINX-NEXT:    sh a0, 8(sp)
+; RV32IZHINX-NEXT:    addi a0, sp, 8
+; RV32IZHINX-NEXT:    call notdead@plt
+; RV32IZHINX-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IZHINX-NEXT:    addi sp, sp, 16
+; RV32IZHINX-NEXT:    ret
+;
+; RV64IZHINX-LABEL: fsh_stack:
+; RV64IZHINX:       # %bb.0:
+; RV64IZHINX-NEXT:    addi sp, sp, -16
+; RV64IZHINX-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IZHINX-NEXT:    fadd.h a0, a0, a1
+; RV64IZHINX-NEXT:    sh a0, 4(sp)
+; RV64IZHINX-NEXT:    addi a0, sp, 4
+; RV64IZHINX-NEXT:    call notdead@plt
+; RV64IZHINX-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IZHINX-NEXT:    addi sp, sp, 16
+; RV64IZHINX-NEXT:    ret
+;
 ; RV32IZFHMIN-LABEL: fsh_stack:
 ; RV32IZFHMIN:       # %bb.0:
 ; RV32IZFHMIN-NEXT:    addi sp, sp, -16
@@ -276,6 +473,36 @@ define dso_local void @fsh_stack(half %a, half %b) nounwind {
 ; RV64IZFHMIN-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64IZFHMIN-NEXT:    addi sp, sp, 16
 ; RV64IZFHMIN-NEXT:    ret
+;
+; RV32IZHINXMIN-LABEL: fsh_stack:
+; RV32IZHINXMIN:       # %bb.0:
+; RV32IZHINXMIN-NEXT:    addi sp, sp, -16
+; RV32IZHINXMIN-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; RV32IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV32IZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; RV32IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV32IZHINXMIN-NEXT:    sh a0, 8(sp)
+; RV32IZHINXMIN-NEXT:    addi a0, sp, 8
+; RV32IZHINXMIN-NEXT:    call notdead@plt
+; RV32IZHINXMIN-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
+; RV32IZHINXMIN-NEXT:    addi sp, sp, 16
+; RV32IZHINXMIN-NEXT:    ret
+;
+; RV64IZHINXMIN-LABEL: fsh_stack:
+; RV64IZHINXMIN:       # %bb.0:
+; RV64IZHINXMIN-NEXT:    addi sp, sp, -16
+; RV64IZHINXMIN-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; RV64IZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; RV64IZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; RV64IZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; RV64IZHINXMIN-NEXT:    sh a0, 4(sp)
+; RV64IZHINXMIN-NEXT:    addi a0, sp, 4
+; RV64IZHINXMIN-NEXT:    call notdead@plt
+; RV64IZHINXMIN-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
+; RV64IZHINXMIN-NEXT:    addi sp, sp, 16
+; RV64IZHINXMIN-NEXT:    ret
   %1 = fadd half %a, %b ; force store from FPR16
   %2 = alloca half, align 4
   store half %1, ptr %2

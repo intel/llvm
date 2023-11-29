@@ -37,6 +37,16 @@ template <const char PlatformName[]> struct RedefTemplatedWrapper {
         *param_value_size_ret = PlatformNameLen;
       return PI_SUCCESS;
     }
+    case PI_EXT_PLATFORM_INFO_BACKEND: {
+      constexpr auto MockPlatformBackend = PI_EXT_PLATFORM_BACKEND_UNKNOWN;
+      if (param_value) {
+        std::memcpy(param_value, &MockPlatformBackend,
+                    sizeof(MockPlatformBackend));
+      }
+      if (param_value_size_ret)
+        *param_value_size_ret = sizeof(MockPlatformBackend);
+      return PI_SUCCESS;
+    }
     default:
       return PI_SUCCESS;
     }

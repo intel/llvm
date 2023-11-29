@@ -22,7 +22,7 @@
 #ifndef OPTIMIZER_DESCRIPTOR_MODEL_H
 #define OPTIMIZER_DESCRIPTOR_MODEL_H
 
-#include "flang/ISO_Fortran_binding.h"
+#include "flang/ISO_Fortran_binding_wrapper.h"
 #include "flang/Runtime/descriptor.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -40,7 +40,7 @@ TypeBuilderFunc getModel();
 template <>
 TypeBuilderFunc getModel<void *>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
-    return mlir::LLVM::LLVMPointerType::get(mlir::IntegerType::get(context, 8));
+    return mlir::LLVM::LLVMPointerType::get(context);
   };
 }
 template <>

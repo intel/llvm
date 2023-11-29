@@ -1,9 +1,18 @@
 ; RUN: llvm-as %s -o %t.bc
 ; Translation shouldn't crash:
-; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spt
+; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-SPIRV: [[#CompUnit:]] [[#]] DebugCompilationUnit
+; CHECK-SPIRV-DAG: [[#EntryFunc:]] [[#]] DebugFunction [[#]]
+; CHECK-SPIRV-DAG: [[#None:]] [[#]] DebugInfoNone
+; CHECK-SPIRV: [[#BaseTy:]] [[#]] DebugTypeBasic
+; CHECK-SPIRV: [[#Subrange:]] [[#]] DebugTypeSubrange
+; CHECK-SPIRV: DebugTypeArrayDynamic [[#BaseTy]] [[#]] [[#]] [[#None]] [[#None]] [[#Subrange]]
+; CHECK-SPIRV: DebugEntryPoint [[#EntryFunc]] [[#CompUnit]] [[#]] [[#]] {{$}}
 
 ; CHECK-LLVM: !DICompileUnit(language: DW_LANG_Fortran95
 ; CHECK-LLVM: !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#BaseT:]], size: 32, elements: ![[#Elements:]], dataLocation: !DIExpression(DW_OP_push_object_address, DW_OP_deref), associated: !DIExpression(DW_OP_push_object_address, DW_OP_deref, DW_OP_constu, 0, DW_OP_or))
@@ -14,6 +23,10 @@
 source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
+
+define void @MAIN__() local_unnamed_addr !dbg !24 {
+    ret void
+}
 
 !llvm.module.flags = !{!5, !6, !7, !8}
 !llvm.dbg.cu = !{!9}

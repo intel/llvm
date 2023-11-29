@@ -23,6 +23,9 @@ jobs:
   build:
     name: Build
     runs-on: macos-12
+    env:
+      CCACHE_DIR: $GITHUB_WORKSPACE/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
     steps:
     - name: Install dependencies
       run: brew install ccache ninja
@@ -37,19 +40,16 @@ jobs:
         restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-
     - name: Configure
       env:
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
-        CACHE_SIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
-        mkdir -p $GITHUB_WORKSPACE/build_cache_$CACHE_SUFFIX
+        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS \
-          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
-          --cmake-opt="-DLLVM_CCACHE_DIR=$GITHUB_WORKSPACE/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile

@@ -5,7 +5,7 @@
 // RUN: echo "void foo(void) {}" > %t1.cpp
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t_lib.a %t1_bundle.o
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=none --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: not %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=none --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s

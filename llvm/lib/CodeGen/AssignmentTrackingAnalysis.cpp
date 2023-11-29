@@ -5,7 +5,6 @@
 #include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/UniqueVector.h"
 #include "llvm/Analysis/Interval.h"
@@ -26,6 +25,7 @@
 #include <assert.h>
 #include <cstdint>
 #include <optional>
+#include <queue>
 #include <sstream>
 #include <unordered_map>
 
@@ -1979,20 +1979,23 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
                      I, Fn.getParent()->getDataLayout())) {
         // Find markers linked to this alloca.
         for (DbgAssignIntrinsic *DAI : at::getAssignmentMarkers(Info->Base)) {
-          // Discard the fragment if it covers the entire variable.
-          std::optional<DIExpression::FragmentInfo> FragInfo =
-              [&Info, DAI]() -> std::optional<DIExpression::FragmentInfo> {
-            DIExpression::FragmentInfo F;
-            F.OffsetInBits = Info->OffsetInBits;
-            F.SizeInBits = Info->SizeInBits;
-            if (auto ExistingFrag = DAI->getExpression()->getFragmentInfo())
-              F.OffsetInBits += ExistingFrag->OffsetInBits;
-            if (auto Sz = DAI->getVariable()->getSizeInBits()) {
-              if (F.OffsetInBits == 0 && F.SizeInBits == *Sz)
-                return std::nullopt;
-            }
-            return F;
-          }();
+          std::optional<DIExpression::FragmentInfo> FragInfo;
+
+          // Skip this assignment if the affected bits are outside of the
+          // variable fragment.
+          if (!at::calculateFragmentIntersect(
+                  I.getModule()->getDataLayout(), Info->Base,
+                  Info->OffsetInBits, Info->SizeInBits, DAI, FragInfo) ||
+              (FragInfo && FragInfo->SizeInBits == 0))
+            continue;
+
+          // FragInfo from calculateFragmentIntersect is nullopt if the
+          // resultant fragment matches DAI's fragment or entire variable - in
+          // which case copy the fragment info from DAI. If FragInfo is still
+          // nullopt after the copy it means "no fragment info" instead, which
+          // is how it is usually interpreted.
+          if (!FragInfo)
+            FragInfo = DAI->getExpression()->getFragmentInfo();
 
           DebugVariable DV = DebugVariable(DAI->getVariable(), FragInfo,
                                            DAI->getDebugLoc().getInlinedAt());
@@ -2011,16 +2014,17 @@ static AssignmentTrackingLowering::OverlapMap buildOverlapMapAndRecordDeclares(
     }
   }
 
-  // Sort the fragment map for each DebugAggregate in non-descending
-  // order of fragment size. Assert no entries are duplicates.
+  // Sort the fragment map for each DebugAggregate in ascending
+  // order of fragment size - there should be no duplicates.
   for (auto &Pair : FragmentMap) {
     SmallVector<DebugVariable, 8> &Frags = Pair.second;
-    std::sort(
-        Frags.begin(), Frags.end(), [](DebugVariable Next, DebugVariable Elmt) {
-          assert(!(Elmt.getFragmentOrDefault() == Next.getFragmentOrDefault()));
-          return Elmt.getFragmentOrDefault().SizeInBits >
-                 Next.getFragmentOrDefault().SizeInBits;
-        });
+    std::sort(Frags.begin(), Frags.end(),
+              [](const DebugVariable &Next, const DebugVariable &Elmt) {
+                return Elmt.getFragmentOrDefault().SizeInBits >
+                       Next.getFragmentOrDefault().SizeInBits;
+              });
+    // Check for duplicates.
+    assert(std::adjacent_find(Frags.begin(), Frags.end()) == Frags.end());
   }
 
   // Build the map.
@@ -2193,8 +2197,7 @@ bool AssignmentTrackingLowering::run(FunctionVarLocsBuilder *FnVarLocsBuilder) {
       //
       // Unless we've already done so, create the single location def now.
       if (AlwaysStackHomed.insert(Aggr).second) {
-        assert(!VarLoc.Values.hasArgList() &&
-               isa<AllocaInst>(VarLoc.Values.getVariableLocationOp(0)));
+        assert(!VarLoc.Values.hasArgList());
         // TODO: When more complex cases are handled VarLoc.Expr should be
         // built appropriately rather than always using an empty DIExpression.
         // The assert below is a reminder.

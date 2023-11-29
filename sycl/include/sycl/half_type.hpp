@@ -8,17 +8,23 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>              // for bit_cast
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
+#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
-#include <sycl/bit_cast.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#endif
 
-#include <functional>
-#include <limits>
+#include <cstddef>     // for size_t
+#include <cstdint>     // for uint16_t, uint32_t, uint8_t
+#include <functional>  // for hash
+#include <limits>      // for float_denorm_style, float_r...
+#include <string_view> // for hash
+#include <type_traits> // for enable_if_t
 
-#if !__has_builtin(__builtin_expect)
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
 #endif
 
@@ -26,14 +32,15 @@
 // `constexpr` could work because the implicit conversion from `float` to
 // `_Float16` can be `constexpr`.
 #define __SYCL_CONSTEXPR_HALF constexpr
-#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#elif __cpp_lib_bit_cast ||                                                    \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
 #define __SYCL_CONSTEXPR_HALF constexpr
 #else
 #define __SYCL_CONSTEXPR_HALF
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 }
@@ -242,7 +249,7 @@ using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));
 using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
-#else
+#else // SYCL_DEVICE_ONLY
 using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on
 // host
@@ -252,6 +259,13 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+using Vec2StorageT = std::array<StorageT, 2>;
+using Vec3StorageT = std::array<StorageT, 3>;
+using Vec4StorageT = std::array<StorageT, 4>;
+using Vec8StorageT = std::array<StorageT, 8>;
+using Vec16StorageT = std::array<StorageT, 16>;
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
 template <int NumElements> struct half_vec {
   alignas(
       vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
@@ -274,7 +288,8 @@ using Vec3StorageT = half_vec<3>;
 using Vec4StorageT = half_vec<4>;
 using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#endif // SYCL_DEVICE_ONLY
 
 #ifndef __SYCL_DEVICE_ONLY__
 class half {
@@ -562,8 +577,8 @@ private:
 };
 } // namespace half_impl
 
-// Accroding to C++ standard math functions from cmath/math.h should work only
-// on arithmetic types. We can't specify half type as arithmetic/floating
+// According to the C++ standard, math functions from cmath/math.h should work
+// only on arithmetic types. We can't specify half type as arithmetic/floating
 // point(via std::is_floating_point) since only float, double and long double
 // types are "floating point" according to the standard. In order to use half
 // type with these math functions we cast half to float using template
@@ -576,7 +591,7 @@ inline float cast_if_host_half(half_impl::half val) {
 
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // Partial specialization of some functions in namespace `std`

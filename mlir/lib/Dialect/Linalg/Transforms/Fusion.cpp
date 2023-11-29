@@ -87,10 +87,10 @@ getShapeDefiningLoopRange(LinalgOp op, unsigned loopDepth,
                << "getShapeDefiningLoopRange map: " << map << "\n");
     SmallVector<Value, 8> shapeRanges(map.getNumResults(), nullptr);
     for (const auto &en : llvm::enumerate(map.getResults())) {
-      auto dimExpr = en.value().dyn_cast<AffineDimExpr>();
+      auto dimExpr = dyn_cast<AffineDimExpr>(en.value());
       if (!dimExpr)
         continue;
-      if (loopDepth == en.value().cast<AffineDimExpr>().getPosition()) {
+      if (loopDepth == cast<AffineDimExpr>(en.value()).getPosition()) {
         LLVM_DEBUG(llvm::dbgs() << "getShapeDefiningLoopRange loopDepth: "
                                 << loopDepth << "\n");
         LLVM_DEBUG(llvm::dbgs() << "getShapeDefiningLoopRange shape: "
@@ -150,8 +150,8 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
   // fully dynamic at construction time.
   SmallVector<Type, 4> resultTypes;
   resultTypes.reserve(producer->getNumResults());
-  for (OpOperand *operand : producer.getDpsInitOperands()) {
-    auto tensorType = operand->get().getType().dyn_cast<RankedTensorType>();
+  for (Value operand : producer.getDpsInits()) {
+    auto tensorType = dyn_cast<RankedTensorType>(operand.getType());
     if (!tensorType)
       continue;
     unsigned rank = tensorType.getRank();
@@ -165,7 +165,7 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
         staticStridesVector));
   }
 
-  Operation *clonedOp = clone(b, producer, resultTypes, clonedShapes);
+  LinalgOp clonedOp = clone(b, producer, resultTypes, clonedShapes);
 
   // Shift all IndexOp results by the tile offset.
   SmallVector<OpFoldResult> allIvs = llvm::to_vector(
@@ -196,7 +196,7 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producerOp, AffineMap producerMap,
   DenseMap<unsigned, Range> fusedLoopsAndRanges;
   Value shapedOperand = consumerOpOperand.get();
   for (const auto &en : llvm::enumerate(producerMap.getResults())) {
-    unsigned posInProducerLoop = en.value().cast<AffineDimExpr>().getPosition();
+    unsigned posInProducerLoop = cast<AffineDimExpr>(en.value()).getPosition();
     fusedLoopsAndRanges[posInProducerLoop] = getRangeFromOperandShape(
         b, consumerOpOperand.getOwner()->getLoc(), shapedOperand, en.index());
   }
@@ -210,22 +210,22 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producerOp, AffineMap producerMap,
 // dependence tracking since the dependence tracking is similar to what is done
 // w.r.t to buffers.
 static void getProducerOfTensor(Value tensor, OpResult &opResult) {
-  if (!tensor.getType().isa<RankedTensorType>())
+  if (!isa<RankedTensorType>(tensor.getType()))
     return;
 
   while (true) {
     LLVM_DEBUG(llvm::dbgs() << "\ngetProducerOfTensor: " << tensor);
     if (auto linalgOp = tensor.getDefiningOp<LinalgOp>()) {
-      opResult = tensor.cast<OpResult>();
+      opResult = cast<OpResult>(tensor);
       return;
     }
     if (auto sliceOp = tensor.getDefiningOp<tensor::ExtractSliceOp>()) {
       tensor = sliceOp.getSource();
       continue;
     }
-    if (auto blockArg = tensor.dyn_cast<BlockArgument>()) {
+    if (auto blockArg = dyn_cast<BlockArgument>(tensor)) {
       if (auto forOp = blockArg.getDefiningOp<scf::ForOp>()) {
-        tensor = *(forOp.getIterOperands().begin() + blockArg.getArgNumber());
+        tensor = forOp.getInitArgs()[blockArg.getArgNumber()];
         continue;
       }
     }

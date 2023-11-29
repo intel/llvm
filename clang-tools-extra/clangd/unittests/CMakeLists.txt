@@ -79,8 +79,9 @@ add_unittest(ClangdUnitTests ClangdTests
   PrintASTTests.cpp
   ProjectAwareIndexTests.cpp
   QualityTests.cpp
-  RenameTests.cpp
   RIFFTests.cpp
+  RenameTests.cpp
+  ReplayPeambleTests.cpp
   SelectionTests.cpp
   SemanticHighlightingTests.cpp
   SemanticSelectionTests.cpp
@@ -130,6 +131,7 @@ add_unittest(ClangdUnitTests ClangdTests
   tweaks/PopulateSwitchTests.cpp
   tweaks/RawStringLiteralTests.cpp
   tweaks/RemoveUsingNamespaceTests.cpp
+  tweaks/ScopifyEnumTests.cpp
   tweaks/ShowSelectionTreeTests.cpp
   tweaks/SpecialMembersTests.cpp
   tweaks/SwapIfBranchesTests.cpp

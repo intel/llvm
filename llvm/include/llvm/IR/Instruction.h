@@ -29,23 +29,67 @@
 namespace llvm {
 
 class BasicBlock;
+class DPMarker;
 class FastMathFlags;
 class MDNode;
 class Module;
 struct AAMDNodes;
+class DPMarker;
 
 template <> struct ilist_alloc_traits<Instruction> {
   static inline void deleteNode(Instruction *V);
 };
 
 class Instruction : public User,
-                    public ilist_node_with_parent<Instruction, BasicBlock> {
+                    public ilist_node_with_parent<Instruction, BasicBlock,
+                                                  ilist_iterator_bits<true>> {
+public:
+  using InstListType = SymbolTableList<Instruction, ilist_iterator_bits<true>>;
+private:
   BasicBlock *Parent;
   DebugLoc DbgLoc;                         // 'dbg' Metadata cache.
 
   /// Relative order of this instruction in its parent basic block. Used for
   /// O(1) local dominance checks between instructions.
   mutable unsigned Order = 0;
+
+public:
+  /// Optional marker recording the position for debugging information that
+  /// takes effect immediately before this instruction. Null unless there is
+  /// debugging information present.
+  DPMarker *DbgMarker = nullptr;
+
+  /// Clone any debug-info attached to \p From onto this instruction. Used to
+  /// copy debugging information from one block to another, when copying entire
+  /// blocks. \see DebugProgramInstruction.h , because the ordering of DPValues
+  /// is still important, fine grain control of which instructions are moved and
+  /// where they go is necessary.
+  /// \p From The instruction to clone debug-info from.
+  /// \p from_here Optional iterator to limit DPValues cloned to be a range from
+  ///    from_here to end().
+  /// \p InsertAtHead Whether the cloned DPValues should be placed at the end
+  ///    or the beginning of existing DPValues attached to this.
+  /// \returns A range over the newly cloned DPValues.
+  iterator_range<simple_ilist<DPValue>::iterator> cloneDebugInfoFrom(
+      const Instruction *From,
+      std::optional<simple_ilist<DPValue>::iterator> FromHere = std::nullopt,
+      bool InsertAtHead = false);
+
+  /// Return a range over the DPValues attached to this instruction.
+  iterator_range<simple_ilist<DPValue>::iterator> getDbgValueRange() const;
+
+  /// Returns true if any DPValues are attached to this instruction.
+  bool hasDbgValues() const;
+
+  /// Erase any DPValues attached to this instruction.
+  void dropDbgValues();
+
+  /// Erase a single DPValue \p I that is attached to this instruction.
+  void dropOneDbgValue(DPValue *I);
+
+  /// Handle the debug-info implications of this instruction being removed. Any
+  /// attached DPValues need to "fall" down onto the next instruction.
+  void handleMarkerRemoval();
 
 protected:
   // The 15 first bits of `Value::SubclassData` are available for subclasses of
@@ -118,11 +162,12 @@ public:
   /// This method unlinks 'this' from the containing basic block and deletes it.
   ///
   /// \returns an iterator pointing to the element after the erased one
-  SymbolTableList<Instruction>::iterator eraseFromParent();
+  InstListType::iterator eraseFromParent();
 
   /// Insert an unlinked instruction into a basic block immediately before
   /// the specified instruction.
   void insertBefore(Instruction *InsertPos);
+  void insertBefore(InstListType::iterator InsertPos);
 
   /// Insert an unlinked instruction into a basic block immediately after the
   /// specified instruction.
@@ -130,21 +175,42 @@ public:
 
   /// Inserts an unlinked instruction into \p ParentBB at position \p It and
   /// returns the iterator of the inserted instruction.
-  SymbolTableList<Instruction>::iterator
-  insertInto(BasicBlock *ParentBB, SymbolTableList<Instruction>::iterator It);
+  InstListType::iterator insertInto(BasicBlock *ParentBB,
+                                    InstListType::iterator It);
+
+  void insertBefore(BasicBlock &BB, InstListType::iterator InsertPos);
 
   /// Unlink this instruction from its current basic block and insert it into
   /// the basic block that MovePos lives in, right before MovePos.
   void moveBefore(Instruction *MovePos);
 
+  /// Perform a \ref moveBefore operation, while signalling that the caller
+  /// intends to preserve the original ordering of instructions. This implicitly
+  /// means that any adjacent debug-info should move with this instruction.
+  /// This method is currently a no-op placeholder, but it will become meaningful
+  /// when the "RemoveDIs" project is enabled.
+  void moveBeforePreserving(Instruction *MovePos);
+
+private:
+  /// RemoveDIs project: all other moves implemented with this method,
+  /// centralising debug-info updates into one place.
+  void moveBeforeImpl(BasicBlock &BB, InstListType::iterator I, bool Preserve);
+
+public:
   /// Unlink this instruction and insert into BB before I.
   ///
   /// \pre I is a valid iterator into BB.
-  void moveBefore(BasicBlock &BB, SymbolTableList<Instruction>::iterator I);
+  void moveBefore(BasicBlock &BB, InstListType::iterator I);
+
+  /// (See other overload for moveBeforePreserving).
+  void moveBeforePreserving(BasicBlock &BB, InstListType::iterator I);
 
   /// Unlink this instruction from its current basic block and insert it into
   /// the basic block that MovePos lives in, right after MovePos.
   void moveAfter(Instruction *MovePos);
+
+  /// See \ref moveBeforePreserving .
+  void moveAfterPreserving(Instruction *MovePos);
 
   /// Given an instruction Other in the same basic block as this instruction,
   /// return true if this instruction comes before Other. In this worst case,
@@ -175,9 +241,7 @@ public:
   bool isShift() const { return isShift(getOpcode()); }
   bool isCast() const { return isCast(getOpcode()); }
   bool isFuncletPad() const { return isFuncletPad(getOpcode()); }
-  bool isExceptionalTerminator() const {
-    return isExceptionalTerminator(getOpcode());
-  }
+  bool isSpecialTerminator() const { return isSpecialTerminator(getOpcode()); }
 
   /// It checks if this instruction is the only user of at least one of
   /// its operands.
@@ -235,14 +299,16 @@ public:
     return Opcode >= FuncletPadOpsBegin && Opcode < FuncletPadOpsEnd;
   }
 
-  /// Returns true if the Opcode is a terminator related to exception handling.
-  static inline bool isExceptionalTerminator(unsigned Opcode) {
+  /// Returns true if the Opcode is a "special" terminator that does more than
+  /// branch to a successor (e.g. have a side effect or return a value).
+  static inline bool isSpecialTerminator(unsigned Opcode) {
     switch (Opcode) {
     case Instruction::CatchSwitch:
     case Instruction::CatchRet:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
+    case Instruction::CallBr:
       return true;
     default:
       return false;
@@ -273,8 +339,10 @@ public:
   /// Get the metadata of given kind attached to this Instruction.
   /// If the metadata is not found then return null.
   MDNode *getMetadata(unsigned KindID) const {
-    if (!hasMetadata()) return nullptr;
-    return getMetadataImpl(KindID);
+    // Handle 'dbg' as a special case since it is not stored in the hash table.
+    if (KindID == LLVMContext::MD_dbg)
+      return DbgLoc.getAsMDNode();
+    return Value::getMetadata(KindID);
   }
 
   /// Get the metadata of given kind attached to this Instruction.
@@ -339,12 +407,19 @@ public:
   /// If this instruction already has !annotation metadata, append \p Annotation
   /// to the existing node.
   void addAnnotationMetadata(StringRef Annotation);
-
+  /// Adds an !annotation metadata node with an array of \p Annotations
+  /// as a tuple to this instruction. If this instruction already has
+  /// !annotation metadata, append the tuple to
+  /// the existing node.
+  void addAnnotationMetadata(SmallVector<StringRef> Annotations);
   /// Returns the AA metadata for this instruction.
   AAMDNodes getAAMetadata() const;
 
   /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
+
+  /// Sets the nosanitize metadata on this instruction.
+  void setNoSanitizeMetadata();
 
   /// Retrieve total raw weight values of a branch.
   /// Returns true on success with profile total weights filled in.
@@ -356,6 +431,10 @@ public:
 
   /// Return the debug location for this node as a DebugLoc.
   const DebugLoc &getDebugLoc() const { return DbgLoc; }
+
+  /// Fetch the debug location for this node, unless this is a debug intrinsic,
+  /// in which case fetch the debug location of the next non-debug node.
+  const DebugLoc &getStableDebugLoc() const;
 
   /// Set or clear the nuw flag on this instruction, which must be an operator
   /// which supports this flag. See LangRef.html for the meaning of this flag.
@@ -369,11 +448,18 @@ public:
   /// which supports this flag. See LangRef.html for the meaning of this flag.
   void setIsExact(bool b = true);
 
+  /// Set or clear the nneg flag on this instruction, which must be a zext
+  /// instruction.
+  void setNonNeg(bool b = true);
+
   /// Determine whether the no unsigned wrap flag is set.
   bool hasNoUnsignedWrap() const LLVM_READONLY;
 
   /// Determine whether the no signed wrap flag is set.
   bool hasNoSignedWrap() const LLVM_READONLY;
+
+  /// Determine whether the the nneg flag is set.
+  bool hasNonNeg() const LLVM_READONLY;
 
   /// Return true if this operator has flags which may cause this instruction
   /// to evaluate to poison despite having non-poison inputs.
@@ -401,10 +487,15 @@ public:
   }
 
   /// This function drops non-debug unknown metadata (through
-  /// dropUnknownNonDebugMetadata). For calls, it also drops parameter and 
+  /// dropUnknownNonDebugMetadata). For calls, it also drops parameter and
   /// return attributes that can cause undefined behaviour. Both of these should
   /// be done by passes which move instructions in IR.
   void dropUBImplyingAttrsAndUnknownMetadata(ArrayRef<unsigned> KnownIDs = {});
+
+  /// Drop any attributes or metadata that can cause immediate undefined
+  /// behavior. Retain other attributes/metadata on a best-effort basis.
+  /// This should be used when speculating instructions.
+  void dropUBImplyingAttrsAndMetadata();
 
   /// Determine whether the exact flag is set.
   bool isExact() const LLVM_READONLY;
@@ -512,7 +603,7 @@ public:
   ///     applications, thus the N-way merging should be in code path.
   /// The DebugLoc attached to this instruction will be overwritten by the
   /// merged DebugLoc.
-  void applyMergedLocation(const DILocation *LocA, const DILocation *LocB);
+  void applyMergedLocation(DILocation *LocA, DILocation *LocB);
 
   /// Updates the debug location given that the instruction has been hoisted
   /// from a block to a predecessor of that block.
@@ -541,7 +632,6 @@ public:
 
 private:
   // These are all implemented in Metadata.cpp.
-  MDNode *getMetadataImpl(unsigned KindID) const;
   MDNode *getMetadataImpl(StringRef Kind) const;
   void
   getAllMetadataImpl(SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
@@ -635,8 +725,15 @@ public:
   /// Return true if this instruction has a volatile memory access.
   bool isVolatile() const LLVM_READONLY;
 
+  /// Return the type this instruction accesses in memory, if any.
+  Type *getAccessType() const LLVM_READONLY;
+
   /// Return true if this instruction may throw an exception.
-  bool mayThrow() const LLVM_READONLY;
+  ///
+  /// If IncludePhaseOneUnwind is set, this will also include cases where
+  /// phase one unwinding may unwind past this frame due to skipping of
+  /// cleanup landingpads.
+  bool mayThrow(bool IncludePhaseOneUnwind = false) const LLVM_READONLY;
 
   /// Return true if this instruction behaves like a memory fence: it can load
   /// or store to memory location without being given a memory location.
@@ -852,7 +949,7 @@ public:
   };
 
 private:
-  friend class SymbolTableListTraits<Instruction>;
+  friend class SymbolTableListTraits<Instruction, ilist_iterator_bits<true>>;
   friend class BasicBlock; // For renumbering.
 
   // Shadow Value::setValueSubclassData with a private forwarding method so that

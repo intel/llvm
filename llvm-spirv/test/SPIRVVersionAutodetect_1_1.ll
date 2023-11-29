@@ -28,7 +28,7 @@ attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"=
 !llvm.ident = !{!9}
 !spirv.Source = !{!10}
 
-!0 = !{void ()* @worker, i32 33}
+!0 = !{ptr @worker, i32 33}
 !6 = !{i32 1, i32 2}
 !7 = !{i32 2, i32 2}
 !8 = !{}

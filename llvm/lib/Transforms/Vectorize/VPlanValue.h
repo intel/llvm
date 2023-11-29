@@ -163,6 +163,13 @@ public:
 
   void replaceAllUsesWith(VPValue *New);
 
+  /// Go through the uses list for this VPValue and make each use point to \p
+  /// New if the callback ShouldReplace returns true for the given use specified
+  /// by a pair of (VPUser, the use index).
+  void replaceUsesWithIf(
+      VPValue *New,
+      llvm::function_ref<bool(VPUser &U, unsigned Idx)> ShouldReplace);
+
   /// Returns the recipe defining this VPValue or nullptr if it is not defined
   /// by a recipe, i.e. is a live-in.
   VPRecipeBase *getDefiningRecipe();
@@ -171,16 +178,19 @@ public:
   /// Returns true if this VPValue is defined by a recipe.
   bool hasDefiningRecipe() const { return getDefiningRecipe(); }
 
+  /// Returns true if this VPValue is a live-in, i.e. defined outside the VPlan.
+  bool isLiveIn() const { return !hasDefiningRecipe(); }
+
   /// Returns the underlying IR value, if this VPValue is defined outside the
   /// scope of VPlan. Returns nullptr if the VPValue is defined by a VPDef
   /// inside a VPlan.
   Value *getLiveInIRValue() {
-    assert(!hasDefiningRecipe() &&
+    assert(isLiveIn() &&
            "VPValue is not a live-in; it is defined by a VPDef inside a VPlan");
     return getUnderlyingValue();
   }
   const Value *getLiveInIRValue() const {
-    assert(!hasDefiningRecipe() &&
+    assert(isLiveIn() &&
            "VPValue is not a live-in; it is defined by a VPDef inside a VPlan");
     return getUnderlyingValue();
   }
@@ -322,7 +332,7 @@ class VPDef {
     assert(V->Def == this && "can only remove VPValue linked with this VPDef");
     assert(is_contained(DefinedValues, V) &&
            "VPValue to remove must be in DefinedValues");
-    erase_value(DefinedValues, V);
+    llvm::erase(DefinedValues, V);
     V->Def = nullptr;
   }
 
@@ -342,6 +352,7 @@ public:
     VPScalarIVStepsSC,
     VPWidenCallSC,
     VPWidenCanonicalIVSC,
+    VPWidenCastSC,
     VPWidenGEPSC,
     VPWidenMemoryInstructionSC,
     VPWidenSC,
@@ -437,6 +448,7 @@ class VPSlotTracker {
 
   void assignSlot(const VPValue *V);
   void assignSlots(const VPlan &Plan);
+  void assignSlots(const VPBasicBlock *VPBB);
 
 public:
   VPSlotTracker(const VPlan *Plan = nullptr) {

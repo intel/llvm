@@ -12,7 +12,7 @@
 #include <sycl/half_type.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::math {
 sycl::half hadd(sycl::half x, sycl::half y) { return x + y; }
 
@@ -252,7 +252,7 @@ sycl::half hmax(sycl::half x, sycl::half y) { return sycl::fmax(x, y); }
 
 sycl::half hmax_nan(sycl::half x, sycl::half y) {
   if (hisnan(x) || hisnan(y))
-    return sycl::half(NAN);
+    return sycl::half(std::numeric_limits<float>::quiet_NaN());
   else
     return sycl::fmax(x, y);
 }
@@ -269,7 +269,7 @@ sycl::half hmin(sycl::half x, sycl::half y) { return sycl::fmin(x, y); }
 
 sycl::half hmin_nan(sycl::half x, sycl::half y) {
   if (hisnan(x) || hisnan(y))
-    return sycl::half(NAN);
+    return sycl::half(std::numeric_limits<float>::quiet_NaN());
   else
     return sycl::fmin(x, y);
 }
@@ -311,5 +311,5 @@ sycl::half habs(sycl::half x) { return sycl::fabs(x); }
 
 sycl::half2 habs2(sycl::half2 x) { return sycl::fabs(x); }
 } // namespace ext::intel::math
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

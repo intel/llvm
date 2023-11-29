@@ -29,9 +29,15 @@ protected:
   std::string ABI, CPU;
   std::unique_ptr<llvm::RISCVISAInfo> ISAInfo;
 
+private:
+  bool FastUnalignedAccess;
+
 public:
   RISCVTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
+    BFloat16Width = 16;
+    BFloat16Align = 16;
+    BFloat16Format = &llvm::APFloat::BFloat();
     LongDoubleWidth = 128;
     LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
@@ -41,6 +47,7 @@ public:
     HasRISCVVTypes = true;
     MCountName = "_mcount";
     HasFloat16 = true;
+    HasStrictFP = true;
   }
 
   bool setCPU(const std::string &Name) override {
@@ -60,7 +67,7 @@ public:
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   StringRef getConstraintRegister(StringRef Constraint,
                                   StringRef Expression) const override {
@@ -99,6 +106,8 @@ public:
                             DiagnosticsEngine &Diags) override;
 
   bool hasBitIntType() const override { return true; }
+
+  bool hasBFloat16Type() const override { return true; }
 
   bool useFP16ConversionIntrinsics() const override {
     return false;

@@ -1,10 +1,8 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 //==--- undefined-symbol.cpp - Error handling for undefined device symbol --==//
 //

@@ -10,14 +10,11 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdint>
-#include <cstdlib>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <cstdlib>    // for size_t
+#include <string>     // for string
+#include <sys/stat.h> // for stat
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -40,32 +37,17 @@
 #endif // _WIN32
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-
-/// Uniquely identifies an operating system module (executable or a dynamic
-/// library)
-using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
 public:
-  /// Returns a module enclosing given address or nullptr.
-  static OSModuleHandle getOSModuleHandle(const void *VirtAddr);
-
   /// Returns an absolute path to a directory where the object was found.
   static std::string getCurrentDSODir();
 
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
-
-  /// Module handle for the executable module - it is assumed there is always
-  /// single one at most.
-  static constexpr OSModuleHandle ExeModuleHandle = -1;
-
-  /// Dummy module handle to designate non-existing module for a device binary
-  /// image loaded from file e.g. via SYCL_USE_KERNEL_SPV env var.
-  static constexpr OSModuleHandle DummyModuleHandle = -2;
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
@@ -87,7 +69,7 @@ public:
   static int makeDir(const char *Dir);
 
   /// Checks if specified path is present
-  static inline bool isPathPresent(const std::string &Path) {
+  static bool isPathPresent(const std::string &Path) {
 #ifdef __SYCL_RT_OS_WINDOWS
     struct _stat Stat;
     return !_stat(Path.c_str(), &Stat);
@@ -99,5 +81,5 @@ public:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -12,6 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
+#include <cmath>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
@@ -388,7 +389,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
     const uint32_t imask = ~mask;
     ret = (src[i] & imask) | ((val[i] << offset[i] & mask));
     // Sign extend if signed type
-    if constexpr (std::is_signed<T>::value) {
+    if constexpr (std::is_signed_v<T>) {
       int m = 1U << (width[i] - 1);
       ret = (ret ^ m) - m;
     }
@@ -486,17 +487,17 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   constexpr bool
       pvcHfDest = isPvc && std::is_same_v<RT, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16,
       pvcHfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16,
       pvcBfDest = isPvc && std::is_same_v<RT, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16,
       pvcBfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16,
       pvcBfOrHfDest = pvcBfDest || pvcHfDest,
 
       pvcBfDestChecks =
@@ -545,10 +546,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
   static_assert(src1CountChk, "dpas: invalid size for src1.");
   static_assert(src2CountChk, "dpas: invalid size for src2.");
 
-  using TmpAccEl = typename std::conditional<
+  using TmpAccEl = std::conditional_t<
       pvcBfOrHfDest, float,
       typename __ESIMD_EMU_DNS::restype_ex<
-          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>::type;
+          RT, typename __ESIMD_EMU_DNS::restype_ex<T1, T2>::type>::type>;
 
   __ESIMD_DNS::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
 
@@ -574,7 +575,7 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
     for (unsigned s = 0; s < systolic_depth; s++) {
       src1_ops_per_dword = 32 / (ops_per_chan * src1_el_bits);
       // U = s / src1_ops_per_dword;
-      U = s >> unsigned(log2(src1_ops_per_dword));
+      U = s >> unsigned(std::log2(src1_ops_per_dword));
 
       for (unsigned n = 0; n < SIMDSize; n++) {
         for (unsigned d = 0; d < ops_per_chan; d++) {

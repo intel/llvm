@@ -70,7 +70,7 @@ public:
   const FileEntry &getFileEntry() const {
     return *getBaseMapEntry().second->V.get<FileEntry *>();
   }
-  DirectoryEntryRef getDir() const { return *getBaseMapEntry().second->Dir; }
+  DirectoryEntryRef getDir() const { return ME->second->Dir; }
 
   inline off_t getSize() const;
   inline unsigned getUID() const;
@@ -120,12 +120,12 @@ public:
     /// name that was used to lookup the file.
     llvm::PointerUnion<FileEntry *, const MapEntry *> V;
 
-    /// Directory the file was found in. Set if and only if V is a FileEntry.
-    OptionalDirectoryEntryRef Dir;
+    /// Directory the file was found in.
+    DirectoryEntryRef Dir;
 
     MapValue() = delete;
     MapValue(FileEntry &FE, DirectoryEntryRef Dir) : V(&FE), Dir(Dir) {}
-    MapValue(MapEntry &ME) : V(&ME) {}
+    MapValue(MapEntry &ME, DirectoryEntryRef Dir) : V(&ME), Dir(Dir) {}
   };
 
   /// Check if RHS referenced the file in exactly the same way.
@@ -234,6 +234,7 @@ static_assert(std::is_trivially_copyable<OptionalFileEntryRef>::value,
 } // namespace clang
 
 namespace llvm {
+
 /// Specialisation of DenseMapInfo for FileEntryRef.
 template <> struct DenseMapInfo<clang::FileEntryRef> {
   static inline clang::FileEntryRef getEmptyKey() {
@@ -260,6 +261,18 @@ template <> struct DenseMapInfo<clang::FileEntryRef> {
     // It's safe to use operator==.
     return LHS == RHS;
   }
+
+  /// Support for finding `const FileEntry *` in a `DenseMap<FileEntryRef, T>`.
+  /// @{
+  static unsigned getHashValue(const clang::FileEntry *Val) {
+    return llvm::hash_value(Val);
+  }
+  static bool isEqual(const clang::FileEntry *LHS, clang::FileEntryRef RHS) {
+    if (RHS.isSpecialDenseMapKey())
+      return false;
+    return LHS == RHS;
+  }
+  /// @}
 };
 
 } // end namespace llvm
@@ -382,7 +395,6 @@ class FileEntry {
 public:
   ~FileEntry();
   StringRef getName() const { return LastRef->getName(); }
-  FileEntryRef getLastRef() const { return *LastRef; }
 
   StringRef tryGetRealPathName() const { return RealPathName; }
   off_t getSize() const { return Size; }

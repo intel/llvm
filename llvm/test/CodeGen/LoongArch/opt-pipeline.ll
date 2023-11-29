@@ -113,7 +113,7 @@
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Slot index numbering
 ; CHECK-NEXT:       Live Interval Analysis
-; CHECK-NEXT:       Simple Register Coalescing
+; CHECK-NEXT:       Register Coalescer
 ; CHECK-NEXT:       Rename Disconnected Subregister Components
 ; CHECK-NEXT:       Machine Instruction Scheduler
 ; CHECK-NEXT:       Machine Block Frequency Analysis
@@ -165,6 +165,7 @@
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       Stack Frame Layout Analysis
+; CHECK-NEXT:       LoongArch pseudo instruction expansion pass
 ; CHECK-NEXT:       LoongArch atomic pseudo instruction expansion pass
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter

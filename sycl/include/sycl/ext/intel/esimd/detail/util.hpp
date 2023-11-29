@@ -19,12 +19,14 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_INTRIN __DPCPP_SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#elif !defined(__ESIMD_BUILD_HOST_CODE)
+#define __ESIMD_INTRIN ESIMD_NOINLINE __attribute__((internal_linkage))
 #else
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// ESIMD intrinsic operand size in bytes.
@@ -165,7 +167,7 @@ template <> struct word_type<uint> {
 
 // Utility for compile time loop unrolling.
 template <unsigned N> class ForHelper {
-  template <unsigned I, typename Action> static inline void repeat(Action A) {
+  template <unsigned I, typename Action> static void repeat(Action A) {
     if constexpr (I < N)
       A(I);
     if constexpr (I + 1 < N)
@@ -173,7 +175,7 @@ template <unsigned N> class ForHelper {
   }
 
 public:
-  template <typename Action> static inline void unroll(Action A) {
+  template <typename Action> static void unroll(Action A) {
     ForHelper::template repeat<0, Action>(A);
   }
 };
@@ -181,15 +183,22 @@ public:
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 /// Returns the address referenced by the accessor \p Acc and
 /// the byte offset \p Offset.
-template <typename T, typename AccessorTy>
-T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
-  auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
-  return reinterpret_cast<T *>(BytePtr);
+template <typename T, typename AccessorTy, typename OffsetTy = uint32_t>
+auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
+  using QualCharPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const char *, char *>;
+  using QualTPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const T *, T *>;
+  auto BytePtr =
+      reinterpret_cast<QualCharPtrType>(Acc.get_pointer().get()) + Offset;
+  return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

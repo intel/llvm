@@ -423,14 +423,29 @@ Case 1 can be identified in the device binary generation stage (step 1) by
 scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
-The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
-the driver. It detects if a module includes kernels and is invoked as follows:
+#### Device Link during compilation
 
-```bash
-llvm-no-spir-kernel host.bc
-```
+The `-fno-sycl-rdc` flag can be used in combination with the `-c` option
+when generating fat objects. This option combination informs the compiler to
+perform a full device link stage against the device object, creating a fat
+object that contains the corresponding host object and a fully compiled device
+binary. It is expected that usage of `-fno-sycl-rdc` coincide with
+ahead of time compiling.
 
-It returns 0 if no kernels are present and 1 otherwise.
+When using the generated fat object in this case, the compiler will recognize
+the fat object that contains the fully linked device binary. The device binary
+will be unbundled and linked during the final host link and will not be sent
+through any additional device linking steps.
+
+1. Generation of fat object: a.cpp -> a_fat.o (contains host object and full
+device image)
+2. Linking: a_fat.o -> executable
+
+The generation of the full device image during the compilation (-c) step of
+creating the object allows for library creation that does not require full
+device linking steps which can be a burden to the user.  Providing these early
+device linking steps give the provider of the archives/objects a better user
+experience.
 
 #### Device code post-link step
 
@@ -469,7 +484,7 @@ list coming either from `llvm-spirv` or from the AOT backend.
 Targeting PTX currently only accepts a single input file for processing, so
 `file-table-tform` is used to extract the code file from the file table, which
 is then processed by the
-["PTX target processing" step](#device-code-post-link-step-for-CUDA).
+["PTX target processing" step](#device-code-post-link-step-for-cuda).
 The resulting device binary is inserted back into the file table in place of the
 extracted code file using `file-table-tform`. If `-fno-sycl-rdc` is specified,
 all shown tools are invoked multiple times, once per translation unit rather than
@@ -541,7 +556,7 @@ TBD
 
 ##### Specialization constants lowering
 
-See [corresponding documentation](SpecializationConstants.md)
+See corresponding documentation
 
 #### CUDA support
 
@@ -758,6 +773,37 @@ entry:
 
 Note: Kernel naming is not fully stable for now.
 
+##### Kernel Fusion Support
+
+The [experimental kernel fusion
+extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
+also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
+are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
+suitable IR has to be added as an additional device binary.
+
+Therefore, in case kernel fusion should be performed for the CUDA or HIP backends, the
+user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
+to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
+is specified, the LLVM IR produced by Clang for the CUDA/HIP backend device
+compilation is added to the fat binary file. To this end, the resulting
+file-table from `sycl-post-link` is additionally passed to the
+`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`
+for the CUDA backend and `llvm_amdgcn` for the HIP backend.
+
+This device binary in LLVM IR format can be retrieved by the SYCL runtime and
+used by the kernel fusion JIT compiler. For the CUDA backend, the resulting fused
+kernel is compiled to PTX assembly by the kernel fusion JIT compiler at runtime.
+For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
+by the kernel fusion JIT compiler at runtime, however this output requires
+finalization by `lld`. Rather than adding another dependancy to the fusion jit,
+a `Requires finalization` property is added the binary. The HIP
+PI plugin/UR adapter will then use the AMD Compiler Object Manager library
+(`comgr`, part of the ROCm package) in order to finalize it into
+a loadable format.
+
+Note that the device binary in LLVM IR does not replace the device binary in
+target format, but is embed in addition to it.
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from
@@ -965,4 +1011,4 @@ with any other address space (including default).
 
 ## DPC++ Language extensions to SYCL
 
-List of language extensions can be found at [extensions](../extensions)
+List of language extensions can be found at [extensions](https://github.com/intel/llvm/blob/sycl/doc/extensions/)

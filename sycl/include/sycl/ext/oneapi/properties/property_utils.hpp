@@ -8,14 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/detail/boost/mp11.hpp>
+#include <sycl/detail/boost/mp11/algorithm.hpp>        // for mp_sort_q
+#include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
+#include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
+#include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
+#include <sycl/ext/oneapi/properties/property.hpp> // for PropertyID, IsRun...
 
-#include <tuple>
+#include <array>       // for tuple_element
+#include <stddef.h>    // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for false_type, true_...
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Forward declaration
@@ -76,9 +82,9 @@ template <typename... Ts>
 struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
 template <typename T, typename... Ts>
 struct AllPropertyValues<std::tuple<T, Ts...>>
-    : sycl::detail::conditional_t<IsPropertyValue<T>::value,
-                                  AllPropertyValues<std::tuple<Ts...>>,
-                                  std::false_type> {};
+    : std::conditional_t<IsPropertyValue<T>::value,
+                         AllPropertyValues<std::tuple<Ts...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property type sorting
@@ -130,9 +136,8 @@ struct IsSorted<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
-                                  IsSorted<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
+                         IsSorted<std::tuple<R, Rest...>>, std::false_type> {};
 
 // Checks that all types in a sorted tuple have unique PropertyID.
 template <typename T> struct SortedAllUnique {};
@@ -141,9 +146,9 @@ struct SortedAllUnique<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct SortedAllUnique<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct SortedAllUnique<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                                  SortedAllUnique<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
+                         SortedAllUnique<std::tuple<R, Rest...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property merging
@@ -208,7 +213,7 @@ template <char... Sizes> struct CharList {};
 
 // Helper for converting characters to a constexpr string.
 template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
+  static constexpr const char value[] = {Chars..., '\0'};
 };
 
 // Helper for converting a list of size_t values to a comma-separated string
@@ -306,7 +311,56 @@ struct SizeListToStrHelper<SizeList<>, CharList<>> : CharsToStr<> {};
 template <size_t... Sizes>
 struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 
+//******************************************************************************
+// Property mutual exclusivity
+//******************************************************************************
+
+// Specializations of the following trait should not consider itself a
+// conflicting property.
+template <typename PropKey, typename Properties>
+struct ConflictingProperties : std::false_type {};
+
+template <typename Properties, typename T>
+struct NoConflictingPropertiesHelper {};
+
+template <typename Properties, typename... Ts>
+struct NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>>
+    : std::true_type {};
+
+template <typename Properties, typename T, typename... Ts>
+struct NoConflictingPropertiesHelper<Properties, std::tuple<T, Ts...>>
+    : NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>> {};
+
+template <typename Properties, typename... Rest, typename PropT,
+          typename... PropValuesTs>
+struct NoConflictingPropertiesHelper<
+    Properties, std::tuple<property_value<PropT, PropValuesTs...>, Rest...>>
+    : std::conditional_t<
+          ConflictingProperties<PropT, Properties>::value, std::false_type,
+          NoConflictingPropertiesHelper<Properties, std::tuple<Rest...>>> {};
+template <typename PropertiesT>
+struct NoConflictingProperties
+    : NoConflictingPropertiesHelper<PropertiesT, PropertiesT> {};
+
+//******************************************************************************
+// Conditional property meta-info
+//******************************************************************************
+
+// Base class for property meta info that is ignored when propagating
+// information through the compiler.
+struct IgnoredPropertyMetaInfo {
+  static constexpr const char *name = "";
+  static constexpr std::nullptr_t value = nullptr;
+};
+
+// Trait for picking either property meta information for PropT if Condition is
+// true or ignored information if Condition is false.
+template <typename PropT, bool Condition>
+struct ConditionalPropertyMetaInfo
+    : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
+                         IgnoredPropertyMetaInfo> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -58,13 +58,6 @@ enum NodeType : unsigned {
 
   CALL_BTI, // Function call followed by a BTI instruction.
 
-  // Essentially like a normal COPY that works on GPRs, but cannot be
-  // rematerialised by passes like the simple register coalescer. It's
-  // required for SME when lowering calls because we cannot allow frame
-  // index calculations using addvl to slip in between the smstart/smstop
-  // and the bl instruction. The scalable vector length may change across
-  // the smstart/smstop boundary.
-  OBSCURE_COPY,
   SMSTART,
   SMSTOP,
   RESTORE_ZA,
@@ -165,9 +158,6 @@ enum NodeType : unsigned {
   // Floating point comparison
   FCMP,
 
-  // Scalar extract
-  EXTR,
-
   // Scalar-to-vector duplication
   DUP,
   DUPLANE8,
@@ -218,6 +208,9 @@ enum NodeType : unsigned {
   SRSHR_I,
   URSHR_I,
 
+  // Vector narrowing shift by immediate (bottom)
+  RSHRNB_I,
+
   // Vector shift by constant and insert
   VSLI,
   VSRI,
@@ -248,6 +241,9 @@ enum NodeType : unsigned {
   // Only the lower result lane is defined.
   SADDV,
   UADDV,
+
+  // Unsigned sum Long across Vector
+  UADDLV,
 
   // Add Pairwise of two vectors
   ADDP,
@@ -339,6 +335,8 @@ enum NodeType : unsigned {
   PTEST_ANY,
   PTRUE,
 
+  CTTZ_ELTS,
+
   BITREVERSE_MERGE_PASSTHRU,
   BSWAP_MERGE_PASSTHRU,
   REVH_MERGE_PASSTHRU,
@@ -377,6 +375,8 @@ enum NodeType : unsigned {
   GLD1_UXTW_SCALED_MERGE_ZERO,
   GLD1_SXTW_SCALED_MERGE_ZERO,
   GLD1_IMM_MERGE_ZERO,
+  GLD1Q_MERGE_ZERO,
+  GLD1Q_INDEX_MERGE_ZERO,
 
   // Signed gather loads
   GLD1S_MERGE_ZERO,
@@ -421,6 +421,8 @@ enum NodeType : unsigned {
   SST1_UXTW_SCALED_PRED,
   SST1_SXTW_SCALED_PRED,
   SST1_IMM_PRED,
+  SST1Q_PRED,
+  SST1Q_INDEX_PRED,
 
   // Non-temporal scatter store
   SSTNT1_PRED,
@@ -443,6 +445,10 @@ enum NodeType : unsigned {
   // Strict (exception-raising) floating point comparison
   STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCMPE,
+
+  // SME ZA loads and stores
+  SME_ZA_LDR,
+  SME_ZA_STR,
 
   // NEON Load/Store with post-increment base updates
   LD2post = ISD::FIRST_TARGET_MEMORY_OPCODE,
@@ -505,8 +511,8 @@ enum Rounding {
 const unsigned RoundingBitsPos = 22;
 
 // Registers used to pass function arguments.
-const ArrayRef<MCPhysReg> getGPRArgRegs();
-const ArrayRef<MCPhysReg> getFPRArgRegs();
+ArrayRef<MCPhysReg> getGPRArgRegs();
+ArrayRef<MCPhysReg> getFPRArgRegs();
 
 } // namespace AArch64
 
@@ -534,6 +540,11 @@ public:
                                      const APInt &DemandedElts,
                                      const SelectionDAG &DAG,
                                      unsigned Depth = 0) const override;
+
+  unsigned ComputeNumSignBitsForTargetNode(SDValue Op,
+                                           const APInt &DemandedElts,
+                                           const SelectionDAG &DAG,
+                                           unsigned Depth) const override;
 
   MVT getPointerTy(const DataLayout &DL, uint32_t AS = 0) const override {
     // Returning i64 unconditionally here (i.e. even for ILP32) means that the
@@ -632,8 +643,8 @@ public:
   bool shouldSinkOperands(Instruction *I,
                           SmallVectorImpl<Use *> &Ops) const override;
 
-  bool optimizeExtendOrTruncateConversion(Instruction *I,
-                                          Loop *L) const override;
+  bool optimizeExtendOrTruncateConversion(
+      Instruction *I, Loop *L, const TargetTransformInfo &TTI) const override;
 
   bool hasPairedLoad(EVT LoadedType, Align &RequiredAligment) const override;
 
@@ -645,6 +656,12 @@ public:
                             unsigned Factor) const override;
   bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
                              unsigned Factor) const override;
+
+  bool lowerDeinterleaveIntrinsicToLoad(IntrinsicInst *DI,
+                                        LoadInst *LI) const override;
+
+  bool lowerInterleaveIntrinsicToStore(IntrinsicInst *II,
+                                       StoreInst *SI) const override;
 
   bool isLegalAddImmediate(int64_t) const override;
   bool isLegalICmpImmediate(int64_t) const override;
@@ -674,7 +691,7 @@ public:
   bool isFMAFasterThanFMulAndFAdd(const Function &F, Type *Ty) const override;
 
   bool generateFMAsInMachineCombiner(EVT VT,
-                                     CodeGenOpt::Level OptLevel) const override;
+                                     CodeGenOptLevel OptLevel) const override;
 
   const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
   ArrayRef<MCPhysReg> getRoundingControlRegisters() const override;
@@ -683,12 +700,19 @@ public:
   bool isDesirableToCommuteWithShift(const SDNode *N,
                                      CombineLevel Level) const override;
 
+  bool isDesirableToPullExtFromShl(const MachineInstr &MI) const override {
+    return false;
+  }
+
   /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
   bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
 
   /// Return true if it is profitable to fold a pair of shifts into a mask.
   bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                          CombineLevel Level) const override;
+
+  bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                            EVT VT) const override;
 
   /// Returns true if it is beneficial to convert a load of a constant
   /// to just the constant itself.
@@ -838,7 +862,7 @@ public:
       ComplexDeinterleavingOperation Operation, Type *Ty) const override;
 
   Value *createComplexDeinterleavingIR(
-      Instruction *I, ComplexDeinterleavingOperation OperationType,
+      IRBuilderBase &B, ComplexDeinterleavingOperation OperationType,
       ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
       Value *Accumulator = nullptr) const override;
 
@@ -856,6 +880,10 @@ public:
   }
 
   bool supportKCFIBundles() const override { return true; }
+
+  MachineInstr *EmitKCFICheck(MachineBasicBlock &MBB,
+                              MachineBasicBlock::instr_iterator &MBBI,
+                              const TargetInstrInfo *TII) const override;
 
   /// Enable aggressive FMA fusion on targets that want it.
   bool enableAggressiveFMAFusion(EVT VT) const override;
@@ -908,6 +936,8 @@ public:
                              bool AllowUnknown = false) const override;
 
   bool shouldExpandGetActiveLaneMask(EVT VT, EVT OpVT) const override;
+
+  bool shouldExpandCttzElements(EVT VT) const override;
 
   /// If a change in streaming mode is required on entry to/return from a
   /// function call it emits and returns the corresponding SMSTART or SMSTOP node.
@@ -1044,7 +1074,6 @@ private:
   SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSCALAR_TO_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerZERO_EXTEND_VECTOR_INREG(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
@@ -1084,7 +1113,6 @@ private:
   SDValue LowerVSCALE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerATOMIC_LOAD_SUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_AND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
@@ -1152,21 +1180,28 @@ private:
 
   const char *LowerXConstraint(EVT ConstraintVT) const override;
 
-  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+  void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
 
-  unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
+  InlineAsm::ConstraintCode
+  getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
     if (ConstraintCode == "Q")
-      return InlineAsm::Constraint_Q;
+      return InlineAsm::ConstraintCode::Q;
     // FIXME: clang has code for 'Ump', 'Utf', 'Usa', and 'Ush' but these are
     //        followed by llvm_unreachable so we'll leave them unimplemented in
     //        the backend for now.
     return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
   }
 
+  /// Handle Lowering flag assembly outputs.
+  SDValue LowerAsmOutputForConstraint(SDValue &Chain, SDValue &Flag,
+                                      const SDLoc &DL,
+                                      const AsmOperandInfo &Constraint,
+                                      SelectionDAG &DAG) const override;
+
   bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
-  bool shouldRemoveExtendFromGSIndex(EVT IndexVT, EVT DataVT) const override;
+  bool shouldRemoveExtendFromGSIndex(SDValue Extend, EVT DataVT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
@@ -1178,6 +1213,8 @@ private:
   bool getPostIndexedAddressParts(SDNode *N, SDNode *Op, SDValue &Base,
                                   SDValue &Offset, ISD::MemIndexedMode &AM,
                                   SelectionDAG &DAG) const override;
+  bool isIndexingLegal(MachineInstr &MI, Register Base, Register Offset,
+                       bool IsPre, MachineRegisterInfo &MRI) const override;
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
@@ -1220,10 +1257,9 @@ private:
   SDValue getPStateSM(SelectionDAG &DAG, SDValue Chain, SMEAttrs Attrs,
                       SDLoc DL, EVT VT) const;
 
-  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
-                                              LLT Ty2) const override;
-
   bool preferScalarizeSplat(SDNode *N) const override;
+
+  unsigned getMinimumJumpTableEntries() const override;
 };
 
 namespace AArch64 {

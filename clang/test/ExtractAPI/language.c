@@ -70,6 +70,10 @@ char objc;
         {
           "kind": "identifier",
           "spelling": "c"
+        },
+        {
+          "kind": "text",
+          "spelling": ";"
         }
       ],
       "identifier": {
@@ -82,8 +86,8 @@ char objc;
       },
       "location": {
         "position": {
-          "character": 6,
-          "line": 1
+          "character": 5,
+          "line": 0
         },
         "uri": "file://INPUT_DIR/c.h"
       },
@@ -150,6 +154,10 @@ char objc;
         {
           "kind": "identifier",
           "spelling": "objc"
+        },
+        {
+          "kind": "text",
+          "spelling": ";"
         }
       ],
       "identifier": {
@@ -162,8 +170,8 @@ char objc;
       },
       "location": {
         "position": {
-          "character": 6,
-          "line": 1
+          "character": 5,
+          "line": 0
         },
         "uri": "file://INPUT_DIR/objc.h"
       },

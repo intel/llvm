@@ -137,10 +137,9 @@ Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
       return nullptr;
     E = Res.get();
 
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
+    // This attribute accepts values 0 and 1 only.
+    if (ArgVal < 0 || ArgVal > 1) {
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
       return nullptr;
     }
   }
@@ -291,12 +290,11 @@ Sema::BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
   }
 
   // Try to put Safelen in the 1st one so codegen can count on the ordering.
-  Expr *SafeLenExpr;
-  Expr *ArrayExpr;
-  if (E1 == IVDepExprResult::SafeLen) {
-    SafeLenExpr = Expr1;
-    ArrayExpr = Expr2;
-  } else {
+  Expr *SafeLenExpr = Expr1;
+  Expr *ArrayExpr = Expr2;
+
+  // Both can be null or dependent, so swap if we're really sure.
+  if (E2 == IVDepExprResult::SafeLen || E1 == IVDepExprResult::Array) {
     SafeLenExpr = Expr2;
     ArrayExpr = Expr1;
   }
@@ -481,6 +479,11 @@ static Attr * handleSYCLIntelMaxReinvocationDelayAttr(Sema &S, Stmt *St,
   return S.BuildSYCLIntelMaxReinvocationDelayAttr(A, E);
 }
 
+static Attr *handleSYCLIntelEnableLoopPipeliningAttr(Sema &S, Stmt *,
+                                                     const ParsedAttr &A) {
+  return new (S.Context) SYCLIntelEnableLoopPipeliningAttr(S.Context, A);
+}
+
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange) {
   IdentifierLoc *PragmaNameLoc = A.getArgAsIdent(0);
@@ -650,7 +653,7 @@ static bool CheckStmtInlineAttr(Sema &SemaRef, const Stmt *OrigSt,
            << A;
   }
 
-  for (auto Tup :
+  for (const auto &Tup :
        llvm::zip_longest(OrigCEF.getCallExprs(), CEF.getCallExprs())) {
     // If the original call expression already had a callee, we already
     // diagnosed this, so skip it here. We can't skip if there isn't a 1:1
@@ -732,6 +735,81 @@ static Attr *handleUnlikely(Sema &S, Stmt *St, const ParsedAttr &A,
     S.Diag(A.getLoc(), diag::ext_cxx20_attr) << A << Range;
 
   return ::new (S.Context) UnlikelyAttr(S.Context, A);
+}
+
+CodeAlignAttr *Sema::BuildCodeAlignAttr(const AttributeCommonInfo &CI,
+                                        Expr *E) {
+  if (!E->isValueDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return nullptr;
+    E = Res.get();
+
+    // This attribute requires an integer argument which is a constant power of
+    // two between 1 and 4096 inclusive.
+    if (ArgVal < CodeAlignAttr::MinimumAlignment ||
+        ArgVal > CodeAlignAttr::MaximumAlignment || !ArgVal.isPowerOf2()) {
+      if (std::optional<int64_t> Value = ArgVal.trySExtValue())
+        Diag(CI.getLoc(), diag::err_attribute_power_of_two_in_range)
+            << CI << CodeAlignAttr::MinimumAlignment
+            << CodeAlignAttr::MaximumAlignment << Value.value();
+      else
+        Diag(CI.getLoc(), diag::err_attribute_power_of_two_in_range)
+            << CI << CodeAlignAttr::MinimumAlignment
+            << CodeAlignAttr::MaximumAlignment << E;
+      return nullptr;
+    }
+  }
+  return new (Context) CodeAlignAttr(Context, CI, E);
+}
+
+static Attr *handleCodeAlignAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
+
+  Expr *E = A.getArgAsExpr(0);
+  return S.BuildCodeAlignAttr(A, E);
+}
+
+// Diagnose non-identical duplicates as a 'conflicting' loop attributes
+// and suppress duplicate errors in cases where the two match for
+// [[clang::code_align()]] attribute.
+static void CheckForDuplicateCodeAlignAttrs(Sema &S,
+                                            ArrayRef<const Attr *> Attrs) {
+  auto FindFunc = [](const Attr *A) { return isa<const CodeAlignAttr>(A); };
+  const auto *FirstItr = std::find_if(Attrs.begin(), Attrs.end(), FindFunc);
+
+  if (FirstItr == Attrs.end()) // no attributes found
+    return;
+
+  const auto *LastFoundItr = FirstItr;
+  std::optional<llvm::APSInt> FirstValue;
+
+  const auto *CAFA =
+      dyn_cast<ConstantExpr>(cast<CodeAlignAttr>(*FirstItr)->getAlignment());
+  // Return early if first alignment expression is dependent (since we don't
+  // know what the effective size will be), and skip the loop entirely.
+  if (!CAFA)
+    return;
+
+  while (Attrs.end() != (LastFoundItr = std::find_if(LastFoundItr + 1,
+                                                     Attrs.end(), FindFunc))) {
+    const auto *CASA = dyn_cast<ConstantExpr>(
+        cast<CodeAlignAttr>(*LastFoundItr)->getAlignment());
+    // If the value is dependent, we can not test anything.
+    if (!CASA)
+      return;
+    // Test the attribute values.
+    llvm::APSInt SecondValue = CASA->getResultAsAPSInt();
+    if (!FirstValue)
+      FirstValue = CAFA->getResultAsAPSInt();
+
+    if (FirstValue != SecondValue) {
+      S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
+          << *FirstItr;
+      S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
+    }
+    return;
+  }
 }
 
 #define WANT_STMT_MERGE_LOGIC
@@ -895,6 +973,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelMaxReinvocationDelayAttr>(
       S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelEnableLoopPipeliningAttr>(
+      S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -990,7 +1070,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
       !(A.existsInTarget(S.Context.getTargetInfo()) ||
         (S.Context.getLangOpts().SYCLIsDevice && Aux &&
          A.existsInTarget(*Aux)))) {
-    S.Diag(A.getLoc(), A.isDeclspecAttribute()
+    S.Diag(A.getLoc(), A.isRegularKeywordAttribute()
+                           ? (unsigned)diag::err_keyword_not_supported_on_target
+                       : A.isDeclspecAttribute()
                            ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                            : (unsigned)diag::warn_unknown_attribute_ignored)
         << A << A.getRange();
@@ -1042,12 +1124,16 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleIntelNofusionAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelMaxReinvocationDelay:
     return handleSYCLIntelMaxReinvocationDelayAttr(S, St, A);
+  case ParsedAttr::AT_SYCLIntelEnableLoopPipelining:
+    return handleSYCLIntelEnableLoopPipeliningAttr(S, St, A);
+  case ParsedAttr::AT_CodeAlign:
+    return handleCodeAlignAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is
     // needed for attributes in Attr.td that do not list any subjects.
     S.Diag(A.getRange().getBegin(), diag::err_decl_attribute_invalid_on_stmt)
-        << A << St->getBeginLoc();
+        << A << A.isRegularKeywordAttribute() << St->getBeginLoc();
     return nullptr;
   }
 }
@@ -1062,8 +1148,15 @@ void Sema::ProcessStmtAttributes(Stmt *S, const ParsedAttributes &InAttrs,
   CheckForIncompatibleAttributes(*this, OutAttrs);
   CheckForIncompatibleSYCLLoopAttributes(*this, OutAttrs);
   CheckForIncompatibleUnrollHintAttributes(*this, OutAttrs, InAttrs.Range);
+  CheckForDuplicateCodeAlignAttrs(*this, OutAttrs);
 }
+
 bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
   CheckRedundantSYCLIntelIVDepAttrs(*this, Attrs);
+  return false;
+}
+
+bool Sema::CheckRebuiltCodeAlignStmtAttributes(ArrayRef<const Attr *> Attrs) {
+  CheckForDuplicateCodeAlignAttrs(*this, Attrs);
   return false;
 }

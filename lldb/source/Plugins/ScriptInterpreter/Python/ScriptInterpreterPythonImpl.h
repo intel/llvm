@@ -83,6 +83,9 @@ public:
                            std::string &error_str,
                            lldb::ThreadPlanSP thread_plan) override;
 
+  StructuredData::ObjectSP
+  CreateStructuredDataFromScriptObject(ScriptObject obj) override;
+
   bool ScriptedThreadPlanExplainsStop(StructuredData::ObjectSP implementor_sp,
                                       Event *event,
                                       bool &script_error) override;
@@ -95,6 +98,11 @@ public:
 
   lldb::StateType
   ScriptedThreadPlanGetRunState(StructuredData::ObjectSP implementor_sp,
+                                bool &script_error) override;
+
+  bool
+  ScriptedThreadPlanGetStopDescription(StructuredData::ObjectSP implementor_sp,
+                                lldb_private::Stream *s,
                                 bool &script_error) override;
 
   StructuredData::GenericSP
@@ -126,23 +134,9 @@ public:
 
   lldb::ScriptedProcessInterfaceUP CreateScriptedProcessInterface() override;
 
-  StructuredData::GenericSP
-  OSPlugin_CreatePluginObject(const char *class_name,
-                              lldb::ProcessSP process_sp) override;
+  lldb::ScriptedThreadInterfaceSP CreateScriptedThreadInterface() override;
 
-  StructuredData::DictionarySP
-  OSPlugin_RegisterInfo(StructuredData::ObjectSP os_plugin_object_sp) override;
-
-  StructuredData::ArraySP
-  OSPlugin_ThreadsInfo(StructuredData::ObjectSP os_plugin_object_sp) override;
-
-  StructuredData::StringSP
-  OSPlugin_RegisterContextData(StructuredData::ObjectSP os_plugin_object_sp,
-                               lldb::tid_t thread_id) override;
-
-  StructuredData::DictionarySP
-  OSPlugin_CreateThread(StructuredData::ObjectSP os_plugin_object_sp,
-                        lldb::tid_t tid, lldb::addr_t context) override;
+  lldb::OperatingSystemInterfaceSP CreateOperatingSystemInterface() override;
 
   StructuredData::ObjectSP
   LoadPluginModule(const FileSpec &file_spec,
@@ -373,11 +367,18 @@ public:
 
   void LeaveSession();
 
-  uint32_t IsExecutingPython() const { return m_lock_count > 0; }
+  uint32_t IsExecutingPython() {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return m_lock_count > 0;
+  }
 
-  uint32_t IncrementLockCount() { return ++m_lock_count; }
+  uint32_t IncrementLockCount() {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return ++m_lock_count;
+  }
 
   uint32_t DecrementLockCount() {
+    std::lock_guard<std::mutex> guard(m_mutex);
     if (m_lock_count > 0)
       --m_lock_count;
     return m_lock_count;
@@ -417,6 +418,7 @@ public:
   bool m_pty_secondary_is_open;
   bool m_valid_session;
   uint32_t m_lock_count;
+  std::mutex m_mutex;
   PyThreadState *m_command_thread_state;
 };
 
@@ -429,10 +431,11 @@ public:
 
   ~IOHandlerPythonInterpreter() override = default;
 
-  ConstString GetControlSequence(char ch) override {
+  llvm::StringRef GetControlSequence(char ch) override {
+    static constexpr llvm::StringLiteral control_sequence("quit()\n");
     if (ch == 'd')
-      return ConstString("quit()\n");
-    return ConstString();
+      return control_sequence;
+    return {};
   }
 
   void Run() override {

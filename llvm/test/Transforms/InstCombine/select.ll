@@ -487,7 +487,7 @@ define i32 @test26(i1 %cond)  {
 ; CHECK:       jump:
 ; CHECK-NEXT:    br label [[RET]]
 ; CHECK:       ret:
-; CHECK-NEXT:    [[B:%.*]] = phi i32 [ 10, [[JUMP]] ], [ 20, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[B:%.*]] = phi i32 [ 20, [[ENTRY:%.*]] ], [ 10, [[JUMP]] ]
 ; CHECK-NEXT:    ret i32 [[B]]
 ;
 entry:
@@ -508,7 +508,7 @@ define i32 @test26_logical(i1 %cond)  {
 ; CHECK:       jump:
 ; CHECK-NEXT:    br label [[RET]]
 ; CHECK:       ret:
-; CHECK-NEXT:    [[B:%.*]] = phi i32 [ 10, [[JUMP]] ], [ 20, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[B:%.*]] = phi i32 [ 20, [[ENTRY:%.*]] ], [ 10, [[JUMP]] ]
 ; CHECK-NEXT:    ret i32 [[B]]
 ;
 entry:
@@ -846,8 +846,8 @@ define i32 @test52(i32 %n, i32 %m) {
 
 define i32 @test53(i32 %x) {
 ; CHECK-LABEL: @test53(
-; CHECK-NEXT:    [[AND:%.*]] = and i32 [[X:%.*]], 2
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[AND]], [[X]]
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], -3
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP1]], 0
 ; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[CMP]], i32 2, i32 1
 ; CHECK-NEXT:    ret i32 [[SEL]]
 ;
@@ -960,7 +960,7 @@ define void @test64(i32 %p, i16 %b, i1 %c1) noreturn {
 ; CHECK:       lor.rhs:
 ; CHECK-NEXT:    br label [[LOR_END]]
 ; CHECK:       lor.end:
-; CHECK-NEXT:    br i1 true, label [[COND_END17:%.*]], label [[COND_FALSE16:%.*]]
+; CHECK-NEXT:    br i1 poison, label [[COND_END17:%.*]], label [[COND_FALSE16:%.*]]
 ; CHECK:       cond.false16:
 ; CHECK-NEXT:    br label [[COND_END17]]
 ; CHECK:       cond.end17:
@@ -1212,8 +1212,8 @@ define ptr @test83(i1 %flag) {
 ; CHECK-NEXT:    [[Y:%.*]] = alloca i64, align 8
 ; CHECK-NEXT:    call void @scribble_on_i64(ptr nonnull [[X]])
 ; CHECK-NEXT:    call void @scribble_on_i64(ptr nonnull [[Y]])
-; CHECK-NEXT:    [[T:%.*]] = load i64, ptr [[X]], align 8
-; CHECK-NEXT:    store i64 [[T]], ptr [[Y]], align 8
+; CHECK-NEXT:    [[T:%.*]] = load i64, ptr [[X]], align 4
+; CHECK-NEXT:    store i64 [[T]], ptr [[Y]], align 4
 ; CHECK-NEXT:    [[V:%.*]] = inttoptr i64 [[T]] to ptr
 ; CHECK-NEXT:    ret ptr [[V]]
 ;
@@ -1261,8 +1261,8 @@ define ptr @test85(i1 %flag) {
 ; CHECK-NEXT:    [[Y:%.*]] = alloca i128, align 8
 ; CHECK-NEXT:    call void @scribble_on_i128(ptr nonnull [[X]])
 ; CHECK-NEXT:    call void @scribble_on_i128(ptr nonnull [[Y]])
-; CHECK-NEXT:    [[T:%.*]] = load i128, ptr [[X]], align 8
-; CHECK-NEXT:    store i128 [[T]], ptr [[Y]], align 8
+; CHECK-NEXT:    [[T:%.*]] = load i128, ptr [[X]], align 4
+; CHECK-NEXT:    store i128 [[T]], ptr [[Y]], align 4
 ; CHECK-NEXT:    [[X_VAL:%.*]] = load ptr, ptr [[X]], align 8
 ; CHECK-NEXT:    [[Y_VAL:%.*]] = load ptr, ptr [[Y]], align 8
 ; CHECK-NEXT:    [[V:%.*]] = select i1 [[FLAG:%.*]], ptr [[X_VAL]], ptr [[Y_VAL]]
@@ -1290,8 +1290,8 @@ define i128 @test86(i1 %flag) {
 ; CHECK-NEXT:    call void @scribble_on_i128(ptr nonnull [[Y]])
 ; CHECK-NEXT:    [[T:%.*]] = load ptr, ptr [[X]], align 8
 ; CHECK-NEXT:    store ptr [[T]], ptr [[Y]], align 8
-; CHECK-NEXT:    [[X_VAL:%.*]] = load i128, ptr [[X]], align 8
-; CHECK-NEXT:    [[Y_VAL:%.*]] = load i128, ptr [[Y]], align 8
+; CHECK-NEXT:    [[X_VAL:%.*]] = load i128, ptr [[X]], align 4
+; CHECK-NEXT:    [[Y_VAL:%.*]] = load i128, ptr [[Y]], align 4
 ; CHECK-NEXT:    [[V:%.*]] = select i1 [[FLAG:%.*]], i128 [[X_VAL]], i128 [[Y_VAL]]
 ; CHECK-NEXT:    ret i128 [[V]]
 ;
@@ -2113,7 +2113,7 @@ define i32 @select_phi_same_condition(i1 %cond, i32 %x, i32 %y, i32 %z) {
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[S:%.*]] = phi i32 [ [[Z:%.*]], [[IF_FALSE]] ], [ [[X:%.*]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[S:%.*]] = phi i32 [ [[X:%.*]], [[IF_TRUE]] ], [ [[Z:%.*]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    ret i32 [[S]]
 ;
 entry:
@@ -2250,7 +2250,7 @@ define i32 @select_phi_same_condition_switch(i1 %cond, i32 %x, i32 %y) {
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[S:%.*]] = phi i32 [ [[Y:%.*]], [[IF_FALSE]] ], [ [[X]], [[IF_TRUE]] ], [ [[X]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[S:%.*]] = phi i32 [ [[X]], [[IF_TRUE]] ], [ [[X]], [[IF_TRUE]] ], [ [[Y:%.*]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    ret i32 [[S]]
 ;
 entry:
@@ -2287,7 +2287,7 @@ define i32 @transit_different_values_through_phi(i1 %cond, i1 %cond2) {
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[S:%.*]] = phi i32 [ 3, [[IF_FALSE]] ], [ 2, [[IF_TRUE_2]] ], [ 1, [[IF_TRUE_1]] ]
+; CHECK-NEXT:    [[S:%.*]] = phi i32 [ 1, [[IF_TRUE_1]] ], [ 2, [[IF_TRUE_2]] ], [ 3, [[IF_FALSE]] ]
 ; CHECK-NEXT:    ret i32 [[S]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 0
@@ -2321,7 +2321,7 @@ define i32 @select_phi_degenerate(i1 %cond, i1 %cond2) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 [[COND:%.*]], label [[LOOP:%.*]], label [[EXIT:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[SELECT:%.*]] = phi i32 [ [[IV_INC:%.*]], [[LOOP]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[SELECT:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_INC:%.*]], [[LOOP]] ]
 ; CHECK-NEXT:    [[IV_INC]] = add i32 [[SELECT]], 1
 ; CHECK-NEXT:    br i1 [[COND2:%.*]], label [[LOOP]], label [[EXIT2:%.*]]
 ; CHECK:       exit:
@@ -2416,7 +2416,7 @@ define i32 @test_select_into_phi_not_idom_inverted(i1 %cond, i32 %A, i32 %B)  {
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[B:%.*]], [[IF_FALSE]] ], [ [[A:%.*]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[A:%.*]], [[IF_TRUE]] ], [ [[B:%.*]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 [[SEL]]
@@ -2449,7 +2449,7 @@ define i32 @test_select_into_phi_not_idom_inverted_2(i1 %cond, i32 %A, i32 %B)  
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[B:%.*]], [[IF_FALSE]] ], [ [[A:%.*]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[A:%.*]], [[IF_TRUE]] ], [ [[B:%.*]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 [[SEL]]
@@ -2483,7 +2483,7 @@ define i32 @test_select_into_phi_not_idom_no_dom_input_1(i1 %cond, i32 %A, i32 %
 ; CHECK:       if.false:
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[A:%.*]], [[IF_FALSE]] ], [ [[C]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[C]], [[IF_TRUE]] ], [ [[A:%.*]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 [[SEL]]
@@ -2517,7 +2517,7 @@ define i32 @test_select_into_phi_not_idom_no_dom_input_2(i1 %cond, i32 %A, i32 %
 ; CHECK-NEXT:    [[C:%.*]] = load i32, ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[C]], [[IF_FALSE]] ], [ [[B:%.*]], [[IF_TRUE]] ]
+; CHECK-NEXT:    [[SEL:%.*]] = phi i32 [ [[B:%.*]], [[IF_TRUE]] ], [ [[C]], [[IF_FALSE]] ]
 ; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret i32 [[SEL]]
@@ -2892,10 +2892,9 @@ define i32 @select_replacement_loop2(i32 %arg, i32 %arg2) {
   ret i32 %sel
 }
 
-; TODO: Dropping the inbounds flag should not be necessary for this fold.
 define ptr @select_replacement_gep_inbounds(ptr %base, i64 %offset) {
 ; CHECK-LABEL: @select_replacement_gep_inbounds(
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i8, ptr [[BASE:%.*]], i64 [[OFFSET:%.*]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i8, ptr [[BASE:%.*]], i64 [[OFFSET:%.*]]
 ; CHECK-NEXT:    ret ptr [[GEP]]
 ;
   %cmp = icmp eq i64 %offset, 0
@@ -3580,4 +3579,46 @@ define i32 @pr61361(i32 %arg) {
   %sel2 = select i1 %cmp2, i32 %sel1, i32 0
   %ashr = ashr i32 %sel2, 1
   ret i32 %ashr
+}
+
+define i32 @pr62088() {
+; CHECK-LABEL: @pr62088(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[NOT2:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ -2, [[LOOP]] ]
+; CHECK-NEXT:    [[H_0:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ 1, [[LOOP]] ]
+; CHECK-NEXT:    [[XOR1:%.*]] = or i32 [[H_0]], [[NOT2]]
+; CHECK-NEXT:    [[SUB5:%.*]] = sub i32 -1824888657, [[XOR1]]
+; CHECK-NEXT:    [[XOR6:%.*]] = xor i32 [[SUB5]], -1260914025
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i32 [[XOR6]], 824855120
+; CHECK-NEXT:    br i1 [[CMP]], label [[LOOP]], label [[EXIT:%.*]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret i32 [[H_0]]
+;
+entry:
+  br label %loop
+
+loop:
+  %not2 = phi i32 [ 0, %entry ], [ -2, %loop ]
+  %i.0 = phi i32 [ 0, %entry ], [ %shr, %loop ]
+  %h.0 = phi i32 [ 0, %entry ], [ 1, %loop ]
+  %i.0.fr = freeze i32 %i.0
+  %sext = shl i32 %i.0.fr, 16
+  %conv = ashr exact i32 %sext, 16
+  %not = xor i32 %conv, -1
+  %and = and i32 %h.0, 1
+  %rem.urem = sub nsw i32 %and, %conv
+  %rem.cmp = icmp ult i32 %and, %conv
+  %rem = select i1 %rem.cmp, i32 %not, i32 %rem.urem
+  %xor = xor i32 %rem, %not2
+  %sub = sub nsw i32 0, %xor
+  %sub5 = sub i32 -1824888657, %xor
+  %xor6 = xor i32 %sub5, -1260914025
+  %cmp = icmp slt i32 %xor6, 824855120
+  %shr = ashr i32 %xor6, 40
+  br i1 %cmp, label %loop, label %exit
+
+exit:
+  ret i32 %rem
 }

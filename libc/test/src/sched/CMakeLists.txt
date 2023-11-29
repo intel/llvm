@@ -1,4 +1,4 @@
-add_libc_testsuite(libc_sched_unittests)
+add_custom_target(libc_sched_unittests)
 
 add_libc_unittest(
   affinity_test
@@ -13,7 +13,7 @@ add_libc_unittest(
     libc.src.errno.errno
     libc.src.sched.sched_getaffinity
     libc.src.sched.sched_setaffinity
-    libc.test.errno_setter_matcher
+    libc.test.UnitTest.ErrnoSetterMatcher
 )
 
 add_libc_unittest(
@@ -25,6 +25,53 @@ add_libc_unittest(
   DEPENDS
     libc.src.errno.errno
     libc.src.sched.sched_yield
+)
+
+add_libc_unittest(
+  get_priority_test
+  SUITE
+    libc_sched_unittests
+  SRCS
+    get_priority_test.cpp
+  DEPENDS
+    libc.include.sched
+    libc.src.errno.errno
+    libc.src.sched.sched_get_priority_min
+    libc.src.sched.sched_get_priority_max
+)
+
+add_libc_unittest(
+  scheduler_test
+  SUITE
+    libc_sched_unittests
+  SRCS
+    param_and_scheduler_test.cpp
+  DEPENDS
+    libc.include.sched
+    libc.src.errno.errno
+    libc.src.sched.sched_getscheduler
+    libc.src.sched.sched_setscheduler
+    libc.src.sched.sched_getparam
+    libc.src.sched.sched_setparam
+    libc.src.sched.sched_get_priority_min
+    libc.src.sched.sched_get_priority_max
+    libc.src.unistd.getuid
+)
+
+add_libc_unittest(
+  sched_rr_get_interval_test
+  SUITE
+    libc_sched_unittests
+  SRCS
+    sched_rr_get_interval_test.cpp
+  DEPENDS
+    libc.include.sched
+    libc.src.errno.errno
+    libc.src.sched.sched_getscheduler
+    libc.src.sched.sched_setscheduler
+    libc.src.sched.sched_get_priority_min
+    libc.src.sched.sched_rr_get_interval
+    libc.src.unistd.getuid
 )
 
 add_libc_unittest(
@@ -40,5 +87,5 @@ add_libc_unittest(
     libc.src.errno.errno
     libc.src.sched.sched_getaffinity
     libc.src.sched.__sched_getcpucount
-    libc.test.errno_setter_matcher
+    libc.test.UnitTest.ErrnoSetterMatcher
 )

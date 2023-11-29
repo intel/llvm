@@ -8,9 +8,10 @@
 
 # Fortran Extensions supported by Flang
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 As a general principle, this compiler will accept by default and
@@ -92,6 +93,9 @@ end
   non-global name in the same scope.  This is not conforming,
   but it is useful and unambiguous.
 * The argument to `RANDOM_NUMBER` may not be an assumed-size array.
+* `NULL()` without `MOLD=` is not allowed to be associated as an
+  actual argument corresponding to an assumed-rank dummy argument;
+  its rank in the called procedure would not be well-defined.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -99,6 +103,9 @@ end
 * `<>` as synonym for `.NE.` and `/=`
 * `$` and `@` as legal characters in names
 * Initialization in type declaration statements using `/values/`
+* Saved variables without explicit or default initializers are zero initialized.
+* In a saved entity of a type with a default initializer, components without default
+  values are zero initialized.
 * Kind specification with `*`, e.g. `REAL*4`
 * `DOUBLE COMPLEX` as a synonym for `COMPLEX(KIND(0.D0))` --
   but not when spelled `TYPE(DOUBLECOMPLEX)`.
@@ -173,7 +180,7 @@ end
    or `EXTENDEDTYPE(PARENTTYPE=PARENTTYPE(1,2,3))`).
 * Some intrinsic functions are specified in the standard as requiring the
   same type and kind for their arguments (viz., ATAN with two arguments,
-  ATAN2, DIM, HYPOT, MAX, MIN, MOD, and MODULO);
+  ATAN2, DIM, HYPOT, IAND, IEOR, IOR, MAX, MIN, MOD, and MODULO);
   we allow distinct types to be used, promoting
   the arguments as if they were operands to an intrinsic `+` operator,
   and defining the result type accordingly.
@@ -218,6 +225,8 @@ end
   we also treat scalars as being trivially contiguous, so that they
   can be used in contexts like data targets in pointer assignments
   with bounds remapping.
+* The `CONTIGUOUS` attribute can be redundantly applied to simply
+  contiguous objects, including scalars, with a portability warning.
 * We support some combinations of specific procedures in generic
   interfaces that a strict reading of the standard would preclude
   when their calls must nonetheless be distinguishable.
@@ -282,6 +291,30 @@ end
 * When a name is brought into a scope by multiple ways,
   such as USE-association as well as an `IMPORT` from its host,
   it's an error only if the resolution is ambiguous.
+* An entity may appear in a `DATA` statement before its explicit
+  type declaration under `IMPLICIT NONE(TYPE)`.
+* `INCLUDE` lines can start in any column, can be preceded in
+  fixed form source by a '0' in column 6, can contain spaces
+  between the letters of the word INCLUDE, and can have a
+  numeric character literal kind prefix on the file name.
+* Intrinsic procedures TAND and ATAND. Constant folding is currently
+  not supported for these procedures but this is planned.
+* When a pair of quotation marks in a character literal are split
+  by a line continuation in free form, the second quotation mark
+  may appear at the beginning of the continuation line without an
+  ampersand, althought one is required by the standard.
+* Unrestricted `INTRINSIC` functions are accepted for use in
+  `PROCEDURE` statements in generic interfaces, as in some other
+  compilers.
+* A `NULL()` pointer is treated as an unallocated allocatable
+  when associated with an `INTENT(IN)` allocatable dummy argument.
+* `READ(..., SIZE=n)` is accepted with `NML=` and `FMT=*` with
+  a portability warning.
+  The Fortran standard doesn't allow `SIZE=` with formatted input
+  modes that might require look-ahead, perhaps to ease implementations.
+* When a file included via an `INCLUDE` line or `#include` directive
+  has a continuation marker at the end of its last line in free form,
+  Fortran line continuation works.
 
 ### Extensions supported when enabled by options
 
@@ -362,6 +395,7 @@ end
 * Constraint C1406, which prohibits the same module name from being used
   in a scope for both an intrinsic and a non-intrinsic module, is implemented
   as a portability warning only, not a hard error.
+* IBM @PROCESS directive is accepted but ignored.
 
 ## Preprocessing behavior
 
@@ -408,6 +442,12 @@ end
   This is especially desirable when two generics of the same
   name are combined due to USE association and the mixture may
   be inadvertent.
+* Since Fortran 90, `INCLUDE` lines have been allowed to have
+  a numeric kind parameter prefix on the file name.  No other
+  Fortran compiler supports them that I can find.
+* A `SEQUENCE` derived type is required (F'2023 C745) to have
+  at least one component.  No compiler enforces this constraint;
+  this compiler emits a warning.
 
 ## Behavior in cases where the standard is ambiguous or indefinite
 
@@ -452,7 +492,7 @@ end
   Other Fortran compilers disagree in their interpretations of this example;
   some seem to treat the references to `m` as if they were host associations
   to an implicitly typed variable (and print `3`), while others seem to
-  treat them as references to implicitly typed local variabless, and
+  treat them as references to implicitly typed local variables, and
   load uninitialized values.
 
   In f18, we chose to emit an error message for this case since the standard
@@ -579,7 +619,34 @@ end module
 * F18 allows `OPTIONAL` dummy arguments to interoperable procedures
   unless they are `VALUE` (C865).
 
+* F18 processes the `NAMELIST` group declarations in a scope after it
+  has resolved all of the names in that scope.  This means that names
+  that appear before their local declarations do not resolve to host
+  associated objects and do not elicit errors about improper redeclarations
+  of implicitly typed entities.
+
+* Standard Fortran allows forward references to derived types, which
+  can lead to ambiguity when combined with host association.
+  Some Fortran compilers resolve the type name to the host type,
+  others to the forward-referenced local type; this compiler diagnoses
+  an error.
+```
+module m
+  type ambiguous; integer n; end type
+ contains
+  subroutine s
+    type(ambiguous), pointer :: ptr
+    type ambiguous; real a; end type
+  end
+end
+```
+
 ## De Facto Standard Features
 
 * `EXTENDS_TYPE_OF()` returns `.TRUE.` if both of its arguments have the
   same type, a case that is technically implementation-defined.
+
+* `ENCODING=` is not in the list of changeable modes on an I/O unit,
+  but every Fortran compiler allows the encoding to be changed on an
+  open unit.
+

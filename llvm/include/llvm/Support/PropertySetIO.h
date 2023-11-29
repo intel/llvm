@@ -81,8 +81,8 @@ public:
 
   PropertyValue(uint32_t Val) : Ty(UINT32), Val({Val}) {}
   PropertyValue(const byte *Data, SizeTy DataBitSize);
-  template <typename T>
-  PropertyValue(const std::vector<T> &Data)
+  template <typename C, typename T = typename C::value_type>
+  PropertyValue(const C &Data)
       : PropertyValue(reinterpret_cast<const byte *>(Data.data()),
                       Data.size() * sizeof(T) * /* bits in one byte */ 8) {}
   PropertyValue(const llvm::StringRef &Str)

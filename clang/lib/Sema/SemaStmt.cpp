@@ -39,6 +39,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace clang;
 using namespace sema;
@@ -688,7 +689,7 @@ bool Sema::checkMustTailAttr(const Stmt *St, const Attr &MTA) {
     if (CMD->isStatic())
       Type.MemberType = FuncType::ft_static_member;
     else {
-      Type.This = CMD->getThisType()->getPointeeType();
+      Type.This = CMD->getFunctionObjectParameterType();
       Type.MemberType = FuncType::ft_non_static_member;
     }
     Type.Func = CMD->getType()->castAs<FunctionProtoType>();
@@ -932,11 +933,12 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   }
 
   if (ConstevalOrNegatedConsteval) {
-    bool Immediate = isImmediateFunctionContext();
+    bool Immediate = ExprEvalContexts.back().Context ==
+                     ExpressionEvaluationContext::ImmediateFunctionContext;
     if (CurContext->isFunctionOrMethod()) {
       const auto *FD =
           dyn_cast<FunctionDecl>(Decl::castFromDeclContext(CurContext));
-      if (FD && FD->isConsteval())
+      if (FD && FD->isImmediateFunction())
         Immediate = true;
     }
     if (isUnevaluatedContext() || Immediate)
@@ -1728,9 +1730,7 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
 
 namespace {
   // Use SetVector since the diagnostic cares about the ordering of the Decl's.
-  using DeclSetVector =
-      llvm::SetVector<VarDecl *, llvm::SmallVector<VarDecl *, 8>,
-                      llvm::SmallPtrSet<VarDecl *, 8>>;
+  using DeclSetVector = llvm::SmallSetVector<VarDecl *, 8>;
 
   // This visitor will traverse a conditional statement and store all
   // the evaluated decls into a vector.  Simple is set to true if none
@@ -3364,7 +3364,7 @@ Sema::ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope) {
 /// might be modified by the implementation.
 ///
 /// \param Mode Overrides detection of current language mode
-/// and uses the rules for C++2b.
+/// and uses the rules for C++23.
 ///
 /// \returns An aggregate which contains the Candidate and isMoveEligible
 /// and isCopyElidable methods. If Candidate is non-null, it means
@@ -3385,7 +3385,7 @@ Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E,
   if (Res.Candidate && !E->isXValue() &&
       (Mode == SimplerImplicitMoveMode::ForceOn ||
        (Mode != SimplerImplicitMoveMode::ForceOff &&
-        getLangOpts().CPlusPlus2b))) {
+        getLangOpts().CPlusPlus23))) {
     E = ImplicitCastExpr::Create(Context, VD->getType().getNonReferenceType(),
                                  CK_NoOp, E, nullptr, VK_XValue,
                                  FPOptionsOverride());
@@ -3529,7 +3529,7 @@ ExprResult Sema::PerformMoveOrCopyInitialization(
     const InitializedEntity &Entity, const NamedReturnInfo &NRInfo, Expr *Value,
     bool SupressSimplerImplicitMoves) {
   if (getLangOpts().CPlusPlus &&
-      (!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
+      (!getLangOpts().CPlusPlus23 || SupressSimplerImplicitMoves) &&
       NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
@@ -3577,6 +3577,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
   CapturingScopeInfo *CurCap = cast<CapturingScopeInfo>(getCurFunction());
   QualType FnRetType = CurCap->ReturnType;
   LambdaScopeInfo *CurLambda = dyn_cast<LambdaScopeInfo>(CurCap);
+  if (CurLambda && CurLambda->CallOperator->getType().isNull())
+    return StmtError();
   bool HasDeducedReturnType =
       CurLambda && hasDeducedReturnType(CurLambda->CallOperator);
 
@@ -3730,6 +3732,11 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
   if (FunctionScopes.back()->FirstReturnLoc.isInvalid())
     FunctionScopes.back()->FirstReturnLoc = ReturnLoc;
 
+  if (auto *CurBlock = dyn_cast<BlockScopeInfo>(CurCap);
+      CurBlock && CurCap->HasImplicitReturnType && RetValExp &&
+      RetValExp->containsErrors())
+    CurBlock->TheDecl->setInvalidDecl();
+
   return Result;
 }
 
@@ -3825,9 +3832,18 @@ bool Sema::DeduceFunctionTypeFromReturnExpr(FunctionDecl *FD,
   {
     //  Otherwise, [...] deduce a value for U using the rules of template
     //  argument deduction.
-    TemplateDeductionInfo Info(RetExpr->getExprLoc());
-    TemplateDeductionResult Res =
-        DeduceAutoType(OrigResultType, RetExpr, Deduced, Info);
+    auto RetExprLoc = RetExpr->getExprLoc();
+    TemplateDeductionInfo Info(RetExprLoc);
+    SourceLocation TemplateSpecLoc;
+    if (RetExpr->getType() == Context.OverloadTy) {
+      auto FindResult = OverloadExpr::find(RetExpr);
+      if (FindResult.Expression)
+        TemplateSpecLoc = FindResult.Expression->getNameLoc();
+    }
+    TemplateSpecCandidateSet FailedTSC(TemplateSpecLoc);
+    TemplateDeductionResult Res = DeduceAutoType(
+        OrigResultType, RetExpr, Deduced, Info, /*DependentDeduction=*/false,
+        /*IgnoreConstraints=*/false, &FailedTSC);
     if (Res != TDK_Success && FD->isInvalidDecl())
       return true;
     switch (Res) {
@@ -3853,6 +3869,7 @@ bool Sema::DeduceFunctionTypeFromReturnExpr(FunctionDecl *FD,
     default:
       Diag(RetExpr->getExprLoc(), diag::err_auto_fn_deduction_failure)
           << OrigResultType.getType() << RetExpr->getType();
+      FailedTSC.NoteCandidates(*this, RetExprLoc);
       return true;
     }
   }
@@ -3902,7 +3919,7 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
 
 static bool CheckSimplerImplicitMovesMSVCWorkaround(const Sema &S,
                                                     const Expr *E) {
-  if (!E || !S.getLangOpts().CPlusPlus2b || !S.getLangOpts().MSVCCompat)
+  if (!E || !S.getLangOpts().CPlusPlus23 || !S.getLangOpts().MSVCCompat)
     return false;
   const Decl *D = E->getReferencedDeclOfCallee();
   if (!D || !S.SourceMgr.isInSystemHeader(D->getLocation()))
@@ -3968,6 +3985,14 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
     }
   } else // If we don't have a function/method context, bail.
     return StmtError();
+
+  if (RetValExp) {
+    const auto *ATy = dyn_cast<ArrayType>(RetValExp->getType());
+    if (ATy && ATy->getElementType().isWebAssemblyReferenceType()) {
+      Diag(ReturnLoc, diag::err_wasm_table_art) << 1;
+      return StmtError();
+    }
+  }
 
   // C++1z: discarded return statements are not considered when deducing a
   // return type.
@@ -4448,12 +4473,21 @@ public:
 /// handlers and creates a try statement from them.
 StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
                                   ArrayRef<Stmt *> Handlers) {
-  // Don't report an error if 'try' is used in system headers.
-  if (!getLangOpts().CXXExceptions &&
+  const llvm::Triple &T = Context.getTargetInfo().getTriple();
+  const bool IsOpenMPGPUTarget =
+      getLangOpts().OpenMPIsTargetDevice && (T.isNVPTX() || T.isAMDGCN());
+  // Don't report an error if 'try' is used in system headers or in an OpenMP
+  // target region compiled for a GPU architecture.
+  if (!IsOpenMPGPUTarget && !getLangOpts().CXXExceptions &&
       !getSourceManager().isInSystemHeader(TryLoc) && !getLangOpts().CUDA) {
     // Delay error emission for the OpenMP device code.
     targetDiag(TryLoc, diag::err_exceptions_disabled) << "try";
   }
+
+  // In OpenMP target regions, we assume that catch is never reached on GPU
+  // targets.
+  if (IsOpenMPGPUTarget)
+    targetDiag(TryLoc, diag::warn_try_not_valid_on_target) << T.str();
 
   // Exceptions aren't allowed in CUDA device code.
   if (getLangOpts().CUDA)
@@ -4592,8 +4626,12 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
     Diag(TryLoc, diag::err_seh_try_outside_functions);
 
   // Reject __try on unsupported targets.
-  if (!Context.getTargetInfo().isSEHTrySupported())
-    Diag(TryLoc, diag::err_seh_try_unsupported);
+  if (!Context.getTargetInfo().isSEHTrySupported()) {
+    if (getLangOpts().SYCLIsDevice)
+      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
+    else
+      Diag(TryLoc, diag::err_seh_try_unsupported);
+  }
 
   return SEHTryStmt::Create(Context, IsCXXTry, TryLoc, TryBlock, Handler);
 }
@@ -4668,10 +4706,11 @@ Sema::CreateCapturedStmtRecordDecl(CapturedDecl *&CD, SourceLocation Loc,
 
   RecordDecl *RD = nullptr;
   if (getLangOpts().CPlusPlus)
-    RD = CXXRecordDecl::Create(Context, TTK_Struct, DC, Loc, Loc,
+    RD = CXXRecordDecl::Create(Context, TagTypeKind::Struct, DC, Loc, Loc,
                                /*Id=*/nullptr);
   else
-    RD = RecordDecl::Create(Context, TTK_Struct, DC, Loc, Loc, /*Id=*/nullptr);
+    RD = RecordDecl::Create(Context, TagTypeKind::Struct, DC, Loc, Loc,
+                            /*Id=*/nullptr);
 
   RD->setCapturedRecord();
   DC->addDecl(RD);
@@ -4738,7 +4777,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
   QualType ParamType = Context.getPointerType(Context.getTagDeclType(RD));
   auto *Param =
       ImplicitParamDecl::Create(Context, DC, Loc, ParamName, ParamType,
-                                ImplicitParamDecl::CapturedContext);
+                                ImplicitParamKind::CapturedContext);
   DC->addDecl(Param);
 
   CD->setContextParam(0, Param);
@@ -4753,6 +4792,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
 
   PushExpressionEvaluationContext(
       ExpressionEvaluationContext::PotentiallyEvaluated);
+  ExprEvalContexts.back().InImmediateEscalatingFunctionContext = false;
 }
 
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
@@ -4778,7 +4818,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                .withRestrict();
       auto *Param =
           ImplicitParamDecl::Create(Context, DC, Loc, ParamName, ParamType,
-                                    ImplicitParamDecl::CapturedContext);
+                                    ImplicitParamKind::CapturedContext);
       DC->addDecl(Param);
       CD->setContextParam(ParamNum, Param);
       ContextIsFound = true;
@@ -4786,7 +4826,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
       IdentifierInfo *ParamName = &Context.Idents.get(I->first);
       auto *Param =
           ImplicitParamDecl::Create(Context, DC, Loc, ParamName, I->second,
-                                    ImplicitParamDecl::CapturedContext);
+                                    ImplicitParamKind::CapturedContext);
       DC->addDecl(Param);
       CD->setParam(ParamNum, Param);
     }
@@ -4798,7 +4838,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
     QualType ParamType = Context.getPointerType(Context.getTagDeclType(RD));
     auto *Param =
         ImplicitParamDecl::Create(Context, DC, Loc, ParamName, ParamType,
-                                  ImplicitParamDecl::CapturedContext);
+                                  ImplicitParamKind::CapturedContext);
     DC->addDecl(Param);
     CD->setContextParam(ParamNum, Param);
   }

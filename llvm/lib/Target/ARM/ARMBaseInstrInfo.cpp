@@ -1666,8 +1666,8 @@ void ARMBaseInstrInfo::expandMEMCPY(MachineBasicBlock::iterator MI) const {
   // Sort the scratch registers into ascending order.
   const TargetRegisterInfo &TRI = getRegisterInfo();
   SmallVector<unsigned, 6> ScratchRegs;
-  for(unsigned I = 5; I < MI->getNumOperands(); ++I)
-    ScratchRegs.push_back(MI->getOperand(I).getReg());
+  for (MachineOperand &MO : llvm::drop_begin(MI->operands(), 5))
+    ScratchRegs.push_back(MO.getReg());
   llvm::sort(ScratchRegs,
              [&TRI](const unsigned &Reg1, const unsigned &Reg2) -> bool {
                return TRI.getEncodingValue(Reg1) <
@@ -1953,46 +1953,32 @@ bool ARMBaseInstrInfo::areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
   if (!Load1->isMachineOpcode() || !Load2->isMachineOpcode())
     return false;
 
-  switch (Load1->getMachineOpcode()) {
-  default:
-    return false;
-  case ARM::LDRi12:
-  case ARM::LDRBi12:
-  case ARM::LDRD:
-  case ARM::LDRH:
-  case ARM::LDRSB:
-  case ARM::LDRSH:
-  case ARM::VLDRD:
-  case ARM::VLDRS:
-  case ARM::t2LDRi8:
-  case ARM::t2LDRBi8:
-  case ARM::t2LDRDi8:
-  case ARM::t2LDRSHi8:
-  case ARM::t2LDRi12:
-  case ARM::t2LDRBi12:
-  case ARM::t2LDRSHi12:
-    break;
-  }
+  auto IsLoadOpcode = [&](unsigned Opcode) {
+    switch (Opcode) {
+    default:
+      return false;
+    case ARM::LDRi12:
+    case ARM::LDRBi12:
+    case ARM::LDRD:
+    case ARM::LDRH:
+    case ARM::LDRSB:
+    case ARM::LDRSH:
+    case ARM::VLDRD:
+    case ARM::VLDRS:
+    case ARM::t2LDRi8:
+    case ARM::t2LDRBi8:
+    case ARM::t2LDRDi8:
+    case ARM::t2LDRSHi8:
+    case ARM::t2LDRi12:
+    case ARM::t2LDRBi12:
+    case ARM::t2LDRSHi12:
+      return true;
+    }
+  };
 
-  switch (Load2->getMachineOpcode()) {
-  default:
+  if (!IsLoadOpcode(Load1->getMachineOpcode()) ||
+      !IsLoadOpcode(Load2->getMachineOpcode()))
     return false;
-  case ARM::LDRi12:
-  case ARM::LDRBi12:
-  case ARM::LDRD:
-  case ARM::LDRH:
-  case ARM::LDRSB:
-  case ARM::LDRSH:
-  case ARM::VLDRD:
-  case ARM::VLDRS:
-  case ARM::t2LDRi8:
-  case ARM::t2LDRBi8:
-  case ARM::t2LDRSHi8:
-  case ARM::t2LDRi12:
-  case ARM::t2LDRBi12:
-  case ARM::t2LDRSHi12:
-    break;
-  }
 
   // Check if base addresses and chain operands match.
   if (Load1->getOperand(0) != Load2->getOperand(0) ||
@@ -3327,7 +3313,8 @@ bool ARMBaseInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
                                      MachineRegisterInfo *MRI) const {
   // Fold large immediates into add, sub, or, xor.
   unsigned DefOpc = DefMI.getOpcode();
-  if (DefOpc != ARM::t2MOVi32imm && DefOpc != ARM::MOVi32imm)
+  if (DefOpc != ARM::t2MOVi32imm && DefOpc != ARM::MOVi32imm &&
+      DefOpc != ARM::tMOVi32imm)
     return false;
   if (!DefMI.getOperand(1).isImm())
     // Could be t2MOVi32imm @xx
@@ -4939,7 +4926,7 @@ void ARMBaseInstrInfo::expandLoadStackGuardBase(MachineBasicBlock::iterator MI,
   unsigned int Offset = 0;
 
   if (LoadImmOpc == ARM::MRC || LoadImmOpc == ARM::t2MRC) {
-    assert(Subtarget.isReadTPHard() &&
+    assert(!Subtarget.isReadTPSoft() &&
            "TLS stack protector requires hardware TLS register");
 
     BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
@@ -4977,12 +4964,27 @@ void ARMBaseInstrInfo::expandLoadStackGuardBase(MachineBasicBlock::iterator MI,
         TargetFlags |= ARMII::MO_DLLIMPORT;
       else if (IsIndirect)
         TargetFlags |= ARMII::MO_COFFSTUB;
-    } else if (Subtarget.isGVInGOT(GV)) {
+    } else if (IsIndirect) {
       TargetFlags |= ARMII::MO_GOT;
     }
 
-    BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
-        .addGlobalAddress(GV, 0, TargetFlags);
+    if (LoadImmOpc == ARM::tMOVi32imm) { // Thumb-1 execute-only
+      Register CPSRSaveReg = ARM::R12; // Use R12 as scratch register
+      auto APSREncoding =
+          ARMSysReg::lookupMClassSysRegByName("apsr_nzcvq")->Encoding;
+      BuildMI(MBB, MI, DL, get(ARM::t2MRS_M), CPSRSaveReg)
+          .addImm(APSREncoding)
+          .add(predOps(ARMCC::AL));
+      BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
+          .addGlobalAddress(GV, 0, TargetFlags);
+      BuildMI(MBB, MI, DL, get(ARM::t2MSR_M))
+          .addImm(APSREncoding)
+          .addReg(CPSRSaveReg, RegState::Kill)
+          .add(predOps(ARMCC::AL));
+    } else {
+      BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
+          .addGlobalAddress(GV, 0, TargetFlags);
+    }
 
     if (IsIndirect) {
       MIB = BuildMI(MBB, MI, DL, get(LoadOpc), Reg);
@@ -5538,7 +5540,10 @@ ARMBaseInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   using namespace ARMII;
 
   static const std::pair<unsigned, const char *> TargetFlags[] = {
-      {MO_LO16, "arm-lo16"}, {MO_HI16, "arm-hi16"}};
+      {MO_LO16, "arm-lo16"},       {MO_HI16, "arm-hi16"},
+      {MO_LO_0_7, "arm-lo-0-7"},   {MO_HI_0_7, "arm-hi-0-7"},
+      {MO_LO_8_15, "arm-lo-8-15"}, {MO_HI_8_15, "arm-hi-8-15"},
+  };
   return ArrayRef(TargetFlags);
 }
 
@@ -6727,7 +6732,8 @@ bool ARMBaseInstrInfo::isReallyTriviallyReMaterializable(
   // the tail predication conversion. This means that the element count
   // register has to be live for longer, but that has to be better than
   // spill/restore and VPT predication.
-  return isVCTP(&MI) && !isPredicated(MI);
+  return (isVCTP(&MI) && !isPredicated(MI)) ||
+         TargetInstrInfo::isReallyTriviallyReMaterializable(MI);
 }
 
 unsigned llvm::getBLXOpcode(const MachineFunction &MF) {

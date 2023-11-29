@@ -68,7 +68,7 @@ void BufferPlacementAllocs::build(Operation *op) {
         [=](MemoryEffects::EffectInstance &it) {
           Value value = it.getValue();
           return isa<MemoryEffects::Allocate>(it.getEffect()) && value &&
-                 value.isa<OpResult>() &&
+                 isa<OpResult>(value) &&
                  it.getResource() !=
                      SideEffects::AutomaticAllocationScopeResource::get();
         });
@@ -123,7 +123,7 @@ bool BufferPlacementTransformationBase::isLoop(Operation *op) {
       return true;
     // Recurses into all region successors.
     SmallVector<RegionSuccessor, 2> successors;
-    regionInterface.getSuccessorRegions(current->getRegionNumber(), successors);
+    regionInterface.getSuccessorRegions(current, successors);
     for (RegionSuccessor &regionEntry : successors)
       if (recurse(regionEntry.getSuccessor()))
         return true;
@@ -132,7 +132,8 @@ bool BufferPlacementTransformationBase::isLoop(Operation *op) {
 
   // Start with all entry regions and test whether they induce a loop.
   SmallVector<RegionSuccessor, 2> successorRegions;
-  regionInterface.getSuccessorRegions(/*index=*/std::nullopt, successorRegions);
+  regionInterface.getSuccessorRegions(/*point=*/RegionBranchPoint::parent(),
+                                      successorRegions);
   for (RegionSuccessor &regionEntry : successorRegions) {
     if (recurse(regionEntry.getSuccessor()))
       return true;
@@ -149,7 +150,7 @@ bool BufferPlacementTransformationBase::isLoop(Operation *op) {
 FailureOr<memref::GlobalOp>
 bufferization::getGlobalFor(arith::ConstantOp constantOp, uint64_t alignment,
                             Attribute memorySpace) {
-  auto type = constantOp.getType().cast<RankedTensorType>();
+  auto type = cast<RankedTensorType>(constantOp.getType());
   auto moduleOp = constantOp->getParentOfType<ModuleOp>();
   if (!moduleOp)
     return failure();
@@ -185,14 +186,14 @@ bufferization::getGlobalFor(arith::ConstantOp constantOp, uint64_t alignment,
                     : IntegerAttr();
 
   BufferizeTypeConverter typeConverter;
-  auto memrefType = typeConverter.convertType(type).cast<MemRefType>();
+  auto memrefType = cast<MemRefType>(typeConverter.convertType(type));
   if (memorySpace)
     memrefType = MemRefType::Builder(memrefType).setMemorySpace(memorySpace);
   auto global = globalBuilder.create<memref::GlobalOp>(
       constantOp.getLoc(), (Twine("__constant_") + os.str()).str(),
       /*sym_visibility=*/globalBuilder.getStringAttr("private"),
       /*type=*/memrefType,
-      /*initial_value=*/constantOp.getValue().cast<ElementsAttr>(),
+      /*initial_value=*/cast<ElementsAttr>(constantOp.getValue()),
       /*constant=*/true,
       /*alignment=*/memrefAlignment);
   symbolTable.insert(global);

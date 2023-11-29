@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-//-fsycl-targets=%sycl_triple
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------- fpga_pipes.cpp - SYCL FPGA pipes test --------------------==//
 //
@@ -88,7 +86,7 @@ int test_simple_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -139,7 +137,7 @@ template <int TestNumber> int test_multiple_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -181,7 +179,7 @@ template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
     if (readHostBuffer[i] != i)
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
@@ -217,7 +215,7 @@ int test_simple_bl_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -253,7 +251,7 @@ template <int TestNumber> int test_multiple_bl_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -287,7 +285,7 @@ template <int TestNumber> int test_array_th_bl_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
     if (readHostBuffer[i] != i)
       std::cout << "Test: " << TestNumber << "\nResult mismatches "

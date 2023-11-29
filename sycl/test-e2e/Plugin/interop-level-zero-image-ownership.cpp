@@ -1,6 +1,14 @@
-// REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s
+// REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
+
+// the ze_debug=4 memory check will fail on this test, since it itentionally
+// makes an 'unbalanced' create/destroy situation for the test.
+// UNSUPPORTED: ze_debug
+
+// spir-v gen for legacy images at O0 not working
+// UNSUPPORTED: O0
+
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // This test verifies that ownership is working correctly.
 // If ownership is ::transfer then the ~image destructor will end up calling

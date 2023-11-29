@@ -1,5 +1,4 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 32
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -48,38 +47,39 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::a, TM, TK, layout::row_major>
                sub_a;
            // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, int32_t, use::accumulator, TM, TN> sub_c;
 
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
                  K);
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() + (k * TK / 4) * (N * 4) +
-                                   sg_starty / SG_SZ * TN * 4,
-                               N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
+                 N * 4);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           auto wi_slice_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_slice_c.length(); i++) {
-             wi_slice_c[i] *= 2;
-           }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_apply(sg, sub_c, [](int32_t &x) { x = x * 2; });
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }

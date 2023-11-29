@@ -17,6 +17,7 @@
 #include "clang/Basic/XRayInstr.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/Frontend/Debug/Options.h"
+#include "llvm/Frontend/Driver/CodeGenOptions.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Target/TargetOptions.h"
@@ -26,12 +27,16 @@
 #include <string>
 #include <vector>
 
+namespace llvm {
+class PassBuilder;
+}
 namespace clang {
 
 /// Bitfields of CodeGenOptions, split out from CodeGenOptions to ensure
 /// that this large collection of bitfields is a trivial class type.
 class CodeGenOptionsBase {
   friend class CompilerInvocation;
+  friend class CompilerInvocationBase;
 
 public:
 #define CODEGENOPT(Name, Bits, Default) unsigned Name : Bits;
@@ -54,14 +59,10 @@ public:
     OnlyAlwaysInlining  // Only run the always inlining pass.
   };
 
-  enum VectorLibrary {
-    NoLibrary,         // Don't use any vector library.
-    Accelerate,        // Use the Accelerate framework.
-    LIBMVEC,           // GLIBC vector math library.
-    MASSV,             // IBM MASS vector library.
-    SVML,              // Intel short vector math library.
-    SLEEF,             // SLEEF SIMD Library for Evaluating Elementary Functions.
-    Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
+  enum AltMathLibrary {
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // Intel SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   enum ObjCDispatchMethodKind {
@@ -172,6 +173,10 @@ public:
   /// The code model to use (-mcmodel).
   std::string CodeModel;
 
+  /// The code model-specific large data threshold to use
+  /// (-mlarge-data-threshold).
+  uint64_t LargeDataThreshold;
+
   /// The filename with path we use for coverage data files. The runtime
   /// allows further manipulation with the GCOV_PREFIX and GCOV_PREFIX_STRIP
   /// environment variables.
@@ -206,8 +211,11 @@ public:
   /// if non-empty.
   std::string RecordCommandLine;
 
-  std::map<std::string, std::string> DebugPrefixMap;
-  std::map<std::string, std::string> CoveragePrefixMap;
+  llvm::SmallVector<std::pair<std::string, std::string>, 0> DebugPrefixMap;
+
+  /// Prefix replacement map for source-based code coverage to remap source
+  /// file paths in coverage mapping.
+  llvm::SmallVector<std::pair<std::string, std::string>, 0> CoveragePrefixMap;
 
   /// The ABI to use for passing floating point arguments.
   std::string FloatABI;
@@ -282,6 +290,9 @@ public:
   /// Name of the profile file to use as output for with -fmemory-profile.
   std::string MemoryProfileOutput;
 
+  /// Name of the profile file to use as input for -fmemory-profile-use.
+  std::string MemoryProfileUsePath;
+
   /// Name of the profile file to use as input for -fprofile-instr-use
   std::string ProfileInstrumentUsePath;
 
@@ -335,12 +346,12 @@ public:
 
   /// Optimization remark with an optional regular expression pattern.
   struct OptRemark {
-    RemarkKind Kind;
+    RemarkKind Kind = RK_Missing;
     std::string Pattern;
     std::shared_ptr<llvm::Regex> Regex;
 
     /// By default, optimization remark is missing.
-    OptRemark() : Kind(RK_Missing), Regex(nullptr) {}
+    OptRemark() = default;
 
     /// Returns true iff the optimization remark holds a valid regular
     /// expression.
@@ -371,9 +382,6 @@ public:
   /// transformation.
   OptRemark OptimizationRemarkAnalysis;
 
-  /// Set of files defining the rules for the symbol rewriting.
-  std::vector<std::string> RewriteMapFiles;
-
   /// Set of sanitizer checks that are non-fatal (i.e. execution should be
   /// continued when possible).
   SanitizerSet SanitizeRecover;
@@ -401,6 +409,9 @@ public:
 
   /// List of dynamic shared object files to be loaded as pass plugins.
   std::vector<std::string> PassPlugins;
+
+  /// List of pass builder callbacks.
+  std::vector<std::function<void(llvm::PassBuilder &)>> PassBuilderCallbacks;
 
   /// Path to allowlist file specifying which objects
   /// (files, functions) should exclusively be instrumented

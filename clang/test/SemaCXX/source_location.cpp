@@ -1,5 +1,14 @@
 // RUN: %clang_cc1 -std=c++1z -fcxx-exceptions -fexceptions -verify %s
 // RUN: %clang_cc1 -std=c++2a -fcxx-exceptions -DUSE_CONSTEVAL -fexceptions -verify %s
+// RUN: %clang_cc1 -std=c++2b -fcxx-exceptions -DUSE_CONSTEVAL -DPAREN_INIT -fexceptions -verify %s
+// RUN: %clang_cc1 -std=c++1z -fcxx-exceptions -fms-extensions -DMS -fexceptions -verify %s
+// RUN: %clang_cc1 -std=c++2a -fcxx-exceptions -fms-extensions -DMS -DUSE_CONSTEVAL -fexceptions -verify %s
+//
+// RUN: %clang_cc1 -std=c++1z -fcxx-exceptions -fexceptions -fexperimental-new-constant-interpreter -DNEW_INTERP -verify %s
+// RUN: %clang_cc1 -std=c++2a -fcxx-exceptions -DUSE_CONSTEVAL -fexceptions -fexperimental-new-constant-interpreter -DNEW_INTERP -verify %s
+// RUN: %clang_cc1 -std=c++2b -fcxx-exceptions -DUSE_CONSTEVAL -DPAREN_INIT -fexceptions -fexperimental-new-constant-interpreter -DNEW_INTERP -verify %s
+// RUN: %clang_cc1 -std=c++1z -fcxx-exceptions -fms-extensions -DMS -fexceptions -fexperimental-new-constant-interpreter -DNEW_INTERP -verify %s
+// RUN: %clang_cc1 -std=c++2a -fcxx-exceptions -fms-extensions -DMS -DUSE_CONSTEVAL -fexceptions -fexperimental-new-constant-interpreter -DNEW_INTERP -verify %s
 // expected-no-diagnostics
 
 #define assert(...) ((__VA_ARGS__) ? ((void)0) : throw 42)
@@ -86,6 +95,9 @@ static_assert(is_same<decltype(__builtin_COLUMN()), unsigned>);
 static_assert(is_same<decltype(__builtin_FILE()), const char *>);
 static_assert(is_same<decltype(__builtin_FILE_NAME()), const char *>);
 static_assert(is_same<decltype(__builtin_FUNCTION()), const char *>);
+#ifdef MS
+static_assert(is_same<decltype(__builtin_FUNCSIG()), const char *>);
+#endif
 static_assert(is_same<decltype(__builtin_source_location()), const std::source_location::public_impl_alias *>);
 
 // test noexcept
@@ -94,6 +106,9 @@ static_assert(noexcept(__builtin_COLUMN()));
 static_assert(noexcept(__builtin_FILE()));
 static_assert(noexcept(__builtin_FILE_NAME()));
 static_assert(noexcept(__builtin_FUNCTION()));
+#ifdef MS
+static_assert(noexcept(__builtin_FUNCSIG()));
+#endif
 static_assert(noexcept(__builtin_source_location()));
 
 //===----------------------------------------------------------------------===//
@@ -451,6 +466,57 @@ static_assert(is_equal(global_sl.function(), ""));
 } // namespace test_func
 
 //===----------------------------------------------------------------------===//
+//                            __builtin_FUNCSIG()
+//===----------------------------------------------------------------------===//
+
+#ifdef MS
+namespace test_funcsig {
+
+constexpr const char *test_funcsig_simple(const char *f = __builtin_FUNCSIG()) {
+  return f;
+}
+constexpr const char *get_funcsig() {
+  return __FUNCSIG__;
+}
+constexpr bool test_funcsig() {
+  return is_equal(__FUNCSIG__, test_funcsig_simple()) &&
+         !is_equal(get_funcsig(), test_funcsig_simple());
+}
+static_assert(test_funcsig());
+
+template <class T>
+constexpr Pair<const char*, const char*> test_funcsig_template(T, const char* f = __builtin_FUNCSIG()) {
+  return {f, __builtin_FUNCSIG()};
+}
+template <class T>
+void func_template_tests() {
+  constexpr auto P = test_funcsig_template(42);
+  static_assert(is_equal(P.first, __FUNCSIG__), "");
+  static_assert(!is_equal(P.second, __FUNCSIG__), "");
+}
+template void func_template_tests<int>();
+
+template <class = int, class T = const char*>
+struct TestCtor {
+  T funcsig = __builtin_FUNCSIG();
+  T ctor_funcsig;
+  TestCtor() = default;
+  template <class F = const char*>
+  constexpr TestCtor(int, F f = __builtin_FUNCSIG()) : ctor_funcsig(f) {}
+};
+void ctor_tests() {
+  constexpr TestCtor<> Template{42};
+  static_assert(is_equal(Template.funcsig, "__cdecl test_funcsig::TestCtor<>::TestCtor(int, F) [T = const char *, F = const char *]"));
+  static_assert(is_equal(Template.ctor_funcsig, __FUNCSIG__));
+}
+
+constexpr const char* global_funcsig = __builtin_FUNCSIG();
+static_assert(is_equal(global_funcsig, ""));
+
+} // namespace test_funcsig
+#endif
+
+//===----------------------------------------------------------------------===//
 //                            __builtin_COLUMN()
 //===----------------------------------------------------------------------===//
 
@@ -695,7 +761,7 @@ constexpr int test_init_capture(int a =
                 [b = SL::current().line()] { return b; }()) {
   return a;
 }
-#ifdef USE_CONSTEVAL
+#if defined(USE_CONSTEVAL) && !defined(NEW_INTERP)
 static_assert(test_init_capture() == __LINE__ - 4);
 #else
 static_assert(test_init_capture() == __LINE__ );
@@ -722,3 +788,20 @@ constexpr int f(int i = G<T>{}.line) {
 static_assert(f<int>() != // intentional new line
               f<int>());
 }
+
+#ifdef PAREN_INIT
+namespace GH63903 {
+struct S {
+    int _;
+    int i = SL::current().line();
+    int j = __builtin_LINE();
+};
+// Ensure parent aggregate initialization is consistent with brace
+// aggregate initialization.
+// Note: consteval functions are evaluated where they are used.
+static_assert(S(0).i == __builtin_LINE());
+static_assert(S(0).i == S{0}.i);
+static_assert(S(0).j == S{0}.j);
+static_assert(S(0).j == S{0}.i);
+}
+#endif

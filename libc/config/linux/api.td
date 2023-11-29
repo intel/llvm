@@ -87,6 +87,7 @@ def StdlibAPI : PublicAPI<"stdlib.h"> {
     "size_t",
     "__bsearchcompare_t",
     "__qsortcompare_t",
+    "__qsortrcompare_t",
     "__atexithandler_t",
   ];
 }
@@ -103,7 +104,15 @@ def TimeAPI : PublicAPI<"time.h"> {
 }
 
 def SchedAPI : PublicAPI<"sched.h"> {
-  let Types = ["pid_t", "size_t", "cpu_set_t"];
+  let Types = [
+    "pid_t",
+    "size_t",
+    "cpu_set_t",
+    "struct sched_param",
+    // Needed according to posix standard
+    "time_t",
+    "struct timespec",
+  ];
 }
 
 def SysMManAPI : PublicAPI<"sys/mman.h"> {
@@ -195,6 +204,10 @@ def SysSelectAPI : PublicAPI<"sys/select.h"> {
                "struct timeval"];
 }
 
+def SysSocketAPI : PublicAPI<"sys/socket.h"> {
+  let Types = ["struct sockaddr", "sa_family_t"];
+}
+
 def SysResourceAPI : PublicAPI<"sys/resource.h"> {
   let Types = ["rlim_t", "struct rlimit"];
 }
@@ -206,7 +219,7 @@ def SysStatAPI : PublicAPI<"sys/stat.h"> {
 }
 
 def SysWaitAPI : PublicAPI<"sys/wait.h"> {
-  let Types = ["pid_t", "struct rusage"];
+  let Types = ["pid_t", "struct rusage", "siginfo_t"];
 }
 
 def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {

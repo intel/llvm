@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 //==----------------- reuse.cpp - filter_selector reuse test ---------------==//
 //
@@ -21,8 +19,6 @@ int main() {
   std::vector<device> Devs;
 
   Devs = device::get_devices();
-
-  std::cout << "# Devices found: " << Devs.size() << std::endl;
 
   if (Devs.size() > 1) {
     filter_selector filter("1");

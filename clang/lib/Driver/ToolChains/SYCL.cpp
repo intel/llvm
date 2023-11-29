@@ -7,14 +7,17 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
+#include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include <sstream>
 
 using namespace clang::driver;
 using namespace clang::driver::toolchains;
@@ -132,11 +135,192 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
                               /*default=*/true);
 }
 
+// Return whether to use native bfloat16 library.
+static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
+                             bool &UseNative) {
+  const llvm::opt::ArgList &Args = C.getArgs();
+  bool NeedLibs = false;
+
+  // spir64 target is actually JIT compilation, so we defer selection of
+  // bfloat16 libraries to runtime. For AOT we need libraries, but skip
+  // for Nvidia.
+  NeedLibs =
+      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
+  UseNative = false;
+  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+      C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+    ArgStringList TargArgs;
+    auto ToolChains = C.getOffloadToolChains<Action::OFK_SYCL>();
+    // Match up the toolchain with the incoming Triple so we are grabbing the
+    // expected arguments to scrutinize.
+    for (auto TI = ToolChains.first, TE = ToolChains.second; TI != TE; ++TI) {
+      llvm::Triple SYCLTriple = TI->second->getTriple();
+      if (SYCLTriple == Triple) {
+        const toolchains::SYCLToolChain *SYCLTC =
+            static_cast<const toolchains::SYCLToolChain *>(TI->second);
+        SYCLTC->TranslateBackendTargetArgs(Triple, Args, TargArgs);
+        break;
+      }
+    }
+
+    auto checkBF = [](StringRef Device) {
+      return Device.starts_with("pvc") || Device.starts_with("ats");
+    };
+
+    std::string Params;
+    for (const auto &Arg : TargArgs) {
+      Params += " ";
+      Params += Arg;
+    }
+    size_t DevicesPos = Params.find("-device ");
+    UseNative = false;
+    if (DevicesPos != std::string::npos) {
+      UseNative = true;
+      std::istringstream Devices(Params.substr(DevicesPos + 8));
+      for (std::string S; std::getline(Devices, S, ',');)
+        UseNative &= checkBF(S);
+    }
+  }
+  return NeedLibs;
+}
+
+SmallVector<std::string, 8>
+SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
+  SmallVector<std::string, 8> LibraryList;
+  const llvm::opt::ArgList &Args = C.getArgs();
+
+  struct DeviceLibOptInfo {
+    StringRef DeviceLibName;
+    StringRef DeviceLibOption;
+  };
+
+  bool NoDeviceLibs = false;
+  // Currently, all SYCL device libraries will be linked by default. Linkage
+  // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
+  llvm::StringMap<bool> DeviceLibLinkInfo = {
+      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
+      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
+      {"libm-bfloat16", true}, {"internal", true}};
+  if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                               options::OPT_fno_sycl_device_lib_EQ)) {
+    if (A->getValues().size() == 0)
+      C.getDriver().Diag(diag::warn_drv_empty_joined_argument)
+          << A->getAsString(Args);
+    else {
+      if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
+        NoDeviceLibs = true;
+
+      for (StringRef Val : A->getValues()) {
+        if (Val == "all") {
+          for (const auto &K : DeviceLibLinkInfo.keys())
+            DeviceLibLinkInfo[K] =
+                true && (!NoDeviceLibs || K.equals("internal"));
+          break;
+        }
+        auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
+        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val.equals("internal")) {
+          // TODO: Move the diagnostic to the SYCL section of
+          // Driver::CreateOffloadingDeviceToolChains() to minimize code
+          // duplication.
+          C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
+              << A->getSpelling() << Val;
+        }
+        DeviceLibLinkInfo[Val] = true && !NoDeviceLibs;
+      }
+    }
+  }
+  StringRef LibSuffix =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ? ".obj"
+                                                                     : ".o";
+  using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
+
+  const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
+      {"libsycl-crt", "libc"},
+      {"libsycl-complex", "libm-fp32"},
+      {"libsycl-complex-fp64", "libm-fp64"},
+      {"libsycl-cmath", "libm-fp32"},
+      {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(_WIN32)
+      {"libsycl-msvc-math", "libm-fp32"},
+#endif
+      {"libsycl-imf", "libimf-fp32"},
+      {"libsycl-imf-fp64", "libimf-fp64"},
+      {"libsycl-imf-bf16", "libimf-bf16"}};
+  // For AOT compilation, we need to link sycl_device_fallback_libs as
+  // default too.
+  const SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
+      {"libsycl-fallback-cassert", "libc"},
+      {"libsycl-fallback-cstring", "libc"},
+      {"libsycl-fallback-complex", "libm-fp32"},
+      {"libsycl-fallback-complex-fp64", "libm-fp64"},
+      {"libsycl-fallback-cmath", "libm-fp32"},
+      {"libsycl-fallback-cmath-fp64", "libm-fp64"},
+      {"libsycl-fallback-imf", "libimf-fp32"},
+      {"libsycl-fallback-imf-fp64", "libimf-fp64"},
+      {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
+      {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
+      {"libsycl-native-bfloat16", "libm-bfloat16"}};
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      {"libsycl-itt-user-wrappers", "internal"},
+      {"libsycl-itt-compiler-wrappers", "internal"},
+      {"libsycl-itt-stubs", "internal"}};
+#if !defined(_WIN32)
+  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
+      {"libsycl-sanitizer", "internal"}};
+#endif
+
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const DeviceLibOptInfo &Lib : LibsList) {
+      if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
+        continue;
+      SmallString<128> LibName(Lib.DeviceLibName);
+      llvm::sys::path::replace_extension(LibName, LibSuffix);
+      LibraryList.push_back(Args.MakeArgString(LibName));
+    }
+  };
+
+  addLibraries(SYCLDeviceWrapperLibs);
+  if (IsSpirvAOT || TargetTriple.isNVPTX())
+    addLibraries(SYCLDeviceFallbackLibs);
+
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+#if !defined(_WIN32)
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        addLibraries(SYCLDeviceSanitizerLibs);
+    }
+  }
+#endif
+  return LibraryList;
+}
+
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
 #endif
@@ -144,7 +328,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16"
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
 };
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
@@ -169,6 +353,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
+        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -189,12 +375,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
 
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (this->getToolChain().getTriple().isNVPTX()) {
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        LibPostfix = ".cubin";
+        if (IsNVPTX)
+          LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
@@ -228,8 +416,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -329,7 +518,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIR() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN()) &&
+          getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -440,7 +629,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
-  if (C.getDriver().isFPGAEmulationMode()) {
+  if (C.getDriver().IsFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -589,6 +778,14 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
+  return llvm::StringSwitch<StringRef>(GRFMode)
+      .Case("auto", "-ze-intel-enable-auto-large-GRF-mode")
+      .Case("small", "-ze-intel-128-GRF-per-thread")
+      .Case("large", "-ze-opt-large-register-file")
+      .Default("");
+}
+
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                               const JobAction &JA,
                                               const InputInfo &Output,
@@ -635,65 +832,66 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
 
 StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
   StringRef Device;
-  Device = llvm::StringSwitch<StringRef>(DeviceName)
-               .Cases("intel_gpu_bdw", "intel_gpu_8_0_0", "bdw")
-               .Cases("intel_gpu_skl", "intel_gpu_9_0_9", "skl")
-               .Cases("intel_gpu_kbl", "intel_gpu_9_1_9", "kbl")
-               .Cases("intel_gpu_cfl", "intel_gpu_9_2_9", "cfl")
-               .Cases("intel_gpu_apl", "intel_gpu_9_3_0", "apl")
-               .Cases("intel_gpu_glk", "intel_gpu_9_4_0", "glk")
-               .Cases("intel_gpu_whl", "intel_gpu_9_5_0", "whl")
-               .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
-               .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
-               .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
-               .Case("intel_gpu_rkl", "rkl")
-               .Case("intel_gpu_adl_s", "adl_s")
-               .Case("intel_gpu_rpl_s", "rpl_s")
-               .Case("intel_gpu_adl_p", "adl_p")
-               .Case("intel_gpu_adl_n", "adl_n")
-               .Cases("intel_gpu_dg1", "intel_gpu_12_10_0", "dg1")
-               .Case("intel_gpu_acm_g10", "acm_g10")
-               .Case("intel_gpu_acm_g11", "acm_g11")
-               .Case("intel_gpu_acm_g12", "acm_g12")
-               .Case("intel_gpu_pvc", "pvc")
-               .Case("nvidia_gpu_sm_50", "sm_50")
-               .Case("nvidia_gpu_sm_52", "sm_52")
-               .Case("nvidia_gpu_sm_53", "sm_53")
-               .Case("nvidia_gpu_sm_60", "sm_60")
-               .Case("nvidia_gpu_sm_61", "sm_61")
-               .Case("nvidia_gpu_sm_62", "sm_62")
-               .Case("nvidia_gpu_sm_70", "sm_70")
-               .Case("nvidia_gpu_sm_72", "sm_72")
-               .Case("nvidia_gpu_sm_75", "sm_75")
-               .Case("nvidia_gpu_sm_80", "sm_80")
-               .Case("nvidia_gpu_sm_86", "sm_86")
-               .Case("nvidia_gpu_sm_87", "sm_87")
-               .Case("nvidia_gpu_sm_89", "sm_89")
-               .Case("nvidia_gpu_sm_90", "sm_90")
-               .Case("amd_gpu_gfx700", "gfx700")
-               .Case("amd_gpu_gfx701", "gfx701")
-               .Case("amd_gpu_gfx702", "gfx702")
-               .Case("amd_gpu_gfx801", "gfx801")
-               .Case("amd_gpu_gfx802", "gfx802")
-               .Case("amd_gpu_gfx803", "gfx803")
-               .Case("amd_gpu_gfx805", "gfx805")
-               .Case("amd_gpu_gfx810", "gfx810")
-               .Case("amd_gpu_gfx900", "gfx900")
-               .Case("amd_gpu_gfx902", "gfx902")
-               .Case("amd_gpu_gfx904", "gfx904")
-               .Case("amd_gpu_gfx906", "gfx906")
-               .Case("amd_gpu_gfx908", "gfx908")
-               .Case("amd_gpu_gfx90a", "gfx90a")
-               .Case("amd_gpu_gfx1010", "gfx1010")
-               .Case("amd_gpu_gfx1011", "gfx1011")
-               .Case("amd_gpu_gfx1012", "gfx1012")
-               .Case("amd_gpu_gfx1013", "gfx1013")
-               .Case("amd_gpu_gfx1030", "gfx1030")
-               .Case("amd_gpu_gfx1031", "gfx1031")
-               .Case("amd_gpu_gfx1032", "gfx1032")
-               .Case("amd_gpu_gfx1034", "gfx1034")
-               .Default("");
+  Device =
+      llvm::StringSwitch<StringRef>(DeviceName)
+          .Cases("intel_gpu_bdw", "intel_gpu_8_0_0", "bdw")
+          .Cases("intel_gpu_skl", "intel_gpu_9_0_9", "skl")
+          .Cases("intel_gpu_kbl", "intel_gpu_9_1_9", "kbl")
+          .Cases("intel_gpu_cfl", "intel_gpu_9_2_9", "cfl")
+          .Cases("intel_gpu_apl", "intel_gpu_bxt", "intel_gpu_9_3_0", "apl")
+          .Cases("intel_gpu_glk", "intel_gpu_9_4_0", "glk")
+          .Cases("intel_gpu_whl", "intel_gpu_9_5_0", "whl")
+          .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
+          .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
+          .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
+          .Cases("intel_gpu_ehl", "intel_gpu_jsl", "ehl")
+          .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
+          .Case("intel_gpu_rkl", "rkl")
+          .Cases("intel_gpu_adl_s", "intel_gpu_rpl_s", "adl_s")
+          .Case("intel_gpu_adl_p", "adl_p")
+          .Case("intel_gpu_adl_n", "adl_n")
+          .Cases("intel_gpu_dg1", "intel_gpu_12_10_0", "dg1")
+          .Cases("intel_gpu_acm_g10", "intel_gpu_dg2_g10", "acm_g10")
+          .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "acm_g11")
+          .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "acm_g12")
+          .Case("intel_gpu_pvc", "pvc")
+          .Case("nvidia_gpu_sm_50", "sm_50")
+          .Case("nvidia_gpu_sm_52", "sm_52")
+          .Case("nvidia_gpu_sm_53", "sm_53")
+          .Case("nvidia_gpu_sm_60", "sm_60")
+          .Case("nvidia_gpu_sm_61", "sm_61")
+          .Case("nvidia_gpu_sm_62", "sm_62")
+          .Case("nvidia_gpu_sm_70", "sm_70")
+          .Case("nvidia_gpu_sm_72", "sm_72")
+          .Case("nvidia_gpu_sm_75", "sm_75")
+          .Case("nvidia_gpu_sm_80", "sm_80")
+          .Case("nvidia_gpu_sm_86", "sm_86")
+          .Case("nvidia_gpu_sm_87", "sm_87")
+          .Case("nvidia_gpu_sm_89", "sm_89")
+          .Case("nvidia_gpu_sm_90", "sm_90")
+          .Case("amd_gpu_gfx700", "gfx700")
+          .Case("amd_gpu_gfx701", "gfx701")
+          .Case("amd_gpu_gfx702", "gfx702")
+          .Case("amd_gpu_gfx801", "gfx801")
+          .Case("amd_gpu_gfx802", "gfx802")
+          .Case("amd_gpu_gfx803", "gfx803")
+          .Case("amd_gpu_gfx805", "gfx805")
+          .Case("amd_gpu_gfx810", "gfx810")
+          .Case("amd_gpu_gfx900", "gfx900")
+          .Case("amd_gpu_gfx902", "gfx902")
+          .Case("amd_gpu_gfx904", "gfx904")
+          .Case("amd_gpu_gfx906", "gfx906")
+          .Case("amd_gpu_gfx908", "gfx908")
+          .Case("amd_gpu_gfx90a", "gfx90a")
+          .Case("amd_gpu_gfx1010", "gfx1010")
+          .Case("amd_gpu_gfx1011", "gfx1011")
+          .Case("amd_gpu_gfx1012", "gfx1012")
+          .Case("amd_gpu_gfx1013", "gfx1013")
+          .Case("amd_gpu_gfx1030", "gfx1030")
+          .Case("amd_gpu_gfx1031", "gfx1031")
+          .Case("amd_gpu_gfx1032", "gfx1032")
+          .Case("amd_gpu_gfx1034", "gfx1034")
+          .Default("");
   return Device;
 }
 
@@ -710,10 +908,10 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
+                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
-                      .Case("rpl_s", "INTEL_GPU_RPL_S")
                       .Case("adl_p", "INTEL_GPU_ADL_P")
                       .Case("adl_n", "INTEL_GPU_ADL_N")
                       .Case("dg1", "INTEL_GPU_DG1")
@@ -803,7 +1001,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC),
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -829,23 +1028,30 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   DerivedArgList *DAL =
       HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
 
+  bool IsNewDAL = false;
   if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
-    for (Arg *A : Args) {
-      // Filter out any options we do not want to pass along to the device
-      // compilation.
-      switch ((options::ID)A->getOption().getID()) {
-      case options::OPT_fsanitize_EQ:
-      case options::OPT_fcf_protection_EQ:
-        break;
-      default:
+    IsNewDAL = true;
+  }
+
+  for (Arg *A : Args) {
+    // Filter out any options we do not want to pass along to the device
+    // compilation.
+    auto Opt(A->getOption().getID());
+    switch (Opt) {
+    case options::OPT_fsanitize_EQ:
+    case options::OPT_fcf_protection_EQ:
+      if (!IsNewDAL)
+        DAL->eraseArg(Opt);
+      break;
+    default:
+      if (IsNewDAL)
         DAL->append(A);
-        break;
-      }
+      break;
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
-  if (!getDriver().isFPGAEmulationMode() &&
+  if (getDriver().IsFPGAHWMode() &&
       getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     DAL->eraseArg(options::OPT_O0);
 
@@ -900,12 +1106,15 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
-          GenDevice.empty())
-        // Provided triple does not match current tool chain.
+      bool IsGenTriple =
+          getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      if (Device != GenDevice)
         continue;
-      if (Device != GenDevice && getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
+        // Triples do not match, but only skip when we know we are not comparing
+        // against intel_gpu_* and non-spir64_gen
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -940,16 +1149,59 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          const JobAction &JA) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
-  //  FPGA and default device:  -g -cl-opt-disable
-  //  GEN:  -options "-g -O0"
-  //  CPU:  "--bo=-g -cl-opt-disable"
+  // FPGA:  -g -cl-opt-disable
+  // Default device AOT: -g -cl-opt-disable
+  // Default device JIT: -g (-O0 is handled by the runtime)
+  // GEN:  -options "-g -O0"
+  // CPU:  "--bo=-g -cl-opt-disable"
   llvm::opt::ArgStringList BeArgs;
+  // Per-device argument vector storing the device name and the backend argument
+  // string
+  llvm::SmallVector<std::pair<StringRef, StringRef>, 16> PerDeviceArgs;
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
-  if (Args.getLastArg(options::OPT_O0))
-    BeArgs.push_back("-cl-opt-disable");
+  // Only pass -cl-opt-disable for non-JIT, as the runtime
+  // handles O0 for the JIT case.
+  if (Triple.getSubArch() != llvm::Triple::NoSubArch)
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+      if (A->getOption().matches(options::OPT_O0))
+        BeArgs.push_back("-cl-opt-disable");
+  StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
+  if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
+    StringRef RegAllocModeVal = A->getValue(0);
+    auto ProcessElement = [&](StringRef Ele) {
+      auto [DeviceName, RegAllocMode] = Ele.split(':');
+      StringRef BackendOptName = SYCL::gen::getGenGRFFlag(RegAllocMode);
+      bool IsDefault = RegAllocMode.equals("default");
+      if (RegAllocMode.empty() || !DeviceName.equals("pvc") ||
+          (BackendOptName.empty() && !IsDefault)) {
+        getDriver().Diag(diag::err_drv_unsupported_option_argument)
+            << A->getSpelling() << Ele;
+      }
+      // "default" means "provide no specification to the backend", so
+      // we don't need to do anything here.
+      if (IsDefault)
+        return;
+      if (IsGen) {
+        // For AOT, Use ocloc's per-device options flag with the correct ocloc
+        // option to honor the user's specification.
+        PerDeviceArgs.push_back(
+            {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+      } else if (Triple.isSPIR() &&
+                 Triple.getSubArch() == llvm::Triple::NoSubArch) {
+        // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
+        // clang-offload-wrapper to be processed by the runtime.
+        BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
+                                            ":" + BackendOptName));
+      }
+    };
+    llvm::SmallVector<StringRef, 16> RegAllocModeArgs;
+    RegAllocModeVal.split(RegAllocModeArgs, ',');
+    for (StringRef Elem : RegAllocModeArgs)
+      ProcessElement(Elem);
+  }
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
@@ -977,10 +1229,23 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }
-    // -ftarget-compile-fast
-    if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
-      BeArgs.push_back(
-          "\"-igc_opts PartitionUnit=1,SubroutineThreshold=50000\"");
+    // -ftarget-compile-fast AOT
+    if (Args.hasArg(options::OPT_ftarget_compile_fast))
+      BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
+    // -ftarget-export-symbols
+    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
+                     options::OPT_fno_target_export_symbols, false))
+      BeArgs.push_back("-library-compilation");
+  } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
+             Triple.isSPIR()) {
+    // -ftarget-compile-fast JIT
+    Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+  }
+  if (IsGen) {
+    for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
+      CmdArgs.push_back("-device_options");
+      CmdArgs.push_back(Args.MakeArgString(DeviceName));
+      CmdArgs.push_back(Args.MakeArgString(BackendArgStr));
     }
   }
   if (BeArgs.empty())
@@ -1071,7 +1336,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 
 Tool *SYCLToolChain::buildLinker() const {
   assert(getTriple().getArch() == llvm::Triple::spir ||
-         getTriple().getArch() == llvm::Triple::spir64);
+         getTriple().getArch() == llvm::Triple::spir64 || IsSYCLNativeCPU);
   return new tools::SYCL::Linker(*this);
 }
 
@@ -1087,16 +1352,24 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
-  // Add ../include/sycl and ../include (in that order)
-  SmallString<128> P(Driver.getInstalledDir());
-  llvm::sys::path::append(P, "..");
-  llvm::sys::path::append(P, "include");
-  SmallString<128> SYCLP(P);
-  llvm::sys::path::append(SYCLP, "sycl");
+  // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
+  // order).
+  SmallString<128> IncludePath(Driver.getInstalledDir());
+  llvm::sys::path::append(IncludePath, "..");
+  llvm::sys::path::append(IncludePath, "include");
+  SmallString<128> SYCLPath(IncludePath);
+  llvm::sys::path::append(SYCLPath, "sycl");
+  // This is used to provide our wrappers around STL headers that provide
+  // additional functions/template specializations when the user includes those
+  // STL headers in their programs (e.g., <complex>).
+  SmallString<128> STLWrappersPath(SYCLPath);
+  llvm::sys::path::append(STLWrappersPath, "stl_wrappers");
   CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(SYCLP));
+  CC1Args.push_back(DriverArgs.MakeArgString(SYCLPath));
   CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(P));
+  CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

@@ -63,7 +63,6 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
@@ -156,7 +155,7 @@ namespace {
     /// Whether we should merge global variables that have external linkage.
     bool MergeExternalGlobals = false;
 
-    bool IsMachO;
+    bool IsMachO = false;
 
     bool doMerge(SmallVectorImpl<GlobalVariable*> &Globals,
                  Module &M, bool isConst, unsigned AddrSpace) const;

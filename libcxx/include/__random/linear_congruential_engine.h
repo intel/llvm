@@ -246,22 +246,17 @@ public:
       seed(__s);
     }
 #endif
-    template<class _Sseq>
+    template<class _Sseq, __enable_if_t<__is_seed_sequence<_Sseq, linear_congruential_engine>::value, int> = 0>
         _LIBCPP_INLINE_VISIBILITY
-        explicit linear_congruential_engine(_Sseq& __q,
-        typename enable_if<__is_seed_sequence<_Sseq, linear_congruential_engine>::value>::type* = 0)
+        explicit linear_congruential_engine(_Sseq& __q)
         {seed(__q);}
     _LIBCPP_INLINE_VISIBILITY
     void seed(result_type __s = default_seed)
         {seed(integral_constant<bool, __m == 0>(),
               integral_constant<bool, __c == 0>(), __s);}
-    template<class _Sseq>
+    template<class _Sseq, __enable_if_t<__is_seed_sequence<_Sseq, linear_congruential_engine>::value, int> = 0>
         _LIBCPP_INLINE_VISIBILITY
-        typename enable_if
-        <
-            __is_seed_sequence<_Sseq, linear_congruential_engine>::value,
-            void
-        >::type
+        void
         seed(_Sseq& __q)
             {__seed(__q, integral_constant<unsigned,
                 1 + (__m == 0 ? (sizeof(result_type) * __CHAR_BIT__ - 1)/32
@@ -296,9 +291,9 @@ private:
     void seed(false_type, false_type, result_type __s) {__x_ = __s % __m;}
 
     template<class _Sseq>
-        void __seed(_Sseq& __q, integral_constant<unsigned, 1>);
+    _LIBCPP_HIDE_FROM_ABI void __seed(_Sseq& __q, integral_constant<unsigned, 1>);
     template<class _Sseq>
-        void __seed(_Sseq& __q, integral_constant<unsigned, 2>);
+    _LIBCPP_HIDE_FROM_ABI void __seed(_Sseq& __q, integral_constant<unsigned, 2>);
 
     template <class _CharT, class _Traits,
               class _Up, _Up _Ap, _Up _Cp, _Up _Np>

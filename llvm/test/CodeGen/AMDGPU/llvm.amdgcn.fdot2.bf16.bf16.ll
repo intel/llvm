@@ -16,6 +16,7 @@ define amdgpu_kernel void @test_llvm_amdgcn_fdot2_bf16_bf16(
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
 ; GFX11-NEXT:    v_dot2_bf16_bf16 v1, s2, s3, v1
 ; GFX11-NEXT:    global_store_b16 v0, v1, s[0:1]
+; GFX11-NEXT:    s_nop 0
 ; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-NEXT:    s_endpgm
     ptr addrspace(1) %r,
@@ -42,7 +43,6 @@ define amdgpu_kernel void @test_llvm_amdgcn_fdot2_bf16_bf16_dpp(
 ; SDAG-GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; SDAG-GFX11-NEXT:    v_dot2_bf16_bf16_e64_dpp v0, v2, v0, v1 quad_perm:[1,0,0,0] row_mask:0xf bank_mask:0xf bound_ctrl:1
 ; SDAG-GFX11-NEXT:    scratch_store_b16 off, v0, s0
-; SDAG-GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; SDAG-GFX11-NEXT:    s_endpgm
 ;
 ; GISEL-GFX11-LABEL: test_llvm_amdgcn_fdot2_bf16_bf16_dpp:
@@ -55,7 +55,6 @@ define amdgpu_kernel void @test_llvm_amdgcn_fdot2_bf16_bf16_dpp(
 ; GISEL-GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GISEL-GFX11-NEXT:    v_dot2_bf16_bf16_e64_dpp v0, v0, v1, v2 quad_perm:[1,0,0,0] row_mask:0xf bank_mask:0xf bound_ctrl:1
 ; GISEL-GFX11-NEXT:    scratch_store_b16 off, v0, s0
-; GISEL-GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GISEL-GFX11-NEXT:    s_endpgm
     ptr addrspace(5) %r,
     ptr addrspace(5) %a,
@@ -70,6 +69,25 @@ entry:
   %a.val.dpp.v2i16 = bitcast i32 %dpp to <2 x i16>
   %r.val = call i16 @llvm.amdgcn.fdot2.bf16.bf16(<2 x i16> %a.val.dpp.v2i16, <2 x i16> %b.val, i16 %c.val)
   store i16 %r.val, ptr addrspace(5) %r
+  ret void
+}
+
+; FIXME: This test violates constant bus restriction.
+
+define amdgpu_ps void @test_llvm_amdgcn_fdot2_bf16_bf16_sis(
+; GFX11-LABEL: test_llvm_amdgcn_fdot2_bf16_bf16_sis:
+; GFX11:       ; %bb.0: ; %entry
+; GFX11-NEXT:    v_dot2_bf16_bf16 v2, s0, 0x10001, s1
+; GFX11-NEXT:    global_store_b16 v[0:1], v2, off
+; GFX11-NEXT:    s_nop 0
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
+    ptr addrspace(1) %r,
+    <2 x i16> inreg %a,
+    i16 inreg %c) {
+entry:
+  %r.val = call i16 @llvm.amdgcn.fdot2.bf16.bf16(<2 x i16> %a, <2 x i16> <i16 1, i16 1>, i16 %c)
+  store i16 %r.val, ptr addrspace(1) %r
   ret void
 }
 

@@ -8,20 +8,44 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/range.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/access/access.hpp>             // for placeholder
+#include <sycl/backend_types.hpp>             // for backend, backe...
+#include <sycl/context.hpp>                   // for context
+#include <sycl/detail/array.hpp>              // for array
+#include <sycl/detail/common.hpp>             // for code_location
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>            // for buffer_impl
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
+#include <sycl/detail/property_helper.hpp> // for PropWithDataKind
+#include <sycl/detail/stl_type_traits.hpp> // for iterator_value...
+#include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
+#include <sycl/detail/type_traits.hpp>                // for remove_pointer_t
+#include <sycl/event.hpp>                             // for event
+#include <sycl/exception.hpp>                         // for invalid_object...
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/id.hpp>                                // for id
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range, rangeTo...
+#include <sycl/stl.hpp>                               // for make_unique_ptr
+#include <sycl/types.hpp>                             // for is_device_copyable
+
+#include <cstddef>     // for size_t, nullptr_t
+#include <functional>  // for function
+#include <iterator>    // for iterator_traits
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint32_t
+#include <string>      // for string
+#include <type_traits> // for enable_if_t
+#include <typeinfo>    // for type_info
+#include <utility>     // for declval, move
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 class queue;
@@ -140,14 +164,17 @@ protected:
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
-                                                            (dimensions <= 3)>>
+          typename __Enabled =
+              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
-  // TODO check is_device_copyable<T>::value after converting sycl::vec into a
-  // trivially copyable class.
-  static_assert(!std::is_same<T, std::string>::value,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  static_assert(is_device_copyable_v<T>,
+                "Underlying type of a buffer must be device copyable!");
+#else
+  static_assert(!std::is_same_v<T, std::string>,
                 "'std::string' is not a device copyable type");
+#endif
 
 public:
   using value_type = T;
@@ -155,81 +182,72 @@ public:
   using const_reference = const value_type &;
   using allocator_type = AllocatorT;
   template <int dims>
-  using EnableIfOneDimension = typename detail::enable_if_t<1 == dims>;
+  using EnableIfOneDimension = typename std::enable_if_t<1 == dims>;
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<detail::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<
-                             decltype(std::declval<Container>().data())> (*)[],
-                         const T (*)[]>::value>,
-                     decltype(std::declval<Container>().size())>;
+      std::void_t<std::enable_if_t<std::is_convertible_v<
+                      detail::remove_pointer_t<
+                          decltype(std::declval<Container>().data())> (*)[],
+                      const T (*)[]>>,
+                  decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = detail::enable_if_t<
-      std::is_convertible<typename std::iterator_traits<It>::iterator_category,
-                          std::input_iterator_tag>::value>;
+  using EnableIfItInputIterator = std::enable_if_t<std::is_convertible_v<
+      typename std::iterator_traits<It>::iterator_category,
+      std::input_iterator_tag>>;
   template <typename ItA, typename ItB>
-  using EnableIfSameNonConstIterators = typename detail::enable_if_t<
-      std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
-
-  std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
-
-  std::array<size_t, 3> rangeToArray(range<2> &r) { return {r[0], r[1], 0}; }
-
-  std::array<size_t, 3> rangeToArray(range<1> &r) { return {r[0], 0, 0}; }
+  using EnableIfSameNonConstIterators = typename std::enable_if_t<
+      std::is_same_v<ItA, ItB> && !std::is_const_v<ItA>, ItA>;
 
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(bufferRange.size() * sizeof(T), alignof(T), propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), nullptr, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          AllocatorT allocator, const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -237,14 +255,14 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename _T = T>
@@ -253,14 +271,13 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), hostData, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -268,8 +285,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -277,7 +293,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -285,8 +301,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -294,7 +309,7 @@ public:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -302,15 +317,14 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -318,15 +332,14 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
         (const void *)typeid(T).name(), dimensions, sizeof(T),
-        rangeToArray(Range).data());
+        detail::rangeToArray(Range).data());
   }
 
   template <class InputIterator, int N = dimensions,
@@ -344,14 +357,13 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
-            std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            std::distance(first, last) * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             detail::iterator_to_const_type_t<InputIterator>::value),
@@ -377,14 +389,13 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
-            std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            std::distance(first, last) * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
@@ -402,8 +413,8 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            container.data(), container.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            container.data(), container.size() * sizeof(T), alignof(T),
+            propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(range<1>(container.size())) {
@@ -429,7 +440,7 @@ public:
         IsSubBuffer(true) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
       throw sycl::invalid_object_error(
@@ -450,7 +461,7 @@ public:
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer(buffer &&rhs,
@@ -459,7 +470,7 @@ public:
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   buffer &operator=(const buffer &rhs) = default;
@@ -588,8 +599,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  detail::enable_if_t<
-      std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
+  std::enable_if_t<std::is_convertible_v<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
     this->set_final_data_internal(TempFinalData);
@@ -661,11 +671,11 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
+  std::enable_if_t<
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 std::remove_const_t<ReinterpretT>>>>::type
+                 std::remove_const_t<ReinterpretT>>>>
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
                   typename std::allocator_traits<AllocatorT>::
@@ -674,10 +684,10 @@ public:
   }
 
   template <typename ReinterpretT, int ReinterpretDim = dimensions>
-  typename std::enable_if<
-      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
-                                (sizeof(ReinterpretT) != sizeof(T))),
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  std::enable_if_t<(ReinterpretDim == 1) &&
+                       ((dimensions != ReinterpretDim) ||
+                        (sizeof(ReinterpretT) != sizeof(T))),
+                   buffer<ReinterpretT, ReinterpretDim, AllocatorT>>
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
@@ -745,7 +755,7 @@ private:
     Range[0] = buffer_plain::getSize() / sizeof(T);
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   void addOrReplaceAccessorProperties(const property_list &PropertyList) {
@@ -765,7 +775,7 @@ private:
         OffsetInBytes(reinterpretOffset), IsSubBuffer(isSubBuffer) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), Impl.get(), (const void *)typeid(T).name(),
-        dimensions, sizeof(T), rangeToArray(Range).data());
+        dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
   template <typename Type, int N>
@@ -846,7 +856,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

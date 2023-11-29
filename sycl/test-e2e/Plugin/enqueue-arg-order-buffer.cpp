@@ -1,7 +1,6 @@
 // UNSUPPORTED: hip_nvidia
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 #include <sycl/accessor.hpp>
@@ -125,21 +124,21 @@ void testGetLinearIndex() {
     buffer<float, 2> buffer_2D(data_2D.data(), range<2>(height, width));
     buffer<float, 3> buffer_3D(data_3D.data(), range<3>(depth, height, width));
 
-    auto acc_1D = buffer_1D.get_access<access::mode::read_write>();
+    auto acc_1D = buffer_1D.get_host_access();
     auto accTest_1D = AccTest<float, 1>(acc_1D);
     size_t linear_1D = accTest_1D.gLI(id<1>(x)); // s.b. 4
     std::cout << "linear_1D: " << linear_1D << "  target_1D: " << target_1D
               << std::endl;
     assert(linear_1D == target_1D && "linear_1D s.b. 4");
 
-    auto acc_2D = buffer_2D.get_access<access::mode::read_write>();
+    auto acc_2D = buffer_2D.get_host_access();
     auto accTest_2D = AccTest<float, 2>(acc_2D);
     size_t linear_2D = accTest_2D.gLI(id<2>(y, x));
     std::cout << "linear_2D: " << linear_2D << "  target_2D: " << target_2D
               << std::endl;
     assert(linear_2D == target_2D && "linear_2D s.b. 52");
 
-    auto acc_3D = buffer_3D.get_access<access::mode::read_write>();
+    auto acc_3D = buffer_3D.get_host_access();
     auto accTest_3D = AccTest<float, 3>(acc_3D);
     size_t linear_3D = accTest_3D.gLI(id<3>(z, y, x));
     std::cout << "linear_3D: " << linear_3D << "  target_3D: " << target_3D
@@ -266,7 +265,7 @@ void testcopyH2DBuffer() {
                                     range<2>(height, width));
     buffer<float, 2> buffer_to_2D(data_to_2D.data(), range<2>(height, width));
 
-    device Dev{default_selector{}};
+    device Dev;
     context myCtx{Dev};
     context otherCtx{Dev};
 
@@ -295,7 +294,7 @@ void testcopyH2DBuffer() {
     buffer<float, 3> buffer_to_3D(data_to_3D.data(),
                                   range<3>(depth, height, width));
 
-    device Dev{default_selector{}};
+    device Dev;
     context myCtx{Dev};
     context otherCtx{Dev};
 

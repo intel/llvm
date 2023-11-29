@@ -11,8 +11,6 @@
 
 // ALLOW_RETRIES: 2
 
-// UNSUPPORTED: availability-shared_mutex-missing
-
 // <shared_mutex>
 
 // class shared_timed_mutex;
@@ -24,6 +22,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <shared_mutex>
 #include <vector>

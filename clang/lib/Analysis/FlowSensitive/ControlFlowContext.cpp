@@ -68,18 +68,41 @@ static llvm::BitVector findReachableBlocks(const CFG &Cfg) {
 }
 
 llvm::Expected<ControlFlowContext>
-ControlFlowContext::build(const Decl *D, Stmt &S, ASTContext &C) {
+ControlFlowContext::build(const FunctionDecl &Func) {
+  if (!Func.hasBody())
+    return llvm::createStringError(
+        std::make_error_code(std::errc::invalid_argument),
+        "Cannot analyze function without a body");
+
+  return build(Func, *Func.getBody(), Func.getASTContext());
+}
+
+llvm::Expected<ControlFlowContext>
+ControlFlowContext::build(const Decl &D, Stmt &S, ASTContext &C) {
+  if (D.isTemplated())
+    return llvm::createStringError(
+        std::make_error_code(std::errc::invalid_argument),
+        "Cannot analyze templated declarations");
+
+  // The shape of certain elements of the AST can vary depending on the
+  // language. We currently only support C++.
+  if (!C.getLangOpts().CPlusPlus)
+    return llvm::createStringError(
+        std::make_error_code(std::errc::invalid_argument),
+        "Can only analyze C++");
+
   CFG::BuildOptions Options;
-  Options.PruneTriviallyFalseEdges = false;
+  Options.PruneTriviallyFalseEdges = true;
   Options.AddImplicitDtors = true;
   Options.AddTemporaryDtors = true;
   Options.AddInitializers = true;
   Options.AddCXXDefaultInitExprInCtors = true;
+  Options.AddLifetime = true;
 
   // Ensure that all sub-expressions in basic blocks are evaluated.
   Options.setAllAlwaysAdd();
 
-  auto Cfg = CFG::buildCFG(D, &S, &C, Options);
+  auto Cfg = CFG::buildCFG(&D, &S, &C, Options);
   if (Cfg == nullptr)
     return llvm::createStringError(
         std::make_error_code(std::errc::invalid_argument),

@@ -71,7 +71,7 @@ private:
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
 
 template <typename name, typename Func>

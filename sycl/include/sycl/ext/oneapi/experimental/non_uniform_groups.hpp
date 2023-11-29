@@ -7,55 +7,79 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/marray.hpp>                    // for marray
+#include <sycl/types.hpp>                     // for vec
+
+#include <stddef.h> // for size_t
+#include <stdint.h> // for uint32_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext::oneapi::experimental {
+inline namespace _V1 {
 
-template <class T> struct is_fixed_topology_group : std::false_type {};
-
-template <class T>
-inline constexpr bool is_fixed_topology_group_v =
-    is_fixed_topology_group<T>::value;
-
-#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
-template <> struct is_fixed_topology_group<root_group> : std::true_type {};
-#endif
-
-template <int Dimensions>
-struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
-
-template <> struct is_fixed_topology_group<sycl::sub_group> : std::true_type {};
-
-template <class T> struct is_user_constructed_group : std::false_type {};
-
-template <class T>
-inline constexpr bool is_user_constructed_group_v =
-    is_user_constructed_group<T>::value;
-
-#ifdef __SYCL_DEVICE_ONLY__
-// TODO: This may need to be generalized beyond uint32_t for big masks
 namespace detail {
-uint32_t CallerPositionInMask(sub_group_mask Mask) {
-  // FIXME: It would be nice to be able to jump straight to an __ocl_vec_t
+
+inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask) {
   sycl::marray<unsigned, 4> TmpMArray;
   Mask.extract_bits(TmpMArray);
   sycl::vec<unsigned, 4> MemberMask;
   for (int i = 0; i < 4; ++i) {
     MemberMask[i] = TmpMArray[i];
   }
+  return MemberMask;
+}
+
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO: This may need to be generalized beyond uint32_t for big masks
+inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
+  sycl::vec<unsigned, 4> MemberMask = ExtractMask(Mask);
   auto OCLMask =
       sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
   return __spirv_GroupNonUniformBallotBitCount(
       __spv::Scope::Subgroup, (int)__spv::GroupOperation::ExclusiveScan,
       OCLMask);
 }
-} // namespace detail
 #endif
 
+template <typename NonUniformGroup>
+inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.Mask;
+}
+
+template <typename NonUniformGroup>
+inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
+  sycl::vec<unsigned, 4> MemberMask = ExtractMask(GetMask(Group));
+#if defined(__NVPTX__)
+  return __nvvm_fns(MemberMask[0], 0, Id + 1);
+#else
+  // TODO: This will need to be optimized
+  uint32_t Count = 0;
+  for (int i = 0; i < 4; ++i) {
+    for (int b = 0; b < 32; ++b) {
+      if (MemberMask[i] & (1 << b)) {
+        if (Count == Id) {
+          return i * 32 + b;
+        }
+        Count++;
+      }
+    }
+  }
+  return Count;
+#endif
+}
+
+} // namespace detail
+
+namespace ext::oneapi::experimental {
+
+// Forward declarations of non-uniform group types for algorithm definitions
+template <typename ParentGroup> class ballot_group;
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <typename ParentGroup> class tangle_group;
+class opportunistic_group;
+
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+
+} // namespace _V1
 } // namespace sycl

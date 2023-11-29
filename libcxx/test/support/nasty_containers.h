@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <vector>
 #include <list>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -42,6 +43,8 @@ public:
 #if TEST_STD_VER >= 11
     nasty_vector(std::initializer_list<value_type> il) : v_(il) {}
 #endif
+    nasty_vector(const nasty_vector&) = default;
+    nasty_vector& operator=(const nasty_vector&) = default;
     ~nasty_vector() {}
 
     template <class InputIterator>
@@ -137,6 +140,14 @@ public:
 template <class T>
 bool operator==(const nasty_vector<T>& x, const nasty_vector<T>& y) { return x.v_ == y.v_; }
 
+
+#if TEST_STD_VER >= 20
+
+template <class T>
+auto operator<=>(const nasty_vector<T>& x, const nasty_vector<T>& y) { return x.v_ <=> y.v_; }
+
+#endif
+
 template <class T>
 class nasty_list
 {
@@ -165,7 +176,8 @@ public:
 #if TEST_STD_VER >= 11
     nasty_list(std::initializer_list<value_type> il) : l_(il) {}
 #endif
-
+    nasty_list(const nasty_list&) = default;
+    nasty_list& operator=(const nasty_list&) = default;
     ~nasty_list() {}
 
 #if TEST_STD_VER >= 11
@@ -283,6 +295,13 @@ public:
 
 template <class T>
 bool operator==(const nasty_list<T>& x, const nasty_list<T>& y) { return x.l_ == y.l_; }
+
+#if TEST_STD_VER >= 20
+
+template <class T>
+auto operator<=>(const nasty_list<T>& x, const nasty_list<T>& y) { return x.l_ <=> y.l_; }
+
+#endif
 
 // Not really a mutex, but can play one in tests
 class nasty_mutex

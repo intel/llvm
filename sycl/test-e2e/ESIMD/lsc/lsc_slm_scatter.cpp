@@ -1,7 +1,6 @@
 // REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies the correctness of LSC SLM scatter intrinsics.
 

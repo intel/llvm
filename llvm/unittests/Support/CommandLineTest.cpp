@@ -525,6 +525,59 @@ TEST(CommandLineTest, LookupFailsInWrongSubCommand) {
   EXPECT_FALSE(Errs.empty());
 }
 
+TEST(CommandLineTest, TopLevelOptInSubcommand) {
+  enum LiteralOptionEnum {
+    foo,
+    bar,
+    baz,
+  };
+
+  cl::ResetCommandLineParser();
+
+  // This is a top-level option and not associated with a subcommand.
+  // A command line using subcommand should parse both subcommand options and
+  // top-level options.  A valid use case is that users of llvm command line
+  // tools should be able to specify top-level options defined in any library.
+  StackOption<std::string> TopLevelOpt("str", cl::init("txt"),
+                                       cl::desc("A top-level option."));
+
+  StackSubCommand SC("sc", "Subcommand");
+  StackOption<std::string> PositionalOpt(
+      cl::Positional, cl::desc("positional argument test coverage"),
+      cl::sub(SC));
+  StackOption<LiteralOptionEnum> LiteralOpt(
+      cl::desc("literal argument test coverage"), cl::sub(SC), cl::init(bar),
+      cl::values(clEnumVal(foo, "foo"), clEnumVal(bar, "bar"),
+                 clEnumVal(baz, "baz")));
+  StackOption<bool> EnableOpt("enable", cl::sub(SC), cl::init(false));
+  StackOption<int> ThresholdOpt("threshold", cl::sub(SC), cl::init(1));
+
+  const char *PositionalOptVal = "input-file";
+  const char *args[] = {"prog",    "sc",        PositionalOptVal,
+                        "-enable", "--str=csv", "--threshold=2"};
+
+  // cl::ParseCommandLineOptions returns true on success. Otherwise, it will
+  // print the error message to stderr and exit in this setting (`Errs` ostream
+  // is not set).
+  ASSERT_TRUE(cl::ParseCommandLineOptions(sizeof(args) / sizeof(args[0]), args,
+                                          StringRef()));
+  EXPECT_STREQ(PositionalOpt.getValue().c_str(), PositionalOptVal);
+  EXPECT_TRUE(EnableOpt);
+  // Tests that the value of `str` option is `csv` as specified.
+  EXPECT_STREQ(TopLevelOpt.getValue().c_str(), "csv");
+  EXPECT_EQ(ThresholdOpt, 2);
+
+  for (auto &[LiteralOptVal, WantLiteralOpt] :
+       {std::pair{"--bar", bar}, {"--foo", foo}, {"--baz", baz}}) {
+    const char *args[] = {"prog", "sc", LiteralOptVal};
+    ASSERT_TRUE(cl::ParseCommandLineOptions(sizeof(args) / sizeof(args[0]),
+                                            args, StringRef()));
+
+    // Tests that literal options are parsed correctly.
+    EXPECT_EQ(LiteralOpt, WantLiteralOpt);
+  }
+}
+
 TEST(CommandLineTest, AddToAllSubCommands) {
   cl::ResetCommandLineParser();
 
@@ -1294,7 +1347,8 @@ struct AutoDeleteFile {
   }
 };
 
-class PrintOptionInfoTest : public ::testing::Test {
+template <void (*Func)(const cl::Option &)>
+class PrintOptionTestBase : public ::testing::Test {
 public:
   // Return std::string because the output of a failing EXPECT check is
   // unreadable for StringRef. It also avoids any lifetime issues.
@@ -1309,7 +1363,7 @@ public:
 
       StackOption<OptionValue> TestOption(Opt, cl::desc(HelpText),
                                           OptionAttributes...);
-      printOptionInfo(TestOption, 26);
+      Func(TestOption);
       outs().flush();
     }
     auto Buffer = MemoryBuffer::getFile(File.FilePath);
@@ -1321,14 +1375,15 @@ public:
   enum class OptionValue { Val };
   const StringRef Opt = "some-option";
   const StringRef HelpText = "some help";
+};
 
-private:
   // This is a workaround for cl::Option sub-classes having their
   // printOptionInfo functions private.
-  void printOptionInfo(const cl::Option &O, size_t Width) {
-    O.printOptionInfo(Width);
-  }
-};
+void printOptionInfo(const cl::Option &O) {
+  O.printOptionInfo(/*GlobalWidth=*/26);
+}
+
+using PrintOptionInfoTest = PrintOptionTestBase<printOptionInfo>;
 
 TEST_F(PrintOptionInfoTest, PrintOptionInfoValueOptionalWithoutSentinel) {
   std::string Output =
@@ -1402,7 +1457,7 @@ TEST_F(PrintOptionInfoTest, PrintOptionInfoMultilineValueDescription) {
                                     "which has a really long description\n"
                                     "thus it is multi-line."),
                          clEnumValN(OptionValue::Val, "",
-                                    "This is an unnamed enum value option\n"
+                                    "This is an unnamed enum value\n"
                                     "Should be indented as well")));
 
   // clang-format off
@@ -1411,9 +1466,38 @@ TEST_F(PrintOptionInfoTest, PrintOptionInfoMultilineValueDescription) {
              "    =v1                 -   This is the first enum value\n"
              "                            which has a really long description\n"
              "                            thus it is multi-line.\n"
-             "    =<empty>            -   This is an unnamed enum value option\n"
+             "    =<empty>            -   This is an unnamed enum value\n"
              "                            Should be indented as well\n").str());
   // clang-format on
+}
+
+void printOptionValue(const cl::Option &O) {
+  O.printOptionValue(/*GlobalWidth=*/12, /*Force=*/true);
+}
+
+using PrintOptionValueTest = PrintOptionTestBase<printOptionValue>;
+
+TEST_F(PrintOptionValueTest, PrintOptionDefaultValue) {
+  std::string Output =
+      runTest(cl::init(OptionValue::Val),
+              cl::values(clEnumValN(OptionValue::Val, "v1", "desc1")));
+
+  EXPECT_EQ(Output, ("    --" + Opt + " = v1       (default: v1)\n").str());
+}
+
+TEST_F(PrintOptionValueTest, PrintOptionNoDefaultValue) {
+  std::string Output =
+      runTest(cl::values(clEnumValN(OptionValue::Val, "v1", "desc1")));
+
+  // Note: the option still has a (zero-initialized) value, but the default
+  // is invalid and doesn't match any value.
+  EXPECT_EQ(Output, ("    --" + Opt + " = v1       (default: )\n").str());
+}
+
+TEST_F(PrintOptionValueTest, PrintOptionUnknownValue) {
+  std::string Output = runTest(cl::init(OptionValue::Val));
+
+  EXPECT_EQ(Output, ("    --" + Opt + " = *unknown option value*\n").str());
 }
 
 class GetOptionWidthTest : public ::testing::Test {

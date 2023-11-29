@@ -3,7 +3,7 @@
 ; N.b: This is 4.0-compatible IR. The CHECK lines occasionally differ from
 ;      the IR used to generate the bitcode, and may need to be updated.
 
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 target datalayout = "E"
 ; CHECK: target datalayout = "E"
@@ -361,8 +361,6 @@ declare ghccc void @f.ghccc()
 ; CHECK: declare ghccc void @f.ghccc()
 declare cc11 void @f.cc11()
 ; CHECK: declare cc11 void @f.cc11()
-declare webkit_jscc void @f.webkit_jscc()
-; CHECK: declare webkit_jscc void @f.webkit_jscc()
 declare anyregcc void @f.anyregcc()
 ; CHECK: declare anyregcc void @f.anyregcc()
 declare preserve_mostcc void @f.preserve_mostcc()
@@ -1385,9 +1383,9 @@ define void @intrinsics.codegen() {
   ; CHECK: call void @llvm.write_register.i64(metadata !10, i64 0)
 
   %stack = call i8* @llvm.stacksave()
-  ; CHECK: %stack = call ptr @llvm.stacksave()
+  ; CHECK: %stack = call ptr @llvm.stacksave.p0()
   call void @llvm.stackrestore(i8* %stack)
-  ; CHECK: call void @llvm.stackrestore(ptr %stack)
+  ; CHECK: call void @llvm.stackrestore.p0(ptr %stack)
 
   call void @llvm.prefetch(i8* %stack, i32 0, i32 3, i32 0)
   ; CHECK: call void @llvm.prefetch.p0(ptr %stack, i32 0, i32 3, i32 0)

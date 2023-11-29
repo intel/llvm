@@ -6,19 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_GENERIC_FMA_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_GENERIC_FMA_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_GENERIC_FMA_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_GENERIC_FMA_H
 
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/FPUtil/FloatProperties.h"
+#include "src/__support/FPUtil/rounding_mode.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/builtin_wrappers.h"
 #include "src/__support/macros/attributes.h"   // LIBC_INLINE
 #include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace fputil {
 namespace generic {
 
@@ -225,7 +226,7 @@ template <> LIBC_INLINE double fma<double>(double x, double y, double z) {
     if (r_exp > 0) {
       // The result is normal.  We will shift the mantissa to the right by
       // 63 - 52 = 11 bits (from the locations of the most significant bit).
-      // Then the rounding bit will correspond the the 11th bit, and the lowest
+      // Then the rounding bit will correspond the 11th bit, and the lowest
       // 10 bits are merged into sticky bits.
       round_bit = (result & 0x0400ULL) != 0;
       sticky_bits |= (result & 0x03ffULL) != 0;
@@ -254,7 +255,7 @@ template <> LIBC_INLINE double fma<double>(double x, double y, double z) {
   }
 
   // Finalize the result.
-  int round_mode = fputil::get_round();
+  int round_mode = fputil::quick_get_round();
   if (LIBC_UNLIKELY(r_exp >= FPBits::MAX_EXPONENT)) {
     if ((round_mode == FE_TOWARDZERO) ||
         (round_mode == FE_UPWARD && prod_sign) ||
@@ -289,6 +290,6 @@ template <> LIBC_INLINE double fma<double>(double x, double y, double z) {
 
 } // namespace generic
 } // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_GENERIC_FMA_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_GENERIC_FMA_H

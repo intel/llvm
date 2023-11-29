@@ -27,19 +27,16 @@ struct ForOpInterface
                                     ValueBoundsConstraintSet &cstr) {
     // `value` is an iter_arg or an OpResult.
     int64_t iterArgIdx;
-    if (auto iterArg = value.dyn_cast<BlockArgument>()) {
+    if (auto iterArg = llvm::dyn_cast<BlockArgument>(value)) {
       iterArgIdx = iterArg.getArgNumber() - forOp.getNumInductionVars();
     } else {
-      iterArgIdx = value.cast<OpResult>().getResultNumber();
+      iterArgIdx = llvm::cast<OpResult>(value).getResultNumber();
     }
 
     // An EQ constraint can be added if the yielded value (dimension size)
     // equals the corresponding block argument (dimension size).
-    assert(forOp.getLoopBody().hasOneBlock() &&
-           "multiple blocks not supported");
-    Value yieldedValue =
-        cast<scf::YieldOp>(forOp.getLoopBody().front().getTerminator())
-            .getOperand(iterArgIdx);
+    Value yieldedValue = cast<scf::YieldOp>(forOp.getBody()->getTerminator())
+                             .getOperand(iterArgIdx);
     Value iterArg = forOp.getRegionIterArg(iterArgIdx);
     Value initArg = forOp.getInitArgs()[iterArgIdx];
 
@@ -63,12 +60,12 @@ struct ForOpInterface
         bound, boundOperands, BoundType::EQ, yieldedValue, dim,
         [&](Value v, std::optional<int64_t> d) {
           // Stop when reaching a block argument of the loop body.
-          if (auto bbArg = v.dyn_cast<BlockArgument>())
+          if (auto bbArg = llvm::dyn_cast<BlockArgument>(v))
             return bbArg.getOwner()->getParentOp() == forOp;
           // Stop when reaching a value that is defined outside of the loop. It
           // is impossible to reach an iter_arg from there.
           Operation *op = v.getDefiningOp();
-          return forOp.getLoopBody().findAncestorOpInRegion(*op) == nullptr;
+          return forOp.getRegion().findAncestorOpInRegion(*op) == nullptr;
         });
     if (failed(status))
       return;
@@ -77,12 +74,12 @@ struct ForOpInterface
 
     // Check if computed bound equals the corresponding iter_arg.
     Value singleValue = nullptr;
-    std::optional<int64_t> singleDim = std::nullopt;
-    if (auto dimExpr = bound.getResult(0).dyn_cast<AffineDimExpr>()) {
+    std::optional<int64_t> singleDim;
+    if (auto dimExpr = dyn_cast<AffineDimExpr>(bound.getResult(0))) {
       int64_t idx = dimExpr.getPosition();
       singleValue = boundOperands[idx].first;
       singleDim = boundOperands[idx].second;
-    } else if (auto symExpr = bound.getResult(0).dyn_cast<AffineSymbolExpr>()) {
+    } else if (auto symExpr = dyn_cast<AffineSymbolExpr>(bound.getResult(0))) {
       int64_t idx = symExpr.getPosition() + bound.getNumDims();
       singleValue = boundOperands[idx].first;
       singleDim = boundOperands[idx].second;

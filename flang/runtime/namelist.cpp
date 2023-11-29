@@ -6,11 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: When lowering has been updated to used the new pointer data member in
-// the NamelistGroup structure, delete this definition and the two #ifndef
-// directives below that test it.
-#define DISABLE_NON_TBP_DIO 1
-
 #include "namelist.h"
 #include "descriptor-io.h"
 #include "emit-encoded.h"
@@ -73,10 +68,7 @@ bool IONAME(OutputNamelist)(Cookie cookie, const NamelistGroup &group) {
     }
     if (const auto *addendum{item.descriptor.Addendum()};
         addendum && addendum->derivedType()) {
-      NonTbpDefinedIoTable *table{nullptr};
-#ifndef DISABLE_NON_TBP_DIO
-      table = group.nonTbpDefinedIo;
-#endif
+      const NonTbpDefinedIoTable *table{group.nonTbpDefinedIo};
       if (!IONAME(OutputDerivedType)(cookie, item.descriptor, table)) {
         return false;
       }
@@ -530,18 +522,18 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
     }
     io.HandleRelativePosition(byteCount);
     // Read the values into the descriptor.  An array can be short.
-    listInput->ResetForNextNamelistItem(useDescriptor->rank() > 0);
     if (const auto *addendum{useDescriptor->Addendum()};
         addendum && addendum->derivedType()) {
-      NonTbpDefinedIoTable *table{nullptr};
-#ifndef DISABLE_NON_TBP_DIO
-      table = group.nonTbpDefinedIo;
-#endif
+      const NonTbpDefinedIoTable *table{group.nonTbpDefinedIo};
+      listInput->ResetForNextNamelistItem(/*inNamelistSequence=*/true);
       if (!IONAME(InputDerivedType)(cookie, *useDescriptor, table)) {
         return false;
       }
-    } else if (!descr::DescriptorIO<Direction::Input>(io, *useDescriptor)) {
-      return false;
+    } else {
+      listInput->ResetForNextNamelistItem(useDescriptor->rank() > 0);
+      if (!descr::DescriptorIO<Direction::Input>(io, *useDescriptor)) {
+        return false;
+      }
     }
     next = io.GetNextNonBlank(byteCount);
     if (next && *next == comma) {
@@ -560,7 +552,7 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
 bool IsNamelistNameOrSlash(IoStatementState &io) {
   if (auto *listInput{
           io.get_if<ListDirectedStatementState<Direction::Input>>()}) {
-    if (listInput->inNamelistArray()) {
+    if (listInput->inNamelistSequence()) {
       SavedPosition savedPosition{io};
       std::size_t byteCount{0};
       if (auto ch{io.GetNextNonBlank(byteCount)}) {

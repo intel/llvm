@@ -1,8 +1,8 @@
-! RUN: %python %S/../test_errors.py %s %flang -fopenacc
+! RUN: %python %S/../test_errors.py %s %flang -fopenacc -pedantic
 
 ! Check OpenACC restruction in branch in and out of some construct
 !
-program openacc_clause_validity
+subroutine openacc_clause_validity
 
   implicit none
 
@@ -167,4 +167,12 @@ program openacc_clause_validity
   end do
   !$acc end serial
 
-end program openacc_clause_validity
+
+  !$acc data create(a)
+
+  !ERROR: RETURN statement is not allowed in a DATA construct
+  if (size(a) == 10) return
+
+  !$acc end data
+
+end subroutine openacc_clause_validity

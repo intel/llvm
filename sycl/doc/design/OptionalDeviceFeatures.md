@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
+[5]: <../extensions/experimental/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -553,7 +553,8 @@ type because the front-end does not include that type in the
 `!sycl_types_that_use_aspects` set.  If a function references the `double`
 type, the implementation implicitly assumes that the function uses
 `aspect::fp64` and adds that aspect to the function's `!sycl_used_aspects`
-set.
+set. If `!sycl_used_aspects` is attached to instruction then it is also added
+to the function's `!sycl_used_aspects` set.
 
 **NOTE**: This scan of the IR will require comparing the type referenced by
 each IR instruction with the names of the types in the
@@ -1090,10 +1091,10 @@ The "name" column in this table lists the possible target names.  Since not all
 targets have a corresponding enumerator in the `architecture` enumeration, the
 second column tells when there is such an enumerator.  The last row in this
 table corresponds to all of the architecture names listed in the
-[sycl\_ext\_intel\_device\_architecture][8] extension whose name starts with
+[sycl\_ext\_oneapi\_device\_architecture][8] extension whose name starts with
 `intel_gpu_`.
 
-[8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 TODO: This table needs to be filled out for the CPU variants supported by the
 `opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We
@@ -1148,6 +1149,24 @@ Kernel has a required sub-group size of '32' but device does not support this
 sub-group size.
 ```
 
+### SYCL internal aspects for device image splitting
+
+There are scenarios when we would like to split device images based on
+optional kernel features but we don't want to expose corresponding
+aspects to the user. Internal SYCL aspects are used for this purpose.
+
+To differentiate them from regular aspects, internal aspects are assigned
+negative values. If optional feature is used in the kernel then SYCL
+device compiler adds value of internal aspect to 'sycl_used_aspects' metadata,
+it gets propagated through the call graph and participates in device image
+splitting together with regular aspects but it's not passed to the SYCL runtime,
+it is filtered out when generating a set of device requirements.
+
+New value can be added to 'SYCLInternalAspect' enum to introduce new internal
+aspect.
+
+Example of internal aspects usage is splitting device images based on floating
+point accuracy level for math functions provided by user using -ffp-accuracy option.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 

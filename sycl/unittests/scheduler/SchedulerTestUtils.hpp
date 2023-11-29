@@ -24,11 +24,11 @@
 sycl::detail::Requirement getMockRequirement();
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Command;
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 class MockCommand : public sycl::detail::Command {
@@ -220,7 +220,8 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessMode*/ sycl::access::mode::read_write,
           /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
           /*Dims*/ 0,
-          /*ElementSize*/ 0};
+          /*ElementSize*/ 0,
+          /*Offset*/ size_t(0)};
 }
 
 class MockHandler : public sycl::handler {
@@ -241,20 +242,23 @@ public:
   std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
     return MHostKernel;
   }
-  std::vector<std::vector<char>> &getArgsStorage() { return MArgsStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return CGData.MArgsStorage;
+  }
   std::vector<sycl::detail::AccessorImplPtr> &getAccStorage() {
-    return MAccStorage;
+    return CGData.MAccStorage;
   }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
-    return MSharedPtrStorage;
+    return CGData.MSharedPtrStorage;
   }
   std::vector<sycl::detail::Requirement *> &getRequirements() {
-    return MRequirements;
+    return CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() { return MEvents; }
+  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+    return CGData.MEvents;
+  }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
   std::string &getKernelName() { return MKernelName; }
-  sycl::detail::OSModuleHandle &getOSModuleHandle() { return MOSModuleHandle; }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
   std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
@@ -294,21 +298,22 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
+    sycl::detail::CG::StorageInitHelper CGData(
+        getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
+        getRequirements(), getEvents());
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
-          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
-          getKernelName(), getOSModuleHandle(), getStreamStorage(),
-          MImpl->MAuxiliaryResources, getCGType(), {}, getCodeLoc()));
+          std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
+          getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
+          getCGType(), {}, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
           std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
-          getArgs(), getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
-          getRequirements(), getEvents(), getCGType(), getCodeLoc()));
+          getArgs(), std::move(CGData), getCGType(), getCodeLoc()));
       break;
     }
     default:

@@ -1,8 +1,17 @@
 ; This test checks attributes of a Fortran module.
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | \
+; RUN:   llvm-dwarfdump - | FileCheck %s
 
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | \
+; RUN:   llvm-dwarfdump - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu %t.ll -filetype=obj -o - | \
 ; RUN:   llvm-dwarfdump - | FileCheck %s
 

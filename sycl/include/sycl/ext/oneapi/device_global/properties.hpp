@@ -8,11 +8,15 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <cstdint>     // for uint16_t
+#include <iosfwd>      // for nullptr_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT> class device_global;
@@ -42,7 +46,7 @@ struct init_mode_key {
 struct implement_in_csr_key {
   template <bool Enable>
   using value_t =
-      property_value<implement_in_csr_key, sycl::detail::bool_constant<Enable>>;
+      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
 };
 
 inline constexpr device_image_scope_key::value_t device_image_scope;
@@ -128,7 +132,20 @@ struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
   static constexpr bool value = Enable;
 };
 
+// Filter allowing additional conditions for selecting when to include meta
+// information for properties for device_global.
+template <typename PropT, typename Properties>
+struct DeviceGlobalMetaInfoFilter : std::true_type {};
+
+// host_access cannot be honored for device_global variables without the
+// device_image_scope property, as the runtime needs to write the common USM
+// pointer during first launch.
+template <host_access_enum Access, typename Properties>
+struct DeviceGlobalMetaInfoFilter<host_access_key::value_t<Access>, Properties>
+    : std::bool_constant<
+          Properties::template has_property<device_image_scope_key>()> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

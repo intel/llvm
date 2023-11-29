@@ -39,7 +39,7 @@ SYCL specification refer to that revision.
 This extension also depends on the following other SYCL extensions:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-- link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+- link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 
 == Status
 
@@ -146,7 +146,7 @@ auto APtr8 = malloc_annotated<int>(N, q, sycl::usm::alloc::host, P5);
 auto APtr9 = malloc_host_annotated<int>(N, q, P5);
 ----
 
-The following example uses the compile-time-constant property `alignment`, defined in the link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr] extension.
+The following example uses the compile-time-constant property `alignment`, defined in the link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr] extension.
 When the `alignment` property is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr` since it is a compile-time constant property.
 It also informs the runtime to allocate the memory with this alignment.
  
@@ -1243,7 +1243,7 @@ sycl::ext::oneapi::experimental::alignment
 If this property is passed to a USM memory allocation function with `properties` support, it instructs the runtime to allocate memory with this alignment in bytes.
 The set of allowed alignments is implementation defined. Specifying an alignment that is not supported causes the allocation function to return an `annotated_ptr` containing a null raw pointer.
 |
-link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
 |====
 
 Table <<table.usm.malloc.devhostsh>> lists the new properties introduced by this extension.

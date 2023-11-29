@@ -358,6 +358,7 @@ bool MCMachOStreamer::emitSymbolAttribute(MCSymbol *Sym,
   case MCSA_LGlobal:
   case MCSA_Exported:
   case MCSA_Memtag:
+  case MCSA_WeakAntiDep:
     return false;
 
   case MCSA_Global:
@@ -534,9 +535,7 @@ void MCMachOStreamer::finishImpl() {
 
 void MCMachOStreamer::finalizeCGProfileEntry(const MCSymbolRefExpr *&SRE) {
   const MCSymbol *S = &SRE->getSymbol();
-  bool Created;
-  getAssembler().registerSymbol(*S, &Created);
-  if (Created)
+  if (getAssembler().registerSymbol(*S))
     S->setExternal(true);
 }
 

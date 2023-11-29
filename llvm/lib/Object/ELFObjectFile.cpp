@@ -13,7 +13,6 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCInstrAnalysis.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFTypes.h"
@@ -25,6 +24,7 @@
 #include "llvm/Support/RISCVAttributeParser.h"
 #include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstddef>
@@ -358,6 +358,7 @@ std::optional<StringRef> ELFObjectFileBase::tryGetCPUName() const {
   switch (getEMachine()) {
   case ELF::EM_AMDGPU:
     return getAMDGPUCPUName();
+  case ELF::EM_PPC:
   case ELF::EM_PPC64:
     return StringRef("future");
   default:
@@ -463,6 +464,10 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx90c";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX940:
     return "gfx940";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX941:
+    return "gfx941";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX942:
+    return "gfx942";
 
   // AMDGCN GFX10.
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010:
@@ -497,6 +502,10 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx1102";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1103:
     return "gfx1103";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1150:
+    return "gfx1150";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1151:
+    return "gfx1151";
   default:
     llvm_unreachable("Unknown EF_AMDGPU_MACH value");
   }
@@ -597,20 +606,21 @@ void ELFObjectFileBase::setARMSubArch(Triple &TheTriple) const {
   TheTriple.setArchName(Triple);
 }
 
-std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>>
-ELFObjectFileBase::getPltAddresses() const {
+std::vector<ELFPltEntry> ELFObjectFileBase::getPltEntries() const {
   std::string Err;
   const auto Triple = makeTriple();
   const auto *T = TargetRegistry::lookupTarget(Triple.str(), Err);
   if (!T)
     return {};
-  uint64_t JumpSlotReloc = 0;
+  uint32_t JumpSlotReloc = 0, GlobDatReloc = 0;
   switch (Triple.getArch()) {
     case Triple::x86:
       JumpSlotReloc = ELF::R_386_JUMP_SLOT;
+      GlobDatReloc = ELF::R_386_GLOB_DAT;
       break;
     case Triple::x86_64:
       JumpSlotReloc = ELF::R_X86_64_JUMP_SLOT;
+      GlobDatReloc = ELF::R_X86_64_GLOB_DAT;
       break;
     case Triple::aarch64:
     case Triple::aarch64_be:
@@ -624,7 +634,9 @@ ELFObjectFileBase::getPltAddresses() const {
       T->createMCInstrAnalysis(MII.get()));
   if (!MIA)
     return {};
-  std::optional<SectionRef> Plt, RelaPlt, GotPlt;
+  std::vector<std::pair<uint64_t, uint64_t>> PltEntries;
+  std::optional<SectionRef> RelaPlt, RelaDyn;
+  uint64_t GotBaseVA = 0;
   for (const SectionRef &Section : sections()) {
     Expected<StringRef> NameOrErr = Section.getName();
     if (!NameOrErr) {
@@ -633,42 +645,66 @@ ELFObjectFileBase::getPltAddresses() const {
     }
     StringRef Name = *NameOrErr;
 
-    if (Name == ".plt")
-      Plt = Section;
-    else if (Name == ".rela.plt" || Name == ".rel.plt")
+    if (Name == ".rela.plt" || Name == ".rel.plt") {
       RelaPlt = Section;
-    else if (Name == ".got.plt")
-      GotPlt = Section;
-  }
-  if (!Plt || !RelaPlt || !GotPlt)
-    return {};
-  Expected<StringRef> PltContents = Plt->getContents();
-  if (!PltContents) {
-    consumeError(PltContents.takeError());
-    return {};
-  }
-  auto PltEntries = MIA->findPltEntries(Plt->getAddress(),
-                                        arrayRefFromStringRef(*PltContents),
-                                        GotPlt->getAddress(), Triple);
-  // Build a map from GOT entry virtual address to PLT entry virtual address.
-  DenseMap<uint64_t, uint64_t> GotToPlt;
-  for (const auto &Entry : PltEntries)
-    GotToPlt.insert(std::make_pair(Entry.second, Entry.first));
-  // Find the relocations in the dynamic relocation table that point to
-  // locations in the GOT for which we know the corresponding PLT entry.
-  std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>> Result;
-  for (const auto &Relocation : RelaPlt->relocations()) {
-    if (Relocation.getType() != JumpSlotReloc)
-      continue;
-    auto PltEntryIter = GotToPlt.find(Relocation.getOffset());
-    if (PltEntryIter != GotToPlt.end()) {
-      symbol_iterator Sym = Relocation.getSymbol();
-      if (Sym == symbol_end())
-        Result.emplace_back(std::nullopt, PltEntryIter->second);
-      else
-        Result.emplace_back(Sym->getRawDataRefImpl(), PltEntryIter->second);
+    } else if (Name == ".rela.dyn" || Name == ".rel.dyn") {
+      RelaDyn = Section;
+    } else if (Name == ".got.plt") {
+      GotBaseVA = Section.getAddress();
+    } else if (Name == ".plt" || Name == ".plt.got") {
+      Expected<StringRef> PltContents = Section.getContents();
+      if (!PltContents) {
+        consumeError(PltContents.takeError());
+        return {};
+      }
+      llvm::append_range(
+          PltEntries,
+          MIA->findPltEntries(Section.getAddress(),
+                              arrayRefFromStringRef(*PltContents), Triple));
     }
   }
+
+  // Build a map from GOT entry virtual address to PLT entry virtual address.
+  DenseMap<uint64_t, uint64_t> GotToPlt;
+  for (auto [Plt, GotPlt] : PltEntries) {
+    uint64_t GotPltEntry = GotPlt;
+    // An x86-32 PIC PLT uses jmp DWORD PTR [ebx-offset]. Add
+    // _GLOBAL_OFFSET_TABLE_ (EBX) to get the .got.plt (or .got) entry address.
+    // See X86MCTargetDesc.cpp:findPltEntries for the 1 << 32 bit.
+    if (GotPltEntry & (uint64_t(1) << 32) && getEMachine() == ELF::EM_386)
+      GotPltEntry = static_cast<int32_t>(GotPltEntry) + GotBaseVA;
+    GotToPlt.insert(std::make_pair(GotPltEntry, Plt));
+  }
+
+  // Find the relocations in the dynamic relocation table that point to
+  // locations in the GOT for which we know the corresponding PLT entry.
+  std::vector<ELFPltEntry> Result;
+  auto handleRels = [&](iterator_range<relocation_iterator> Rels,
+                        uint32_t RelType, StringRef PltSec) {
+    for (const auto &R : Rels) {
+      if (R.getType() != RelType)
+        continue;
+      auto PltEntryIter = GotToPlt.find(R.getOffset());
+      if (PltEntryIter != GotToPlt.end()) {
+        symbol_iterator Sym = R.getSymbol();
+        if (Sym == symbol_end())
+          Result.push_back(
+              ELFPltEntry{PltSec, std::nullopt, PltEntryIter->second});
+        else
+          Result.push_back(ELFPltEntry{PltSec, Sym->getRawDataRefImpl(),
+                                       PltEntryIter->second});
+      }
+    }
+  };
+
+  if (RelaPlt)
+    handleRels(RelaPlt->relocations(), JumpSlotReloc, ".plt");
+
+  // If a symbol needing a PLT entry also needs a GLOB_DAT relocation, GNU ld's
+  // x86 port places the PLT entry in the .plt.got section.
+  if (RelaDyn)
+    handleRels(RelaDyn->relocations(), GlobDatReloc, ".plt.got");
+
   return Result;
 }
 

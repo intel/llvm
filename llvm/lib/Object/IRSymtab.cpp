@@ -215,6 +215,11 @@ Expected<int> Builder::getComdatIndex(const Comdat *C, const Module *M) {
   return P.first->second;
 }
 
+static DenseSet<StringRef> buildPreservedSymbolsSet() {
+  return DenseSet<StringRef>(std::begin(PreservedSymbols),
+                             std::end(PreservedSymbols));
+}
+
 Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
                          const SmallPtrSet<GlobalValue *, 4> &Used,
                          ModuleSymbolTable::Symbol Msym) {
@@ -259,7 +264,7 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
     Sym.Flags |= 1 << storage::Symbol::FB_executable;
 
   Sym.ComdatIndex = -1;
-  auto *GV = Msym.dyn_cast<GlobalValue *>();
+  auto *GV = dyn_cast_if_present<GlobalValue *>(Msym);
   if (!GV) {
     // Undefined module asm symbols act as GC roots and are implicitly used.
     if (Flags & object::BasicSymbolRef::SF_Undefined)
@@ -270,7 +275,9 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
 
   setStr(Sym.IRName, GV->getName());
 
-  bool IsPreservedSymbol = llvm::is_contained(PreservedSymbols, GV->getName());
+  static const DenseSet<StringRef> PreservedSymbolsSet =
+      buildPreservedSymbolsSet();
+  bool IsPreservedSymbol = PreservedSymbolsSet.contains(GV->getName());
 
   if (Used.count(GV) || IsPreservedSymbol)
     Sym.Flags |= 1 << storage::Symbol::FB_used;

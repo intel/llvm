@@ -52,8 +52,7 @@ llvm::Value *CodeGenFunction::EmitObjCStringLiteral(const ObjCStringLiteral *E)
 {
   llvm::Constant *C =
       CGM.getObjCRuntime().GenerateConstantString(E->getString()).getPointer();
-  // FIXME: This bitcast should just be made an invariant on the Runtime.
-  return llvm::ConstantExpr::getBitCast(C, ConvertType(E->getType()));
+  return C;
 }
 
 /// EmitObjCBoxedExpr - This routine generates code to call
@@ -140,7 +139,7 @@ llvm::Value *CodeGenFunction::EmitObjCCollectionLiteral(const Expr *E,
     LValue LV = MakeNaturalAlignAddrLValue(Constant, IdTy);
     llvm::Value *Ptr = EmitLoadOfScalar(LV, E->getBeginLoc());
     cast<llvm::LoadInst>(Ptr)->setMetadata(
-        CGM.getModule().getMDKindID("invariant.load"),
+        llvm::LLVMContext::MD_invariant_load,
         llvm::MDNode::get(getLLVMContext(), std::nullopt));
     return Builder.CreateBitCast(Ptr, ConvertType(E->getType()));
   }
@@ -149,9 +148,9 @@ llvm::Value *CodeGenFunction::EmitObjCCollectionLiteral(const Expr *E,
   llvm::APInt APNumElements(Context.getTypeSize(Context.getSizeType()),
                             NumElements);
   QualType ElementType = Context.getObjCIdType().withConst();
-  QualType ElementArrayType
-    = Context.getConstantArrayType(ElementType, APNumElements, nullptr,
-                                   ArrayType::Normal, /*IndexTypeQuals=*/0);
+  QualType ElementArrayType = Context.getConstantArrayType(
+      ElementType, APNumElements, nullptr, ArraySizeModifier::Normal,
+      /*IndexTypeQuals=*/0);
 
   // Allocate the temporary array(s).
   Address Objects = CreateMemTemp(ElementArrayType, "objects");
@@ -222,6 +221,7 @@ llvm::Value *CodeGenFunction::EmitObjCCollectionLiteral(const Expr *E,
   QualType ResultType = E->getType();
   const ObjCObjectPointerType *InterfacePointerType
     = ResultType->getAsObjCInterfacePointerType();
+  assert(InterfacePointerType && "Unexpected InterfacePointerType - null");
   ObjCInterfaceDecl *Class
     = InterfacePointerType->getObjectType()->getInterface();
   CGObjCRuntime &Runtime = CGM.getObjCRuntime();
@@ -1190,7 +1190,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
 
     // Perform an atomic load.  This does not impose ordering constraints.
     Address ivarAddr = LV.getAddress(*this);
-    ivarAddr = Builder.CreateElementBitCast(ivarAddr, bitcastType);
+    ivarAddr = ivarAddr.withElementType(bitcastType);
     llvm::LoadInst *load = Builder.CreateLoad(ivarAddr, "load");
     load->setAtomic(llvm::AtomicOrdering::Unordered);
 
@@ -1204,8 +1204,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
       bitcastType = llvm::Type::getIntNTy(getLLVMContext(), retTySize);
       ivarVal = Builder.CreateTrunc(load, bitcastType);
     }
-    Builder.CreateStore(ivarVal,
-                        Builder.CreateElementBitCast(ReturnValue, bitcastType));
+    Builder.CreateStore(ivarVal, ReturnValue.withElementType(bitcastType));
 
     // Make sure we don't do an autorelease.
     AutoreleaseResult = false;
@@ -1485,15 +1484,13 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
     // Currently, all atomic accesses have to be through integer
     // types, so there's no point in trying to pick a prettier type.
-    llvm::Type *bitcastType =
-      llvm::Type::getIntNTy(getLLVMContext(),
-                            getContext().toBits(strategy.getIvarSize()));
+    llvm::Type *castType = llvm::Type::getIntNTy(
+        getLLVMContext(), getContext().toBits(strategy.getIvarSize()));
 
-    // Cast both arguments to the chosen operation type.
-    argAddr = Builder.CreateElementBitCast(argAddr, bitcastType);
-    ivarAddr = Builder.CreateElementBitCast(ivarAddr, bitcastType);
+     // Cast both arguments to the chosen operation type.
+    argAddr = argAddr.withElementType(castType);
+    ivarAddr = ivarAddr.withElementType(castType);
 
-    // This bitcast load is likely to cause some nasty IR.
     llvm::Value *load = Builder.CreateLoad(argAddr);
 
     // Perform an atomic store.  There are no memory ordering requirements.
@@ -1803,10 +1800,9 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
   Selector FastEnumSel =
       CGM.getContext().Selectors.getSelector(std::size(II), &II[0]);
 
-  QualType ItemsTy =
-    getContext().getConstantArrayType(getContext().getObjCIdType(),
-                                      llvm::APInt(32, NumItems), nullptr,
-                                      ArrayType::Normal, 0);
+  QualType ItemsTy = getContext().getConstantArrayType(
+      getContext().getObjCIdType(), llvm::APInt(32, NumItems), nullptr,
+      ArraySizeModifier::Normal, 0);
   Address ItemsPtr = CreateMemTemp(ItemsTy, "items.ptr");
 
   // Emit the collection pointer.  In ARC, we do a retain.
@@ -2205,18 +2201,7 @@ static llvm::Value *emitARCLoadOperation(CodeGenFunction &CGF, Address addr,
   if (!fn)
     fn = getARCIntrinsic(IntID, CGF.CGM);
 
-  // Cast the argument to 'id*'.
-  llvm::Type *origType = addr.getElementType();
-  addr = CGF.Builder.CreateElementBitCast(addr, CGF.Int8PtrTy);
-
-  // Call the function.
-  llvm::Value *result = CGF.EmitNounwindRuntimeCall(fn, addr.getPointer());
-
-  // Cast the result back to a dereference of the original type.
-  if (origType != CGF.Int8PtrTy)
-    result = CGF.Builder.CreateBitCast(result, origType);
-
-  return result;
+  return CGF.EmitNounwindRuntimeCall(fn, addr.getPointer());
 }
 
 /// Perform an operation having the following signature:
@@ -2660,9 +2645,6 @@ void CodeGenFunction::EmitARCDestroyWeak(Address addr) {
   llvm::Function *&fn = CGM.getObjCEntrypoints().objc_destroyWeak;
   if (!fn)
     fn = getARCIntrinsic(llvm::Intrinsic::objc_destroyWeak, CGM);
-
-  // Cast the argument to 'id*'.
-  addr = Builder.CreateElementBitCast(addr, Int8PtrTy);
 
   EmitNounwindRuntimeCall(fn, addr.getPointer());
 }
@@ -3727,7 +3709,7 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructMoveAssignmentOperator(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
-    return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+    return Fn;
   }
 
   if (!getLangOpts().CPlusPlus ||
@@ -3807,7 +3789,7 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   EmitStmt(TheCall);
 
   FinishFunction();
-  HelperFn = llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+  HelperFn = Fn;
   CGM.setAtomicSetterHelperFnMap(Ty, HelperFn);
   return HelperFn;
 }
@@ -3825,7 +3807,7 @@ llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructCopyConstructor(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
-    return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+    return Fn;
   }
 
   if (!getLangOpts().CPlusPlus ||
@@ -3926,7 +3908,7 @@ llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
                   AggValueSlot::IsNotAliased, AggValueSlot::DoesNotOverlap));
 
   FinishFunction();
-  HelperFn = llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+  HelperFn = Fn;
   CGM.setAtomicGetterHelperFnMap(Ty, HelperFn);
   return HelperFn;
 }
@@ -3970,7 +3952,7 @@ static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
   case llvm::Triple::DriverKit:
     return llvm::MachO::PLATFORM_DRIVERKIT;
   default:
-    return /*Unknown platform*/ 0;
+    return llvm::MachO::PLATFORM_UNKNOWN;
   }
 }
 

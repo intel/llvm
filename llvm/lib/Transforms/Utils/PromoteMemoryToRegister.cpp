@@ -835,7 +835,7 @@ void PromoteMem2Reg::run() {
   // code.  Unfortunately, there may be unreachable blocks which the renamer
   // hasn't traversed.  If this is the case, the PHI nodes may not
   // have incoming values for all predecessors.  Loop over all PHI nodes we have
-  // created, inserting undef values if they are missing any incoming values.
+  // created, inserting poison values if they are missing any incoming values.
   for (DenseMap<std::pair<unsigned, unsigned>, PHINode *>::iterator
            I = NewPhiNodes.begin(),
            E = NewPhiNodes.end();
@@ -885,9 +885,9 @@ void PromoteMem2Reg::run() {
     BasicBlock::iterator BBI = BB->begin();
     while ((SomePHI = dyn_cast<PHINode>(BBI++)) &&
            SomePHI->getNumIncomingValues() == NumBadPreds) {
-      Value *UndefVal = UndefValue::get(SomePHI->getType());
+      Value *PoisonVal = PoisonValue::get(SomePHI->getType());
       for (BasicBlock *Pred : Preds)
-        SomePHI->addIncoming(UndefVal, Pred);
+        SomePHI->addIncoming(PoisonVal, Pred);
     }
   }
 
@@ -981,8 +981,8 @@ bool PromoteMem2Reg::QueuePhiNode(BasicBlock *BB, unsigned AllocaNo,
   // Create a PhiNode using the dereferenced type... and add the phi-node to the
   // BasicBlock.
   PN = PHINode::Create(Allocas[AllocaNo]->getAllocatedType(), getNumPreds(BB),
-                       Allocas[AllocaNo]->getName() + "." + Twine(Version++),
-                       &BB->front());
+                       Allocas[AllocaNo]->getName() + "." + Twine(Version++));
+  PN->insertBefore(BB->begin());
   ++NumPHIInsert;
   PhiToAllocaMap[PN] = AllocaNo;
   return true;

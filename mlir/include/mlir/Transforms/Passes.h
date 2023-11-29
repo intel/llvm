@@ -19,6 +19,7 @@
 #include "mlir/Transforms/ViewOpGraph.h"
 #include "llvm/Support/Debug.h"
 #include <limits>
+#include <memory>
 
 namespace mlir {
 
@@ -33,8 +34,10 @@ class GreedyRewriteConfig;
 #define GEN_PASS_DECL_CSEPASS
 #define GEN_PASS_DECL_INLINER
 #define GEN_PASS_DECL_LOOPINVARIANTCODEMOTION
+#define GEN_PASS_DECL_MEM2REG
 #define GEN_PASS_DECL_PRINTIRPASS
 #define GEN_PASS_DECL_PRINTOPSTATS
+#define GEN_PASS_DECL_SROA
 #define GEN_PASS_DECL_STRIPDEBUGINFO
 #define GEN_PASS_DECL_SCCP
 #define GEN_PASS_DECL_SYMBOLDCE
@@ -75,6 +78,9 @@ std::unique_ptr<Pass> createGenerateRuntimeVerificationPass();
 /// instructions out of the loop.
 std::unique_ptr<Pass> createLoopInvariantCodeMotionPass();
 
+/// Creates a pass that hoists loop-invariant subset ops.
+std::unique_ptr<Pass> createLoopInvariantSubsetHoistingPass();
+
 /// Creates a pass to strip debug information from a function.
 std::unique_ptr<Pass> createStripDebugInfoPass();
 
@@ -102,6 +108,9 @@ createInlinerPass(llvm::StringMap<OpPassManager> opPipelines);
 std::unique_ptr<Pass>
 createInlinerPass(llvm::StringMap<OpPassManager> opPipelines,
                   std::function<void(OpPassManager &)> defaultPipelineBuilder);
+
+/// Creates an optimization pass to remove dead values.
+std::unique_ptr<Pass> createRemoveDeadValuesPass();
 
 /// Creates a pass which performs sparse conditional constant propagation over
 /// nested operations.

@@ -15,6 +15,7 @@
 #include "lib/BenchmarkResult.h"
 #include "lib/BenchmarkRunner.h"
 #include "lib/Clustering.h"
+#include "lib/CodeTemplate.h"
 #include "lib/Error.h"
 #include "lib/LlvmState.h"
 #include "lib/PerfHelper.h"
@@ -242,11 +243,24 @@ static cl::opt<std::string>
          cl::desc("Target a specific cpu type (-mcpu=help for details)"),
          cl::value_desc("cpu-name"), cl::cat(Options), cl::init("native"));
 
-static cl::opt<bool> DumpObjectToDisk(
-    "dump-object-to-disk",
-    cl::desc("dumps the generated benchmark object to disk "
-             "and prints a message to access it (default = false)"),
-    cl::cat(BenchmarkOptions), cl::init(false));
+static cl::opt<std::string>
+    DumpObjectToDisk("dump-object-to-disk",
+                     cl::desc("dumps the generated benchmark object to disk "
+                              "and prints a message to access it"),
+                     cl::ValueOptional, cl::cat(BenchmarkOptions));
+
+static cl::opt<BenchmarkRunner::ExecutionModeE> ExecutionMode(
+    "execution-mode",
+    cl::desc("Selects the execution mode to use for running snippets"),
+    cl::cat(BenchmarkOptions),
+    cl::values(clEnumValN(BenchmarkRunner::ExecutionModeE::InProcess,
+                          "inprocess",
+                          "Executes the snippets within the same process"),
+               clEnumValN(BenchmarkRunner::ExecutionModeE::SubProcess,
+                          "subprocess",
+                          "Spawns a subprocess for each snippet execution, "
+                          "allows for the use of memory annotations")),
+    cl::init(BenchmarkRunner::ExecutionModeE::InProcess));
 
 static ExitOnError ExitOnErr("llvm-exegesis error: ");
 
@@ -277,6 +291,9 @@ static std::vector<unsigned> getOpcodesOrDie(const LLVMState &State) {
   const size_t NumSetFlags = (OpcodeNames.empty() ? 0 : 1) +
                              (OpcodeIndex == 0 ? 0 : 1) +
                              (SnippetsFile.empty() ? 0 : 1);
+  const auto &ET = State.getExegesisTarget();
+  const auto AvailableFeatures = State.getSubtargetInfo().getFeatureBits();
+
   if (NumSetFlags != 1) {
     ExitOnErr.setBanner("llvm-exegesis: ");
     ExitWithError("please provide one and only one of 'opcode-index', "
@@ -290,8 +307,11 @@ static std::vector<unsigned> getOpcodesOrDie(const LLVMState &State) {
     std::vector<unsigned> Result;
     unsigned NumOpcodes = State.getInstrInfo().getNumOpcodes();
     Result.reserve(NumOpcodes);
-    for (unsigned I = 0, E = NumOpcodes; I < E; ++I)
+    for (unsigned I = 0, E = NumOpcodes; I < E; ++I) {
+      if (!ET.isOpcodeAvailable(I, AvailableFeatures))
+        continue;
       Result.push_back(I);
+    }
     return Result;
   }
   // Resolve opcode name -> opcode.
@@ -381,8 +401,11 @@ static void runBenchmarkConfigurations(
          Repetitors) {
       auto RC = ExitOnErr(Runner.getRunnableConfiguration(
           Conf, NumRepetitions, LoopBodySize, *Repetitor));
+      std::optional<StringRef> DumpFile;
+      if (DumpObjectToDisk.getNumOccurrences())
+        DumpFile = DumpObjectToDisk;
       AllResults.emplace_back(
-          ExitOnErr(Runner.runConfiguration(std::move(RC), DumpObjectToDisk)));
+          ExitOnErr(Runner.runConfiguration(std::move(RC), DumpFile)));
     }
     Benchmark &Result = AllResults.front();
 
@@ -454,9 +477,15 @@ void benchmarkMain() {
   if (BenchmarkPhaseSelector == BenchmarkPhaseSelectorE::Measure)
     ExitOnErr(State.getExegesisTarget().checkFeatureSupport());
 
+  if (ExecutionMode == BenchmarkRunner::ExecutionModeE::SubProcess &&
+      UseDummyPerfCounters)
+    ExitWithError("Dummy perf counters are not supported in the subprocess "
+                  "execution mode.");
+
   const std::unique_ptr<BenchmarkRunner> Runner =
       ExitOnErr(State.getExegesisTarget().createBenchmarkRunner(
-          BenchmarkMode, State, BenchmarkPhaseSelector, ResultAggMode));
+          BenchmarkMode, State, BenchmarkPhaseSelector, ExecutionMode,
+          ResultAggMode));
   if (!Runner) {
     ExitWithError("cannot create benchmark runner");
   }
@@ -474,11 +503,8 @@ void benchmarkMain() {
   }
 
   BitVector AllReservedRegs;
-  llvm::for_each(Repetitors,
-                 [&AllReservedRegs](
-                     const std::unique_ptr<const SnippetRepetitor> &Repetitor) {
-                   AllReservedRegs |= Repetitor->getReservedRegs();
-                 });
+  for (const std::unique_ptr<const SnippetRepetitor> &Repetitor : Repetitors)
+    AllReservedRegs |= Repetitor->getReservedRegs();
 
   std::vector<BenchmarkCode> Configurations;
   if (!Opcodes.empty()) {
@@ -504,6 +530,13 @@ void benchmarkMain() {
     }
   } else {
     Configurations = ExitOnErr(readSnippets(State, SnippetsFile));
+    for (const auto &Configuration : Configurations) {
+      if (ExecutionMode != BenchmarkRunner::ExecutionModeE::SubProcess &&
+          (Configuration.Key.MemoryMappings.size() != 0 ||
+           Configuration.Key.MemoryValues.size() != 0))
+        ExitWithError("Memory annotations are only supported in subprocess "
+                      "execution mode");
+    }
   }
 
   if (NumRepetitions == 0) {

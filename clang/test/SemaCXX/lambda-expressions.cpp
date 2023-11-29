@@ -150,9 +150,10 @@ namespace Array {
   int &f(int *p);
   char &f(...);
   void g() {
-    int n = -1;
+    int n = -1;   // expected-note {{declared here}}
     [=] {
-      int arr[n]; // VLA
+      int arr[n]; // expected-warning {{variable length arrays in C++ are a Clang extension}} \
+                     expected-note {{read of non-const variable 'n' is not allowed in a constant expression}}
     } ();
 
     const int m = -1;
@@ -260,10 +261,11 @@ namespace VariadicPackExpansion {
     f([&ts] { return (int)f(ts...); } ()...); // \
     // expected-error 2{{'ts' cannot be implicitly captured}} \
     // expected-note 2{{lambda expression begins here}} \
-    // expected-note 4 {{capture 'ts' by}}
+    // expected-note 4 {{capture 'ts' by}} \
+    // expected-note 2 {{while substituting into a lambda}}
   }
   template void nested2(int); // ok
-  template void nested2(int, int); // expected-note {{in instantiation of}}
+  template void nested2(int, int); // expected-note 2 {{in instantiation of}}
 }
 
 namespace PR13860 {
@@ -380,10 +382,18 @@ namespace PR18128 {
   };
 }
 
+namespace gh67687 {
+struct S {
+  int n;
+  int a = (4, []() { return n; }());  // expected-error {{'this' cannot be implicitly captured in this context}} \
+                                      // expected-note {{explicitly capture 'this'}}
+};
+}
+
 namespace PR18473 {
   template<typename T> void f() {
     T t(0);
-    (void) [=]{ int n = t; }; // expected-error {{deleted}}
+    (void) [=]{ int n = t; }; // expected-error {{deleted}} expected-note {{while substituting into a lambda}}
   }
 
   template void f<int>();
@@ -466,7 +476,7 @@ namespace error_in_transform_prototype {
   void f(T t) {
     // expected-error@+2 {{type 'int' cannot be used prior to '::' because it has no members}}
     // expected-error@+1 {{no member named 'ns' in 'error_in_transform_prototype::S'}}
-    auto x = [](typename T::ns::type &k) {};
+    auto x = [](typename T::ns::type &k) {}; // expected-note 2 {{while substituting into a lambda}}
   }
   class S {};
   void foo() {
@@ -514,7 +524,6 @@ int main() {
 A<int> a;
 }
 
-// rdar://22032373
 namespace rdar22032373 {
 void foo() {
   auto blk = [](bool b) {
@@ -709,8 +718,17 @@ static_assert([]() constexpr {
 // be properly handled after D124351
 constexpr int i = 2;
 void foo() {
-  (void)[=][[gnu::aligned(i)]] () {}; // expected-warning{{C++2b extension}}
+  (void)[=][[gnu::aligned(i)]] () {}; // expected-warning{{C++23 extension}}
   // CHECK: AlignedAttr
   // CHECK-NEXT: ConstantExpr
   // CHECK-NEXT: value: Int 2
+}
+
+void GH48527() {
+  auto a = []()__attribute__((b(({ return 0; })))){}; // expected-warning {{unknown attribute 'b' ignored}}
+}
+
+void GH67492() {
+  constexpr auto test = 42;
+  auto lambda = (test, []() noexcept(true) {});
 }

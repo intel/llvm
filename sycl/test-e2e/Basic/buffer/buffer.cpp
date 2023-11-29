@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
-// RUN: %CPU_RUN_PLACEHOLDER %t2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2.out
-// RUN: %ACC_RUN_PLACEHOLDER %t2.out
+// RUN: %{build} -o %t2.out
+// RUN: %{run} %t2.out
 
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
@@ -91,8 +89,8 @@ int main() {
     buffer<int, 1> MovedBuffer(std::move(Buffer));
     assert(hash == (std::hash<buffer<int, 1>>()(MovedBuffer)));
     assert(MovedBuffer.get_range() == range<1>(1));
-    assert(MovedBuffer.get_size() == (sizeof(data) * 1));
-    assert(MovedBuffer.get_count() == 1);
+    assert(MovedBuffer.byte_size() == (sizeof(data) * 1));
+    assert(MovedBuffer.size() == 1);
   }
 
   {
@@ -105,8 +103,8 @@ int main() {
     WillMovedBuffer = std::move(Buffer);
     assert(hash == (std::hash<buffer<int, 1>>()(WillMovedBuffer)));
     assert(WillMovedBuffer.get_range() == range<1>(1));
-    assert(WillMovedBuffer.get_size() == (sizeof(data) * 1));
-    assert(WillMovedBuffer.get_count() == 1);
+    assert(WillMovedBuffer.byte_size() == (sizeof(data) * 1));
+    assert(WillMovedBuffer.size() == 1);
   }
 
   {
@@ -119,8 +117,8 @@ int main() {
     assert(hash == (std::hash<buffer<int, 1>>()(BufferCopy)));
     assert(Buffer == BufferCopy);
     assert(BufferCopy.get_range() == range<1>(1));
-    assert(BufferCopy.get_size() == (sizeof(data) * 1));
-    assert(BufferCopy.get_count() == 1);
+    assert(BufferCopy.byte_size() == (sizeof(data) * 1));
+    assert(BufferCopy.size() == 1);
   }
 
   {
@@ -135,8 +133,8 @@ int main() {
     assert(hash == (std::hash<buffer<int, 1>>()(WillBufferCopy)));
     assert(Buffer == WillBufferCopy);
     assert(WillBufferCopy.get_range() == range<1>(1));
-    assert(WillBufferCopy.get_size() == (sizeof(data) * 1));
-    assert(WillBufferCopy.get_count() == 1);
+    assert(WillBufferCopy.byte_size() == (sizeof(data) * 1));
+    assert(WillBufferCopy.size() == 1);
   }
 
   auto checkAllOf = [](const int *const array, size_t n, int v, int line) {
@@ -660,19 +658,19 @@ int main() {
     {
       auto AccA = Buf_1.get_access<sycl::access::mode::read_write>(Size / 2);
       auto AccB = Buf_2.get_access<sycl::access::mode::read_write>(Size / 2);
-      assert(AccA.get_size() == AccB.get_size());
+      assert(AccA.byte_size() == AccB.byte_size());
       assert(AccA.get_range() == AccB.get_range());
-      assert(AccA.get_count() == AccB.get_count());
+      assert(AccA.size() == AccB.size());
     }
 
     auto AH0 = accessor<char, 0, access::mode::read_write,
                         access::target::host_buffer>(Buf_1);
     auto BH0 = accessor<char, 0, access::mode::read_write,
                         access::target::host_buffer>(Buf_2);
-    assert(AH0.get_size() == sizeof(char));
-    assert(BH0.get_size() == sizeof(char));
-    assert(AH0.get_count() == 1);
-    assert(BH0.get_count() == 1);
+    assert(AH0.byte_size() == sizeof(char));
+    assert(BH0.byte_size() == sizeof(char));
+    assert(AH0.size() == 1);
+    assert(BH0.size() == 1);
 
     queue Queue;
     Queue.submit([&](handler &CGH) {
@@ -682,10 +680,10 @@ int main() {
       auto BK0 =
           accessor<char, 0, access::mode::read_write, access::target::device>(
               Buf_2, CGH);
-      assert(AK0.get_size() == sizeof(char));
-      assert(BK0.get_size() == sizeof(char));
-      assert(AK0.get_count() == 1);
-      assert(BK0.get_count() == 1);
+      assert(AK0.byte_size() == sizeof(char));
+      assert(BK0.byte_size() == sizeof(char));
+      assert(AK0.size() == 1);
+      assert(BK0.size() == 1);
       CGH.single_task<class DummyKernel>([]() {});
     });
   }

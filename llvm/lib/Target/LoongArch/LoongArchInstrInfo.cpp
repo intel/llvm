@@ -47,6 +47,22 @@ void LoongArchInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  // VR->VR copies.
+  if (LoongArch::LSX128RegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MBBI, DL, get(LoongArch::VORI_B), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addImm(0);
+    return;
+  }
+
+  // XR->XR copies.
+  if (LoongArch::LASX256RegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MBBI, DL, get(LoongArch::XVORI_B), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addImm(0);
+    return;
+  }
+
   // GPR->CFR copy.
   if (LoongArch::CFRRegClass.contains(DstReg) &&
       LoongArch::GPRRegClass.contains(SrcReg)) {
@@ -58,6 +74,12 @@ void LoongArchInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   if (LoongArch::GPRRegClass.contains(DstReg) &&
       LoongArch::CFRRegClass.contains(SrcReg)) {
     BuildMI(MBB, MBBI, DL, get(LoongArch::MOVCF2GR), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
+  // CFR->CFR copy.
+  if (LoongArch::CFRRegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MBBI, DL, get(LoongArch::PseudoCopyCFR), DstReg)
         .addReg(SrcReg, getKillRegState(KillSrc));
     return;
   }
@@ -81,9 +103,6 @@ void LoongArchInstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register SrcReg,
     bool IsKill, int FI, const TargetRegisterClass *RC,
     const TargetRegisterInfo *TRI, Register VReg) const {
-  DebugLoc DL;
-  if (I != MBB.end())
-    DL = I->getDebugLoc();
   MachineFunction *MF = MBB.getParent();
   MachineFrameInfo &MFI = MF->getFrameInfo();
 
@@ -96,6 +115,10 @@ void LoongArchInstrInfo::storeRegToStackSlot(
     Opcode = LoongArch::FST_S;
   else if (LoongArch::FPR64RegClass.hasSubClassEq(RC))
     Opcode = LoongArch::FST_D;
+  else if (LoongArch::LSX128RegClass.hasSubClassEq(RC))
+    Opcode = LoongArch::VST;
+  else if (LoongArch::LASX256RegClass.hasSubClassEq(RC))
+    Opcode = LoongArch::XVST;
   else if (LoongArch::CFRRegClass.hasSubClassEq(RC))
     Opcode = LoongArch::PseudoST_CFR;
   else
@@ -105,7 +128,7 @@ void LoongArchInstrInfo::storeRegToStackSlot(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
       MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
-  BuildMI(MBB, I, DL, get(Opcode))
+  BuildMI(MBB, I, DebugLoc(), get(Opcode))
       .addReg(SrcReg, getKillRegState(IsKill))
       .addFrameIndex(FI)
       .addImm(0)
@@ -118,9 +141,6 @@ void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                               const TargetRegisterClass *RC,
                                               const TargetRegisterInfo *TRI,
                                               Register VReg) const {
-  DebugLoc DL;
-  if (I != MBB.end())
-    DL = I->getDebugLoc();
   MachineFunction *MF = MBB.getParent();
   MachineFrameInfo &MFI = MF->getFrameInfo();
 
@@ -133,6 +153,10 @@ void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     Opcode = LoongArch::FLD_S;
   else if (LoongArch::FPR64RegClass.hasSubClassEq(RC))
     Opcode = LoongArch::FLD_D;
+  else if (LoongArch::LSX128RegClass.hasSubClassEq(RC))
+    Opcode = LoongArch::VLD;
+  else if (LoongArch::LASX256RegClass.hasSubClassEq(RC))
+    Opcode = LoongArch::XVLD;
   else if (LoongArch::CFRRegClass.hasSubClassEq(RC))
     Opcode = LoongArch::PseudoLD_CFR;
   else
@@ -142,7 +166,7 @@ void LoongArchInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad,
       MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
-  BuildMI(MBB, I, DL, get(Opcode), DstReg)
+  BuildMI(MBB, I, DebugLoc(), get(Opcode), DstReg)
       .addFrameIndex(FI)
       .addImm(0)
       .addMemOperand(MMO);
@@ -484,12 +508,20 @@ LoongArchInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_CALL_PLT, "loongarch-call-plt"},
       {MO_PCREL_HI, "loongarch-pcrel-hi"},
       {MO_PCREL_LO, "loongarch-pcrel-lo"},
+      {MO_PCREL64_LO, "loongarch-pcrel64-lo"},
+      {MO_PCREL64_HI, "loongarch-pcrel64-hi"},
       {MO_GOT_PC_HI, "loongarch-got-pc-hi"},
       {MO_GOT_PC_LO, "loongarch-got-pc-lo"},
+      {MO_GOT_PC64_LO, "loongarch-got-pc64-lo"},
+      {MO_GOT_PC64_HI, "loongarch-got-pc64-hi"},
       {MO_LE_HI, "loongarch-le-hi"},
       {MO_LE_LO, "loongarch-le-lo"},
+      {MO_LE64_LO, "loongarch-le64-lo"},
+      {MO_LE64_HI, "loongarch-le64-hi"},
       {MO_IE_PC_HI, "loongarch-ie-pc-hi"},
       {MO_IE_PC_LO, "loongarch-ie-pc-lo"},
+      {MO_IE_PC64_LO, "loongarch-ie-pc64-lo"},
+      {MO_IE_PC64_HI, "loongarch-ie-pc64-hi"},
       {MO_LD_PC_HI, "loongarch-ld-pc-hi"},
       {MO_GD_PC_HI, "loongarch-gd-pc-hi"}};
   return ArrayRef(TargetFlags);

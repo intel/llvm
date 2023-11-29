@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
-
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -58,6 +56,20 @@
 #endif
 #endif // __SYCL2020_DEPRECATED
 
+#ifndef __SYCL_WARN_IMAGE_ASPECT
+#if !defined(SYCL_DISABLE_IMAGE_ASPECT_WARNING) && __has_attribute(diagnose_if)
+#define __SYCL_WARN_IMAGE_ASPECT(aspect_param)                                   \
+  __attribute__((diagnose_if(                                                    \
+      aspect_param == aspect::image,                                             \
+      "SYCL 2020 images are not supported on any devices. Consider using "       \
+      "‘aspect::ext_intel_legacy_image’ instead. Disable this warning with " \
+      "by defining SYCL_DISABLE_IMAGE_ASPECT_WARNING.",                          \
+      "warning")))
+#else
+#define __SYCL_WARN_IMAGE_ASPECT(aspect)
+#endif
+#endif // __SYCL_WARN_IMAGE_ASPECT
+
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
@@ -65,11 +77,6 @@
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) 0
 #endif
 #endif
-
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
 
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");

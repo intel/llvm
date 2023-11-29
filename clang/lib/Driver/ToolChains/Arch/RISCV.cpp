@@ -54,15 +54,18 @@ static void getRISCFeaturesFromMcpu(const Driver &D, const Arg *A,
                                     StringRef Mcpu,
                                     std::vector<StringRef> &Features) {
   bool Is64Bit = Triple.isRISCV64();
-  llvm::RISCV::CPUKind CPUKind = llvm::RISCV::parseCPUKind(Mcpu);
-  if (!llvm::RISCV::checkCPUKind(CPUKind, Is64Bit)) {
+  if (!llvm::RISCV::parseCPU(Mcpu, Is64Bit)) {
     // Try inverting Is64Bit in case the CPU is valid, but for the wrong target.
-    if (llvm::RISCV::checkCPUKind(CPUKind, !Is64Bit))
-      D.Diag(clang::diag::err_drv_invalid_riscv_cpu_name_for_target) << Mcpu << Is64Bit;
+    if (llvm::RISCV::parseCPU(Mcpu, !Is64Bit))
+      D.Diag(clang::diag::err_drv_invalid_riscv_cpu_name_for_target)
+          << Mcpu << Is64Bit;
     else
       D.Diag(clang::diag::err_drv_unsupported_option_argument)
           << A->getSpelling() << Mcpu;
   }
+
+  if (llvm::RISCV::hasFastUnalignedAccess(Mcpu))
+    Features.push_back("+unaligned-scalar-mem");
 }
 
 void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
@@ -167,9 +170,25 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   else
     Features.push_back("-save-restore");
 
+  // -mno-unaligned-access is default, unless -munaligned-access is specified.
+  bool HasV = llvm::is_contained(Features, "+zve32x");
+  if (const Arg *A = Args.getLastArg(options::OPT_munaligned_access,
+                                     options::OPT_mno_unaligned_access)) {
+    if (A->getOption().matches(options::OPT_munaligned_access)) {
+      Features.push_back("+unaligned-scalar-mem");
+      if (HasV)
+        Features.push_back("+unaligned-vector-mem");
+    } else {
+      Features.push_back("-unaligned-scalar-mem");
+      if (HasV)
+        Features.push_back("-unaligned-vector-mem");
+    }
+  }
+
   // Now add any that the user explicitly requested on the command line,
   // which may override the defaults.
-  handleTargetFeaturesGroup(Args, Features, options::OPT_m_riscv_Features_Group);
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
+                            options::OPT_m_riscv_Features_Group);
 }
 
 StringRef riscv::getRISCVABI(const ArgList &Args, const llvm::Triple &Triple) {
@@ -289,10 +308,14 @@ StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
 
     if (MABI.equals_insensitive("ilp32e"))
       return "rv32e";
-    else if (MABI.startswith_insensitive("ilp32"))
+    else if (MABI.starts_with_insensitive("ilp32"))
       return "rv32imafdc";
-    else if (MABI.startswith_insensitive("lp64"))
+    else if (MABI.starts_with_insensitive("lp64")) {
+      if (Triple.isAndroid())
+        return "rv64imafdcv_zba_zbb_zbs";
+
       return "rv64imafdc";
+    }
   }
 
   // 4. Choose a default based on the triple
@@ -308,6 +331,8 @@ StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
   } else {
     if (Triple.getOS() == llvm::Triple::UnknownOS)
       return "rv64imac";
+    else if (Triple.isAndroid())
+      return "rv64imafdcv_zba_zbb_zbs";
     else
       return "rv64imafdc";
   }

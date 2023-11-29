@@ -30,7 +30,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
@@ -52,13 +52,11 @@ public:
     if (!MModifyCounter)
       return;
 
+    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
     MCounter--;
-    if (!MCounter) {
-      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease();
-      }
+    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+    if (RTGlobalObjHandler) {
+      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
     }
   }
 
@@ -142,7 +140,7 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // The method is used in unit tests only. Do not protect with lock since
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
-    prepareSchedulerToRelease();
+    prepareSchedulerToRelease(true);
   MScheduler.Inst.reset(Scheduler);
 }
 
@@ -167,6 +165,8 @@ Scheduler &GlobalHandler::getScheduler() {
   enableOnCrashStackPrinting();
   return *MScheduler.Inst;
 }
+
+bool GlobalHandler::isSchedulerAlive() const { return MScheduler.Inst.get(); }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
   thread_local ObjectUsageCounter SchedulerCounter(ModifyCounter);
@@ -198,7 +198,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
-std::vector<plugin> &GlobalHandler::getPlugins() {
+std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
@@ -233,7 +233,7 @@ void GlobalHandler::releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
-  // Update: the win_proxy_loader addresses this for SYCL's own dependencies,
+  // Update: the pi_win_proxy_loader addresses this for SYCL's own dependencies,
   // but the GPU device dlls seem to manually load yet another DLL which may
   // have been released when this function is called. So we still release() and
   // leak until that is addressed. context destructs fine on CPU device.
@@ -258,24 +258,26 @@ void GlobalHandler::unloadPlugins() {
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
-    for (plugin &Plugin : getPlugins()) {
-      // PluginParameter is reserved for future use that can control
-      // some parameters in the plugin tear-down process.
-      // Currently, it is not used.
-      void *PluginParameter = nullptr;
-      Plugin.call<PiApiKind::piTearDown>(PluginParameter);
-      Plugin.unload();
+    for (const PluginPtr &Plugin : getPlugins()) {
+      // PluginParameter for Teardown is the boolean tracking if a
+      // given plugin has been teardown successfully.
+      // This tracking prevents usage of this plugin after teardown
+      // has been completed to avoid invalid resource access.
+      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
+      Plugin->unload();
     }
   }
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease() {
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
-  drainThreadPool();
+  if (Blocking)
+    drainThreadPool();
   if (MScheduler.Inst)
-    MScheduler.Inst->releaseResources();
+    MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
+                                               : BlockingT::NON_BLOCKING);
 #endif
 }
 
@@ -304,7 +306,7 @@ void shutdown() {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease();
+  Handler->prepareSchedulerToRelease(true);
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
@@ -325,6 +327,8 @@ void shutdown() {
   Handler->unloadPlugins();
   if (Handler->MPlugins.Inst)
     Handler->MPlugins.Inst.reset(nullptr);
+
+  Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
   delete Handler;
@@ -374,5 +378,5 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -22,7 +22,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_math
@@ -46,7 +46,7 @@ namespace ext::intel::esimd {
 /// The following conversions are supported:
 /// - \c T0 and \c T1 is the same floating-point type (including \c half). In
 ///   this case the result in the \c i'th lane is:
-///     * \c -1 if \c src[i] is less than \c -1
+///     * \c 0 if \c src[i] is less than \c 0
 ///     * \c 1 if  \c src[i] is greater than \c 1
 ///     * src[i] otherwise
 ///
@@ -73,17 +73,17 @@ saturate(simd<T1, SZ> src) {
   if constexpr (detail::is_generic_floating_point_v<T0>)
     return __esimd_sat<T0, T1, SZ>(src.data());
   else if constexpr (detail::is_generic_floating_point_v<T1>) {
-    if constexpr (std::is_unsigned<T0>::value)
+    if constexpr (std::is_unsigned_v<T0>)
       return __esimd_fptoui_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_fptosi_sat<T0, T1, SZ>(src.data());
-  } else if constexpr (std::is_unsigned<T0>::value) {
-    if constexpr (std::is_unsigned<T1>::value)
+  } else if constexpr (std::is_unsigned_v<T0>) {
+    if constexpr (std::is_unsigned_v<T1>)
       return __esimd_uutrunc_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_ustrunc_sat<T0, T1, SZ>(src.data());
   } else {
-    if constexpr (std::is_signed<T1>::value)
+    if constexpr (std::is_signed_v<T1>)
       return __esimd_sstrunc_sat<T0, T1, SZ>(src.data());
     else
       return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());
@@ -177,7 +177,7 @@ abs(T1 src0) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<T, SZ> max(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API simd<T, SZ>(max)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
   if constexpr (std::is_floating_point<T>::value) {
@@ -209,10 +209,10 @@ __ESIMD_API simd<T, SZ> max(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-max(simd<T, SZ> src0, T src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    max)(simd<T, SZ> src0, T src1, Sat sat = {}) {
   simd<T, SZ> Src1 = src1;
-  simd<T, SZ> Result = esimd::max<T>(src0, Src1, sat);
+  simd<T, SZ> Result = (esimd::max)(src0, Src1, sat);
   return Result;
 }
 
@@ -227,10 +227,10 @@ max(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-max(T src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    max)(T src0, simd<T, SZ> src1, Sat sat = {}) {
   simd<T, SZ> Src0 = src0;
-  simd<T, SZ> Result = esimd::max<T>(Src0, src1, sat);
+  simd<T, SZ> Result = (esimd::max)(Src0, src1, sat);
   return Result;
 }
 
@@ -243,12 +243,12 @@ max(T src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return maximum value between the two inputs.
 template <typename T, class Sat = saturation_off_tag>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    max(T src0, T src1, Sat sat = {}) {
+ESIMD_NODEBUG ESIMD_INLINE
+std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(max)(T src0, T src1,
+                                                            Sat sat = {}) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
-  simd<T, 1> Result = esimd::max<T>(Src0, Src1, sat);
+  simd<T, 1> Result = (esimd::max)(Src0, Src1, sat);
   return Result[0];
 }
 
@@ -262,7 +262,7 @@ ESIMD_NODEBUG
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<T, SZ> min(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API simd<T, SZ>(min)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
   if constexpr (std::is_floating_point<T>::value) {
@@ -294,10 +294,10 @@ __ESIMD_API simd<T, SZ> min(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-min(simd<T, SZ> src0, T src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    min)(simd<T, SZ> src0, T src1, Sat sat = {}) {
   simd<T, SZ> Src1 = src1;
-  simd<T, SZ> Result = esimd::min<T>(src0, Src1, sat);
+  simd<T, SZ> Result = (esimd::min)(src0, Src1, sat);
   return Result;
 }
 
@@ -312,10 +312,10 @@ min(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-min(T src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    min)(T src0, simd<T, SZ> src1, Sat sat = {}) {
   simd<T, SZ> Src0 = src0;
-  simd<T, SZ> Result = esimd::min<T>(Src0, src1, sat);
+  simd<T, SZ> Result = (esimd::min)(Src0, src1, sat);
   return Result;
 }
 
@@ -328,12 +328,12 @@ min(T src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return minimum value between the two inputs.
 template <typename T, class Sat = saturation_off_tag>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    min(T src0, T src1, Sat sat = {}) {
+ESIMD_NODEBUG ESIMD_INLINE
+std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
+                                                            Sat sat = {}) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
-  simd<T, 1> Result = esimd::min<T>(Src0, Src1, sat);
+  simd<T, 1> Result = (esimd::min)(Src0, Src1, sat);
   return Result[0];
 }
 
@@ -352,7 +352,7 @@ ESIMD_NODEBUG
     if constexpr (std::is_same_v<Sat, saturation_off_tag>)                     \
       return res;                                                              \
     else                                                                       \
-      return esimd::saturate<T>(res);                                          \
+      return esimd::saturate<T>(simd<T, N>(res));                              \
   }                                                                            \
                                                                                \
   /** Scalar version.                                                       */ \
@@ -1084,8 +1084,234 @@ ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
   }
 }
 
+/// @addtogroup sycl_esimd_logical
+/// @{
+
+/// This enum is used to encode all possible logical operations performed
+/// on the 3 input operands. It is used as a template argument of the bfn()
+/// function.
+/// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
+enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
+
+static constexpr bfn_t operator~(bfn_t x) {
+  uint8_t val = static_cast<uint8_t>(x);
+  uint8_t res = ~val;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator|(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 | arg1;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator&(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 & arg1;
+  return static_cast<bfn_t>(res);
+}
+
+static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
+  uint8_t arg0 = static_cast<uint8_t>(x);
+  uint8_t arg1 = static_cast<uint8_t>(y);
+  uint8_t res = arg0 ^ arg1;
+  return static_cast<bfn_t>(res);
+}
+
+/// Performs binary function computation with three vector operands.
+/// @tparam FuncControl boolean function control expressed with bfn_t
+/// enum values.
+/// @tparam T type of the input vector element.
+/// @tparam N size of the input vector.
+/// @param s0 First boolean function argument.
+/// @param s1 Second boolean function argument.
+/// @param s2 Third boolean function argument.
+template <bfn_t FuncControl, typename T, int N>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>>
+bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+    __ESIMD_NS::simd<T, N> src2) {
+  if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0)) ||
+                ((sizeof(T) == 2) && (N % 2 == 0))) {
+    // Bitcast Nx8-byte vectors to 2xN vectors of 4-byte integers.
+    // Bitcast Nx1-byte vectors to N/4 vectors of 4-byte integers.
+    // Bitcast Nx2-byte vectors to N/2 vectors of 4-byte integers.
+    auto Result = __ESIMD_NS::bfn<FuncControl>(
+        src0.template bit_cast_view<int32_t>().read(),
+        src1.template bit_cast_view<int32_t>().read(),
+        src2.template bit_cast_view<int32_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
+    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
+    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
+  } else if constexpr (N % 2 == 0) {
+    // Bitcast Nx1-byte vectors (N is even) to N/2 vectors of 2-byte integers.
+    auto Result = __ESIMD_NS::bfn<FuncControl>(
+        src0.template bit_cast_view<int16_t>().read(),
+        src1.template bit_cast_view<int16_t>().read(),
+        src2.template bit_cast_view<int16_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else {
+    // Odd number of 1-byte elements.
+    __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
+    Src0.template select<N, 1>() = src0;
+    Src1.template select<N, 1>() = src1;
+    Src2.template select<N, 1>() = src2;
+    auto Result = __ESIMD_NS::bfn<FuncControl>(Src0, Src1, Src2);
+    return Result.template select<N, 1>();
+  }
+}
+
+/// Performs binary function computation with three scalar operands.
+/// @tparam FuncControl boolean function control expressed with bfn_t enum
+/// values.
+/// @tparam T type of the input vector element.
+/// @param s0 First boolean function argument.
+/// @param s1 Second boolean function argument.
+/// @param s2 Third boolean function argument.
+template <bfn_t FuncControl, typename T>
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T>::value && std::is_integral_v<T>, T>
+bfn(T src0, T src1, T src2) {
+  __ESIMD_NS::simd<T, 1> Src0 = src0;
+  __ESIMD_NS::simd<T, 1> Src1 = src1;
+  __ESIMD_NS::simd<T, 1> Src2 = src2;
+  __ESIMD_NS::simd<T, 1> Result =
+      esimd::bfn<FuncControl, T, 1>(Src0, Src1, Src2);
+  return Result[0];
+}
+
+/// @} sycl_esimd_logical
+
+/// Performs add with carry of 2 unsigned 32-bit vectors.
+/// @tparam N size of the vectors
+/// @param carry vector that is going to hold resulting carry flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return sum of 2 terms, carry flag is returned through \c carry parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_addc<uint32_t, N>(src0.data(), src1.data());
+
+  carry = Result.first;
+  return Result.second;
+}
+
+/// Performs add with carry of a unsigned 32-bit vector and scalar.
+/// @tparam N size of the vectors
+/// @param carry vector that is going to hold resulting carry flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return sum of 2 terms, carry flag is returned through \c carry parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return addc(carry, src0, Src1V);
+}
+
+/// Performs add with carry of a unsigned 32-bit scalar and vector.
+/// @tparam N size of the vectors
+/// @param carry vector that is going to hold resulting carry flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return sum of 2 terms, carry flag is returned through \c carry parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return addc(carry, Src0V, src1);
+}
+
+/// Performs add with carry of a unsigned 32-bit scalars.
+/// @tparam N size of the vectors
+/// @param carry scalar that is going to hold resulting carry flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return sum of 2 terms, carry flag is returned through \c carry parameter
+__ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> CarryV = carry;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = addc(CarryV, Src0V, Src1V);
+  carry = CarryV[0];
+  return Res[0];
+}
+
+/// Performs substraction with borrow of 2 unsigned 32-bit vectors.
+/// @tparam N size of the vectors
+/// @param borrow vector that is going to hold resulting borrow flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return difference of 2 terms, borrow flag is returned through \c borrow
+/// parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_subb<uint32_t, N>(src0.data(), src1.data());
+
+  borrow = Result.first;
+  return Result.second;
+}
+
+/// Performs substraction with borrow of unsigned 32-bit vector and scalar.
+/// @tparam N size of the vectors
+/// @param borrow vector that is going to hold resulting borrow flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return difference of 2 terms, borrow flag is returned through \c borrow
+/// parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return subb(borrow, src0, Src1V);
+}
+
+/// Performs substraction with borrow of unsigned 32-bit scalar and vector.
+/// @tparam N size of the vectors
+/// @param borrow vector that is going to hold resulting borrow flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return difference of 2 terms, borrow flag is returned through \c borrow
+/// parameter
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return subb(borrow, Src0V, src1);
+}
+
+/// Performs substraction with borrow of 2 unsigned 32-bit scalars.
+/// @tparam N size of the vectors
+/// @param borrow scalar that is going to hold resulting borrow flag
+/// @param src0 first term
+/// @param src1 second term
+/// @return difference of 2 terms, borrow flag is returned through \c borrow
+/// parameter
+__ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> BorrowV = borrow;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
+  borrow = BorrowV[0];
+  return Res[0];
+}
+
 /// @} sycl_esimd_math
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

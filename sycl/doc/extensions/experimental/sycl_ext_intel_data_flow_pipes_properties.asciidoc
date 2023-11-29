@@ -1,0 +1,274 @@
+= sycl_ext_intel_data_flow_pipes_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This document describes an extension that adds compile-time constant properties
+to pipes.
+
+== Notice
+
+Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Version
+
+Built On: {docdate} +
+Revision: A
+
+== Contact
+
+Robert Ho, Intel (robert 'dot' ho 'at' intel 'dot' com)
+
+== Contributors
+
+Bo Lei, Intel +
+Marco Jacques, Intel +
+Joe Garvey, Intel +
+Aditi Kumaraswamy, Intel +
+Robert Ho, Intel +
+Sherry Yuan, Intel +
+Peter Colberg, Intel +
+Zibai Wang, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 6 and
+the following extensions:
+
+- link:../supported/sycl_ext_intel_dataflow_pipes.asciidoc[SYCL_INTEL_data_flow_pipes]
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+
+== Overview
+
+This extension introduces properties that establish differences in the
+implementation of `sycl::ext::intel::experimental::pipe`. These properties are FPGA specific. An example
+of the syntax can be seen below. 
+
+[source,c++]
+----
+using pipe = pipe<class some_pipe, int, min_capacity, decltype(properties{uses_valid<true>})>;
+----
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_FPGA_PIPE_PROPERTIES` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+=== Pipe properties
+
+Below is a list of compile-time-constant properties which `pipe` supports.
+
+```c++
+namespace sycl::ext::intel::experimental {
+
+struct ready_latency_key {
+  template <int Latency>
+  using value_t = oneapi::experimental::property_value<
+      ready_latency_key, std::integral_constant<int, Latency>>;
+};
+
+struct bits_per_symbol_key {
+  template <int Bits>
+  using value_t =
+      oneapi::experimental::property_value<bits_per_symbol_key,
+                                           std::integral_constant<int, Bits>>;
+};
+
+struct uses_valid_key {
+  template <bool Valid>
+  using value_t =
+      oneapi::experimental::property_value<uses_valid_key,
+                                           std::bool_constant<Valid>>;
+};  
+    
+struct first_symbol_in_high_order_bits_key {
+  template <bool HighOrder>
+  using value_t =
+      oneapi::experimental::property_value<first_symbol_in_high_order_bits_key,
+                                           std::bool_constant<HighOrder>>;
+};
+
+enum class protocol_name : /* unspecified */ {
+  avalon_streaming = 0,
+  avalon_streaming_uses_ready = 1,
+  avalon_mm = 2,
+  avalon_mm_uses_ready = 3
+};
+
+struct protocol_key {
+  template <protocol_name Protocol>
+  using value_t = oneapi::experimental::property_value<
+      protocol_key, std::integral_constant<protocol_name, Protocol>>;
+};
+
+template <int Latency>
+inline constexpr ready_latency_key::value_t<Latency> ready_latency;
+
+template <int Bits>
+inline constexpr bits_per_symbol_key::value_t<Bits> bits_per_symbol;
+
+template <bool Valid>
+inline constexpr uses_valid_key::value_t<Valid> uses_valid;
+
+template <bool HighOrder>
+inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
+    first_symbol_in_high_order_bits;
+
+template <protocol_name Protocol>
+inline constexpr protocol_key::value_t<Protocol> protocol;
+
+} // namespace sycl::ext::intel::experimental
+```
+
+--
+[options="header"]
+|====
+| Property | Description
+
+|`ready_latency`
+| Valid values: Non-negative integer value.
+
+Default value: 0
+
+The number of cycles between when the ready signal is deasserted and when the
+pipe can no longer accept new inputs.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`bits_per_symbol`
+| Valid values: A positive integer value that evenly divides by the data type size. 
+
+Default value: 8
+
+Describes how the data is broken into symbols on the data bus.
+
+Data is broken down according to how you set the `first_symbol_in_high_order_bits`
+property. By default, data is broken down in little endian order.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`uses_valid`
+| Valid values: `true` or `false`
+
+Default value: `true`
+
+Controls whether a valid signal is present on the pipe interface. If `false`, the
+upstream source must provide valid data on every cycle that ready is asserted.
+
+This is equivalent to changing the pipe read calls to a non-blocking call and assuming that
+success is always true.
+
+If set to `false`, the `min_capacity` pipe class template parameter and `ready_latency`
+property must be 0.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`first_symbol_in_high_order_bits`
+| Valid values: true or false
+
+Default value: false
+
+Specifies whether the data symbols in the pipe are in big-endian
+order.
+
+This property is not guaranteed to be respected if the pipe is an inter-kernel
+pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+
+|`protocol`
+| Specifies the protocol for the pipe interface. Currently, the protocols supported
+are: *avalon_streaming*, *avalon_streaming_uses_ready*, *avalon_mm*, and *avalon_mm_uses_ready*.
+
+*avalon_streaming*
+
+Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
+
+With this choice of protocol, no ready signal is exposed by the host pipe, and the sink cannot backpressure.
+
+*avalon_streaming_uses_ready*
+
+Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
+
+This protocol allows the sink to backpressure by deasserting the ready signal asserted. The sink signifies that it is ready to consume data by asserting the ready signal. 
+
+*avalon_mm*
+
+Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
+
+With this protocol, an implicit ready signal is held high, and the sink cannot backpressure.
+
+*avalon_mm_uses_ready*
+
+Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
+
+With this protocol, an additional memory mapped location is created to hold the ready signal. You must set the `uses_valid` property to `true`.
+
+The default protocol is *avalon_streaming_uses_ready*
+|====
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-18|Peter Colberg|*Initial public working draft*
+|2|2023-04-06|Robert Ho|Removal of unused properties, update protocols
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

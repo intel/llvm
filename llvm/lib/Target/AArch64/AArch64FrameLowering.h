@@ -35,6 +35,8 @@ public:
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
+  bool enableCFIFixup(MachineFunction &MF) const override;
+
   bool canUseAsPrologue(const MachineBasicBlock &MBB) const override;
 
   StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
@@ -148,6 +150,11 @@ private:
                                   MachineBasicBlock::iterator MBBI) const;
   void emitCalleeSavedSVERestores(MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator MBBI) const;
+  void allocateStackSpace(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator MBBI,
+                          bool NeedsRealignment, StackOffset AllocSize,
+                          bool NeedsWinCFI, bool *HasWinCFI, bool EmitCFI,
+                          StackOffset InitialOffset) const;
 
   /// Emit target zero call-used regs.
   void emitZeroCallUsedRegs(BitVector RegsToZero,

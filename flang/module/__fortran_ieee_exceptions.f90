@@ -27,10 +27,8 @@ module __Fortran_ieee_exceptions
     ieee_denorm = ieee_flag_type(32) ! PGI extension
 
   type(ieee_flag_type), parameter :: &
-    ieee_usual(*) = [ &
-      ieee_overflow, ieee_divide_by_zero, ieee_invalid ], &
-    ieee_all(*) = [ &
-      ieee_usual, ieee_underflow, ieee_inexact, ieee_denorm ]
+    ieee_usual(*) = [ ieee_overflow, ieee_divide_by_zero, ieee_invalid ], &
+    ieee_all(*) = [ ieee_usual, ieee_underflow, ieee_inexact ]
 
   type :: ieee_modes_type ! Fortran 2018, 17.7
     private
@@ -80,14 +78,14 @@ module __Fortran_ieee_exceptions
   end interface
 
   interface ieee_get_modes
-    subroutine ieee_get_modes_0(modes)
+    pure subroutine ieee_get_modes_0(modes)
       import ieee_modes_type
       type(ieee_modes_type), intent(out) :: modes
     end subroutine ieee_get_modes_0
   end interface
 
   interface ieee_get_status
-    subroutine ieee_get_status_0(status)
+    pure subroutine ieee_get_status_0(status)
       import ieee_status_type
       type(ieee_status_type), intent(out) :: status
     end subroutine ieee_get_status_0

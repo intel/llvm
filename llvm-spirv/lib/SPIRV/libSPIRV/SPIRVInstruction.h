@@ -81,11 +81,11 @@ public:
 
 class SPIRVComponentOperands {
 public:
-  SPIRVComponentOperands(){};
+  SPIRVComponentOperands() {}
   SPIRVComponentOperands(const std::vector<SPIRVValue *> &TheOperands)
-      : Operands(TheOperands){};
+      : Operands(TheOperands) {}
   SPIRVComponentOperands(std::vector<SPIRVValue *> &&TheOperands)
-      : Operands(std::move(TheOperands)){};
+      : Operands(std::move(TheOperands)) {}
   std::vector<SPIRVValue *> getCompOperands() { return Operands; }
   std::vector<SPIRVType *> getCompOperandTypes() {
     std::vector<SPIRVType *> Tys;
@@ -624,6 +624,10 @@ protected:
       assert(getValueType(Op1)->getVectorComponentCount() ==
                  getValueType(Op2)->getVectorComponentCount() &&
              "Inconsistent Vector component width");
+    } else if (getValueType(Op1)->isTypeCooperativeMatrixKHR()) {
+      Op1Ty = getValueType(Op1)->getVectorComponentType();
+      Op2Ty = getValueType(Op2)->getVectorComponentType();
+      assert(Op1Ty == Op2Ty && "Inconsistent Cooperative matrix types");
     } else {
       Op1Ty = getValueType(Op1);
       Op2Ty = getValueType(Op2);
@@ -661,8 +665,10 @@ class SPIRVBinaryInst
 
 #define _SPIRV_OP(x) typedef SPIRVBinaryInst<Op##x> SPIRV##x;
 _SPIRV_OP(IAdd)
+_SPIRV_OP(IAddCarry)
 _SPIRV_OP(FAdd)
 _SPIRV_OP(ISub)
+_SPIRV_OP(ISubBorrow)
 _SPIRV_OP(FSub)
 _SPIRV_OP(IMul)
 _SPIRV_OP(FMul)
@@ -1502,10 +1508,13 @@ protected:
       return;
     if (isGenericNegateOpCode(OpCode)) {
       SPIRVType *ResTy =
-          Type->isTypeVector() ? Type->getVectorComponentType() : Type;
-      SPIRVType *OpTy = Type->isTypeVector()
-                            ? getValueType(Op)->getVectorComponentType()
-                            : getValueType(Op);
+          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
+              ? Type->getVectorComponentType()
+              : Type;
+      SPIRVType *OpTy =
+          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
+              ? getValueType(Op)->getVectorComponentType()
+              : getValueType(Op);
 
       (void)ResTy;
       (void)OpTy;
@@ -1758,6 +1767,14 @@ public:
 
   SPIRVExtInstSetKind getExtSetKind() const { return ExtSetKind; }
 
+  void addContinuedInstruction(SPIRVExtInst *Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  std::vector<SPIRVExtInst *> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
+
   void setExtSetKindById() {
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
@@ -1809,7 +1826,17 @@ public:
       assert(0 && "not supported");
       getDecoder(I) >> ExtOp;
     }
-    getDecoder(I) >> Args;
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Args;
+
+    if (ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+        ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      if (getExtOp() == SPIRVDebug::Instruction::Source) {
+        for (SPIRVEntry *E : Decoder.getSourceContinuedInstructions()) {
+          addContinuedInstruction(static_cast<SPIRVExtInst *>(E));
+        }
+      }
+    }
   }
   void validate() const override {
     SPIRVFunctionCallGeneric::validate();
@@ -1865,6 +1892,7 @@ protected:
     SPIRVDebugExtOpKind ExtOpDebug;
     NonSemanticAuxDataOpKind ExtOpNonSemanticAuxData;
   };
+  std::vector<SPIRVExtInst *> ContinuedInstructions;
 };
 
 class SPIRVCompositeConstruct : public SPIRVInstruction {
@@ -1906,6 +1934,7 @@ protected:
     case OpTypeStruct:
     case internal::OpTypeJointMatrixINTEL:
     case internal::OpTypeJointMatrixINTELv2:
+    case OpTypeCooperativeMatrixKHR:
       break;
     default:
       assert(false && "Invalid type");
@@ -2247,7 +2276,7 @@ public:
       : SPIRVInstruction(3, OC, TheBB), Object(TheObject), Size(TheSize) {
     validate();
     assert(TheBB && "Invalid BB");
-  };
+  }
   // Incomplete constructor
   SPIRVLifetime()
       : SPIRVInstruction(OC), Object(SPIRVID_INVALID), Size(SPIRVWORD_MAX) {
@@ -2257,8 +2286,8 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityKernel);
   }
-  SPIRVValue *getObject() { return getValue(Object); };
-  SPIRVWord getSize() { return Size; };
+  SPIRVValue *getObject() { return getValue(Object); }
+  SPIRVWord getSize() { return Size; }
 
 protected:
   void validate() const override {
@@ -2717,16 +2746,22 @@ public:
 class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
+    assert(hasType());
+    if (getType()->isTypeFloat(16))
+      return ExtensionID::SPV_EXT_shader_atomic_float16_add;
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
   }
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16))
+      return {CapabilityAtomicFloat16AddEXT};
     if (getType()->isTypeFloat(32))
       return {CapabilityAtomicFloat32AddEXT};
-    assert(getType()->isTypeFloat(64) &&
-           "AtomicFAddEXT can only be generated for f32 or f64 types");
-    return {CapabilityAtomicFloat64AddEXT};
+    if (getType()->isTypeFloat(64))
+      return {CapabilityAtomicFloat64AddEXT};
+    llvm_unreachable(
+        "AtomicFAddEXT can only be generated for f16, f32, f64 types");
   }
 };
 
@@ -3259,10 +3294,17 @@ template <Op OC>
 class SPIRVBfloat16ConversionINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      return getVec(internal::CapabilityBfloat16ConversionINTEL,
+                    internal::CapabilityJointMatrixBF16ComponentTypeINTEL);
     return getVec(internal::CapabilityBfloat16ConversionINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      this->getModule()->addExtension(ExtensionID::SPV_INTEL_joint_matrix);
     return ExtensionID::SPV_INTEL_bfloat16_conversion;
   }
 
@@ -3291,8 +3333,25 @@ protected:
     }
 
     auto InstName = OpCodeNameMap::map(OC);
-    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    auto *Module = this->getModule();
+    SPIRVErrorLog &SPVErrLog = Module->getErrorLog();
 
+    // Cooperative matrix type is allowed as input/output of the instruction
+    // if SPV_INTEL_joint_matrix is enabled
+    if (ResCompTy->isTypeCooperativeMatrixKHR()) {
+      SPVErrLog.checkError(
+          Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_joint_matrix),
+          SPIRVEC_InvalidInstruction,
+          InstName + "\nCan be used with "
+                     "cooperative matrices only when SPV_INTEL_joint_matrix is "
+                     "enabled\n");
+      assert(InCompTy->isTypeCooperativeMatrixKHR() &&
+             "Input must also be a cooperative matrix");
+      ResCompTy = static_cast<SPIRVTypeCooperativeMatrixKHR *>(ResCompTy)
+                      ->getCompType();
+      InCompTy =
+          static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
+    }
     if (OC == internal::OpConvertFToBF16INTEL) {
       SPVErrLog.checkError(
           ResCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
@@ -3365,6 +3424,64 @@ protected:
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
 _SPIRV_OP(JointMatrixGetElementCoord, true, 5)
+#undef _SPIRV_OP
+
+class SPIRVCooperativeMatrixPrefetchINTELInstBase
+    : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityCooperativeMatrixPrefetchINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
+#undef _SPIRV_OP
+
+class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase
+    : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(
+        internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase,               \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(CooperativeMatrixApplyFunction, true, 5)
+#undef _SPIRV_OP
+
+class SPIRVCooperativeMatrixKHRInstBase : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_cooperative_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityCooperativeMatrixKHR);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVCooperativeMatrixKHRInstBase, Op##x,          \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(CooperativeMatrixLoadKHR, true, 5, true, 3)
+_SPIRV_OP(CooperativeMatrixStoreKHR, false, 4, true, 4)
+_SPIRV_OP(CooperativeMatrixLengthKHR, true, 4, false)
+_SPIRV_OP(CooperativeMatrixMulAddKHR, true, 6, true, 3)
 #undef _SPIRV_OP
 
 class SPIRVSplitBarrierINTELBase : public SPIRVInstTemplateBase {
@@ -3606,10 +3723,17 @@ template <Op OC>
 class SPIRVTensorFloat32RoundingINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      return getVec(internal::CapabilityTensorFloat32RoundingINTEL,
+                    internal::CapabilityJointMatrixTF32ComponentTypeINTEL);
     return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      this->getModule()->addExtension(ExtensionID::SPV_INTEL_joint_matrix);
     return ExtensionID::SPV_INTEL_tensor_float32_conversion;
   }
 
@@ -3638,7 +3762,25 @@ protected:
     }
 
     auto InstName = OpCodeNameMap::map(OC);
-    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    auto *Module = this->getModule();
+    SPIRVErrorLog &SPVErrLog = Module->getErrorLog();
+
+    // Cooperative matrix type is allowed as input/output of the instruction
+    // if SPV_INTEL_joint_matrix is enabled
+    if (ResCompTy->isTypeCooperativeMatrixKHR()) {
+      SPVErrLog.checkError(
+          Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_joint_matrix),
+          SPIRVEC_InvalidInstruction,
+          InstName + "\nCan be used with "
+                     "cooperative matrices only when SPV_INTEL_joint_matrix is "
+                     "enabled\n");
+      assert(InCompTy->isTypeCooperativeMatrixKHR() &&
+             "Input must also be a cooperative matrix");
+      ResCompTy = static_cast<SPIRVTypeCooperativeMatrixKHR *>(ResCompTy)
+                      ->getCompType();
+      InCompTy =
+          static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
+    }
 
     SPVErrLog.checkError(
         ResCompTy->isTypeFloat(32), SPIRVEC_InvalidInstruction,
@@ -3659,6 +3801,42 @@ protected:
   typedef SPIRVTensorFloat32RoundingINTELInstBase<internal::Op##x> SPIRV##x;
 _SPIRV_OP(RoundFToTF32INTEL)
 #undef _SPIRV_OP
-} // namespace SPIRV
 
+template <Op OC> class SPIRVReadClockKHRInstBase : public SPIRVUnaryInst<OC> {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityShaderClockKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_shader_clock;
+  }
+
+  void validate() const override {
+    SPIRVUnaryInst<OC>::validate();
+
+    SPIRVType *ResCompTy = this->getType();
+    SPIRVWord ResCompCount = 1;
+    if (ResCompTy->isTypeVector()) {
+      ResCompCount = ResCompTy->getVectorComponentCount();
+      ResCompTy = ResCompTy->getVectorComponentType();
+    }
+    auto InstName = OpCodeNameMap::map(OC);
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+
+    // check for either 64 bit int type or two element vector of 32 bit int
+    // types.
+    SPVErrLog.checkError(
+        ResCompTy->isTypeInt(64) ||
+            (ResCompCount == 2 && ResCompTy->isTypeInt(32)),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nResult value must be a scalar of integer"
+                   " 64-bit type or two element vector of 32-bit type\n");
+  }
+};
+#define _SPIRV_OP(x, ...) typedef SPIRVReadClockKHRInstBase<Op##x> SPIRV##x;
+_SPIRV_OP(ReadClockKHR)
+#undef _SPIRV_OP
+
+} // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

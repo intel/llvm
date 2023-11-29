@@ -2207,26 +2207,26 @@ define float @v_fneg_round_f32(float %a) #0 {
 ; GCN-SAFE-LABEL: v_fneg_round_f32:
 ; GCN-SAFE:       ; %bb.0:
 ; GCN-SAFE-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GCN-SAFE-NEXT:    v_trunc_f32_e32 v1, v0
+; GCN-SAFE-NEXT:    v_sub_f32_e32 v2, v0, v1
+; GCN-SAFE-NEXT:    v_cmp_ge_f32_e64 s[4:5], |v2|, 0.5
+; GCN-SAFE-NEXT:    v_cndmask_b32_e64 v2, 0, 1.0, s[4:5]
 ; GCN-SAFE-NEXT:    s_brev_b32 s4, -2
-; GCN-SAFE-NEXT:    v_trunc_f32_e32 v2, v0
-; GCN-SAFE-NEXT:    v_bfi_b32 v1, s4, 1.0, v0
-; GCN-SAFE-NEXT:    v_sub_f32_e32 v0, v0, v2
-; GCN-SAFE-NEXT:    v_cmp_ge_f32_e64 vcc, |v0|, 0.5
-; GCN-SAFE-NEXT:    v_cndmask_b32_e32 v0, 0, v1, vcc
-; GCN-SAFE-NEXT:    v_add_f32_e32 v0, v2, v0
+; GCN-SAFE-NEXT:    v_bfi_b32 v0, s4, v2, v0
+; GCN-SAFE-NEXT:    v_add_f32_e32 v0, v1, v0
 ; GCN-SAFE-NEXT:    v_xor_b32_e32 v0, 0x80000000, v0
 ; GCN-SAFE-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GCN-NSZ-LABEL: v_fneg_round_f32:
 ; GCN-NSZ:       ; %bb.0:
 ; GCN-NSZ-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GCN-NSZ-NEXT:    v_trunc_f32_e32 v1, v0
+; GCN-NSZ-NEXT:    v_sub_f32_e32 v2, v0, v1
+; GCN-NSZ-NEXT:    v_cmp_ge_f32_e64 s[4:5], |v2|, 0.5
+; GCN-NSZ-NEXT:    v_cndmask_b32_e64 v2, 0, 1.0, s[4:5]
 ; GCN-NSZ-NEXT:    s_brev_b32 s4, -2
-; GCN-NSZ-NEXT:    v_trunc_f32_e32 v2, v0
-; GCN-NSZ-NEXT:    v_bfi_b32 v1, s4, 1.0, v0
-; GCN-NSZ-NEXT:    v_sub_f32_e32 v0, v0, v2
-; GCN-NSZ-NEXT:    v_cmp_ge_f32_e64 vcc, |v0|, 0.5
-; GCN-NSZ-NEXT:    v_cndmask_b32_e32 v0, 0, v1, vcc
-; GCN-NSZ-NEXT:    v_sub_f32_e64 v0, -v2, v0
+; GCN-NSZ-NEXT:    v_bfi_b32 v0, s4, v2, v0
+; GCN-NSZ-NEXT:    v_sub_f32_e64 v0, -v1, v0
 ; GCN-NSZ-NEXT:    s_setpc_b64 s[30:31]
   %round = call float @llvm.round.f32(float %a)
   %fneg = fneg float %round
@@ -2641,8 +2641,7 @@ define float @nnan_fmul_neg1_to_fneg(float %x, float %y) #0 {
 ; GCN-LABEL: nnan_fmul_neg1_to_fneg:
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    v_sub_f32_e32 v0, 0x80000000, v0
-; GCN-NEXT:    v_mul_f32_e32 v0, v0, v1
+; GCN-NEXT:    v_mul_f32_e64 v0, -v0, v1
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
   %mul = fmul float %x, -1.0
   %add = fmul nnan float %mul, %y
@@ -2681,8 +2680,7 @@ define float @flush_snan_fmul_neg1_to_fneg(float %x, float %y) #0 {
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GCN-NEXT:    v_mul_f32_e32 v0, 1.0, v0
-; GCN-NEXT:    v_sub_f32_e32 v0, 0x80000000, v0
-; GCN-NEXT:    v_mul_f32_e32 v0, v0, v1
+; GCN-NEXT:    v_mul_f32_e64 v0, -v0, v1
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
   %quiet = call float @llvm.canonicalize.f32(float %x)
   %mul = fmul float %quiet, -1.0
@@ -3220,19 +3218,18 @@ define <2 x half> @v_fneg_select_infloop_regression_v2f16(<2 x half> %arg, i1 %a
 define amdgpu_kernel void @s_fneg_select_infloop_regression_v2f32(<2 x float> %arg, i1 %arg1, ptr addrspace(1) %ptr) {
 ; SI-LABEL: s_fneg_select_infloop_regression_v2f32:
 ; SI:       ; %bb.0:
-; SI-NEXT:    s_load_dword s4, s[0:1], 0xb
-; SI-NEXT:    s_load_dwordx2 s[2:3], s[0:1], 0x9
+; SI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x9
 ; SI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0xd
 ; SI-NEXT:    v_bfrev_b32_e32 v0, 1
 ; SI-NEXT:    s_waitcnt lgkmcnt(0)
-; SI-NEXT:    s_bitcmp1_b32 s4, 0
-; SI-NEXT:    v_mov_b32_e32 v1, s2
-; SI-NEXT:    s_cselect_b64 s[4:5], -1, 0
-; SI-NEXT:    v_cndmask_b32_e64 v2, -v1, v0, s[4:5]
-; SI-NEXT:    v_mov_b32_e32 v1, s3
-; SI-NEXT:    v_cndmask_b32_e64 v0, -v1, v0, s[4:5]
-; SI-NEXT:    v_cndmask_b32_e64 v1, v0, 0, s[4:5]
-; SI-NEXT:    v_cndmask_b32_e64 v0, v2, 0, s[4:5]
+; SI-NEXT:    s_bitcmp1_b32 s6, 0
+; SI-NEXT:    v_mov_b32_e32 v1, s4
+; SI-NEXT:    s_cselect_b64 s[2:3], -1, 0
+; SI-NEXT:    v_cndmask_b32_e64 v2, -v1, v0, s[2:3]
+; SI-NEXT:    v_mov_b32_e32 v1, s5
+; SI-NEXT:    v_cndmask_b32_e64 v0, -v1, v0, s[2:3]
+; SI-NEXT:    v_cndmask_b32_e64 v1, v0, 0, s[2:3]
+; SI-NEXT:    v_cndmask_b32_e64 v0, v2, 0, s[2:3]
 ; SI-NEXT:    v_mov_b32_e32 v3, s1
 ; SI-NEXT:    v_mov_b32_e32 v2, s0
 ; SI-NEXT:    flat_store_dwordx2 v[2:3], v[0:1]
@@ -3240,19 +3237,18 @@ define amdgpu_kernel void @s_fneg_select_infloop_regression_v2f32(<2 x float> %a
 ;
 ; VI-LABEL: s_fneg_select_infloop_regression_v2f32:
 ; VI:       ; %bb.0:
-; VI-NEXT:    s_load_dword s4, s[0:1], 0x2c
-; VI-NEXT:    s_load_dwordx2 s[2:3], s[0:1], 0x24
+; VI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x24
 ; VI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x34
 ; VI-NEXT:    v_bfrev_b32_e32 v0, 1
 ; VI-NEXT:    s_waitcnt lgkmcnt(0)
-; VI-NEXT:    s_bitcmp1_b32 s4, 0
-; VI-NEXT:    v_mov_b32_e32 v1, s2
-; VI-NEXT:    s_cselect_b64 s[4:5], -1, 0
-; VI-NEXT:    v_cndmask_b32_e64 v2, -v1, v0, s[4:5]
-; VI-NEXT:    v_mov_b32_e32 v1, s3
-; VI-NEXT:    v_cndmask_b32_e64 v0, -v1, v0, s[4:5]
-; VI-NEXT:    v_cndmask_b32_e64 v1, v0, 0, s[4:5]
-; VI-NEXT:    v_cndmask_b32_e64 v0, v2, 0, s[4:5]
+; VI-NEXT:    s_bitcmp1_b32 s6, 0
+; VI-NEXT:    v_mov_b32_e32 v1, s4
+; VI-NEXT:    s_cselect_b64 s[2:3], -1, 0
+; VI-NEXT:    v_cndmask_b32_e64 v2, -v1, v0, s[2:3]
+; VI-NEXT:    v_mov_b32_e32 v1, s5
+; VI-NEXT:    v_cndmask_b32_e64 v0, -v1, v0, s[2:3]
+; VI-NEXT:    v_cndmask_b32_e64 v1, v0, 0, s[2:3]
+; VI-NEXT:    v_cndmask_b32_e64 v0, v2, 0, s[2:3]
 ; VI-NEXT:    v_mov_b32_e32 v3, s1
 ; VI-NEXT:    v_mov_b32_e32 v2, s0
 ; VI-NEXT:    flat_store_dwordx2 v[2:3], v[0:1]

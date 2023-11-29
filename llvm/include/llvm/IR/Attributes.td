@@ -41,6 +41,9 @@ class TypeAttr<string S, list<AttrProperty> P> : Attr<S, P>;
 /// StringBool attribute.
 class StrBoolAttr<string S> : Attr<S, []>;
 
+/// Arbitrary string attribute.
+class ComplexStrAttr<string S, list<AttrProperty> P> : Attr<S, P>;
+
 /// Target-independent enum attributes.
 
 /// Alignment of parameter (5 bits) stored as log2 of alignment with +1 bias.
@@ -197,6 +200,9 @@ def NoSanitizeCoverage : EnumAttr<"nosanitize_coverage", [FnAttr]>;
 /// Null pointer in address space zero is valid.
 def NullPointerIsValid : EnumAttr<"null_pointer_is_valid", [FnAttr]>;
 
+/// Select optimizations that give decent debug info.
+def OptimizeForDebugging : EnumAttr<"optdebug", [FnAttr]>;
+
 /// Select optimizations for best fuzzing signal.
 def OptForFuzzing : EnumAttr<"optforfuzzing", [FnAttr]>;
 
@@ -297,6 +303,9 @@ def VScaleRange : IntAttr<"vscale_range", [FnAttr]>;
 /// Function always comes back to callsite.
 def WillReturn : EnumAttr<"willreturn", [FnAttr]>;
 
+/// Pointer argument is writable.
+def Writable : EnumAttr<"writable", [ParamAttr]>;
+
 /// Function only writes to memory.
 def WriteOnly : EnumAttr<"writeonly", [ParamAttr]>;
 
@@ -309,6 +318,9 @@ def MustProgress : EnumAttr<"mustprogress", [FnAttr]>;
 /// Function is a presplit coroutine.
 def PresplitCoroutine : EnumAttr<"presplitcoroutine", [FnAttr]>;
 
+/// The coroutine would only be destroyed when it is complete.
+def CoroDestroyOnlyWhenComplete : EnumAttr<"coro_only_destroy_when_complete", [FnAttr]>;
+
 /// Target-independent string attributes.
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;
 def NoInfsFPMath : StrBoolAttr<"no-infs-fp-math">;
@@ -320,6 +332,9 @@ def NoJumpTables : StrBoolAttr<"no-jump-tables">;
 def NoInlineLineTables : StrBoolAttr<"no-inline-line-tables">;
 def ProfileSampleAccurate : StrBoolAttr<"profile-sample-accurate">;
 def UseSampleProfile : StrBoolAttr<"use-sample-profile">;
+
+def DenormalFPMath : ComplexStrAttr<"denormal-fp-math", [FnAttr]>;
+def DenormalFPMathF32 : ComplexStrAttr<"denormal-fp-math-f32", [FnAttr]>;
 
 class CompatRule<string F> {
   // The name of the function called to check the attribute of the caller and
@@ -340,6 +355,8 @@ def : CompatRule<"isEqual<SafeStackAttr>">;
 def : CompatRule<"isEqual<ShadowCallStackAttr>">;
 def : CompatRule<"isEqual<UseSampleProfileAttr>">;
 def : CompatRule<"isEqual<NoProfileAttr>">;
+def : CompatRule<"checkDenormMode">;
+
 
 class MergeRule<string F> {
   // The name of the function called to merge the attributes of the caller and

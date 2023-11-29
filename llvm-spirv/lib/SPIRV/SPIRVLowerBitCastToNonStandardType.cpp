@@ -77,11 +77,6 @@ static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
   if (auto *LI = dyn_cast<LoadInst>(OldValue)) {
     Builder.SetInsertPoint(LI);
     Value *Pointer = LI->getPointerOperand();
-    if (!Pointer->getType()->isOpaquePointerTy()) {
-      Type *NewPointerTy =
-          PointerType::get(NewTy, LI->getPointerAddressSpace());
-      Pointer = removeBitCasts(Pointer, NewPointerTy, Builder, InstsToErase);
-    }
     LoadInst *NewLI = Builder.CreateAlignedLoad(NewTy, Pointer, LI->getAlign(),
                                                 LI->isVolatile());
     NewLI->setOrdering(LI->getOrdering());
@@ -91,8 +86,7 @@ static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
 
   if (auto *ASCI = dyn_cast<AddrSpaceCastInst>(OldValue)) {
     Builder.SetInsertPoint(ASCI);
-    Type *NewSrcTy = PointerType::getWithSamePointeeType(
-        cast<PointerType>(NewTy), ASCI->getSrcAddressSpace());
+    Type *NewSrcTy = PointerType::get(NewTy, ASCI->getSrcAddressSpace());
     Value *Pointer = removeBitCasts(ASCI->getPointerOperand(), NewSrcTy,
                                     Builder, InstsToErase);
     return RauwBitcasts(ASCI, Builder.CreateAddrSpaceCast(Pointer, NewTy));

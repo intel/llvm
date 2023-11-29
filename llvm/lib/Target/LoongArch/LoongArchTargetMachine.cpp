@@ -13,12 +13,15 @@
 #include "LoongArchTargetMachine.h"
 #include "LoongArch.h"
 #include "LoongArchMachineFunctionInfo.h"
+#include "LoongArchTargetTransformInfo.h"
 #include "MCTargetDesc/LoongArchBaseInfo.h"
 #include "TargetInfo/LoongArchTargetInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Transforms/Scalar.h"
 #include <optional>
 
@@ -52,13 +55,33 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
   return RM.value_or(Reloc::Static);
 }
 
+static CodeModel::Model
+getEffectiveLoongArchCodeModel(const Triple &TT,
+                               std::optional<CodeModel::Model> CM) {
+  if (!CM)
+    return CodeModel::Small;
+
+  switch (*CM) {
+  case CodeModel::Small:
+  case CodeModel::Medium:
+    return *CM;
+  case CodeModel::Large:
+    if (!TT.isArch64Bit())
+      report_fatal_error("Large code model requires LA64");
+    return *CM;
+  default:
+    report_fatal_error(
+        "Only small, medium and large code models are allowed on LoongArch");
+  }
+}
+
 LoongArchTargetMachine::LoongArchTargetMachine(
     const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
     const TargetOptions &Options, std::optional<Reloc::Model> RM,
-    std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
+    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(TT, RM),
-                        getEffectiveCodeModel(CM, CodeModel::Small), OL),
+                        getEffectiveLoongArchCodeModel(TT, CM), OL),
       TLOF(std::make_unique<TargetLoweringObjectFileELF>()) {
   initAsmInfo();
 }
@@ -136,7 +159,7 @@ void LoongArchPassConfig::addIRPasses() {
   //
   // Run this before LSR to remove the multiplies involved in computing the
   // pointer values N iterations ahead.
-  if (TM->getOptLevel() != CodeGenOpt::None && EnableLoopDataPrefetch)
+  if (TM->getOptLevel() != CodeGenOptLevel::None && EnableLoopDataPrefetch)
     addPass(createLoopDataPrefetchPass());
   addPass(createAtomicExpandPass());
 
@@ -149,9 +172,15 @@ bool LoongArchPassConfig::addInstSelector() {
   return false;
 }
 
+TargetTransformInfo
+LoongArchTargetMachine::getTargetTransformInfo(const Function &F) const {
+  return TargetTransformInfo(LoongArchTTIImpl(this, F));
+}
+
 void LoongArchPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
 
 void LoongArchPassConfig::addPreEmitPass2() {
+  addPass(createLoongArchExpandPseudoPass());
   // Schedule the expansion of AtomicPseudos at the last possible moment,
   // avoiding the possibility for other passes to break the requirements for
   // forward progress in the LL/SC block.

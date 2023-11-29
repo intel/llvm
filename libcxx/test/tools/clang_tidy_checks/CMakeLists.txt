@@ -1,21 +1,18 @@
 
-# Look for the latest package
-set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-
 # The find_package changes these variables. This leaves the build in an odd
 # state. Calling cmake a second time tries to write site config information in
 # the system's libc++. Restoring these setting after testing fixes this issue.
 set(LLVM_DIR_SAVE ${LLVM_DIR})
 set(Clang_DIR_SAVE ${Clang_DIR})
 
-find_package(Clang 16)
+find_package(Clang 17)
 if (NOT Clang_FOUND)
-  find_package(Clang 17)
+  find_package(Clang 18)
 endif()
 
 set(SOURCES
     abi_tag_on_virtual.cpp
+    header_exportable_declarations.cpp
     hide_from_abi.cpp
     proper_version_checks.cpp
     qualify_declval.cpp

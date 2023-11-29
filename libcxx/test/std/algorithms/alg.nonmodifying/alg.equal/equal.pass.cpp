@@ -18,6 +18,9 @@
 //   constexpr bool     // constexpr after c++17
 //   equal(Iter1 first1, Iter1 last1, Iter2 first2, Iter2 last2);
 
+// We test the cartesian product, so we somethimes compare differently signed types
+// ADDITIONAL_COMPILE_FLAGS: -Wno-sign-compare
+
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -98,13 +101,32 @@ struct AddressCompare {
   }
 };
 
+#if TEST_STD_VER >= 20
+class trivially_equality_comparable {
+public:
+  constexpr trivially_equality_comparable(int i) : i_(i) {}
+  bool operator==(const trivially_equality_comparable&) const = default;
+
+private:
+  int i_;
+};
+
+#endif
+
 TEST_CONSTEXPR_CXX20 bool test() {
   types::for_each(types::cpp17_input_iterator_list<int*>(), TestIter2<int, types::cpp17_input_iterator_list<int*> >());
-  types::for_each(types::cpp17_input_iterator_list<char*>(), TestIter2<char, types::cpp17_input_iterator_list<char*> >());
+  types::for_each(
+      types::cpp17_input_iterator_list<char*>(), TestIter2<char, types::cpp17_input_iterator_list<char*> >());
   types::for_each(types::cpp17_input_iterator_list<AddressCompare*>(),
-                 TestIter2<AddressCompare, types::cpp17_input_iterator_list<AddressCompare*> >());
+                  TestIter2<AddressCompare, types::cpp17_input_iterator_list<AddressCompare*> >());
 
   types::for_each(types::integral_types(), TestNarrowingEqualTo());
+
+#if TEST_STD_VER >= 20
+  types::for_each(
+      types::cpp17_input_iterator_list<trivially_equality_comparable*>{},
+      TestIter2<trivially_equality_comparable, types::cpp17_input_iterator_list<trivially_equality_comparable*>>{});
+#endif
 
   return true;
 }
@@ -112,16 +134,34 @@ TEST_CONSTEXPR_CXX20 bool test() {
 struct Base {};
 struct Derived : virtual Base {};
 
+struct TestTypes {
+  template <class T>
+  struct Test {
+    template <class U>
+    void operator()() {
+      T a[] = {1, 2, 3, 4, 5, 6};
+      U b[] = {1, 2, 3, 4, 5, 6};
+      assert(std::equal(a, a + 6, b));
+    }
+  };
+
+  template <class T>
+  void operator()() {
+    types::for_each(types::integer_types(), Test<T>());
+  }
+};
+
 int main(int, char**) {
   test();
 #if TEST_STD_VER >= 20
   static_assert(test());
 #endif
 
+  types::for_each(types::integer_types(), TestTypes());
   types::for_each(types::as_pointers<types::cv_qualified_versions<int> >(),
-                 TestIter2<int, types::as_pointers<types::cv_qualified_versions<int> > >());
+                  TestIter2<int, types::as_pointers<types::cv_qualified_versions<int> > >());
   types::for_each(types::as_pointers<types::cv_qualified_versions<char> >(),
-                 TestIter2<char, types::as_pointers<types::cv_qualified_versions<char> > >());
+                  TestIter2<char, types::as_pointers<types::cv_qualified_versions<char> > >());
 
   {
     Derived d;

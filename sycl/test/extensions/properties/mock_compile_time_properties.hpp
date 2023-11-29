@@ -134,6 +134,15 @@ template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
 template <> struct IsRuntimeProperty<foo_key> : std::true_type {};
 template <> struct IsRuntimeProperty<foz_key> : std::true_type {};
 template <> struct IsRuntimeProperty<fir_key> : std::true_type {};
+
+template <typename Properties>
+struct ConflictingProperties<boo_key, Properties>
+    : ContainsProperty<fir_key, Properties> {};
+
+template <typename Properties>
+struct ConflictingProperties<fir_key, Properties>
+    : ContainsProperty<boo_key, Properties> {};
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi

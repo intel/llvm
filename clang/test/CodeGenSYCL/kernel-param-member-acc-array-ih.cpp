@@ -9,7 +9,7 @@
 // CHECK: class kernel_C;
 
 // CHECK: namespace sycl {
-// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-NEXT: inline namespace _V1 {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

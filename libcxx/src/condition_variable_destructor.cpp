@@ -14,17 +14,15 @@
 #include <__config>
 #include <__threading_support>
 
-#if !defined(_LIBCPP_HAS_NO_THREADS)
-# if _LIBCPP_ABI_VERSION == 1 || !defined(_LIBCPP_HAS_TRIVIAL_CONDVAR_DESTRUCTION)
-#   define NEEDS_CONDVAR_DESTRUCTOR
-# endif
+#if _LIBCPP_ABI_VERSION == 1 || !defined(_LIBCPP_HAS_TRIVIAL_CONDVAR_DESTRUCTION)
+#  define NEEDS_CONDVAR_DESTRUCTOR
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #ifdef NEEDS_CONDVAR_DESTRUCTOR
 
-class _LIBCPP_TYPE_VIS condition_variable
+class _LIBCPP_EXPORTED_FROM_ABI condition_variable
 {
     __libcpp_condvar_t __cv_ = _LIBCPP_CONDVAR_INITIALIZER;
 public:

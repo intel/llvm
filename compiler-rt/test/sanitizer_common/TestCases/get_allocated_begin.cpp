@@ -1,7 +1,7 @@
 // RUN: %clangxx -O0 -g %s -o %t && %run %t
 
-// UBSan does not have its own allocator
-// UNSUPPORTED: ubsan
+// Must not be implemented, no other reason to install interceptors.
+// XFAIL: ubsan
 
 #include <assert.h>
 #include <sanitizer/allocator_interface.h>
@@ -25,11 +25,13 @@ int main(void) {
     // does not unpoison it.
     const void *start = NULL;
     for (int j = 0; j < sizes[i]; j++) {
-      printf("j: %d\n", j);
 
       start = __sanitizer_get_allocated_begin(array + j);
-      printf("Start: %p (expected: %p)\n", start, array);
-      fflush(stdout);
+      if (array != start) {
+        printf("j: %d\n", j);
+        printf("Start: %p (expected: %p)\n", start, array);
+        fflush(stdout);
+      }
       assert(array == start);
     }
 

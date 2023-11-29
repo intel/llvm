@@ -1,8 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==- abs_fix_test.cpp - Test for abs function -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

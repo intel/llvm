@@ -134,12 +134,13 @@ void IncludeSorter::addInclude(StringRef FileName, bool IsAngled,
   int Offset = findNextLine(SourceMgr->getCharacterData(EndLocation));
 
   // Record the relevant location information for this inclusion directive.
-  IncludeLocations[FileName].push_back(
+  auto &IncludeLocation = IncludeLocations[FileName];
+  IncludeLocation.push_back(
       SourceRange(HashLocation, EndLocation.getLocWithOffset(Offset)));
-  SourceLocations.push_back(IncludeLocations[FileName].back());
+  SourceLocations.push_back(IncludeLocation.back());
 
   // Stop if this inclusion is a duplicate.
-  if (IncludeLocations[FileName].size() > 1)
+  if (IncludeLocation.size() > 1)
     return;
 
   // Add the included file's name to the appropriate bucket.
@@ -230,6 +231,6 @@ OptionEnumMapping<utils::IncludeSorter::IncludeStyle>::getEnumMapping() {
       Mapping[] = {{utils::IncludeSorter::IS_LLVM, "llvm"},
                    {utils::IncludeSorter::IS_Google, "google"},
                    {utils::IncludeSorter::IS_Google_ObjC, "google-objc"}};
-  return ArrayRef(Mapping);
+  return {Mapping};
 }
 } // namespace clang::tidy

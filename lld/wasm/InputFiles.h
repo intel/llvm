@@ -176,7 +176,7 @@ public:
               uint64_t offsetInArchive);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
 
-  void parse();
+  void parse(StringRef symName);
   std::unique_ptr<llvm::lto::InputFile> obj;
 
   // Set to true once LTO is complete in order prevent further bitcode objects
@@ -184,7 +184,7 @@ public:
   static bool doneLTO;
 };
 
-// Stub libray (See docs/WebAssembly.rst)
+// Stub library (See docs/WebAssembly.rst)
 class StubFile : public InputFile {
 public:
   explicit StubFile(MemoryBufferRef m) : InputFile(StubKind, m) {}

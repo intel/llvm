@@ -18,6 +18,7 @@
 #include "llvm/Support/Debug.h"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 #define DEBUG_TYPE "decompose-affine-ops"
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "]: ")
@@ -38,8 +39,8 @@ static int64_t numEnclosingInvariantLoops(OpOperand &operand) {
   return count;
 }
 
-void mlir::reorderOperandsByHoistability(RewriterBase &rewriter,
-                                         AffineApplyOp op) {
+void mlir::affine::reorderOperandsByHoistability(RewriterBase &rewriter,
+                                                 AffineApplyOp op) {
   SmallVector<int64_t> numInvariant = llvm::to_vector(
       llvm::map_range(op->getOpOperands(), [&](OpOperand &operand) {
         return numEnclosingInvariantLoops(operand);
@@ -92,8 +93,8 @@ static AffineApplyOp createSubApply(RewriterBase &rewriter,
                                         rhsOperands);
 }
 
-FailureOr<AffineApplyOp> mlir::decompose(RewriterBase &rewriter,
-                                         AffineApplyOp op) {
+FailureOr<AffineApplyOp> mlir::affine::decompose(RewriterBase &rewriter,
+                                                 AffineApplyOp op) {
   // 1. Preconditions: only handle dimensionless AffineApplyOp maps with a
   // top-level binary expression that we can reassociate (i.e. add or mul).
   AffineMap m = op.getAffineMap();
@@ -101,12 +102,12 @@ FailureOr<AffineApplyOp> mlir::decompose(RewriterBase &rewriter,
     return rewriter.notifyMatchFailure(op, "expected no dims");
 
   AffineExpr remainingExp = m.getResult(0);
-  auto binExpr = remainingExp.dyn_cast<AffineBinaryOpExpr>();
+  auto binExpr = dyn_cast<AffineBinaryOpExpr>(remainingExp);
   if (!binExpr)
     return rewriter.notifyMatchFailure(op, "terminal affine.apply");
 
-  if (!binExpr.getLHS().isa<AffineBinaryOpExpr>() &&
-      !binExpr.getRHS().isa<AffineBinaryOpExpr>())
+  if (!isa<AffineBinaryOpExpr>(binExpr.getLHS()) &&
+      !isa<AffineBinaryOpExpr>(binExpr.getRHS()))
     return rewriter.notifyMatchFailure(op, "terminal affine.apply");
 
   bool supportedKind = ((binExpr.getKind() == AffineExprKind::Add) ||
@@ -122,7 +123,7 @@ FailureOr<AffineApplyOp> mlir::decompose(RewriterBase &rewriter,
   MLIRContext *ctx = op->getContext();
   SmallVector<AffineExpr> subExpressions;
   while (true) {
-    auto currentBinExpr = remainingExp.dyn_cast<AffineBinaryOpExpr>();
+    auto currentBinExpr = dyn_cast<AffineBinaryOpExpr>(remainingExp);
     if (!currentBinExpr || currentBinExpr.getKind() != binExpr.getKind()) {
       subExpressions.push_back(remainingExp);
       LLVM_DEBUG(DBGS() << "--terminal: " << subExpressions.back() << "\n");

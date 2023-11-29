@@ -1,8 +1,5 @@
-// UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -I . -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
+// RUN: %{run} %t.out
 
 #include "support.h"
 #include <algorithm>
@@ -12,18 +9,21 @@
 #include <limits>
 #include <numeric>
 #include <sycl/sycl.hpp>
+
 using namespace sycl;
 
+queue q;
+
 template <typename SpecializationKernelName, typename InputContainer,
-          typename OutputContainer, class BinaryOperation>
-void test(queue q, InputContainer input, OutputContainer output,
-          BinaryOperation binary_op,
-          typename OutputContainer::value_type identity) {
+          class BinaryOperation>
+void test(const InputContainer &input, BinaryOperation binary_op,
+          typename InputContainer::value_type identity) {
   typedef typename InputContainer::value_type InputT;
-  typedef typename OutputContainer::value_type OutputT;
-  constexpr OutputT init = 42;
-  constexpr size_t N = input.size();
-  constexpr size_t G = 64;
+  typedef InputT OutputT;
+  std::array<OutputT, 6> output = {};
+  constexpr OutputT init(42);
+  size_t N = input.size();
+  constexpr size_t G = 16;
   {
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
@@ -38,31 +38,33 @@ void test(queue q, InputContainer input, OutputContainer output,
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
-            out[2] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[3] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
-            out[4] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[5] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
+            out[2] = joint_reduce(g, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[3] =
+                joint_reduce(g, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
+            out[4] = joint_reduce(sg, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[5] =
+                joint_reduce(sg, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
           });
     });
   }
   // std::reduce is not implemented yet, so use std::accumulate instead
   // TODO: use std::reduce when it will be supported
-  assert(output[0] == std::accumulate(input.begin(), input.begin() + G,
-                                      identity, binary_op));
-  assert(output[1] ==
-         std::accumulate(input.begin(), input.begin() + G, init, binary_op));
-  assert(output[2] ==
-         std::accumulate(input.begin(), input.end(), identity, binary_op));
-  assert(output[3] ==
-         std::accumulate(input.begin(), input.end(), init, binary_op));
-  assert(output[4] ==
-         std::accumulate(input.begin(), input.end(), identity, binary_op));
-  assert(output[5] ==
-         std::accumulate(input.begin(), input.end(), init, binary_op));
+  assert(equal(output[0], std::accumulate(input.begin(), input.begin() + G,
+                                          identity, binary_op)));
+  assert(equal(output[1], std::accumulate(input.begin(), input.begin() + G,
+                                          init, binary_op)));
+  assert(equal(output[2], std::accumulate(input.begin(), input.end(), identity,
+                                          binary_op)));
+  assert(equal(output[3],
+               std::accumulate(input.begin(), input.end(), init, binary_op)));
+  assert(equal(output[4], std::accumulate(input.begin(), input.end(), identity,
+                                          binary_op)));
+  assert(equal(output[5],
+               std::accumulate(input.begin(), input.end(), init, binary_op)));
 }
 
 int main() {
@@ -74,27 +76,45 @@ int main() {
 
   constexpr int N = 128;
   std::array<int, N> input;
-  std::array<int, 6> output;
   std::iota(input.begin(), input.end(), 0);
-  std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, sycl::plus<>(), 0);
-  test<class KernelNameMinimumV>(q, input, output, sycl::minimum<>(),
+  test<class KernelNamePlusV>(input, sycl::plus<>(), 0);
+  test<class KernelNameMinimumV>(input, sycl::minimum<>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumV>(q, input, output, sycl::maximum<>(),
+  test<class KernelNameMaximumV>(input, sycl::maximum<>(),
                                  std::numeric_limits<int>::lowest());
 
-  test<class KernelNamePlusI>(q, input, output, sycl::plus<int>(), 0);
-  test<class KernelNameMinimumI>(q, input, output, sycl::minimum<int>(),
+  test<class KernelNamePlusI>(input, sycl::plus<int>(), 0);
+  test<class KernelNameMinimumI>(input, sycl::minimum<int>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumI>(q, input, output, sycl::maximum<int>(),
+  test<class KernelNameMaximumI>(input, sycl::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
 
-  test<class KernelNameMultipliesI>(q, input, output, sycl::multiplies<int>(),
-                                    1);
-  test<class KernelNameBitOrI>(q, input, output, sycl::bit_or<int>(), 0);
-  test<class KernelNameBitXorI>(q, input, output, sycl::bit_xor<int>(), 0);
-  test<class KernelNameBitAndI>(q, input, output, sycl::bit_and<int>(), ~0);
+  test<class KernelNameMultipliesI>(input, sycl::multiplies<int>(), 1);
+  test<class KernelNameBitOrI>(input, sycl::bit_or<int>(), 0);
+  test<class KernelNameBitXorI>(input, sycl::bit_xor<int>(), 0);
+  test<class KernelNameBitAndI>(input, sycl::bit_and<int>(), ~0);
+
+  test<class LogicalOrInt>(input, sycl::logical_or<int>(), 0);
+  test<class LogicalAndInt>(input, sycl::logical_and<int>(), 1);
+
+  std::array<bool, N> bool_input = {};
+  test<class LogicalOrBool>(bool_input, sycl::logical_or<bool>(), false);
+  test<class LogicalOrVoid>(bool_input, sycl::logical_or<>(), false);
+  test<class LogicalAndBool>(bool_input, sycl::logical_and<bool>(), true);
+  test<class LogicalAndVoid>(bool_input, sycl::logical_and<>(), true);
+
+  std::array<int2, N> int2_input = {};
+  std::iota(int2_input.begin(), int2_input.end(), 0);
+  test<class PlusInt2>(int2_input, sycl::plus<int2>(), {0, 0});
+  test<class PlusInt2V>(int2_input, sycl::plus<>(), {0, 0});
+
+  if (q.get_device().has(aspect::fp16)) {
+    std::array<half, 32> half_input = {};
+    std::iota(half_input.begin(), half_input.end(), 0);
+    test<class PlusHalf>(half_input, sycl::plus<half>(), 0);
+    test<class PlusHalfV>(half_input, sycl::plus<>(), 0);
+  }
 
   // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
   // https://github.com/intel/llvm/pull/5108/ ) joint_reduce and
@@ -102,22 +122,17 @@ int main() {
   // sycl::plus binary operation.
 #ifdef SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS
   std::array<std::complex<float>, N> input_cf;
-  std::array<std::complex<float>, 6> output_cf;
   std::iota(input_cf.begin(), input_cf.end(), 0);
-  std::fill(output_cf.begin(), output_cf.end(), 0);
-  test<class KernelNamePlusComplexF>(q, input_cf, output_cf,
+  test<class KernelNamePlusComplexF>(input_cf,
                                      sycl::plus<std::complex<float>>(), 0);
-  test<class KernelNamePlusUnspecF>(q, input_cf, output_cf, sycl::plus<>(), 0);
+  test<class KernelNamePlusUnspecF>(input_cf, sycl::plus<>(), 0);
 
   if (q.get_device().has(aspect::fp64)) {
     std::array<std::complex<double>, N> input_cd;
-    std::array<std::complex<double>, 6> output_cd;
     std::iota(input_cd.begin(), input_cd.end(), 0);
-    std::fill(output_cd.begin(), output_cd.end(), 0);
-    test<class KernelNamePlusComplexD>(q, input_cd, output_cd,
+    test<class KernelNamePlusComplexD>(input_cd,
                                        sycl::plus<std::complex<double>>(), 0);
-    test<class KernelNamePlusUnspecD>(q, input_cd, output_cd, sycl::plus<>(),
-                                      0);
+    test<class KernelNamePlusUnspecD>(input_cd, sycl::plus<>(), 0);
   } else {
     std::cout << "aspect::fp64 not supported. skipping std::complex<double>"
               << std::endl;

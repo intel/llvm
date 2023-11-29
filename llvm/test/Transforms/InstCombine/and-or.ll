@@ -318,6 +318,20 @@ define <2 x i8> @and_or_hoist_mask_commute_vec_splat(<2 x i8> %a, <2 x i8> %b) {
   ret <2 x i8> %and
 }
 
+@g = external global i32
+
+define i32 @pr64114_and_xor_hoist_mask_constexpr() {
+; CHECK-LABEL: @pr64114_and_xor_hoist_mask_constexpr(
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr i32 ptrtoint (ptr @g to i32), 8
+; CHECK-NEXT:    [[AND:%.*]] = and i32 [[LSHR]], 1
+; CHECK-NEXT:    ret i32 [[AND]]
+;
+  %lshr = lshr i32 ptrtoint (ptr @g to i32), 8
+  %xor = xor i32 %lshr, ptrtoint (ptr @g to i32)
+  %and = and i32 %xor, 1
+  ret i32 %and
+}
+
 ; Don't transform if the 'or' has multiple uses because that would increase instruction count.
 
 define i8 @and_or_do_not_hoist_mask(i8 %a, i8 %b) {

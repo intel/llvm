@@ -1,11 +1,11 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK:  zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 1
 // The test is to check that there is only a single level zero queue created
-// with the embedded ZE_DEBUG=4 testing capability.
+// with the embedded UR_L0_LEAKS_DEBUG=1 testing capability.
 //
 
 #include <sycl/sycl.hpp>
