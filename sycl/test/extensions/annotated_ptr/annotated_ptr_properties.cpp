@@ -91,7 +91,7 @@ int main() {
   // Check if a property is valid for a given type
   checkIsValidPropertyOfNonPtr<A>();
 
-  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: FPGA Interface properties (i.e. awidth, dwidth, etc.)can only be set with BufferLocation together}}
+  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_ptr<int, decltype(properties(read_write_mode_read))> AnnotatedPtr5;
   return 0;
 }
