@@ -1030,10 +1030,10 @@ The _Main Image_ contains a property set named "SYCL/add on images" which
 contains one property for each of its _Add On Images_.  The name of each
 property is a unique identifier for the _Add On Image_, which by convention is
 just an integer in string form (e.g "1").  The value of the property has type
-`PI_PROPERTY_TYPE_BYTE_ARRAY` containing a series of `uint32` values `N1`,
-`N2`, etc. telling the _Condition Expression_ for the _Conditional Actions_ in
-this _Add On Image_.  The property's size (which is always divisible by 4)
-tells the number of `uint32` integers in this property.
+`PI_PROPERTY_TYPE_BYTE_ARRAY` containing a series of `int32` values `N1`, `N2`,
+etc. telling the _Condition Expression_ for the _Conditional Actions_ in this
+_Add On Image_.  The property's size (which is always divisible by 4) tells the
+number of `int32` integers in this property.
 
 ```
 [SYCL/add on images]
@@ -1237,11 +1237,11 @@ by adding new properties to the existing "SYCL/device requirements" property
 set.  These properties have names of the form "condition-_N_" and
 "conditional-aspects-_N_", where _N_ is an integer in string form.  The value
 of a "condition-_N_" property has type `PI_PROPERTY_TYPE_BYTE_ARRAY` containing
-a series of `uint32` values representing a _Condition Expression_.  The value
+a series of `int32` values representing a _Condition Expression_.  The value
 of a "conditional-aspects-_N_" property has type `PI_PROPERTY_TYPE_BYTE_ARRAY`
 containing a series of `uint32` values representing aspect values.  In both
 cases, the property's size (which is always divisible by 4) tells the number
-of `uint32` values.
+of values.
 
 These properties are grouped in pairs, matched by the value of _N_.  For
 example, "condition-0" is matched with "conditional-aspects-0", etc.  The
