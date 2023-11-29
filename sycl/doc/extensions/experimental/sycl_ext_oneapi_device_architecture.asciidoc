@@ -412,7 +412,7 @@ architecture.
 |-
 |AMD GCN 3.0 architecture.
 
-`amd_gpu_gfx803`
+|`amd_gpu_gfx803`
 |-
 |AMD GCN 4.0 architecture.
 
