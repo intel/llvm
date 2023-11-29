@@ -3444,6 +3444,26 @@ protected:
 _SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
 #undef _SPIRV_OP
 
+class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase
+    : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(
+        internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase,               \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(CooperativeMatrixApplyFunction, true, 5)
+#undef _SPIRV_OP
+
 class SPIRVCooperativeMatrixKHRInstBase : public SPIRVInstTemplateBase {
 protected:
   std::optional<ExtensionID> getRequiredExtension() const override {
