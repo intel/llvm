@@ -29,7 +29,7 @@
   UNARY_CHECK_INNER(FUNC_NAME, sycl::half)                                     \
   NONSCALAR_GENFLOAT_UNARY_CHECK(FUNC_NAME)
 
-#define NONSCALAR_UGENINT_GEQ16BIT_UNARY_CHECK(FUNC_NAME)                      \
+#define NONSCALAR_UGENINT_NAN_UNARY_CHECK(FUNC_NAME)                           \
   UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint32_t, 4>)                         \
   UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint16_t, 4>)                         \
   UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint64_t, 4>)                         \
@@ -61,7 +61,7 @@
   UNARY_CHECK_INNER(FUNC_NAME, unsigned long)                                  \
   UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint8_t, 4>)                          \
   UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned int, 4>)                  \
-  NONSCALAR_UGENINT_GEQ16BIT_UNARY_CHECK(FUNC_NAME)
+  NONSCALAR_UGENINT_NAN_UNARY_CHECK(FUNC_NAME)
 
 #define GENINT_UNARY_CHECK(FUNC_NAME)                                          \
   UNARY_CHECK_INNER(FUNC_NAME, char)                                           \
@@ -246,7 +246,7 @@ void check() {
   NONSCALAR_GENFLOAT_TRINARY_CHECK(mad)
   NONSCALAR_GENFLOAT_BINARY_CHECK(maxmag)
   NONSCALAR_GENFLOAT_BINARY_CHECK(minmag)
-  NONSCALAR_UGENINT_GEQ16BIT_UNARY_CHECK(nan)
+  NONSCALAR_UGENINT_NAN_UNARY_CHECK(nan)
   NONSCALAR_GENFLOAT_BINARY_CHECK(nextafter)
   NONSCALAR_GENFLOAT_BINARY_CHECK(pow)
   NONSCALAR_GENFLOAT_BINARY_CHECK(powr)
