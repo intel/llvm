@@ -91,6 +91,14 @@ struct valAllDevicesTest : valPlatformTest {
             FAIL() << "Failed to get devices";
         }
     }
+
+    void TearDown() override {
+        for (auto device : devices) {
+            ASSERT_EQ(urDeviceRelease(device), UR_RESULT_SUCCESS);
+        }
+        valPlatformTest::TearDown();
+    }
+
     std::vector<ur_device_handle_t> devices;
 };
 
