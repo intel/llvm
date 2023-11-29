@@ -6,127 +6,127 @@
 
 #include <sycl/sycl.hpp>
 
-#define UNARY_CHECK_INNER(FUNC_NAME, ...)                                      \
-  static_assert(                                                               \
-      std::is_same_v<decltype(sycl::FUNC_NAME<__VA_ARGS__>(                    \
-                         std::declval<__VA_ARGS__>())),                        \
-                     decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>()))>);
+#define ONE_ARG_DECLVAL(...) std::declval<__VA_ARGS__>()
+
+#define TWO_ARGS_DECLVAL(...)                                                  \
+  ONE_ARG_DECLVAL(__VA_ARGS__), ONE_ARG_DECLVAL(__VA_ARGS__)
+
+#define THREE_ARGS_DECLVAL(...)                                                \
+  TWO_ARGS_DECLVAL(__VA_ARGS__), ONE_ARG_DECLVAL(__VA_ARGS__)
+
+#define CHECK_INNER(NUM_ARGS, FUNC_NAME, ...)                                  \
+  static_assert(std::is_same_v<decltype(sycl::FUNC_NAME<__VA_ARGS__>(          \
+                                   NUM_ARGS##_DECLVAL(__VA_ARGS__))),          \
+                               decltype(sycl::FUNC_NAME(                       \
+                                   NUM_ARGS##_DECLVAL(__VA_ARGS__)))>);
 
 #define NONSCALAR_FLOAT_UNARY_CHECK(FUNC_NAME)                                 \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<float, 4>)                            \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<float, 4>)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<float, 4>)                         \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<float, 4>)
 
 #define NONSCALAR_GENFLOAT_UNARY_CHECK(FUNC_NAME)                              \
   NONSCALAR_FLOAT_UNARY_CHECK(FUNC_NAME)                                       \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<sycl::half, 4>)                       \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<sycl::half, 4>)                    \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<double, 4>)                           \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<double, 4>)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<sycl::half, 4>)                    \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<sycl::half, 4>)                 \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<double, 4>)                        \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<double, 4>)
 
 #define GENFLOAT_UNARY_CHECK(FUNC_NAME)                                        \
-  UNARY_CHECK_INNER(FUNC_NAME, float)                                          \
-  UNARY_CHECK_INNER(FUNC_NAME, double)                                         \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::half)                                     \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, float)                                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, double)                                      \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::half)                                  \
   NONSCALAR_GENFLOAT_UNARY_CHECK(FUNC_NAME)
 
 #define NONSCALAR_UGENINT_NAN_UNARY_CHECK(FUNC_NAME)                           \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint32_t, 4>)                         \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint16_t, 4>)                         \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint64_t, 4>)                         \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned int, 4>)                  \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned short, 4>)                \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned long, 4>)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<uint32_t, 4>)                      \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<uint16_t, 4>)                      \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<uint64_t, 4>)                      \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<unsigned int, 4>)               \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<unsigned short, 4>)             \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<unsigned long, 4>)
 
 #define SGENINT_UNARY_CHECK(FUNC_NAME)                                         \
-  UNARY_CHECK_INNER(FUNC_NAME, signed char)                                    \
-  UNARY_CHECK_INNER(FUNC_NAME, short)                                          \
-  UNARY_CHECK_INNER(FUNC_NAME, int)                                            \
-  UNARY_CHECK_INNER(FUNC_NAME, long long)                                      \
-  UNARY_CHECK_INNER(FUNC_NAME, long)                                           \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<int8_t, 4>)                           \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<int16_t, 4>)                          \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<int32_t, 4>)                          \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<int64_t, 4>)                          \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<signed char, 4>)                   \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<short, 4>)                         \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<int, 4>)                           \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<long long, 4>)                     \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<long, 4>)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, signed char)                                 \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, short)                                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, int)                                         \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, long long)                                   \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, long)                                        \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<int8_t, 4>)                        \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<int16_t, 4>)                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<int32_t, 4>)                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<int64_t, 4>)                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<signed char, 4>)                \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<short, 4>)                      \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<int, 4>)                        \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<long long, 4>)                  \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<long, 4>)
 
 #define UGENINT_UNARY_CHECK(FUNC_NAME)                                         \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned char)                                  \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned short)                                 \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned int)                                   \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned long long)                             \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned long)                                  \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint8_t, 4>)                          \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned int, 4>)                  \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned char)                               \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned short)                              \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned int)                                \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned long long)                          \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned long)                               \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::vec<uint8_t, 4>)                       \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::marray<unsigned int, 4>)               \
   NONSCALAR_UGENINT_NAN_UNARY_CHECK(FUNC_NAME)
 
 #define GENINT_UNARY_CHECK(FUNC_NAME)                                          \
-  UNARY_CHECK_INNER(FUNC_NAME, char)                                           \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, char)                                        \
   SGENINT_UNARY_CHECK(FUNC_NAME)                                               \
   UGENINT_UNARY_CHECK(FUNC_NAME)
 
-#define BINARY_CHECK_INNER(FUNC_NAME, ...)                                     \
-  static_assert(                                                               \
-      std::is_same_v<decltype(sycl::FUNC_NAME<__VA_ARGS__, __VA_ARGS__>(       \
-                         std::declval<__VA_ARGS__>(),                          \
-                         std::declval<__VA_ARGS__>())),                        \
-                     decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>(),     \
-                                              std::declval<__VA_ARGS__>()))>);
-
 #define NONSCALAR_FLOAT_BINARY_CHECK(FUNC_NAME)                                \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<float, 4>)                           \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<float, 4>)
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<float, 4>)                        \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<float, 4>)
 
 #define NONSCALAR_GENFLOAT_BINARY_CHECK(FUNC_NAME)                             \
   NONSCALAR_FLOAT_BINARY_CHECK(FUNC_NAME)                                      \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<sycl::half, 4>)                      \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<sycl::half, 4>)                   \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<double, 4>)                          \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<double, 4>)
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                   \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<sycl::half, 4>)                \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<double, 4>)                       \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<double, 4>)
 
 #define GENFLOAT_BINARY_CHECK(FUNC_NAME)                                       \
-  BINARY_CHECK_INNER(FUNC_NAME, float)                                         \
-  BINARY_CHECK_INNER(FUNC_NAME, double)                                        \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::half)                                    \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, float)                                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, double)                                     \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::half)                                 \
   NONSCALAR_GENFLOAT_BINARY_CHECK(FUNC_NAME)
 
 #define SGENINT_BINARY_CHECK(FUNC_NAME)                                        \
-  BINARY_CHECK_INNER(FUNC_NAME, signed char)                                   \
-  BINARY_CHECK_INNER(FUNC_NAME, short)                                         \
-  BINARY_CHECK_INNER(FUNC_NAME, int)                                           \
-  BINARY_CHECK_INNER(FUNC_NAME, long long)                                     \
-  BINARY_CHECK_INNER(FUNC_NAME, long)                                          \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int8_t, 4>)                          \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int16_t, 4>)                         \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int32_t, 4>)                         \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int64_t, 4>)                         \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<signed char, 4>)                  \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<short, 4>)                        \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<int, 4>)                          \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<long long, 4>)                    \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<long, 4>)
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, signed char)                                \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, short)                                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, int)                                        \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, long long)                                  \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, long)                                       \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                       \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)               \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<short, 4>)                     \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<int, 4>)                       \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<long long, 4>)                 \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<long, 4>)
 
 #define UGENINT_BINARY_CHECK(FUNC_NAME)                                        \
-  BINARY_CHECK_INNER(FUNC_NAME, unsigned char)                                 \
-  BINARY_CHECK_INNER(FUNC_NAME, unsigned short)                                \
-  BINARY_CHECK_INNER(FUNC_NAME, unsigned int)                                  \
-  BINARY_CHECK_INNER(FUNC_NAME, unsigned long long)                            \
-  BINARY_CHECK_INNER(FUNC_NAME, unsigned long)                                 \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint8_t, 4>)                         \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint16_t, 4>)                        \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint32_t, 4>)                        \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint64_t, 4>)                        \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned char, 4>)                \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned short, 4>)               \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned int, 4>)                 \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned long long, 4>)           \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned long, 4>)
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, unsigned char)                              \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, unsigned short)                             \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, unsigned int)                               \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, unsigned long long)                         \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, unsigned long)                              \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                      \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                     \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                     \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                     \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<unsigned char, 4>)             \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)            \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<unsigned long long, 4>)        \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
 
 #define GENINT_BINARY_CHECK(FUNC_NAME)                                         \
-  BINARY_CHECK_INNER(FUNC_NAME, char)                                          \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, char)                                       \
   SGENINT_BINARY_CHECK(FUNC_NAME)                                              \
   UGENINT_BINARY_CHECK(FUNC_NAME)
 
@@ -134,69 +134,60 @@
   GENFLOAT_TRINARY_CHECK(FUNC_NAME)                                            \
   GENINT_TRINARY_CHECK(FUNC_NAME)
 
-#define TRINARY_CHECK_INNER(FUNC_NAME, ...)                                    \
-  static_assert(std::is_same_v<                                                \
-                decltype(sycl::FUNC_NAME<__VA_ARGS__, __VA_ARGS__>(            \
-                    std::declval<__VA_ARGS__>(), std::declval<__VA_ARGS__>(),  \
-                    std::declval<__VA_ARGS__>())),                             \
-                decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>(),          \
-                                         std::declval<__VA_ARGS__>(),          \
-                                         std::declval<__VA_ARGS__>()))>);
-
 #define NONSCALAR_GENFLOAT_TRINARY_CHECK(FUNC_NAME)                            \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<float, 4>)                          \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<double, 4>)                         \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<sycl::half, 4>)                     \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<float, 4>)                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<double, 4>)                      \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<sycl::half, 4>)
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<float, 4>)                      \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<double, 4>)                     \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                 \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<float, 4>)                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<double, 4>)                  \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<sycl::half, 4>)
 
 #define NONSCALAR_SGENINT_TRINARY_CHECK(FUNC_NAME)                             \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int8_t, 4>)                         \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int16_t, 4>)                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int32_t, 4>)                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<int64_t, 4>)                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<signed char, 4>)                 \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<short, 4>)                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<int, 4>)                         \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<long long, 4>)                   \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<long, 4>)
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<int8_t, 4>)                     \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<int16_t, 4>)                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<int32_t, 4>)                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<int64_t, 4>)                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<signed char, 4>)             \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<short, 4>)                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<int, 4>)                     \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<long long, 4>)               \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<long, 4>)
 
 #define NONSCALAR_UGENINT_TRINARY_CHECK(FUNC_NAME)                             \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint8_t, 4>)                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint16_t, 4>)                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint32_t, 4>)                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::vec<uint64_t, 4>)                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned char, 4>)               \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned short, 4>)              \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned int, 4>)                \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned long long, 4>)          \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::marray<unsigned long, 4>)
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<uint8_t, 4>)                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<unsigned char, 4>)           \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)          \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)            \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<unsigned long long, 4>)      \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
 
 #define GENFLOAT_TRINARY_CHECK(FUNC_NAME)                                      \
-  TRINARY_CHECK_INNER(FUNC_NAME, float)                                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, double)                                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::half)                                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, float)                                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, double)                                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::half)                               \
   NONSCALAR_GENFLOAT_TRINARY_CHECK(FUNC_NAME)
 
 #define SGENINT_TRINARY_CHECK(FUNC_NAME)                                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, signed char)                                  \
-  TRINARY_CHECK_INNER(FUNC_NAME, short)                                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, int)                                          \
-  TRINARY_CHECK_INNER(FUNC_NAME, long long)                                    \
-  TRINARY_CHECK_INNER(FUNC_NAME, long)                                         \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, signed char)                              \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, short)                                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, int)                                      \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, long long)                                \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, long)                                     \
   NONSCALAR_SGENINT_TRINARY_CHECK(FUNC_NAME)
 
 #define UGENINT_TRINARY_CHECK(FUNC_NAME)                                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, unsigned char)                                \
-  TRINARY_CHECK_INNER(FUNC_NAME, unsigned short)                               \
-  TRINARY_CHECK_INNER(FUNC_NAME, unsigned int)                                 \
-  TRINARY_CHECK_INNER(FUNC_NAME, unsigned long long)                           \
-  TRINARY_CHECK_INNER(FUNC_NAME, unsigned long)                                \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, unsigned char)                            \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, unsigned short)                           \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, unsigned int)                             \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, unsigned long long)                       \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, unsigned long)                            \
   NONSCALAR_UGENINT_TRINARY_CHECK(FUNC_NAME)
 
 #define GENINT_TRINARY_CHECK(FUNC_NAME)                                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, char)                                         \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, char)                                     \
   SGENINT_TRINARY_CHECK(FUNC_NAME)                                             \
   UGENINT_TRINARY_CHECK(FUNC_NAME)
 

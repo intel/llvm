@@ -10,53 +10,54 @@ template <typename T> struct ImplicitlyConvertibleType {
   operator T() const { return {}; }
 };
 
-#define UNARY_CHECK_INNER(FUNC_NAME, ...)                                      \
+#define ONE_ARG_DECLVAL_IMPLICITLY_CONVERTIBLE(...)                            \
+  std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>()
+
+#define TWO_ARGS_DECLVAL_IMPLICITLY_CONVERTIBLE(...)                           \
+  ONE_ARG_DECLVAL_IMPLICITLY_CONVERTIBLE(__VA_ARGS__),                         \
+      ONE_ARG_DECLVAL_IMPLICITLY_CONVERTIBLE(__VA_ARGS__)
+
+#define THREE_ARGS_DECLVAL_IMPLICITLY_CONVERTIBLE(...)                         \
+  TWO_ARGS_DECLVAL_IMPLICITLY_CONVERTIBLE(__VA_ARGS__),                        \
+      ONE_ARG_DECLVAL_IMPLICITLY_CONVERTIBLE(__VA_ARGS__)
+
+#define ONE_ARG_DECLVAL(...) std::declval<__VA_ARGS__>()
+
+#define TWO_ARGS_DECLVAL(...)                                                  \
+  ONE_ARG_DECLVAL(__VA_ARGS__), ONE_ARG_DECLVAL(__VA_ARGS__)
+
+#define THREE_ARGS_DECLVAL(...)                                                \
+  TWO_ARGS_DECLVAL(__VA_ARGS__), ONE_ARG_DECLVAL(__VA_ARGS__)
+
+#define CHECK_INNER(NUM_ARGS, FUNC_NAME, ...)                                  \
   static_assert(std::is_same_v<                                                \
                 decltype(sycl::FUNC_NAME(                                      \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>())),  \
-                decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>()))>);
+                    NUM_ARGS##_DECLVAL_IMPLICITLY_CONVERTIBLE(__VA_ARGS__))),  \
+                decltype(sycl::FUNC_NAME(NUM_ARGS##_DECLVAL(__VA_ARGS__)))>);
 
-#define FLOAT_UNARY_CHECK(FUNC_NAME) UNARY_CHECK_INNER(FUNC_NAME, float)
+#define FLOAT_UNARY_CHECK(FUNC_NAME) CHECK_INNER(ONE_ARG, FUNC_NAME, float)
 
 #define GENFLOAT_UNARY_CHECK(FUNC_NAME)                                        \
   FLOAT_UNARY_CHECK(FUNC_NAME)                                                 \
-  UNARY_CHECK_INNER(FUNC_NAME, sycl::half)                                     \
-  UNARY_CHECK_INNER(FUNC_NAME, double)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, sycl::half)                                  \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, double)
 
 #define UGENINT_NAN_UNARY_CHECK(FUNC_NAME)                                     \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned int)                                   \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned short)                                 \
-  UNARY_CHECK_INNER(FUNC_NAME, unsigned long)
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned int)                                \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned short)                              \
+  CHECK_INNER(ONE_ARG, FUNC_NAME, unsigned long)
 
-#define BINARY_CHECK_INNER(FUNC_NAME, ...)                                     \
-  static_assert(std::is_same_v<                                                \
-                decltype(sycl::FUNC_NAME(                                      \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>(),    \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>())),  \
-                decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>(),          \
-                                         std::declval<__VA_ARGS__>()))>);
-
-#define FLOAT_BINARY_CHECK(FUNC_NAME) BINARY_CHECK_INNER(FUNC_NAME, float)
+#define FLOAT_BINARY_CHECK(FUNC_NAME) CHECK_INNER(TWO_ARGS, FUNC_NAME, float)
 
 #define GENFLOAT_BINARY_CHECK(FUNC_NAME)                                       \
   FLOAT_BINARY_CHECK(FUNC_NAME)                                                \
-  BINARY_CHECK_INNER(FUNC_NAME, sycl::half)                                    \
-  BINARY_CHECK_INNER(FUNC_NAME, double)
-
-#define TRINARY_CHECK_INNER(FUNC_NAME, ...)                                    \
-  static_assert(std::is_same_v<                                                \
-                decltype(sycl::FUNC_NAME(                                      \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>(),    \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>(),    \
-                    std::declval<ImplicitlyConvertibleType<__VA_ARGS__>>())),  \
-                decltype(sycl::FUNC_NAME(std::declval<__VA_ARGS__>(),          \
-                                         std::declval<__VA_ARGS__>(),          \
-                                         std::declval<__VA_ARGS__>()))>);
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, sycl::half)                                 \
+  CHECK_INNER(TWO_ARGS, FUNC_NAME, double)
 
 #define GENFLOAT_TRINARY_CHECK(FUNC_NAME)                                      \
-  TRINARY_CHECK_INNER(FUNC_NAME, float)                                        \
-  TRINARY_CHECK_INNER(FUNC_NAME, double)                                       \
-  TRINARY_CHECK_INNER(FUNC_NAME, sycl::half)
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, float)                                    \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, double)                                   \
+  CHECK_INNER(THREE_ARGS, FUNC_NAME, sycl::half)
 
 void check() {
   GENFLOAT_UNARY_CHECK(acos)
