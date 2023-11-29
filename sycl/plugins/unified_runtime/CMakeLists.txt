@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 43c2ad2363f735fd83282bb8da9d4996424dd3cf
-  # Merge: 5d58871c eba3905b
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jan 19 15:52:55 2024 +0000
-  #     Merge pull request #1260 from kbenzie/benie/dont-include-windows.h-in-ur_info.hpp
-  #         [Common] Don't include Windows.h in ur_util.hpp
-  set(UNIFIED_RUNTIME_TAG 43c2ad2363f735fd83282bb8da9d4996424dd3cf)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 1b2cd5b34dda3055c5274b2eb381adef12fd95c8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
