@@ -3574,7 +3574,12 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
-  if constexpr (Op == atomic_op::load) {
+  // uint16_t, non-power of two, and operations wider than 32 are supported only by LSC.
+  if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+    return slm_atomic_update_impl<Op, T, N,
+                            detail::lsc_data_size::default_size>(
+      byte_offset, mask);
+  } else if constexpr (Op == atomic_op::load) {
     if constexpr (std::is_integral_v<T>) {
       return slm_atomic_update<atomic_op::bit_or, T, N>(byte_offset,
                                                         simd<T, N>(0), mask);
@@ -3585,18 +3590,11 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
       return Res.template bit_cast_view<T>();
     }
   } else {
-    // uint16_t and load are supported only by LSC.
-    if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
-      return slm_atomic_update_impl<Op, T, N,
-                                    detail::lsc_data_size::default_size>(
-          byte_offset, mask);
-    } else {
-      detail::check_atomic<Op, Tx, N, 0>();
-      const auto si =
-          __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-      return __esimd_dword_atomic0<Op, Tx, N>(mask.data(), si,
-                                              byte_offset.data());
-    }
+    detail::check_atomic<Op, Tx, N, 0>();
+    const auto si =
+        __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
+    return __esimd_dword_atomic0<Op, Tx, N>(mask.data(), si,
+                                            byte_offset.data());
   }
 }
 
@@ -3764,7 +3762,12 @@ template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  if constexpr (Op == atomic_op::store) {
+  if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+        // half and short are supported in LSC.
+      return slm_atomic_update_impl<Op, T, N,
+                                    detail::lsc_data_size::default_size>(
+          byte_offset, src0, mask);
+   } else if constexpr (Op == atomic_op::store) {
     if constexpr (std::is_integral_v<Tx>) {
       return slm_atomic_update<atomic_op::xchg, Tx, N>(byte_offset, src0, mask);
     } else {
@@ -3774,18 +3777,11 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
       return Res.template bit_cast_view<Tx>();
     }
   } else {
-    // half and short are supported in LSC.
-    if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
-      return slm_atomic_update_impl<Op, T, N,
-                                    detail::lsc_data_size::default_size>(
-          byte_offset, src0, mask);
-    } else {
-      detail::check_atomic<Op, Tx, N, 1>();
-      const auto si =
-          __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-      return __esimd_dword_atomic1<Op, Tx, N>(mask.data(), si, byte_offset.data(),
-                                              src0.data());
-    }
+    detail::check_atomic<Op, Tx, N, 1>();
+    const auto si =
+        __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
+    return __esimd_dword_atomic1<Op, Tx, N>(mask.data(), si, byte_offset.data(),
+                                            src0.data());
   }
 }
 

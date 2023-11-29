@@ -111,16 +111,17 @@ bool test_slm(queue q) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-        int i = ii;
-        constexpr uint32_t SLMSize = N * (stride + 1) * sizeof(T);
+      cgh.parallel_for(rng, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+        int i = ndi.get_global_id(0);
+        constexpr uint32_t SLMSize = size * sizeof(T);
         slm_init<SLMSize>();
 
         simd<uint32_t, N> offsets(start_ind * sizeof(T), stride * sizeof(T));
         simd<T, size> data;
         data.copy_from(arr);
 
-        slm_block_store(0, data);
+        if (ndi.get_local_id(0) == 0)
+          slm_block_store(0, data);
 
         simd_mask<N> m = 1;
         if constexpr (UseMask) {
@@ -169,8 +170,10 @@ bool test_slm(queue q) {
           }
         }
         barrier();
-        auto data0 = slm_block_load<T, size>(0);
-        data0.copy_to(arr);
+        if (ndi.get_local_id(0) == 0) {
+          auto data0 = slm_block_load<T, size>(0);
+          data0.copy_to(arr);
+        }
       });
     });
     e.wait();
@@ -550,9 +553,8 @@ template <int N, template <class, int> class Op, bool UseMask,
 bool test_int_types(queue q) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
-    if constexpr (UsePVCFeatures) {
+    if constexpr (UsePVCFeatures)
       passed &= run_test<UseAcc, int16_t, N, Op, UseMask>(q);
-    }
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
     if constexpr (UsePVCFeatures) {
@@ -563,9 +565,8 @@ bool test_int_types(queue q) {
   }
 
   if constexpr (SignMask & Unsigned) {
-    if constexpr (UsePVCFeatures) {
+    if constexpr (UsePVCFeatures)
       passed &= run_test<UseAcc, uint16_t, N, Op, UseMask>(q);
-    }
 
     passed &= run_test<UseAcc, uint32_t, N, Op, UseMask>(q);
     if constexpr (UsePVCFeatures) {

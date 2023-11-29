@@ -517,7 +517,7 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
       auto pred = simd_mask<VL>(1);
 
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.slm.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 25, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> undef, i32 0, <8 x i32> undef)
+      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.slm.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 10, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> undef, i32 0, <8 x i32> undef)
       auto res_slm_atomic_0 =
           slm_atomic_update<atomic_op::load, int16_t>(offsets, pred);
     }
