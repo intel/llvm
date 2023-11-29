@@ -850,6 +850,7 @@ def DeallocInCategory:DiagGroup<"dealloc-in-category">;
 def SelectorTypeMismatch : DiagGroup<"selector-type-mismatch">;
 def Selector : DiagGroup<"selector", [SelectorTypeMismatch]>;
 def Protocol : DiagGroup<"protocol">;
+def FPAccOverride : DiagGroup<"fp-accuracy-override">;
 // No longer in use, preserve for backwards compatibility.
 def : DiagGroup<"at-protocol">;
 def PropertyAccessDotSyntax: DiagGroup<"property-access-dot-syntax">;
@@ -1331,6 +1332,10 @@ def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
+
+// OpenACC warnings.
+def SourceUsesOpenACC : DiagGroup<"source-uses-openacc">;
+def OpenACC : DiagGroup<"openacc", [SourceUsesOpenACC]>;
 
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;
