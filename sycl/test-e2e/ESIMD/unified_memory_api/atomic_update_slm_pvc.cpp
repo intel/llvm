@@ -1,4 +1,4 @@
-//==------- atomic_update_slm.cpp - DPC++ ESIMD on-device test -------------==//
+//==------- atomic_update_slm_pvc.cpp - DPC++ ESIMD on-device test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,13 +16,10 @@
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
-  bool passed = true;
+  esimd_test::printTestLabel(q);
 
   constexpr bool TestCacheHintProperties = true;
-  passed &= test_main<TestCacheHintProperties>(q);
+  bool passed = test_main<TestCacheHintProperties>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
