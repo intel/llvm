@@ -913,7 +913,7 @@ void *DisjointPool::malloc(size_t size) { // For full-slab allocations indicates
     auto Ptr = impl->allocate(size, FromPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Allocated " << std::setw(8) << size << " " << MT
                   << " bytes from " << (FromPool ? "Pool" : "Provider") << " ->"
                   << Ptr << std::endl;
@@ -938,7 +938,7 @@ void *DisjointPool::aligned_malloc(size_t size, size_t alignment) {
     auto Ptr = impl->allocate(size, alignment, FromPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Allocated " << std::setw(8) << size << " " << MT
                   << " bytes aligned at " << alignment << " from "
                   << (FromPool ? "Pool" : "Provider") << " ->" << Ptr
@@ -957,7 +957,7 @@ enum umf_result_t DisjointPool::free(void *ptr) try {
     impl->deallocate(ptr, ToPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Freed " << MT << " " << ptr << " to "
                   << (ToPool ? "Pool" : "Provider")
                   << ", Current total pool size "
