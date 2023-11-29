@@ -101,6 +101,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_LINK_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
   case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    return PI_ERROR_INVALID_OPERATION;
   case UR_RESULT_ERROR_INVALID_ARGUMENT:
   case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
   case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
@@ -127,7 +128,6 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_INVALID_WORK_DIMENSION;
   case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
     return PI_ERROR_INVALID_VALUE;
-
   case UR_RESULT_ERROR_PROGRAM_UNLINKED:
     return PI_ERROR_INVALID_PROGRAM_EXECUTABLE;
   case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
@@ -140,6 +140,10 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_OUT_OF_RESOURCES;
   case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
+    return PI_ERROR_INVALID_COMMAND_BUFFER_KHR;
+  case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+    return PI_ERROR_INVALID_SYNC_POINT_WAIT_LIST_KHR;
   case UR_RESULT_ERROR_UNKNOWN:
   default:
     return PI_ERROR_UNKNOWN;
@@ -1985,10 +1989,17 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(RetProgram);
 
-  HANDLE_ERRORS(urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
-                              Options, UrProgram));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
+                       UrInputPrograms, Options, UrProgram);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
+                             Options, UrProgram);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piProgramCompile(
@@ -2017,9 +2028,15 @@ inline pi_result piProgramCompile(
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramCompile(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramCompileExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramCompile(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result
@@ -2050,9 +2067,14 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramBuild(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult = urProgramBuildExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramBuild(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piextProgramSetSpecializationConstant(pi_program Program,
@@ -2336,8 +2358,18 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
-    break;
+    size_t NumArgs = 0;
+    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
+                                  sizeof(NumArgs), &NumArgs, nullptr));
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(uint32_t);
+    }
+    if (ParamValue) {
+      if (ParamValueSize != sizeof(uint32_t))
+        return PI_ERROR_INVALID_BUFFER_SIZE;
+      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
+    }
+    return PI_SUCCESS;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;

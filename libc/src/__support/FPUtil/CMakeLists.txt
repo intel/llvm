@@ -6,6 +6,8 @@ add_header_library(
     libc.include.fenv
     libc.include.math
     libc.src.__support.macros.attributes
+    libc.src.__support.macros.config
+    libc.src.errno.errno
 )
 
 add_header_library(
@@ -94,6 +96,7 @@ add_header_library(
   HDRS
     ManipulationFunctions.h
   DEPENDS
+    .fenv_impl
     .fp_bits
     .nearest_integer_operations
     .normal_float
