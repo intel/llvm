@@ -5372,10 +5372,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Add -ffine-grained-bitfield-accesses option. This will be added
     // only for SPIR based targets.
     if (Triple.isSPIR()) {
-      // it cannot be enabled together with a sanitizer
-      if (!Args.getLastArg(options::OPT_fsanitize_EQ)) {
+      // It cannot be enabled together with a sanitizer
+      if (!Args.getLastArg(options::OPT_fsanitize_EQ))
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
-      }
     }
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,

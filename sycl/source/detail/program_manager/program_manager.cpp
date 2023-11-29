@@ -990,7 +990,7 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   return LibProg;
 }
 
-ProgramManager::ProgramManager() : m_KernelUsesAsan(false) {
+ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
   const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIR-V file is specified with an environment variable,
   // register the corresponding image
@@ -1411,7 +1411,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     // check if kernel uses asan
     {
       pi_device_binary_property Prop = Img->getProperty("asanUsed");
-      m_KernelUsesAsan |=
+      m_AsanFoundInImage |=
           Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
     }
 

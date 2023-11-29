@@ -312,7 +312,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
-bool isKernelUsingAsan(const Module &M) {
+bool isModuleUsingAsan(const Module &M) {
   auto *AsanInitFunction = M.getFunction("__asan_init");
   return AsanInitFunction;
 }
@@ -543,7 +543,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   {
-    if (isKernelUsingAsan(M))
+    if (isModuleUsingAsan(M))
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"asanUsed", true});
   }
 
