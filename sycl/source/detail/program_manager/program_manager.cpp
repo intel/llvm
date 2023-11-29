@@ -300,9 +300,9 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
-    throw feature_not_supported(
-        "SPIR-V online compilation is not supported in this context",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
+        "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadata();
@@ -1065,8 +1065,8 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-    throw feature_not_supported("Recompiling AOT image is not supported",
-                                PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Recompiling AOT image is not supported");
   }
 }
 
