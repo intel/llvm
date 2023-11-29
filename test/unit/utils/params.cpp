@@ -420,6 +420,6 @@ TEST(PrintPtr, nested_void_ptrs) {
     void ***ppreal = &preal;
     void ****pppreal = &ppreal;
     std::ostringstream out;
-    details::printPtr(out, pppreal);
+    ur::details::printPtr(out, pppreal);
     EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
 }
