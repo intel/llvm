@@ -251,8 +251,8 @@ etors:
       desc: "[Validation] native binary is not supported by the device"
     - name: ERROR_INVALID_GLOBAL_NAME
       desc: "[Validation] global variable is not found in the program"
-    - name: ERROR_INVALID_FUNCTION_NAME
-      desc: "[Validation] function name is not found in the program"
+    - name: ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
+      desc: "[Validation] function name is in the program but its address could not be determined"
     - name: ERROR_INVALID_GROUP_SIZE_DIMENSION
       desc: "[Validation] group size dimension is not valid for the kernel or device"
     - name: ERROR_INVALID_GLOBAL_WIDTH_DIMENSION

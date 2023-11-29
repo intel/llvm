@@ -26,10 +26,10 @@ TEST_P(urProgramGetFunctionPointerTest, Success) {
     ASSERT_NE(function_pointer, nullptr);
 }
 
-TEST_P(urProgramGetFunctionPointerTest, InvalidFunctionName) {
+TEST_P(urProgramGetFunctionPointerTest, InvalidKernelName) {
     void *function_pointer = nullptr;
     std::string missing_function = "aFakeFunctionName";
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_FUNCTION_NAME,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME,
                      urProgramGetFunctionPointer(device, program,
                                                  missing_function.data(),
                                                  &function_pointer));
