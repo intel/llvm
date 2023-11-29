@@ -193,15 +193,20 @@ struct MyType {
 };
 
 struct MyKernel {
-  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type
+  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type is not allowed
+  annotated_ptr<void, properties<PropB>> b;   //void is legal 
   ...
   void operator()() const {
     ...
+    *b = ...; //deference is not allowed
   }
 };
 ----
-It is illegal to apply `annotated_ptr` to a non-trivially-copyable type `T`. In the
-above example, encapsulating `annotated_ptr` within `MyType` is illegal.
+It is ill-formed to instantiate`annotated_ptr` and `annotated_ref` for a non-trivially-copyable
+type `T`. The only exception is that `annotated_ptr` is allowed to be instantiated with `void`.
+
+In the above example, encapsulating `annotated_ptr` within `MyType` is illegal. Encapsulating
+`annotated_ptr` with `void` is legal, but it can not be deferenced.
 
 [source,c++]
 ----
