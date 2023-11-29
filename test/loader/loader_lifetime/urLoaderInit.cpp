@@ -17,7 +17,7 @@ INSTANTIATE_TEST_SUITE_P(
                       UR_DEVICE_INIT_FLAG_FPGA | UR_DEVICE_INIT_FLAG_VPU),
     [](const ::testing::TestParamInfo<ur_device_init_flags_t> &info) {
         std::stringstream ss;
-        details::printFlag<ur_device_init_flag_t>(ss, info.param);
+        ur::details::printFlag<ur_device_init_flag_t>(ss, info.param);
         return GTestSanitizeString(ss.str());
     });
 

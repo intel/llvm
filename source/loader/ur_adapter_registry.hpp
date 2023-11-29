@@ -41,7 +41,8 @@ class AdapterRegistry {
                 }
 
                 if (exists) {
-                    adaptersLoadPaths.emplace_back(std::vector{path});
+                    adaptersLoadPaths.emplace_back(
+                        std::vector{std::move(path)});
                 } else {
                     logger::warning(
                         "Detected nonexistent path {} in environmental "
@@ -164,12 +165,12 @@ class AdapterRegistry {
 
             auto adapterNamePathOpt = getAdapterNameAsPath(adapterName);
             if (adapterNamePathOpt.has_value()) {
-                auto adapterNamePath = adapterNamePathOpt.value();
+                const auto &adapterNamePath = adapterNamePathOpt.value();
                 loadPaths.emplace_back(adapterNamePath);
             }
 
             if (loaderLibPathOpt.has_value()) {
-                auto loaderLibPath = loaderLibPathOpt.value();
+                const auto &loaderLibPath = loaderLibPathOpt.value();
                 loadPaths.emplace_back(loaderLibPath / adapterName);
             }
 
