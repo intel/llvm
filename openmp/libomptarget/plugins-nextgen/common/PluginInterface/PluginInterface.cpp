@@ -9,8 +9,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "PluginInterface.h"
-#include "Debug.h"
-#include "Environment.h"
+
+#include "Shared/Debug.h"
+#include "Shared/Environment.h"
+
 #include "GlobalHandler.h"
 #include "JIT.h"
 #include "Utils/ELF.h"
