@@ -55,6 +55,5 @@ OPERATION(Rsqrt,  fpbuiltin_rsqrt)
 OPERATION(Erf,    fpbuiltin_erf)
 OPERATION(Erfc,   fpbuiltin_erfc)
 OPERATION(Sincos, fpbuiltin_sincos)
-OPERATION(SpirvOclSin, fpbuiltin_spirv_ocl_sin)
 
 #undef OPERATION

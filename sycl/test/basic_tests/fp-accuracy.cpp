@@ -3,8 +3,8 @@
 // RUN: -faltmathlib=SVMLAltMathLibrary -fno-math-errno %s
 //
 // Checks that the attribute 'builtin-max-error' is generated.
-// RUN: %clangxx -c -fsycl -ffp-accuracy=high -faltmathlib=SVMLAltMathLibrary \
-// RUN: -fno-math-errno -ffp-model=precise -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clangxx -c -fsycl -ffp-accuracy=high -fno-math-errno \
+// RUN: -S -emit-llvm -o - %s | FileCheck %s
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
@@ -39,9 +39,19 @@ int main() {
         output[i] = sycl::sin(input);
     });
   });
-  // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel2
-  // CHECK: tail call {{.*}} float @llvm.fpbuiltin.spirv.ocl.sin.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
-  // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
+  deviceQueue.submit([&](handler &cgh) {
+    auto output = out.template get_access<sycl_write>(cgh);
 
+    cgh.single_task<class Kernel3>([=]() {
+      for (int i = 0; i < 1; i++)
+        output[i] = sycl::sqrt(input);
+    });
+  });
+
+  // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel2
+  // CHECK: tail call {{.*}} float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
+  // CHECK: tail call noundef float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
+
+  // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
   return 0;
 }

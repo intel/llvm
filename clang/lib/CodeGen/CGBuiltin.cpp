@@ -22882,7 +22882,35 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
             .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
             .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
             .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
-            .Case("__spirv_ocl_sin", llvm::Intrinsic::fpbuiltin_spirv_ocl_sin)
+            .Case("__spirv_ocl_sin", llvm::Intrinsic::fpbuiltin_sin)
+            .Case("__spirv_ocl_asin", llvm::Intrinsic::fpbuiltin_asin)
+            .Case("__spirv_ocl_sinh", llvm::Intrinsic::fpbuiltin_sinh)
+            .Case("__spirv_ocl_asinh", llvm::Intrinsic::fpbuiltin_asinh)
+            .Case("__spirv_ocl_cos", llvm::Intrinsic::fpbuiltin_cos)
+            .Case("__spirv_ocl_acos", llvm::Intrinsic::fpbuiltin_acos)
+            .Case("__spirv_ocl_cosh", llvm::Intrinsic::fpbuiltin_cosh)
+            .Case("__spirv_ocl_acosh", llvm::Intrinsic::fpbuiltin_acosh)
+            .Case("__spirv_ocl_tan", llvm::Intrinsic::fpbuiltin_tan)
+            .Case("__spirv_ocl_tanh", llvm::Intrinsic::fpbuiltin_tanh)
+            .Case("__spirv_ocl_atan", llvm::Intrinsic::fpbuiltin_atan)
+            .Case("__spirv_ocl_atan2", llvm::Intrinsic::fpbuiltin_atan2)
+            .Case("__spirv_ocl_atanh", llvm::Intrinsic::fpbuiltin_atanh)
+            .Case("__spirv_ocl_sincos", llvm::Intrinsic::fpbuiltin_sincos)
+            .Case("__spirv_ocl_pow", llvm::Intrinsic::fpbuiltin_pow)
+            .Case("__spirv_ocl_ldexp", llvm::Intrinsic::fpbuiltin_ldexp)
+            .Case("__spirv_ocl_exp", llvm::Intrinsic::fpbuiltin_exp)
+            .Case("__spirv_ocl_exp2", llvm::Intrinsic::fpbuiltin_exp2)
+            .Case("__spirv_ocl_exp10", llvm::Intrinsic::fpbuiltin_exp10)
+            .Case("__spirv_ocl_expm1", llvm::Intrinsic::fpbuiltin_expm1)
+            .Case("__spirv_ocl_hypot", llvm::Intrinsic::fpbuiltin_hypot)
+            .Case("__spirv_ocl_log", llvm::Intrinsic::fpbuiltin_log)
+            .Case("__spirv_ocl_log2", llvm::Intrinsic::fpbuiltin_log2)
+            .Case("__spirv_ocl_log10", llvm::Intrinsic::fpbuiltin_log10)
+            .Case("__spirv_ocl_log1p", llvm::Intrinsic::fpbuiltin_log1p)
+            .Case("__spirv_ocl_sqrt", llvm::Intrinsic::fpbuiltin_sqrt)
+            .Case("__spirv_ocl_rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+            .Case("__spirv_ocl_erf", llvm::Intrinsic::fpbuiltin_erf)
+            .Case("__spirv_ocl_erfc", llvm::Intrinsic::fpbuiltin_erfc)
             .Default(0);
   } else {
     // The function has a clang builtin. Create an attribute for it
@@ -22896,15 +22924,18 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       // attribute.
       return nullptr;
     case Builtin::BItan:
+    case Builtin::BItanf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
       break;
     case Builtin::BItanh:
+    case Builtin::BItanhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tanh;
       break;
     case Builtin::BIlog2:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log2;
       break;
     case Builtin::BIlog1p:
+    case Builtin::BIlog1pf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log1p;
       break;
     case Builtin::BIcos:
@@ -22914,36 +22945,46 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_cosh;
       break;
     case Builtin::BIacos:
+    case Builtin::BIacosf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acos;
       break;
+    case Builtin::BIacoshf:
     case Builtin::BIacosh:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acosh;
       break;
     case Builtin::BIsin:
+    case Builtin::BIsinf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sin;
       break;
     case Builtin::BIsinh:
+    case Builtin::BIsinhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sinh;
       break;
     case Builtin::BIasin:
+    case Builtin::BIasinf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asin;
       break;
     case Builtin::BIasinh:
+    case Builtin::BIasinhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asinh;
       break;
     case Builtin::BIatan:
+    case Builtin::BIatanf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan;
       break;
     case Builtin::BIatanh:
+    case Builtin::BIatanhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atanh;
       break;
     case Builtin::BIatan2:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan2;
       break;
     case Builtin::BIerf:
+    case Builtin::BIerff:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erf;
       break;
     case Builtin::BIerfc:
+    case Builtin::BIerfcf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erfc;
       break;
     case Builtin::BIexp:
@@ -22953,6 +22994,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_exp2;
       break;
     case Builtin::BIexpm1:
+    case Builtin::BIexpm1f:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_expm1;
       break;
     case Builtin::BIhypot:

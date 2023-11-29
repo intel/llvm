@@ -1143,9 +1143,6 @@ let IntrProperties = [IntrNoMem, IntrWillReturn] in {
                                                     [ LLVMMatchType<0>,
                                                       LLVMMatchType<0> ]>;
 
-  def int_fpbuiltin_spirv_ocl_sin : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
-                                                    [ LLVMMatchType<0> ]>;
-
   def int_fpbuiltin_sin : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
                                                     [ LLVMMatchType<0> ]>;
   def int_fpbuiltin_cos : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],

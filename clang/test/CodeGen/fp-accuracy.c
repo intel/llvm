@@ -272,7 +272,7 @@ void f1(float a, float b) {
 // CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_HIGH]]
-// CHECK: call float @tanf(float {{.*}})
+// CHECK: call float @llvm.fpbuiltin.tan.f32(float {{.*}}  #[[ATTR_HIGH]]
 //
 // CHECK-F1-LABEL: define dso_local void @f2
 // CHECK-F1: call float @llvm.cos.f32(float {{.*}})
@@ -288,7 +288,7 @@ void f1(float a, float b) {
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH]]
 // CHECK-F2: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
-// CHECK-F2: call float @tanf(float noundef {{.*}})
+// CHECK-F2: call float @llvm.fpbuiltin.tan.f32(float {{.*}})  #[[ATTR_F2_MEDIUM]]
 //
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f2
 // CHECK-SPIR: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_SYCL1]]
@@ -296,7 +296,7 @@ void f1(float a, float b) {
 // CHECK-SPIR: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_SYCL2]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_SYCL5]]
 // CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
-// CHECK-SPIR: call spir_func float @tanf(float noundef {{.*}})
+// CHECK-SPIR: call float @llvm.fpbuiltin.tan.f32(float {{.*}})  #[[ATTR_SYCL2]]
 
 // CHECK-LABEL: define dso_local void @f3
 // CHECK: call float @fake_exp10(float {{.*}})
