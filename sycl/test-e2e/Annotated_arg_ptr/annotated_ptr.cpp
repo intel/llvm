@@ -133,7 +133,7 @@ int main() {
   auto *r8 = malloc_shared<MyStruct<int>>(2, Q);
   auto *r9 = malloc_shared<MyStruct<int>>(2, Q);
 
-  //testing volatile and const volatile
+  // testing volatile and const volatile
   auto *e1 = malloc_shared<int>(1, Q);
   *e1 = 0;
   volatile int *e1_vol = e1;
