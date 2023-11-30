@@ -61,12 +61,17 @@ enum class ParameterKind : uint32_t {
 /// Different binary formats supported as input to the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
+/// Unique ID for each supported architecture in the SYCL implementation.
 using DeviceArchitecture = unsigned;
+
+/// ID common to every SPIR-V target architecture.
+///
+/// As an exception, SPIR-V architectures have a single common ID, as fused
+/// kernels will be reused across SPIR-V devices.
+static constexpr inline DeviceArchitecture SPIRVArch = -1;
 
 class TargetInfo {
 public:
-  static constexpr inline DeviceArchitecture SPIRVArch = -1;
-
   static constexpr TargetInfo get(BinaryFormat Format,
                                   DeviceArchitecture Arch) {
     if (Format == BinaryFormat::SPIRV) {
