@@ -40,11 +40,32 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
     simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
                                           int i) SYCL_ESIMD_FUNCTION;
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall SIMD_CALLEE_VOID(
-    simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {}
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    void __regcall SIMD_CALLEE_VOID(simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {}
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+class ESIMDSelector : public device_selector {
+  // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
+  virtual int operator()(const device &device) const {
+    if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
+      std::string filter_string(dev_filter);
+      if (filter_string.find("gpu") != std::string::npos)
+        return device.is_gpu() ? 1000 : -1;
+      if (filter_string.find("host") != std::string::npos)
+        return device.is_host() ? 1000 : -1;
+      std::cerr
+          << "Supported 'SYCL_DEVICE_FILTER' env var values are 'gpu' and "
+             "'host', '"
+          << filter_string << "' does not contain such substrings.\n";
+      return -1;
+    }
+    // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
+    return device.is_gpu() ? 1000 : -1;
+  }
+};
+#else
 class ESIMDSelector : public device_selector {
   // Require GPU device
   virtual int operator()(const device &device) const {
@@ -52,6 +73,8 @@ class ESIMDSelector : public device_selector {
       std::string selector_string(dev_selector);
       if (selector_string.find("gpu") != std::string::npos)
         return device.is_gpu() ? 1000 : -1;
+      if (selector_string.find("host") != std::string::npos)
+        return device.is_host() ? 1000 : -1;
       std::cerr
           << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values are 'gpu', "
           << selector_string << "' does not contain such substrings.\n";
@@ -61,6 +84,7 @@ class ESIMDSelector : public device_selector {
     return device.is_gpu() ? 1000 : -1;
   }
 };
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
@@ -249,8 +273,7 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
       simd<float, 8> val{ch};
       return uniform{val};
     };
-    auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
-                         uniform{simd<int, 5>{2}});
+    auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}}, uniform{simd<int, 5>{2}});
     static_assert(std::is_same_v<decltype(u), uniform<simd<float, 8>>>);
   }
   {
@@ -292,8 +315,7 @@ SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
   static_assert(std::is_same_v<decltype(x), uniform<char>>);
 }
 
-SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch,
-                             __regcall void(f)(simd<float, 16>, float)) {
+SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch, __regcall void(f)(simd<float, 16>, float)) {
   invoke_simd(sg, f, 1.f, uniform{a});
 }
 

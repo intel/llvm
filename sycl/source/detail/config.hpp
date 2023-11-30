@@ -244,6 +244,31 @@ const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
 const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+// ---------------------------------------
+// ONEAPI_DEVICE_SELECTOR support
+template <> class SYCLConfig<ONEAPI_DEVICE_SELECTOR> {
+  using BaseT = SYCLConfigBase<ONEAPI_DEVICE_SELECTOR>;
+
+public:
+  static ods_target_list *get() {
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    static bool Initialized = false;
+    static ods_target_list *DeviceTargets = nullptr;
+
+    if (Initialized) {
+      return DeviceTargets;
+    }
+    const char *ValStr = BaseT::getRawValue();
+    if (ValStr) {
+      DeviceTargets =
+          &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
+    }
+    Initialized = true;
+    return DeviceTargets;
+  }
+};
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
@@ -286,31 +311,6 @@ public:
   }
 };
 #endif //__INTEL_PREVIEW_BREAKING_CHANGES
-
-// ---------------------------------------
-// ONEAPI_DEVICE_SELECTOR support
-template <> class SYCLConfig<ONEAPI_DEVICE_SELECTOR> {
-  using BaseT = SYCLConfigBase<ONEAPI_DEVICE_SELECTOR>;
-
-public:
-  static ods_target_list *get() {
-    // Configuration parameters are processed only once, like reading a string
-    // from environment and converting it into a typed object.
-    static bool Initialized = false;
-    static ods_target_list *DeviceTargets = nullptr;
-
-    if (Initialized) {
-      return DeviceTargets;
-    }
-    const char *ValStr = BaseT::getRawValue();
-    if (ValStr) {
-      DeviceTargets =
-          &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
-    }
-    Initialized = true;
-    return DeviceTargets;
-  }
-};
 
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;

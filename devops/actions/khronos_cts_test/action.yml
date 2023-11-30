@@ -105,6 +105,7 @@ runs:
       echo "::endgroup::"
       echo "::group::Run testing"
       export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
+      export SYCL_DEVICE_FILTER=${{ matrix.sycl_device_filter }}
       ./build/bin/test_all --list-devices
       ./build/bin/test_all
       echo "::endgroup::"
