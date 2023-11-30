@@ -6,6 +6,8 @@
 //
 // XFAIL: cuda
 // FIXME: un-xfail the test once intel/llvm#11840 is resolved
+// UNSUPPORTED: windows
+// FIXME: re-enable the test on windows once intel/llvm#12011 is resolved
 //
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
 // RUN: %{run} %t.out
