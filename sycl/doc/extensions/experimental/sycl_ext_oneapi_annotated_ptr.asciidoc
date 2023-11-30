@@ -574,7 +574,7 @@ class annotated_ref {
 
     // OP is: +, -, !, ~
     template <typename O=T>
-    auto operatorOP(const annotated_ref& a) -> decltype(OP std::declval<O>());
+    auto operatorOP() -> decltype(OP std::declval<O>());
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -732,7 +732,7 @@ a|
 [source,c++]
 ----
 template <typename O=T>
-auto operatorOP(const annotated_ref& a) -> decltype(OP std::declval<O>());
+auto operatorOP() -> decltype(OP std::declval<O>());
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+]#, [code]#-#, [code]#!#, [code]#~#.
