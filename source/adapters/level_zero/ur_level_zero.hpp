@@ -30,6 +30,7 @@
 #include "image.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "physical_mem.hpp"
 #include "platform.hpp"
 #include "program.hpp"
 #include "queue.hpp"
