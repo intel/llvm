@@ -571,6 +571,11 @@ returns:
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`(patternSize & (patternSize - 1)) != 0`"
+        - "`size % patternSize != 0`"
+        - "`offset % patternSize != 0`"
         - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -629,6 +634,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -686,6 +693,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -735,6 +744,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -1077,6 +1088,9 @@ desc: "Enqueue a command to prefetch USM memory"
 class: $xEnqueue
 name: USMPrefetch
 ordinal: "0"
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
+    is not supported, the prefetch hint will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -1117,10 +1131,13 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to set USM memory advice" 
+desc: "Enqueue a command to set USM memory advice"
 class: $xEnqueue
 name: USMAdvise
 ordinal: "0"
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. 
+    If a memory advice hint is not supported, it will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -1441,7 +1458,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent 
       desc: |
-            [out] returns an event object that identifies this write command 
+            [out][optional] returns an event object that identifies this write command
             and can be used to query or queue a wait for this command to complete.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:

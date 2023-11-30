@@ -65,13 +65,13 @@ TEST_P(urMemGetInfoTest, InvalidNullPointerParamValue) {
     size_t mem_size = 0;
     ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(mem_size),
                                   nullptr, nullptr),
-                     UR_RESULT_ERROR_INVALID_SIZE);
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(
         urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 using urMemGetInfoImageTest = uur::urMemImageTestWithParam<ur_mem_info_t>;
