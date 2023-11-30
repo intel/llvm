@@ -11,6 +11,8 @@
 
 #include <ur/ur.hpp>
 
+#include "common.hpp"
+
 struct ur_device_handle_t_ {
 private:
   using native_type = CUdevice;
