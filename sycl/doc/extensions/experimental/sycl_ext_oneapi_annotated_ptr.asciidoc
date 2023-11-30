@@ -549,13 +549,13 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    T operator=(T) const;
+
+    template <typename O>         //available only if O is not an annotated_ref type
+    T operator=(O&&) const;
     T operator=(const annotated_ref&) const;
 
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    // is_ann_ref_v<O> returns true if O is a annotated_ref<T2,P2> type
-    // where T2 and P2 can be any annotated_ref supported types
-    template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+    template <typename O>         //available only if O is not an annotated_ref type
     T operatorOP(O&& a) const;
     T operatorOP(const annotated_ref &b) const;
 
@@ -568,7 +568,7 @@ class annotated_ref {
     template <typename O>
     auto friend operatorOP(O&& a, const annotated_ref& b) ->
                decltype(std::forward<O>(a) OP std::declval<T>());
-    template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+    template <typename O>         //available only if O is not an annotated_ref type
     auto friend operatorOP(const annotated_ref& a, O&& b) ->
                decltype(std::declval<T>() OP std::forward<O>(b));
 
@@ -599,21 +599,13 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
-T operatorOP(O&& a) const;
+template <typename O>
+T operator=(O&&) const;
 ----
 |
-Writes an object of type `O` to the location referenced by this wrapper,
-applying the annotations when the object is stored to memory.
+Writes an object of type `O` to the location referenced by this wrapper. 
+`O` cannot be a type of `annotated_ref`.
 
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operatorOP(const annotated_ref &a) const;
-----
-|
-Writes an object referenced by another `annotated_ref` to the location referenced by this wrapper,
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
@@ -637,14 +629,13 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+template <typename O>
 T operatorOP(O&& a) const;
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
-Compound assignment operators for type `O`. `O` cannnot be a type of `annotated_ref<T2, P2>`
-while T2 and P2 can be any `annotated_ref` supported types.
+Compound assignment operators for type `O`. `O` cannot be a type of `annotated_ref`.
 
 Return result by value.
 
@@ -711,8 +702,8 @@ Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#
 Defines a hidden friend operator `OP` overload for type `O` and `annotated_ref`.
 
 Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
-`operatorOP(O, T)` and is available only if `operatorOP(O, T)` is well formed. The value and result
-is the same as the result of `operatorOP(O, T)` applied to the objects of
+`operatorOP(O&&, T&&)` and is available only if `operatorOP(O&&, T&&)` is well formed. The value and result
+is the same as the result of `operatorOP(O&&, T&&)` applied to the objects of
 type `O` and `T`.
 
 The annotations from `PropertyListT` are applied when the object `b` is loaded from memory. 
@@ -720,19 +711,19 @@ The annotations from `PropertyListT` are applied when the object `b` is loaded f
 a|
 [source,c++]
 ----
-template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+template <typename O>
 auto friend operatorOP(const annotated_ref& a, O&& b) ->
 		   decltype(std::declval<T>() OP std::forward<O>(b));
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#||#.
 
-Defines a hidden friend operator `OP` overload for type `annotated_ref` and `O`. `O` cannnot be
-a type of `annotated_ref<T2, P2>` while T2 and P2 can be any `annotated_ref` supported types.
+Defines a hidden friend operator `OP` overload for type `annotated_ref` and `O`. `O` cannot be
+a type of `annotated_ref`.
 
 Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
-`operatorOP(T, O)` and is available only if `operatorOP(T, O)` is well formed. The value and result
-is the same as the result of `operatorOP(T, O)` applied to the objects of
+`operatorOP(T&&, O&&)` and is available only if `operatorOP(T&&, O&&)` is well formed. The value and result
+is the same as the result of `operatorOP(T&&, O&&)` applied to the objects of
 type `T` and `O`.
 
 The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 

@@ -69,15 +69,15 @@ class annotated_ref {
 };
 
 namespace detail {
-template <class T> struct is_ann_ref : std::false_type {};
+template <class T> struct is_ann_ref_impl : std::false_type {};
 template <class T, class P>
-struct is_ann_ref<sycl::ext::oneapi::experimental::annotated_ref<T, P>>
+struct is_ann_ref_impl<annotated_ref<T, P>>
     : std::true_type {};
 template <class T, class P>
-struct is_ann_ref<const sycl::ext::oneapi::experimental::annotated_ref<T, P>>
+struct is_ann_ref_impl<const annotated_ref<T, P>>
     : std::true_type {};
 template <class T>
-constexpr bool is_ann_ref_v = is_ann_ref<std::remove_reference_t<T>>::value;
+constexpr bool is_ann_ref_v = is_ann_ref_impl<std::remove_reference_t<T>>::value;
 } // namespace detail
 
 template <typename T, typename... Props>
@@ -110,13 +110,12 @@ public:
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
   T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    *__builtin_intel_sycl_ptr_annotation(
+    return *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
         detail::PropertyMetaInfo<Props>::value...) = std::forward<O>(Obj);
 #else
-    *m_Ptr = std::forward<O>(Obj);
+    return *m_Ptr = std::forward<O>(Obj);
 #endif
-    return std::forward<O>(Obj);
   }
 
   template <class O, class P>
@@ -128,30 +127,30 @@ public:
   // propagate compound operators
 #define PROPAGATE_OP(op)                                                       \
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
-  T operator op##=(O &&rhs) const {                                            \
+  T operator op(O &&rhs) const {                                            \
     T t = *this;                                                               \
-    t op## = std::forward<O>(rhs);                                             \
+    t op std::forward<O>(rhs);                                             \
     *this = t;                                                                 \
     return t;                                                                  \
   }                                                                            \
   template <class O, class P>                                                  \
-  T operator op##=(const annotated_ref<O, P> &rhs) const {                     \
+  T operator op(const annotated_ref<O, P> &rhs) const {                     \
     T t = *this;                                                               \
     O t2 = rhs;                                                                \
-    t op## = t2;                                                               \
+    t op t2;                                                               \
     *this = t;                                                                 \
     return t;                                                                  \
   }
-  PROPAGATE_OP(+)
-  PROPAGATE_OP(-)
-  PROPAGATE_OP(*)
-  PROPAGATE_OP(/)
-  PROPAGATE_OP(%)
-  PROPAGATE_OP(^)
-  PROPAGATE_OP(&)
-  PROPAGATE_OP(|)
-  PROPAGATE_OP(<<)
-  PROPAGATE_OP(>>)
+  PROPAGATE_OP(+=)
+  PROPAGATE_OP(-=)
+  PROPAGATE_OP(*=)
+  PROPAGATE_OP(/=)
+  PROPAGATE_OP(%=)
+  PROPAGATE_OP(^=)
+  PROPAGATE_OP(&=)
+  PROPAGATE_OP(|=)
+  PROPAGATE_OP(<<=)
+  PROPAGATE_OP(>>=)
 #undef PROPAGATE_OP
 
   // propagate binary operators
@@ -187,6 +186,7 @@ public:
 #undef PROPAGATE_OP
 
 // Propagate unary operators
+// by setting a default template we get SFINAE to kick in
 #define PROPAGATE_OP(op)                                                       \
   template <typename O = T>                                                    \
   auto operator op() const->decltype(op std::declval<O>()) {                   \
