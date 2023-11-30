@@ -300,9 +300,9 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
-    throw feature_not_supported(
-        "SPIR-V online compilation is not supported in this context",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
+        "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadata();
@@ -622,6 +622,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   }
 }
 
+// When caching is enabled, the returned PiProgram will already have
+// its ref count incremented.
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, bool JITCompilationIsRequired) {
@@ -739,6 +741,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   return *BuildResult->Ptr.load();
 }
 
+// When caching is enabled, the returned PiProgram and PiKernel will
+// already have their ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
@@ -1065,8 +1069,8 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-    throw feature_not_supported("Recompiling AOT image is not supported",
-                                PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Recompiling AOT image is not supported");
   }
 }
 
@@ -2432,6 +2436,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }
 
+// When caching is enabled, the returned PiKernel will already have
+// its ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,
