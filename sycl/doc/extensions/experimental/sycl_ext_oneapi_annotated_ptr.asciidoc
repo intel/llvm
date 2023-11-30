@@ -793,6 +793,7 @@ the alignment is set up.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|5|2023-11-30|Brox Chen|API fixes: operators fowarding for annnotated_ref
 |4|2023-06-28|Roland Schulz|API fixes: constructors and annotated_ref assignment
 |3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
 |2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*
