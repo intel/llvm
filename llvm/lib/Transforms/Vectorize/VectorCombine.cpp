@@ -31,6 +31,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <numeric>
+#include <queue>
 
 #define DEBUG_TYPE "vector-combine"
 #include "llvm/Transforms/Utils/InstructionWorklist.h"

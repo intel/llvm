@@ -7,6 +7,9 @@
 //
 // TODO enable cuda once buffer issue investigated and fixed
 // UNSUPPORTED: cuda
+//
+// Host to device copy command not supported for OpenCL
+// UNSUPPORTED: opencl
 
 #define GRAPH_E2E_RECORD_REPLAY
 
