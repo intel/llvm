@@ -2445,7 +2445,7 @@ void LLVMAddTargetDependentFunctionAttr(LLVMValueRef Fn, const char *A,
 
 unsigned LLVMCountParams(LLVMValueRef FnRef) {
   // This function is strictly redundant to
-  //   LLVMCountParamTypes(LLVMGetElementType(LLVMTypeOf(FnRef)))
+  //   LLVMCountParamTypes(LLVMGlobalGetValueType(FnRef))
   return unwrap<Function>(FnRef)->arg_size();
 }
 
