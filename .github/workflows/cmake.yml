@@ -283,10 +283,13 @@ jobs:
           {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
         ]
 
-        # TODO: building level zero loader on windows-2019 is currently broken
+        # TODO: building level zero loader on windows-2019 and clang-cl.exe is currently broken
         exclude:
          - os: 'windows-2019'
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+         - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+           compiler: {c: clang-cl.exe, cxx: clang-cl.exe}
+
         build_type: [Debug, Release]
         compiler: [{c: cl.exe, cxx: cl.exe}, {c: clang-cl.exe, cxx: clang-cl.exe}]
     runs-on: ${{matrix.os}}
