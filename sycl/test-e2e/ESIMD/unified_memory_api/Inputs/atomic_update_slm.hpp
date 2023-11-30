@@ -675,17 +675,17 @@ int test_with_mask(queue q) {
 
   if constexpr (UsePVCFeatures) {
     passed &=
-        test_fp_types_and_sizes<ImplLSCFmax, UseMask, UseAcc, UsePVCFeatures>(
+        test_fp_types_and_sizes<ImplLSCFmax, UseMask, UsePVCFeatures, UseAcc>(
             q);
     passed &=
-        test_fp_types_and_sizes<ImplLSCFmin, UseMask, UseAcc, UsePVCFeatures>(
+        test_fp_types_and_sizes<ImplLSCFmin, UseMask, UsePVCFeatures, UseAcc>(
             q);
 
     // Check load/store operations.
     passed &=
-        test_int_types_and_sizes<ImplLoad, UseMask, UseAcc, UsePVCFeatures>(q);
+        test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &=
-        test_int_types_and_sizes<ImplStore, UseMask, UseAcc, UsePVCFeatures>(q);
+        test_int_types_and_sizes<ImplStore, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &=
         test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures, UseAcc>(q);
   }
