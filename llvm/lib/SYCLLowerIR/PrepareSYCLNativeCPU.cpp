@@ -224,7 +224,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy =
+  FunctionType *FTy =
       FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
