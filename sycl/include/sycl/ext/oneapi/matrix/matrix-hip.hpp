@@ -109,7 +109,7 @@ void load_accumulator_layoutT(
     joint_matrix_hip<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, const Group &sg) {
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
@@ -180,7 +180,7 @@ void load_accumulator_hip(
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout layout, Group &sg) {
+    sycl::ext::oneapi::experimental::matrix::layout layout, const Group &sg) {
   if (layout == sycl::ext::oneapi::experimental::matrix::layout::row_major)
     load_accumulator_layoutT<
         sycl::ext::oneapi::experimental::matrix::layout::row_major>(res, src,
@@ -203,7 +203,7 @@ template <
         std::is_same_v<S, std::remove_const_t<T>>>>
 void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                            multi_ptr<T, Space, IsDecorated> src, size_t stride,
-                           Group &sg) {
+                           const Group &sg) {
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
@@ -243,7 +243,7 @@ void store_layoutT(
     const joint_matrix_hip<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride, const Group &sg) {
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
@@ -312,7 +312,7 @@ void joint_matrix_store_hip(
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout layout, Group &sg) {
+    sycl::ext::oneapi::experimental::matrix::layout layout, const Group &sg) {
   if (sycl::ext::oneapi::experimental::matrix::layout::row_major == layout) {
     store_layoutT<Group,
                   sycl::ext::oneapi::experimental::matrix::layout::row_major>(
