@@ -956,6 +956,12 @@ private:
   /// For available scheduling models FDIV + two independent FMULs are much
   /// faster than two FDIVs.
   unsigned combineRepeatedFPDivisors() const override;
+
+  SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
+                        SmallVectorImpl<SDNode *> &Created) const override;
+
+  bool shouldFoldSelectWithSingleBitTest(EVT VT,
+                                         const APInt &AndMask) const override;
 };
 
 namespace RISCV {

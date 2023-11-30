@@ -30,7 +30,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -56,13 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 04799e735a7ddd0839568b25bf03fa8f77160b7d
-  # Merge: 534071e5 4cf02cb9
+  # commit b3de31844ca45d1815c54d85f248f13ad81b6755
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Nov 20 10:24:50 2023 +0000
-  #     Merge pull request #1048 from callumfare/opencl_fix_urMemBufferCreate_leak
-  #     [OpenCL] Fix memory leak and coverity issue with struct-to-array casts
-  set(UNIFIED_RUNTIME_TAG 04799e735a7ddd0839568b25bf03fa8f77160b7d)
+  # Date:   Tue Nov 28 16:21:43 2023 +0000
+  #     Set version to v0.8.1
+  set(UNIFIED_RUNTIME_TAG v0.8.1)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
