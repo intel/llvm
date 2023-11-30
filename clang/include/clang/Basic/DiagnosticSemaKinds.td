@@ -3543,7 +3543,7 @@ def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
 def warn_reqd_sub_group_attribute_n
     : Warning<"attribute argument %0 is invalid and will be ignored; %1 "
               "requires sub_group size %2">,
-  InGroup<IgnoredAttributes>;
+  InGroup<IncorrectSubGroupSize>;
 def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
   " exception specification; attribute ignored">,
   InGroup<IgnoredAttributes>;

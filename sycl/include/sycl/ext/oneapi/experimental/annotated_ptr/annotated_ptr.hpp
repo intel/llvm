@@ -32,7 +32,7 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const {                                       \
+  T operator op##=(T rhs) const {                                              \
     T t = *this;                                                               \
     t op## = rhs;                                                              \
     *this = t;                                                                 \
@@ -78,6 +78,10 @@ template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
+  static_assert(
+      std::is_trivially_copyable_v<T>,
+      "annotated_ref can only encapsulate a trivially-copyable type!");
+
 private:
   T *m_Ptr;
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
@@ -95,7 +99,7 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  T operator=(T Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -178,6 +182,11 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
+  static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
+                "annotated_ptr can only encapsulate either "
+                "a trivially-copyable type "
+                "or void!");
+
   // buffer_location and alignment are allowed for annotated_ref
   // Cache controls are allowed for annotated_ptr
   using allowed_properties =
@@ -249,6 +258,7 @@ public:
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(Ptr) {
+
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,
