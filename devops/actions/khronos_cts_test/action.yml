@@ -14,6 +14,9 @@ inputs:
     default: 'llvm_sycl.tar.zst'
   decompress_command:
     default: zstd
+  sycl_device_filter:
+    description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
+    required: true
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
@@ -102,7 +105,6 @@ runs:
       echo "::endgroup::"
       echo "::group::Run testing"
       export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
-      export SYCL_DEVICE_FILTER=${{ matrix.sycl_device_filter }}
       ./build/bin/test_all --list-devices
       ./build/bin/test_all
       echo "::endgroup::"

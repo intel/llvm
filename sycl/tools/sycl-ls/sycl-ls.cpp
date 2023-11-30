@@ -117,6 +117,18 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  const char *filter = std::getenv("SYCL_DEVICE_FILTER");
+  if (filter) {
+    std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
+              << filter << "." << std::endl;
+    std::cerr
+        << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
+        << std::endl
+        << std::endl;
+  }
+#endif
+
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {
     std::cerr

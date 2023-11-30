@@ -167,9 +167,16 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
   sycl::detail::AllowListParsedT ExpectedValue{
-      {{"BackendName", "opencl"}},     {{"BackendName", "level_zero"}},
-      {{"BackendName", "cuda"}},       {{"BackendName", "hip"}},
-      {{"BackendName", "native_cpu"}}, {{"BackendName", "*"}}};
+      {{"BackendName", "host"}},
+      {{"BackendName", "opencl"}},
+      {{"BackendName", "level_zero"}},
+      {{"BackendName", "cuda"}},
+      {{"BackendName", "hip"}},
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      {{"BackendName", "esimd_emulator"}},
+#endif
+      {{"BackendName", "native_cpu"}},
+      {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
@@ -182,11 +189,10 @@ TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   }
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceType", "cpu"}},
-                                               {{"DeviceType", "gpu"}},
-                                               {{"DeviceType", "acc"}},
-                                               {{"DeviceType", "fpga"}},
-                                               {{"DeviceType", "*"}}};
+  sycl::detail::AllowListParsedT ExpectedValue{
+      {{"DeviceType", "host"}}, {{"DeviceType", "cpu"}},
+      {{"DeviceType", "gpu"}},  {{"DeviceType", "acc"}},
+      {{"DeviceType", "fpga"}}, {{"DeviceType", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
