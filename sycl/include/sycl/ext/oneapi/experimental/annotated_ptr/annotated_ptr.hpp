@@ -1,3 +1,4 @@
+//
 //==----------- annotated_ptr.hpp - SYCL annotated_ptr extension -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -59,16 +60,6 @@ struct PropertiesFilter {
 };
 } // namespace
 
-namespace detail {
-template <class O> struct get_T {
-  using type = O;
-};
-template <class O, class PL> struct get_T<annotated_ref<O, PL>> {
-  using type = O;
-};
-template <class O> using remove_ann_ref_impl = typename get_T<O>::type;
-} // namespace detail
-
 template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -76,6 +67,18 @@ class annotated_ref {
       is_property_list<PropertyListT>::value;
   static_assert(is_valid_property_list, "Property list is invalid.");
 };
+
+namespace detail {
+template <class T> struct is_ann_ref : std::false_type {};
+template <class T, class P>
+struct is_ann_ref<sycl::ext::oneapi::experimental::annotated_ref<T, P>>
+    : std::true_type {};
+template <class T, class P>
+struct is_ann_ref<const sycl::ext::oneapi::experimental::annotated_ref<T, P>>
+    : std::true_type {};
+template <class T>
+constexpr bool is_ann_ref_v = is_ann_ref<std::remove_reference_t<T>>::value;
+} // namespace detail
 
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
@@ -88,6 +91,7 @@ private:
 public:
   annotated_ref(const annotated_ref &) = delete;
 
+  // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return *__builtin_intel_sycl_ptr_annotation(
@@ -98,24 +102,39 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  // assignment operator with annotaion
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
+  T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = Obj;
+        detail::PropertyMetaInfo<Props>::value...) = std::forward<O>(Obj);
 #else
-    *m_Ptr = Obj;
+    *m_Ptr = std::forward<O>(Obj);
 #endif
-    return Obj;
+    return std::forward<O>(Obj);
   }
 
-  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
+  template <class O, class P>
+  T operator=(const annotated_ref<O, P> &Ref) const {
+    O t2 = Ref;
+    return *this = t2;
+  }
 
   // propagate compound operators
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const {                                       \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  T operator op##=(O &&rhs) const {                                            \
     T t = *this;                                                               \
-    t op## = rhs;                                                              \
+    t op## = std::forward<O>(rhs);                                             \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }                                                                            \
+  template <class O, class P>                                                  \
+  T operator op##=(const annotated_ref<O, P> &rhs) const {                     \
+    T t = *this;                                                               \
+    O t2 = rhs;                                                                \
+    t op## = t2;                                                               \
     *this = t;                                                                 \
     return t;                                                                  \
   }
@@ -131,14 +150,17 @@ public:
   PROPAGATE_OP(>>)
 #undef PROPAGATE_OP
 
-  // Propgate binary operators
+  // propagate binary operators
 #define PROPAGATE_OP(op)                                                       \
-  template <class T1, class T2>                                                \
-  friend auto operator op(const T1 &a, const T2 &b)                            \
-      ->decltype(detail::remove_ann_ref<T1> _impl(a)                           \
-                     op detail::remove_ann_ref_impl<T2>(b)) {                  \
-    return detail::remove_ann_ref_impl<T1>(a)                                  \
-        op detail::remove_ann_ref_impl<T2>(b);                                 \
+  template <class O>                                                           \
+  friend auto operator op(O &&a, const annotated_ref &b)                       \
+      ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
+    return std::forward<O>(a) op T(b);                                         \
+  }                                                                            \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  friend auto operator op(const annotated_ref &a, O &&b)                       \
+      ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
+    return T(a) op std::forward<O>(b);                                         \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -160,11 +182,11 @@ public:
   PROPAGATE_OP(||)
 #undef PROPAGATE_OP
 
-  // Propgate unary operators
+// Propagate unary operators
 #define PROPAGATE_OP(op)                                                       \
-  friend auto operator op(const annotated_ref &a)                              \
-      ->decltype(op detail::declval<T>()) {                                    \
-    return op T(a);                                                            \
+  template <typename O = T>                                                    \
+  auto operator op() const->decltype(op std::declval<O>()) {                   \
+    return op O(*this);                                                        \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -172,6 +194,7 @@ public:
   PROPAGATE_OP(~)
 #undef PROPAGATE_OP
 
+  // Propagate inc/dec operators
   T operator++() const {
     T t = *this;
     ++t;

@@ -526,22 +526,30 @@ class annotated_ref {
     operator T() const;
     T operator=(const T &) const;
     T operator=(const annotated_ref&) const;
+
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(const T &) const;
+    // is_ann_ref_v<O> returns true if O is a annotated_ref<T2,P2> type
+    // where T2 and P2 can be any annotated_ref supported types
+    template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+    T operatorOP(O&& a) const;
+    T operatorOP(const annotated_ref &b) const;
+
     T operator++() const;
     T operator++(int) const;
     T operator--() const;
     T operator--(int) const;
 
     // OP is: +, -, *, /, %, <<, >>, &, |, ^, <, <=, >, >=, ==, ~=, &&, ||
-    // remove_ann_ref<T> is an exposition only type alias which 
-    // for annotated_ref<T, ...> is T and for any other type is that type.
-    template <class A, class B>
-    auto friend operatorOP(const A& a, const B& b) ->
-               decltype(remove_ann_ref<A>(a) OP remove_ann_ref<B>(b));
+    template <typename O>
+    auto friend operatorOP(O&& a, const annotated_ref& b) ->
+               decltype(std::forward<O>(a) OP std::declval<T>());
+    template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+    auto friend operatorOP(const annotated_ref& a, O&& b) ->
+               decltype(std::declval<T>() OP std::forward<O>(b));
 
     // OP is: +, -, !, ~
-    auto friend operatorOP(const annotated_ref& a) -> decltype(OP std::declval<T>());
+    template <typename O=T>
+    auto operatorOP(const annotated_ref& a) -> decltype(OP std::declval<O>());
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -566,10 +574,21 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-T operator=(const T &) const;
+template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+T operatorOP(O&& a) const;
 ----
 |
-Writes an object of type `T` to the location referenced by this wrapper,
+Writes an object of type `O` to the location referenced by this wrapper,
+applying the annotations when the object is stored to memory.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operatorOP(const annotated_ref &a) const;
+----
+|
+Writes an object referenced by another `annotated_ref` to the location referenced by this wrapper,
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
@@ -593,18 +612,48 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP(const T &) const;
+template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+T operatorOP(O&& a) const;
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
-Compound assignment operators. Return result by value.
+Compound assignment operators for type `O`. `O` cannnot be a type of `annotated_ref<T2, P2>`
+while T2 and P2 can be any `annotated_ref` supported types.
+
+Return result by value.
+
+Available only if the corresponding assignment operator OP is available for `T` taking a type of `O`.
+Equivalent to:
+```c++
+T tmp = *this;     // Reads from memory
+                   // with annotations
+tmp OP std::forward<O>(a);
+*this = tmp;       // Writes to memory
+                   // with annotations
+return tmp;
+```
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operatorOP(const annotated_ref &b) const;
+----
+a|
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
+
+Compound assignment operators for type `annotated_ref`.
+
+Return result by value.
+
 Available only if the corresponding assignment operator OP is available for `T`.
 Equivalent to:
 ```c++
 T tmp = *this;     // Reads from memory
                    // with annotations
-tmp OP val;
+T tmp2 = b;        // Reads from memory
+                   // with annotations
+tmp OP b;
 *this = tmp;       // Writes to memory
                    // with annotations
 return tmp;
@@ -627,43 +676,57 @@ The annotations are applied when the object `T` is loaded and stored to the memo
 a|
 [source,c++]
 ----
-template <class A, class B>
-auto friend operatorOP(const A& a, const B& b) ->
-		   decltype(remove_ann_ref<A>(a) OP remove_ann_ref<B>(b));
+template <typename O>
+auto friend operatorOP(O&& a, const annotated_ref& b) ->
+		   decltype(std::forward<O>(a) OP std::declval<T>());
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#||#.
 
-Defines a hidden friend operator `OP` overload for types `A` and `B`. 
+Defines a hidden friend operator `OP` overload for type `O` and `annotated_ref`.
 
-When `A` is an `annotated_ref<T, PropertyListT>`, `remove_ann_ref<A>` returns `T`, otherwise
-returns `A`. Same applied to `B`. 
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(O, T)` and is available only if `operatorOP(O, T)` is well formed. The value and result
+is the same as the result of `operatorOP(O, T)` applied to the objects of
+type `O` and `T`.
 
-Let `operatorOP` denotes the operator used and `X`, `Y` denote the type returned by `remove_ann_ref<A>`
-and `remove_ann_ref<B>`.
-
-The overloaded operator `operatorOP` utilizes `operatorOP(X, Y)` and
-is available only if `operatorOP(X, Y)` is well formed. The value and result
-is the same as the result of `operatorOP(X, Y)` applied to the objects of
-type `X` and `Y`.
-
-If type `A` or `B` is an `annotated_ref<T, PropertyListT>`, the annotations from `PropertyListT`
-are applied when the object `a` or `b` is loaded from memory. 
+The annotations from `PropertyListT` are applied when the object `b` is loaded from memory. 
 
 a|
 [source,c++]
 ----
-auto friend operatorOP(const annotated_ref& a) -> decltype(OP std::declval<T>());
+template <typename O, typename = std::enable_if_t<!is_ann_ref_v<O>>>
+auto friend operatorOP(const annotated_ref& a, O&& b) ->
+		   decltype(std::declval<T>() OP std::forward<O>(b));
 ----
 a|
-Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#!#.
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#||#.
 
-Defines a hidden friend operator `OP` overload for types `T`.
+Defines a hidden friend operator `OP` overload for type `annotated_ref` and `O`. `O` cannnot be
+a type of `annotated_ref<T2, P2>` while T2 and P2 can be any `annotated_ref` supported types.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(T, O)` and is available only if `operatorOP(T, O)` is well formed. The value and result
+is the same as the result of `operatorOP(T, O)` applied to the objects of
+type `T` and `O`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
+
+a|
+[source,c++]
+----
+template <typename O=T>
+auto operatorOP(const annotated_ref& a) -> decltype(OP std::declval<O>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#, [code]#!#, [code]#~#.
+
+Defines a operator `OP` overload for types `O` where the default type is `T`.
 
 Let `operatorOP` denotes the operator used. The overloaded operator
-`operatorOP` utilizes `operatorOP(T)` and is available only if `operatorOP(T)`
-is well formed. The value and result is the same as the result of `operatorOP(T)`
-applied to the objects of type `T`.
+`operatorOP` utilizes `operatorOP(O)` and is available only if `operatorOP(O)`
+is well formed. The value and result is the same as the result of `operatorOP(O)`
+applied to the objects of type `O`.
 
 The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
 
