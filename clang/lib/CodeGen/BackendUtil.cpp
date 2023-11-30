@@ -115,6 +115,11 @@ static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
     cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
 
+// Re-link builtin bitcodes after optimization
+cl::opt<bool> ClRelinkBuiltinBitcodePostop(
+    "relink-builtin-bitcode-postop", cl::Optional,
+    cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
+
 static cl::opt<bool> SYCLNativeCPURename(
     "sycl-native-cpu-rename", cl::init(false),
     cl::desc("Rename kernel functions for SYCL Native CPU"));
