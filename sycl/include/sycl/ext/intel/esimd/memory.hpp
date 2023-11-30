@@ -3561,7 +3561,7 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>>
+template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
   // uint16_t, non-power of two, and operations wider than 32 are supported only by LSC.
@@ -3580,9 +3580,10 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
       return Res.template bit_cast_view<T>();
     }
   } else {
-    detail::check_atomic<Op, Tx, N, 0>();
+    detail::check_atomic<Op, T, N, 0>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
+    using Tx = detail::__raw_t<T>;
     return __esimd_dword_atomic0<Op, Tx, N>(mask.data(), si,
                                             byte_offset.data());
   }
@@ -3608,7 +3609,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<uint32_t, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
@@ -3722,7 +3723,7 @@ atomic_update(AccessorT lacc,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<uint32_t, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
@@ -3733,18 +3734,19 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                                     detail::lsc_data_size::default_size>(
           byte_offset, src0, mask);
    } else if constexpr (Op == atomic_op::store) {
-    if constexpr (std::is_integral_v<Tx>) {
-      return slm_atomic_update<atomic_op::xchg, Tx, N>(byte_offset, src0, mask);
+    if constexpr (std::is_integral_v<T>) {
+      return slm_atomic_update<atomic_op::xchg, T, N>(byte_offset, src0, mask);
     } else {
-      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      using Tint = detail::uint_type_t<sizeof(T)>;
       simd<Tint, N> Res = slm_atomic_update<atomic_op::xchg, Tint, N>(
           byte_offset, src0.template bit_cast_view<Tint>(), mask);
-      return Res.template bit_cast_view<Tx>();
+      return Res.template bit_cast_view<T>();
     }
   } else {
-    detail::check_atomic<Op, Tx, N, 1>();
+    detail::check_atomic<Op, T, N, 1>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
+    using Tx = detail::__raw_t<T>;
     return __esimd_dword_atomic1<Op, Tx, N>(mask.data(), si, byte_offset.data(),
                                             src0.data());
   }
@@ -3767,7 +3769,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset,
@@ -3791,7 +3793,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
@@ -3815,7 +3817,7 @@ slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
@@ -4013,7 +4015,7 @@ atomic_update(AccessorT lacc,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>>
+template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
@@ -4026,9 +4028,10 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                                           detail::lsc_data_size::default_size>(
         byte_offset, src1, src0, mask);
   } else {
-    detail::check_atomic<Op, Tx, N, 2>();
+    detail::check_atomic<Op, T, N, 2>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
+    using Tx = detail::__raw_t<T>;
     return __esimd_dword_atomic2<Op, Tx, N>(mask.data(), si, byte_offset.data(),
                                             src0.data(), src1.data());
   }
@@ -4051,7 +4054,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
@@ -4076,7 +4079,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset,
@@ -4103,7 +4106,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset,
@@ -4130,7 +4133,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
@@ -4156,7 +4159,7 @@ slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
@@ -4184,7 +4187,7 @@ slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
@@ -4213,7 +4216,7 @@ slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
+template <atomic_op Op, typename T, int N,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
