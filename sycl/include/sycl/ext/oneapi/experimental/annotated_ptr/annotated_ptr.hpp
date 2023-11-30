@@ -71,13 +71,12 @@ class annotated_ref {
 namespace detail {
 template <class T> struct is_ann_ref_impl : std::false_type {};
 template <class T, class P>
-struct is_ann_ref_impl<annotated_ref<T, P>>
-    : std::true_type {};
+struct is_ann_ref_impl<annotated_ref<T, P>> : std::true_type {};
 template <class T, class P>
-struct is_ann_ref_impl<const annotated_ref<T, P>>
-    : std::true_type {};
+struct is_ann_ref_impl<const annotated_ref<T, P>> : std::true_type {};
 template <class T>
-constexpr bool is_ann_ref_v = is_ann_ref_impl<std::remove_reference_t<T>>::value;
+constexpr bool is_ann_ref_v =
+    is_ann_ref_impl<std::remove_reference_t<T>>::value;
 } // namespace detail
 
 template <typename T, typename... Props>
@@ -111,8 +110,9 @@ public:
   T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return *__builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = std::forward<O>(Obj);
+               m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+               detail::PropertyMetaInfo<Props>::value...) =
+               std::forward<O>(Obj);
 #else
     return *m_Ptr = std::forward<O>(Obj);
 #endif
@@ -127,17 +127,17 @@ public:
   // propagate compound operators
 #define PROPAGATE_OP(op)                                                       \
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
-  T operator op(O &&rhs) const {                                            \
+  T operator op(O &&rhs) const {                                               \
     T t = *this;                                                               \
-    t op std::forward<O>(rhs);                                             \
+    t op std::forward<O>(rhs);                                                 \
     *this = t;                                                                 \
     return t;                                                                  \
   }                                                                            \
   template <class O, class P>                                                  \
-  T operator op(const annotated_ref<O, P> &rhs) const {                     \
+  T operator op(const annotated_ref<O, P> &rhs) const {                        \
     T t = *this;                                                               \
     O t2 = rhs;                                                                \
-    t op t2;                                                               \
+    t op t2;                                                                   \
     *this = t;                                                                 \
     return t;                                                                  \
   }
