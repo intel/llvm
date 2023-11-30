@@ -216,6 +216,7 @@ static cl::opt<std::string> DescriptorName(
         "and makes it globally visible"),
     cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
 
+// clang-format off
 /// batch mode - All input files are treated as a table file.  One table file per target.
 ///            - Table files consist of a table of filenames that provide
 ///            - Code, Symbols, Properties, etc.
@@ -233,6 +234,7 @@ static cl::opt<bool> BatchMode(
              "    -kind=openmp -target=spir64_gen table1.txt\n"
              "    -kind=openmp -target=spir64     table2.txt"),
     cl::cat(ClangOffloadWrapperCategory));
+// clang-format on
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
