@@ -1,6 +1,6 @@
 // REQUIRES: fusion,gpu,hip
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu;hip:gpu %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "COMPUTATION ERROR" --implicit-check-not "WRONG INTERNALIZATION"
+// RUN: env SYCL_RT_WARNING_LEVEL=1 env ONEAPI_DEVICE_SELECTOR=opencl:cpu;hip:gpu %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "COMPUTATION ERROR" --implicit-check-not "WRONG INTERNALIZATION"
 
 #include "./jit_caching.h"
 
