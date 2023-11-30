@@ -53,10 +53,6 @@ int main() {
   test_parallel_for_work_group<class Group2Name, sycl::group<2>>(sycl::range<2>{1, 1});
   test_parallel_for_work_group<class Group3Name, sycl::group<3>>(sycl::range<3>{1, 1, 1});
 
-#ifndef PREVIEW_BREAKING_CHANGES
-  // For backwards compatibility, we still support some invalid variants of
-  // kernel lambdas. These test cases should be removed once we make conformant
-  // mode the default.
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for(sycl::range{1}, [=](auto &) {});
@@ -67,7 +63,6 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
   });
-#endif
 
   return 0;
 }

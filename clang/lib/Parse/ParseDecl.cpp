@@ -4735,6 +4735,11 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
       continue;
     }
 
+    if (Tok.is(tok::annot_pragma_openacc)) {
+      ParseOpenACCDirectiveDecl();
+      continue;
+    }
+
     if (tok::isPragmaAnnotation(Tok.getKind())) {
       Diag(Tok.getLocation(), diag::err_pragma_misplaced_in_decl)
           << DeclSpec::getSpecifierName(
