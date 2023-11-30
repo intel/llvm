@@ -915,9 +915,11 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
 `architecture::intel_gpu_pvc`|8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.2+|  `matrix_type::bf16`       .2+|  `matrix_type::bf16`   .2+|
-`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
-`architecture::intel_gpu_pvc` |8| `architecture::intel_gpu_dg2_g10,
+.4+|  `matrix_type::bf16`       .4+|  `matrix_type::bf16`   .4+|
+`matrix_type::fp32`  | 16 | 16 | 16 .3+|`architecture::intel_gpu_pvc` |
+32 | 64 | 16
+.2+|  +<=+ 8 |  16   .2+|  16
+|8 | `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
 `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |

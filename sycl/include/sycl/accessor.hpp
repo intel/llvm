@@ -982,9 +982,9 @@ public:
 
     device Device = getDeviceFromHandler(CommandGroupHandlerRef);
     if (!Device.has(aspect::ext_intel_legacy_image))
-      throw feature_not_supported(
-          "SYCL 1.2.1 images are not supported by this device.",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "SYCL 1.2.1 images are not supported by this device.");
   }
 #endif
 
