@@ -235,7 +235,7 @@ bool test_slm_acc(queue q) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      local_accessor<T, 1> LocalAcc(threads_per_group * N * (stride + 1), cgh);
+      local_accessor<T, 1> LocalAcc(size, cgh);
       cgh.parallel_for(rng, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
         int i = NDI.get_global_id(0);
         uint16_t LocalID = NDI.get_local_id(0);
@@ -657,6 +657,9 @@ bool test_fp_types_and_sizes(queue q) {
   if constexpr (UsePVCFeatures) {
     passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
 #if 0
     passed &= test_fp_types<33, Op, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &= test_fp_types<65, Op, UseMask, UsePVCFeatures, UseAcc>(q);
