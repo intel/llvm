@@ -3242,6 +3242,28 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                        internal::DecorationCacheControlLoadINTEL) {
           Decorates.CacheControlVec.emplace_back(
               static_cast<Decoration>(DecorationKind), std::move(DecValues));
+        } else if (DecorationKind == DecorationMemoryINTEL) {
+          // SPIRV doesn't allow the same Decoration to be applied multiple
+          // times on a single SPIRVEntry, unless explicitly allowed by the
+          // language spec. Filter out the less specific MemoryINTEL
+          // decorations, if applied multiple times
+          auto CanFilterOut = [](auto &Val) {
+            if (!Val.second.empty())
+              return (Val.second[0] == "DEFAULT");
+            return false;
+          };
+          auto It = std::find_if(DecorationsVec.begin(), DecorationsVec.end(),
+                                 CanFilterOut);
+
+          if (It != DecorationsVec.end()) {
+            // replace the less specific decoration
+            *It = {static_cast<Decoration>(DecorationKind),
+                   std::move(DecValues)};
+          } else {
+            // add new decoration
+            DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
+                                        std::move(DecValues));
+          }
         } else {
           DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
                                       std::move(DecValues));
