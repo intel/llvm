@@ -644,18 +644,16 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
   // Test with local accessor.
   // Zero operand atomic.
-  // CHECK-COUNT-3: call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+  // CHECK-COUNT-2: call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
   {
     auto res_slm_atomic_1 =
-        atomic_update<atomic_op::inc, int, VL>(local_acc, pred);
-    auto res_slm_atomic_2 =
         atomic_update<atomic_op::inc, int, VL>(local_acc, offsets, pred);
-    auto res_slm_atomic_3 =
+    auto res_slm_atomic_2 =
         atomic_update<atomic_op::inc, int, VL>(local_acc, offsets_view, pred);
   }
   // One operand atomic.
   {
-    // CHECK-COUNT-6: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-COUNT-4: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_1 =
         atomic_update<atomic_op::add, int, VL>(local_acc, offsets, add, pred);
     auto res_slm_atomic_2 = atomic_update<atomic_op::add, int, VL>(
@@ -664,14 +662,10 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         local_acc, offsets_view, add, pred);
     auto res_slm_atomic_4 = atomic_update<atomic_op::add, int, VL>(
         local_acc, offsets_view, add_view, pred);
-    auto res_slm_atomic_5 =
-        atomic_update<atomic_op::add, int, VL>(local_acc, add, pred);
-    auto res_slm_atomic_6 =
-        atomic_update<atomic_op::add, int, VL>(local_acc, add_view, pred);
   }
   // Two operand atomic.
   {
-    // CHECK-COUNT-12: call <4 x i32> @llvm.genx.dword.atomic.cmpxchg.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-COUNT-8: call <4 x i32> @llvm.genx.dword.atomic.cmpxchg.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_1 = atomic_update<atomic_op::cmpxchg, int, VL>(
         local_acc, offsets, swap, compare, pred);
     auto res_slm_atomic_2 = atomic_update<atomic_op::cmpxchg, int, VL>(
@@ -688,14 +682,6 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         local_acc, offsets_view, swap_view, compare, pred);
     auto res_slm_atomic_8 = atomic_update<atomic_op::cmpxchg, int, VL>(
         local_acc, offsets_view, swap_view, compare_view, pred);
-    auto res_slm_atomic_9 = atomic_update<atomic_op::cmpxchg, int, VL>(
-        local_acc, swap, compare, pred);
-    auto res_slm_atomic_10 = atomic_update<atomic_op::cmpxchg, int, VL>(
-        local_acc, swap, compare_view, pred);
-    auto res_slm_atomic_11 = atomic_update<atomic_op::cmpxchg, int, VL>(
-        local_acc, swap_view, compare, pred);
-    auto res_slm_atomic_12 = atomic_update<atomic_op::cmpxchg, int, VL>(
-        local_acc, swap_view, compare_view, pred);
   }
 }
 

@@ -3541,9 +3541,6 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 ///                          simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
 ///                          simd_mask<1> pred = 1);
 ///                                                             // (lacc-au0-2)
-/// simd<T, N> atomic_update(local_accessor lacc,
-///                          simd_mask<1> pred = 1);
-///                                                             // (lacc-au0-3)
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 
@@ -3659,22 +3656,6 @@ atomic_update(AccessorT lacc,
   return slm_atomic_update<Op, T, N>(byte_offset, mask);
 }
 
-/// simd<T, N> atomic_update(local_accessor lacc,
-///                          simd_mask<N> pred = 1);
-///                                                             // (lacc-au0-3)
-/// Atomically updates \c N memory locations in SLM ssociated
-/// with the local accessor \p lacc at the given \p byte_offset,
-/// and returns a vector of old values found at the memory locations before
-/// update.
-template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc), mask);
-}
-
 /// One argument variant of the atomic update operation.
 
 /// simd<T, N>
@@ -3721,15 +3702,6 @@ atomic_update(AccessorT lacc, simd_mask<N> mask = 1) {
 ///               simd_view<simd<T, N>, RegionTy> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au2-4)
 ///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-5)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-6)
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 
@@ -3923,38 +3895,6 @@ atomic_update(AccessorT lacc,
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
 }
 
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-5)
-template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<T, N> src0, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc), src0,
-                                     mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-6)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd_view<simd<T, N>, RegionTy> src0,
-              simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc),
-                                     src0.read(), mask);
-}
-
 /// Two argument variant of the atomic update operation.
 
 /// simd<T, N>
@@ -4055,29 +3995,6 @@ atomic_update(AccessorT lacc, simd_view<simd<T, N>, RegionTy> src0,
 ///               simd_view<simd<T, N>, RegionTy> src1,
 ///               simd_mask<1> pred = 1);                      // (lacc-au2-8)
 ///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-9)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-10)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-11)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-12)
 
 /// simd<T, N>
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
@@ -4470,77 +4387,6 @@ atomic_update(AccessorT lacc,
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(),
                                      src1.read(), mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-9)
-template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<T, N> src0, simd<T, N> src1,
-              simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc), src0,
-                                     src1, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<T, N> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-10)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<T, N> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc), src0,
-                                     src1.read(), mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-11)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd_view<simd<T, N>, RegionTy> src0,
-              simd<T, N> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc),
-                                     src0.read(), src1, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-12)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(detail::localAccessorToOffset(lacc),
-                                     src0.read(), src1.read(), mask);
 }
 
 /// @} sycl_esimd_memory_slm
