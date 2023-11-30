@@ -147,6 +147,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
+    ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
+  cl_ext::clCommandCopyBufferKHR_fn clCommandCopyBufferKHR = nullptr;
+  cl_int Res = cl_ext::getExtFuncFromContext<decltype(clCommandCopyBufferKHR)>(
+      CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferKHRCache,
+      cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR);
+
+  if (!clCommandCopyBufferKHR || Res != CL_SUCCESS)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
+      hCommandBuffer->CLCommandBuffer, nullptr,
+      cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
+      srcOffset, dstOffset, size, numSyncPointsInWaitList, pSyncPointWaitList,
+      pSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,

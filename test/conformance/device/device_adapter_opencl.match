@@ -1,3 +1,1 @@
-urDeviceGetTest.InvalidValueNumEntries
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_HALF_FP_CONFIG
-urDeviceGetInfoTest.Success/UR_DEVICE_INFO_PARTITION_TYPE
