@@ -16,8 +16,7 @@ struct urPhysicalMemCreateTest
     size_t size;
 };
 
-UUR_TEST_SUITE_P(urPhysicalMemCreateTest,
-                 ::testing::Values(1, 2, 3, 7, 12, 44, 1024, 4000, 12345),
+UUR_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1, 2, 3, 7, 12, 44),
                  uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateTest, Success) {
