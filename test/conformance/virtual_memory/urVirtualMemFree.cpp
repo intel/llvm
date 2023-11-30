@@ -19,5 +19,5 @@ TEST_P(urVirtualMemFreeTest, InvalidNullHandleContext) {
 
 TEST_P(urVirtualMemFreeTest, InvalidNullPointerStart) {
     ASSERT_EQ_RESULT(urVirtualMemFree(context, nullptr, size),
-                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

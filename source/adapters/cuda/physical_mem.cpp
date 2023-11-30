@@ -26,7 +26,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   UR_CHECK_ERROR(GetDeviceOrdinal(hDevice, AllocProps.location.id));
 
   CUmemGenericAllocationHandle ResHandle;
-  UR_CHECK_ERROR(cuMemCreate(&ResHandle, size, &AllocProps, 0));
+  switch (auto Result = cuMemCreate(&ResHandle, size, &AllocProps, 0)) {
+  case CUDA_ERROR_INVALID_VALUE:
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  default:
+    UR_CHECK_ERROR(Result);
+  }
   *phPhysicalMem = new ur_physical_mem_handle_t_(ResHandle, hContext);
 
   return UR_RESULT_SUCCESS;
