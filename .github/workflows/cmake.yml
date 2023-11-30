@@ -222,6 +222,10 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
 
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: .github/scripts/get_system_info.sh
+
   examples-build-hw:
     name: Build - examples on HW
     if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
@@ -273,6 +277,10 @@ jobs:
       run: |
         cat ${HOME}/.profile || true
         rm ${HOME}/.profile || true
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: .github/scripts/get_system_info.sh
 
   windows-build:
     name: Build - Windows
