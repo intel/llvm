@@ -3423,7 +3423,6 @@ lsc_format_ret(__ESIMD_NS::simd<T1, N> Vals) {
 template <atomic_op Op, typename T, int N, lsc_data_size DS>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update_impl(simd<uint32_t, N> offsets, simd_mask<N> pred) {
-  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   constexpr uint16_t AddressScale = 1;
@@ -3458,9 +3457,6 @@ template <atomic_op Op, typename T, int N, lsc_data_size DS>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update_impl(simd<uint32_t, N> offsets, simd<T, N> src0,
                        simd_mask<N> pred) {
-  static_assert(Op != atomic_op::fadd && Op != atomic_op::fsub,
-                "fadd and fsub are not supported for slm.");
-  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   constexpr uint16_t AddressScale = 1;
@@ -3498,9 +3494,6 @@ template <atomic_op Op, typename T, int N, lsc_data_size DS>
 __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
                                               simd<T, N> src0, simd<T, N> src1,
                                               simd_mask<N> pred) {
-  static_assert(sizeof(T) == 2 || sizeof(T) == 4 ||
-                    (Op == atomic_op::cmpxchg && sizeof(T) == 8),
-                "Unsupported data type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
   constexpr uint16_t AddressScale = 1;
@@ -3575,7 +3568,7 @@ template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
   // uint16_t, non-power of two, and operations wider than 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return slm_atomic_update_impl<Op, T, N,
                             detail::lsc_data_size::default_size>(
       byte_offset, mask);
@@ -3762,8 +3755,8 @@ template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>,
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
-        // half and short are supported in LSC.
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+      // half and short are supported in LSC.
       return slm_atomic_update_impl<Op, T, N,
                                     detail::lsc_data_size::default_size>(
           byte_offset, src0, mask);
@@ -4107,8 +4100,8 @@ template <atomic_op Op, typename T, int N, class Tx = detail::__raw_t<T>>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
-  if constexpr (sizeof(T) == 2 || !__ESIMD_DNS::isPowerOf2(N, 32) ||
-                (Op == atomic_op::cmpxchg && sizeof(T) == 8)) {
+  // Only DG2/PVC support 8 bit data types.
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.

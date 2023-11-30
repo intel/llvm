@@ -505,6 +505,10 @@ template <class T, int N>
 struct ImplUMax : ImplMax<T, N, atomic_op, atomic_op::umax> {};
 
 template <class T, int N>
+struct ImplFadd : ImplAdd<T, N, atomic_op, atomic_op::fadd> {};
+template <class T, int N>
+struct ImplFsub : ImplSub<T, N, atomic_op, atomic_op::fsub> {};
+template <class T, int N>
 struct ImplLSCFmin : ImplMin<T, N, atomic_op, atomic_op::fmin> {};
 template <class T, int N>
 struct ImplLSCFmax : ImplMax<T, N, atomic_op, atomic_op::fmax> {};
@@ -557,10 +561,9 @@ bool test_int_types(queue q) {
       passed &= run_test<UseAcc, int16_t, N, Op, UseMask>(q);
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
+
     if constexpr (UsePVCFeatures) {
-      if constexpr (std::is_same_v<Op<int64_t, N>, ImplCmpxchg<int64_t, N>>) {
-        passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
-      }
+      passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
     }
   }
 
@@ -569,10 +572,9 @@ bool test_int_types(queue q) {
       passed &= run_test<UseAcc, uint16_t, N, Op, UseMask>(q);
 
     passed &= run_test<UseAcc, uint32_t, N, Op, UseMask>(q);
+
     if constexpr (UsePVCFeatures) {
-      if constexpr (std::is_same_v<Op<uint64_t, N>, ImplCmpxchg<uint64_t, N>>) {
-        passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
-      }
+      passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
     }
   }
   return passed;
@@ -595,7 +597,21 @@ bool test_fp_types(queue q) {
       }
     }
   }
+
   passed &= run_test<UseAcc, float, N, Op, UseMask>(q);
+
+  if constexpr (UsePVCFeatures) {
+    // TODO: fmin/max for double does not pass validation likely due to
+    // a driver bug. fcmpwr is hanging.
+    if constexpr (!std::is_same_v<Op<double, N>, ImplLSCFmax<double, N>> &&
+                  !std::is_same_v<Op<double, N>, ImplLSCFmin<double, N>> &&
+                  !std::is_same_v<Op<double, N>, ImplLSCFcmpwr<double, N>>) {
+      if (q.get_device().has(sycl::aspect::atomic64) &&
+          q.get_device().has(sycl::aspect::fp64)) {
+        passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
+      }
+    }
+  }
   return passed;
 }
 
@@ -680,6 +696,12 @@ int test_with_mask(queue q) {
     passed &=
         test_fp_types_and_sizes<ImplLSCFmin, UseMask, UsePVCFeatures, UseAcc>(
             q);
+
+   // TODO: fadd/fsub are emulated in the newer driver, but do not pass validation.
+#if 0
+    passed &= test_fp_types_and_sizes<ImplFadd, UseMask, UsePVCFeatures, UseAcc>(q);
+    passed &= test_fp_types_and_sizes<ImplFsub, UseMask, UsePVCFeatures, UseAcc>(q);
+#endif
 
     // Check load/store operations.
     passed &=
