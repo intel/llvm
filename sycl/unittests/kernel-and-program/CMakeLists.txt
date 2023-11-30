@@ -1,3 +1,4 @@
+set(CMAKE_BUILD_TYPE Debug)
 add_sycl_unittest(KernelAndProgramTests OBJECT
   Cache.cpp
   MultipleDevsCache.cpp
@@ -6,5 +7,6 @@ add_sycl_unittest(KernelAndProgramTests OBJECT
   DeviceInfo.cpp
   PersistentDeviceCodeCache.cpp
   KernelBuildOptions.cpp
+  OutOfResources.cpp
 )
 target_compile_definitions(KernelAndProgramTests PRIVATE -D__SYCL_INTERNAL_API)

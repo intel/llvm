@@ -1,3 +1,4 @@
+set(CMAKE_BUILD_TYPE Debug)
 #To-Do:
 #1. Figure out why CMP0057 has to be set. Should have been taken care of earlier in the build
 #2. Use AddLLVM to modify the build and access config options
