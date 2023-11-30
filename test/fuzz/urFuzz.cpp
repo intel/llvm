@@ -419,7 +419,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     }
 
     LoaderConfig config;
-    ur_result_t res = urInit(0, config.handle);
+    ur_result_t res = urLoaderInit(0, config.handle);
     if (res != UR_RESULT_SUCCESS) {
         return -1;
     }
@@ -436,6 +436,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         if (ret) {
             return -1;
         }
+    }
+
+    res = urLoaderTearDown();
+    if (res != UR_RESULT_SUCCESS) {
+        return -1;
     }
 
     return 0;

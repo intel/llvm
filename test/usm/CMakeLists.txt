@@ -10,6 +10,8 @@ function(add_usm_test name)
     add_ur_executable(${TEST_TARGET_NAME}
         ${UR_USM_TEST_DIR}/../conformance/source/environment.cpp
         ${UR_USM_TEST_DIR}/../conformance/source/main.cpp
+        ${UR_USM_TEST_DIR}/../unified_malloc_framework/common/provider.c
+        ${UR_USM_TEST_DIR}/../unified_malloc_framework/common/pool.c
         ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
@@ -17,10 +19,12 @@ function(add_usm_test name)
         ${PROJECT_NAME}::loader
         ur_testing
         GTest::gtest_main)
-    add_test(NAME  usm-${name}
+    add_test(NAME usm-${name}
         COMMAND ${TEST_TARGET_NAME}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    set_tests_properties(usm-${name} PROPERTIES LABELS "usm")
+    set_tests_properties(usm-${name} PROPERTIES
+        LABELS "usm"
+        ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\"")
     target_compile_definitions("usm_test-${name}" PRIVATE DEVICES_ENVIRONMENT)
 endfunction()
 

@@ -25,7 +25,7 @@ struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
     ur_kernel_native_properties_t properties = {
         UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES, /*sType*/
         nullptr,                                    /*pNext*/
-        true                                        /*isNativeHandleOwned*/
+        false                                       /*isNativeHandleOwned*/
     };
 };
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateWithNativeHandleTest);
@@ -56,15 +56,8 @@ TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullHandleProgram) {
                                        &properties, &native_kernel));
 }
 
-TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullPointerProperties) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urKernelCreateWithNativeHandle(native_kernel_handle,
-                                                    context, program, nullptr,
-                                                    &native_kernel));
-}
-
 TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullPointerNativeKernel) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urKernelCreateWithNativeHandle(native_kernel_handle,
                                                     context, program,
                                                     &properties, nullptr));

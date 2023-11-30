@@ -1,3 +1,2 @@
-urQueueCreateTest.InvalidQueueProperties/AMD_HIP_BACKEND___{{.*}}_
 urQueueGetInfoTestWithInfoParam.Success/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_INFO_DEVICE_DEFAULT
 urQueueGetInfoTestWithInfoParam.Success/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_INFO_SIZE
