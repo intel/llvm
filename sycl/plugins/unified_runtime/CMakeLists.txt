@@ -30,7 +30,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -56,13 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 71957e849435169b43e51a42025afeeb63d7508b
-  # Merge: ce152a64 e001b98d
+  # commit b3de31844ca45d1815c54d85f248f13ad81b6755
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 21 16:41:08 2023 +0000
-  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
-  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
-  set(UNIFIED_RUNTIME_TAG 71957e849435169b43e51a42025afeeb63d7508b)
+  # Date:   Tue Nov 28 16:21:43 2023 +0000
+  #     Set version to v0.8.1
+  set(UNIFIED_RUNTIME_TAG v0.8.1)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -39,7 +39,7 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
 #else
     std::cerr << "ESIMD EMU plugin error or not loaded" << std::endl;
 #endif
-    throw sycl::feature_not_supported();
+    throw sycl::exception(sycl::errc::feature_not_supported);
   }
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
@@ -57,7 +57,7 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Returned version : " << OpaqueData->version << std::endl
               << "Required version : "
               << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION << std::endl;
-    throw feature_not_supported();
+    throw sycl::exception(sycl::errc::feature_not_supported);
   }
   // Opaque data version is OK, can cast the 'data' field.
   ESIMDDeviceInterface *Interface =
@@ -72,7 +72,7 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Found version : " << Interface->version << std::endl
               << "Required version :" << ESIMD_DEVICE_INTERFACE_VERSION
               << std::endl;
-    throw feature_not_supported();
+    throw sycl::exception(sycl::errc::feature_not_supported);
   }
   return Interface;
 }
