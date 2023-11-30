@@ -273,7 +273,8 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
       simd<float, 8> val{ch};
       return uniform{val};
     };
-    auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}}, uniform{simd<int, 5>{2}});
+    auto u = invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
+                         uniform{simd<int, 5>{2}});
     static_assert(std::is_same_v<decltype(u), uniform<simd<float, 8>>>);
   }
   {
@@ -315,7 +316,8 @@ SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
   static_assert(std::is_same_v<decltype(x), uniform<char>>);
 }
 
-SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch, __regcall void(f)(simd<float, 16>, float)) {
+SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch,
+                             __regcall void(f)(simd<float, 16>, float)) {
   invoke_simd(sg, f, 1.f, uniform{a});
 }
 
