@@ -6,6 +6,9 @@ it should be tracking the [`sycl` branch of that
 repository](https://github.com/intel/llvm/tree/sycl). Therefore, establishing a process to keep up
 with `sycl` progress in `sycl-mlir` is key to success.
 
+This instructions assume the project was configured following the [official
+instructions](./developer/ContributeToSYCLMLIR.md).
+
 ## Pulldown
 
 The following steps will create a pulldown PR:
@@ -51,7 +54,7 @@ cmake --build <build-dir> --target check-cgeist check-mlir-sycl check-polygeist 
 
 ### Build Errors
 
-Maintainer should take action and fix build errors before creatign merge PR.
+Maintainer should take action and fix build errors before creating merge PR.
 
 ### Test Errors
 
