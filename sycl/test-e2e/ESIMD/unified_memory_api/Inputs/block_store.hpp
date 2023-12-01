@@ -682,9 +682,9 @@ bool test_block_store_local_acc_slm(queue Q) {
 
   bool Passed = true;
 
-  // Many cases currently fail on Windows before this driver version.
-  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::Windows, "26957",
-                                 "101.4824", false))
+  // Many cases currently fail before this driver version.
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "26957", "101.4824", false))
     return Passed;
 
   // Test block_store() from SLM that doesn't use the mask is implemented
