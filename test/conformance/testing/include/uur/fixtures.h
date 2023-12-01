@@ -180,6 +180,13 @@ struct urMemBufferTest : urContextTest {
 struct urMemImageTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
     }
 
     void TearDown() override {
@@ -276,6 +283,13 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
 template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
         ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc, nullptr, &image));
         ASSERT_NE(nullptr, image);
@@ -551,6 +565,13 @@ struct urMemBufferQueueTest : urQueueTest {
 struct urMemImageQueueTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        ur_bool_t imageSupported = false;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
         ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc1D, nullptr, &image1D));
 
@@ -626,6 +647,15 @@ struct urMemImageQueueTest : urQueueTest {
 struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+        for (auto device : DevicesEnvironment::instance->devices) {
+            ur_bool_t imageSupported = false;
+            ASSERT_SUCCESS(
+                urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                                sizeof(ur_bool_t), &imageSupported, nullptr));
+            if (!imageSupported) {
+                GTEST_SKIP();
+            }
+        }
         ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                         &format, &desc1D, nullptr, &image1D));
 
