@@ -5,6 +5,12 @@
 
 #include "fixtures.hpp"
 
+TEST_F(urTest, testUrAdapterGetLeak) {
+    ur_adapter_handle_t adapter = nullptr;
+    ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
+    ASSERT_NE(nullptr, adapter);
+}
+
 TEST_F(valDeviceTest, testUrContextCreateLeak) {
     ur_context_handle_t context = nullptr;
     ASSERT_EQ(urContextCreate(1, &device, nullptr, &context),

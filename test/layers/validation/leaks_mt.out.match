@@ -1,9 +1,12 @@
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 2
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 3
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained 3 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 2
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 3
@@ -13,16 +16,20 @@
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 7
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 8
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 9
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained 9 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Attempting to release nonexistent handle [0-9xa-fA-F]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to -1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained -1 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Attempting to release nonexistent handle [0-9xa-fA-F]+
@@ -39,18 +46,22 @@
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to -6
 <VALIDATION>\[ERROR\]: Attempting to release nonexistent handle [0-9xa-fA-F]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to -7
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained -7 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained 1 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
@@ -67,6 +78,7 @@
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to [1-9]+
 <VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
+<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
 <VALIDATION>\[ERROR\]: Retained 1 reference\(s\) to handle [0-9xa-fA-F]+
 <VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
 (.*)

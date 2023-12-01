@@ -10,7 +10,6 @@
 #pragma once
 
 #include <set>
-#include <unordered_map>
 
 #include "common.hpp"
 #include "device.hpp"
@@ -106,104 +105,32 @@ struct ur_context_handle_t_ {
 
   ur_usm_pool_handle_t getOwningURPool(umf_memory_pool_t *UMFPool);
 
-  /// We need to keep track of USM mappings in AMD HIP, as certain extra
-  /// synchronization *is* actually required for correctness.
-  /// During kernel enqueue we must dispatch a prefetch for each kernel argument
-  /// that points to a USM mapping to ensure the mapping is correctly
-  /// populated on the device (https://github.com/intel/llvm/issues/7252). Thus,
-  /// we keep track of mappings in the context, and then check against them just
-  /// before the kernel is launched. The stream against which the kernel is
-  /// launched is not known until enqueue time, but the USM mappings can happen
-  /// at any time. Thus, they are tracked on the context used for the urUSM*
-  /// mapping.
-  ///
-  /// The three utility function are simple wrappers around a mapping from a
-  /// pointer to a size.
-  void addUSMMapping(void *Ptr, size_t Size) {
-    std::lock_guard<std::mutex> Guard(Mutex);
-    assert(USMMappings.find(Ptr) == USMMappings.end() &&
-           "mapping already exists");
-    USMMappings[Ptr] = Size;
-  }
-
-  void removeUSMMapping(const void *Ptr) {
-    std::lock_guard<std::mutex> guard(Mutex);
-    auto It = USMMappings.find(Ptr);
-    if (It != USMMappings.end())
-      USMMappings.erase(It);
-  }
-
-  std::pair<const void *, size_t> getUSMMapping(const void *Ptr) {
-    std::lock_guard<std::mutex> Guard(Mutex);
-    auto It = USMMappings.find(Ptr);
-    // The simple case is the fast case...
-    if (It != USMMappings.end())
-      return *It;
-
-    // ... but in the failure case we have to fall back to a full scan to search
-    // for "offset" pointers in case the user passes in the middle of an
-    // allocation. We have to do some not-so-ordained-by-the-standard ordered
-    // comparisons of pointers here, but it'll work on all platforms we support.
-    uintptr_t PtrVal = (uintptr_t)Ptr;
-    for (std::pair<const void *, size_t> Pair : USMMappings) {
-      uintptr_t BaseAddr = (uintptr_t)Pair.first;
-      uintptr_t EndAddr = BaseAddr + Pair.second;
-      if (PtrVal > BaseAddr && PtrVal < EndAddr) {
-        // If we've found something now, offset *must* be nonzero
-        assert(Pair.second);
-        return Pair;
-      }
-    }
-    return {nullptr, 0};
-  }
-
 private:
   std::mutex Mutex;
   std::vector<deleter_data> ExtendedDeleters;
-  std::unordered_map<const void *, size_t> USMMappings;
   std::set<ur_usm_pool_handle_t> PoolHandles;
 };
 
 namespace {
-/// RAII type to guarantee recovering original HIP context
-/// Scoped context is used across all UR HIP plugin implementation
-/// to activate the UR Context on the current thread, matching the
-/// HIP driver semantics where the context used for the HIP Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the hipCtx_t if it cans
+/// Scoped context is used across all UR HIP plugin implementation to activate
+/// the native Context on the current thread. The ScopedContext does not
+/// reinstate the previous context as all operations in the hip adapter that
+/// require an active context, set the active context and don't rely on context
+/// reinstation
 class ScopedContext {
-  hipCtx_t Original;
-  bool NeedToRecover;
-
 public:
-  ScopedContext(ur_device_handle_t hDevice) : NeedToRecover{false} {
+  ScopedContext(ur_device_handle_t hDevice) {
+    hipCtx_t Original{};
 
     if (!hDevice) {
       throw UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
-    // FIXME when multi device context are supported in HIP adapter
     hipCtx_t Desired = hDevice->getNativeContext();
     UR_CHECK_ERROR(hipCtxGetCurrent(&Original));
     if (Original != Desired) {
       // Sets the desired context as the active one for the thread
       UR_CHECK_ERROR(hipCtxSetCurrent(Desired));
-      if (Original == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the UR context referring to the
-        // same underlying HIP context are destroyed. This emulates
-        // the behaviour of the HIP runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        NeedToRecover = true;
-      }
-    }
-  }
-
-  ~ScopedContext() {
-    if (NeedToRecover) {
-      UR_CHECK_ERROR(hipCtxSetCurrent(Original));
     }
   }
 };

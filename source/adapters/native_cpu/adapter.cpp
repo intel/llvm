@@ -15,15 +15,6 @@ struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
 } Adapter;
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t,
-                                           ur_loader_config_handle_t) {
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {

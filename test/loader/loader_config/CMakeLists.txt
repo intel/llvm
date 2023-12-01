@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_executable(test-loader-config
+add_ur_executable(test-loader-config
     urLoaderConfigCreate.cpp
     urLoaderConfigGetInfo.cpp
     urLoaderConfigEnableLayer.cpp

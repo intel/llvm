@@ -5,8 +5,10 @@ EXPORTS
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
 	urGetEnqueueProcAddrTable
+	urGetEnqueueExpProcAddrTable
 	urGetEventProcAddrTable
 	urGetKernelProcAddrTable
+	urGetKernelExpProcAddrTable
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
 	urGetPlatformProcAddrTable

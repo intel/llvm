@@ -3,19 +3,18 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "../unified_malloc_framework/common/pool.hpp"
-#include "../unified_malloc_framework/common/provider.hpp"
 #include "ur_pool_manager.hpp"
+
+#include "../unified_malloc_framework/common/pool.h"
+#include "../unified_malloc_framework/common/provider.h"
 
 #include <uur/fixtures.h>
 
-#include <unordered_set>
-
-struct urUsmPoolManagerTest
+struct urUsmPoolDescriptorTest
     : public uur::urMultiDeviceContextTest,
       ::testing::WithParamInterface<ur_usm_pool_handle_t> {};
 
-TEST_P(urUsmPoolManagerTest, poolIsPerContextTypeAndDevice) {
+TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
     auto &devices = uur::DevicesEnvironment::instance->devices;
     auto poolHandle = this->GetParam();
 
@@ -49,7 +48,71 @@ TEST_P(urUsmPoolManagerTest, poolIsPerContextTypeAndDevice) {
     ASSERT_EQ(sharedPools, devices.size() * 2);
 }
 
-INSTANTIATE_TEST_SUITE_P(urUsmPoolManagerTest, urUsmPoolManagerTest,
+INSTANTIATE_TEST_SUITE_P(urUsmPoolDescriptorTest, urUsmPoolDescriptorTest,
                          ::testing::Values(nullptr));
 
 // TODO: add test with sub-devices
+
+struct urUsmPoolManagerTest : public uur::urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        auto [ret, descs] = usm::pool_descriptor::create(nullptr, context);
+        ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+        poolDescriptors = std::move(descs);
+    }
+
+    std::vector<usm::pool_descriptor> poolDescriptors;
+};
+
+TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
+    auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+
+    for (auto &desc : poolDescriptors) {
+        // Populate the pool manager
+        auto pool = nullPoolCreate();
+        ASSERT_NE(pool, nullptr);
+        auto poolUnique = umf::pool_unique_handle_t(pool, umfPoolDestroy);
+        ASSERT_NE(poolUnique, nullptr);
+        ret = manager.addPool(desc, poolUnique);
+        ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+    }
+
+    for (auto &desc : poolDescriptors) {
+        // Confirm that there is a pool for each descriptor
+        auto hPoolOpt = manager.getPool(desc);
+        ASSERT_TRUE(hPoolOpt.has_value());
+        ASSERT_NE(hPoolOpt.value(), nullptr);
+    }
+}
+
+TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
+    auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+
+    const auto &desc = poolDescriptors[0];
+
+    auto pool = nullPoolCreate();
+    ASSERT_NE(pool, nullptr);
+    auto poolUnique = umf::pool_unique_handle_t(pool, umfPoolDestroy);
+    ASSERT_NE(poolUnique, nullptr);
+
+    ret = manager.addPool(desc, poolUnique);
+    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+
+    // Inserting an existing key should return an error
+    ret = manager.addPool(desc, poolUnique);
+    ASSERT_EQ(ret, UR_RESULT_ERROR_INVALID_ARGUMENT);
+}
+
+TEST_P(urUsmPoolManagerTest, poolManagerGetNonexistant) {
+    auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+
+    for (auto &desc : poolDescriptors) {
+        auto hPool = manager.getPool(desc);
+        ASSERT_FALSE(hPool.has_value());
+    }
+}
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUsmPoolManagerTest);

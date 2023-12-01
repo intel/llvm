@@ -12,6 +12,7 @@
 #include "kernel_entry_points.h"
 #endif
 
+#include <ur_util.hpp>
 #include <uur/environment.h>
 #include <uur/utils.h>
 
@@ -57,7 +58,7 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     }
 
     ur_device_init_flags_t device_flags = 0;
-    auto initResult = urInit(device_flags, config);
+    auto initResult = urLoaderInit(device_flags, config);
     auto configReleaseResult = urLoaderConfigRelease(config);
     switch (initResult) {
     case UR_RESULT_SUCCESS:
@@ -66,7 +67,7 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         error = ERROR_NO_ADAPTER;
         return;
     default:
-        error = "urInit() failed";
+        error = "urLoaderInit() failed";
         return;
     }
 
@@ -159,9 +160,8 @@ void uur::PlatformEnvironment::TearDown() {
     for (auto adapter : adapters) {
         urAdapterRelease(adapter);
     }
-    ur_tear_down_params_t tear_down_params{};
-    if (urTearDown(&tear_down_params)) {
-        FAIL() << "urTearDown() failed";
+    if (urLoaderTearDown()) {
+        FAIL() << "urLoaderTearDown() failed";
     }
 }
 
@@ -179,6 +179,16 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
                 std::string(&arg[std::strlen("--platform=")]);
         }
     }
+
+    /* If a platform was not provided using the --platform command line option,
+     * check if environment variable is set to use as a fallback. */
+    if (options.platform_name.empty()) {
+        auto env_platform = ur_getenv("UR_CTS_ADAPTER_PLATFORM");
+        if (env_platform.has_value()) {
+            options.platform_name = env_platform.value();
+        }
+    }
+
     return options;
 }
 
@@ -368,8 +378,8 @@ void KernelsEnvironment::LoadSource(
     binary_out = binary_ptr;
 }
 
-std::vector<std::string>
-KernelsEnvironment::GetEntryPointNames(std::string program_name) {
+std::vector<std::string> KernelsEnvironment::GetEntryPointNames(
+    [[maybe_unused]] std::string program_name) {
     std::vector<std::string> entry_points;
 #ifdef KERNELS_ENVIRONMENT
     entry_points = uur::device_binaries::program_kernel_map[program_name];

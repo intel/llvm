@@ -34,15 +34,23 @@ constexpr uint16_t TRACE_FN_END =
 constexpr std::string_view UR_STREAM_NAME = "ur";
 
 /**
- * @brief Formats the function parameters and arguments for urInit
+ * @brief Formats the function parameters and arguments for urAdapterGet
  */
 std::ostream &operator<<(std::ostream &os,
-                         const struct ur_init_params_t *params) {
-    os << ".device_flags = ";
-    if (*params->pdevice_flags & UR_DEVICE_INIT_FLAG_GPU) {
-        os << "UR_DEVICE_INIT_FLAG_GPU";
-    } else {
-        os << "0";
+                         const struct ur_adapter_get_params_t *params) {
+    os << ".NumEntries = ";
+    os << *params->pNumEntries;
+    os << ", ";
+    os << ".phAdapters = ";
+    os << *params->pphAdapters;
+    if (*params->pphAdapters) {
+        os << " (" << **params->pphAdapters << ")";
+    }
+    os << ", ";
+    os << ".pNumAdapters = ";
+    os << *params->ppNumAdapters;
+    if (*params->ppNumAdapters) {
+        os << " (" << **params->ppNumAdapters << ")";
     }
     os << "";
     return os;
@@ -50,16 +58,17 @@ std::ostream &operator<<(std::ostream &os,
 
 /**
  * A map of functions that format the parameters and arguments for each UR function.
- * This example only implements a handler for one function, `urInit`, but it's
+ * This example only implements a handler for one function, `urAdapterGet`, but it's
  * trivial to expand it to support more.
  */
 static std::unordered_map<
     std::string_view,
     std::function<void(const xpti::function_with_args_t *, std::ostream &)>>
-    handlers = {{"urInit", [](const xpti::function_with_args_t *fn_args,
-                              std::ostream &os) {
-                     auto params = static_cast<const struct ur_init_params_t *>(
-                         fn_args->args_data);
+    handlers = {{"urAdapterGet", [](const xpti::function_with_args_t *fn_args,
+                                    std::ostream &os) {
+                     auto params =
+                         static_cast<const struct ur_adapter_get_params_t *>(
+                             fn_args->args_data);
                      os << params;
                  }}};
 
@@ -73,10 +82,9 @@ static std::unordered_map<
  * On begin, it prints the function declaration with the call arguments specified,
  * and on end it prints the function name with the result of the call.
  */
-XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
-                                xpti::trace_event_data_t *parent,
-                                xpti::trace_event_data_t *event,
-                                uint64_t instance, const void *user_data) {
+XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
+                                xpti::trace_event_data_t *, uint64_t instance,
+                                const void *user_data) {
     auto *args = static_cast<const xpti::function_with_args_t *>(user_data);
     std::ostringstream out;
     if (trace_type == TRACE_FN_BEGIN) {
@@ -110,8 +118,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
  * selected trace types.
  */
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
-                                     unsigned int minor_version,
-                                     const char *version_str,
+                                     unsigned int minor_version, const char *,
                                      const char *stream_name) {
     if (stream_name == nullptr) {
         std::cout << "Stream name not provided. Aborting." << std::endl;
@@ -149,5 +156,5 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
  *
  * Can be used to cleanup state or resources.
  */
-XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) { /* noop */
+XPTI_CALLBACK_API void xptiTraceFinish(const char *) { /* noop */
 }

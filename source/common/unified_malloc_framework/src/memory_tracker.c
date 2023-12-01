@@ -9,112 +9,99 @@
  */
 
 #include "memory_tracker.h"
+#include "critnib/critnib.h"
+
+#include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
 
-#include <cassert>
-#include <map>
-#include <mutex>
-#include <shared_mutex>
+#include <assert.h>
+#include <errno.h>
 #include <stdlib.h>
 
-#ifdef _WIN32
-#include <windows.h>
+#if !defined(_WIN32)
+critnib *TRACKER = NULL;
+void __attribute__((constructor)) createLibTracker(void) {
+    TRACKER = critnib_new();
+}
+void __attribute__((destructor)) deleteLibTracker(void) {
+    critnib_delete(TRACKER);
+}
+
+umf_memory_tracker_handle_t umfMemoryTrackerGet(void) {
+    return (umf_memory_tracker_handle_t)TRACKER;
+}
 #endif
 
-// TODO: reimplement in C and optimize...
-struct umf_memory_tracker_t {
-    enum umf_result_t add(void *pool, const void *ptr, size_t size) {
-        std::unique_lock<std::shared_mutex> lock(mtx);
-
-        if (size == 0) {
-            return UMF_RESULT_SUCCESS;
-        }
-
-        auto ret =
-            map.try_emplace(reinterpret_cast<uintptr_t>(ptr), size, pool);
-        return ret.second ? UMF_RESULT_SUCCESS : UMF_RESULT_ERROR_UNKNOWN;
-    }
-
-    enum umf_result_t remove(const void *ptr, size_t size) {
-        std::unique_lock<std::shared_mutex> lock(mtx);
-
-        map.erase(reinterpret_cast<uintptr_t>(ptr));
-
-        // TODO: handle removing part of the range
-        (void)size;
-
-        return UMF_RESULT_SUCCESS;
-    }
-
-    void *find(const void *ptr) {
-        std::shared_lock<std::shared_mutex> lock(mtx);
-
-        auto intptr = reinterpret_cast<uintptr_t>(ptr);
-        auto it = map.upper_bound(intptr);
-        if (it == map.begin()) {
-            return nullptr;
-        }
-
-        --it;
-
-        auto address = it->first;
-        auto size = it->second.first;
-        auto pool = it->second.second;
-
-        if (intptr >= address && intptr < address + size) {
-            return pool;
-        }
-
-        return nullptr;
-    }
-
-  private:
-    std::shared_mutex mtx;
-    std::map<uintptr_t, std::pair<size_t, void *>> map;
+struct tracker_value_t {
+    umf_memory_pool_handle_t pool;
+    size_t size;
 };
 
 static enum umf_result_t
-umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker, void *pool,
-                    const void *ptr, size_t size) {
-    return hTracker->add(pool, ptr, size);
+umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
+                    umf_memory_pool_handle_t pool, const void *ptr,
+                    size_t size) {
+    assert(ptr);
+
+    struct tracker_value_t *value =
+        (struct tracker_value_t *)malloc(sizeof(struct tracker_value_t));
+    value->pool = pool;
+    value->size = size;
+
+    int ret = critnib_insert((critnib *)hTracker, (uintptr_t)ptr, value, 0);
+
+    if (ret == 0) {
+        return UMF_RESULT_SUCCESS;
+    }
+
+    free(value);
+
+    if (ret == ENOMEM) {
+        return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    // This should not happen
+    // TODO: add logging here
+    return UMF_RESULT_ERROR_UNKNOWN;
 }
 
 static enum umf_result_t
 umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker, const void *ptr,
                        size_t size) {
-    return hTracker->remove(ptr, size);
-}
+    assert(ptr);
 
-extern "C" {
+    // TODO: there is no support for removing partial ranges (or multipe entires
+    // in a single remove call) yet.
+    // Every umfMemoryTrackerAdd(..., ptr, ...) should have a corresponsding
+    // umfMemoryTrackerRemove call with the same ptr value.
+    (void)size;
 
-#if defined(_WIN32) && defined(UMF_SHARED_LIBRARY)
-umf_memory_tracker_t *tracker = nullptr;
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
-    if (fdwReason == DLL_PROCESS_DETACH) {
-        delete tracker;
-    } else if (fdwReason == DLL_PROCESS_ATTACH) {
-        tracker = new umf_memory_tracker_t;
+    void *value = critnib_remove((critnib *)hTracker, (uintptr_t)ptr);
+    if (!value) {
+        // This should not happen
+        // TODO: add logging here
+        return UMF_RESULT_ERROR_UNKNOWN;
     }
-    return TRUE;
-}
-#elif defined(_WIN32)
-umf_memory_tracker_t trackerInstance;
-umf_memory_tracker_t *tracker = &trackerInstance;
-#else
-umf_memory_tracker_t *tracker = nullptr;
-void __attribute__((constructor)) createLibTracker() {
-    tracker = new umf_memory_tracker_t;
+
+    free(value);
+
+    return UMF_RESULT_SUCCESS;
 }
 
-void __attribute__((destructor)) deleteLibTracker() { delete tracker; }
-#endif
+umf_memory_pool_handle_t
+umfMemoryTrackerGetPool(umf_memory_tracker_handle_t hTracker, const void *ptr) {
+    assert(ptr);
 
-umf_memory_tracker_handle_t umfMemoryTrackerGet(void) { return tracker; }
+    uintptr_t rkey;
+    struct tracker_value_t *rvalue;
+    int found = critnib_find((critnib *)hTracker, (uintptr_t)ptr, FIND_LE,
+                             (void *)&rkey, (void **)&rvalue);
+    if (!found) {
+        return NULL;
+    }
 
-void *umfMemoryTrackerGetPool(umf_memory_tracker_handle_t hTracker,
-                              const void *ptr) {
-    return hTracker->find(ptr);
+    return (rkey + rvalue->size >= (uintptr_t)ptr) ? rvalue->pool : NULL;
 }
 
 struct umf_tracking_memory_provider_t {
@@ -136,7 +123,7 @@ static enum umf_result_t trackingAlloc(void *hProvider, size_t size,
     }
 
     ret = umfMemoryProviderAlloc(p->hUpstream, size, alignment, ptr);
-    if (ret != UMF_RESULT_SUCCESS) {
+    if (ret != UMF_RESULT_SUCCESS || !*ptr) {
         return ret;
     }
 
@@ -159,9 +146,11 @@ static enum umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
     // to avoid a race condition. If the order would be different, other thread
     // could allocate the memory at address `ptr` before a call to umfMemoryTrackerRemove
     // resulting in inconsistent state.
-    ret = umfMemoryTrackerRemove(p->hTracker, ptr, size);
-    if (ret != UMF_RESULT_SUCCESS) {
-        return ret;
+    if (ptr) {
+        ret = umfMemoryTrackerRemove(p->hTracker, ptr, size);
+        if (ret != UMF_RESULT_SUCCESS) {
+            return ret;
+        }
     }
 
     ret = umfMemoryProviderFree(p->hUpstream, ptr, size);
@@ -266,5 +255,4 @@ void umfTrackingMemoryProviderGetUpstreamProvider(
     umf_tracking_memory_provider_t *p =
         (umf_tracking_memory_provider_t *)hTrackingProvider;
     *hUpstream = p->hUpstream;
-}
 }
