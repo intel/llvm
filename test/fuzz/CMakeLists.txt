@@ -18,7 +18,7 @@ function(add_fuzz_test name label)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
     set(ENV_VARS UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION)
-    if(UR_BUILD_ADAPTER_L0)
+    if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
         list(APPEND ENV_VARS
                 UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\"
                 NEOReadDebugKeys=1
