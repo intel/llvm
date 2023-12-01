@@ -50,7 +50,6 @@ public:
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
   template <typename T> struct BuildResult {
-    std::atomic<T *> Ptr;
     T Val;
     std::atomic<BuildState> State{BuildState::BS_Initial};
     BuildError Error{"", 0};
