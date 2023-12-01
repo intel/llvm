@@ -3,7 +3,7 @@
 // RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -mllvm -ncpu-vecz-width=16 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-16
 // RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -mllvm -ncpu-vecz-width=4 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-4
 // RUN: %clangxx -O0 -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-O0
-// RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -fsycl-native-cpu-no-vecz -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-DISABLE
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O2 -mllvm -sycl-native-cpu-backend -mllvm -sycl-native-cpu-no-vecz -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-DISABLE
 #include <sycl/sycl.hpp>
 class Test1;
 int main() {
@@ -17,5 +17,6 @@ int main() {
     // CHECK-4: store <4 x i32> <i32 42, i32 42, i32 42, i32 42>
     // CHECK-O0: store i32 42
     // CHECK-DISABLE: store i32 42
+    // CHECK-DISABLE-NOT: store <8 x i32> <i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42>
   });
 }

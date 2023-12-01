@@ -118,6 +118,10 @@ static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
     cl::desc("Run the backend passes for SYCL Native CPU"));
+
+static cl::opt<bool> SYCLNativeCPUNoVecz(
+    "sycl-native-cpu-no-vecz", cl::init(false),
+    cl::desc("Disable vectorizer for SYCL Native CPU"));
 }
 
 namespace {
@@ -1069,7 +1073,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (SYCLNativeCPUBackend) {
-      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM, Level.getSpeedupLevel(), LangOpts.SYCLNativeCPUNoVecz);
+      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM, Level.getSpeedupLevel(), SYCLNativeCPUNoVecz);
     }
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());

@@ -299,8 +299,7 @@ LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
 LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
         "Allow virtual functions calls in code for SYCL device")
-LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL NativeCPU")
-LANGOPT(SYCLNativeCPUNoVecz  , 1, 0, "Disable vectorization on SYCL Native CPU")
+LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 LANGOPT(OffloadUniformBlock, 1, 0, "Assume that kernels are launched with uniform block sizes (default true for CUDA/HIP and false otherwise)")

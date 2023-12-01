@@ -6516,10 +6516,6 @@ def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
-def fsycl_native_cpu_no_vecz : Flag<["-"], "fsycl-native-cpu-no-vecz">,
-  Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Disable vectorization on SYCL Native CPU">,
-  MarshallingInfoFlag<LangOpts<"SYCLNativeCPUNoVecz">>;
 
 //===----------------------------------------------------------------------===//
 // FLangOption + NoXarchOption
