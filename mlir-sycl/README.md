@@ -39,6 +39,10 @@ cmake -G Ninja <PATH_TO_LLVM> -DLLVM_ENABLE_PROJECTS=mlir;mlir-sycl -DLLVM_EXTER
 ninja
 ```
 
+## Pulldown
+
+See [rebasing instructions](./mlir-sycl/doc/rebasing.md).
+
 ## Contributions
 
 This project is licensed under the Apache 2.0 with LLVM Exceptions license.
