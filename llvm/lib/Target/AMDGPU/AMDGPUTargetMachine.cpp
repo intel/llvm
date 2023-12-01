@@ -52,6 +52,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -350,6 +351,11 @@ static cl::opt<bool> EnableRewritePartialRegUses(
     cl::desc("Enable rewrite partial reg uses pass"), cl::init(false),
     cl::Hidden);
 
+static cl::opt<bool> EnableHipStdPar(
+  "amdgpu-enable-hipstdpar",
+  cl::desc("Enable HIP Standard Parallelism Offload support"), cl::init(false),
+  cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheR600Target());
@@ -377,7 +383,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSILoadStoreOptimizerPass(*PR);
   initializeAMDGPUCtorDtorLoweringLegacyPass(*PR);
   initializeAMDGPUAlwaysInlinePass(*PR);
-  initializeAMDGPUAttributorPass(*PR);
+  initializeAMDGPUAttributorLegacyPass(*PR);
   initializeAMDGPUAnnotateKernelFeaturesPass(*PR);
   initializeAMDGPUAnnotateUniformValuesPass(*PR);
   initializeAMDGPUArgumentUsageInfoPass(*PR);
@@ -428,6 +434,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(*PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(*PR);
+  initializeGCNRegPressurePrinterPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -612,6 +619,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
       [this](StringRef PassName, ModulePassManager &PM,
              ArrayRef<PassBuilder::PipelineElement>) {
+        if (PassName == "amdgpu-attributor") {
+          PM.addPass(AMDGPUAttributorPass(*this));
+          return true;
+        }
         if (PassName == "amdgpu-unify-metadata") {
           PM.addPass(AMDGPUUnifyMetadataPass());
           return true;
@@ -716,6 +727,8 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
           FPM.addPass(AMDGPUSimplifyLibCallsPass());
         PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+        if (EnableHipStdPar)
+          PM.addPass(HipStdParAcceleratorCodeSelectionPass());
       });
 
   PB.registerPipelineEarlySimplificationEPCallback(
@@ -1029,7 +1042,7 @@ void AMDGPUPassConfig::addIRPasses() {
   // AMDGPUAttributor infers lack of llvm.amdgcn.lds.kernel.id calls, so run
   // after their introduction
   if (TM.getOptLevel() > CodeGenOptLevel::None)
-    addPass(createAMDGPUAttributorPass());
+    addPass(createAMDGPUAttributorLegacyPass());
 
   if (TM.getOptLevel() > CodeGenOptLevel::None)
     addPass(createInferAddressSpacesPass());
@@ -1291,7 +1304,6 @@ void GCNPassConfig::addFastRegAlloc() {
   insertPass(&PHIEliminationID, &SILowerControlFlowID);
 
   insertPass(&TwoAddressInstructionPassID, &SIWholeQuadModeID);
-  insertPass(&TwoAddressInstructionPassID, &SIPreAllocateWWMRegsID);
 
   TargetPassConfig::addFastRegAlloc();
 }
@@ -1300,7 +1312,6 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   // Allow the scheduler to run before SIWholeQuadMode inserts exec manipulation
   // instructions that cause scheduling barriers.
   insertPass(&MachineSchedulerID, &SIWholeQuadModeID);
-  insertPass(&MachineSchedulerID, &SIPreAllocateWWMRegsID);
 
   if (OptExecMaskPreRA)
     insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
@@ -1387,6 +1398,7 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
 
   // Equivalent of PEI for SGPRs.
   addPass(&SILowerSGPRSpillsID);
+  addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(false));
 
@@ -1410,6 +1422,7 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
 
   // Equivalent of PEI for SGPRs.
   addPass(&SILowerSGPRSpillsID);
+  addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(true));
 

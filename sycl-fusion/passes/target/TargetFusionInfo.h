@@ -9,6 +9,7 @@
 #ifndef SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 #define SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 
+#include "Kernel.h"
 #include "kernel-fusion/Builtins.h"
 
 #include "llvm/IR/Function.h"
@@ -57,7 +58,8 @@ public:
   /// kernel.
   llvm::ArrayRef<llvm::StringRef> getUniformKernelAttributes() const;
 
-  void createBarrierCall(IRBuilderBase &Builder, int BarrierFlags) const;
+  void createBarrierCall(IRBuilderBase &Builder,
+                         jit_compiler::BarrierFlags BarrierFlags) const;
 
   unsigned getPrivateAddressSpace() const;
 
@@ -77,6 +79,12 @@ public:
   bool shouldRemap(jit_compiler::BuiltinKind K,
                    const jit_compiler::NDRange &SrcNDRange,
                    const jit_compiler::NDRange &FusedNDRange) const;
+
+  ///
+  /// Scan function for instructions to remap.
+  Error scanForBuiltinsToRemap(Function *F, jit_compiler::Remapper &R,
+                               const jit_compiler::NDRange &SrcNDRange,
+                               const jit_compiler::NDRange &FusedNDRange) const;
 
   ///
   /// Returns true if calls to \p F can be safely ignored in the remapping
@@ -105,8 +113,7 @@ public:
   /// FusedNDRange.
   Function *
   createRemapperFunction(const jit_compiler::Remapper &R,
-                         jit_compiler::BuiltinKind K, StringRef OrigName,
-                         StringRef Name, Module *M,
+                         jit_compiler::BuiltinKind K, Function *F, Module *M,
                          const jit_compiler::NDRange &SrcNDRange,
                          const jit_compiler::NDRange &FusedNDRange) const;
 

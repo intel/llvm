@@ -1,7 +1,7 @@
 // REQUIRES: level_zero
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //

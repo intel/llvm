@@ -345,8 +345,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# clang builtins need to be accessible
 				set( flags "SHELL:-mcpu=gfx940")
       elseif( ${ARCH}  STREQUAL x86_64)
-        # TODO: This is used by native cpu, we should define an option to set this flags
+        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
         set( flags "SHELL:-Xclang -target-feature -Xclang +avx"
+            "SHELL:-Xclang -fsycl-is-native-cpu"
             "SHELL:-Xclang -target-feature -Xclang +avx512f")
 			else()
 				set ( flags )
@@ -392,14 +393,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 string(CONCAT CL_3_0_EXTENSIONS
                   "-cl-ext="
                   "+cl_khr_fp64,"
+                  "+cl_khr_fp16,"
                   "+__opencl_c_3d_image_writes,"
                   "+__opencl_c_images,"
                   "+cl_khr_3d_image_writes,"
                   "+__opencl_c_generic_address_space")
-                if ( NOT ${ARCH} STREQUAL amdgcn )
-                  string(APPEND CL_3_0_EXTENSIONS
-                    ",+cl_khr_fp16")
-                endif()
                 list( APPEND flags ${CL_3_0_EXTENSIONS})
 
 		# Add platform specific flags

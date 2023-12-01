@@ -180,6 +180,18 @@ def err_intel_sycl_ptr_annotation_mismatch
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
   InGroup<VLAExtension>;
+// In C++ language modes, we warn by default as an extension, while in GNU++
+// language modes, we warn as an extension but add the warning group to -Wall.
+def ext_vla_cxx : ExtWarn<
+  "variable length arrays in C++ are a Clang extension">,
+  InGroup<VLACxxExtension>;
+def ext_vla_cxx_in_gnu_mode : Extension<ext_vla_cxx.Summary>,
+  InGroup<VLACxxExtension>;
+def ext_vla_cxx_static_assert : ExtWarn<
+  "variable length arrays in C++ are a Clang extension; did you mean to use "
+  "'static_assert'?">, InGroup<VLAUseStaticAssert>;
+def ext_vla_cxx_in_gnu_mode_static_assert : Extension<
+  ext_vla_cxx_static_assert.Summary>, InGroup<VLAUseStaticAssert>;
 def warn_vla_used : Warning<"variable length array used">,
   InGroup<VLA>, DefaultIgnore;
 def err_vla_in_sfinae : Error<
@@ -197,6 +209,8 @@ def ext_vla_folded_to_constant : ExtWarn<
   InGroup<GNUFoldingConstant>;
 def err_vla_unsupported : Error<
   "variable length arrays are not supported for %select{the current target|'%1'}0">;
+def err_vla_in_coroutine_unsupported : Error<
+  "variable length arrays in a coroutine are not supported">;
 def note_vla_unsupported : Note<
   "variable length arrays are not supported for the current target">;
 
@@ -2656,7 +2670,7 @@ def err_final_function_overridden : Error<
 
 // C++11 scoped enumerations
 def err_enum_invalid_underlying : Error<
-  "non-integral type %0 is an invalid underlying type">;
+  "%select{non-integral type %0|%0}1 is an invalid underlying type">;
 def err_enumerator_too_large : Error<
   "enumerator value is not representable in the underlying type %0">;
 def ext_enumerator_too_large : Extension<
@@ -3424,10 +3438,6 @@ def err_attribute_argument_is_zero : Error<
 def warn_attribute_argument_n_negative : Warning<
   "%0 attribute parameter %1 is negative and will be ignored">,
   InGroup<CudaCompat>;
-def warn_reqd_sub_group_attribute_cuda_n_32
-    : Warning<"attribute argument %0 is invalid and will be ignored; CUDA "
-              "requires sub_group size 32">,
-      InGroup<CudaCompat>;
 def err_property_function_in_objc_container : Error<
   "use of Objective-C property in function nested in Objective-C "
   "container not supported, move function outside its container">;
@@ -3526,6 +3536,10 @@ def warn_dllimport_dropped_from_inline_function : Warning<
 def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
   " only on a function directly called from a SYCL kernel function; attribute ignored">,
   InGroup<IgnoredAttributes>;
+def warn_reqd_sub_group_attribute_n
+    : Warning<"attribute argument %0 is invalid and will be ignored; %1 "
+              "requires sub_group size %2">,
+  InGroup<IncorrectSubGroupSize>;
 def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
   " exception specification; attribute ignored">,
   InGroup<IgnoredAttributes>;
@@ -3922,7 +3936,7 @@ def warn_fun_requires_negative_cap : Warning<
   "calling function %0 requires negative capability '%1'">,
   InGroup<ThreadSafetyAnalysis>, DefaultIgnore;
 
-// Thread safety warnings on pass by reference
+// Thread safety warnings on pass/return by reference
 def warn_guarded_pass_by_reference : Warning<
   "passing variable %1 by reference requires holding %0 "
   "%select{'%2'|'%2' exclusively}3">,
@@ -3931,6 +3945,14 @@ def warn_pt_guarded_pass_by_reference : Warning<
   "passing the value that %1 points to by reference requires holding %0 "
   "%select{'%2'|'%2' exclusively}3">,
   InGroup<ThreadSafetyReference>, DefaultIgnore;
+def warn_guarded_return_by_reference : Warning<
+  "returning variable %1 by reference requires holding %0 "
+  "%select{'%2'|'%2' exclusively}3">,
+  InGroup<ThreadSafetyReferenceReturn>, DefaultIgnore;
+def warn_pt_guarded_return_by_reference : Warning<
+  "returning the value that %1 points to by reference requires holding %0 "
+  "%select{'%2'|'%2' exclusively}3">,
+  InGroup<ThreadSafetyReferenceReturn>, DefaultIgnore;
 
 // Imprecise thread safety warnings
 def warn_variable_requires_lock : Warning<
@@ -5693,9 +5715,9 @@ def err_unexpanded_parameter_pack : Error<
   "%select{expression|base type|declaration type|data member type|bit-field "
   "size|static assertion|fixed underlying type|enumerator value|"
   "using declaration|friend declaration|qualifier|initializer|default argument|"
-  "non-type template parameter type|exception type|partial specialization|"
-  "__if_exists name|__if_not_exists name|lambda|block|type constraint|"
-  "requirement|requires clause}0 "
+  "non-type template parameter type|exception type|explicit specialization|"
+  "partial specialization|__if_exists name|__if_not_exists name|lambda|block|"
+  "type constraint|requirement|requires clause}0 "
   "contains%plural{0: an|:}1 unexpanded parameter pack"
   "%plural{0:|1: %2|2:s %2 and %3|:s %2, %3, ...}1">;
 
@@ -6448,6 +6470,17 @@ def warn_variable_sized_ivar_visibility : Warning<
 def warn_superclass_variable_sized_type_not_at_end : Warning<
   "field %0 can overwrite instance variable %1 with variable sized type %2"
   " in superclass %3">, InGroup<ObjCFlexibleArray>;
+
+def err_counted_by_attr_not_on_flexible_array_member : Error<
+  "'counted_by' only applies to C99 flexible array members">;
+def err_counted_by_attr_refers_to_flexible_array : Error<
+  "'counted_by' cannot refer to the flexible array %0">;
+def err_counted_by_must_be_in_structure : Error<
+  "field %0 in 'counted_by' not inside structure">;
+def err_flexible_array_counted_by_attr_field_not_integer : Error<
+  "field %0 in 'counted_by' must be a non-boolean integer type">;
+def note_flexible_array_counted_by_attr_field : Note<
+  "field %0 declared here">;
 
 let CategoryName = "ARC Semantic Issue" in {
 
@@ -8015,6 +8048,8 @@ def err_return_in_constructor_handler : Error<
 def warn_cdtor_function_try_handler_mem_expr : Warning<
   "cannot refer to a non-static member from the handler of a "
   "%select{constructor|destructor}0 function try block">, InGroup<Exceptions>;
+def err_throw_object_throwing_dtor : Error<
+  "cannot throw object of type %0 with a potentially-throwing destructor">;
 
 let CategoryName = "Lambda Issue" in {
   def err_capture_more_than_once : Error<
@@ -8754,10 +8789,13 @@ def warn_atomic_implicit_seq_cst : Warning<
   InGroup<DiagGroup<"atomic-implicit-seq-cst">>, DefaultIgnore;
 
 def err_overflow_builtin_must_be_int : Error<
-  "operand argument to overflow builtin must be an integer (%0 invalid)">;
+  "operand argument to %select{overflow builtin|checked integer operation}0 "
+  "must be an integer type %select{|other than plain 'char', 'bool', bit-precise, "
+  "or an enumeration }0(%1 invalid)">;
 def err_overflow_builtin_must_be_ptr_int : Error<
-  "result argument to overflow builtin must be a pointer "
-  "to a non-const integer (%0 invalid)">;
+  "result argument to %select{overflow builtin|checked integer operation}0 "
+  "must be a pointer to a non-const integer type %select{|other than plain 'char', "
+  "'bool', bit-precise, or an enumeration }0(%1 invalid)">;
 def err_overflow_builtin_bit_int_max_size : Error<
   "__builtin_mul_overflow does not support 'signed _BitInt' operands of more "
   "than %0 bits">;
@@ -9519,6 +9557,9 @@ def err_defaulted_special_member_return_type : Error<
 def err_defaulted_special_member_quals : Error<
   "an explicitly-defaulted %select{copy|move}0 assignment operator may not "
   "have 'const'%select{, 'constexpr'|}1 or 'volatile' qualifiers">;
+def err_defaulted_special_member_explicit_object_mismatch : Error<
+  "the type of the explicit object parameter of an explicitly-defaulted "
+  "%select{copy|move}0 assignment operator should match the type of the class %1">;
 def err_defaulted_special_member_volatile_param : Error<
   "the parameter for an explicitly-defaulted %sub{select_special_member_kind}0 "
   "may not be volatile">;
@@ -10059,6 +10100,11 @@ def err_duplicate_case_differing_expr : Error<
 def warn_case_empty_range : Warning<"empty case range specified">;
 def warn_missing_case_for_condition :
   Warning<"no case matching constant switch condition '%0'">;
+def err_loop_attr_conflict : Error<
+  "conflicting loop attribute %0">;
+def err_attribute_power_of_two_in_range : Error<
+  "%0 attribute requires an integer argument which is a constant power of two "
+  "between %1 and %2 inclusive; provided argument was %3">;
 
 def warn_def_missing_case : Warning<"%plural{"
   "1:enumeration value %1 not explicitly handled in switch|"
@@ -10219,8 +10265,8 @@ def err_shufflevector_argument_too_large : Error<
 
 def err_convertvector_non_vector : Error<
   "first argument to __builtin_convertvector must be a vector">;
-def err_convertvector_non_vector_type : Error<
-  "second argument to __builtin_convertvector must be a vector type">;
+def err_builtin_non_vector_type : Error<
+  "%0 argument to %1 must be of vector type">;
 def err_convertvector_incompatible_vector : Error<
   "first two arguments to __builtin_convertvector must have the same number of elements">;
 
@@ -11073,6 +11119,8 @@ def err_omp_wrong_linear_modifier : Error<
   "expected %select{'val' modifier|one of 'ref', val' or 'uval' modifiers}0">;
 def err_omp_wrong_linear_modifier_non_reference : Error<
   "variable of non-reference type %0 can be used only with 'val' modifier, but used with '%1'">;
+def err_omp_step_simple_modifier_exclusive : Error<
+  "step simple modifier is exclusive and can't be use with 'val', 'uval' or 'ref' modifier">;
 def err_omp_wrong_simdlen_safelen_values : Error<
   "the value of 'simdlen' parameter must be less than or equal to the value of the 'safelen' parameter">;
 def err_omp_wrong_if_directive_name_modifier : Error<
@@ -11630,6 +11678,10 @@ def err_conflicting_aligned_options : Error <
 def err_coro_invalid_addr_of_label : Error<
   "the GNU address of label extension is not allowed in coroutines."
 >;
+def err_coroutine_return_type : Error<
+  "function returns a type %0 marked with [[clang::coro_return_type]] but is neither a coroutine nor a coroutine wrapper; "
+  "non-coroutines should be marked with [[clang::coro_wrapper]] to allow returning coroutine return type"
+>;
 } // end of coroutines issue category
 
 let CategoryName = "Documentation Issue" in {
@@ -11977,9 +12029,12 @@ def warn_sycl_kernel_return_type : Warning<
 def err_sycl_special_type_num_init_method : Error<
   "types with 'sycl_special_class' attribute must have one and only one '__init' "
   "method defined">;
+def warn_launch_bounds_is_cuda_specific : Warning<
+  "%0 attribute ignored, only applicable when targeting Nvidia devices">,
+  InGroup<IgnoredAttributes>;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
-  "maxclusterrank requires sm_90 or higher, CUDA arch provided: %0, ignoring "
+  "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "
   "%1 attribute">, InGroup<IgnoredAttributes>;
 
 def err_bit_int_bad_size : Error<"%select{signed|unsigned}0 _BitInt must "

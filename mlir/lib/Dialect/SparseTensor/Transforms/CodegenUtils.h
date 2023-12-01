@@ -142,6 +142,10 @@ private:
 /// Add type casting between arith and index types when needed.
 Value genCast(OpBuilder &builder, Location loc, Value value, Type dstTy);
 
+/// Add conversion from scalar to given type (possibly a 0-rank tensor).
+Value genScalarToTensor(OpBuilder &builder, Location loc, Value elem,
+                        Type dstTp);
+
 /// Generates a pointer/index load from the sparse storage scheme. Narrower
 /// data types need to be zero extended before casting the value into the
 /// index type used for looping and indexing.
@@ -163,8 +167,7 @@ Value genIsNonzero(OpBuilder &builder, Location loc, Value v);
 /// stored into dstShape.
 void genReshapeDstShape(OpBuilder &builder, Location loc,
                         SmallVectorImpl<Value> &dstShape,
-                        ArrayRef<Value> srcShape,
-                        ArrayRef<StaticSize> staticDstShape,
+                        ArrayRef<Value> srcShape, ArrayRef<Size> staticDstShape,
                         ArrayRef<ReassociationIndices> reassociation);
 
 /// Reshape coordinates during a reshaping operation.
@@ -220,34 +223,6 @@ Value allocDenseTensor(OpBuilder &builder, Location loc,
 
 /// Generates code to deallocate a dense buffer.
 void deallocDenseTensor(OpBuilder &builder, Location loc, Value buffer);
-
-/// Generates code to read the value from `tensor[ivs]`. The generated code
-/// looks like the following and the insertion point after this routine is
-/// inside the then-branch.
-///    if (tensor[ivs] != 0)
-///      insert_point
-Value genValueForDense(OpBuilder &builder, Location loc, Value tensor,
-                       ValueRange ivs);
-
-/// Generates the loop structure to iterate over a dense tensor or a sparse
-/// tensor constant to support the lowering of dense-to-sparse convert operator.
-//
-// The loop to iterate a dense tensor:
-//   for i1 in dim1
-//    ..
-//     for ik in dimk
-//       val = a[i1,..,ik]
-//       if val != 0
-//         loop-body
-//
-// The loop to iterate a sparse tensor constant:
-//   for i in range(NNZ)
-//     val = values[i]
-//     [i1,..,ik] = coordinates[i]
-//     loop-body
-void genDenseTensorOrSparseConstantIterLoop(
-    OpBuilder &builder, Location loc, Value src, unsigned rank,
-    function_ref<void(OpBuilder &, Location, Value, ValueRange)> bodyBuilder);
 
 /// Populates given sizes array from dense tensor or sparse tensor constant.
 void sizesFromSrc(OpBuilder &builder, SmallVectorImpl<Value> &sizes,
@@ -342,20 +317,16 @@ Value createOrFoldSliceOffsetOp(OpBuilder &builder, Location loc, Value tensor,
 Value createOrFoldSliceStrideOp(OpBuilder &builder, Location loc, Value tensor,
                                 Dimension dim);
 
-/// Populates the array with the dimension-shape of the given
-/// `SparseTensorType`, where dynamic sizes are represented by zero.
-void fillDimShape(OpBuilder &builder, Location loc, SparseTensorType stt,
-                  SmallVectorImpl<Value> &out);
-
 /// Generates code that opens a reader and sets the dimension sizes.
 Value genReader(OpBuilder &builder, Location loc, SparseTensorType stt,
                 Value tensor,
-                /*out*/ SmallVectorImpl<Value> &dimShapeValues,
+                /*out*/ SmallVectorImpl<Value> &dimSizesValues,
                 /*out*/ Value &dimSizesBuffer);
 
 /// Generates code to set up the buffer parameters for a map.
 Value genMapBuffers(OpBuilder &builder, Location loc, SparseTensorType stt,
-                    ArrayRef<Value> dimShapeValues, Value dimSizesBuffer,
+                    ArrayRef<Value> dimSizesValues, Value dimSizesBuffer,
+                    /*out*/ SmallVectorImpl<Value> &lvlSizesValues,
                     /*out*/ Value &dim2lvlBuffer,
                     /*out*/ Value &lvl2dimBuffer);
 

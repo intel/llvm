@@ -97,9 +97,9 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
         float x = float(id[0] + 0.5) / (float)N;
         // Extension: read mipmap level 0 with anisotropic filtering and level 1
         // with LOD
-        VecType px1 = sycl::ext::oneapi::experimental::read_image<VecType>(
+        VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
             mipHandle, x, 0.0f);
-        VecType px2 = sycl::ext::oneapi::experimental::read_image<VecType>(
+        VecType px2 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
             mipHandle, x, 1.0f);
 
         sum = px1[0] + px2[0];

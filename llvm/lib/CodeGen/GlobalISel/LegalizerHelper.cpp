@@ -2141,8 +2141,20 @@ LegalizerHelper::widenScalarMulo(MachineInstr &MI, unsigned TypeIdx,
   auto LeftOperand = MIRBuilder.buildInstr(ExtOp, {WideTy}, {LHS});
   auto RightOperand = MIRBuilder.buildInstr(ExtOp, {WideTy}, {RHS});
 
-  auto Mulo = MIRBuilder.buildInstr(MI.getOpcode(), {WideTy, OverflowTy},
-                                    {LeftOperand, RightOperand});
+  // Multiplication cannot overflow if the WideTy is >= 2 * original width,
+  // so we don't need to check the overflow result of larger type Mulo.
+  bool WideMulCanOverflow = WideTy.getScalarSizeInBits() < 2 * SrcBitWidth;
+
+  unsigned MulOpc =
+      WideMulCanOverflow ? MI.getOpcode() : (unsigned)TargetOpcode::G_MUL;
+
+  MachineInstrBuilder Mulo;
+  if (WideMulCanOverflow)
+    Mulo = MIRBuilder.buildInstr(MulOpc, {WideTy, OverflowTy},
+                                 {LeftOperand, RightOperand});
+  else
+    Mulo = MIRBuilder.buildInstr(MulOpc, {WideTy}, {LeftOperand, RightOperand});
+
   auto Mul = Mulo->getOperand(0);
   MIRBuilder.buildTrunc(Result, Mul);
 
@@ -2160,9 +2172,7 @@ LegalizerHelper::widenScalarMulo(MachineInstr &MI, unsigned TypeIdx,
     ExtResult = MIRBuilder.buildZExtInReg(WideTy, Mul, SrcBitWidth);
   }
 
-  // Multiplication cannot overflow if the WideTy is >= 2 * original width,
-  // so we don't need to check the overflow result of larger type Mulo.
-  if (WideTy.getScalarSizeInBits() < 2 * SrcBitWidth) {
+  if (WideMulCanOverflow) {
     auto Overflow =
         MIRBuilder.buildICmp(CmpInst::ICMP_NE, OverflowTy, Mul, ExtResult);
     // Finally check if the multiplication in the larger type itself overflowed.
@@ -3560,10 +3570,10 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     return lowerFFloor(MI);
   case TargetOpcode::G_INTRINSIC_ROUND:
     return lowerIntrinsicRound(MI);
-  case TargetOpcode::G_INTRINSIC_ROUNDEVEN: {
+  case TargetOpcode::G_FRINT: {
     // Since round even is the assumed rounding mode for unconstrained FP
     // operations, rint and roundeven are the same operation.
-    changeOpcode(MI, TargetOpcode::G_FRINT);
+    changeOpcode(MI, TargetOpcode::G_INTRINSIC_ROUNDEVEN);
     return Legalized;
   }
   case TargetOpcode::G_ATOMIC_CMPXCHG_WITH_SUCCESS: {
@@ -5114,7 +5124,11 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
   }
   case TargetOpcode::G_TRUNC:
   case TargetOpcode::G_FPTRUNC:
-  case TargetOpcode::G_FPEXT: {
+  case TargetOpcode::G_FPEXT:
+  case TargetOpcode::G_FPTOSI:
+  case TargetOpcode::G_FPTOUI:
+  case TargetOpcode::G_SITOFP:
+  case TargetOpcode::G_UITOFP: {
     if (TypeIdx != 0)
       return UnableToLegalize;
     Observer.changingInstr(MI);
@@ -5928,8 +5942,10 @@ LegalizerHelper::lowerBitCount(MachineInstr &MI) {
       MI.eraseFromParent();
       return Legalized;
     }
+    Observer.changingInstr(MI);
     MI.setDesc(TII.get(TargetOpcode::G_CTPOP));
     MI.getOperand(1).setReg(MIBTmp.getReg(0));
+    Observer.changedInstr(MI);
     return Legalized;
   }
   case TargetOpcode::G_CTPOP: {
@@ -6952,8 +6968,8 @@ LegalizerHelper::lowerExtractInsertVectorElt(MachineInstr &MI) {
   Align EltAlign;
 
   MachinePointerInfo PtrInfo;
-  auto StackTemp = createStackTemporary(TypeSize::Fixed(VecTy.getSizeInBytes()),
-                                        VecAlign, PtrInfo);
+  auto StackTemp = createStackTemporary(
+      TypeSize::getFixed(VecTy.getSizeInBytes()), VecAlign, PtrInfo);
   MIRBuilder.buildStore(SrcVec, StackTemp, PtrInfo, VecAlign);
 
   // Get the pointer to the element, and be sure not to hit undefined behavior

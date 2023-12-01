@@ -1,6 +1,19 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
+// clang-format off
+#ifdef _WIN32
+// This include is added only to checks that the declarations and calls of std::min,
+// std::max, esimd::min() and esimd::max() functions inside ESIMD headers do not
+// cause problems even if if windows.h or other OLD system header file is included
+// and 'max' and 'min' are defined there as macros.
+//
+// NOMINMAX is intentionally NOT defined to perform the required check.
+// #define NOMINMAX
+#include <windows.h>
+#endif // _WIN32
+// clang-format on
+
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
 #include <utility>

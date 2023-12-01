@@ -1,8 +1,7 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for leaks in Level Zero using ZE_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
@@ -13,8 +12,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -37,11 +39,11 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  constexpr int ref = 42 * 2;
+  constexpr int Ref = 42 * 2;
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == ref);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Ref, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

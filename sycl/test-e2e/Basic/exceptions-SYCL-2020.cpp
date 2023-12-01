@@ -88,9 +88,6 @@ int main() {
       someL0ErrCode{EC};
   sycl::errc_for<sycl::backend::ext_oneapi_level_zero> anotherL0ErrCode{EC};
   assert(someL0ErrCode == anotherL0ErrCode);
-  sycl::backend_traits<sycl::backend::host>::errc someHOSTErrCode{EC};
-  sycl::errc_for<sycl::backend::host> anotherHOSTErrCode{EC};
-  assert(someHOSTErrCode == anotherHOSTErrCode);
   sycl::backend_traits<sycl::backend::ext_oneapi_cuda>::errc someCUDAErrCode{
       EC};
   sycl::errc_for<sycl::backend::ext_oneapi_cuda> anotherCUDAErrCode{EC};

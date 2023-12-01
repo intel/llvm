@@ -365,12 +365,7 @@ constexpr bool has_ref_ret(Ret (*)(Args...)) {
 }
 
 template <typename Ret, typename... Args>
-constexpr bool has_struct_arg(Ret (*)(Args...)) {
-  return (... || (std::is_class_v<Args> && !is_simd_or_mask_type<Args>::value));
-}
-
-template <typename Ret, typename... Args>
-constexpr bool has_struct_ret(Ret (*)(Args...)) {
+constexpr bool has_non_uniform_struct_ret(Ret (*)(Args...)) {
   return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value &&
          !is_uniform_type<Ret>::value;
 }
@@ -398,14 +393,11 @@ template <class Callable> constexpr void verify_callable() {
         !callable_has_ref_arg,
         "invoke_simd does not support callables with reference arguments");
 #ifndef __INVOKE_SIMD_ENABLE_STRUCTS
-    constexpr bool callable_has_struct_ret = has_struct_ret(obj);
-    static_assert(
-        !callable_has_struct_ret,
-        "invoke_simd does not support callables returning structures");
-    constexpr bool callable_has_struct_arg = has_struct_arg(obj);
-    static_assert(
-        !callable_has_struct_arg,
-        "invoke_simd does not support callables with structure arguments");
+    constexpr bool callable_has_non_uniform_struct_ret =
+        has_non_uniform_struct_ret(obj);
+    static_assert(!callable_has_non_uniform_struct_ret,
+                  "invoke_simd does not support callables returning "
+                  "non-uniform structures");
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
     constexpr bool callable_has_uniform_non_trivially_copyable_ret =
@@ -427,9 +419,21 @@ constexpr void verify_no_uniform_non_trivially_copyable_args() {
 #endif
 }
 
+template <class... Ts> constexpr void verify_no_non_uniform_struct_args() {
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__INVOKE_SIMD_ENABLE_STRUCTS)
+  constexpr bool has_non_uniform_struct_arg =
+      (... || (std::is_class_v<Ts> && !is_simd_or_mask_type<Ts>::value &&
+               !is_uniform_type<Ts>::value));
+  static_assert(!has_non_uniform_struct_arg,
+                "Structure arguments must be uniform");
+#endif
+}
+
 template <class Callable, class... Ts>
 constexpr void verify_valid_args_and_ret() {
   verify_no_uniform_non_trivially_copyable_args<Ts...>();
+
+  verify_no_non_uniform_struct_args<Ts...>();
 
   verify_callable<Callable>();
 }
