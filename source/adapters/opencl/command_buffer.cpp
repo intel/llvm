@@ -136,17 +136,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
-    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
-    [[maybe_unused]] void *pMemory, [[maybe_unused]] const void *pPattern,
-    [[maybe_unused]] size_t patternSize, [[maybe_unused]] size_t size,
-    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
-    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
-        *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
