@@ -17,6 +17,6 @@
 // RUN: %clang -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64 "-ze-opt-large-register-file -device pvc" \
 // RUN: -Xsycl-target-backend=spir64_gen "-ze-intel-enable-auto-large-GRF-mode -device pvc" -### %s 2>&1 | FileCheck -check-prefixes=LARGE,AUTO %s
 
-// LARGE: warning: using -ze-opt-large-register-file to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:large
-// SMALL: warning: using -ze-intel-128-GRF-per-thread to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:small
-// AUTO:  warning: using -ze-intel-enable-auto-large-GRF-mode to set GRF mode on PVC hardware is deprecated; use -ftarget-register-alloc-mode=pvc:auto
+// LARGE: warning: using '-ze-opt-large-register-file' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:large'
+// SMALL: warning: using '-ze-intel-128-GRF-per-thread' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:small'
+// AUTO:  warning: using '-ze-intel-enable-auto-large-GRF-mode' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:auto'
