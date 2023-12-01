@@ -13,13 +13,10 @@
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
-  bool passed = true;
+  esimd_test::printTestLabel(q);
 
   constexpr bool TestCacheHintProperties = true;
-  passed &= test_main_acc<!TestCacheHintProperties>(q);
+  bool passed = test_main_acc<!TestCacheHintProperties>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
