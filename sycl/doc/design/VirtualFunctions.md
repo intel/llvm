@@ -94,15 +94,14 @@ cleanup of virtual functions which are incompatible with a target device.
 ### Changes to the SYCL header files
 
 New compile-time properties `indirectly_callable` and `calls_indirectly` should
-be implemented in accordance with the corresponding [design document][2].
+be implemented in accordance with the corresponding [design document][2]:
 
-`indirectly_callable` property should lead to emission of
-`"indirectly-callable"="set"` function attribute, where "set" is a string
-representation of the property template parameter.
-
-`calls_indirectly` property should lead to emission of
-`"calls-indirectly"="set1,set2"`, where "set1" and "set2" are string
-representations of the property template parameters.
+- `indirectly_callable` property should lead to emission of
+  `"indirectly-callable"="set"` function attribute, where "set" is a string
+  representation of the property template parameter.
+- `calls_indirectly` property should lead to emission of
+  `"calls-indirectly"="set1,set2"`, where "set1" and "set2" are string
+  representations of the property template parameters.
 
 In order to convert a type to a string, [\__builtin_sycl_unique_stable_name][3]
 could be used.
@@ -110,18 +109,42 @@ could be used.
 **TODO**: `calls_indirectly` requires compile-time concatenation of strings.
 Document how it should be done.
 
+`indirectly_callable` property is applied to functions using "custom" (comparing
+to other properties) `SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY` macro. This
+is done to allow implementations to attach some extra attributes alongside the
+property. In particular, functions marked with the macro should be considered
+SYCL device functions and compiler should emit diagnostics if those functions
+do not conform with the SYCL 2020 specification. To achieve that and avoid
+extending FE to parse strings within properties, the aforementioned macro should
+also set `sycl_device` attribute:
+
+```
+#define SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(SetId)                    \
+  __attribute__((sycl_device)) [[__sycl_detail__::add_ir_attribute_function(   \
+      "indirectly-callable", __builtin_sycl_unique_stable_name(SetId))]]
+```
+
 ### Changes to the compiler front-end
 
-Compiler front-end should be updated to respect rules defined by the
-[extension specifiction][1], such as:
+Most of the handling for virtual functions happens in middle-end and thanks to
+compile-time properties, no extra work is required to propagate necessary
+information down to passes from headers.
+
+However, we do need to filter out those virtual functions which are not
+considered to be device  as defined by the [extension specifiction][1], such as:
 
 - virtual member functions annotated with `indirectly_callable` compile-time
   property should be emitted into device code;
 - virtual member function *not* annotated with `indirectly_callable`
   compile-time property should *not* be emitted into device code;
 
-**TODO**: investigate if it is possible to enforce SYCL device code restrctions
-on virtual member functions marked with the compile-time property.
+There is no need to actually check which exact property is applied to a
+function, it is enough to check if `add_ir_attribute_function` attribute was
+applied and that we are in SYCL device mode to decide whether or not a virtual
+function should be emitted into vtable and device code.
+
+**TODO:** any extra diagnostics we would like to emit? Like kernel without
+`calls_indirectly` property performing virtual function call.
 
 ### Changes to the compiler middle-end
 
