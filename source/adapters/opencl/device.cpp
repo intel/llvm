@@ -812,6 +812,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         {"cl_intel_program_scope_host_pipe"}, Supported));
     return ReturnValue(Supported);
   }
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT: {
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_global_variable_access"}, Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:

@@ -1597,6 +1597,9 @@ typedef enum ur_device_info_t {
                                                                      ///< this composite device.
     UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                           ///< [::ur_device_handle_t] The composite device containing this component
                                                                      ///< device.
+    UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT = 118,                    ///< [::ur_bool_t] return true if the device supports the
+                                                                     ///< `EnqueueDeviceGlobalVariableWrite` and
+                                                                     ///< `EnqueueDeviceGlobalVariableRead` entry points.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,       ///< [::ur_bool_t] Returns true if the device supports updating the kernel
