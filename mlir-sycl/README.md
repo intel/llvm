@@ -41,7 +41,7 @@ ninja
 
 ## Pulldown
 
-See [rebasing instructions](./mlir-sycl/doc/rebasing.md).
+See [rebasing instructions](./doc/rebasing.md).
 
 ## Contributions
 
