@@ -793,8 +793,8 @@ template <typename T, bool TestPVCFeatures> bool testSLM(queue Q) {
 
     constexpr int I32Factor =
         std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
-    constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
-    properties PVCProps{alignment<ReqiredAlignment>};
+    constexpr size_t RequiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+    properties PVCProps{alignment<RequiredAlignment>};
 
     // Test block_load() that is available on PVC:
     // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
