@@ -3519,6 +3519,14 @@ public:
     return {};
   }
 
+  std::optional<bool>
+  VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *T) {
+    // The "associated declaration" can be the same as ParentDC.
+    if (isAncestorDeclContextOf(ParentDC, T->getAssociatedDecl()))
+      return true;
+    return {};
+  }
+
   std::optional<bool> VisitConstantArrayType(const ConstantArrayType *T) {
     if (T->getSizeExpr() && isAncestorDeclContextOf(ParentDC, T->getSizeExpr()))
       return true;
@@ -3579,6 +3587,8 @@ private:
 };
 } // namespace
 
+/// This function checks if the function has 'auto' return type that contains
+/// a reference (in any way) to a declaration inside the same function.
 bool ASTNodeImporter::hasAutoReturnTypeDeclaredInside(FunctionDecl *D) {
   QualType FromTy = D->getType();
   const auto *FromFPT = FromTy->getAs<FunctionProtoType>();
@@ -9069,6 +9079,7 @@ public:
 
     ToAttr = FromAttr->clone(Importer.getToContext());
     ToAttr->setRange(ToRange);
+    ToAttr->setAttrName(Importer.Import(FromAttr->getAttrName()));
   }
 
   // Get the result of the previous import attempt (can be used only once).
