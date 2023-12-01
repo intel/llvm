@@ -1,27 +1,23 @@
-function_with_args_begin(1) - urInit(.device_flags = 0);
-function_with_args_end(1) - urInit(...) -> ur_result_t(0);
 Platform initialized.
-function_with_args_begin(2) - urAdapterGet(unimplemented);
+function_with_args_begin(1) - urAdapterGet(.NumEntries = 0, .phAdapters = {{.*}}, .pNumAdapters = {{.*}});
+function_with_args_end(1) - urAdapterGet(...) -> ur_result_t(0);
+function_with_args_begin(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}}, .pNumAdapters = {{.*}});
 function_with_args_end(2) - urAdapterGet(...) -> ur_result_t(0);
-function_with_args_begin(3) - urAdapterGet(unimplemented);
-function_with_args_end(3) - urAdapterGet(...) -> ur_result_t(0);
+function_with_args_begin(3) - urPlatformGet(unimplemented);
+function_with_args_end(3) - urPlatformGet(...) -> ur_result_t(0);
 function_with_args_begin(4) - urPlatformGet(unimplemented);
 function_with_args_end(4) - urPlatformGet(...) -> ur_result_t(0);
-function_with_args_begin(5) - urPlatformGet(unimplemented);
-function_with_args_end(5) - urPlatformGet(...) -> ur_result_t(0);
-function_with_args_begin(6) - urPlatformGetApiVersion(unimplemented);
-function_with_args_end(6) - urPlatformGetApiVersion(...) -> ur_result_t(0);
+function_with_args_begin(5) - urPlatformGetApiVersion(unimplemented);
+function_with_args_end(5) - urPlatformGetApiVersion(...) -> ur_result_t(0);
 API version: {{0\.[0-9]+}}
+function_with_args_begin(6) - urDeviceGet(unimplemented);
+function_with_args_end(6) - urDeviceGet(...) -> ur_result_t(0);
 function_with_args_begin(7) - urDeviceGet(unimplemented);
 function_with_args_end(7) - urDeviceGet(...) -> ur_result_t(0);
-function_with_args_begin(8) - urDeviceGet(unimplemented);
-function_with_args_end(8) - urDeviceGet(...) -> ur_result_t(0);
+function_with_args_begin(8) - urDeviceGetInfo(unimplemented);
+function_with_args_end(8) - urDeviceGetInfo(...) -> ur_result_t(0);
 function_with_args_begin(9) - urDeviceGetInfo(unimplemented);
 function_with_args_end(9) - urDeviceGetInfo(...) -> ur_result_t(0);
-function_with_args_begin(10) - urDeviceGetInfo(unimplemented);
-function_with_args_end(10) - urDeviceGetInfo(...) -> ur_result_t(0);
 Found a Null Device gpu.
-function_with_args_begin(11) - urAdapterRelease(unimplemented);
-function_with_args_end(11) - urAdapterRelease(...) -> ur_result_t(0);
-function_with_args_begin(12) - urTearDown(unimplemented);
-function_with_args_end(12) - urTearDown(...) -> ur_result_t(0);
+function_with_args_begin(10) - urAdapterRelease(unimplemented);
+function_with_args_end(10) - urAdapterRelease(...) -> ur_result_t(0);

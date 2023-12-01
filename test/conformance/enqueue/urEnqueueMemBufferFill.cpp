@@ -183,6 +183,13 @@ TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullPtrEventWaitList) {
                                             sizeof(uint32_t), 0, size, 0,
                                             &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueMemBufferFill(queue, buffer, &pattern,
+                                            sizeof(uint32_t), 0, size, 1,
+                                            &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidSize) {

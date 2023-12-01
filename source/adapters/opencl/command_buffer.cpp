@@ -125,7 +125,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
     [[maybe_unused]] size_t size,
@@ -147,7 +147,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
@@ -172,14 +172,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
-    ur_mem_handle_t hDstMem, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
-    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hSrcMem,
+    [[maybe_unused]] ur_mem_handle_t hDstMem,
+    [[maybe_unused]] ur_rect_offset_t srcOrigin,
+    [[maybe_unused]] ur_rect_offset_t dstOrigin,
+    [[maybe_unused]] ur_rect_region_t region,
+    [[maybe_unused]] size_t srcRowPitch, [[maybe_unused]] size_t srcSlicePitch,
+    [[maybe_unused]] size_t dstRowPitch, [[maybe_unused]] size_t dstSlicePitch,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   size_t OpenCLOriginRect[3]{srcOrigin.x, srcOrigin.y, srcOrigin.z};
   size_t OpenCLDstRect[3]{dstOrigin.x, dstOrigin.y, dstOrigin.z};
@@ -206,7 +211,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
@@ -214,11 +219,14 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
     [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  cl_adapter::die("Experimental Command-buffer feature is not "
+                  "implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] void *pDst,
@@ -230,7 +238,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
@@ -248,7 +256,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,

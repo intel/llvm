@@ -545,7 +545,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
@@ -555,7 +555,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
     ur_mem_handle_t DstMem, size_t SrcOffset, size_t DstOffset, size_t Size,
     uint32_t NumSyncPointsInWaitList,
@@ -581,7 +581,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
       SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
     ur_mem_handle_t DstMem, ur_rect_offset_t SrcOrigin,
     ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
@@ -609,7 +609,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
       DstSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     size_t Offset, size_t Size, const void *Src,
     uint32_t NumSyncPointsInWaitList,
@@ -628,7 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
       Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,
@@ -648,7 +648,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
       BufferSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     size_t Offset, size_t Size, void *Dst, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
@@ -663,7 +663,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
       Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,

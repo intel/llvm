@@ -46,7 +46,8 @@ params:
       desc: |
             [out][optional] returns the total number of platforms available. 
 returns:
-    - $X_RESULT_ERROR_INVALID_SIZE
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NumEntries == 0 && phPlatforms != NULL`"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported platform info"

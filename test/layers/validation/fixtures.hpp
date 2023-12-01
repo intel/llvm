@@ -17,15 +17,14 @@ struct urTest : ::testing::Test {
                                             "UR_LAYER_FULL_VALIDATION"),
                   UR_RESULT_SUCCESS);
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_EQ(urInit(device_flags, loader_config), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urLoaderInit(device_flags, loader_config), UR_RESULT_SUCCESS);
     }
 
     void TearDown() override {
         if (loader_config) {
             ASSERT_EQ(urLoaderConfigRelease(loader_config), UR_RESULT_SUCCESS);
         }
-        ur_tear_down_params_t tear_down_params{};
-        ASSERT_EQ(urTearDown(&tear_down_params), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urLoaderTearDown(), UR_RESULT_SUCCESS);
     }
 
     ur_loader_config_handle_t loader_config = nullptr;
@@ -53,7 +52,12 @@ struct valPlatformsTest : urTest {
                   UR_RESULT_SUCCESS);
     }
 
-    void TearDown() override { urTest::TearDown(); }
+    void TearDown() override {
+        for (auto &adapter : adapters) {
+            ASSERT_EQ(urAdapterRelease(adapter), UR_RESULT_SUCCESS);
+        }
+        urTest::TearDown();
+    }
 
     std::vector<ur_adapter_handle_t> adapters;
     std::vector<ur_platform_handle_t> platforms;

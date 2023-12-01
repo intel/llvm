@@ -131,7 +131,7 @@ params:
       name: NumEntries
       desc: |
             [in] the number of devices to be added to phDevices.
-            If phDevices in not NULL then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_VALUE,
+            If phDevices is not NULL, then NumEntries should be greater than zero. Otherwise $X_RESULT_ERROR_INVALID_SIZE
             will be returned.
     - type: "$x_device_handle_t*"
       name: phDevices
@@ -144,6 +144,10 @@ params:
             [out][optional] pointer to the number of devices.
             pNumDevices will be updated with the total number of devices available.
 returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NumEntries == 0 && phDevices != NULL`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NumEntries > 0 && phDevices == NULL`"
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: enum

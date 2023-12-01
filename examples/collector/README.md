@@ -19,7 +19,7 @@ $ mkdir build
 $ cd build
 $ cmake .. -DUR_ENABLE_TRACING=ON
 $ make
-$ UR_ADAPTERS_FORCE_LOAD=./lib/libur_adapter_null.so XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=./lib/libxptifw.so XPTI_SUBSCRIBERS=./lib/libcollector.so ./bin/hello_world
+$ UR_ADAPTERS_FORCE_LOAD=./lib/libur_adapter_null.so UR_ENABLE_LAYERS=UR_LAYER_TRACING XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=./lib/libxptifw.so XPTI_SUBSCRIBERS=./lib/libcollector.so ./bin/hello_world
 ```
 
 See [XPTI framework documentation](https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md) for more information.
