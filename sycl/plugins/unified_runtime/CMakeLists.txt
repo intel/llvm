@@ -57,11 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b3de31844ca45d1815c54d85f248f13ad81b6755
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 28 16:21:43 2023 +0000
-  #     Set version to v0.8.1
-  set(UNIFIED_RUNTIME_TAG v0.8.1)
+  # commit 47af3ee296ae0517213114332ffd3ac54a456b16
+  # Merge: bd76c510 f2ca7a91
+  # Author: Omar Ahmed <30423288+omarahmed1111@users.noreply.github.com>
+  # Date:   Thu Nov 30 16:11:56 2023 +0000
+  # - Merge pull request #1072 from omarahmed1111/merge-some-main-changes-into-adapters-third-patch
+  # - Merge main into adapters branch
+  set(UNIFIED_RUNTIME_TAG 47af3ee296ae0517213114332ffd3ac54a456b16)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

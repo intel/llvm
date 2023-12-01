@@ -216,6 +216,10 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationLatencyControlConstraintINTEL, "LatencyControlConstraintINTEL");
   add(DecorationFPMaxErrorDecorationINTEL, "FPMaxErrorDecorationINTEL");
 
+  add(DecorationHostAccessINTEL, "HostAccessINTEL");
+  add(DecorationInitModeINTEL, "InitModeINTEL");
+  add(DecorationImplementInRegisterMapINTEL, "ImplementInRegisterMapINTEL");
+
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
   add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
@@ -634,6 +638,9 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
   add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
+  add(CapabilityGlobalVariableFPGADecorationsINTEL,
+      "GlobalVariableFPGADecorationsINTEL");
+  add(CapabilityGlobalVariableHostAccessINTEL, "GlobalVariableHostAccessINTEL");
   add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
   add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
@@ -675,6 +682,26 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "CooperativeMatrixInvocationInstructionsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
+
+template <>
+inline void SPIRVMap<InitializationModeQualifier, std::string>::init() {
+  add(InitializationModeQualifierInitOnDeviceReprogramINTEL,
+      "InitOnDeviceReprogramINTEL");
+  add(InitializationModeQualifierInitOnDeviceResetINTEL,
+      "InitOnDeviceResetINTEL");
+  add(InitializationModeQualifierMax, "Max");
+}
+SPIRV_DEF_NAMEMAP(InitializationModeQualifier,
+                  SPIRVInitializationModeQualifierNameMap)
+
+template <> inline void SPIRVMap<HostAccessQualifier, std::string>::init() {
+  add(HostAccessQualifierNoneINTEL, "NoneINTEL");
+  add(HostAccessQualifierReadINTEL, "ReadINTEL");
+  add(HostAccessQualifierWriteINTEL, "WriteINTEL");
+  add(HostAccessQualifierReadWriteINTEL, "ReadWriteINTEL");
+  add(HostAccessQualifierMax, "Max");
+}
+SPIRV_DEF_NAMEMAP(HostAccessQualifier, SPIRVHostAccessQualifierNameMap)
 
 } /* namespace SPIRV */
 
