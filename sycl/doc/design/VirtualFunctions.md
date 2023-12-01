@@ -3,6 +3,91 @@
 Corresponding language extension specification:
 [sycl_ext_oneapi_virtual_functions][1]
 
+## Overview
+
+Main complexity of the feature comes from its co-existence with optional kernel
+features ([SYCL 2020 spec][sycl-spec-optional-kernel-features],
+[implementaiton design][optional-kernel-features-design]) mechanism. Consider
+the following example:
+
+```c++
+using syclext = sycl::ext::oneapi::experimental;
+
+struct set_fp64;
+
+struct Base {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_fp64) void bar() {
+    // this virtual function uses double
+    double d = 3.14;
+  }
+};
+
+class Constructor;
+class Use;
+class UseFP64;
+
+int main() {
+  // Selected device may not support 'fp64' aspect
+  sycl::queue Q;
+
+  Base *Obj = sycl::malloc_device<Base>(1, Q);
+  int *Result = sycl::malloc_shared<int>(2, Q);
+
+  Q.single_task<Constructor>([=] {
+    // Only placement new can be used within device functions.
+    // When an object of a polymorphic class is created, its vtable is filled
+    // with pointer to virtual member functions. However, we don't always know
+    // featuures supported by a target device (in case of JIT) and therefore
+    // can't decide whether both 'foo' and 'bar' should be both included in the
+    // resulting device image - the decision must be made at runtime when we
+    // know the target device.
+    new (Obj) Derived;
+  });
+
+  // The same binary produced by thy sycl compiler should correctly work on both
+  // devices with and without support for 'fp64' aspect.
+  Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
+    Obj->foo();
+  });
+
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<set_fp64>},
+        [=] {
+      Obj->bar();
+    });
+  }
+
+  return 0;
+}
+```
+
+As comments in the snippet say the main issue is with vtables: at compile time
+it may not be clear which exact functions can be safely included in there and
+which are not in order to avoid speculative compilation and fulfill optional
+kernel features requirements from the SYCL 2020 specificaiton.
+
+To solve this, the following approach is used: all virtual functions marked with
+`indirectly_callable` property are grouped by set they belong to and outlined
+into separate device images (i.e. device images with kernels using them are left
+with declarations only of those virtual functions).
+
+For each device image with virtual functinos that use optional features we also
+create a "dummy" version of it where bodies of all virtual functions are
+emptied.
+
+Dependencies between deivce images are recorded in properties based on
+`calls_indirectly` and `indirectly_callable` properties. They are used later by
+runtime to link them together. Device images which depend on optional kernel
+features are linked only if those features are supported by a target device and
+dummyy versions of those device images are used otherwise.
+
+This way we can emit single unified version of LLVM IR where vtables reference
+all device virtual functions, but their definitions are outlined and linked
+back dynamically based on device capabilities.
+
+For AOT flow, we don't do outlining and dynamic linking, but instead do direct
+cleanup of virtual functions which are incompatible with a target device.
 
 ## Design
 
@@ -192,4 +277,6 @@ functionality here?
 [1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
 [3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
+[sycl-spec-optional-kernel-features]: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features
+[optional-kernel-features-design]: <OptionalDeviceFeatures.md>
 

@@ -503,8 +503,7 @@ int main() {
 
   Q.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(bundleA);
-    CGH.single_task<Constructor>(syclext::properties{syclext::calls_indirectly<>},
-        [=] {
+    CGH.single_task<Constructor>([=] {
       // Only placement new can be used within device functions.
       new (Obj) Derived;
     });
