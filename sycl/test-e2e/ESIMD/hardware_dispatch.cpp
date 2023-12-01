@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -o %t.out
 // RUN: %t.out
 // TODO: remove XFAIL when the fix in GPU RT for Windows is updated on CI

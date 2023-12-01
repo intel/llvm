@@ -188,8 +188,8 @@ static cl::opt<unsigned> SetupCostDepthLimit(
     "lsr-setupcost-depth-limit", cl::Hidden, cl::init(7),
     cl::desc("The limit on recursion depth for LSRs setup cost"));
 
-static cl::opt<bool> AllowTerminatingConditionFoldingAfterLSR(
-    "lsr-term-fold", cl::Hidden, cl::init(false),
+static cl::opt<cl::boolOrDefault> AllowTerminatingConditionFoldingAfterLSR(
+    "lsr-term-fold", cl::Hidden,
     cl::desc("Attempt to replace primary IV with other IV."));
 
 static cl::opt<bool> AllowDropSolutionIfLessProfitable(
@@ -5546,10 +5546,12 @@ Value *LSRInstance::Expand(const LSRUse &LU, const LSRFixup &LF,
              "a scale at the same time!");
       Constant *C = ConstantInt::getSigned(SE.getEffectiveSCEVType(OpTy),
                                            -(uint64_t)Offset);
-      if (C->getType() != OpTy)
-        C = ConstantExpr::getCast(CastInst::getCastOpcode(C, false,
-                                                          OpTy, false),
-                                  C, OpTy);
+      if (C->getType() != OpTy) {
+        C = ConstantFoldCastOperand(
+            CastInst::getCastOpcode(C, false, OpTy, false), C, OpTy,
+            CI->getModule()->getDataLayout());
+        assert(C && "Cast of ConstantInt should have folded");
+      }
 
       CI->setOperand(1, C);
     }
@@ -6936,7 +6938,18 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
     }
   }
 
-  if (AllowTerminatingConditionFoldingAfterLSR) {
+  const bool EnableFormTerm = [&] {
+    switch (AllowTerminatingConditionFoldingAfterLSR) {
+    case cl::BOU_TRUE:
+      return true;
+    case cl::BOU_FALSE:
+      return false;
+    case cl::BOU_UNSET:
+      return TTI.shouldFoldTerminatingConditionAfterLSR();
+    }
+  }();
+
+  if (EnableFormTerm) {
     if (auto Opt = canFoldTermCondOfLoop(L, SE, DT, LI)) {
       auto [ToFold, ToHelpFold, TermValueS, MustDrop] = *Opt;
 

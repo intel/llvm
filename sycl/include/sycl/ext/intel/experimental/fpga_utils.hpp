@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/ext/oneapi/latency_control/properties.hpp> // for latency_co...
-#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
 
 #include <stdint.h>    // for int32_t
 #include <type_traits> // for conditional_t
@@ -32,23 +31,28 @@ struct _GetValue<_Type, _T1, _T...> {
                          _GetValue<_Type, _T...>>::value;
 };
 
-template <typename T, typename PropertyListT =
-                          ext::oneapi::experimental::empty_properties_t>
-class AnnotatedMemberValue {
-  static_assert(oneapi::experimental::is_property_list<PropertyListT>::value,
-                "Property list is invalid.");
+// Get the specified property from the given compile-time property list. If
+// the property is not provided in the property list, get the default version of
+// this property.
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT,
+          typename = void>
+struct GetOrDefaultValT {
+  using type = DefaultPropValT;
+};
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT>
+struct GetOrDefaultValT<
+    PropListT, PropKeyT, DefaultPropValT,
+    std::enable_if_t<PropListT::template has_property<PropKeyT>()>> {
+  using type = decltype(PropListT::template get_property<PropKeyT>());
 };
 
-template <typename T, typename... Props>
-class AnnotatedMemberValue<
-    T, oneapi::experimental::detail::properties_t<Props...>> {
-public:
-  AnnotatedMemberValue() {}
-  AnnotatedMemberValue(T Value) : MValue(Value) {}
-  T MValue [[__sycl_detail__::add_ir_annotations_member(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]];
-};
+// Default latency_anchor_id property for latency control, indicating the
+// applied operation is not an anchor.
+using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
+// Default latency_constraint property for latency control, indicating the
+// applied operation is not a non-anchor.
+using defaultLatencyConstraintProperty =
+    latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
 } // namespace ext::intel::experimental::detail
 } // namespace _V1

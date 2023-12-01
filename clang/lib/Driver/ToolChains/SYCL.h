@@ -173,7 +173,7 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA) const;
+                            const JobAction &JA, const ToolChain &HostTC) const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
@@ -194,7 +194,8 @@ public:
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (this->IsSYCLNativeCPU)
+    if (this->IsSYCLNativeCPU ||
+        this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
   }

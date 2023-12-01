@@ -486,6 +486,10 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
 /// The framework does not implement this function, only proxy library.
 XPTI_EXPORT_API void xptiTraceTryToEnable();
 
+/// @brief Removes cached event and associated metadata
+/// @param e The event for which associated data will be removed
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *e);
+
 typedef xpti::result_t (*xpti_framework_initialize_t)();
 typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
@@ -524,4 +528,5 @@ typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
 typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
+typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
 }

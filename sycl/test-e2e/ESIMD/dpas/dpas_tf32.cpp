@@ -5,12 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
-
-// TODO: implement support for tfloat32 in esimd_emulator
-// XFAIL: esimd_emulator
 
 // This test verifies DPAS support for tfloat32.
 

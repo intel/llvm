@@ -1819,6 +1819,8 @@ Token ASTReader::ReadToken(ModuleFile &F, const RecordDataImpl &Record,
     case tok::annot_pragma_openmp:
     case tok::annot_pragma_openmp_end:
     case tok::annot_pragma_unused:
+    case tok::annot_pragma_openacc:
+    case tok::annot_pragma_openacc_end:
       break;
     default:
       llvm_unreachable("missing deserialization code for annotation token");
@@ -4175,7 +4177,7 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
       return OutOfDate;
     }
 
-    llvm::SmallPtrSet<FileEntryRef, 1> AdditionalStoredMaps;
+    ModuleMap::AdditionalModMapsSet AdditionalStoredMaps;
     for (unsigned I = 0, N = Record[Idx++]; I < N; ++I) {
       // FIXME: we should use input files rather than storing names.
       std::string Filename = ReadPath(F, Record, Idx);
@@ -10122,8 +10124,7 @@ void ASTReader::pushExternalDeclIntoScope(NamedDecl *D, DeclarationName Name) {
     // Adding the decl to IdResolver may have failed because it was already in
     // (even though it was not added in scope). If it is already in, make sure
     // it gets in the scope as well.
-    if (std::find(SemaObj->IdResolver.begin(Name),
-                  SemaObj->IdResolver.end(), D) != SemaObj->IdResolver.end())
+    if (llvm::is_contained(SemaObj->IdResolver.decls(Name), D))
       SemaObj->TUScope->AddDecl(D);
   }
 }
@@ -10281,6 +10282,9 @@ OMPClause *OMPClauseReader::readClause() {
     break;
   case llvm::omp::OMPC_compare:
     C = new (Context) OMPCompareClause();
+    break;
+  case llvm::omp::OMPC_fail:
+    C = new (Context) OMPFailClause();
     break;
   case llvm::omp::OMPC_seq_cst:
     C = new (Context) OMPSeqCstClause();
@@ -10674,6 +10678,16 @@ void OMPClauseReader::VisitOMPUpdateClause(OMPUpdateClause *C) {
 void OMPClauseReader::VisitOMPCaptureClause(OMPCaptureClause *) {}
 
 void OMPClauseReader::VisitOMPCompareClause(OMPCompareClause *) {}
+
+// Read the parameter of fail clause. This will have been saved when
+// OMPClauseWriter is called.
+void OMPClauseReader::VisitOMPFailClause(OMPFailClause *C) {
+  C->setLParenLoc(Record.readSourceLocation());
+  SourceLocation FailParameterLoc = Record.readSourceLocation();
+  C->setFailParameterLoc(FailParameterLoc);
+  OpenMPClauseKind CKind = Record.readEnum<OpenMPClauseKind>();
+  C->setFailParameter(CKind);
+}
 
 void OMPClauseReader::VisitOMPSeqCstClause(OMPSeqCstClause *) {}
 

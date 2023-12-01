@@ -1,13 +1,12 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Test calling queue::submit(graph) while the previous submission of graph has
 // not been completed. The second run is to check that there are no leaks
-// reported with the embedded ZE_DEBUG=4 testing capability.
+// reported with the embedded UR_L0_LEAKS_DEBUG=1 testing capability.
 
 #include "graph_common.hpp"
 
@@ -19,6 +18,10 @@ isSubmittedOrRunningCommand(sycl::info::event_command_status Status) {
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 

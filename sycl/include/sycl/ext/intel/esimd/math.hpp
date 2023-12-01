@@ -177,7 +177,7 @@ abs(T1 src0) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<T, SZ> max(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API simd<T, SZ>(max)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
   if constexpr (std::is_floating_point<T>::value) {
@@ -209,10 +209,10 @@ __ESIMD_API simd<T, SZ> max(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-max(simd<T, SZ> src0, T src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    max)(simd<T, SZ> src0, T src1, Sat sat = {}) {
   simd<T, SZ> Src1 = src1;
-  simd<T, SZ> Result = esimd::max<T>(src0, Src1, sat);
+  simd<T, SZ> Result = (esimd::max)(src0, Src1, sat);
   return Result;
 }
 
@@ -227,10 +227,10 @@ max(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise maximum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-max(T src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    max)(T src0, simd<T, SZ> src1, Sat sat = {}) {
   simd<T, SZ> Src0 = src0;
-  simd<T, SZ> Result = esimd::max<T>(Src0, src1, sat);
+  simd<T, SZ> Result = (esimd::max)(Src0, src1, sat);
   return Result;
 }
 
@@ -243,12 +243,12 @@ max(T src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return maximum value between the two inputs.
 template <typename T, class Sat = saturation_off_tag>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    max(T src0, T src1, Sat sat = {}) {
+ESIMD_NODEBUG ESIMD_INLINE
+std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(max)(T src0, T src1,
+                                                            Sat sat = {}) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
-  simd<T, 1> Result = esimd::max<T>(Src0, Src1, sat);
+  simd<T, 1> Result = (esimd::max)(Src0, Src1, sat);
   return Result[0];
 }
 
@@ -262,7 +262,7 @@ ESIMD_NODEBUG
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<T, SZ> min(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API simd<T, SZ>(min)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
   if constexpr (std::is_floating_point<T>::value) {
@@ -294,10 +294,10 @@ __ESIMD_API simd<T, SZ> min(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-min(simd<T, SZ> src0, T src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    min)(simd<T, SZ> src0, T src1, Sat sat = {}) {
   simd<T, SZ> Src1 = src1;
-  simd<T, SZ> Result = esimd::min<T>(src0, Src1, sat);
+  simd<T, SZ> Result = (esimd::min)(src0, Src1, sat);
   return Result;
 }
 
@@ -312,10 +312,10 @@ min(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return vector of component-wise minimum elements.
 template <typename T, int SZ, class Sat = saturation_off_tag>
-__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>
-min(T src0, simd<T, SZ> src1, Sat sat = {}) {
+__ESIMD_API std::enable_if_t<detail::is_esimd_scalar<T>::value, simd<T, SZ>>(
+    min)(T src0, simd<T, SZ> src1, Sat sat = {}) {
   simd<T, SZ> Src0 = src0;
-  simd<T, SZ> Result = esimd::min<T>(Src0, src1, sat);
+  simd<T, SZ> Result = (esimd::min)(Src0, src1, sat);
   return Result;
 }
 
@@ -328,12 +328,12 @@ min(T src0, simd<T, SZ> src1, Sat sat = {}) {
 /// values: saturation_on/saturation_off.
 /// @return minimum value between the two inputs.
 template <typename T, class Sat = saturation_off_tag>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<T>::value, T>
-    min(T src0, T src1, Sat sat = {}) {
+ESIMD_NODEBUG ESIMD_INLINE
+std::enable_if_t<detail::is_esimd_scalar<T>::value, T>(min)(T src0, T src1,
+                                                            Sat sat = {}) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
-  simd<T, 1> Result = esimd::min<T>(Src0, Src1, sat);
+  simd<T, 1> Result = (esimd::min)(Src0, Src1, sat);
   return Result[0];
 }
 

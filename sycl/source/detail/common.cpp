@@ -72,22 +72,24 @@ const char *stringifyErrorCode(pi_int32 error) {
 }
 
 std::vector<std::string> split_string(const std::string &str, char delimeter) {
-  std::vector<std::string> result;
-  size_t beg = 0;
-  size_t length = 0;
-  for (const auto &x : str) {
-    if (x == delimeter) {
-      result.push_back(str.substr(beg, length));
-      beg += length + 1;
-      length = 0;
-      continue;
-    }
-    length++;
+  std::vector<std::string> Result;
+  size_t Start = 0;
+  size_t End = 0;
+  while ((End = str.find(delimeter, Start)) != std::string::npos) {
+    Result.push_back(str.substr(Start, End - Start));
+    Start = End + 1;
   }
-  if (length != 0) {
-    result.push_back(str.substr(beg, length));
+  // Get the last substring and ignore the null character so we wouldn't get
+  // double null characters \0\0 at the end of the substring
+  End = str.find('\0');
+  if (Start < End) {
+    std::string LastSubStr(str.substr(Start, End - Start));
+    // In case str has a delimeter at the end, the substring will be empty, so
+    // we shouldn't add it to the final vector
+    if (!LastSubStr.empty())
+      Result.push_back(LastSubStr);
   }
-  return result;
+  return Result;
 }
 
 } // namespace detail
