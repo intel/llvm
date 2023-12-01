@@ -23,7 +23,8 @@ TEST_F(test, memoryProviderTrace) {
 
     size_t call_count = 0;
 
-    auto ret = umfMemoryProviderAlloc(tracingProvider.get(), 0, 0, nullptr);
+    void *ptr;
+    auto ret = umfMemoryProviderAlloc(tracingProvider.get(), 0, 0, &ptr);
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
     ASSERT_EQ(calls["alloc"], 1);
     ASSERT_EQ(calls.size(), ++call_count);

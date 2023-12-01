@@ -34,41 +34,6 @@ ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
 ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urInit
-__urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
-    ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-    ur_loader_config_handle_t
-        hLoaderConfig ///< [in][optional] Handle of loader config handle.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    for (auto &platform : context->platforms) {
-        if (platform.initStatus != UR_RESULT_SUCCESS) {
-            continue;
-        }
-        platform.initStatus =
-            platform.dditable.ur.Global.pfnInit(device_flags, hLoaderConfig);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urTearDown
-__urdlllocal ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    for (auto &platform : context->platforms) {
-        platform.dditable.ur.Global.pfnTearDown(pParams);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t
@@ -475,8 +440,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ur_device_type_t DeviceType,    ///< [in] the type of the devices.
     uint32_t
         NumEntries, ///< [in] the number of devices to be added to phDevices.
-    ///< If phDevices in not NULL then NumEntries should be greater than zero,
-    ///< otherwise ::UR_RESULT_ERROR_INVALID_VALUE,
+    ///< If phDevices is not NULL, then NumEntries should be greater than zero.
+    ///< Otherwise ::UR_RESULT_ERROR_INVALID_SIZE
     ///< will be returned.
     ur_device_handle_t *
         phDevices, ///< [out][optional][range(0, NumEntries)] array of handle of devices.
@@ -5306,7 +5271,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ///< events that must be complete before the host pipe write.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out] returns an event object that identifies this write command
+        phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5343,8 +5308,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
     try {
         // convert platform handle to loader handle
-        *phEvent = reinterpret_cast<ur_event_handle_t>(
-            ur_event_factory.getInstance(*phEvent, dditable));
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                ur_event_factory.getInstance(*phEvent, dditable));
+        }
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -6380,8 +6347,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+/// @brief Intercept function for urCommandBufferAppendUSMMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
@@ -6400,9 +6367,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMemcpyUSMExp =
-        dditable->ur.CommandBufferExp.pfnAppendMemcpyUSMExp;
-    if (nullptr == pfnAppendMemcpyUSMExp) {
+    auto pfnAppendUSMMemcpyExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMMemcpyExp;
+    if (nullptr == pfnAppendUSMMemcpyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6412,7 +6379,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
             ->handle;
 
     // forward to device-platform
-    result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+    result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
                                    numSyncPointsInWaitList, pSyncPointWaitList,
                                    pSyncPoint);
 
@@ -6420,8 +6387,50 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+/// @brief Intercept function for urCommandBufferAppendUSMFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,   ///< [in] handle of the command-buffer object.
+    void *pMemory,        ///< [in] pointer to USM allocated memory to fill.
+    const void *pPattern, ///< [in] pointer to the fill pattern.
+    size_t patternSize,   ///< [in] size in bytes of the pattern.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendUSMFillExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMFillExp;
+    if (nullptr == pfnAppendUSMFillExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnAppendUSMFillExp(hCommandBuffer, pMemory, pPattern, patternSize,
+                                 size, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -6442,9 +6451,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferCopyExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferCopyExp;
-    if (nullptr == pfnAppendMembufferCopyExp) {
+    auto pfnAppendMemBufferCopyExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferCopyExp;
+    if (nullptr == pfnAppendMemBufferCopyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6460,7 +6469,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferCopyExp(
+    result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
@@ -6468,8 +6477,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6490,9 +6499,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferWriteExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferWriteExp;
-    if (nullptr == pfnAppendMembufferWriteExp) {
+    auto pfnAppendMemBufferWriteExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferWriteExp;
+    if (nullptr == pfnAppendMemBufferWriteExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6505,7 +6514,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferWriteExp(hCommandBuffer, hBuffer, offset, size,
+    result = pfnAppendMemBufferWriteExp(hCommandBuffer, hBuffer, offset, size,
                                         pSrc, numSyncPointsInWaitList,
                                         pSyncPointWaitList, pSyncPoint);
 
@@ -6513,8 +6522,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6534,9 +6543,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferReadExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferReadExp;
-    if (nullptr == pfnAppendMembufferReadExp) {
+    auto pfnAppendMemBufferReadExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferReadExp;
+    if (nullptr == pfnAppendMemBufferReadExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6549,7 +6558,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferReadExp(hCommandBuffer, hBuffer, offset, size,
+    result = pfnAppendMemBufferReadExp(hCommandBuffer, hBuffer, offset, size,
                                        pDst, numSyncPointsInWaitList,
                                        pSyncPointWaitList, pSyncPoint);
 
@@ -6557,8 +6566,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -6586,9 +6595,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferCopyRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferCopyRectExp;
-    if (nullptr == pfnAppendMembufferCopyRectExp) {
+    auto pfnAppendMemBufferCopyRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
+    if (nullptr == pfnAppendMemBufferCopyRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6604,7 +6613,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferCopyRectExp(
+    result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -6613,8 +6622,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6648,9 +6657,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferWriteRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferWriteRectExp;
-    if (nullptr == pfnAppendMembufferWriteRectExp) {
+    auto pfnAppendMemBufferWriteRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
+    if (nullptr == pfnAppendMemBufferWriteRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6663,7 +6672,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferWriteRectExp(
+    result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -6672,8 +6681,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6705,9 +6714,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferReadRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferReadRectExp;
-    if (nullptr == pfnAppendMembufferReadRectExp) {
+    auto pfnAppendMemBufferReadRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferReadRectExp;
+    if (nullptr == pfnAppendMemBufferReadRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6720,10 +6729,136 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferReadRectExp(
+    result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    const void *pPattern,    ///< [in] pointer to the fill pattern.
+    size_t patternSize,      ///< [in] size in bytes of the pattern.
+    size_t offset,           ///< [in] offset into the buffer.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendMemBufferFillExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferFillExp;
+    if (nullptr == pfnAppendMemBufferFillExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // convert loader handle to platform handle
+    hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
+
+    // forward to device-platform
+    result = pfnAppendMemBufferFillExp(
+        hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendUSMPrefetchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
+    ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendUSMPrefetchExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMPrefetchExp;
+    if (nullptr == pfnAppendUSMPrefetchExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnAppendUSMPrefetchExp(hCommandBuffer, pMemory, size, flags,
+                                     numSyncPointsInWaitList,
+                                     pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendUSMAdviseExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,           ///< [in] handle of the command-buffer object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
+    size_t size,                  ///< [in] size in bytes to be advised.
+    ur_usm_advice_flags_t advice, ///< [in] USM memory advice
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendUSMAdviseExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMAdviseExp;
+    if (nullptr == pfnAppendUSMAdviseExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size, advice,
+                                   numSyncPointsInWaitList, pSyncPointWaitList,
+                                   pSyncPoint);
 
     return result;
 }
@@ -6789,6 +6924,109 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function.
+    ///< If nullptr, the runtime implementation will choose the work-group
+    ///< size.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    ///< event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnCooperativeKernelLaunchExp =
+        dditable->ur.EnqueueExp.pfnCooperativeKernelLaunchExp;
+    if (nullptr == pfnCooperativeKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result = pfnCooperativeKernelLaunchExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numEventsInWaitList, phEventWaitListLocal.data(),
+        phEvent);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                ur_event_factory.getInstance(*phEvent, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
+    auto pfnSuggestMaxCooperativeGroupCountExp =
+        dditable->ur.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
+    if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // forward to device-platform
+    result = pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
 
     return result;
 }
@@ -7126,8 +7364,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
         if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
-            pDdiTable->pfnInit = ur_loader::urInit;
-            pDdiTable->pfnTearDown = ur_loader::urTearDown;
             pDdiTable->pfnAdapterGet = ur_loader::urAdapterGet;
             pDdiTable->pfnAdapterRelease = ur_loader::urAdapterRelease;
             pDdiTable->pfnAdapterRetain = ur_loader::urAdapterRetain;
@@ -7284,20 +7520,28 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
             pDdiTable->pfnFinalizeExp = ur_loader::urCommandBufferFinalizeExp;
             pDdiTable->pfnAppendKernelLaunchExp =
                 ur_loader::urCommandBufferAppendKernelLaunchExp;
-            pDdiTable->pfnAppendMemcpyUSMExp =
-                ur_loader::urCommandBufferAppendMemcpyUSMExp;
-            pDdiTable->pfnAppendMembufferCopyExp =
-                ur_loader::urCommandBufferAppendMembufferCopyExp;
-            pDdiTable->pfnAppendMembufferWriteExp =
-                ur_loader::urCommandBufferAppendMembufferWriteExp;
-            pDdiTable->pfnAppendMembufferReadExp =
-                ur_loader::urCommandBufferAppendMembufferReadExp;
-            pDdiTable->pfnAppendMembufferCopyRectExp =
-                ur_loader::urCommandBufferAppendMembufferCopyRectExp;
-            pDdiTable->pfnAppendMembufferWriteRectExp =
-                ur_loader::urCommandBufferAppendMembufferWriteRectExp;
-            pDdiTable->pfnAppendMembufferReadRectExp =
-                ur_loader::urCommandBufferAppendMembufferReadRectExp;
+            pDdiTable->pfnAppendUSMMemcpyExp =
+                ur_loader::urCommandBufferAppendUSMMemcpyExp;
+            pDdiTable->pfnAppendUSMFillExp =
+                ur_loader::urCommandBufferAppendUSMFillExp;
+            pDdiTable->pfnAppendMemBufferCopyExp =
+                ur_loader::urCommandBufferAppendMemBufferCopyExp;
+            pDdiTable->pfnAppendMemBufferWriteExp =
+                ur_loader::urCommandBufferAppendMemBufferWriteExp;
+            pDdiTable->pfnAppendMemBufferReadExp =
+                ur_loader::urCommandBufferAppendMemBufferReadExp;
+            pDdiTable->pfnAppendMemBufferCopyRectExp =
+                ur_loader::urCommandBufferAppendMemBufferCopyRectExp;
+            pDdiTable->pfnAppendMemBufferWriteRectExp =
+                ur_loader::urCommandBufferAppendMemBufferWriteRectExp;
+            pDdiTable->pfnAppendMemBufferReadRectExp =
+                ur_loader::urCommandBufferAppendMemBufferReadRectExp;
+            pDdiTable->pfnAppendMemBufferFillExp =
+                ur_loader::urCommandBufferAppendMemBufferFillExp;
+            pDdiTable->pfnAppendUSMPrefetchExp =
+                ur_loader::urCommandBufferAppendUSMPrefetchExp;
+            pDdiTable->pfnAppendUSMAdviseExp =
+                ur_loader::urCommandBufferAppendUSMAdviseExp;
             pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
         } else {
             // return pointers directly to platform's DDIs
@@ -7454,6 +7698,61 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_enqueue_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetEnqueueExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetEnqueueExpProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.EnqueueExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnCooperativeKernelLaunchExp =
+                ur_loader::urEnqueueCooperativeKernelLaunchExp;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.EnqueueExp;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Event table
 ///        with current process' addresses
 ///
@@ -7577,6 +7876,61 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
             // return pointers directly to platform's DDIs
             *pDdiTable =
                 ur_loader::context->platforms.front().dditable.ur.Kernel;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's KernelExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_kernel_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetKernelExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetKernelExpProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.KernelExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
+                ur_loader::urKernelSuggestMaxCooperativeGroupCountExp;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.KernelExp;
         }
     }
 

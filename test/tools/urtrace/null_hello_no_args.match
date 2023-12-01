@@ -1,4 +1,3 @@
-urInit(...) -> UR_RESULT_SUCCESS;
 Platform initialized.
 urAdapterGet(...) -> UR_RESULT_SUCCESS;
 urAdapterGet(...) -> UR_RESULT_SUCCESS;
@@ -12,4 +11,3 @@ urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
 Found a Null Device gpu.
 urAdapterRelease(...) -> UR_RESULT_SUCCESS;
-urTearDown(...) -> UR_RESULT_SUCCESS;

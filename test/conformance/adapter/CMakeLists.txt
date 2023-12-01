@@ -3,11 +3,9 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_test(runtime
+add_conformance_test(adapter
     urAdapterGet.cpp
     urAdapterGetInfo.cpp
     urAdapterGetLastError.cpp
     urAdapterRetain.cpp
-    urAdapterRelease.cpp
-    urInit.cpp
-    urTearDown.cpp)
+    urAdapterRelease.cpp)

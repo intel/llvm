@@ -66,8 +66,8 @@ struct urEnqueueUSMFill2DTestWithParam
                                             nullptr, nullptr));
 
         size_t pattern_index = 0;
-        for (size_t w = 0; w < width; ++w) {
-            for (size_t h = 0; h < height; ++h) {
+        for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
                 uint8_t *host_ptr = host_mem.data();
                 size_t index = (pitch * h) + w;
                 ASSERT_TRUE((*(host_ptr + index) == pattern[pattern_index]));
@@ -273,4 +273,11 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtrEventWaitList) {
                                         pattern.data(), width, 1, 0,
                                         &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), width, 1, 1, &inv_evt,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }

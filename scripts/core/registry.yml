@@ -292,12 +292,6 @@ etors:
 - name: QUEUE_FLUSH
   desc: Enumerator for $xQueueFlush
   value: '98'
-- name: INIT
-  desc: Enumerator for $xInit
-  value: '99'
-- name: TEAR_DOWN
-  desc: Enumerator for $xTearDown
-  value: '100'
 - name: SAMPLER_CREATE
   desc: Enumerator for $xSamplerCreate
   value: '101'
@@ -373,15 +367,6 @@ etors:
 - name: COMMAND_BUFFER_ENQUEUE_EXP
   desc: Enumerator for $xCommandBufferEnqueueExp
   value: '128'
-- name: COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
-  desc: Enumerator for $xCommandBufferAppendMemcpyUSMExp
-  value: '129'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferCopyExp
-  value: '130'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferCopyRectExp
-  value: '131'
 - name: USM_PITCHED_ALLOC_EXP
   desc: Enumerator for $xUSMPitchedAllocExp
   value: '132'
@@ -487,18 +472,6 @@ etors:
 - name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
   desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
   value: '167'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferWriteExp
-  value: '168'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferReadExp
-  value: '169'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferWriteRectExp
-  value: '170'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferReadRectExp
-  value: '171'
 - name: LOADER_CONFIG_CREATE
   desc: Enumerator for $xLoaderConfigCreate
   value: '172'
@@ -538,6 +511,54 @@ etors:
 - name: PROGRAM_LINK_EXP
   desc: Enumerator for $xProgramLinkExp
   value: '199'
+- name: LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK
+  desc: Enumerator for $xLoaderConfigSetCodeLocationCallback
+  value: '200'
+- name: LOADER_INIT
+  desc: Enumerator for $xLoaderInit
+  value: '201'
+- name: LOADER_TEAR_DOWN
+  desc: Enumerator for $xLoaderTearDown
+  value: '202'
+- name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
+  value: '203'
+- name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMFillExp
+  value: '204'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyExp
+  value: '205'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteExp
+  value: '206'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadExp
+  value: '207'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyRectExp
+  value: '208'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteRectExp
+  value: '209'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadRectExp
+  value: '210'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
+  value: '211'
+- name: COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMPrefetchExp
+  value: '212'
+- name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
+  value: '213'
+- name: ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xEnqueueCooperativeKernelLaunchExp
+  value: '214'
+- name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP
+  desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCountExp
+  value: '215'
 ---
 type: enum
 desc: Defines structure types

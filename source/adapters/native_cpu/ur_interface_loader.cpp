@@ -200,8 +200,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnInit = urInit;
-  pDdiTable->pfnTearDown = urTearDown;
   pDdiTable->pfnAdapterGet = urAdapterGet;
   pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
   pDdiTable->pfnAdapterRelease = urAdapterRelease;
@@ -273,17 +271,17 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
-  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
-  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
-  pDdiTable->pfnAppendMembufferCopyRectExp =
-      urCommandBufferAppendMembufferCopyRectExp;
-  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
-  pDdiTable->pfnAppendMembufferReadRectExp =
-      urCommandBufferAppendMembufferReadRectExp;
-  pDdiTable->pfnAppendMembufferWriteExp =
-      urCommandBufferAppendMembufferWriteExp;
-  pDdiTable->pfnAppendMembufferWriteRectExp =
-      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
+  pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;
+  pDdiTable->pfnAppendMemBufferCopyRectExp =
+      urCommandBufferAppendMemBufferCopyRectExp;
+  pDdiTable->pfnAppendMemBufferReadExp = urCommandBufferAppendMemBufferReadExp;
+  pDdiTable->pfnAppendMemBufferReadRectExp =
+      urCommandBufferAppendMemBufferReadRectExp;
+  pDdiTable->pfnAppendMemBufferWriteExp =
+      urCommandBufferAppendMemBufferWriteExp;
+  pDdiTable->pfnAppendMemBufferWriteRectExp =
+      urCommandBufferAppendMemBufferWriteRectExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;
@@ -380,19 +378,41 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
   return retVal;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_program_exp_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-  auto retVal = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != retVal) {
-    return retVal;
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version, ur_enqueue_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
   }
+
+  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
+    ur_api_version_t version, ur_kernel_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
   pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompileExp = urProgramCompileExp;
   pDdiTable->pfnLinkExp = urProgramLinkExp;
-  return retVal;
-}
 
+  return UR_RESULT_SUCCESS;
+}
 } // extern "C"
