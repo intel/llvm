@@ -15,6 +15,7 @@
 //===---------------------------------------------------------------------===//
 
 #include "OffloadWrapper.h"
+#include "SYCLOffloadWrapper.h"
 #include "clang/Basic/Version.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -415,7 +416,14 @@ static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
   CmdArgs.push_back(IsArchive ? "-type=ao" : "-type=o");
   CmdArgs.push_back(Saver.save("-input=" + Filename));
   CmdArgs.push_back("-check-section");
-  return !(llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs));
+  Error E = executeCommands(*OffloadBundlerPath, CmdArgs);
+  if (E) {
+    consumeError(std::move(E));
+    return false;
+  }
+
+  return true;
+  // return !(llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs));
 }
 
 // This routine is used to run the clang-offload-bundler tool and unbundle
@@ -633,13 +641,13 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::string> readFile(StringRef File) {
+Expected<std::vector<char>> readFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File);
   if (!MBOrErr)
     return createFileError(File, MBOrErr.getError());
 
   auto &MB = *MBOrErr;
-  return std::string(MB->getBufferStart(), MB->getBufferEnd());
+  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
 }
 
 Expected<std::unique_ptr<util::PropertySetRegistry>>
@@ -652,16 +660,28 @@ readPropertyRegistryFromFile(StringRef File) {
   return util::PropertySetRegistry::read(&*MB);
 }
 
-Expected<SmallVector<SYCLImage>> readImages(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File);
+// The table format is the following:
+// [Code|Properties|Symbols]
+// a_0.bin|a_0.prop|a_0.sym
+// .
+// a_n.bin|a_n.prop|a_n.sym
+//
+// .bin extension might be a bc, spv or other native extension.
+Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
+                                                         const ArgList &Args) {
+  auto MBOrErr = MemoryBuffer::getFile(TableFile);
   if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
+    return createFileError(TableFile, MBOrErr.getError());
 
   line_iterator LI(**MBOrErr);
   // check the header.
   if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
     return createStringError(inconvertibleErrorCode(),
                              "invalid SYCL Table file.");
+
+  StringRef CompileOptions =
+      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
+  StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
 
   ++LI;
   SmallVector<SYCLImage> Images;
@@ -690,8 +710,9 @@ Expected<SmallVector<SYCLImage>> readImages(StringRef File) {
     Image.Image = std::move(*ImageOrErr);
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
+    Image.CompileOptions = CompileOptions;
+    Image.LinkOptions = LinkOptions;
     Images.push_back(std::move(Image));
-    // TODO: where are compile-opts, link-opts and other stuff?
   }
 
   return Images;
@@ -706,22 +727,24 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
     return OutputFileOrErr.takeError();
 
   StringRef OutputFilePath = *OutputFileOrErr;
-  if (DryRun) {
+  if (Verbose || DryRun) {
     errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile, OutputFilePath);
-    return OutputFilePath;
+    if (DryRun)
+      return OutputFilePath;
   }
 
-  auto ImagesOrErr = readImages(InputFile);
+  auto ImagesOrErr = readSYCLImagesFromTable(InputFile, Args);
   if (!ImagesOrErr)
     return ImagesOrErr.takeError();
 
   auto &Images = *ImagesOrErr;
 
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  SmallString<128> TargetTripleOpt = Triple.getArchName();
   LLVMContext C;
-  Module M("offload.wrapper.object", C);
-  M.setTargetTriple(TargetTripleOpt);
+  const StringRef ModuleName = "offload.wrapper.object";
+  Module M(ModuleName, C);
+  M.setTargetTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
   if (auto E = wrapSYCLBinaries(M, Images))
     return E;
 

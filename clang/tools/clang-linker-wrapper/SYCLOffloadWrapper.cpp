@@ -14,7 +14,7 @@
 //  sycl/include/sycl/detail/pi.h
 //===----------------------------------------------------------------------===//
 
-#include "OffloadWrapper.h"
+#include "SYCLOffloadWrapper.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -77,8 +77,31 @@ struct Wrapper {
   LLVMContext &C;
   SYCLWrappingOptions Options;
 
+  StructType *SyclPropTy = nullptr;
+  PointerType *SyclPropPtrTy = nullptr;
+  StructType *SyclPropSetTy = nullptr;
+  PointerType *SyclPropSetPtrTy = nullptr;
+  StructType *EntryTy = nullptr;
+  PointerType *EntryPtrTy = nullptr;
+  StructType *SyclDeviceImageTy = nullptr;
+  PointerType *SyclDeviceImagePtrTy = nullptr;
+  StructType *SyclBinDescTy = nullptr;
+  PointerType *SyclBinDescPtrTy = nullptr;
+
   Wrapper(Module &M, const SYCLWrappingOptions &Options)
-      : M(M), C(M.getContext()), Options(Options) {}
+      : M(M), C(M.getContext()), Options(Options) {
+
+    SyclPropTy = getSyclPropTy();
+    SyclPropPtrTy = PointerType::getUnqual(SyclPropTy);
+    SyclPropSetTy = getSyclPropSetTy();
+    SyclPropSetPtrTy = PointerType::getUnqual(SyclPropSetTy);
+    EntryTy = getEntryTy();
+    EntryPtrTy = PointerType::getUnqual(EntryTy);
+    SyclDeviceImageTy = getSyclDeviceImageTy();
+    SyclDeviceImagePtrTy = PointerType::getUnqual(SyclDeviceImageTy);
+    SyclBinDescTy = getSyclBinDescTy();
+    SyclBinDescPtrTy = PointerType::getUnqual(SyclBinDescTy);
+  }
 
   // struct _pi_device_binary_property_struct {
   //   char *Name;
@@ -92,10 +115,6 @@ struct Wrapper {
                               "_pi_device_binary_property_struct");
   }
 
-  PointerType *getSyclPropPtrTy() {
-    return PointerType::getUnqual(getSyclPropTy());
-  }
-
   // struct _pi_device_binary_property_set_struct {
   //   char *Name;
   //   _pi_device_binary_property_struct* PropertiesBegin;
@@ -103,12 +122,8 @@ struct Wrapper {
   // };
   StructType *getSyclPropSetTy() {
     return StructType::create(
-        {Type::getInt8PtrTy(C), getSyclPropPtrTy(), getSyclPropPtrTy()},
+        {Type::getInt8PtrTy(C), SyclPropPtrTy, SyclPropPtrTy},
         "_pi_device_binary_property_set_struct");
-  }
-
-  PointerType *getSyclPropSetPtrTy() {
-    return PointerType::getUnqual(getSyclPropSetTy());
   }
 
   IntegerType *getSizeTTy() {
@@ -139,8 +154,6 @@ struct Wrapper {
                               Type::getInt8PtrTy(C), getSizeTTy(),
                               Type::getInt32Ty(C), Type::getInt32Ty(C));
   }
-
-  PointerType *getEntryPtrTy() { return PointerType::getUnqual(getEntryTy()); }
 
   // SYCL specific image descriptor type.
   // struct __tgt_device_image {
@@ -177,7 +190,6 @@ struct Wrapper {
   // };
   //
   StructType *getSyclDeviceImageTy() {
-    Type *EntryPtrTy = getEntryPtrTy();
     return StructType::create(
         {
             Type::getInt16Ty(C),   // Version
@@ -192,14 +204,10 @@ struct Wrapper {
             Type::getInt8PtrTy(C), // ImageEnd
             EntryPtrTy,            // EntriesBegin
             EntryPtrTy,            // EntriesEnd
-            getSyclPropSetPtrTy(), // PropertySetBegin
-            getSyclPropSetPtrTy()  // PropertySetEnd
+            SyclPropSetPtrTy,      // PropertySetBegin
+            SyclPropSetPtrTy       // PropertySetEnd
         },
         "__tgt_device_image");
-  }
-
-  PointerType *getSyclDeviceImagePtrTy() {
-    return PointerType::getUnqual(getSyclDeviceImageTy());
   }
 
   // SYCL specific binary descriptor type.
@@ -215,15 +223,9 @@ struct Wrapper {
   //   __tgt_offload_entry *HostEntriesEnd;
   // };
   StructType *getSyclBinDescTy() {
-    Type *EntryPtrTy = getEntryPtrTy();
     return StructType::create({Type::getInt16Ty(C), Type::getInt16Ty(C),
-                               getSyclDeviceImagePtrTy(), EntryPtrTy,
-                               EntryPtrTy},
+                               SyclDeviceImagePtrTy, EntryPtrTy, EntryPtrTy},
                               "__tgt_bin_desc");
-  }
-
-  PointerType *getSyclBinDescPtrTy() {
-    return PointerType::getUnqual(getSyclBinDescTy());
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
@@ -246,12 +248,13 @@ struct Wrapper {
   }
 
   std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::optional<StringRef> Entries) {
+  addDeclarationsForNativeCPU(std::optional<ArrayRef<char>> Entries) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (!Entries)
       return {NullPtr, NullPtr}; // TODO: test this line.
 
-    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(*Entries);
+    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(
+        StringRef(Entries->begin(), Entries->size()));
     // the Native CPU PI Plug-in expects the BinaryStart field to point to an
     // array of struct nativecpu_entry {
     //   char *kernelname;
@@ -292,7 +295,7 @@ struct Wrapper {
   // Adds a global readonly variable that is initialized by given data to the
   // module.
   GlobalVariable *addGlobalArrayVariable(const Twine &Name,
-                                         StringRef Initializer,
+                                         ArrayRef<char> Initializer,
                                          const Twine &Section = "") {
     auto *Arr = ConstantDataArray::get(M.getContext(), Initializer);
     auto *Var = new GlobalVariable(M, Arr->getType(), /*isConstant*/ true,
@@ -309,7 +312,7 @@ struct Wrapper {
   // Adds given buffer as a global variable into the module and returns a pair
   // of pointers that point to the beginning and the end of the variable.
   std::pair<Constant *, Constant *>
-  addArrayToModule(StringRef Buf, const Twine &Name,
+  addArrayToModule(ArrayRef<char> Buf, const Twine &Name,
                    const Twine &Section = "") {
     auto *Var = addGlobalArrayVariable(Name, Buf, Section);
     auto *ImageB = ConstantExpr::getGetElementPtr(Var->getValueType(), Var,
@@ -321,7 +324,7 @@ struct Wrapper {
 
   // Adds given data buffer as constant byte array and returns a constant
   // pointer to it. The pointer type does not carry size information.
-  Constant *addRawDataToModule(StringRef Data, const Twine &Name) {
+  Constant *addRawDataToModule(ArrayRef<char> Data, const Twine &Name) {
     auto *Var = addGlobalArrayVariable(Name, Data);
     auto *DataPtr = ConstantExpr::getGetElementPtr(Var->getValueType(), Var,
                                                    getSizetConstPair(0, 0));
@@ -332,7 +335,7 @@ struct Wrapper {
   // of pointers that point to the beginning and end of the global variable that
   // contains the image data.
   std::pair<Constant *, Constant *>
-  addDeviceImageToModule(StringRef Buf, const Twine &Name,
+  addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
                          StringRef TargetTriple) {
     // Create global variable for the image data.
     // TODO: recheck TargetTriple.empty()
@@ -385,9 +388,9 @@ struct Wrapper {
   // Creates a global variable that is initiazed with the given @Entries.
   // Function returns a pair of Constants that point at entries content.
   std::pair<Constant *, Constant *>
-  addOffloadEntriesToModule(std::optional<StringRef> Entries) {
+  addOffloadEntriesToModule(std::optional<ArrayRef<char>> Entries) {
     if (!Entries) {
-      auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
+      auto *NullPtr = Constant::getNullValue(EntryPtrTy);
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
@@ -396,8 +399,8 @@ struct Wrapper {
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
 
     SmallVector<Constant *> EntriesInits;
-    StructType *EntryTy = getEntryTy();
-    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(*Entries);
+    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(
+        StringRef(Entries->begin(), Entries->size()));
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
       EntriesInits.push_back(ConstantStruct::get(
           EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),
@@ -422,7 +425,6 @@ struct Wrapper {
   std::pair<Constant *, Constant *>
   addPropertySetToModule(const PropertySet &PropSet) {
     SmallVector<Constant *> PropInits;
-    auto *SyclPropTy = getSyclPropTy();
     for (const auto &Prop : PropSet) {
       Constant *PropName = addStringToModule(Prop.first, "prop");
       Constant *PropValAddr = nullptr;
@@ -443,7 +445,7 @@ struct Wrapper {
             reinterpret_cast<const char *>(Prop.second.asRawByteArray());
         uint64_t Size = Prop.second.getRawByteArraySize();
         PropValSize = ConstantInt::get(Type::getInt64Ty(C), Size);
-        PropValAddr = addRawDataToModule(StringRef(Ptr, Size), "prop_val");
+        PropValAddr = addRawDataToModule(ArrayRef<char>(Ptr, Size), "prop_val");
         break;
       }
       default:
@@ -493,15 +495,13 @@ struct Wrapper {
   std::pair<Constant *, Constant *> addPropertySetRegistry(
       const std::optional<PropertySetRegistry> &PropRegistry) {
     if (!PropRegistry) {
-      auto *NullPtr =
-          Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+      auto *NullPtr = Constant::getNullValue(SyclPropSetPtrTy);
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
     // transform all property sets to IR and get the middle column image into
     // the PropSetsInits
     SmallVector<Constant *> PropSetsInits;
-    StructType *SyclPropSetTy = getSyclPropSetTy();
     for (const auto &PropSet : *PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
       std::pair<Constant *, Constant *> Props =
@@ -543,7 +543,6 @@ struct Wrapper {
   Constant *wrapImage(const SYCLImage &Image, size_t ImageID,
                       StringRef OffloadKindTag) {
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
-    auto *SyclDeviceImageTy = getSyclDeviceImageTy();
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     constexpr uint16_t DeviceImageStructVersion = 2;
@@ -597,12 +596,10 @@ struct Wrapper {
     return WrappedImage;
   }
 
-  GlobalVariable *
-  combineWrappedImages(const SmallVector<Constant *> &WrappedImages,
-                       StringRef OffloadKindTag) {
+  GlobalVariable *combineWrappedImages(ArrayRef<Constant *> WrappedImages,
+                                       StringRef OffloadKindTag) {
     auto *ImagesData = ConstantArray::get(
-        ArrayType::get(getSyclDeviceImageTy(), WrappedImages.size()),
-        WrappedImages);
+        ArrayType::get(SyclDeviceImageTy, WrappedImages.size()), WrappedImages);
     auto *ImagesGV =
         new GlobalVariable(M, ImagesData->getType(), /*isConstant*/ true,
                            GlobalValue::InternalLinkage, ImagesData,
@@ -615,8 +612,8 @@ struct Wrapper {
                                                    ImagesGV, ZeroZero);
 
     // And finally create the binary descriptor object.
-    Constant *EntriesB = Constant::getNullValue(getEntryPtrTy());
-    Constant *EntriesE = Constant::getNullValue(getEntryPtrTy());
+    Constant *EntriesB = Constant::getNullValue(EntryPtrTy);
+    Constant *EntriesE = Constant::getNullValue(EntryPtrTy);
     static constexpr uint16_t BinDescStructVersion = 1;
     auto *DescInit = ConstantStruct::get(
         getSyclBinDescTy(),
@@ -704,9 +701,8 @@ struct Wrapper {
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy =
-        FunctionType::get(Type::getVoidTy(C), getSyclBinDescPtrTy(),
-                          /*isVarArg=*/false);
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), SyclBinDescPtrTy,
+                                        /*isVarArg=*/false);
     FunctionCallee RegFuncC =
         M.getOrInsertFunction("__sycl_register_lib", RegFuncTy);
 
@@ -726,9 +722,8 @@ struct Wrapper {
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy =
-        FunctionType::get(Type::getVoidTy(C), getSyclBinDescPtrTy(),
-                          /*isVarArg=*/false);
+    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), SyclBinDescPtrTy,
+                                          /*isVarArg=*/false);
     FunctionCallee UnRegFuncC =
         M.getOrInsertFunction("__sycl_unregister_lib", UnRegFuncTy);
 
