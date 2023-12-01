@@ -269,6 +269,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-user-wrappers", "internal"},
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
+#if !defined(_WIN32)
+  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
+      {"libsycl-sanitizer", "internal"}};
+#endif
 
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
@@ -298,6 +302,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+#if !defined(_WIN32)
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        addLibraries(SYCLDeviceSanitizerLibs);
+    }
+  }
+#endif
   return LibraryList;
 }
 
@@ -578,8 +593,9 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   // Add any implied arguments before user defined arguments.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   llvm::Triple CPUTriple("spir64_x86_64");
-  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs, JA);
+  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs, JA, *HostTC);
   // Add the target args passed in
   TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
@@ -736,7 +752,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
         Twine("-output-report-folder=") + ReportOptArg));
 
   // Add any implied arguments before user defined arguments.
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
 
   // Add -Xsycl-target* options.
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
@@ -797,7 +815,9 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
@@ -966,8 +986,9 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -1131,7 +1152,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
 void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          const llvm::opt::ArgList &Args,
                                          llvm::opt::ArgStringList &CmdArgs,
-                                         const JobAction &JA) const {
+                                         const JobAction &JA,
+                                         const ToolChain &HostTC) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // FPGA:  -g -cl-opt-disable
@@ -1186,6 +1208,19 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     RegAllocModeVal.split(RegAllocModeArgs, ',');
     for (StringRef Elem : RegAllocModeArgs)
       ProcessElement(Elem);
+  } else if (!HostTC.getTriple().isWindowsMSVCEnvironment()) {
+    // If -ftarget-register-alloc-mode is not specified, the default is
+    // pvc:default on Windows and and pvc:auto otherwise.
+    StringRef DeviceName = "pvc";
+    StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
+    if (IsGen)
+      PerDeviceArgs.push_back(
+          {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+    else if (Triple.isSPIR() &&
+             Triple.getSubArch() == llvm::Triple::NoSubArch) {
+      BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
+                                          ":" + BackendOptName));
+    }
   }
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage

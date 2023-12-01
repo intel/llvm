@@ -1516,29 +1516,18 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
-/// @tparam DS is the data size.
+/// @tparam DS is the data size (unused/obsolete).
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param vals is values to store.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API void lsc_slm_block_store(uint32_t offset,
                                      __ESIMD_NS::simd<T, NElts> vals) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed store is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
-                        _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), vals.data());
+  // Make sure we generate an LSC block store
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  __ESIMD_NS::simd_mask<1> pred = 1;
+  __ESIMD_NS::slm_block_store<T, NElts>(offset, vals, pred, Props);
 }
 
 /// USM pointer scatter.
@@ -2930,34 +2919,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
-#else
-  static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
-                "Unsupported offset type");
-  detail::check_lsc_vector_size<1>();
-  detail::check_lsc_data_size<T, DS>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 1>();
-  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L3H, _AddressScale, _ImmOffset,
-                                _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), Msg_data.data(), si);
-  return detail::lsc_format_ret<T>(Tmp);
-#endif
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L3H>(acc, offsets,
+                                                                 src0, pred);
 }
 
 /// Variant of \c lsc_atomic_update that uses \c local_accessor as a parameter.
@@ -3091,12 +3054,17 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 template <lsc_memory_kind Kind = lsc_memory_kind::untyped_global,
           lsc_fence_op FenceOp = lsc_fence_op::none,
           lsc_scope Scope = lsc_scope::group, int N = 16>
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::fence<Kind, FenceOp, Scope>()")
 __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
   static_assert(
       Kind != lsc_memory_kind::shared_local ||
           (FenceOp == lsc_fence_op::none && Scope == lsc_scope::group),
       "SLM fence must have 'none' lsc_fence_op and 'group' scope");
-  __esimd_lsc_fence<Kind, FenceOp, Scope, N>(pred.data());
+  static_assert(Kind != lsc_memory_kind::untyped_global_low_pri,
+                "lsc_memory_kind::untyped_global_low_pri is not supported in HW"
+                " and/or GPU drivers");
+  __esimd_lsc_fence<static_cast<uint8_t>(Kind), static_cast<uint8_t>(FenceOp),
+                    static_cast<uint8_t>(Scope), N>(pred.data());
 }
 
 /// @} sycl_esimd_memory_lsc

@@ -120,7 +120,7 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// SYCL_TARGET_OPT: clang-offload-wrapper{{.*}} "-compile-opts=-DFOO" "-link-opts=-DFOO2"
+// SYCL_TARGET_OPT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-DFOO" "-link-opts=-DFOO2"
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
@@ -146,11 +146,9 @@
 // RUN:    | FileCheck -check-prefix CHECK_SECTION %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_CHECK_SECTION %s
-// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
 // CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
 // CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
 // CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
-// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"

@@ -1,20 +1,20 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=4 %{run} %t.out wait 2>&1 | FileCheck %s
-// RUN: env ZE_DEBUG=4 %{run} %t.out nowait 2>&1 | FileCheck %s
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out wait 2>&1 | FileCheck %s
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out nowait 2>&1 | FileCheck %s
 //
 // RUN: %{build} %level_zero_options -DCHECK_INORDER -o %t.inorder.out
-// RUN: env ZE_DEBUG=4 %{run} %t.inorder.out wait 2>&1 | FileCheck %s
-// RUN: env ZE_DEBUG=4 %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.inorder.out wait 2>&1 | FileCheck %s
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 
 // The test is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability. Example of a leak reported is this:
+// UR_L0_LEAKS_DEBUG=1 testing capability. Example of a leak reported is this:
 //
 // clang-format off
-// ZE_DEBUG=4: check balance of create/destroy calls
+// Check balance of create/destroy calls
 // ----------------------------------------------------------
 //               zeContextCreate = 1     \--->              zeContextDestroy = 1
 //          zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 0     ---> LEAK = 1
