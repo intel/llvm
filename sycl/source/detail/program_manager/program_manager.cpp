@@ -1229,11 +1229,17 @@ ProgramManager::ProgramPtr ProgramManager::build(
   LinkPrograms.push_back(Program.get());
 
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          Context->getHandleRef(), /*num devices =*/1, &Device,
-          LinkOptions.c_str(), LinkPrograms.size(), LinkPrograms.data(),
-          nullptr, nullptr, &LinkedProg);
+  auto doLink = [&] {
+    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
+        Context->getHandleRef(), /*num devices =*/1, &Device,
+        LinkOptions.c_str(), LinkPrograms.size(), LinkPrograms.data(), nullptr,
+        nullptr, &LinkedProg);
+  };
+  sycl::detail::pi::PiResult Error = doLink();
+  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+    Context->getKernelProgramCache().reset();
+    Error = doLink();
+  }
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
@@ -2109,13 +2115,19 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   const PluginPtr &Plugin = ContextImpl->getPlugin();
 
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-          /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
-          PIPrograms.data(),
-          /*pfn_notify=*/nullptr,
-          /*user_data=*/nullptr, &LinkedProg);
+  auto doLink = [&] {
+    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
+        ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
+        /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
+        PIPrograms.data(),
+        /*pfn_notify=*/nullptr,
+        /*user_data=*/nullptr, &LinkedProg);
+  };
+  sycl::detail::pi::PiResult Error = doLink();
+  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+    ContextImpl->getKernelProgramCache().reset();
+    Error = doLink();
+  }
 
   if (Error != PI_SUCCESS) {
     if (LinkedProg) {

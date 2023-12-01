@@ -215,6 +215,9 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
+    std::lock_guard<std::mutex> L1(MProgramCacheMutex);
+    std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
+    std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
@@ -285,9 +288,6 @@ public:
         BuildResult->Error.Msg = Ex.what();
         BuildResult->Error.Code = Ex.get_cl_code();
         if (BuildResult->Error.Code == PI_ERROR_OUT_OF_RESOURCES) {
-          std::lock_guard<std::mutex> L1(MProgramCacheMutex);
-          std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
-          std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
           continue;
