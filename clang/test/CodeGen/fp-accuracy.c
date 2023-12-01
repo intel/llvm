@@ -2,13 +2,13 @@
 // scenarios combining various accuracy requests for single and double precision
 // math functions.
 
-// The list of values of the attribute 'fpbuiltin-max-error' is listerd in
+// The list of values of the attribute 'fpbuiltin-max-error' is listed in
 // IR/FPAccuracy.cpp or IR/FPAccuracy.def for Sycl and Cuda. Here is the meaning
 // of a few here:
 // "fpbuiltin-max-error"="1.0" is generated when using -ffp-accuracy=high.
 // "fpbuiltin-max-error"="4.0" is generated when using -ffp-accuracy=medium.
 // "fpbuiltin-max-error"="67108864.0" is generated when using
-// -ffp-accuracy=medium.
+// -ffp-accuracy=low.
 // "fpbuiltin-max-error"="4.0" is generated when using -ffp-accuracy=sycl
 // (for sin*, cos* ... etc).
 // "fpbuiltin-max-error"="2.0" is generated when using -ffp-accuracy=cuda
