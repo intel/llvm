@@ -854,7 +854,7 @@ TEST_F(ModuleWithFunctionTest, DropPoisonGeneratingFlags) {
   }
 
   {
-    Value *GEPBase = Constant::getNullValue(B.getInt8PtrTy());
+    Value *GEPBase = Constant::getNullValue(B.getPtrTy());
     auto *GI = cast<GetElementPtrInst>(
         B.CreateInBoundsGEP(B.getInt8Ty(), GEPBase, Arg0));
     ASSERT_TRUE(GI->isInBounds());
