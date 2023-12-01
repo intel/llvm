@@ -479,19 +479,19 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
-
-    std::vector<DepDesc> Deps = Cmd->MDeps;
     // Host tasks are cleaned up upon completion rather than enqueuing.
     if (Cmd->MLeafCounter == 0) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
 
+    auto& CmdEvent = Cmd->getEvent();
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
-      Cmd->getEvent()->setComplete();
+      CmdEvent->setComplete();
     }
+    Cmd->getQueue()->removeHostTaskFromDeps(CmdEvent);
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);

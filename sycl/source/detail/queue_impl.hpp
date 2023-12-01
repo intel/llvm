@@ -709,6 +709,18 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void removeHostTaskFromDeps(const EventImplPtr& CompletedEvent)
+  {
+    std::lock_guard<std::mutex> Lock{MMutex};
+    if (!MHostTasksToBlockBarrier.empty())
+    {
+      MHostTasksToBlockBarrier.erase(std::remove_if(MHostTasksToBlockBarrier.begin(), 
+                              MHostTasksToBlockBarrier.end(),
+                              [&CompletedEvent](const EventImplPtr& Event) { return CompletedEvent == Event; }),
+               MHostTasksToBlockBarrier.end());
+    }
+  }
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -738,7 +750,40 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
+    {
+      // We need to store host task and barrier events to provide proper barrier vs host tasks synchronization.
+      // Not completed host tasks should be explicitly added as barrier dependency.
+      // Host task will try to erase itself from the storage on its completion in Scheduler::notifyHostTaskCompletion.
+      // WRONG! // Barrier should also have dependency on previous barrier
+      // BarrierWaitList already has dependencies set and no need to extra events to be added.
+      if (Type == CG::Barrier)
+      {
+        if (!MHostTasksToBlockBarrier.empty())
+          Handler.depends_on(MHostTasksToBlockBarrier);
+        // WRONG! NOT ENOUGH!
+        if (MLastBarrier && !MLastBarrier->getHandleRef())
+          Handler.depends_on(MLastBarrier);
+      }
+      else if (MLastBarrier)
+      {
+        // Barrier should be explicitly added as pi task dependency if it is not enqueued.
+        // Barrier should be explicitly asses as host task dependency if it is not completed.
+        if (Type == CG::CodeplayHostTask? !MLastBarrier->isCompleted() : !MLastBarrier->getHandleRef())
+          Handler.depends_on(MLastBarrier);
+      }
+
       EventRet = Handler.finalize();
+      if (Type == CG::CodeplayHostTask)
+      {
+        std::lock_guard<std::mutex> Lock{MMutex};
+        MHostTasksToBlockBarrier.push_back(getSyclObjImpl(EventRet));
+      }
+      else if ((Type == CG::Barrier) || (Type == CG::BarrierWaitlist))
+      {
+        std::lock_guard<std::mutex> Lock{MMutex};
+        MLastBarrier = getSyclObjImpl(EventRet);
+      }
+    }
   }
 
 protected:
@@ -864,6 +909,9 @@ protected:
   // Track deps within graph commands separately.
   // Protected by common queue object mutex MMutex.
   EventImplPtr MGraphLastEventPtr;
+  
+  std::vector<EventImplPtr> MHostTasksToBlockBarrier;
+  EventImplPtr MLastBarrier;
 
   const bool MIsInorder;
 
