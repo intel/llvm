@@ -360,7 +360,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
       if (const DIGlobalVariable *GV = dyn_cast<DIGlobalVariable>(DIEntry))
         return transDbgGlobalVariable(GV);
       if (const DIDerivedType *MT = dyn_cast<DIDerivedType>(DIEntry))
-        if (MT->isStaticMember())
+        if (M->getDwarfVersion() >= 5 && MT->isStaticMember())
           return transDbgMemberType(MT);
       llvm_unreachable("Unxpected debug info type for variable");
     case dwarf::DW_TAG_formal_parameter:
