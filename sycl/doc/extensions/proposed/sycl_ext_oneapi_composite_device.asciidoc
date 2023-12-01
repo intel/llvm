@@ -61,12 +61,12 @@ using other backends, but they will return an empty list of composite devices.
 == Overview
 
 Some Intel GPU architectures are structured with multiple tiles on a single
-card.  Currently, this applies only to the Data Center GPU Max series (aka
-PVC).  By default, SYCL exposes each of these tiles as a separate root device,
-so each tile corresponds to a separate `device` object that is returned from
-`device::get_devices`.  Applications generally perform better when each tile
-is treated as a separate device, but some advanced use cases can benefit by
-treating all tiles on a card as a single "composite" device.  This extension
+card.  Currently, this applies only to the Intel(R) Data Center GPU Max Series
+(aka PVC).  By default, SYCL exposes each of these tiles as a separate root
+device, so each tile corresponds to a separate `device` object that is returned
+from `device::get_devices`.  Applications generally perform better when each
+tile is treated as a separate device, but some advanced use cases can benefit
+by treating all tiles on a card as a single "composite" device.  This extension
 provides APIs that enable these advanced use cases.
 
 A composite device has the same semantics as any other SYCL device, though the
