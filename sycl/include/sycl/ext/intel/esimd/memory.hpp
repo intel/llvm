@@ -3963,7 +3963,7 @@ atomic_update(AccessorT lacc,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-2)
+///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
 ///
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
@@ -3975,7 +3975,7 @@ atomic_update(AccessorT lacc,
 /// atomic_update(local_accessor lacc,
 ///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
 ///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-4)
+///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
 ///
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
@@ -3997,8 +3997,7 @@ atomic_update(AccessorT lacc,
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N,
-          typename RegionTy = region1d_t<uint32_t, N, 1>>
+template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
@@ -4120,7 +4119,7 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-2)
+///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
 template <atomic_op Op, typename T, int N, typename AccessorT,
           typename RegionTy = region1d_t<T, N, 1>>
 __ESIMD_API std::enable_if_t<
@@ -4156,7 +4155,7 @@ atomic_update(AccessorT lacc,
 /// atomic_update(local_accessor lacc,
 ///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
 ///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au2-4)
+///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
 template <atomic_op Op, typename T, int N, typename AccessorT,
           typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
           typename RegionTy = region1d_t<T, N, 1>>
