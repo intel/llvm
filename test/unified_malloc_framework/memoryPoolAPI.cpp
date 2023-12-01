@@ -82,7 +82,7 @@ TEST_F(test, memoryPoolTrace) {
     ASSERT_EQ(providerCalls.size(), provider_call_count);
 
     ret = umfPoolGetLastAllocationError(tracingPool.get());
-    ASSERT_EQ(ret, UMF_RESULT_ERROR_NOT_SUPPORTED);
+    ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
     ASSERT_EQ(poolCalls["get_last_native_error"], 1);
     ASSERT_EQ(poolCalls.size(), ++pool_call_count);
 
@@ -157,6 +157,14 @@ INSTANTIATE_TEST_SUITE_P(
             .second;
     }));
 
+INSTANTIATE_TEST_SUITE_P(
+    proxyPoolOOMTest, umfMemTest,
+    ::testing::Values(std::tuple(
+        [] {
+            return umf_test::makePoolWithOOMProvider<umf_test::proxy_pool>(10);
+        },
+        0)));
+
 ////////////////// Negative test cases /////////////////
 
 TEST_F(test, memoryPoolInvalidProvidersNullptr) {
@@ -187,9 +195,10 @@ TEST_P(poolInitializeTest, errorPropagation) {
     umf_memory_provider_handle_t providers[] = {nullProvider.get()};
 
     struct pool : public umf_test::pool_base {
-        umf_result_t initialize(umf_memory_provider_handle_t *providers,
-                                size_t numProviders,
-                                umf_result_t errorToReturn) noexcept {
+        umf_result_t
+        initialize([[maybe_unused]] umf_memory_provider_handle_t *providers,
+                   [[maybe_unused]] size_t numProviders,
+                   umf_result_t errorToReturn) noexcept {
             return errorToReturn;
         }
     };
@@ -232,7 +241,8 @@ TEST_F(test, getLastFailedMemoryProvider) {
             return allocResult;
         }
 
-        enum umf_result_t free(void *ptr, size_t size) noexcept {
+        enum umf_result_t free(void *ptr,
+                               [[maybe_unused]] size_t size) noexcept {
             ::free(ptr);
             return UMF_RESULT_SUCCESS;
         }
@@ -254,10 +264,8 @@ TEST_F(test, getLastFailedMemoryProvider) {
     auto [ret, pool] = umf::poolMakeUnique<umf_test::proxy_pool>(&hProvider, 1);
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
 
-    ASSERT_EQ(umfGetLastFailedMemoryProvider(), nullptr);
     auto ptr = umfPoolMalloc(pool.get(), allocSize);
     ASSERT_NE(ptr, nullptr);
-    ASSERT_EQ(umfGetLastFailedMemoryProvider(), nullptr);
     umfPoolFree(pool.get(), ptr);
 
     // make provider return an error during allocation

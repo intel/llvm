@@ -1,3 +1,3 @@
-<TEST>[INFO]: urInit succeeded.
+<TEST>[INFO]: urLoaderInit succeeded.
 <TEST>[INFO]: urPlatformGet found 1 platforms
 <TEST>[INFO]: Found UR_PLATFORM_NULL

@@ -180,7 +180,7 @@ returns:
 type: function
 desc: "Append a USM memcpy command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMemcpyUSMExp
+name: AppendUSMMemcpyExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -217,9 +217,54 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Append a USM fill command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendUSMFillExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: "void*"
+      name: pMemory
+      desc: "[in] pointer to USM allocated memory to fill."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer to the fill pattern."
+    - type: "size_t"
+      name: patternSize
+      desc: "[in] size in bytes of the pattern."
+    - type: "size_t"
+      name: size
+      desc: "[in] fill size in bytes, must be a multiple of patternSize."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command."
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`(patternSize & (patternSize - 1)) != 0`"
+        - "`size % patternSize != 0`"
+        - "If `size` is higher than the allocation size of `ptr`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Append a memory copy command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferCopyExp
+name: AppendMemBufferCopyExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -261,7 +306,7 @@ returns:
 type: function
 desc: "Append a memory write command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferWriteExp
+name: AppendMemBufferWriteExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -300,7 +345,7 @@ returns:
 type: function
 desc: "Append a memory read command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferReadExp
+name: AppendMemBufferReadExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -339,7 +384,7 @@ returns:
 type: function
 desc: "Append a rectangular memory copy command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferCopyRectExp
+name: AppendMemBufferCopyRectExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -393,7 +438,7 @@ returns:
 type: function
 desc: "Append a rectangular memory write command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferWriteRectExp
+name: AppendMemBufferWriteRectExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -447,7 +492,7 @@ returns:
 type: function
 desc: "Append a rectangular memory read command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendMembufferReadRectExp
+name: AppendMemBufferReadRectExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -495,6 +540,134 @@ returns:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
         - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a memory fill command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMemBufferFillExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer to the fill pattern."
+    - type: "size_t"
+      name: patternSize
+      desc: "[in] size in bytes of the pattern."
+    - type: "size_t"
+      name: offset
+      desc: "[in] offset into the buffer."
+    - type: "size_t"
+      name: size
+      desc: "[in] fill size in bytes, must be a multiple of patternSize."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: $x_exp_command_buffer_sync_point_t*
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command."
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a USM Prefetch command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendUSMPrefetchExp
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
+    is not supported, the prefetch hint will be ignored."
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: "const void*"
+      name: pMemory
+      desc: "[in] pointer to USM allocated memory to prefetch."
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes to be fetched."
+    - type: $x_usm_migration_flags_t
+      name: flags
+      desc: "[in] USM prefetch flags"
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command."
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMemory`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a USM Advise command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendUSMAdviseExp
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. 
+    If a memory advice hint is not supported, it will be ignored."
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: "const void*"
+      name: pMemory
+      desc: "[in] pointer to the USM memory object."
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes to be advised."
+    - type: $x_usm_advice_flags_t
+      name: advice
+      desc: "[in] USM memory advice"
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command."
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMemory`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

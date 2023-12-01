@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
-project(unified-runtime VERSION 0.7.0)
+project(unified-runtime VERSION 0.9.0)
 
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
@@ -15,7 +15,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(helpers)
 
 if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  set(CMAKE_FIND_FRAMEWORK NEVER)
+    set(Python3_FIND_FRAMEWORK NEVER)
+    set(Python3_FIND_STRATEGY LOCATION)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

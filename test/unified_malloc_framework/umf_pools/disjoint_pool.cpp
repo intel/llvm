@@ -11,6 +11,7 @@
 #include "disjoint_pool.hpp"
 
 #include "memoryPool.hpp"
+#include "pool.hpp"
 #include "provider.h"
 #include "provider.hpp"
 
@@ -42,7 +43,8 @@ TEST_F(test, freeErrorPropagation) {
             *ptr = malloc(size);
             return UMF_RESULT_SUCCESS;
         }
-        enum umf_result_t free(void *ptr, size_t size) noexcept {
+        enum umf_result_t free(void *ptr,
+                               [[maybe_unused]] size_t size) noexcept {
             ::free(ptr);
             return freeReturn;
         }
@@ -71,6 +73,15 @@ TEST_F(test, freeErrorPropagation) {
 
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
+
+INSTANTIATE_TEST_SUITE_P(
+    disjointPoolTests, umfMemTest,
+    ::testing::Values(std::make_tuple(
+        [] {
+            return umf_test::makePoolWithOOMProvider<usm::DisjointPool>(
+                static_cast<int>(poolConfig().Capacity), poolConfig());
+        },
+        static_cast<int>(poolConfig().Capacity) / 2)));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(disjointMultiPoolTests, umfMultiPoolTest,

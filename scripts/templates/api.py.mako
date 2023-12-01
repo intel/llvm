@@ -175,7 +175,7 @@ class ${N}_DDI:
         self.__dditable = ${n}_dditable_t()
 
         # initialize the UR
-        self.__dll.${x}Init(0, 0)
+        self.__dll.${x}LoaderInit(0, 0)
 
         %for tbl in tables:
         # call driver to get function pointers

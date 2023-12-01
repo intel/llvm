@@ -23,9 +23,9 @@ TEST_P(urQueueCreateWithNativeHandleTest, Success) {
                                                  &properties, &q));
     ASSERT_NE(q, nullptr);
 
-    uint32_t q_size = 0;
-    ASSERT_SUCCESS(urQueueGetInfo(q, UR_QUEUE_INFO_SIZE, sizeof(uint32_t),
-                                  &q_size, nullptr));
-
+    ur_context_handle_t q_context = nullptr;
+    ASSERT_SUCCESS(urQueueGetInfo(q, UR_QUEUE_INFO_CONTEXT, sizeof(q_context),
+                                  &q_context, nullptr));
+    ASSERT_EQ(q_context, context);
     ASSERT_SUCCESS(urQueueRelease(q));
 }

@@ -1,4 +1,1 @@
-urContextCreateWithNativeHandleTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-{{OPT}}urContextGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT
-{{OPT}}urContextGetInfoTestWithInfoParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_CONTEXT_INFO_USM_FILL2D_SUPPORT
 urContextSetExtendedDeleterTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

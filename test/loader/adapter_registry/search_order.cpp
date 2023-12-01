@@ -6,7 +6,7 @@
 #include "fixtures.hpp"
 
 template <typename P>
-void assertRegistryPathSequence(std::vector<fs::path> testAdapterPaths,
+void assertRegistryPathSequence(const std::vector<fs::path> &testAdapterPaths,
                                 P predicate) {
     static size_t assertIndex = 0;
 
@@ -24,7 +24,7 @@ TEST_F(adapterRegSearchTest, testSearchOrder) {
     auto it = std::find_if(registry.cbegin(), registry.cend(), hasTestLibName);
     ASSERT_NE(it, registry.end());
 
-    auto testAdapterPaths = *it;
+    const auto &testAdapterPaths = *it;
     assertRegistryPathSequence(testAdapterPaths, isTestEnvPath);
 #ifndef _WIN32
     assertRegistryPathSequence(testAdapterPaths, isTestLibName);
