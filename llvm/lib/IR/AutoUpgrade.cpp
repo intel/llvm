@@ -622,68 +622,83 @@ static bool UpgradeX86IntrinsicFunction(Function *F, StringRef Name,
 }
 
 static Intrinsic::ID ShouldUpgradeNVPTXBF16Intrinsic(StringRef Name) {
-  return StringSwitch<Intrinsic::ID>(Name)
-      .Case("abs.bf16", Intrinsic::nvvm_abs_bf16)
-      .Case("abs.bf16x2", Intrinsic::nvvm_abs_bf16x2)
-      .Case("fma.rn.bf16", Intrinsic::nvvm_fma_rn_bf16)
-      .Case("fma.rn.bf16x2", Intrinsic::nvvm_fma_rn_bf16x2)
-      .Case("fma.rn.ftz_bf16", Intrinsic::nvvm_fma_rn_ftz_bf16)
-      .Case("fma.rn.ftz.bf16x2", Intrinsic::nvvm_fma_rn_ftz_bf16x2)
-      .Case("fma.rn.ftz.relu.bf16", Intrinsic::nvvm_fma_rn_ftz_relu_bf16)
-      .Case("fma.rn.ftz.relu.bf16x2", Intrinsic::nvvm_fma_rn_ftz_relu_bf16x2)
-      .Case("fma.rn.ftz_sat.bf16", Intrinsic::nvvm_fma_rn_ftz_sat_bf16)
-      .Case("fma.rn.ftz_sat.bf16x2", Intrinsic::nvvm_fma_rn_ftz_sat_bf16x2)
-      .Case("fma.rn.relu.bf16", Intrinsic::nvvm_fma_rn_relu_bf16)
-      .Case("fma.rn.relu.bf16x2", Intrinsic::nvvm_fma_rn_relu_bf16x2)
-      .Case("fma.rn.sat.bf16", Intrinsic::nvvm_fma_rn_sat_bf16)
-      .Case("fma.rn.sat.bf16x2", Intrinsic::nvvm_fma_rn_sat_bf16x2)
-      .Case("fmax.bf16", Intrinsic::nvvm_fmax_bf16)
-      .Case("fmax.bf16x2", Intrinsic::nvvm_fmax_bf16x2)
-      .Case("fmax.ftz.bf16", Intrinsic::nvvm_fmax_ftz_bf16)
-      .Case("fmax.ftz.bf16x2", Intrinsic::nvvm_fmax_ftz_bf16x2)
-      .Case("fmax.ftz.nan.bf16", Intrinsic::nvvm_fmax_ftz_nan_bf16)
-      .Case("fmax.ftz.nan.bf16x2", Intrinsic::nvvm_fmax_ftz_nan_bf16x2)
-      .Case("fmax.ftz.nan.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16)
-      .Case("fmax.ftz.nan.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16x2)
-      .Case("fmax.ftz.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16)
-      .Case("fmax.ftz.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16x2)
-      .Case("fmax.nan.bf16", Intrinsic::nvvm_fmax_nan_bf16)
-      .Case("fmax.nan.bf16x2", Intrinsic::nvvm_fmax_nan_bf16x2)
-      .Case("fmax.nan.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16)
-      .Case("fmax.nan.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16x2)
-      .Case("fmax.xorsign.abs.bf16", Intrinsic::nvvm_fmax_xorsign_abs_bf16)
-      .Case("fmax.xorsign.abs.bf16x2", Intrinsic::nvvm_fmax_xorsign_abs_bf16x2)
-      .Case("fmin.bf16", Intrinsic::nvvm_fmin_bf16)
-      .Case("fmin.bf16x2", Intrinsic::nvvm_fmin_bf16x2)
-      .Case("fmin.ftz.bf16", Intrinsic::nvvm_fmin_ftz_bf16)
-      .Case("fmin.ftz.bf16x2", Intrinsic::nvvm_fmin_ftz_bf16x2)
-      .Case("fmin.ftz.nan_bf16", Intrinsic::nvvm_fmin_ftz_nan_bf16)
-      .Case("fmin.ftz.nan_bf16x2", Intrinsic::nvvm_fmin_ftz_nan_bf16x2)
-      .Case("fmin.ftz.nan.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16)
-      .Case("fmin.ftz.nan.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16x2)
-      .Case("fmin.ftz.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16)
-      .Case("fmin.ftz.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16x2)
-      .Case("fmin.nan.bf16", Intrinsic::nvvm_fmin_nan_bf16)
-      .Case("fmin.nan.bf16x2", Intrinsic::nvvm_fmin_nan_bf16x2)
-      .Case("fmin.nan.xorsign.abs.bf16",
-            Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16)
-      .Case("fmin.nan.xorsign.abs.bf16x2",
-            Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16x2)
-      .Case("fmin.xorsign.abs.bf16", Intrinsic::nvvm_fmin_xorsign_abs_bf16)
-      .Case("fmin.xorsign.abs.bf16x2", Intrinsic::nvvm_fmin_xorsign_abs_bf16x2)
-      .Case("neg.bf16", Intrinsic::nvvm_neg_bf16)
-      .Case("neg.bf16x2", Intrinsic::nvvm_neg_bf16x2)
-      .Default(Intrinsic::not_intrinsic);
+  if (Name.consume_front("abs."))
+    return StringSwitch<Intrinsic::ID>(Name)
+        .Case("bf16", Intrinsic::nvvm_abs_bf16)
+        .Case("bf16x2", Intrinsic::nvvm_abs_bf16x2)
+        .Default(Intrinsic::not_intrinsic);
+
+  if (Name.consume_front("fma.rn."))
+    return StringSwitch<Intrinsic::ID>(Name)
+        .Case("bf16", Intrinsic::nvvm_fma_rn_bf16)
+        .Case("bf16x2", Intrinsic::nvvm_fma_rn_bf16x2)
+        .Case("ftz.bf16", Intrinsic::nvvm_fma_rn_ftz_bf16)
+        .Case("ftz.bf16x2", Intrinsic::nvvm_fma_rn_ftz_bf16x2)
+        .Case("ftz.relu.bf16", Intrinsic::nvvm_fma_rn_ftz_relu_bf16)
+        .Case("ftz.relu.bf16x2", Intrinsic::nvvm_fma_rn_ftz_relu_bf16x2)
+        .Case("ftz.sat.bf16", Intrinsic::nvvm_fma_rn_ftz_sat_bf16)
+        .Case("ftz.sat.bf16x2", Intrinsic::nvvm_fma_rn_ftz_sat_bf16x2)
+        .Case("relu.bf16", Intrinsic::nvvm_fma_rn_relu_bf16)
+        .Case("relu.bf16x2", Intrinsic::nvvm_fma_rn_relu_bf16x2)
+        .Case("sat.bf16", Intrinsic::nvvm_fma_rn_sat_bf16)
+        .Case("sat.bf16x2", Intrinsic::nvvm_fma_rn_sat_bf16x2)
+        .Default(Intrinsic::not_intrinsic);
+
+  if (Name.consume_front("fmax."))
+    return StringSwitch<Intrinsic::ID>(Name)
+        .Case("bf16", Intrinsic::nvvm_fmax_bf16)
+        .Case("bf16x2", Intrinsic::nvvm_fmax_bf16x2)
+        .Case("ftz.bf16", Intrinsic::nvvm_fmax_ftz_bf16)
+        .Case("ftz.bf16x2", Intrinsic::nvvm_fmax_ftz_bf16x2)
+        .Case("ftz.nan.bf16", Intrinsic::nvvm_fmax_ftz_nan_bf16)
+        .Case("ftz.nan.bf16x2", Intrinsic::nvvm_fmax_ftz_nan_bf16x2)
+        .Case("ftz.nan.xorsign.abs.bf16",
+              Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16)
+        .Case("ftz.nan.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16x2)
+        .Case("ftz.xorsign.abs.bf16", Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16)
+        .Case("ftz.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16x2)
+        .Case("nan.bf16", Intrinsic::nvvm_fmax_nan_bf16)
+        .Case("nan.bf16x2", Intrinsic::nvvm_fmax_nan_bf16x2)
+        .Case("nan.xorsign.abs.bf16", Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16)
+        .Case("nan.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16x2)
+        .Case("xorsign.abs.bf16", Intrinsic::nvvm_fmax_xorsign_abs_bf16)
+        .Case("xorsign.abs.bf16x2", Intrinsic::nvvm_fmax_xorsign_abs_bf16x2)
+        .Default(Intrinsic::not_intrinsic);
+
+  if (Name.consume_front("fmin."))
+    return StringSwitch<Intrinsic::ID>(Name)
+        .Case("bf16", Intrinsic::nvvm_fmin_bf16)
+        .Case("bf16x2", Intrinsic::nvvm_fmin_bf16x2)
+        .Case("ftz.bf16", Intrinsic::nvvm_fmin_ftz_bf16)
+        .Case("ftz.bf16x2", Intrinsic::nvvm_fmin_ftz_bf16x2)
+        .Case("ftz.nan.bf16", Intrinsic::nvvm_fmin_ftz_nan_bf16)
+        .Case("ftz.nan.bf16x2", Intrinsic::nvvm_fmin_ftz_nan_bf16x2)
+        .Case("ftz.nan.xorsign.abs.bf16",
+              Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16)
+        .Case("ftz.nan.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16x2)
+        .Case("ftz.xorsign.abs.bf16", Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16)
+        .Case("ftz.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16x2)
+        .Case("nan.bf16", Intrinsic::nvvm_fmin_nan_bf16)
+        .Case("nan.bf16x2", Intrinsic::nvvm_fmin_nan_bf16x2)
+        .Case("nan.xorsign.abs.bf16", Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16)
+        .Case("nan.xorsign.abs.bf16x2",
+              Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16x2)
+        .Case("xorsign.abs.bf16", Intrinsic::nvvm_fmin_xorsign_abs_bf16)
+        .Case("xorsign.abs.bf16x2", Intrinsic::nvvm_fmin_xorsign_abs_bf16x2)
+        .Default(Intrinsic::not_intrinsic);
+
+  if (Name.consume_front("neg."))
+    return StringSwitch<Intrinsic::ID>(Name)
+        .Case("bf16", Intrinsic::nvvm_neg_bf16)
+        .Case("bf16x2", Intrinsic::nvvm_neg_bf16x2)
+        .Default(Intrinsic::not_intrinsic);
+
+  return Intrinsic::not_intrinsic;
 }
 
 static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
@@ -934,11 +949,14 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         return true;
       }
 
-      if (Name.starts_with("atomic.inc") || Name.starts_with("atomic.dec")) {
-        // This was replaced with atomicrmw uinc_wrap and udec_wrap, so there's no
-        // new declaration.
-        NewFn = nullptr;
-        return true;
+      if (Name.consume_front("atomic.")) {
+        if (Name.starts_with("inc") || Name.starts_with("dec")) {
+          // These were replaced with atomicrmw uinc_wrap and udec_wrap, so
+          // there's no new declaration.
+          NewFn = nullptr;
+          return true;
+        }
+        break; // No other 'amdgcn.atomic.*'
       }
 
       if (Name.starts_with("ldexp.")) {
@@ -948,6 +966,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
           {F->getReturnType(), F->getArg(1)->getType()});
         return true;
       }
+      break; // No other 'amdgcn.*'
     }
 
     break;
