@@ -14,9 +14,7 @@
 //   compiler option
 
 // REQUIRES: gpu-intel-pvc
-// TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR

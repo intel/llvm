@@ -1,4 +1,3 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -16,6 +15,10 @@ void CreateGraphWithCyclesTest(bool DisableCycleChecks) {
   const size_t Iterations = DisableCycleChecks ? 2 : 1;
 
   queue Queue;
+
+  if (!are_graphs_supported(Queue)) {
+    return;
+  }
 
   property_list Props;
 
@@ -77,6 +80,14 @@ void CreateGraphWithCyclesTest(bool DisableCycleChecks) {
 }
 
 int main() {
+  {
+    queue Queue;
+
+    if (!are_graphs_supported(Queue)) {
+      return 0;
+    }
+  }
+
   // Test with cycle checks
   CreateGraphWithCyclesTest(false);
   // Test without cycle checks

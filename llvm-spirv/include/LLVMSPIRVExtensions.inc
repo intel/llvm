@@ -2,6 +2,7 @@
 #define EXT(X)
 #endif
 
+EXT(SPV_EXT_shader_atomic_float16_add)
 EXT(SPV_EXT_shader_atomic_float_add)
 EXT(SPV_EXT_shader_atomic_float_min_max)
 EXT(SPV_EXT_image_raw10_raw12)
@@ -55,6 +56,8 @@ EXT(SPV_INTEL_bfloat16_conversion)
 EXT(SPV_INTEL_joint_matrix)
 EXT(SPV_INTEL_hw_thread_queries)
 EXT(SPV_INTEL_global_variable_decorations)
+EXT(SPV_INTEL_global_variable_host_access)
+EXT(SPV_INTEL_global_variable_fpga_decorations)
 EXT(SPV_INTEL_complex_float_mul_div)
 EXT(SPV_INTEL_split_barrier)
 EXT(SPV_INTEL_masked_gather_scatter)

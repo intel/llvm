@@ -18,15 +18,13 @@
 #include <__system_error/system_error.h>
 #include <__utility/forward.h>
 #include <__verbose_abort>
-#include <iosfwd>
-#include <new>
 #include <string>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-#ifndef _LIBCPP_CXX03_LANG
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
@@ -86,6 +84,6 @@ __throw_filesystem_error(_Args&&...) {
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 
-#endif // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___FILESYSTEM_FILESYSTEM_ERROR_H

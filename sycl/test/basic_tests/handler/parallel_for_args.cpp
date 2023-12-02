@@ -36,6 +36,14 @@ int main() {
   q.parallel_for(r2, [=](sycl::item<2> it) {});
   q.parallel_for(r3, [=](sycl::item<3> it) {});
 
+  q.parallel_for(r1, [=](sycl::item<1, false> it) {});
+  q.parallel_for(r2, [=](sycl::item<2, false> it) {});
+  q.parallel_for(r3, [=](sycl::item<3, false> it) {});
+
+  // int, size_t -> sycl::item
+  q.parallel_for(r1, [=](int it) {});
+  q.parallel_for(r1, [=](size_t it) {});
+
   // sycl::item -> sycl::id
   q.parallel_for(r1, [=](sycl::id<1> it) {});
   q.parallel_for(r2, [=](sycl::id<2> it) {});
@@ -50,6 +58,13 @@ int main() {
   q.parallel_for(r1, [=](sycl::item<1> it, sycl::kernel_handler kh) {});
   q.parallel_for(r2, [=](sycl::item<2> it, sycl::kernel_handler kh) {});
   q.parallel_for(r3, [=](sycl::item<3> it, sycl::kernel_handler kh) {});
+
+  q.parallel_for(r1, [=](int it, sycl::kernel_handler kh) {});
+  q.parallel_for(r1, [=](size_t it, sycl::kernel_handler kh) {});
+
+  q.parallel_for(r1, [=](sycl::item<1, false> it, sycl::kernel_handler kh) {});
+  q.parallel_for(r2, [=](sycl::item<2, false> it, sycl::kernel_handler kh) {});
+  q.parallel_for(r3, [=](sycl::item<3, false> it, sycl::kernel_handler kh) {});
 
   q.parallel_for(r1, [=](sycl::id<1> it, sycl::kernel_handler kh) {});
   q.parallel_for(r2, [=](sycl::id<2> it, sycl::kernel_handler kh) {});
@@ -90,5 +105,4 @@ int main() {
                  [=](ConvertibleFromNDItem<3> it, sycl::kernel_handler kh) {});
 
   // TODO: consider adding test cases for hierarchical parallelism
-  // TODO: consider adding cases for sycl::item with offset
 }

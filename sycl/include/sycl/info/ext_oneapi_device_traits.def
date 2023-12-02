@@ -9,11 +9,10 @@ __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_gro
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, architecture,
                          ext::oneapi::experimental::architecture,
                          PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION)
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, matrix_combinations,
                          std::vector<ext::oneapi::experimental::matrix::combination>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS)
-#endif
+
 __SYCL_PARAM_TRAITS_SPEC(
     ext::oneapi::experimental, device, graph_support,
     ext::oneapi::experimental::graph_support_level,
