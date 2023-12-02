@@ -1310,7 +1310,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
-  
+
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
   if (NumAdapters > 0) {
