@@ -499,13 +499,15 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
   // Test slm_atomic_update without operands.
   {
     // CHECK-COUNT-4: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
-    auto res_slm_atomic_0 =
+    {
+      auto res_slm_atomic_0 =
         slm_atomic_update<atomic_op::dec, int>(offsets, pred);
-    auto res_slm_atomic_1 = slm_atomic_update<atomic_op::dec, int>(offsets);
-    auto res_slm_atomic_2 =
+      auto res_slm_atomic_1 = slm_atomic_update<atomic_op::dec, int>(offsets);
+      auto res_slm_atomic_2 =
         slm_atomic_update<atomic_op::dec, int>(offsets_view, pred);
-    auto res_slm_atomic_3 =
-        slm_atomic_update<atomic_op::dec, int>(offsets_view);
+      auto res_slm_atomic_3 =
+        slm_atomic_update<atomic_op::dec, int, VL>(offsets_view);
+    }
 
     // Expect DWORD for load.
     // CHECK: call <4 x i32> @llvm.genx.dword.atomic.or.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)

@@ -3887,7 +3887,7 @@ template <atomic_op Op, typename T, int N,
           typename ViewedOffsetTy,
           typename RegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
-slm_atomic_update(simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
+slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
                   simd_mask<N> mask = 1) {
   return slm_atomic_update<Op, T, N>(byte_offset.read(), mask);
 }
@@ -4369,7 +4369,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd<T, N> src0, simd_view<simd<T, N>, RegionTy> src1,
+///                   simd<T, N> src0, simd_view<ViewedTy, RegionTy> src1,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au2-2)
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
