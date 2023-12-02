@@ -10,23 +10,23 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; CHECK-SPIRV: Name [[#ClassMember:]] "class.Sample"
 ; CHECK-SPIRV: Decorate [[#Var:]] UserSemantic "var_annotation_a"
 ; CHECK-SPIRV: Decorate [[#Var]] UserSemantic "var_annotation_b"
-; CHECK-SPIRV: MemberDecorate [[#ClassMember]] 0 UserSemantic "class_annotation_a"
-; CHECK-SPIRV: MemberDecorate [[#ClassMember]] 0 UserSemantic "class_annotation_b"
-; CHECK-SPIRV: Variable [[#]] [[#Var]] [[#]]
+; CHECK-SPIRV: Decorate [[#Var2:]] UserSemantic "class_annotation_a"
+; CHECK-SPIRV: Decorate [[#Var2]] UserSemantic "class_annotation_b"
+; CHECK-SPIRV-DAG: Variable [[#]] [[#Var]] [[#]]
+; CHECK-SPIRV-DAG: Variable [[#]] [[#Var2]] [[#]]
 
 ; CHECK-LLVM-DAG: @[[StrA:[0-9_.]+]] = {{.*}}"var_annotation_a\00"
 ; CHECK-LLVM-DAG: @[[StrB:[0-9_.]+]] = {{.*}}"var_annotation_b\00"
 ; CHECK-LLVM-DAG: @[[StrStructA:[0-9_.]+]] = {{.*}}"class_annotation_a\00"
 ; CHECK-LLVM-DAG: @[[StrStructB:[0-9_.]+]] = {{.*}}"class_annotation_b\00"
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrA]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrB]], ptr undef, i32 undef, ptr undef)
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
-; CHECK-LLVM: %[[#PtrAnn:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#GEP1:]], ptr @[[StrStructA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#PtrAnn]], ptr @[[StrStructB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructA]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructB]], ptr undef, i32 undef, ptr undef)
 
 
 source_filename = "llvm-link"

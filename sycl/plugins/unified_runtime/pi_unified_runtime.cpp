@@ -25,7 +25,7 @@ static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
     for (auto Adapter : Vec) {
       urAdapterRelease(Adapter);
     }
-    urTearDown(nullptr);
+    urLoaderTearDown();
   });
 }
 
@@ -1309,8 +1309,8 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
     HANDLE_ERRORS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
   }
 
-  HANDLE_ERRORS(urInit(0, LoaderConfig));
-
+  HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
+  
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
   if (NumAdapters > 0) {

@@ -31,6 +31,7 @@ namespace id = itanium_demangle;
 #define DEBUG_TYPE "esimd-verifier"
 
 // A list of SYCL functions (regexps) allowed for use in ESIMD context.
+// clang-format off
 static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::accessor<.+>::accessor",
     "^sycl::_V1::accessor<.+>::~accessor",
@@ -80,6 +81,7 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::accessor<.+>::getMemoryRange",
     "^sycl::_V1::accessor<.+>::getOffset",
     "^sycl::_V1::accessor<.+>::operator\\[\\]"};
+// clang-format on
 
 namespace {
 

@@ -300,9 +300,9 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   // assert(Format != PI_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
-    throw feature_not_supported(
-        "SPIR-V online compilation is not supported in this context",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
+        "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadata();
@@ -530,6 +530,26 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   }
 }
 
+static void
+appendCompileEnvironmentVariablesThatAppend(std::string &CompileOpts) {
+  static const char *AppendCompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_APPEND_COMPILE_OPTIONS>::get();
+  if (AppendCompileOptsEnv) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += AppendCompileOptsEnv;
+  }
+}
+static void appendLinkEnvironmentVariablesThatAppend(std::string &LinkOpts) {
+  static const char *AppendLinkOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_APPEND_LINK_OPTIONS>::get();
+  if (AppendLinkOptsEnv) {
+    if (!LinkOpts.empty())
+      LinkOpts += " ";
+    LinkOpts += AppendLinkOptsEnv;
+  }
+}
+
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img,
@@ -602,6 +622,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   }
 }
 
+// When caching is enabled, the returned PiProgram will already have
+// its ref count incremented.
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, bool JITCompilationIsRequired) {
@@ -646,7 +668,9 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
                  &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
-
+    // Should always come last!
+    appendCompileEnvironmentVariablesThatAppend(CompileOpts);
+    appendLinkEnvironmentVariablesThatAppend(LinkOpts);
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
@@ -717,6 +741,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   return *BuildResult->Ptr.load();
 }
 
+// When caching is enabled, the returned PiProgram and PiKernel will
+// already have their ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
@@ -734,6 +760,9 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  // Should always come last!
+  appendCompileEnvironmentVariablesThatAppend(CompileOpts);
+  appendLinkEnvironmentVariablesThatAppend(LinkOpts);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
@@ -1040,8 +1069,8 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-    throw feature_not_supported("Recompiling AOT image is not supported",
-                                PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Recompiling AOT image is not supported");
   }
 }
 
@@ -2138,6 +2167,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   applyCompileOptionsFromEnvironment(CompileOptions);
   appendCompileOptionsFromImage(
       CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
+  // Should always come last!
+  appendCompileEnvironmentVariablesThatAppend(CompileOptions);
   sycl::detail::pi::PiResult Error =
       Plugin->call_nocheck<PiApiKind::piProgramCompile>(
           ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
@@ -2176,6 +2207,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
     appendLinkOptionsFromImage(LinkOptionsStr,
                                *(InputImpl->get_bin_image_ref()));
   }
+  // Should always come last!
+  appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
   const context &Context = getSyclObjImpl(DeviceImage)->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -2286,7 +2319,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
-
+    // Should always come last!
+    appendCompileEnvironmentVariablesThatAppend(CompileOpts);
+    appendLinkEnvironmentVariablesThatAppend(LinkOpts);
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
@@ -2408,6 +2443,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }
 
+// When caching is enabled, the returned PiKernel will already have
+// its ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,

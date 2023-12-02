@@ -29,13 +29,12 @@ template <typename ParentGroup> class ballot_group;
 
 template <typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(
-    sycl::aspect::ext_oneapi_non_uniform_groups)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_ballot_group)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        ballot_group<Group>>
-get_ballot_group(Group group, bool predicate);
+                        ballot_group<Group>> get_ballot_group(Group group,
+                                                              bool predicate);
 
 template <typename ParentGroup> class ballot_group {
 public:

@@ -157,6 +157,9 @@ struct LoopAttributes {
   /// Flag for llvm.loop.fusion.disable metatdata.
   bool SYCLNofusionEnable;
 
+  /// Value for 'llvm.loop.align' metadata.
+  unsigned CodeAlign;
+
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
 };
@@ -411,6 +414,9 @@ public:
 
   /// Set flag of nofusion for the next loop pushed.
   void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
+
+  /// Set value of code align for the next loop pushed.
+  void setCodeAlign(unsigned C) { StagedAttrs.CodeAlign = C; }
 
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
