@@ -3940,17 +3940,17 @@ atomic_update(AccessorT lacc,
 ///
 /// simd<T, N>
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<simd<T, N>, RegionTy> src0,
+///                   simd_view<ViewedTy, RegionTy> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-2)
 ///
 /// simd<T, N>
-/// slm_atomic_update(simd_view<simd<uint32_t, N>, RegionTy> byte_offset
+/// slm_atomic_update(simd_view<ViewedTy, RegionTy> byte_offset,
 ///                   simd<T, N> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-3)
 ///
 /// simd<T, N>
-/// slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
-///                   simd_view<simd<T, N>, RegionTy> src0,
+/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+///                   simd_view<ViewedTy, RegionTy> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-4)
 
 /// simd<T, N>
@@ -3962,19 +3962,19 @@ atomic_update(AccessorT lacc,
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
+///               simd_view<ViewedTy, RegionTy> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
 ///
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
+///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-3)
 ///
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
-///               simd_view<simd<T, N>, RegionTy> src0,
+///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+///               simd_view<ViewedTy, RegionTy> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
 ///
 
@@ -4027,7 +4027,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 
 /// simd<T, N>
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<simd<T, N>, RegionTy> src0,
+///                   simd_view<ViewedTy, RegionTy> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-2)
 ///
 /// Atomically updates \c N memory locations in SLM indicated by
@@ -4043,15 +4043,15 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 template <atomic_op Op, typename T, int N,
-          typename RegionTy = region1d_t<T, N, 1>>
+          typename ViewedTy, typename RegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset,
-                  simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask = 1) {
+                  simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
   return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), mask);
 }
 
 /// simd<T, N>
-/// slm_atomic_update(simd_view<simd<uint32_t, N>, RegionTy> byte_offset
+/// slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
 ///                   simd<T, N> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-3)
 /// Atomically updates \c N memory locations in SLM indicated by
@@ -4067,16 +4067,17 @@ slm_atomic_update(simd<uint32_t, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 template <atomic_op Op, typename T, int N,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>>
+          typename ViewedOffsetTy,
+          typename OffsetRegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
-slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
+slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
                   simd<T, N> src0, simd_mask<N> mask = 1) {
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
 }
 
 /// simd<T, N>
-/// slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
-///                   simd_view<simd<T, N>, RegionTy> src0,
+/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+///                   simd_view<ViewedTy, RegionTy> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-4)
 /// Atomically updates \c N memory locations in SLM indicated by
 /// a vector of offsets, and returns a vector of old
@@ -4091,11 +4092,11 @@ slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 template <atomic_op Op, typename T, int N,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
+          typename ViewedOffsetTy, typename ViewedTy,
+          typename OffsetRegionTy, typename RegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
-slm_atomic_update(simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-                  simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask = 1) {
+slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+                  simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), mask);
 }
 
@@ -4118,33 +4119,34 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
+///               simd_view<ViewedTy, RegionTy> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
 template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
+          typename ViewedTy,
+          typename RegionTy>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
     simd<T, N>>
 atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask = 1) {
+              simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), mask);
 }
 
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
+///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-3)
 template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>>
+          typename ViewedOffsetTy, typename OffsetRegionTy>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
     simd<T, N>>
 atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
+              simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
               simd<T, N> src0, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
@@ -4153,19 +4155,20 @@ atomic_update(AccessorT lacc,
 ///
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset
-///               simd_view<simd<T, N>, RegionTy> src0,
+///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+///               simd_view<ViewedTy, RegionTy> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
 template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
+          typename ViewedOffsetTy, typename ViewedTy,
+          typename OffsetRegionTy,
+          typename RegionTy>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
     simd<T, N>>
 atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask = 1) {
+              simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
+              simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
 }
@@ -6783,6 +6786,7 @@ template <atomic_op Op, typename T, int N, typename Toffset,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
@@ -6825,6 +6829,7 @@ template <atomic_op Op, typename T, int N, typename Toffset,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,

@@ -528,10 +528,10 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
   {
     // CHECK-COUNT-8: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_1 =
-        slm_atomic_update<atomic_op::add, int>(offsets, add, pred);
+        slm_atomic_update<atomic_op::add>(offsets, add, pred);
 
     auto res_slm_atomic_2 =
-        slm_atomic_update<atomic_op::add, int>(offsets, add);
+        slm_atomic_update<atomic_op::add>(offsets, add);
 
     auto res_slm_atomic_3 =
         slm_atomic_update<atomic_op::add, int>(offsets, add_view, pred);
@@ -540,16 +540,16 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         slm_atomic_update<atomic_op::add, int>(offsets, add_view);
 
     auto res_slm_atomic_5 =
-        slm_atomic_update<atomic_op::add, int>(offsets_view, add, pred);
+        slm_atomic_update<atomic_op::add>(offsets_view, add, pred);
 
     auto res_slm_atomic_6 =
-        slm_atomic_update<atomic_op::add, int>(offsets_view, add);
+        slm_atomic_update<atomic_op::add>(offsets_view, add);
 
     auto res_slm_atomic_7 =
         slm_atomic_update<atomic_op::add, int>(offsets_view, add_view, pred);
 
     auto res_slm_atomic_8 =
-        slm_atomic_update<atomic_op::add, int>(offsets_view, add_view);
+        slm_atomic_update<atomic_op::add, int, VL>(offsets_view, add_view);
 
     // Expect LSC for short.
     {
@@ -654,15 +654,23 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
   }
   // One operand atomic.
   {
-    // CHECK-COUNT-4: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-COUNT-8: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_1 =
-        atomic_update<atomic_op::add, int, VL>(local_acc, offsets, add, pred);
-    auto res_slm_atomic_2 = atomic_update<atomic_op::add, int, VL>(
-        local_acc, offsets, add_view, pred);
-    auto res_slm_atomic_3 = atomic_update<atomic_op::add, int, VL>(
-        local_acc, offsets_view, add, pred);
-    auto res_slm_atomic_4 = atomic_update<atomic_op::add, int, VL>(
-        local_acc, offsets_view, add_view, pred);
+        atomic_update<atomic_op::add>(local_acc, offsets, add, pred);
+    auto res_slm_atomic_2 =
+        atomic_update<atomic_op::add>(local_acc, offsets, add);
+    auto res_slm_atomic_3 =
+        atomic_update<atomic_op::add, int>(local_acc, offsets, add_view, pred);
+    auto res_slm_atomic_4 =
+        atomic_update<atomic_op::add, int>(local_acc, offsets, add_view);
+    auto res_slm_atomic_5 =
+        atomic_update<atomic_op::add>(local_acc, offsets_view, add, pred);
+    auto res_slm_atomic_6 =
+        atomic_update<atomic_op::add>(local_acc, offsets_view, add);
+    auto res_slm_atomic_7 =
+        atomic_update<atomic_op::add, int>(local_acc, offsets_view, add_view, pred);
+    auto res_slm_atomic_8 =
+        atomic_update<atomic_op::add, int, VL>(local_acc, offsets_view, add_view);
   }
   // Two operand atomic.
   {
