@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import tempfile
+import textwrap
 from distutils.spawn import find_executable
 
 import lit.formats
@@ -119,17 +120,31 @@ if lit_config.params.get('gpu-intel-dg2', False):
     config.available_features.add('gpu-intel-dg2')
 if lit_config.params.get('gpu-intel-pvc', False):
     config.available_features.add('gpu-intel-pvc')
+    config.available_features.add('matrix-fp16') # PVC implies the support of FP16 matrix
+    config.available_features.add('matrix-tf32') # PVC implies the support of TF32 matrix
 
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
+if lit_config.params.get('matrix-tf32', False):
+    config.available_features.add('matrix-tf32')
+
 if lit_config.params.get('matrix-xmx8', False):
     config.available_features.add('matrix-xmx8')
+    config.available_features.add('matrix-fp16') # XMX implies the support of FP16 matrix
 
-#support for LIT parameter ze_debug<num>
-if lit_config.params.get('ze_debug'):
-    config.ze_debug = lit_config.params.get('ze_debug')
-    lit_config.note("ZE_DEBUG: "+config.ze_debug)
+if lit_config.params.get('matrix-fp16', False):
+    config.available_features.add('matrix-fp16')
+
+#support for LIT parameter ur_l0_debug<num>
+if lit_config.params.get('ur_l0_debug'):
+    config.ur_l0_debug = lit_config.params.get('ur_l0_debug')
+    lit_config.note("UR_L0_DEBUG: "+config.ur_l0_debug)
+
+#support for LIT parameter ur_l0_leaks_debug
+if lit_config.params.get('ur_l0_leaks_debug'):
+    config.ur_l0_leaks_debug = lit_config.params.get('ur_l0_leaks_debug')
+    lit_config.note("UR_L0_LEAKS_DEBUG: "+config.ur_l0_leaks_debug)
 
 # Make sure that any dynamic checks below are done in the build directory and
 # not where the sources are located. This is important for the in-tree
@@ -146,8 +161,12 @@ if sp[0] == 0:
 # Check for Level Zero SDK
 check_l0_file='l0_include.cpp'
 with open(check_l0_file, 'w') as fp:
-    fp.write('#include<level_zero/ze_api.h>\n')
-    fp.write('int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }')
+    print(textwrap.dedent(
+        '''
+        #include <level_zero/ze_api.h>
+        int main() { uint32_t t; zeDriverGet(&t, nullptr); return t; }
+        '''
+    ), file=fp)
 
 config.level_zero_libs_dir=lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else config.sycl_include))
@@ -168,11 +187,15 @@ else:
 # Check for sycl-preview library
 check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
 with open(check_preview_breaking_changes_file, 'w') as fp:
-    fp.write('#include <sycl/sycl.hpp>')
-    fp.write('namespace sycl { inline namespace _V1 { namespace detail {')
-    fp.write('extern void PreviewMajorReleaseMarker();')
-    fp.write('}}}')
-    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }')
+    print(textwrap.dedent(
+        '''
+        #include <sycl/sycl.hpp>
+        namespace sycl { inline namespace _V1 { namespace detail {
+        extern void PreviewMajorReleaseMarker();
+        }}}
+        int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
+        '''
+    ), file=fp)
 
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
 if sp[0] == 0:
@@ -181,8 +204,12 @@ if sp[0] == 0:
 # Check for CUDA SDK
 check_cuda_file='cuda_include.cpp'
 with open(check_cuda_file, 'w') as fp:
-    fp.write('#include <cuda.h>\n')
-    fp.write('int main() { CUresult r = cuInit(0); return r; }')
+    print(textwrap.dedent(
+        '''
+        #include <cuda.h>
+        int main() { CUresult r = cuInit(0); return r; }
+        '''
+    ), file=fp)
 
 config.cuda_libs_dir=lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 config.cuda_include=lit_config.params.get("cuda_include", (config.cuda_include if config.cuda_include else config.sycl_include))
@@ -264,8 +291,13 @@ if not sycl_ls:
 
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
-    sp = subprocess.check_output(sycl_ls, text=True)
+    cmd = '{} {}'.format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+    sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
+        if "gfx90a" in line:
+            config.available_features.add("gpu-amd-gfx90a")
+        if not line.startswith('['):
+            continue
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
@@ -292,6 +324,7 @@ if config.hip_platform not in supported_hip_platforms:
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
 elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
@@ -412,7 +445,8 @@ for sycl_device in config.sycl_devices:
     # with their test run. It's just us filtering here, so silence them unless
     # we get an exit status.
     try:
-        sp = subprocess.run([sycl_ls, '--verbose'], env=env, text=True,
+        cmd = '{} {} --verbose'.format(config.run_launcher or "", sycl_ls)
+        sp = subprocess.run(cmd, env=env, text=True, shell=True,
                             capture_output=True)
         sp.check_returncode()
     except subprocess.CalledProcessError as e:

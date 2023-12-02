@@ -2353,9 +2353,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFunctionCall: {
     SPIRVFunctionCall *BC = static_cast<SPIRVFunctionCall *>(BV);
-    auto *Call = CallInst::Create(transFunction(BC->getFunction()),
-                                  transValue(BC->getArgumentValues(), F, BB),
+    std::vector<Value *> Args = transValue(BC->getArgumentValues(), F, BB);
+    auto *Call = CallInst::Create(transFunction(BC->getFunction()), Args,
                                   BC->getName(), BB);
+    for (auto *Arg : Args)
+      if (Arg->getType()->isPointerTy())
+        replaceOperandWithAnnotationIntrinsicCallResult(F, Arg);
     setCallingConv(Call);
     setAttrByCalledFunc(Call);
     return mapValue(BV, Call);
@@ -2536,8 +2539,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVFPGARegINTELInstBase *BC =
         static_cast<SPIRVFPGARegINTELInstBase *>(BV);
 
-    PointerType *Int8PtrTyPrivate =
-        Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    PointerType *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
@@ -3108,7 +3110,7 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
 
 Value *SPIRVToLLVM::transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB) {
   auto *TranslatedInvoke = transFunction(static_cast<SPIRVFunction *>(Invoke));
-  auto *Int8PtrTyGen = Type::getInt8PtrTy(*Context, SPIRAS_Generic);
+  auto *Int8PtrTyGen = PointerType::get(*Context, SPIRAS_Generic);
   return CastInst::CreatePointerBitCastOrAddrSpaceCast(TranslatedInvoke,
                                                        Int8PtrTyGen, "", BB);
 }
@@ -3122,7 +3124,7 @@ Instruction *SPIRVToLLVM::transWGSizeQueryBI(SPIRVInstruction *BI,
 
   Function *F = M->getFunction(FName);
   if (!F) {
-    auto *Int8PtrTyGen = Type::getInt8PtrTy(*Context, SPIRAS_Generic);
+    auto *Int8PtrTyGen = PointerType::get(*Context, SPIRAS_Generic);
     FunctionType *FT = FunctionType::get(Type::getInt32Ty(*Context),
                                          {Int8PtrTyGen, Int8PtrTyGen}, false);
     F = Function::Create(FT, GlobalValue::ExternalLinkage, FName, M);
@@ -3147,7 +3149,7 @@ Instruction *SPIRVToLLVM::transSGSizeQueryBI(SPIRVInstruction *BI,
   auto Ops = BI->getOperands();
   Function *F = M->getFunction(FName);
   if (!F) {
-    auto *Int8PtrTyGen = Type::getInt8PtrTy(*Context, SPIRAS_Generic);
+    auto *Int8PtrTyGen = PointerType::get(*Context, SPIRAS_Generic);
     SmallVector<Type *, 3> Tys = {
         transType(Ops[0]->getType()), // ndrange
         Int8PtrTyGen,                 // block_invoke
@@ -3488,6 +3490,12 @@ void generateIntelFPGAAnnotation(
   }
   if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (E->hasDecorate(DecorationStridesizeINTEL, 0, &Result))
+    Out << "{stride_size:" << Result << "}";
+  if (E->hasDecorate(DecorationWordsizeINTEL, 0, &Result))
+    Out << "{word_size:" << Result << "}";
+  if (E->hasDecorate(DecorationTrueDualPortINTEL))
+    Out << "{true_dual_port}";
   if (E->hasDecorate(DecorationBufferLocationINTEL, 0, &Result))
     Out << "{sycl-buffer-location:" << Result << '}';
   if (E->hasDecorate(DecorationLatencyControlLabelINTEL, 0, &Result))
@@ -3585,6 +3593,12 @@ void generateIntelFPGAAnnotationForStructMember(
   if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
                            &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (E->hasMemberDecorate(DecorationStridesizeINTEL, 0, MemberNumber, &Result))
+    Out << "{stride_size:" << Result << "}";
+  if (E->hasMemberDecorate(DecorationWordsizeINTEL, 0, MemberNumber, &Result))
+    Out << "{word_size:" << Result << "}";
+  if (E->hasMemberDecorate(DecorationTrueDualPortINTEL, 0, MemberNumber))
+    Out << "{true_dual_port}";
   if (!AnnotStr.empty())
     AnnotStrVec.emplace_back(AnnotStr);
 
@@ -3612,7 +3626,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
 
     IRBuilder<> Builder(Inst->getParent());
 
-    Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = IntegerType::get(*Context, 32);
 
     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
@@ -3727,11 +3741,11 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
       GS->setSection("llvm.metadata");
 
-      Type *ResType = PointerType::getInt8PtrTy(
-          GV->getContext(), GV->getType()->getPointerAddressSpace());
+      Type *ResType = PointerType::get(GV->getContext(),
+                                       GV->getType()->getPointerAddressSpace());
       Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
-      Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+      Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
       IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
       llvm::Constant *Fields[5] = {
@@ -3787,12 +3801,12 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::getInt8PtrTy(
-        V->getContext(), V->getType()->getPointerAddressSpace());
+    Type *ResType = PointerType::get(V->getContext(),
+                                     V->getType()->getPointerAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
 
-    Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
     llvm::Constant *Fields[5] = {
@@ -3838,7 +3852,8 @@ transDecorationsToMetadataList(llvm::LLVMContext *Context,
       OPs.push_back(LinkTypeMD);
       break;
     }
-    case spv::internal::DecorationHostAccessINTEL: {
+    case spv::internal::DecorationHostAccessINTEL:
+    case DecorationHostAccessINTEL: {
       const auto *const HostAccDeco =
           static_cast<const SPIRVDecorateHostAccessINTEL *>(Deco);
       auto *const AccModeMD = ConstantAsMetadata::get(ConstantInt::get(
@@ -3976,7 +3991,7 @@ void SPIRVToLLVM::createCXXStructor(const char *ListName,
   Type *PriorityTy = Type::getInt32Ty(*Context);
   PointerType *CtorTy = PointerType::getUnqual(
       FunctionType::get(Type::getVoidTy(*Context), false));
-  PointerType *ComdatTy = Type::getInt8PtrTy(*Context);
+  PointerType *ComdatTy = PointerType::getUnqual(*Context);
   StructType *StructorTy = StructType::get(PriorityTy, CtorTy, ComdatTy);
 
   ArrayType *ArrTy = ArrayType::get(StructorTy, Funcs.size());

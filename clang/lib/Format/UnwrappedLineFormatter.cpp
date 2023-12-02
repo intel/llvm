@@ -520,6 +520,8 @@ private:
       // Try to merge records.
       if (TheLine->Last->is(TT_EnumLBrace)) {
         ShouldMerge = Style.AllowShortEnumsOnASingleLine;
+      } else if (TheLine->Last->is(TT_RequiresExpressionLBrace)) {
+        ShouldMerge = Style.AllowShortCompoundRequirementOnASingleLine;
       } else if (TheLine->Last->isOneOf(TT_ClassLBrace, TT_StructLBrace)) {
         // NOTE: We use AfterClass (whereas AfterStruct exists) for both classes
         // and structs, but it seems that wrapping is still handled correctly
@@ -937,6 +939,12 @@ private:
 };
 
 static void markFinalized(FormatToken *Tok) {
+  if (Tok->is(tok::hash) && !Tok->Previous && Tok->Next &&
+      Tok->Next->isOneOf(tok::pp_if, tok::pp_ifdef, tok::pp_ifndef,
+                         tok::pp_elif, tok::pp_elifdef, tok::pp_elifndef,
+                         tok::pp_else, tok::pp_endif)) {
+    Tok = Tok->Next;
+  }
   for (; Tok; Tok = Tok->Next) {
     if (Tok->MacroCtx && Tok->MacroCtx->Role == MR_ExpandedArg) {
       // In the first pass we format all macro arguments in the expanded token
@@ -1058,6 +1066,8 @@ protected:
     }
     Penalty +=
         formatLine(*Child, State.Column + 1, /*FirstStartColumn=*/0, DryRun);
+    if (!DryRun)
+      markFinalized(Child->First);
 
     State.Column += 1 + Child->Last->TotalLength;
     return true;
@@ -1427,16 +1437,8 @@ unsigned UnwrappedLineFormatter::format(
       NextLine = Joiner.getNextMergedLine(DryRun, IndentTracker);
       RangeMinLevel = UINT_MAX;
     }
-    if (!DryRun) {
-      auto *Tok = TheLine.First;
-      if (Tok->is(tok::hash) && !Tok->Previous && Tok->Next &&
-          Tok->Next->isOneOf(tok::pp_if, tok::pp_ifdef, tok::pp_ifndef,
-                             tok::pp_elif, tok::pp_elifdef, tok::pp_elifndef,
-                             tok::pp_else, tok::pp_endif)) {
-        Tok = Tok->Next;
-      }
-      markFinalized(Tok);
-    }
+    if (!DryRun)
+      markFinalized(TheLine.First);
   }
   PenaltyCache[CacheKey] = Penalty;
   return Penalty;

@@ -77,7 +77,7 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
       MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
-  size_t DevicesNum = 0;
+  uint32_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piContextGetInfo>(
       MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
@@ -367,12 +367,12 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
       DeviceGlobalUSMMem &DeviceGlobalUSM =
           DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
 
-      // If the device global still has a zero-initialization event it should be
+      // If the device global still has a initialization event it should be
       // added to the initialization events list. Since initialization events
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
+        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
       // Write the pointer to the device global and store the event in the

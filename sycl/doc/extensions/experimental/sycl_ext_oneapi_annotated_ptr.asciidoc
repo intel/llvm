@@ -187,6 +187,31 @@ pointer unless noted otherwise.
 ----
 using sycl::ext::oneapi::experimental;
 struct MyType {
+  MyType(const MyType& otherM) {
+     ...
+  }
+};
+
+struct MyKernel {
+  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type is not allowed
+  annotated_ptr<void, properties<PropB>> b;   //void is legal 
+  ...
+  void operator()() const {
+    ...
+    *b = ...; //deference is not allowed
+  }
+};
+----
+It is ill-formed to instantiate`annotated_ptr` and `annotated_ref` for a non-trivially-copyable
+type `T`. The only exception is that `annotated_ptr` is allowed to be instantiated with `void`.
+
+In the above example, encapsulating `annotated_ptr` within `MyType` is illegal. Encapsulating
+`annotated_ptr` with `void` is legal, but it can not be deferenced.
+
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
   annotated_ptr<int, properties<PropC>> a;
   annotated_ptr<int, properties<PropD>> b;
 };
@@ -524,14 +549,14 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    T operator=(const T &) const;
+    T operator=(T) const;
     T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(const T &) const;
-    T operator++();
-    T operator++(int);
-    T operator--();
-    T operator--(int);
+    T operatorOP(T) const;
+    T operator++() const;
+    T operator++(int) const;
+    T operator--() const;
+    T operator--(int) const;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -556,7 +581,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-T operator=(const T &);
+T operator=(T) const;
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -566,14 +591,14 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-T operator=(const annotated_ref& other);
+T operator=(const annotated_ref& other) const;
 ----
 a|
 Equivalent to:
 ```c++
-tmp T = other;   // Reads from memory
+T tmp = other;   // Reads from memory
                  // with annotations
-*this = T;       // Writes to memory
+*this = tmp;     // Writes to memory
                  // with annotations
 return T;
 ```
@@ -583,18 +608,18 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP(const T &);
+T operatorOP(T) const;
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
 Compound assignment operators. Return result by value.
-Available only if the corresponding non-compound operator is available for `T`.
+Available only if the corresponding assignment operator OP is available for `T`.
 Equivalent to:
 ```c++
 T tmp = *this;     // Reads from memory
                    // with annotations
-tmp = tmp OP val;
+tmp OP val;
 *this = tmp;       // Writes to memory
                    // with annotations
 return tmp;
@@ -603,14 +628,16 @@ return tmp;
 a|
 [source,c++]
 ----
-T operator++();
-T operator++(int);
-T operator--();
-T operator--(int);
+T operator++() const;
+T operator++(int) const;
+T operator--() const;
+T operator--(int) const;
 ----
 |
-increment and decrement operator of annotated_ref. The annotations are applied
-when the object `T` is loaded and stored to the memory.
+Increment and decrement operator of annotated_ref. Increment/Decrement the object `T`
+referenced by this wrapper via ``T``'s Increment/Decrement operator.
+
+The annotations are applied when the object `T` is loaded and stored to the memory.
 |===
 
 == Issues related to `annotated_ptr`

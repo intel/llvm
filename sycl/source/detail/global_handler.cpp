@@ -52,13 +52,11 @@ public:
     if (!MModifyCounter)
       return;
 
+    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
     MCounter--;
-    if (!MCounter) {
-      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease();
-      }
+    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+    if (RTGlobalObjHandler) {
+      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
     }
   }
 
@@ -142,7 +140,7 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // The method is used in unit tests only. Do not protect with lock since
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
-    prepareSchedulerToRelease();
+    prepareSchedulerToRelease(true);
   MScheduler.Inst.reset(Scheduler);
 }
 
@@ -273,11 +271,13 @@ void GlobalHandler::unloadPlugins() {
   getPlugins().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease() {
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
-  drainThreadPool();
+  if (Blocking)
+    drainThreadPool();
   if (MScheduler.Inst)
-    MScheduler.Inst->releaseResources();
+    MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
+                                               : BlockingT::NON_BLOCKING);
 #endif
 }
 
@@ -306,7 +306,7 @@ void shutdown() {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease();
+  Handler->prepareSchedulerToRelease(true);
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
