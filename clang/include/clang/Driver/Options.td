@@ -1179,6 +1179,12 @@ def offload_new_driver : Flag<["--"], "offload-new-driver">,
 def no_offload_new_driver : Flag<["--"], "no-offload-new-driver">,
   Visibility<[ClangOption, CC1Option]>, Group<f_Group>,
   HelpText<"Don't Use the new driver for offloading compilation.">;
+def use_spirv_backend : Flag<["--"], "use-spirv-backend">,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Use the new SPIRV backend for offloading compilation.">;
+def no_use_spirv_backend : Flag<["--"], "no-use-spirv-backend">,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Don't use the new SPIRV backend for offloading compilation.">;
 
 def offload_device_only : Flag<["--"], "offload-device-only">,
   Visibility<[ClangOption, FlangOption]>,

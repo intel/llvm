@@ -56,7 +56,9 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 
@@ -191,6 +193,10 @@ static cl::opt<bool> SPIRVPreserveAuxData(
     "spirv-preserve-auxdata", cl::init(false),
     cl::desc("Preserve all auxiliary data, such as function attributes and metadata"));
 
+static cl::opt<bool>
+    SPIRVBackend("spirv-backend", cl::init(false),
+                 cl::desc("Use SPIRV Backend for LLVM to SPIR-V Translation"));
+
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
@@ -290,6 +296,31 @@ private:
   std::vector<char> Buffer;
 };
 #endif // LLVM_SPIRV_HAVE_SPIRV_TOOLS
+
+// Convert LLVM-IR to SPIR-V using SPIR-V backend.
+static int UseSPIRVBackend(const char *Argv0, StringRef InputFile,
+                           StringRef OutputFile) {
+  // Find llc.  It is expected this resides in the same directory
+  // as llvm-spirv.
+  StringRef ParentPath = llvm::sys::path::parent_path(Argv0);
+  llvm::ErrorOr<std::string> LlcBinary =
+      llvm::sys::findProgramByName("llc", ParentPath);
+  if (!LlcBinary)
+    LlcBinary = llvm::sys::findProgramByName("llc");
+  SmallVector<StringRef, 6> LlcArgs = {
+      "llc",
+      "-mtriple=spirv64-unknown-unknown",
+      "-O0",
+      "-filetype=obj",
+      "--spirv-extensions=SPV_INTEL_arbitrary_precision_integers",
+      "--spirv-extensions=SPV_INTEL_optnone",
+      "--spirv-extensions=SPV_KHR_bit_instructions",
+      "--spirv-extensions=SPV_KHR_no_integer_wrap_decoration",
+      InputFile,
+      "-o",
+      OutputFile};
+  return llvm::sys::ExecuteAndWait(LlcBinary.get(), LlcArgs);
+}
 
 static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
@@ -797,8 +828,12 @@ int main(int Ac, char **Av) {
     return convertSPIRV();
 #endif
 
-  if (!IsReverse && !IsRegularization && !SpecConstInfo)
-    return convertLLVMToSPIRV(Opts);
+  if (!IsReverse && !IsRegularization && !SpecConstInfo) {
+    if (SPIRVBackend)
+      return UseSPIRVBackend(Av[0], InputFile, OutputFile);
+    else
+      return convertLLVMToSPIRV(Opts);
+  }
 
   if (IsReverse && IsRegularization) {
     errs() << "Cannot have both -r and -s options\n";
