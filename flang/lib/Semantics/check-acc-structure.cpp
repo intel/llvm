@@ -218,6 +218,7 @@ void AccStructureChecker::Leave(const parser::OpenACCCombinedConstruct &x) {
   const auto &beginBlockDir{std::get<parser::AccBeginCombinedDirective>(x.t)};
   const auto &combinedDir{
       std::get<parser::AccCombinedDirective>(beginBlockDir.t)};
+  auto &doCons{std::get<std::optional<parser::DoConstruct>>(x.t)};
   switch (combinedDir.v) {
   case llvm::acc::Directive::ACCD_kernels_loop:
   case llvm::acc::Directive::ACCD_parallel_loop:
@@ -225,6 +226,10 @@ void AccStructureChecker::Leave(const parser::OpenACCCombinedConstruct &x) {
     // Restriction - line 1004-1005
     CheckOnlyAllowedAfter(llvm::acc::Clause::ACCC_device_type,
         computeConstructOnlyAllowedAfterDeviceTypeClauses);
+    if (doCons) {
+      const parser::Block &block{std::get<parser::Block>(doCons->t)};
+      CheckNoBranching(block, GetContext().directive, beginBlockDir.source);
+    }
     break;
   default:
     break;
@@ -401,14 +406,27 @@ void AccStructureChecker::CheckMultipleOccurrenceInDeclare(
             [&](const Fortran::parser::Designator &designator) {
               if (const auto *name = getDesignatorNameIfDataRef(designator)) {
                 if (declareSymbols.contains(&name->symbol->GetUltimate())) {
-                  context_.Say(GetContext().clauseSource,
-                      "'%s' in the %s clause is already present in another "
-                      "clause in this module"_err_en_US,
-                      name->symbol->name(),
-                      parser::ToUpperCaseLetters(
-                          llvm::acc::getOpenACCClauseName(clause).str()));
+                  if (declareSymbols[&name->symbol->GetUltimate()] == clause) {
+                    context_.Say(GetContext().clauseSource,
+                        "'%s' in the %s clause is already present in the same "
+                        "clause in this module"_warn_en_US,
+                        name->symbol->name(),
+                        parser::ToUpperCaseLetters(
+                            llvm::acc::getOpenACCClauseName(clause).str()));
+                  } else {
+                    context_.Say(GetContext().clauseSource,
+                        "'%s' in the %s clause is already present in another "
+                        "%s clause in this module"_err_en_US,
+                        name->symbol->name(),
+                        parser::ToUpperCaseLetters(
+                            llvm::acc::getOpenACCClauseName(clause).str()),
+                        parser::ToUpperCaseLetters(
+                            llvm::acc::getOpenACCClauseName(
+                                declareSymbols[&name->symbol->GetUltimate()])
+                                .str()));
+                  }
                 }
-                declareSymbols.insert(&name->symbol->GetUltimate());
+                declareSymbols.insert({&name->symbol->GetUltimate(), clause});
               }
             },
             [&](const Fortran::parser::Name &name) {

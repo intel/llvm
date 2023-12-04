@@ -36,7 +36,7 @@
 #  pragma GCC system_header
 #endif
 
-#ifndef _LIBCPP_CXX03_LANG
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
@@ -107,7 +107,6 @@ struct __is_pathable_string<
     _Void<typename __can_convert_char<_ECharT>::__char_type> >
     : public __can_convert_char<_ECharT> {
   using _Str = basic_string<_ECharT, _Traits, _Alloc>;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(_Str const& __s) { return __s.data(); }
@@ -129,7 +128,6 @@ struct __is_pathable_string<
     _Void<typename __can_convert_char<_ECharT>::__char_type> >
     : public __can_convert_char<_ECharT> {
   using _Str = basic_string_view<_ECharT, _Traits>;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(_Str const& __s) { return __s.data(); }
@@ -155,8 +153,6 @@ struct __is_pathable_char_array : false_type {};
 template <class _Source, class _ECharT, class _UPtr>
 struct __is_pathable_char_array<_Source, _ECharT*, _UPtr, true>
     : __can_convert_char<__remove_const_t<_ECharT> > {
-  using _Base = __can_convert_char<__remove_const_t<_ECharT> >;
-
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(const _ECharT* __b) { return __b; }
 
@@ -185,7 +181,6 @@ struct __is_pathable_iter<
         typename iterator_traits<_Iter>::value_type>::__char_type> >
     : __can_convert_char<typename iterator_traits<_Iter>::value_type> {
   using _ECharT = typename iterator_traits<_Iter>::value_type;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _Iter __range_begin(_Iter __b) { return __b; }
@@ -622,7 +617,7 @@ public:
   _EnableIfPathable<_Source> append(const _Source& __src) {
     using _Traits = __is_pathable<_Source>;
     using _CVT = _PathCVT<_SourceChar<_Source> >;
-    bool __source_is_absolute = _VSTD_FS::__is_separator(_Traits::__first_or_null(__src));
+    bool __source_is_absolute = filesystem::__is_separator(_Traits::__first_or_null(__src));
     if (__source_is_absolute)
       __pn_.clear();
     else if (has_filename())
@@ -637,7 +632,7 @@ public:
     typedef typename iterator_traits<_InputIt>::value_type _ItVal;
     static_assert(__can_convert_char<_ItVal>::value, "Must convertible");
     using _CVT = _PathCVT<_ItVal>;
-    if (__first != __last && _VSTD_FS::__is_separator(*__first))
+    if (__first != __last && filesystem::__is_separator(*__first))
       __pn_.clear();
     else if (has_filename())
       __pn_ += preferred_separator;
@@ -1088,14 +1083,14 @@ _LIBCPP_END_NAMESPACE_FILESYSTEM
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <>
-struct _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY hash<_VSTD_FS::path> : __unary_function<_VSTD_FS::path, size_t> {
-  _LIBCPP_HIDE_FROM_ABI size_t operator()(_VSTD_FS::path const& __p) const noexcept {
-    return _VSTD_FS::hash_value(__p);
+struct _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY hash<filesystem::path> : __unary_function<filesystem::path, size_t> {
+  _LIBCPP_HIDE_FROM_ABI size_t operator()(filesystem::path const& __p) const noexcept {
+    return filesystem::hash_value(__p);
   }
 };
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___FILESYSTEM_PATH_H

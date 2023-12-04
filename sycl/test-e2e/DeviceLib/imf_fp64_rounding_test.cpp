@@ -146,5 +146,34 @@ int main(int, char **) {
     std::cout << "sycl::ext::intel::math::ddiv_rz passes." << std::endl;
   }
 
+  {
+    std::initializer_list<double> input_vals1 = {
+        0x1p+2, 0x1.fbd37afb0f8edp-1, 0x1.9238e38e38e35p+6, 0x1.7p+3};
+    std::initializer_list<unsigned long long> ref_vals_rd = {
+        0x3fd0000000000000, 0x3ff021aa6a60809b, 0x3f845de9ef97e71e,
+        0x3fb642c8590b2164};
+    std::initializer_list<unsigned long long> ref_vals_rn = {
+        0x3fd0000000000000, 0x3ff021aa6a60809c, 0x3f845de9ef97e71f,
+        0x3fb642c8590b2164};
+    std::initializer_list<unsigned long long> ref_vals_ru = {
+        0x3fd0000000000000, 0x3ff021aa6a60809c, 0x3f845de9ef97e71f,
+        0x3fb642c8590b2165};
+    std::initializer_list<unsigned long long> ref_vals_rz = {
+        0x3fd0000000000000, 0x3ff021aa6a60809b, 0x3f845de9ef97e71e,
+        0x3fb642c8590b2164};
+    test(device_queue, input_vals1, ref_vals_rd,
+         FT(unsigned long long, sycl::ext::intel::math::drcp_rd));
+    std::cout << "sycl::ext::intel::math::drcp_rd passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_rn,
+         FT(unsigned long long, sycl::ext::intel::math::drcp_rn));
+    std::cout << "sycl::ext::intel::math::drcp_rn passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_ru,
+         FT(unsigned long long, sycl::ext::intel::math::drcp_ru));
+    std::cout << "sycl::ext::intel::math::drcp_ru passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_rz,
+         FT(unsigned long long, sycl::ext::intel::math::drcp_rz));
+    std::cout << "sycl::ext::intel::math::drcp_rz passes." << std::endl;
+  }
+
   return 0;
 }

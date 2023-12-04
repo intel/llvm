@@ -32,7 +32,7 @@ void invoke() {
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
+// CHECK:       CXXOperatorCallExpr {{.*}} 'void' '()'
 // CHECK:       IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
@@ -49,6 +49,6 @@ void invoke() {
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
+// CHECK:       CXXOperatorCallExpr {{.*}} 'void' '()'
 // CHECK-NOT:   IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK:       CXXConstructorDecl

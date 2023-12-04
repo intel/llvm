@@ -42,7 +42,7 @@ SYCL_COMPILE_TIME_PROPERTY("sycl-latency-constraint", 6173,
 SYCL_COMPILE_TIME_PROPERTY("sycl-datapath", 5825, DecorValueTy::none)
 SYCL_COMPILE_TIME_PROPERTY("sycl-resource", 5826, DecorValueTy::string)
 SYCL_COMPILE_TIME_PROPERTY("sycl-num-banks", 5827, DecorValueTy::uint32)
-SYCL_COMPILE_TIME_PROPERTY("sycl-ram-stitching", 5836, DecorValueTy::boolean)
+SYCL_COMPILE_TIME_PROPERTY("sycl-ram-stitching", 5836, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-max-private-copies", 5829,
                            DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-num-replicates", 5832, DecorValueTy::uint32)
@@ -60,3 +60,8 @@ SYCL_COMPILE_TIME_PROPERTY("sycl-bi-directional-ports-true", 5885,
 // SPIR-V Spec: https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_cache_controls.asciidoc
 SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint", 6442, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint-nt", 6442, DecorValueTy::uint32)
+
+// The corresponding SPIR-V OpCodes for cache control properties
+SYCL_COMPILE_TIME_PROPERTY("sycl-cache-read-hint", 6442, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-cache-read-assertion", 6442, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-cache-write-hint", 6443, DecorValueTy::uint32)
