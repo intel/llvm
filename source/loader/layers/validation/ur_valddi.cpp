@@ -8123,14 +8123,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendUSMAdviseExp =
         ur_validation_layer::urCommandBufferAppendUSMAdviseExp;
 
-    dditable.pfnAppendUSMPrefetchExp = pDdiTable->pfnAppendUSMPrefetchExp;
-    pDdiTable->pfnAppendUSMPrefetchExp =
-        ur_validation_layer::urCommandBufferAppendUSMPrefetchExp;
-
-    dditable.pfnAppendUSMAdviseExp = pDdiTable->pfnAppendUSMAdviseExp;
-    pDdiTable->pfnAppendUSMAdviseExp =
-        ur_validation_layer::urCommandBufferAppendUSMAdviseExp;
-
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
 

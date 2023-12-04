@@ -10668,34 +10668,6 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendUSMPrefetchExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
-    ur_exp_command_buffer_handle_t *phCommandBuffer;
-    const void **ppMemory;
-    size_t *psize;
-    ur_usm_migration_flags_t *pflags;
-    uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
-    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_usm_prefetch_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendUSMAdviseExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
-    ur_exp_command_buffer_handle_t *phCommandBuffer;
-    const void **ppMemory;
-    size_t *psize;
-    ur_usm_advice_flags_t *padvice;
-    uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
-    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_usm_advise_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferEnqueueExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value

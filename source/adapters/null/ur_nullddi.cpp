@@ -5457,12 +5457,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendUSMAdviseExp =
         driver::urCommandBufferAppendUSMAdviseExp;
 
-    pDdiTable->pfnAppendUSMPrefetchExp =
-        driver::urCommandBufferAppendUSMPrefetchExp;
-
-    pDdiTable->pfnAppendUSMAdviseExp =
-        driver::urCommandBufferAppendUSMAdviseExp;
-
     pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 
     return result;
