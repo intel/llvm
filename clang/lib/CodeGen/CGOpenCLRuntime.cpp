@@ -37,10 +37,6 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
   if (llvm::Type *TransTy = CGM.getTargetCodeGenInfo().getOpenCLType(CGM, T))
     return TransTy;
 
-  llvm::LLVMContext& Ctx = CGM.getLLVMContext();
-  uint32_t AddrSpc = CGM.getContext().getTargetAddressSpace(
-      CGM.getContext().getOpenCLTypeAddrSpace(T));
-
   if (CGM.getTriple().isNVPTX()) {
     switch (cast<BuiltinType>(T)->getKind()) {
     default:

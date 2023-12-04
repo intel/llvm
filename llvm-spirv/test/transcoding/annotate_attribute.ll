@@ -17,15 +17,15 @@
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "bar"
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{FOO}"
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "my_custom_annotations: 30, 60"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 1 UserSemantic "128"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 3 UserSemantic "my_custom_annotations: 20, 60, 80"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_zerointializer: 0, 0, 0"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_false: 0"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_mixed: 0, 1, 0"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "abc: 1, 2, 3"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_true: 1"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "128"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "qux"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{baz}"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "my_custom_annotations: 20, 60, 80"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "annotation_with_zerointializer: 0, 0, 0"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "annotation_with_false: 0"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "annotation_mixed: 0, 1, 0"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "abc: 1, 2, 3"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "annotation_with_true: 1"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -211,8 +211,8 @@ define weak_odr dso_local spir_kernel void @_ZTSZ11TestKernelAvE4MyIP(ptr addrsp
   %3 = addrspacecast ptr %2 to ptr addrspace(4)
   %4 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %3, ptr @.str.11, ptr @.str.1.12, i32 13, ptr @.args)
   ; CHECK-LLVM: %[[ALLOCA:.*]] = alloca %struct.MyIP, align 8
-  ; CHECK-LLVM: %[[GEP:.*]] = getelementptr inbounds %struct.MyIP, ptr %[[ALLOCA]], i32 0, i32 0
-  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[GEP]], ptr [[STR12]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: %[[ASCAST:.*]] = addrspacecast ptr %[[ALLOCA]] to ptr addrspace(4)
+  ; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr addrspace(4) %[[ASCAST]], ptr [[STR12]], ptr undef, i32 undef, ptr undef)
   %5 = addrspacecast ptr addrspace(1) %0 to ptr addrspace(4)
   store ptr addrspace(4) %5, ptr addrspace(4) %4, align 8, !tbaa !17
   %6 = load ptr addrspace(4), ptr addrspace(4) %4, align 8, !tbaa !17

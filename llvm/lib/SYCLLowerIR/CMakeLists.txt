@@ -13,11 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Artur Gainullin <artur.gainullin@intel.com>
-    # Date:   Thu Nov 9 00:37:24 2023 +0000
+    # Author: Gregory Fine <gregory.fine@intel.com>
+    # Date:   Wed Nov 29 14:55:24 2023 PST
 
-    # Replace old kernel with rewritten kernel in metadata only since LLVM 17
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+    # Fixed build failure related to upstream changes
+    set(LLVMGenXIntrinsics_GIT_TAG b16218b8a00c5c1d4db32085dfab4d5eb9a03ad7)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
