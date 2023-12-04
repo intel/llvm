@@ -11,7 +11,6 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
-#include "compiler/utils/prepare_barriers_pass.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
@@ -19,6 +18,7 @@
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/prepare_barriers_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
