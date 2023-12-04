@@ -103,9 +103,8 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.ext_oneapi_graph(MainGraphExec);
-    });
+    Event = Queue.submit(
+        [&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
   }
   Queue.wait_and_throw();
 

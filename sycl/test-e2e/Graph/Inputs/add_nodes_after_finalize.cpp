@@ -63,15 +63,13 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.ext_oneapi_graph(GraphExecAdditional);
-    });
+    Event = Queue.submit(
+        [&](handler &CGH) { CGH.ext_oneapi_graph(GraphExecAdditional); });
   }
 
   Queue.wait_and_throw();

@@ -53,9 +53,8 @@ int main() {
   // Execute several iterations of the graph (first iteration has already run
   // before graph recording)
   for (unsigned n = 1; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 
