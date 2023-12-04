@@ -56,8 +56,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue &q) {
                                K);
              if constexpr (vnniFactor == 0) {
                joint_matrix_load(
-                   sg, sub_b,
-                   B_ptr + (k * TK) * N + sg_starty / SG_SZ * TN, N);
+                   sg, sub_b, B_ptr + (k * TK) * N + sg_starty / SG_SZ * TN, N);
                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
              } else {
                joint_matrix_load(sg, sub_bp,
