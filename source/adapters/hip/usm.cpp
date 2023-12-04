@@ -66,8 +66,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return umfPoolMallocHelper(hPool, ppMem, size, alignment);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL USMFreeImpl(ur_context_handle_t hContext,
-                                                void *pMem) {
+UR_APIEXPORT ur_result_t UR_APICALL
+USMFreeImpl([[maybe_unused]] ur_context_handle_t hContext, void *pMem) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     hipPointerAttribute_t hipPointerAttributeType;
@@ -128,7 +128,8 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+ur_result_t USMHostAllocImpl(void **ResultPtr,
+                             [[maybe_unused]] ur_context_handle_t Context,
                              ur_usm_host_mem_flags_t *, size_t Size,
                              [[maybe_unused]] uint32_t Alignment) {
   try {
