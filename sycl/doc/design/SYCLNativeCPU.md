@@ -43,7 +43,7 @@ SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplayso
 ```
 python3 buildbot/configure.py \
   --native_cpu \
-  --cmake-opt=-DNATIVE_CPU_USE_OCK=Off
+  --cmake-opt=-DNATIVECPU_USE_OCK=Off
 ```
 
 The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
