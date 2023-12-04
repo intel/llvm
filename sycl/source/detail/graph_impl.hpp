@@ -917,20 +917,6 @@ public:
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
 
-  /// Checks if the previous submissions of this graph have been completed
-  /// This function checks the status of events associated to the previous graph
-  /// submissions.
-  /// @return true if all previous submissions have been completed, false
-  /// otherwise.
-  bool previousSubmissionCompleted() const {
-    for (auto Event : MExecutionEvents) {
-      if (!Event->isCompleted()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
