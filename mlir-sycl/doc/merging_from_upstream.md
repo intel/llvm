@@ -1,4 +1,4 @@
-# Rebasing `sycl` Branch
+# Merging `sycl` Branch Into `sycl-mlir` Branch
 
 The SYCL-MLIR project is developed in the [`sycl-mlir` branch of the `intel/llvm`
 repository](https://github.com/intel/llvm/tree/sycl-mlir). As it is intended to be a SYCL front-end,
