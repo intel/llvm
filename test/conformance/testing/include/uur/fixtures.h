@@ -1089,14 +1089,17 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
-struct urKernelTest : urProgramTest {
+struct urBaseKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
         auto kernel_names =
             uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
         kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+    }
+
+    void Build() {
+        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
         ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
     }
 
@@ -1111,15 +1114,26 @@ struct urKernelTest : urProgramTest {
     ur_kernel_handle_t kernel = nullptr;
 };
 
-template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
+struct urKernelTest : urBaseKernelTest {
+    void SetUp() override {
+        urBaseKernelTest::SetUp();
+        Build();
+    }
+};
+
+template <class T>
+struct urBaseKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
         auto kernel_names =
             uur::KernelsEnvironment::instance->GetEntryPointNames(
                 this->program_name);
         kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+    }
+
+    void Build() {
+        ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
         ASSERT_SUCCESS(
             urKernelCreate(this->program, kernel_name.data(), &kernel));
     }
@@ -1135,16 +1149,23 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
     ur_kernel_handle_t kernel = nullptr;
 };
 
-struct urKernelExecutionTest : urKernelTest {
+template <class T> struct urKernelTestWithParam : urBaseKernelTestWithParam<T> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
+        urBaseKernelTestWithParam<T>::Build();
+    }
+};
+
+struct urBaseKernelExecutionTest : urBaseKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
     }
 
     void TearDown() override {
         for (auto &buffer : buffer_args) {
             ASSERT_SUCCESS(urMemRelease(buffer));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::TearDown());
     }
 
     // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
@@ -1231,6 +1252,13 @@ struct urKernelExecutionTest : urKernelTest {
 
     std::vector<ur_mem_handle_t> buffer_args;
     uint32_t current_arg_index = 0;
+};
+
+struct urKernelExecutionTest : urBaseKernelExecutionTest {
+    void SetUp() {
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTest::SetUp());
+        Build();
+    }
 };
 
 template <class T> struct GlobalVar {
