@@ -25,6 +25,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
+
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -138,6 +139,12 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
+
+template <typename T>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixPrefetchINTEL(
+    T *Ptr, std::size_t coordX, std::size_t coordY, std::size_t NumRows,
+    std::size_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
+    std::size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -867,8 +874,8 @@ __spirv_ConvertFToBF16INTEL(float) noexcept;
 extern __DPCPP_SYCL_EXTERNAL float
     __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT
+    __ocl_vec_t<uint32_t, 4>
     __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 // TODO: I'm not 100% sure that these NonUniform instructions should be
