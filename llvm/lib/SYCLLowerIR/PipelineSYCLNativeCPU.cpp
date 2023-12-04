@@ -11,6 +11,7 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
+#include "compiler/utils/prepare_barriers_pass.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
@@ -46,9 +47,9 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   Opts.ForceNoTail = ForceNoTail;
   MAM.registerPass([&] { return compiler::utils::BuiltinInfoAnalysis(); });
   MAM.registerPass([&] { return compiler::utils::SubgroupAnalysis(); });
+  MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
   MPM.addPass(AlwaysInlinerPass());
-
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());
   MPM.addPass(RenameKernelSYCLNativeCPUPass());

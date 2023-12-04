@@ -1,8 +1,6 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -g %s -o %t_debug
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t_debug 128 sycl
-// Todo: this currently fails when -O0 is set
-// XFAIL:*
 /***************************************************************************
  *
  *  Copyright (C) 2016 Codeplay Software Limited
