@@ -6362,14 +6362,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendUSMAdviseExp =
         ur_tracing_layer::urCommandBufferAppendUSMAdviseExp;
 
-    dditable.pfnAppendUSMPrefetchExp = pDdiTable->pfnAppendUSMPrefetchExp;
-    pDdiTable->pfnAppendUSMPrefetchExp =
-        ur_tracing_layer::urCommandBufferAppendUSMPrefetchExp;
-
-    dditable.pfnAppendUSMAdviseExp = pDdiTable->pfnAppendUSMAdviseExp;
-    pDdiTable->pfnAppendUSMAdviseExp =
-        ur_tracing_layer::urCommandBufferAppendUSMAdviseExp;
-
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
 
