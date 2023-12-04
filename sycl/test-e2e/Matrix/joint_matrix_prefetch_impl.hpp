@@ -32,19 +32,20 @@ void matrix_multiply(T1 *C, T2 *A, T2 *vnniB, T2 *B, queue &q) {
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
-           joint_matrix_prefetch(sg, A, sg_startx * TM, 0, K, layout::row_major,
+           joint_matrix_prefetch(sg, A, (sg_startx * TM) * K, layout::row_major,
                                  TM, TK,
                                  syclex::properties{syclex::prefetch_hint_L1});
            joint_matrix_prefetch(
-               sg, vnniB, 0, sg_starty / SG_SZ * TN * vnniFactor,
-               N * vnniFactor, layout::ext_intel_packed, TK / vnniFactor,
-               TN * vnniFactor, syclex::properties{syclex::prefetch_hint_L1});
-           joint_matrix_prefetch(sg, B, 0, sg_starty / SG_SZ * TN, N,
+               sg, vnniB + sg_starty / SG_SZ * TN * vnniFactor, N * vnniFactor,
+               layout::ext_intel_packed, TK / vnniFactor, TN * vnniFactor,
+               syclex::properties{syclex::prefetch_hint_L1});
+           joint_matrix_prefetch(sg, B + sg_starty / SG_SZ * TN, N,
                                  layout::row_major, TK, TN,
                                  syclex::properties{syclex::prefetch_hint_L2});
-           joint_matrix_prefetch(sg, C, sg_startx * TM, sg_starty / SG_SZ * TN,
-                                 N, layout::row_major, TM, TN,
-                                 syclex::properties{syclex::prefetch_hint_L1});
+           joint_matrix_prefetch(
+               sg, C + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
+               layout::row_major, TM, TN,
+               syclex::properties{syclex::prefetch_hint_L1});
            joint_matrix_load(sg, sub_c,
                              pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
                              N, layout::row_major);
