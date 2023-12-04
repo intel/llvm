@@ -1,7 +1,7 @@
 // Tests interop with host_task in graph
-// This test was taken from `sycl/test-e2e/Plugin/interop-level-zero-get-native-mem.cpp`
-// This test has been simplified to only work with signle device.
-
+// This test was taken from
+// `sycl/test-e2e/Plugin/interop-level-zero-get-native-mem.cpp` This test has
+// been simplified to only work with signle device.
 
 #include "../graph_common.hpp"
 // Level-Zero
@@ -39,7 +39,7 @@ int main() {
     if (!are_graphs_supported(Queue)) {
       return 0;
     }
-    
+
     auto Context = Queue.get_context();
     auto Device = Queue.get_info<info::queue::device>();
 
