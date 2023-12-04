@@ -64,7 +64,6 @@ entry:
 ; CHECK:   ret void
 ; CHECK: }
 
-
 define weak_odr dso_local i64 @_ZTS15second_function() {
 ; CHECK: define weak_odr dso_local i64 @_ZTS15second_function() {
   %1 = call i64 @_ZTS15common_function()

@@ -23,7 +23,7 @@ define weak_odr dso_local i64 @_ZTS15other_function() {
   ret i64 %4
 }
 
-; CHECK: define weak_odr dso_local i64 @_ZTS15other_function_with_offset(ptr addrspace(5) %0) {  
+; CHECK: define weak_odr dso_local i64 @_ZTS15other_function_with_offset(ptr addrspace(5) %0) {
 ; CHECK: %2 = getelementptr inbounds i32, ptr addrspace(5) %0, i64 2
 ; CHECK: %3 = load i32, ptr addrspace(5) %2, align 4
 ; CHECK: %4 = zext i32 %3 to i64

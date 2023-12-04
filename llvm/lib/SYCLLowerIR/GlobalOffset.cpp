@@ -192,14 +192,12 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
     // Only original function uses are considered.
     // Clones are processed through a global VMap.
-    if (Clones.contains(Caller)) {
+    if (Clones.contains(Caller))
       continue;
-    }
 
     // Kernel entry points need additional processing and change Metdadata.
-    if (EntryPointMetadata.count(Caller) != 0) {
+    if (EntryPointMetadata.count(Caller) != 0)
       processKernelEntryPoint(Caller);
-    }
 
     // Determine if `Caller` needs to be processed or if this is
     // another callsite from a non-offset function
@@ -212,7 +210,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       NewFunc = Caller;
     } else {
       std::tie(NewFunc, ImplicitOffset) =
-          addOffsetArgumentToFunction(M, Caller, nullptr,
+          addOffsetArgumentToFunction(M, Caller,
+                                      /*KernelImplicitArgumentType*/ nullptr,
                                       /*KeepOriginal=*/true);
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
