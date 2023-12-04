@@ -279,13 +279,16 @@ as illustrated in the example below.
 using syclex = sycl::ext::oneapi::experimental;
 using syclintelex = sycl::ext::intel::experimental;
 
-auto aptr = annotated_ptr(ptr, syclex::properties{syclintelex::cache_control_read<cache_control_read_type::cached, cache_level::L2>});
+auto A_ptr = syclex::annotated_ptr{A,
+               syclex::properties{syclintelex::read_assertion<
+                   syclintelex::cache_control<syclintelex::cache_mode::constant,
+                                              syclex::cache_level::L2>>}};
 q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> it) {
   sub_group sg = it.get_sub_group();
   joint_matrix<sub_group, bfloat16, use::a, tM, tK, layout::row_major> tA;
   for (int k = 0; k < K; k += tileK) {
     // User specifies that this load will be cached to L2
-    joint_matrix_load(sg, tA, aptr + sg_startx * tM * K + k, K);
+    joint_matrix_load(sg, tA, A_ptr + sg_startx * tM * K + k, K);
     ...
   }
 });
@@ -429,19 +432,18 @@ joint_matrix_apply(sg, C, [=](T &x) {
 ==== Prefetch
 
 ```c++
-namespace sycl::ext::intel::experimental::matrix {
+namespace sycl::ext::oneapi::experimental::matrix {
 
-template <typename Group, typename T, typename PropertyListT, size_t Rows, size_t Cols,
+template <typename Group, typename T,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
-void joint_matrix_prefetch(Group g, T* base_ptr, size_t coordX, size_t
-          coordY, size_t stride, layout Layout,
-	  size_t Rows, size_t cols, Properties properties = {});
+void joint_matrix_prefetch(Group g, T* ptr, size_t stride, layout Layout,
+                   size_t Rows, size_t cols, Properties properties = {});
 
-} // namespace sycl::ext::intel::experimental::matrix
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 `joint_matrix_prefetch` allows groups of work-items to cooperatively
-prefetch `Rows x cols` data in a 2d manner. This function is a group
+prefetch `Rows x cols` elements in a 2d manner. This function is a group
 function, as defined in Section 4.17.3 of the core SYCL
 specification.
 
@@ -459,8 +461,9 @@ bfloat16 *memA = malloc_shared<bfloat16>(M*K, q);
 q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> it) {
   sub_group sg = it.get_sub_group();
   for (int k = 0; k < K; k += tileK) {
-    syclex::joint_matrix_prefetch(sg, memA, K, layout::row_major, tileM, tileK,
-                      properties{syclex::prefetch_hint_L2});
+    syclex::joint_matrix_prefetch(sg, memA + tM * K + tK, K,
+                                  layout::row_major, tM, tK,
+                                  syclex::properties{syclex::prefetch_hint_L2});
     ...
   }
 });
@@ -508,8 +511,8 @@ template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
-    layout::dynamic> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride, layout Layout);
+    layout::dynamic> &res, multi_ptr<const float, Space, IsDecorated> src,
+    size_t stride, layout Layout);
 
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
@@ -534,6 +537,22 @@ void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
     multi_ptr<float, Space, IsDecorated> src, size_t stride);
 
+template <typename Group, size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, precision::tf32, use::accumulator,
+                 Rows, Cols, layout::dynamic> &res,
+    ext::oneapi::experimental::annotated_ptr<float, PropertyListT> src,
+    size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+template <typename Group, size_t Rows, size_t Cols, use Use,
+          layout Layout, typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<float, PropertyListT> src,
+    size_t stride);
+
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
@@ -550,6 +569,13 @@ void joint_matrix_store(Group g,
    const joint_matrix<Group, precision::tf32, use::accumulator, Rows,
                       Cols,  layout::dynamic> &res,
    multi_ptr<float, Space, IsDecorated> dest, size_t stride, layout Layout);
+
+template <typename Group, size_t Rows, size_t Cols, typename PropertyListT>
+void joint_matrix_store(Group g,
+   const joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
+   layout::dynamic> &res,
+   ext::oneapi::experimental::annotated_ptr<float, PropertyListT> dest,
+   size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
