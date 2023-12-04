@@ -37,10 +37,10 @@ function(add_adapter_test name)
         ENVIRONMENT "${args_ENVIRONMENT}")
 endfunction()
 
-if(UR_BUILD_ADAPTER_CUDA)
+if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(cuda)
 endif()
 
-if(UR_BUILD_ADAPTER_HIP)
+if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(hip)
 endif()
