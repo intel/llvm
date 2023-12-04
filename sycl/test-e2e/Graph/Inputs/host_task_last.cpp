@@ -1,4 +1,4 @@
-// This test uses a host_task when adding a command_graph node.
+// This test uses a host_task as a last node
 
 #include "../graph_common.hpp"
 
@@ -25,7 +25,7 @@ int main() {
   std::vector<T> Reference(DataC);
   for (unsigned n = 0; n < Iterations; n++) {
     for (size_t i = 0; i < Size; i++) {
-      Reference[i] += (DataA[i] + DataB[i]) + ModValue + 1;
+      Reference[i] += (DataA[i] + DataB[i]) + ModValue;
     }
   }
 
@@ -58,15 +58,6 @@ int main() {
         });
       },
       NodeA);
-
-  // Modify temp buffer and write to output buffer
-  add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        depends_on_helper(CGH, NodeB);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
-      },
-      NodeB);
 
   auto GraphExec = Graph.finalize();
 

@@ -25,7 +25,7 @@ int main() {
   std::vector<T> Reference(DataC);
   for (unsigned n = 0; n < Iterations; n++) {
     for (size_t i = 0; i < Size; i++) {
-      Reference[i] += (DataA[i] + DataB[i]) + ModValue + 1;
+      Reference[i] = (((DataA[i] + DataB[i]) * ModValue) + 1) * DataB[i];
     }
   }
 
@@ -42,31 +42,50 @@ int main() {
 
   // Vector add to output
   auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size),
-                     [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] = PtrA[id]; });
   });
 
-  // Modify the output values in a host_task
+  // Vector add to output
   auto NodeB = add_node(
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeA);
+        CGH.parallel_for(range<1>(Size),
+                         [=](item<1> id) { PtrC[id] += PtrB[id]; });
+      },
+      NodeA);
+
+  // Modify the output values in a host_task
+  auto NodeC = add_node(
+      Graph, Queue,
+      [&](handler &CGH) {
+        depends_on_helper(CGH, NodeB);
         CGH.host_task([=]() {
           for (size_t i = 0; i < Size; i++) {
-            PtrC[i] += ModValue;
+            PtrC[i] *= ModValue;
           }
         });
       },
-      NodeA);
+      NodeB);
+
+  // Modify temp buffer and write to output buffer
+  auto NodeD = add_node(
+      Graph, Queue,
+      [&](handler &CGH) {
+        depends_on_helper(CGH, NodeC);
+        CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
+      },
+      NodeC);
 
   // Modify temp buffer and write to output buffer
   add_node(
       Graph, Queue,
       [&](handler &CGH) {
-        depends_on_helper(CGH, NodeB);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
+        depends_on_helper(CGH, NodeD);
+        CGH.parallel_for(range<1>(Size),
+                         [=](item<1> id) { PtrC[id] *= PtrB[id]; });
       },
-      NodeB);
+      NodeD);
 
   auto GraphExec = Graph.finalize();
 

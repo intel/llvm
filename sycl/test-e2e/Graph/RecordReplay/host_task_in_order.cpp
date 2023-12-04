@@ -1,9 +1,18 @@
-// This test uses a host_task when adding a command_graph node.
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+//
+// CHECK-NOT: LEAK
+
+// This test uses a host_task when adding a command_graph node to an
+// in-order queue.
 
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{{property::queue::in_order{},
+               sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   if (!are_graphs_supported(Queue)) {
     return 0;
@@ -25,7 +34,7 @@ int main() {
   std::vector<T> Reference(DataC);
   for (unsigned n = 0; n < Iterations; n++) {
     for (size_t i = 0; i < Size; i++) {
-      Reference[i] += (DataA[i] + DataB[i]) + ModValue + 1;
+      Reference[i] = (((DataA[i] + DataB[i]) * ModValue) + 1) * DataB[i];
     }
   }
 
@@ -40,33 +49,38 @@ int main() {
   Queue.copy(DataC.data(), PtrC, Size);
   Queue.wait_and_throw();
 
+  Graph.begin_recording(Queue);
+
   // Vector add to output
-  auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size),
-                     [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] = PtrA[id]; });
+  });
+
+  // Vector add to output
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += PtrB[id]; });
   });
 
   // Modify the output values in a host_task
-  auto NodeB = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        depends_on_helper(CGH, NodeA);
-        CGH.host_task([=]() {
-          for (size_t i = 0; i < Size; i++) {
-            PtrC[i] += ModValue;
-          }
-        });
-      },
-      NodeA);
+  Queue.submit([&](handler &CGH) {
+    CGH.host_task([=]() {
+      for (size_t i = 0; i < Size; i++) {
+        PtrC[i] *= ModValue;
+      }
+    });
+  });
 
   // Modify temp buffer and write to output buffer
-  add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        depends_on_helper(CGH, NodeB);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
-      },
-      NodeB);
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
+  });
+
+  // Modify temp buffer and write to output buffer
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] *= PtrB[id]; });
+  });
+
+  Graph.end_recording(Queue);
 
   auto GraphExec = Graph.finalize();
 
