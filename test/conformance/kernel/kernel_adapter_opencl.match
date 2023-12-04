@@ -1,7 +1,3 @@
-urKernelSetArgSamplerTest.Success/Intel_R__OpenCL___{{.*}}_
-urKernelSetArgSamplerTest.InvalidNullHandleKernel/Intel_R__OpenCL___{{.*}}_
-urKernelSetArgSamplerTest.InvalidNullHandleArgValue/Intel_R__OpenCL___{{.*}}_
-urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/Intel_R__OpenCL___{{.*}}_
 urKernelSetArgValueTest.InvalidKernelArgumentSize/Intel_R__OpenCL___{{.*}}_
 urKernelSetSpecializationConstantsTest.Success/Intel_R__OpenCL___{{.*}}_
 urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/Intel_R__OpenCL___{{.*}}_
