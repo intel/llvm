@@ -10132,7 +10132,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Use SPIRV backend for LLVM to SPIRV Translation
     if (TCArgs.hasFlag(options::OPT_use_spirv_backend,
-                       options::OPT_no_use_spirv_backend, true))
+                       options::OPT_no_use_spirv_backend, false))
       TranslatorArgs.push_back("--spirv-backend");
     // Disable all the extensions by default
     std::string ExtArg("-spirv-ext=-all");
