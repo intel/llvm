@@ -21,7 +21,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_atomic_update(AccType &, float *, int byte_offset32, size_t byte_offset64);
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_block_store(AccType &, float *, int byte_offset32, size_t byte_offset64);
+test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
+                 size_t byte_offset64);
 
 class EsimdFunctor {
 public:
@@ -33,7 +34,7 @@ public:
   void operator()() __attribute__((sycl_explicit_simd)) {
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, ptr, byte_offset32, byte_offset64);
-    test_block_store(acc, ptr, byte_offset32, byte_offset64);
+    test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -332,6 +333,8 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
 
   // Test atomic update with one operand.
   {
+    // USM
+
     // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_0 =
         atomic_update<atomic_op::add, int>(ptr, offsets, add, pred, props_a);
@@ -364,13 +367,45 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
     auto res_atomic_7 = atomic_update<atomic_op::add, int, VL>(
         ptr, offsets_view, add_view, props_a);
 
-    // atomic_upate without cache hints:
+    // atomic_update without cache hints:
     // CHECK: call <4 x i32> @llvm.genx.svm.atomic.add.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_8 =
         atomic_update<atomic_op::add, int>(ptr, offsets, add, pred);
+
+    // Accessors
+
+    // CHECK-COUNT-8: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_9 =
+        atomic_update<atomic_op::add, int>(acc, offsets, add, pred, props_a);
+
+    auto res_atomic_10 =
+        atomic_update<atomic_op::add, int>(acc, offsets, add, props_a);
+
+    auto res_atomic_11 = atomic_update<atomic_op::add, int, VL>(
+        acc, offsets, add_view, pred, props_a);
+
+    auto res_atomic_12 =
+        atomic_update<atomic_op::add, int, VL>(acc, offsets, add_view, props_a);
+
+    auto res_atomic_13 = atomic_update<atomic_op::add, int, VL>(
+        acc, offsets_view, add, pred, props_a);
+
+    auto res_atomic_14 =
+        atomic_update<atomic_op::add, int, VL>(acc, offsets_view, add, props_a);
+
+    auto res_atomic_15 = atomic_update<atomic_op::add, int, VL>(
+        acc, offsets_view, add_view, pred, props_a);
+
+    auto res_atomic_16 = atomic_update<atomic_op::add, int, VL>(
+        acc, offsets_view, add_view, props_a);
+
+    // atomic_update without cache hints:
+    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_17 =
+        atomic_update<atomic_op::add, int>(acc, offsets, add, pred);
   }
 
-  // Test atomic update with one operand.
+  // Test atomic update with two operands.
   {
     // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
     auto res_atomic_1 = atomic_update<atomic_op::cmpxchg, int>(
@@ -460,10 +495,9 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
 }
 
 // CHECK-LABEL: define {{.*}} @_Z16test_block_store{{.*}}
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
-                                                        float *ptrf,
-                                                        int byte_offset32,
-                                                        size_t byte_offset64) {
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
+                 int byte_offset32, size_t byte_offset64) {
   // Test USM block store
   constexpr int N = 4;
   properties store_props_a{cache_hint_L1<cache_hint::uncached>,
@@ -480,7 +514,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
   simd<int, N> valsi = 1;
   int *ptri = reinterpret_cast<int *>(ptrf);
   simd_mask<1> mask = 1;
-
+  auto view = vals.select<N, 1>();
+  auto viewi = valsi.select<N, 1>();
   // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(ptrf, vals, store_props_a);
 
@@ -493,7 +528,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
   // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(ptrf, vals, mask, store_props_a);
 
-  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> %{{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store(ptri, byte_offset64, valsi, mask, store_props_c);
 
   // Test SVM/legacy USM block store
@@ -531,4 +566,38 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
 
   // CHECK: call void @llvm.genx.oword.st.v4i32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
   block_store(acc, byte_offset32, valsi, store_props_b);
+
+  // Now try SLM block_store() with and without cache hints that are ignored.
+
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
+  slm_block_store<float, N>(byte_offset32, vals, store_props_b);
+  slm_block_store<float, N>(byte_offset32, view, store_props_b);
+
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
+  slm_block_store<float, N>(byte_offset32, vals, store_props_a);
+  slm_block_store<float, N>(byte_offset32, view, store_props_a);
+
+  // Now try SLM block_store() with a predicate.
+
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  slm_block_store<int, N>(byte_offset32, valsi, mask, store_props_b);
+  slm_block_store<int, N>(byte_offset32, viewi, mask, store_props_b);
+
+  // Now try block_store() accepting local accessor.
+
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
+  block_store<float, N>(local_acc, vals, store_props_d);
+  block_store<float, N>(local_acc, view, store_props_d);
+
+  // CHECK-COUNT-2: store <4 x i32> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
+  block_store<int, N>(local_acc, byte_offset32, valsi, store_props_d);
+  block_store<int, N>(local_acc, byte_offset32, viewi, store_props_d);
+
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  block_store<float, N>(local_acc, vals, mask, store_props_a);
+  block_store<float, N>(local_acc, view, mask, store_props_a);
+
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  block_store<int, N>(local_acc, byte_offset32, valsi, mask, store_props_c);
+  block_store<int, N>(local_acc, byte_offset32, viewi, mask, store_props_c);
 }

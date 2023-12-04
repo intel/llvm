@@ -3371,14 +3371,288 @@ block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
 /// @param vals The vector to store.
 /// @param Flags Specifies the alignment.
 ///
-template <typename T, int N,
-          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+template <typename T, int N, typename Flags>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
-slm_block_store(uint32_t offset, simd<T, N> vals, Flags = {}) {
+slm_block_store(uint32_t offset, simd<T, N> vals, Flags) {
   constexpr size_t Align = Flags::template alignment<simd<T, N>>;
   __esimd_slm_block_st<detail::__raw_t<T>, N, Align>(offset, vals.data());
 }
 
+/// Each of the following slm_block_store functions stores the vector \p vals to
+/// a contiguous memory block in SLM (Shared Local Memory) at the \p
+/// byte_offset. The parameter 'pred' is the one element predicate. If it is set
+/// to 1, then all 'N' elements are stored. Otherwise, the block store operation
+/// is a NO-OP. The parameter 'props' specifies the optional compile-time
+/// properties list. Only esimd::alignment property is used. Other properties
+/// are ignored.
+
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-1)
+///                      simd_mask<1> pred, props={});
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-2)
+///                      props={});
+///
+/// The following functions do the same work as slm_block_store(). They accept
+/// a local accessor \p lacc and the store of \p vals is done to SLM associated
+/// with \p lacc plus \p byte_offset applied to it. If \p byte_offset
+/// is omitted, then zero offset is used.
+/// void block_store(local_accessor lacc, uint32_t byte_offset, // (lacc-bs-1)
+///                  simd<T, N> vals, props={});
+///
+/// void block_store(local_accessor lacc, simd<T, N> vals,      // (lacc-bs-2)
+///                  props={});
+///
+/// void block_store(local_accessor lacc, uint32_t byte_offset, // (lacc-bs-3)
+///                  simd<T, N> vals,
+///                  simd_mask<1> pred, props={});
+///
+/// void block_store(local_accessor lacc, simd<T, N> vals,      // (lacc-bs-4)
+///                  simd_mask<1> pred, props={});
+///
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-1)
+///                      simd_mask<1> pred, props={});
+/// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
+/// Memory) at the given \p byte_offset. The parameter \p pred is the
+/// one-element predicate. If it is set to 1, then all 'N' elements are stored.
+/// Otherwise, the block stored operation is a NO-OP.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
+///     elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_block_store(uint32_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
+                PropertyListT props = {}) {
+  // Verify input template arguments.
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
+
+  static_assert(N > 0 && N % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed store");
+
+  // If alignment >= 8 and (N * sizeof(T)) % 8 == 0) we can store QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (N * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || N * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredN = N / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredN>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using StoreElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr detail::lsc_data_size DS =
+      Use64BitData ? detail::lsc_data_size::u64 : detail::lsc_data_size::u32;
+  constexpr auto VS = detail::to_lsc_vector_size<FactoredN>();
+  constexpr auto Transposed = detail::lsc_data_order::transpose;
+  constexpr int NLanes = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uint32_t, NLanes> Offsets = byte_offset;
+  __esimd_lsc_store_slm<StoreElemT, cache_hint::none, cache_hint::none,
+                        AddressScale, ImmOffset, DS, VS, Transposed, NLanes>(
+      pred.data(), Offsets.data(),
+      sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreElemT, FactoredN>>(
+          vals.data()));
+}
+
+/// void slm_block_store(uint32_t byte_offset, simd<T, N> vals, // (slm-bs-2)
+///                      props = {});
+/// Stores the vector \p vals to a contiguous memory block in SLM
+/// (Shared Local Memory) at the given \p byte_offset. The parameter 'props'
+/// specifies the optional compile-time properties list. Only esimd::alignment
+/// property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_store
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower SCATTER instead
+/// of faster BLOCK_STORE.
+/// !!! Passing \p byte_offset not aligned by 16-bytes and not specifying
+/// the actual alignment in \p props produces incorrect store results on Gen12.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_block_store(uint32_t byte_offset, simd<T, N> vals,
+                PropertyListT props = {}) {
+  constexpr size_t DefaultAlignment = detail::OperandSize::OWORD;
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  using StoreElemT = detail::__raw_t<T>;
+  __esimd_slm_block_st<StoreElemT, N, Alignment>(
+      byte_offset,
+      sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreElemT, N>>(vals.data()));
+}
+
+/// void block_store(local_accessor lacc, uint32_t byte_offset, // (lacc-bs-1)
+///                  simd<T, N> vals, props={});
+/// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
+/// Memory) associated with the local accessor \p lacc at the given \p
+/// byte_offset. The parameter 'props' specifies the optional compile-time
+/// properties list. Only esimd::alignment property is used. Other properties
+/// are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_store
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower SCATTER instead
+/// of faster BLOCK_STORE.
+/// !!! Passing \p byte_offset not aligned by 16-bytes and not specifying
+/// the actual alignment in \p props produces incorrect store results on Gen12.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(AccessorT lacc, uint32_t byte_offset, simd<T, N> vals,
+            PropertyListT props = {}) {
+  byte_offset += detail::localAccessorToOffset(lacc);
+  slm_block_store<T, N>(byte_offset, vals, props);
+}
+
+/// void block_store(local_accessor lacc, simd<T, N> vals, // (lacc-bs-2)
+///                  props={});
+/// Stores the vector \p vals to a contiguous memory block in SLM
+/// (Shared Local Memory) associated with the local accessor \p lacc. The
+/// parameter 'props' specifies the optional compile-time properties list. Only
+/// esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_store
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower SCATTER instead
+/// of faster BLOCK_STORE.
+/// !!! Passing \p byte_offset not aligned by 16-bytes and not specifying
+/// the actual alignment in \p props produces incorrect store results on Gen12.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(AccessorT lacc, simd<T, N> vals, PropertyListT props = {}) {
+  slm_block_store<T, N>(detail::localAccessorToOffset(lacc), vals, props);
+}
+
+/// void block_store(local_accessor lacc, uint32_t byte_offset, // (lacc-bs-3)
+///                  simd<T, N> vals, simd_mask<1> pred, props={});
+///
+/// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
+/// Memory) associated with the local accessor \p lacc at the given \p
+/// byte_offset. The parameter \p pred is the one-element predicate. If it is
+/// set to 1, then all 'N' elements are stored. Otherwise, the block store
+/// operation is a NO-OP.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
+///     elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(AccessorT lacc, uint32_t byte_offset, simd<T, N> vals,
+            simd_mask<1> pred, PropertyListT props = {}) {
+  byte_offset += detail::localAccessorToOffset(lacc);
+  slm_block_store<T, N>(byte_offset, vals, pred, props);
+}
+
+/// void block_store(local_accessor lacc, simd<T, N> vals, // (lacc-bs-4)
+///                  simd_mask<1> pred, props={});
+/// Stores the vector \p vals to a contiguous memory block in SLM (Shared Local
+/// Memory) associated with the local accessor \p lacc. The parameter \p pred is
+/// the one-element predicate. If it is set to 1, then all 'N' elements are
+/// stored. Otherwise, the block store operation is a NO-OP.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
+///     elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(AccessorT lacc, simd<T, N> vals, simd_mask<1> pred,
+            PropertyListT props = {}) {
+  slm_block_store<T, N>(detail::localAccessorToOffset(lacc), vals, pred, props);
+}
 namespace detail {
 
 // lsc_atomic_update() operations may share atomic_op values for data types
@@ -3636,6 +3910,60 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
   return lsc_format_ret<T>(Tmp);
 #endif
 }
+
+/// Accessor-based atomic.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_atomic_<OP>.ugm
+///
+/// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offsets is the zero-based offsets.
+/// @param src0 is the first atomic operand.
+/// @param pred is predicates.
+///
+/// @return A vector of the old values at the memory locations before the
+///   update.
+template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    get_num_args<Op>() == 1 &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
+    simd<T, N>>
+atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
+                   simd<T, N> src0, simd_mask<N> pred) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
+                                                    byte_offset, src0, pred);
+#else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
+  check_lsc_data_size<T, DS>();
+  check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
+  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
+  simd<MsgT, N> Src0Msg = lsc_format_input<MsgT>(src0);
+  auto si = get_surface_index(acc);
+  simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                EDS, VS, Transposed, N>(
+          pred.data(), byte_offset.data(), Src0Msg.data(), si);
+  return lsc_format_ret<T>(Tmp);
+#endif
+}
 } // namespace detail
 
 /// @addtogroup sycl_esimd_memory_atomics
@@ -3714,12 +4042,13 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   } else {
     if constexpr (Op == atomic_op::load) {
       if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(p, byte_offset,
-                                                      simd<T, N>(0), mask);
+        return atomic_update<atomic_op::bit_or, T, N>(
+            p, byte_offset, simd<T, N>(0), mask, props);
       } else {
         using Tint = detail::uint_type_t<sizeof(T)>;
         simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask);
+            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
+            props);
         return Res.template bit_cast_view<T>();
       }
     } else {
@@ -3900,7 +4229,8 @@ atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -3948,12 +4278,13 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
   } else {
     if constexpr (Op == atomic_op::store) {
       if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask);
+        return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
+                                                    props);
       } else {
         using Tint = detail::uint_type_t<sizeof(T)>;
         simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
             reinterpret_cast<Tint *>(p), byte_offset,
-            src0.template bit_cast_view<Tint>(), mask);
+            src0.template bit_cast_view<Tint>(), mask, props);
         return Res.template bit_cast_view<T>();
       }
     } else {
@@ -3979,7 +4310,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4016,7 +4348,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4055,7 +4388,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4094,7 +4428,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4134,7 +4468,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4173,7 +4507,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4215,7 +4549,7 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -5033,12 +5367,12 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   } else {
     if constexpr (Op == atomic_op::load) {
       if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(acc, byte_offset,
-                                                      simd<T, N>(0), mask);
+        return atomic_update<atomic_op::bit_or, T, N>(
+            acc, byte_offset, simd<T, N>(0), mask, props);
       } else {
         using Tint = detail::uint_type_t<sizeof(T)>;
         simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            acc, byte_offset, simd<Tint, N>(0), mask);
+            acc, byte_offset, simd<Tint, N>(0), mask, props);
         return Res.template bit_cast_view<T>();
       }
     } else {
@@ -5267,6 +5601,44 @@ atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
 /// @anchor accessor_atomic_update1
 /// @brief Single-argument variant of the atomic update operation.
 ///
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, simd_mask<N> mask, props = {});//(acc-au1-1)
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, props = {});                  // (acc-au1-2)
+///
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-3)
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               props = {});                                   // (acc-au1-4)
+///
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-5)
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
+///               props = {});                                   // (acc-au1-6)
+///
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-7)
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               props = {});                                   // (acc-au1-8)
+///
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, simd_mask<N> mask, props = {});//(acc-au1-1)
+///
 /// Atomically updates \c N memory locations represented by an accessor and
 /// a vector of offsets, and returns a vector of old values found at the
 /// memory locations before update. The update operation has 1 additional
@@ -5276,58 +5648,228 @@ atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
-/// @tparam Tx The vector element type.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
 /// @param acc The SYCL accessor.
-/// @param offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
 /// offsets are supported only when stateless memory accesses are enforced, i.e.
 /// accessor based accesses are automatically converted to stateless accesses.
 /// @param src0 The additional argument.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset,
-          typename AccessorTy>
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> &&
+    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
         sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
-                                  offset, src0, mask);
+  return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
+                                 byte_offset, src0, mask, props);
 #else
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
-  if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
-                (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
-    // Auto-convert FP atomics to LSC version.
-    return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(acc, offset,
-                                                                src0, mask);
+  // Auto-convert FP atomics to LSC version.
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                Op == atomic_op::fmin || Op == atomic_op::fmax ||
+                Op == atomic_op::fadd || Op == atomic_op::fsub ||
+                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+    return detail::atomic_update_impl<
+        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint>(
+        acc, byte_offset, src0, mask);
   } else if constexpr (Op == atomic_op::store) {
-    if constexpr (std::is_integral_v<Tx>) {
-      return atomic_update<atomic_op::xchg, Tx, N>(acc, offset, src0, mask);
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::xchg, T, N>(acc, byte_offset, src0, mask,
+                                                  props);
     } else {
-      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      using Tint = detail::uint_type_t<sizeof(T)>;
       simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
-          acc, offset, src0.template bit_cast_view<Tint>(), mask);
-      return Res.template bit_cast_view<Tx>();
+          acc, byte_offset, src0.template bit_cast_view<Tint>(), mask, props);
+      return Res.template bit_cast_view<T>();
     }
   } else {
-    detail::check_atomic<Op, Tx, N, 1>();
-    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
+    detail::check_atomic<Op, T, N, 1>();
+    static_assert(sizeof(T) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);
-    using T = typename detail::__raw_t<Tx>;
-    return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offset.data(),
-                                           src0.data());
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_dword_atomic1<Op, Tx, N>(
+        mask.data(), si, byte_offset.data(),
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<Tx, N>>(src0.data()));
   }
 #endif
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd<T, N> src0, props = {});                  // (acc-au1-2)
+///
+/// A variation of \c atomic_update API with no mask operand.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
+              PropertyListT props = {}) {
+  simd_mask<N> mask = 1;
+  return atomic_update<Op, T, N>(acc, byte_offset, src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-3)
+///
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>, typename AccessorTy,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+              simd_view<T, RegionTy> src0, simd_mask<N> mask,
+              PropertyListT props = {}) {
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               props = {});                                   // (acc-au1-4)
+///
+/// A variation of \c atomic_update API with \c src0 represented as
+/// \c simd_view object and no mask operand.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>, typename AccessorTy,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
+              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
+  simd_mask<N> mask = 1;
+  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
 }
 
 /// Variant of \c atomic_update that uses \c local_accessor as a parameter.
@@ -5340,7 +5882,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5379,7 +5922,12 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
   }
 }
 
-/// A variation of \c atomic_update API with \c offsets represented as
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-5)
+///
+/// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object.
 ///
 /// @tparam Op The atomic operation - can be one of the following:
@@ -5387,27 +5935,172 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
-/// @tparam Tx The vector element type.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
 /// @param acc The SYCL accessor.
-/// @param offsets The simd_view of 32-bit or 64-bit offsets in bytes. 64-bit
-/// offsets are supported only when stateless memory accesses are enforced, i.e.
-/// accessor based accesses are automatically converted to stateless accesses.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
 /// @param src0 The additional argument.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset,
-          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd<Tx, N> src0, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
+    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+              simd<T, N> src0, simd_mask<N> mask, PropertyListT props = {}) {
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
+///               props = {});                                   // (acc-au1-6)
+///
+/// A variation of \c atomic_update API with \c byte_offset represented as
+/// \c simd_view object and no mask operand.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+              simd<T, N> src0, PropertyListT props = {}) {
+  simd_mask<N> mask = 1;
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask, props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               simd_mask<N> mask, props = {});                // (acc-au1-7)
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view objects.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy,
+          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
+          typename RegionTy = region1d_t<T, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+              simd_view<T, RegionTy> src0, simd_mask<N> mask,
+              PropertyListT props = {}) {
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
+                                 props);
+}
+
+/// simd<T, N>
+/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd_view<T, RegionTy> src0,
+///               props = {});                                   // (acc-au1-8)
+///
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view objects and no mask operand.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// 64-bit offsets are supported only when stateless memory accesses are
+/// enforced, i.e. accessor based accesses are automatically converted to
+/// stateless accesses.
+/// @param src0 The additional argument.
+/// @param props The parameter 'props' specifies the optional compile-time
+///   properties list. Only L1/L2 properties are used. Other properties are
+///   ignored.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy,
+          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
+          typename RegionTy = region1d_t<T, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
+  simd_mask<N> mask = 1;
+  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
+                                 props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -5794,13 +6487,12 @@ __ESIMD_API
 /// @param vals The vector to store.
 /// @param Flags Specifies the alignment.
 ///
-template <typename Tx, int N, typename AccessorTy,
-          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+template <typename Tx, int N, typename AccessorTy, typename Flags>
 __ESIMD_API
     std::enable_if_t<detail::is_local_accessor_with_v<
                          AccessorTy, detail::accessor_mode_cap::can_write> &&
                      is_simd_flag_type_v<Flags>>
-    block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags = {}) {
+    block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags) {
   slm_block_store<Tx, N, Flags>(
       offset + __ESIMD_DNS::localAccessorToOffset(acc), vals);
 }
