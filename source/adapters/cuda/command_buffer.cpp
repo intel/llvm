@@ -106,10 +106,11 @@ static ur_result_t enqueueCommandBufferFillHelper(
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                 SyncPointWaitList, DepsList));
+                                 SyncPointWaitList, DepsList),
+          Result);
 
   try {
     size_t N = Size / PatternSize;
@@ -129,7 +130,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
       NodeParams.value = Value;
       NodeParams.width = 1;
 
-      Result = UR_CHECK_ERROR(cuGraphAddMemsetNode(
+      UR_CHECK_ERROR(cuGraphAddMemsetNode(
           &GraphNode, CommandBuffer->CudaGraph, DepsList.data(),
           DepsList.size(), &NodeParams, CommandBuffer->Device->getContext()));
 
@@ -167,7 +168,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
         NodeParamsStep.value = Value;
         NodeParamsStep.width = 1;
 
-        Result = UR_CHECK_ERROR(cuGraphAddMemsetNode(
+        UR_CHECK_ERROR(cuGraphAddMemsetNode(
             &GraphNode, CommandBuffer->CudaGraph, DepsList.data(),
             DepsList.size(), &NodeParamsStep,
             CommandBuffer->Device->getContext()));
