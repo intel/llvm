@@ -59,7 +59,6 @@ struct state {
     MWorkGroup_id[1] = group1;
     MWorkGroup_id[2] = group2;
   }
-
 };
 
 } // namespace native_cpu
