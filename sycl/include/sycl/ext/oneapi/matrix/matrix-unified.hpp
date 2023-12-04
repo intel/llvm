@@ -263,11 +263,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::load_accumulator_cuda(res.matrix_impl, src, stride,
-                                                   Layout);
+  throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::load_accumulator_hip(res.matrix_impl, src, stride,
-                                                  Layout, sg);
+  throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   T *Ptr = src.get();
@@ -322,13 +322,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
-                                                    Layout, Space>(
-      res.matrix_impl, src, stride);
+  throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows,
-                                                   NumCols, Use, Layout, Space>(
-      res.matrix_impl, src, stride, sg);
+  throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   T *Ptr = src.get();
@@ -363,13 +361,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
-                                                     Space>(
-      src.matrix_impl, dst, stride, Layout);
+  throw runtime_error("Use joint_matrix_store on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
-                                                    Space>(src.matrix_impl, dst,
-                                                           stride, Layout, sg);
+  throw runtime_error("Use joint_matrix_store on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
 #else
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
@@ -590,7 +586,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 template <typename Group, typename T,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_prefetch(
-    Group &sg, T *BasePtr, size_t coordX, size_t coordY, size_t stride,
+    Group sg, T *BasePtr, size_t coordX, size_t coordY, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout, size_t NumRows,
     size_t NumCols, Properties properties = {}) {
 #if defined(__SYCL_DEVICE_ONLY__)
