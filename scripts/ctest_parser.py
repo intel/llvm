@@ -15,11 +15,13 @@ import json
 TMP_RESULTS_FILE = "tmp-results-file.json"
 
 def get_cts_test_suite_names(working_directory):
-    process = Popen(["ctest", "--show-only=json-v1"], cwd=working_directory, 
+    process = Popen(["ctest", "--show-only=json-v1"], cwd=working_directory,
                     stdout=PIPE, env=os.environ.copy())
     out,_ = process.communicate()
     testsuites = json.loads(out)
-    return [test['name']for test in testsuites['tests']]
+    return [
+        test['name'][:test['name'].rfind('-')] for test in testsuites['tests']
+    ]
 
 def percent(amount, total):
     return round((amount / total) * 100, 2)
@@ -39,7 +41,7 @@ def summarize_results(results):
     crash_rate = percent(total_crashed, total)
 
     ljust_param = len(str(total))
-    
+
     print(
 f"""[CTest Parser] Results:
     Total    [{str(total).ljust(ljust_param)}]
@@ -85,7 +87,7 @@ def run(args):
         results[suite] = {}
         test_executable = f"{args.ctest_path}/bin/test-{suite}"
         process = Popen([test_executable, "--gtest_list_tests"], env=env,
-                        stdout=DEVNULL if args.quiet else None, 
+                        stdout=DEVNULL if args.quiet else None,
                         stderr=DEVNULL if args.quiet else None)
         process.wait()
         try:
@@ -98,8 +100,8 @@ def run(args):
 
     for suite in test_suite_names:
         ctest_path = f"{args.ctest_path}/test/conformance/{suite}"
-        process = Popen(['ctest',ctest_path], env=env, cwd=ctest_path, 
-                        stdout=DEVNULL if args.quiet else None, 
+        process = Popen(['ctest',ctest_path], env=env, cwd=ctest_path,
+                        stdout=DEVNULL if args.quiet else None,
                         stderr=DEVNULL if args.quiet else None)
         process.wait()
 
@@ -111,7 +113,7 @@ def run(args):
         except FileNotFoundError:
             results[suite]['actual'] = None
             print('\033[91m' + f"Conformance test suite '{suite}' : likely crashed!" + '\033[0m')
-    
+
     return results
 
 def dir_path(string):
