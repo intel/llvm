@@ -98,7 +98,7 @@ jobs:
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build, windows_default]
+    needs: [ubuntu2204_build, build-win]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3

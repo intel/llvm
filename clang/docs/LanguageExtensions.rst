@@ -424,6 +424,18 @@ Builtin Macros
   "UTF-16" or "UTF-32" (but may change in the future if the
   ``-fwide-exec-charset="Encoding-Name"`` option is implemented.)
 
+Implementation-defined keywords
+===============================
+
+__datasizeof
+------------
+
+``__datasizeof`` behaves like ``sizeof``, except that it returns the size of the
+type ignoring tail padding.
+
+..
+  FIXME: This should list all the keyword extensions
+
 .. _langext-vectors:
 
 Vectors and Extended Vectors
@@ -618,6 +630,14 @@ Let ``T`` be one of the following types:
 * a vector type.
 
 For scalar types, consider the operation applied to a vector with a single element.
+
+*Vector Size*
+To determine the number of elements in a vector, use ``__builtin_vectorelements()``.
+For fixed-sized vectors, e.g., defined via ``__attribute__((vector_size(N)))`` or ARM
+NEON's vector types (e.g., ``uint16x8_t``), this returns the constant number of
+elements at compile-time. For scalable vectors, e.g., SVE or RISC-V V, the number of
+elements is not known at compile-time and is determined at runtime. This builtin can
+be used, e.g., to increment the loop-counter in vector-type agnostic loops.
 
 *Elementwise Builtins*
 
@@ -4630,6 +4650,22 @@ The pragma can take two values: ``on`` and ``off``.
     float v = t + z;
   }
 
+``#pragma clang fp reciprocal`` allows control over using reciprocal
+approximations in floating point expressions. When enabled, this
+pragma allows the expression ``x / y`` to be approximated as ``x *
+(1.0 / y)``.  This pragma can be used to disable reciprocal
+approximation when it is otherwise enabled for the translation unit
+with the ``-freciprocal-math`` flag or other fast-math options. The
+pragma can take two values: ``on`` and ``off``.
+
+.. code-block:: c++
+
+  float f(float x, float y)
+  {
+    // Enable floating point reciprocal approximation
+    #pragma clang fp reciprocal(on)
+    return x / y;
+  }
 
 ``#pragma clang fp contract`` specifies whether the compiler should
 contract a multiply and an addition (or subtraction) into a fused FMA

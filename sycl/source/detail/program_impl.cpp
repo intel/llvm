@@ -36,10 +36,10 @@ program_impl::program_impl(ContextImplPtr Context,
                            const property_list &PropList)
     : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
   if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
 }
 
@@ -65,10 +65,10 @@ program_impl::program_impl(
 
   MContext = ProgramList[0]->MContext;
   if (MContext->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
   MDevices = ProgramList[0]->MDevices;
   std::vector<device> DevicesSorted;
@@ -238,23 +238,6 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   MState = program_state::compiled;
 }
 
-void program_impl::build_with_kernel_name(std::string KernelName,
-                                          std::string BuildOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  if (!is_host()) {
-    MProgramAndKernelCachingAllowed = true;
-    MBuildOptions = BuildOptions;
-    MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        detail::getSyclObjImpl(get_context()),
-        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
-        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<PiApiKind::piProgramRetain>(MProgram);
-  }
-  MState = program_state::linked;
-}
-
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
@@ -406,13 +389,6 @@ std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
-  if (is_cacheable()) {
-    std::tie(Result.first, std::ignore, Result.second, std::ignore) =
-        ProgramManager::getInstance().getOrCreateKernel(
-            detail::getSyclObjImpl(get_context()),
-            detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
-    getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
-  } else {
     const PluginPtr &Plugin = getPlugin();
     sycl::detail::pi::PiResult Err =
         Plugin->call_nocheck<PiApiKind::piKernelCreate>(
@@ -428,9 +404,8 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
     // For others, PI will turn this into a NOP.
     Plugin->call<PiApiKind::piKernelSetExecInfo>(
         Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-  }
 
-  return Result;
+    return Result;
 }
 
 std::vector<device>

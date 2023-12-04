@@ -19,9 +19,12 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   size_t NDRangeM = M / TM + (((M % TM) != 0) ? 1 : 0);
   size_t NDRangeN = N / TN;
 
-  auto pA = multi_ptr<T2, sycl::access::address_space::global_space>(A);
-  auto pB = multi_ptr<T2, sycl::access::address_space::global_space>(B);
-  auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
+  auto pA = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(A);
+  auto pB = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(B);
+  auto pC = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(C);
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
@@ -44,7 +47,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the packed_b layout.
            joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            // bounds-checked load where width and height are added
@@ -58,7 +61,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
              joint_matrix_load_checked(
                  sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
                  N * vnniFactor, K / vnniFactor, N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            // bounds-checked store where width and height are added
            joint_matrix_store_checked(

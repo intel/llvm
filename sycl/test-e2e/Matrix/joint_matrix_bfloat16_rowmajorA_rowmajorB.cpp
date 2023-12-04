@@ -7,18 +7,16 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This tests support of row major layout for matrix B which does automatic VNNI
 // transform. This is currently only available on AMX and XMX of PVC
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 constexpr size_t TN = 16;

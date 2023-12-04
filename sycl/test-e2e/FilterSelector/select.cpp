@@ -26,11 +26,6 @@ int main() {
   Accels = device::get_devices(sycl::info::device_type::accelerator);
   Devs = device::get_devices();
 
-  std::cout << "# CPU Devices found: " << CPUs.size() << std::endl;
-  std::cout << "# GPU Devices found: " << GPUs.size() << std::endl;
-  std::cout << "# Accelerators found: " << Accels.size() << std::endl;
-  std::cout << "# Devices found: " << Devs.size() << std::endl;
-
   bool HasLevelZeroDevices = false;
   bool HasOpenCLDevices = false;
   bool HasCUDADevices = false;
@@ -60,159 +55,128 @@ int main() {
     }
   }
 
-  std::cout << "HasLevelZeroDevices = " << HasLevelZeroDevices << std::endl;
-  std::cout << "HasOpenCLDevices    = " << HasOpenCLDevices << std::endl;
-  std::cout << "HasCUDADevices      = " << HasCUDADevices << std::endl;
-  std::cout << "HasHIPDevices       = " << HasHIPDevices << std::endl;
-  std::cout << "HasOpenCLGPU        = " << HasOpenCLGPU << std::endl;
-  std::cout << "HasLevelZeroGPU     = " << HasLevelZeroGPU << std::endl;
-
   if (!CPUs.empty()) {
-    std::cout << "Test 'cpu'";
     device d1(filter_selector("cpu"));
-    assert(d1.is_cpu());
-    std::cout << "...PASS" << std::endl;
+    assert(d1.is_cpu() && "filter_selector(\"cpu\") failed");
   }
 
   if (!GPUs.empty()) {
-    std::cout << "Test 'gpu'";
     device d2(filter_selector("gpu"));
-    assert(d2.is_gpu());
-    std::cout << "...PASS" << std::endl;
+    assert(d2.is_gpu() && "filter_selector(\"gpu\") failed");
   }
 
   if (!CPUs.empty() || !GPUs.empty()) {
-    std::cout << "Test 'cpu,gpu'";
     device d3(filter_selector("cpu,gpu"));
-    assert((d3.is_gpu() || d3.is_cpu()));
-    std::cout << "...PASS" << std::endl;
+    assert((d3.is_gpu() || d3.is_cpu()) &&
+           "filter_selector(\"cpu,gpu\") failed");
   }
 
   if (HasOpenCLDevices) {
-    std::cout << "Test 'opencl'";
     device d4(filter_selector("opencl"));
-    assert(d4.get_platform().get_backend() == backend::opencl);
-    std::cout << "...PASS" << std::endl;
+    assert(d4.get_platform().get_backend() == backend::opencl &&
+           "filter_selector(\"opencl\") failed");
 
     if (!CPUs.empty()) {
-      std::cout << "Test 'opencl:cpu'";
       device d5(filter_selector("opencl:cpu"));
-      assert(d5.is_cpu() && d5.get_platform().get_backend() == backend::opencl);
-      std::cout << "...PASS" << std::endl;
+      assert(d5.is_cpu() &&
+             d5.get_platform().get_backend() == backend::opencl &&
+             "filter_selector(\"opencl:cpu\") failed");
 
-      std::cout << "Test 'opencl:cpu:0'";
       device d6(filter_selector("opencl:cpu:0"));
-      assert(d6.is_cpu() && d6.get_platform().get_backend() == backend::opencl);
-      std::cout << "...PASS" << std::endl;
+      assert(d6.is_cpu() &&
+             d6.get_platform().get_backend() == backend::opencl &&
+             "filter_selector(\"opencl:cpu:0\") failed");
     }
 
     if (HasOpenCLGPU) {
-      std::cout << "Test 'opencl:gpu'" << std::endl;
       device d7(filter_selector("opencl:gpu"));
-      assert(d7.is_gpu() && d7.get_platform().get_backend() == backend::opencl);
+      assert(d7.is_gpu() &&
+             d7.get_platform().get_backend() == backend::opencl &&
+             "filter_selector(\"opencl:gpu\") failed");
     }
   }
 
-  std::cout << "Test '0'";
   device d8(filter_selector("0"));
-  std::cout << "...PASS" << std::endl;
 
   try {
     // pick something crazy
     device d9(filter_selector("gpu:999"));
-    std::cout << "d9 = " << d9.get_info<sycl::info::device::name>()
-              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg =
         "Could not find a device that matches the specified filter(s)!";
-    assert(std::string{e.what()}.find(ErrorMesg) == 0);
-    std::cout << "Selector failed as expected! OK" << std::endl;
+    assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
+           "filter_selector(\"gpu:999\") unexpectedly selected a device");
   }
 
   try {
     // pick something crazy
     device d10(filter_selector("bob:gpu"));
-    std::cout << "d10 = " << d10.get_info<sycl::info::device::name>()
-              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg = "Invalid filter string!";
-    assert(std::string{e.what()}.find(ErrorMesg) == 0);
-    std::cout << "Selector failed as expected! OK" << std::endl;
+    assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
+           "filter_selector(\"bob:gpu\") unexpectedly selected a device");
   }
 
   try {
     // pick something crazy
     device d11(filter_selector("opencl:bob"));
-    std::cout << "d11 = " << d11.get_info<sycl::info::device::name>()
-              << std::endl;
   } catch (const sycl::runtime_error &e) {
     const char *ErrorMesg = "Invalid filter string!";
-    assert(std::string{e.what()}.find(ErrorMesg) == 0);
-    std::cout << "Selector failed as expected! OK" << std::endl;
+    assert(std::string{e.what()}.find(ErrorMesg) == 0 &&
+           "filter_selector(\"opencl:bob\") unexpectedly selected a device");
   }
 
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
-    std::cout << "Test 'level_zero'";
     device d12(filter_selector("level_zero"));
-    assert(d12.get_platform().get_backend() == backend::ext_oneapi_level_zero);
-    std::cout << "...PASS" << std::endl;
+    assert(d12.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
+           "filter_selector(\"level_zero\") failed");
 
-    std::cout << "Test 'level_zero:gpu'";
     device d13(filter_selector("level_zero:gpu"));
     assert(d13.is_gpu() &&
-           d13.get_platform().get_backend() == backend::ext_oneapi_level_zero);
-    std::cout << "...PASS" << std::endl;
+           d13.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
+           "filter_selector(\"level_zero:gpu\") failed");
 
     if (HasOpenCLDevices && !CPUs.empty()) {
-      std::cout << "Test 'level_zero:gpu,cpu'";
       device d14(filter_selector("level_zero:gpu,cpu"));
-      assert((d14.is_gpu() || d14.is_cpu()));
-      std::cout << "...PASS 1/2" << std::endl;
+      assert((d14.is_gpu() || d14.is_cpu()) &&
+             "filter_selector(\"level_zero:gpu,cpu\") failed");
       if (d14.is_gpu()) {
         assert(d14.get_platform().get_backend() ==
-               backend::ext_oneapi_level_zero);
-        std::cout << "...PASS 2/2" << std::endl;
+                   backend::ext_oneapi_level_zero &&
+               "filter_selector(\"level_zero:gpu,cpu\") failed");
       }
     }
   }
 
   if (Devs.size() > 1) {
-    std::cout << "Test '1'";
     device d15(filter_selector("1"));
-    std::cout << "...PASS" << std::endl;
   }
 
   if (HasCUDADevices) {
-    std::cout << "Test 'cuda'";
     device d16(filter_selector("cuda"));
-    assert(d16.get_platform().get_backend() == backend::ext_oneapi_cuda);
-    std::cout << "...PASS" << std::endl;
+    assert(d16.get_platform().get_backend() == backend::ext_oneapi_cuda &&
+           "filter_selector(\"cuda\") failed");
 
-    std::cout << "Test 'cuda:gpu'";
     device d17(filter_selector("cuda:gpu"));
     assert(d17.is_gpu() &&
-           d17.get_platform().get_backend() == backend::ext_oneapi_cuda);
-    std::cout << "...PASS" << std::endl;
+           d17.get_platform().get_backend() == backend::ext_oneapi_cuda &&
+           "filter_selector(\"cuda:gpu\") failed");
   }
 
   if (!Accels.empty()) {
-    std::cout << "Test 'accelerator'";
     device d18(filter_selector("accelerator"));
-    assert(d18.is_accelerator());
-    std::cout << "...PASS" << std::endl;
+    assert(d18.is_accelerator() && "filter_selector(\"accelerator\") failed");
   }
 
   if (HasHIPDevices) {
-    std::cout << "Test 'hip'";
     device d19(ext::oneapi::filter_selector("hip"));
-    assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip);
-    std::cout << "...PASS" << std::endl;
+    assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip &&
+           "filter_selector(\"hip\") failed");
 
-    std::cout << "test 'hip:gpu'";
     device d20(ext::oneapi::filter_selector("hip:gpu"));
     assert(d20.is_gpu() &&
-           d20.get_platform().get_backend() == backend::ext_oneapi_hip);
-    std::cout << "...PASS" << std::endl;
+           d20.get_platform().get_backend() == backend::ext_oneapi_hip &&
+           "filter_selector(\"hip:gpu\") failed");
   }
 
   return 0;

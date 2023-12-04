@@ -30,6 +30,8 @@ using is_empty_type_list = std::is_same<T, empty_type_list>;
 template <typename T, typename TypeList>
 using is_contained =
     boost::mp11::mp_set_contains<TypeList, std::remove_cv_t<T>>;
+template <typename T, typename TypeList>
+inline constexpr bool is_contained_v = is_contained<T, TypeList>::value;
 
 // type list append
 template <class... L> using tl_append = boost::mp11::mp_append<L...>;

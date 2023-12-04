@@ -677,6 +677,7 @@ struct FunCloner {
         LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetOrdering(Dst, LLVMGetOrdering(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
+        LLVMSetAtomicSingleThread(Dst, LLVMIsAtomicSingleThread(Src));
         break;
       }
       case LLVMStore: {
@@ -686,6 +687,7 @@ struct FunCloner {
         LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetOrdering(Dst, LLVMGetOrdering(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
+        LLVMSetAtomicSingleThread(Dst, LLVMIsAtomicSingleThread(Src));
         break;
       }
       case LLVMGetElementPtr: {
@@ -889,6 +891,20 @@ struct FunCloner {
       case LLVMFreeze: {
         LLVMValueRef Arg = CloneValue(LLVMGetOperand(Src, 0));
         Dst = LLVMBuildFreeze(Builder, Arg, Name);
+        break;
+      }
+      case LLVMFence: {
+        LLVMAtomicOrdering Ordering = LLVMGetOrdering(Src);
+        LLVMBool IsSingleThreaded = LLVMIsAtomicSingleThread(Src);
+        Dst = LLVMBuildFence(Builder, Ordering, IsSingleThreaded, Name);
+        break;
+      }
+      case LLVMZExt: {
+        LLVMValueRef Val = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMTypeRef DestTy = CloneType(LLVMTypeOf(Src));
+        LLVMBool NNeg = LLVMGetNNeg(Src);
+        Dst = LLVMBuildZExt(Builder, Val, DestTy, Name);
+        LLVMSetNNeg(Dst, NNeg);
         break;
       }
       default:

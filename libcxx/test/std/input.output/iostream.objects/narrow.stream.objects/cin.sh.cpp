@@ -8,6 +8,11 @@
 
 // TODO: Investigate
 // UNSUPPORTED: LIBCXX-AIX-FIXME
+// XFAIL: LIBCXX-PICOLIBC-FIXME
+
+// This test hangs on Android devices that lack shell_v2, which was added in
+// Android N (API 24).
+// UNSUPPORTED: LIBCXX-ANDROID-FIXME && android-device-api={{2[1-3]}}
 
 // <iostream>
 

@@ -37,42 +37,30 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 8 %_ZTSZZ4mainENKUlRN4sy
 ; CHECK:         [[TMP0:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP93_SROA_0_0_COPYLOAD]], 4
 ; CHECK:         [[ADD_PTR_I43_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP]], i64 [[TMP0]]
 ; CHECK:         [[TMP1:%.*]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #[[ATTR2:[0-9]+]]
-; CHECK:         [[TMP2:%.*]] = add i64 [[TMP1]], [[TMP0]]
+; CHECK:         [[TMP2:%.*]] = add i64 [[TMP0]], [[TMP1]]
 ; CHECK:         [[TMP3:%.*]] = urem i64 [[TMP2]], 4
-; CHECK:         [[ARRAYIDX_I34_I_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[ADD_PTR_I43_I]], i64 [[TMP3]]
+; CHECK:         [[ARRAYIDX_I34_I_I:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP]], i64 [[TMP3]]
 ; CHECK:         store <2 x i32> {{%.*}}, ptr addrspace(3) [[ARRAYIDX_I34_I_I]], align 8
-; CHECK:         [[TMP8:%.*]] = add i64 0, [[TMP3]]
-; CHECK:         [[TMP9:%.*]] = add i64 [[TMP8]], [[TMP0]]
-; CHECK:         [[TMP10:%.*]] = urem i64 [[TMP9]], 4
-; CHECK:         [[ARRAYIDX_I_I39_I_I_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I34_I_I]], i64 [[TMP10]], i64 1
+; CHECK:         [[ARRAYIDX_I_I39_I_I_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I34_I_I]], i64 0, i64 1
 ; CHECK:         store <2 x i32> {{%.*}}, ptr addrspace(3) [[ARRAYIDX_I_I39_I_I_1]], align 8
-; CHECK:         [[TMP11:%.*]] = add i64 0, [[TMP3]]
-; CHECK:         [[TMP12:%.*]] = add i64 [[TMP11]], [[TMP0]]
-; CHECK:         [[TMP13:%.*]] = urem i64 [[TMP12]], 4
-; CHECK:         [[ARRAYIDX_I_I_I37_I_I_1:%.*]] = getelementptr inbounds [2 x %"struct.std::array.0"], ptr addrspace(3) [[ARRAYIDX_I34_I_I]], i64 [[TMP13]], i64 1
+; CHECK:         [[ARRAYIDX_I_I_I37_I_I_1:%.*]] = getelementptr inbounds [2 x %"struct.std::array.0"], ptr addrspace(3) [[ARRAYIDX_I34_I_I]], i64 0, i64 1
 ; CHECK:         store <2 x i32> {{%.*}}, ptr addrspace(3) [[ARRAYIDX_I_I_I37_I_I_1]], align 8
 ; CHECK:         [[ARRAYIDX_I_I39_I_I_1_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I_I_I37_I_I_1]], i64 0, i64 1
 ; CHECK:         store <2 x i32> {{%.*}}, ptr addrspace(3) [[ARRAYIDX_I_I39_I_I_1_1]], align 8
 ; CHECK:         [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP94_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP9]], align 1
-; CHECK:         [[TMP18:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP94_SROA_0_0_COPYLOAD]], 4
-; CHECK:         [[ADD_PTR_I_I7:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP]], i64 [[TMP18]]
-; CHECK:         [[TMP19:%.*]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #[[ATTR2]]
-; CHECK:         [[TMP20:%.*]] = add i64 [[TMP19]], [[TMP18]]
-; CHECK:         [[TMP21:%.*]] = urem i64 [[TMP20]], 4
-; CHECK:         [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[ADD_PTR_I_I7]], i64 [[TMP21]]
-; CHECK:         [[TMP22:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I11]], align 8
-; CHECK:         [[TMP24:%.*]] = add i64 0, [[TMP21]]
-; CHECK:         [[TMP25:%.*]] = add i64 [[TMP24]], [[TMP18]]
-; CHECK:         [[TMP26:%.*]] = urem i64 [[TMP25]], 4
-; CHECK:         [[ARRAYIDX_I_I_I_I27_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 [[TMP26]], i64 1
-; CHECK:         [[TMP27:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I27_1]], align 8
-; CHECK:         [[TMP29:%.*]] = add i64 0, [[TMP21]]
-; CHECK:         [[TMP30:%.*]] = add i64 [[TMP29]], [[TMP18]]
-; CHECK:         [[TMP31:%.*]] = urem i64 [[TMP30]], 4
-; CHECK:         [[ARRAYIDX_I_I_I_I_I18_1:%.*]] = getelementptr inbounds [2 x %"struct.std::array.0"], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 [[TMP31]], i64 1
-; CHECK:         [[TMP32:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I_I18_1]], align 8
+; CHECK:         [[TMP12:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP94_SROA_0_0_COPYLOAD]], 4
+; CHECK:         [[ADD_PTR_I_I7:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP]], i64 [[TMP12]]
+; CHECK:         [[TMP13:%.*]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #[[ATTR2]]
+; CHECK:         [[TMP14:%.*]] = add i64 [[TMP12]], [[TMP13]]
+; CHECK:         [[TMP15:%.*]] = urem i64 [[TMP14]], 4
+; CHECK:         [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds %struct.array_wrapper, ptr addrspace(3) [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP]], i64 [[TMP15]]
+; CHECK:         [[TMP16:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I11]], align 8
+; CHECK:         [[ARRAYIDX_I_I_I_I27_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 0, i64 1
+; CHECK:         [[TMP18:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I27_1]], align 8
+; CHECK:         [[ARRAYIDX_I_I_I_I_I18_1:%.*]] = getelementptr inbounds [2 x %"struct.std::array.0"], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 0, i64 1
+; CHECK:         [[TMP20:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I_I18_1]], align 8
 ; CHECK:         [[ARRAYIDX_I_I_I_I27_1_1:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::vec"], ptr addrspace(3) [[ARRAYIDX_I_I_I_I_I18_1]], i64 0, i64 1
-; CHECK:         [[TMP34:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I27_1_1]], align 8
+; CHECK:         [[TMP22:%.*]] = load <2 x i32>, ptr addrspace(3) [[ARRAYIDX_I_I_I_I27_1_1]], align 8
 ; CHECK:         ret void
 ;
 entry:

@@ -13,7 +13,7 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 
 int main() {
-  std::vector<int> vec(2);
+  std::vector<int> vec(4);
   {
     buffer<int> buf(vec.data(), vec.size());
 

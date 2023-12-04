@@ -161,8 +161,10 @@ def XOP8      : Map<4>;
 def XOP9      : Map<5>;
 def XOPA      : Map<6>;
 def ThreeDNow : Map<7>;
-def T_MAP5    : Map<8>;
-def T_MAP6    : Map<9>;
+def T_MAP4    : Map<8>;
+def T_MAP5    : Map<9>;
+def T_MAP6    : Map<10>;
+def T_MAP7    : Map<11>;
 
 // Class specifying the encoding
 class Encoding<bits<2> val> {
@@ -207,6 +209,11 @@ class XOP8   { Map OpMap = XOP8; Prefix OpPrefix = PS; }
 class XOP9   { Map OpMap = XOP9; Prefix OpPrefix = PS; }
 class XOPA   { Map OpMap = XOPA; Prefix OpPrefix = PS; }
 class ThreeDNow { Map OpMap = ThreeDNow; }
+class T_MAP4     { Map OpMap = T_MAP4; }
+class T_MAP4PS : T_MAP4 { Prefix OpPrefix = PS; } // none
+class T_MAP4PD : T_MAP4 { Prefix OpPrefix = PD; } // 0x66
+class T_MAP4XS : T_MAP4 { Prefix OpPrefix = XS; } // 0xF3
+class T_MAP4XD : T_MAP4 { Prefix OpPrefix = XD; } // 0xF2
 class T_MAP5     { Map OpMap = T_MAP5; }
 class T_MAP5PS : T_MAP5 { Prefix OpPrefix = PS; } // none
 class T_MAP5PD : T_MAP5 { Prefix OpPrefix = PD; } // 0x66
@@ -217,6 +224,9 @@ class T_MAP6PS : T_MAP6 { Prefix OpPrefix = PS; }
 class T_MAP6PD : T_MAP6 { Prefix OpPrefix = PD; }
 class T_MAP6XS : T_MAP6 { Prefix OpPrefix = XS; }
 class T_MAP6XD : T_MAP6 { Prefix OpPrefix = XD; }
+class T_MAP7     { Map OpMap = T_MAP7; }
+class T_MAP7XS : T_MAP7 { Prefix OpPrefix = XS; } // 0xF3
+class T_MAP7XD : T_MAP7 { Prefix OpPrefix = XD; } // 0xF2
 class OBXS   { Prefix OpPrefix = XS; }
 class PS   : TB { Prefix OpPrefix = PS; }
 class PD   : TB { Prefix OpPrefix = PD; }
@@ -267,8 +277,17 @@ class EVEX2VEXOverride<string VEXInstrName> {
 // Prevent EVEX->VEX conversion from considering this instruction.
 class NotEVEX2VEXConvertible { bit notEVEX2VEXConvertible = 1; }
 
-// Force the instruction to use VEX encoding.
-class ExplicitVEXPrefix { bit ExplicitVEXPrefix = 1; }
+// Force the instruction to use REX2/VEX/EVEX encoding.
+class ExplicitOpPrefix<bits<2> val> {
+  bits<2> Value = val;
+}
+def NoExplicitOpPrefix : ExplicitOpPrefix<0>;
+def ExplicitREX2       : ExplicitOpPrefix<1>;
+def ExplicitVEX        : ExplicitOpPrefix<2>;
+def ExplicitEVEX       : ExplicitOpPrefix<3>;
+class ExplicitREX2Prefix { ExplicitOpPrefix explicitOpPrefix = ExplicitREX2; }
+class ExplicitVEXPrefix { ExplicitOpPrefix explicitOpPrefix = ExplicitVEX; }
+class ExplicitEVEXPrefix { ExplicitOpPrefix explicitOpPrefix = ExplicitEVEX; }
 
 class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
               string AsmStr, Domain d = GenericDomain>
@@ -350,9 +369,8 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   string EVEX2VEXOverride = ?;
 
   bit notEVEX2VEXConvertible = 0; // Prevent EVEX->VEX conversion.
-  bit ExplicitVEXPrefix = 0; // Force the instruction to use VEX encoding.
-  // Force to check predicate before compress EVEX to VEX encoding.
-  bit checkVEXPredicate = 0;
+  ExplicitOpPrefix explicitOpPrefix = NoExplicitOpPrefix;
+  bits<2> explicitOpPrefixBits = explicitOpPrefix.Value;
   // TSFlags layout should be kept in sync with X86BaseInfo.h.
   let TSFlags{6-0}   = FormBits;
   let TSFlags{8-7}   = OpSizeBits;
@@ -377,7 +395,7 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   let TSFlags{47-45} = !if(!eq(CD8_Scale, 0), 0, !add(!logtwo(CD8_Scale), 1));
   let TSFlags{48}    = hasEVEX_RC;
   let TSFlags{49}    = hasNoTrackPrefix;
-  let TSFlags{50}    = ExplicitVEXPrefix;
+  let TSFlags{51-50} = explicitOpPrefixBits;
 }
 
 class PseudoI<dag oops, dag iops, list<dag> pattern>
@@ -389,64 +407,54 @@ class I<bits<8> o, Format f, dag outs, dag ins, string asm,
         list<dag> pattern, Domain d = GenericDomain>
   : X86Inst<o, f, NoImm, outs, ins, asm, d> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii8<bits<8> o, Format f, dag outs, dag ins, string asm,
           list<dag> pattern, Domain d = GenericDomain>
   : X86Inst<o, f, Imm8, outs, ins, asm, d> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii8Reg<bits<8> o, Format f, dag outs, dag ins, string asm,
              list<dag> pattern, Domain d = GenericDomain>
   : X86Inst<o, f, Imm8Reg, outs, ins, asm, d> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii8PCRel<bits<8> o, Format f, dag outs, dag ins, string asm,
                list<dag> pattern>
   : X86Inst<o, f, Imm8PCRel, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii16<bits<8> o, Format f, dag outs, dag ins, string asm,
            list<dag> pattern>
   : X86Inst<o, f, Imm16, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii32<bits<8> o, Format f, dag outs, dag ins, string asm,
            list<dag> pattern>
   : X86Inst<o, f, Imm32, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 class Ii32S<bits<8> o, Format f, dag outs, dag ins, string asm,
             list<dag> pattern>
   : X86Inst<o, f, Imm32S, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 class Ii64<bits<8> o, Format f, dag outs, dag ins, string asm,
            list<dag> pattern>
   : X86Inst<o, f, Imm64, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 class Ii16PCRel<bits<8> o, Format f, dag outs, dag ins, string asm,
            list<dag> pattern>
            : X86Inst<o, f, Imm16PCRel, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 class Ii32PCRel<bits<8> o, Format f, dag outs, dag ins, string asm,
            list<dag> pattern>
   : X86Inst<o, f, Imm32PCRel, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 // FPStack Instruction Templates:
@@ -475,14 +483,12 @@ class Iseg16 <bits<8> o, Format f, dag outs, dag ins, string asm,
               list<dag> pattern>
       : X86Inst<o, f, Imm16, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 class Iseg32 <bits<8> o, Format f, dag outs, dag ins, string asm,
               list<dag> pattern>
       : X86Inst<o, f, Imm32, outs, ins, asm> {
   let Pattern = pattern;
-  let CodeSize = 3;
 }
 
 // SI - SSE 1 & 2 scalar instructions

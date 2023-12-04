@@ -115,6 +115,8 @@ void test_find_first_set() {
   find_first_set_test(&host_test_result);
   assert(*test_result == 0);
   assert(host_test_result == 0);
+
+  sycl::free(test_result, q_ct1);
 }
 
 int main() {

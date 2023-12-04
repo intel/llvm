@@ -8,9 +8,6 @@
 // This test checks LSC SLM atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
-// TODO: esimd_emulator doesn't support xchg operation
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

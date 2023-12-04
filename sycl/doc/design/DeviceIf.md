@@ -5,7 +5,7 @@ This document describes the design for the DPC++ implementation of the
 [sycl\_ext\_oneapi\_device\_architecture][2] extensions.
 
 [1]: <../extensions/proposed/sycl_ext_oneapi_device_if.asciidoc>
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_architecture.asciidoc>
+[2]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 
 ## Phased implementation

@@ -35,10 +35,17 @@ int main() {
   }
 
   try {
-    sycl::ext::oneapi::experimental::bindless_image_sampler samp(
+    sycl::ext::oneapi::experimental::bindless_image_sampler tempSamp(
         sycl::addressing_mode::repeat,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
+
+    // Default constructible sampler
+    sycl::ext::oneapi::experimental::bindless_image_sampler samp;
+
+    // Sampler follows by-value semantics
+    sycl::ext::oneapi::experimental::bindless_image_sampler tempSamp2(tempSamp);
+    samp = tempSamp2;
 
     // Extension: image descriptor -- can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(

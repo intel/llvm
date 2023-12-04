@@ -11,8 +11,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
-// TODO add support for __esimd_dword_atomic on esimd_emulator
-// XFAIL: esimd_emulator
 
 // This macro enforces usage of dword atomics in the included test.
 #define USE_DWORD_ATOMICS

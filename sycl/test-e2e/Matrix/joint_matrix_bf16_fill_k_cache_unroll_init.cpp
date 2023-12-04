@@ -7,12 +7,13 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix, gpu
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -o %t_gpu.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=2000 -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL
 // RUN: %{run} %t_gpu.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
 
+#include "common.hpp"
 #include <cstddef>
 
 #define SG_SZ 16

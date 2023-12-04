@@ -158,6 +158,10 @@ float atanhf(float x) { return __devicelib_atanhf(x); }
 extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
 DEVICE_EXTERN_C_INLINE
 float nearbyintf(float x) { return __nv_nearbyintf(x); }
+
+extern "C" SYCL_EXTERNAL float __nv_rintf(float);
+DEVICE_EXTERN_C_INLINE
+float rintf(float x) { return __nv_rintf(x); }
 #endif // __NVPTX__
 
 #endif // __SPIR__ || __NVPTX__

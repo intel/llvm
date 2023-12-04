@@ -30,13 +30,22 @@ namespace ext::oneapi::experimental {
 
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
-  using raw_handle_type = pi_uint64;
-  raw_handle_type raw_handle;
+  using raw_image_handle_type = pi_uint64;
+
+  unsampled_image_handle(raw_image_handle_type raw_image_handle)
+      : raw_handle(raw_image_handle) {}
+
+  raw_image_handle_type raw_handle;
 };
+
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
-  using raw_handle_type = pi_uint64;
-  raw_handle_type raw_handle;
+  using raw_image_handle_type = pi_uint64;
+
+  sampled_image_handle(raw_image_handle_type raw_image_handle)
+      : raw_handle(raw_image_handle) {}
+
+  raw_image_handle_type raw_handle;
 };
 
 /**
@@ -81,7 +90,7 @@ void free_image_mem(image_mem_handle handle, const sycl::device &syclDevice,
  */
 __SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
                          "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle handle, const sycl::device &syclQueue);
+void free_image_mem(image_mem_handle handle, const sycl::queue &syclQueue);
 
 /**
  *  @brief   Free image memory
@@ -214,6 +223,38 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
     const sycl::queue &syclQueue);
 
 /**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclDevice The device in which we create our image memory handle
+ *  @param   syclContext The conext in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
+
+/**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
+
+/**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
  *           have a device optimized memory layout)
  *
@@ -223,9 +264,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
  *  @param   syclContext The conext in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::device &syclDevice, const sycl::context &syclContext);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
 
 /**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
@@ -236,9 +279,10 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
  *  @param   syclQueue   The queue in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::queue &syclQueue);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external semaphore taking an external semaphore handle (the
@@ -698,12 +742,28 @@ template <typename CoordT> constexpr void assert_sampled_coords() {
                   "Expected float coordinates data type");
   }
 }
+
+template <typename DataT> constexpr bool is_data_size_valid() {
+  return (sizeof(DataT) == 1) || (sizeof(DataT) == 2) || (sizeof(DataT) == 4) ||
+         (sizeof(DataT) == 8) || (sizeof(DataT) == 16);
+}
+
+template <typename DataT> constexpr bool is_recognized_standard_type() {
+  return is_data_size_valid<DataT>() &&
+         (is_vec_v<DataT> || std::is_scalar_v<DataT> ||
+          std::is_floating_point_v<DataT> || std::is_same_v<DataT, sycl::half>);
+}
+
 } // namespace detail
 
 /**
  *  @brief   Read an unsampled image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int4 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
@@ -716,7 +776,7 @@ template <typename CoordT> constexpr void assert_sampled_coords() {
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
@@ -726,11 +786,17 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
-#else
-  // TODO: add SPIRV part for unsampled image read
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -740,6 +806,10 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *  @brief   Read a sampled image using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
@@ -752,7 +822,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
@@ -762,11 +832,17 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
-#else
-  // TODO: add SPIRV part for sampled image read
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
@@ -776,6 +852,10 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @brief   Read a mipmap image using its handle with LOD filtering
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
@@ -783,7 +863,97 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   level The mipmap level at which to sample
  *  @return  Mipmap image data with LOD filtering
  */
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const float level [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageReadLod<HintT>(imageHandle.raw_handle, coords, level));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   Read a mipmap image using its handle with anisotropic filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   dX Screen space gradient in the x dimension
+ *  @param   dY Screen space gradient in the y dimension
+ *  @return  Mipmap image data with anisotropic filtering
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const CoordT &dX [[maybe_unused]],
+                  const CoordT &dY [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinates and gradients to have 1, 2, or 4 "
+                "components for 1D, 2D, and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
+                                          dY);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageReadGrad<HintT>(imageHandle.raw_handle, coords, dX, dY));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   level The mipmap level at which to sample
+ *  @return  Mipmap image data with LOD filtering
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const float level [[maybe_unused]]) {
@@ -794,20 +964,31 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
-#else
-  // TODO: add SPIRV for mipmap level read
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageReadLod<HintT>(imageHandle.raw_handle, coords, level));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
 }
 
 /**
- *  @brief   Read a mipmap image using its handle with anisotropic filtering
+ *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
+ *           filtering
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
@@ -816,7 +997,9 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   dY Screen space gradient in the y dimension
  *  @return  Mipmap image data with anisotropic filtering
  */
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const CoordT &dX [[maybe_unused]],
@@ -828,11 +1011,18 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
-#else
-  // TODO: add SPIRV part for mipmap grad read
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX,
+                                          dY);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageReadGrad<HintT>(imageHandle.raw_handle, coords, dX, dY));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -859,10 +1049,16 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
-                       detail::convert_color_nvptx(color));
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
+  } else {
+    // Convert DataT to a supported backend write type when user-defined type is
+    // passed
+    __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
+                         detail::convert_color_nvptx(color));
+  }
 #else
-  // TODO: add SPIRV part for unsampled image write
+  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
 #endif
 #else
   assert(false); // Bindless images not yet implemented on host
