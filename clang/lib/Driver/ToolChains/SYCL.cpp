@@ -781,12 +781,15 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+static llvm::StringMap<StringRef> GRFModeFlagMap{
+    {"auto", "-ze-intel-enable-auto-large-GRF-mode"},
+    {"small", "-ze-intel-128-GRF-per-thread"},
+    {"large", "-ze-opt-large-register-file"}};
+
 StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
-  return llvm::StringSwitch<StringRef>(GRFMode)
-      .Case("auto", "-ze-intel-enable-auto-large-GRF-mode")
-      .Case("small", "-ze-intel-128-GRF-per-thread")
-      .Case("large", "-ze-opt-large-register-file")
-      .Default("");
+  if (!GRFModeFlagMap.contains(GRFMode))
+    return "";
+  return GRFModeFlagMap[GRFMode];
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -1014,11 +1017,18 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
-  // All sanitizer options are not currently supported.
-  for (auto A :
-       Args.filtered(options::OPT_fsanitize_EQ, options::OPT_fcf_protection_EQ))
+  // All sanitizer options are not currently supported, except AddressSanitizer
+  for (auto *A : Args.filtered(options::OPT_fsanitize_EQ,
+                               options::OPT_fcf_protection_EQ)) {
+    if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        continue;
+    }
     D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
         << A->getAsString(Args) << getTriple().str();
+  }
 }
 
 void SYCLToolChain::addClangTargetOptions(
@@ -1046,6 +1056,15 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     auto Opt(A->getOption().getID());
     switch (Opt) {
     case options::OPT_fsanitize_EQ:
+      if (A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        if (SanitizeVal == "address") {
+          if (IsNewDAL)
+            DAL->append(A);
+          continue;
+        }
+      }
+      [[fallthrough]];
     case options::OPT_fcf_protection_EQ:
       if (!IsNewDAL)
         DAL->eraseArg(Opt);
@@ -1100,6 +1119,26 @@ void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
   }
 }
 
+static void WarnForDeprecatedBackendOpts(const Driver &D,
+                                         const llvm::Triple &Triple,
+                                         StringRef Device, StringRef ArgString,
+                                         const llvm::opt::Arg *A) {
+  // Suggest users passing GRF backend opts on PVC to use
+  // -ftarget-register-alloc-mode and
+
+  if (!ArgString.contains("-device pvc") && !Device.contains("pvc"))
+    return;
+  // Make sure to only warn for once for gen targets as the translate
+  // options tree is called twice but only the second time has the
+  // device set.
+  if (Triple.isSPIR() && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+      !A->isClaimed())
+    return;
+  for (const auto &[Mode, Flag] : GRFModeFlagMap)
+    if (ArgString.contains(Flag))
+      D.Diag(diag::warn_drv_ftarget_register_alloc_mode_pvc) << Flag << Mode;
+}
+
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
 // extract the arguments.
 void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
@@ -1143,7 +1182,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     } else
       // Triple found, add the next argument in line.
       ArgString = A->getValue(1);
-
+    WarnForDeprecatedBackendOpts(getDriver(), getTriple(), Device, ArgString,
+                                 A);
     parseTargetOpts(ArgString, Args, CmdArgs);
     A->claim();
   }
@@ -1313,12 +1353,15 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     if (A->getOption().matches(options::OPT_Xs)) {
       // Take the arg and create an option out of it.
       CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
+      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, A->getValue(),
+                                   A);
       A->claim();
       continue;
     }
     if (A->getOption().matches(options::OPT_Xs_separate)) {
       StringRef ArgString(A->getValue());
       parseTargetOpts(ArgString, Args, CmdArgs);
+      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, ArgString, A);
       A->claim();
       continue;
     }
@@ -1400,4 +1443,8 @@ void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
                                                  ArgStringList &CC1Args) const {
   HostTC.AddClangCXXStdlibIncludeArgs(Args, CC1Args);
+}
+
+SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+  return SanitizerKind::Address;
 }
