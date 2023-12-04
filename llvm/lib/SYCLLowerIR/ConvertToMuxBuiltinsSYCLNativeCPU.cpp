@@ -94,10 +94,10 @@ Function *getMuxBarrierFunc(Module &M) {
   LLVMContext &Ctx = M.getContext();
   auto *Int32Ty = Type::getInt32Ty(Ctx);
   auto *MuxFTy = FunctionType::get(Type::getVoidTy(Ctx),
-                                          {Int32Ty, Int32Ty, Int32Ty}, false);
+                                   {Int32Ty, Int32Ty, Int32Ty}, false);
   auto FCallee = M.getOrInsertFunction(MuxBarrier, MuxFTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
-  if(!F) {
+  if (!F) {
     report_fatal_error("Error while inserting mux builtins");
   }
   return F;

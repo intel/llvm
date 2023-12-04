@@ -60,9 +60,7 @@ using namespace sycl::utils;
 
 namespace {
 
-void fixCallingConv(Function *F) {
-  F->setCallingConv(llvm::CallingConv::C);
-}
+void fixCallingConv(Function *F) { F->setCallingConv(llvm::CallingConv::C); }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
                             Type *StatePtrType, llvm::Constant *StateArgTLS) {
@@ -224,8 +222,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  FunctionType *FTy =
-      FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
@@ -391,9 +388,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    if(Name != OldF->getName()) {
+    if (Name != OldF->getName()) {
       auto RealKernel = M.getFunction(Name);
-      if(RealKernel) {
+      if (RealKernel) {
         // the real kernel was not inlined in the wrapper, steal its name
         OldF->takeName(RealKernel);
       } else {

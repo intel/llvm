@@ -69,7 +69,6 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
-#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -119,7 +118,6 @@ static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
 cl::opt<bool> ClRelinkBuiltinBitcodePostop(
     "relink-builtin-bitcode-postop", cl::Optional,
     cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
-
 
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
