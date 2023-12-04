@@ -41,7 +41,7 @@ ninja
 
 ## Pulldown
 
-See [rebasing instructions](./doc/rebasing.md).
+See [merging instructions](./doc/merging_from_upstream.md).
 
 ## Contributions
 
