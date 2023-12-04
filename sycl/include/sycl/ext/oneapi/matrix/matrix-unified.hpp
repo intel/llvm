@@ -595,7 +595,7 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
   std::ignore = sg;
   std::ignore = NumRows;
   std::ignore = NumCols;
-  std::ignore = Properties;
+  std::ignore = properties;
   throw runtime_error(
       "joint_matrix_prefetch is not supported on Nvidia device.",
       PI_ERROR_INVALID_DEVICE);
@@ -603,7 +603,7 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
   std::ignore = sg;
   std::ignore = NumRows;
   std::ignore = NumCols;
-  std::ignore = Properties;
+  std::ignore = properties;
   throw runtime_error("joint_matrix_prefetch is not supported on AMD device.",
                       PI_ERROR_INVALID_DEVICE);
 #else
