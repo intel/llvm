@@ -78,29 +78,19 @@ struct Wrapper {
   SYCLWrappingOptions Options;
 
   StructType *SyclPropTy = nullptr;
-  PointerType *SyclPropPtrTy = nullptr;
   StructType *SyclPropSetTy = nullptr;
-  PointerType *SyclPropSetPtrTy = nullptr;
   StructType *EntryTy = nullptr;
-  PointerType *EntryPtrTy = nullptr;
   StructType *SyclDeviceImageTy = nullptr;
-  PointerType *SyclDeviceImagePtrTy = nullptr;
   StructType *SyclBinDescTy = nullptr;
-  PointerType *SyclBinDescPtrTy = nullptr;
 
   Wrapper(Module &M, const SYCLWrappingOptions &Options)
       : M(M), C(M.getContext()), Options(Options) {
 
     SyclPropTy = getSyclPropTy();
-    SyclPropPtrTy = PointerType::getUnqual(SyclPropTy);
     SyclPropSetTy = getSyclPropSetTy();
-    SyclPropSetPtrTy = PointerType::getUnqual(SyclPropSetTy);
     EntryTy = getEntryTy();
-    EntryPtrTy = PointerType::getUnqual(EntryTy);
     SyclDeviceImageTy = getSyclDeviceImageTy();
-    SyclDeviceImagePtrTy = PointerType::getUnqual(SyclDeviceImageTy);
     SyclBinDescTy = getSyclBinDescTy();
-    SyclBinDescPtrTy = PointerType::getUnqual(SyclBinDescTy);
   }
 
   // struct _pi_device_binary_property_struct {
@@ -110,9 +100,10 @@ struct Wrapper {
   //   uint64_t ValSize;
   // };
   StructType *getSyclPropTy() {
-    return StructType::create({Type::getInt8PtrTy(C), Type::getInt8PtrTy(C),
-                               Type::getInt32Ty(C), Type::getInt64Ty(C)},
-                              "_pi_device_binary_property_struct");
+    return StructType::create(
+        {PointerType::getUnqual(C), PointerType::getUnqual(C),
+         PointerType::getUnqual(C), PointerType::getUnqual(C)},
+        "_pi_device_binary_property_struct");
   }
 
   // struct _pi_device_binary_property_set_struct {
@@ -121,13 +112,14 @@ struct Wrapper {
   //   _pi_device_binary_property_struct* PropertiesEnd;
   // };
   StructType *getSyclPropSetTy() {
-    return StructType::create(
-        {Type::getInt8PtrTy(C), SyclPropPtrTy, SyclPropPtrTy},
-        "_pi_device_binary_property_set_struct");
+    return StructType::create({PointerType::getUnqual(C),
+                               PointerType::getUnqual(C),
+                               PointerType::getUnqual(C)},
+                              "_pi_device_binary_property_set_struct");
   }
 
   IntegerType *getSizeTTy() {
-    switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
+    switch (M.getDataLayout().getPointerSize()) {
     case 4:
       return Type::getInt32Ty(C);
     case 8:
@@ -150,8 +142,8 @@ struct Wrapper {
   //   int32_t reserved;
   // };
   StructType *getEntryTy() {
-    return StructType::create("__tgt_offload_entry", Type::getInt8PtrTy(C),
-                              Type::getInt8PtrTy(C), getSizeTTy(),
+    return StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
+                              PointerType::getUnqual(C), getSizeTTy(),
                               Type::getInt32Ty(C), Type::getInt32Ty(C));
   }
 
@@ -192,20 +184,20 @@ struct Wrapper {
   StructType *getSyclDeviceImageTy() {
     return StructType::create(
         {
-            Type::getInt16Ty(C),   // Version
-            Type::getInt8Ty(C),    // OffloadKind
-            Type::getInt8Ty(C),    // Format
-            Type::getInt8PtrTy(C), // DeviceTargetSpec
-            Type::getInt8PtrTy(C), // CompileOptions
-            Type::getInt8PtrTy(C), // LinkOptions
-            Type::getInt8PtrTy(C), // ManifestStart
-            Type::getInt8PtrTy(C), // ManifestEnd
-            Type::getInt8PtrTy(C), // ImageStart
-            Type::getInt8PtrTy(C), // ImageEnd
-            EntryPtrTy,            // EntriesBegin
-            EntryPtrTy,            // EntriesEnd
-            SyclPropSetPtrTy,      // PropertySetBegin
-            SyclPropSetPtrTy       // PropertySetEnd
+            Type::getInt16Ty(C),       // Version
+            Type::getInt8Ty(C),        // OffloadKind
+            Type::getInt8Ty(C),        // Format
+            PointerType::getUnqual(C), // DeviceTargetSpec
+            PointerType::getUnqual(C), // CompileOptions
+            PointerType::getUnqual(C), // LinkOptions
+            PointerType::getUnqual(C), // ManifestStart
+            PointerType::getUnqual(C), // ManifestEnd
+            PointerType::getUnqual(C), // ImageStart
+            PointerType::getUnqual(C), // ImageEnd
+            PointerType::getUnqual(C), // EntriesBegin
+            PointerType::getUnqual(C), // EntriesEnd
+            PointerType::getUnqual(C), // PropertySetBegin
+            PointerType::getUnqual(C)  // PropertySetEnd
         },
         "__tgt_device_image");
   }
@@ -223,9 +215,10 @@ struct Wrapper {
   //   __tgt_offload_entry *HostEntriesEnd;
   // };
   StructType *getSyclBinDescTy() {
-    return StructType::create({Type::getInt16Ty(C), Type::getInt16Ty(C),
-                               SyclDeviceImagePtrTy, EntryPtrTy, EntryPtrTy},
-                              "__tgt_bin_desc");
+    return StructType::create(
+        {Type::getInt16Ty(C), Type::getInt16Ty(C), PointerType::getUnqual(C),
+         PointerType::getUnqual(C), PointerType::getUnqual(C)},
+        "__tgt_bin_desc");
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
@@ -390,13 +383,13 @@ struct Wrapper {
   std::pair<Constant *, Constant *>
   addOffloadEntriesToModule(std::optional<ArrayRef<char>> Entries) {
     if (!Entries || Entries->empty()) {
-      auto *NullPtr = Constant::getNullValue(EntryPtrTy);
+      auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0);
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
     std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(
@@ -435,7 +428,7 @@ struct Wrapper {
       switch (Prop.second.getType()) {
       case llvm::util::PropertyValue::UINT32: {
         // for known scalar types ValAddr is null, ValSize keeps the value
-        PropValAddr = Constant::getNullValue(Type::getInt8PtrTy(C));
+        PropValAddr = Constant::getNullValue(PointerType::getUnqual(C));
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
         break;
@@ -495,7 +488,7 @@ struct Wrapper {
   std::pair<Constant *, Constant *> addPropertySetRegistry(
       const std::optional<PropertySetRegistry> &PropRegistry) {
     if (!PropRegistry) {
-      auto *NullPtr = Constant::getNullValue(SyclPropSetPtrTy);
+      auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
@@ -542,7 +535,7 @@ struct Wrapper {
 
   Constant *wrapImage(const SYCLImage &Image, size_t ImageID,
                       StringRef OffloadKindTag) {
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     constexpr uint16_t DeviceImageStructVersion = 2;
@@ -612,8 +605,8 @@ struct Wrapper {
                                                    ImagesGV, ZeroZero);
 
     // And finally create the binary descriptor object.
-    Constant *EntriesB = Constant::getNullValue(EntryPtrTy);
-    Constant *EntriesE = Constant::getNullValue(EntryPtrTy);
+    Constant *EntriesB = Constant::getNullValue(PointerType::getUnqual(C));
+    Constant *EntriesE = Constant::getNullValue(PointerType::getUnqual(C));
     static constexpr uint16_t BinDescStructVersion = 1;
     auto *DescInit = ConstantStruct::get(
         getSyclBinDescTy(),
@@ -701,8 +694,9 @@ struct Wrapper {
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), SyclBinDescPtrTy,
-                                        /*isVarArg=*/false);
+    auto *RegFuncTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C),
+                          /*isVarArg=*/false);
     FunctionCallee RegFuncC =
         M.getOrInsertFunction("__sycl_register_lib", RegFuncTy);
 
@@ -722,8 +716,9 @@ struct Wrapper {
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), SyclBinDescPtrTy,
-                                          /*isVarArg=*/false);
+    auto *UnRegFuncTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C),
+                          /*isVarArg=*/false);
     FunctionCallee UnRegFuncC =
         M.getOrInsertFunction("__sycl_unregister_lib", UnRegFuncTy);
 
