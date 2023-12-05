@@ -625,11 +625,11 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
   passed &=
       test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &=
+      test_int_types<32, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
-    passed &=
-        test_int_types<32, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
     passed &=
         test_int_types<64, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
     // non power of two values are supported only in newer driver.
@@ -653,10 +653,10 @@ bool test_fp_types_and_sizes(queue q) {
   passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures, UseAcc>(q);
   passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures, UseAcc>(q);
   passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
-    passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
