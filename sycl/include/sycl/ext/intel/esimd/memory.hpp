@@ -3796,11 +3796,6 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 /// simd<T, N>
 /// slm_atomic_update(simd<uint32_t, N> byte_offset,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au0-1)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-///                   simd_mask<N> mask = 1);                   /// (slm-au0-2)
-///
 
 /// The following functions do the same work as slm_atomic_update(). They accept
 /// a local accessor \p lacc and the atomic update is done from SLM associated
@@ -3811,10 +3806,6 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 ///                          simd<uint32_t, N> byte_offset,
 ///                          simd_mask<1> pred = 1);
 ///                                                             // (lacc-au0-1)
-/// simd<T, N> atomic_update(local_accessor lacc,
-///                          simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-///                          simd_mask<1> pred = 1);
-///                                                             // (lacc-au0-2)
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 
@@ -3863,35 +3854,6 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
   }
 }
 
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-///                   simd_mask<N> mask = 1);                   /// (slm-au0-2)
-///
-/// A variation of \c atomic_update API with \c byte_offset represented as
-/// \c simd_view object.
-///
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N,
-          typename ViewedOffsetTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-                  simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), mask);
-}
-
 /// simd<T, N> atomic_update(local_accessor lacc,
 ///                          simd<uint32_t, N> byte_offset,
 ///                          simd_mask<N> pred = 1);
@@ -3911,28 +3873,6 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
   return slm_atomic_update<Op, T, N>(byte_offset, mask);
 }
 
-/// simd<T, N> atomic_update(local_accessor lacc,
-///                          simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-///                          simd_mask<N> pred = 1);
-///                                                             // (lacc-au0-2)
-/// Atomically updates \c N memory locations in SLM ssociated
-/// with the local accessor \p lacc at the given \p byte_offset,
-/// and returns a vector of old values found at the memory locations before
-/// update.
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename ViewedOffsetTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
-              simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset, mask);
-}
-
 /// One argument variant of the atomic update operation.
 
 /// simd<T, N>
@@ -3940,44 +3880,12 @@ atomic_update(AccessorT lacc,
 ///                   simd<T, N> src0,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au1-1)
 ///
-/// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-2)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedTy, RegionTy> byte_offset,
-///                   simd<T, N> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-3)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-4)
 
 /// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<1> pred = 1);                       // (lacc-au1-1)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-3)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
 ///
 
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
@@ -4028,81 +3936,6 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-2)
-///
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N,
-          typename ViewedTy, typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
-slm_atomic_update(simd<uint32_t, N> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, RegionTy> byte_offset,
-///                   simd<T, N> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-3)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N,
-          typename ViewedOffsetTy,
-          typename OffsetRegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd<T, N> src0, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_mask<N> mask = 1);                   /// (slm-au1-4)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N,
-          typename ViewedOffsetTy, typename ViewedTy,
-          typename OffsetRegionTy, typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), mask);
-}
-
-/// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
@@ -4131,102 +3964,6 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
   return slm_atomic_update<Op, T, N>(byte_offset, src0, mask);
 }
 
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-2)
-///
-/// Atomically updates \c N memory locations in SLM indicated by
-/// local accessor \p lacc and a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename ViewedTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-              simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), mask);
-}
-
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-3)
-///
-/// Atomically updates \c N memory locations in SLM indicated by
-/// local accessor \p lacc and a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename ViewedOffsetTy, typename OffsetRegionTy>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_mask<1> pred = 1);                       // (lacc-au1-4)
-///
-/// Atomically updates \c N memory locations in SLM indicated by
-/// local accessor \p lacc and a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename ViewedOffsetTy, typename ViewedTy,
-          typename OffsetRegionTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-              simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, mask);
-}
-
 /// Two argument variant of the atomic update operation.
 
 /// simd<T, N>
@@ -4235,97 +3972,11 @@ atomic_update(AccessorT lacc,
 ///                   simd_mask<N> mask = 1);                   /// (slm-au2-1)
 
 /// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd<T, N> src0, simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-2)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-3)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-4)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd<T, N> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-5)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd<T, N> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-6)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-7)
-///
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-8)
-
-/// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
 ///               simd<T, N> src1,
 ///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd<T, N> src0,
-///               simd_view<ViewedTy, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-2)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-3)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_view<ViewedTy, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-4)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-5)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_view<ViewedTy, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-6)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-7)
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///               simd_view<ViewedTy, RegionTy> src0,
-///               simd_view<ViewedTy, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-8)
 ///
 
 /// simd<T, N>
@@ -4368,199 +4019,6 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd<T, N> src0, simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-2)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename ViewedTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
-                  simd_view<ViewedTy, RegionTy> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset, src0, src1.read(), mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-3)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename ViewedTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd<uint32_t, N> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-                  simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1, mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd<uint32_t, N> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-4)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename ViewedTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd<uint32_t, N> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0,
-                  simd_view<ViewedTy, RegionTy> src1, simd_mask<N> mask) {
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1.read(),
-                                     mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd<T, N> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-5)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename ViewedOffsetTy,
-          typename OffsetRegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1, mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd<T, N> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-6)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename ViewedOffsetTy,
-          typename ViewedTy,
-          typename OffsetRegionTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd<T, N> src0, simd_view<ViewedTy, RegionTy> src1,
-                  simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1.read(),
-                                     mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-7)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N,
-          typename ViewedOffsetTy, typename ViewedTy,
-          typename OffsetRegionTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0, simd<T, N> src1,
-                  simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), src1,
-                                     mask);
-}
-
-/// simd<T, N>
-/// slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-///                   simd_view<ViewedTy, RegionTy> src0,
-///                   simd_view<ViewedTy, RegionTy> src1,
-///                   simd_mask<N> mask = 1);                   /// (slm-au2-8)
-/// Atomically updates \c N memory locations in SLM indicated by
-/// a vector of offsets, and returns a vector of old
-/// values found at the memory locations before update.
-/// @tparam Op The atomic operation.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param byte_offset The vector of 32-bit offsets.
-/// @param src0 is the first atomic operand (new value).
-/// @param src1 is the second atomic operand (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N,
-          typename ViewedOffsetTy, typename ViewedTy,
-          typename OffsetRegionTy,
-          typename RegionTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
-slm_atomic_update(simd_view<ViewedOffsetTy, OffsetRegionTy> byte_offset,
-                  simd_view<ViewedTy, RegionTy> src0,
-                  simd_view<ViewedTy, RegionTy> src1, simd_mask<N> mask = 1) {
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(),
-                                     src1.read(), mask);
-}
-
-/// simd<T, N>
 /// atomic_update(local_accessor lacc,
 ///               simd<uint32_t, N> byte_offset,
 ///               simd<T, N> src0,
@@ -4575,154 +4033,6 @@ atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
   return slm_atomic_update<Op, T, N>(byte_offset, src0, src1, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd<T, N> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-2)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset, src0, src1.read(), mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-3)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
-              simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd<uint32_t, N> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-4)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset, src0.read(), src1.read(),
-                                     mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-5)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1, mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-6)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_view<simd<T, N>, RegionTy> src1,
-              simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0, src1.read(),
-                                     mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd<T, N> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-7)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
-              simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(), src1,
-                                     mask);
-}
-
-///
-/// simd<T, N>
-/// atomic_update(local_accessor lacc,
-///               simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-///               simd_view<simd<T, N>, RegionTy> src0,
-///               simd_view<simd<T, N>, RegionTy> src1,
-///               simd_mask<1> pred = 1);                      // (lacc-au2-8)
-template <atomic_op Op, typename T, int N, typename AccessorT,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
-atomic_update(AccessorT lacc,
-              simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask = 1) {
-  byte_offset += detail::localAccessorToOffset(lacc);
-  return slm_atomic_update<Op, T, N>(byte_offset.read(), src0.read(),
-                                     src1.read(), mask);
 }
 
 /// @} sycl_esimd_memory_slm
