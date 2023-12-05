@@ -531,14 +531,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  // Prefetch cmd is not supported by Cuda Graph.
+  // We implement it as an empty node to enforce dependencies.
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList));
+
+  try {
+    // Add an empty node to preserve dependencies.
+    UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                       DepsList.data(), DepsList.size()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
@@ -547,14 +560,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  // Mem-Advise cmd is not supported by Cuda Graph.
+  // We implement it as an empty node to enforce dependencies.
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList));
+
+  try {
+    // Add an empty node to preserve dependencies.
+    UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                       DepsList.data(), DepsList.size()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
