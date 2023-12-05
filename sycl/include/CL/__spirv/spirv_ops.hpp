@@ -52,7 +52,7 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
     __spirv_CompositeConstructCheckedINTEL(const T v, size_t Height,
-                                           size_t Width);
+                                           size_t stride, size_t Width);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -1251,7 +1251,7 @@ extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
 
-#else // if !__SYCL_DEVICE_ONLY__
+#else  // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t

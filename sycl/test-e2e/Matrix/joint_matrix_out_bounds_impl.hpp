@@ -52,7 +52,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            // bounds-checked load where width and height are added
            ext::intel::experimental::matrix::joint_matrix_fill_checked(
-               sg, sub_c, 1, M, N);
+               sg, sub_c, 1, N, M, N);
            for (int k = 0; k < K; k += TK) {
              // bounds-checked load where width and height are added
              ext::intel::experimental::matrix::joint_matrix_load_checked(
