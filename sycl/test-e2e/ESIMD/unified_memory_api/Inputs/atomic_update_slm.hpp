@@ -8,9 +8,9 @@
 
 #include "../../esimd_test_utils.hpp"
 
-#include <sycl/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -623,7 +623,8 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
   passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
   passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &=
+      test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
@@ -700,7 +701,8 @@ int test_with_mask(queue q) {
         test_fp_types_and_sizes<ImplLSCFmin, UseMask, UsePVCFeatures, UseAcc>(
             q);
 
-   // TODO: fadd/fsub are emulated in the newer driver, but do not pass validation.
+    // TODO: fadd/fsub are emulated in the newer driver, but do not pass
+    // validation.
 #if 0
     passed &= test_fp_types_and_sizes<ImplFadd, UseMask, UsePVCFeatures, UseAcc>(q);
     passed &= test_fp_types_and_sizes<ImplFsub, UseMask, UsePVCFeatures, UseAcc>(q);

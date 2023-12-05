@@ -3829,11 +3829,13 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
 template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
+  // supported only by LSC.
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+                !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return slm_atomic_update_impl<Op, T, N,
-                            detail::lsc_data_size::default_size>(
-      byte_offset, mask);
+                                  detail::lsc_data_size::default_size>(
+        byte_offset, mask);
   } else if constexpr (Op == atomic_op::load) {
     if constexpr (std::is_integral_v<T>) {
       return slm_atomic_update<atomic_op::bit_or, T, N>(byte_offset,
@@ -3846,10 +3848,8 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
     }
   } else {
     detail::check_atomic<Op, T, N, 0>();
-    const auto si =
-        get_surface_index(detail::LocalAccessorMarker());
-    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si,
-                                           byte_offset.data());
+    const auto si = get_surface_index(detail::LocalAccessorMarker());
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, byte_offset.data());
   }
 }
 
@@ -3910,13 +3910,15 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
-      // half and short are supported in LSC.
-      return slm_atomic_update_impl<Op, T, N,
-                                    detail::lsc_data_size::default_size>(
-          byte_offset, src0, mask);
-   } else if constexpr (Op == atomic_op::store) {
+  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
+  // supported only by LSC.
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+    // half and short are supported in LSC.
+    return slm_atomic_update_impl<Op, T, N,
+                                  detail::lsc_data_size::default_size>(
+        byte_offset, src0, mask);
+  } else if constexpr (Op == atomic_op::store) {
     if constexpr (std::is_integral_v<T>) {
       return slm_atomic_update<atomic_op::xchg, T, N>(byte_offset, src0, mask);
     } else {
@@ -3927,8 +3929,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
     }
   } else {
     detail::check_atomic<Op, T, N, 1>();
-    const auto si =
-        get_surface_index(detail::LocalAccessorMarker());
+    const auto si = get_surface_index(detail::LocalAccessorMarker());
     return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, byte_offset.data(),
                                            src0.data());
   }
@@ -3999,8 +4000,10 @@ template <atomic_op Op, typename T, int N>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
 slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> mask = 1) {
-  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are supported only by LSC.
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+  // 2 byte, 8 byte types, non-power of two, and operations wider than 32 are
+  // supported only by LSC.
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 8 ||
+                !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
@@ -4009,8 +4012,7 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
         byte_offset, src1, src0, mask);
   } else {
     detail::check_atomic<Op, T, N, 2>();
-    const auto si =
-        get_surface_index(detail::LocalAccessorMarker());
+    const auto si = get_surface_index(detail::LocalAccessorMarker());
     return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, byte_offset.data(),
                                            src0.data(), src1.data());
   }
