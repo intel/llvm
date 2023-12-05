@@ -38,11 +38,11 @@ int main() {
     // Only placement new can be used within device functions.
     // When an object of a polymorphic class is created, its vtable is filled
     // with pointer to virtual member functions. However, we don't always know
-    // featuures supported by a target device (in case of JIT) and therefore
+    // features supported by a target device (in case of JIT) and therefore
     // can't decide whether both 'foo' and 'bar' should be both included in the
     // resulting device image - the decision must be made at runtime when we
     // know the target device.
-    new (Obj) Derived;
+    new (Obj) Base;
   });
 
   // The same binary produced by thy sycl compiler should correctly work on both
@@ -167,6 +167,70 @@ an aspect, then such kernel **should not** be considered as using that aspect.
 Properties-based mechanism which is described above should be used for aspects
 propagation for virtual functions.
 
+To illustrate this, let's once again consider the example from Overview section
+which is copied below for convinience:
+
+```c++
+using syclext = sycl::ext::oneapi::experimental;
+
+struct set_fp64;
+
+struct Base {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_fp64) void bar() {
+    // this virtual function uses double
+    double d = 3.14;
+  }
+};
+
+class Constructor;
+class Use;
+class UseFP64;
+
+int main() {
+  // Selected device may not support 'fp64' aspect
+  sycl::queue Q;
+
+  Base *Obj = sycl::malloc_device<Base>(1, Q);
+  int *Result = sycl::malloc_shared<int>(2, Q);
+
+  Q.single_task<Constructor>([=] {
+    // Even though at LLVM IR level this kernel does reference 'Base::foo'
+    // and 'Base::bar' though global variable containing `vtable` for `Base`,
+    // we do not consider the kernel to be using `fp64` optional feature.
+    new (Obj) Base;
+  });
+
+  Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
+    // This kernel is not considered to be using any optional features, because
+    // virtual functions in default set do not use any.
+    Obj->foo();
+  });
+
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<set_fp64>},
+        [=] {
+      // This kernel is considered to be using 'fp64' optional feature, because
+      // there is a virtual function in 'set_fp64' which uses double.
+      Obj->bar();
+    });
+  }
+
+  return 0;
+}
+```
+
+This way, "Consturctor" kernel(s) won't pull optional features
+requirements from virtual functions it may reference through vtable, making it
+independent from those. This allows to launch such kernels on wider list of
+devices, even though there could be virtual functions which require optional
+features.
+
+"Use" kernel(s) do pull optional features requirements from virtual functions
+they may call through `calls_indirectly` property and associated sets. This
+enables necessary runtime diagnistics that a kernel is not submitted to a device
+which doesn't support all required optional features.
+
 #### New compiler diagnostics
 
 **TBD**
@@ -174,9 +238,9 @@ propagation for virtual functions.
 #### Device code split and device images
 
 The extension specification restricts implementation from raising a diagnostic
-when a kernel not marked with `calls_indirectly` kernel property creates an
-object of a polymorphic class where some virtual functions use optional kernel
-features incompatible with a target device.
+when a kernel that is not marked with `calls_indirectly` kernel property creates
+an object of a polymorphic class where some virtual functions use optional
+kernel features incompatible with a target device.
 
 Consider the following example:
 
@@ -222,7 +286,6 @@ if (q.get_device().has(sycl::aspect::fp64)) {
     Storage->bar();
   });
 }
-
 ```
 
 This example should work regardless of whether target device supports 'fp64'
@@ -232,7 +295,11 @@ compatible with a target device.
 
 Regardless of device code split mode selected by a user, functions marked with
 `indirectly_callable` property should be outlined into a separate device images
-by `sycl-post-link` tool based on the property argument.
+by `sycl-post-link` tool based on the property argument, i.e. all functions
+from the same set should be bundled into a dedicated device image.
+
+Virtual functions in the original device image should be turned into
+declarations instead of definitions.
 
 Additionally, if any virtual function in such device image uses any optional
 kernel features, then the whole image should be cloned with all function bodies
@@ -269,7 +336,23 @@ property set:
 - "creates-virtual-functions-set" with a string value containing comma-separate
   list of names of virtual function sets which are referenced from functions
   included into vtables used by a kernel within a device image;
-  **TODO:** this item definitely needs better description
+
+There is a reason why we need to separate properties and can't just use one for
+both kinds of relationships:
+
+When a kernel only creates an object of a polymorphic class, we should only use
+virtual functions which are compatible with a target device. Virtual functions
+that use unsupported optional features are expected to be outlined into separate
+sets in that case and we need to ensure that we are still able to create an
+object so that virtual functions that use suppported optional features are
+usable.
+
+However, when a kernel actually makes calls to virtual functions, we assert
+that all optional features used by virtual functions in all sets used by the
+kernel are supported on a target device. All those aspects have been already
+attached to the kernel as part of aspects propagation phase and therefore at
+runtime we will unconditionally pull all device images with virtual functions
+which are used by a kernel to make calls to them.
 
 ### Changes to the runtime
 
@@ -294,8 +377,14 @@ Algorithm for discovery of device images which has to be linked:
 Produced list of device images is then linked together and used to enqueue a
 kernel.
 
-**TODO:** do we need to say anything about in-memory and on-disk cache
-functionality here?
+NOTE: when shared libraries are involved, they could also provide some
+`indirectly_callable` functions in the same sets as application. This means that
+there could be more than one image registered with the same value of
+"virtual-functions-set" property.
+
+NOTE: No changes are needed for both in-memory and on-disk caches, because they
+take both kernel and device as keys and for that pair list of device images
+which needs to be linked together does not change from launch to launch.
 
 [1]: <../extensions/proposed/sycl_ext_intel_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
