@@ -5972,7 +5972,7 @@ urEnqueueEventsWaitWithBarrier(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(offset, size)] handle of the buffer object
     bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,                            ///< [in] offset in bytes in the buffer object
     size_t size,                              ///< [in] size in bytes of data being read
@@ -6021,7 +6021,7 @@ urEnqueueMemBufferRead(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(offset, size)] handle of the buffer object
     bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,                            ///< [in] offset in bytes in the buffer object
     size_t size,                              ///< [in] size in bytes of data being written
@@ -6080,7 +6080,7 @@ urEnqueueMemBufferWrite(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(bufferOrigin, region)] handle of the buffer object
     bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
     ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
@@ -6146,7 +6146,7 @@ urEnqueueMemBufferReadRect(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(bufferOrigin, region)] handle of the buffer object
     bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t bufferOrigin,            ///< [in] 3D offset in the buffer
     ur_rect_offset_t hostOrigin,              ///< [in] 3D offset in the host region
@@ -6199,8 +6199,8 @@ urEnqueueMemBufferWriteRect(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferCopy(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBufferSrc,               ///< [in] handle of the src buffer object
-    ur_mem_handle_t hBufferDst,               ///< [in] handle of the dest buffer object
+    ur_mem_handle_t hBufferSrc,               ///< [in][bounds(srcOffset, size)] handle of the src buffer object
+    ur_mem_handle_t hBufferDst,               ///< [in][bounds(dstOffset, size)] handle of the dest buffer object
     size_t srcOffset,                         ///< [in] offset into hBufferSrc to begin copying from
     size_t dstOffset,                         ///< [in] offset info hBufferDst to begin copying into
     size_t size,                              ///< [in] size in bytes of data being copied
@@ -6252,8 +6252,8 @@ urEnqueueMemBufferCopy(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferCopyRect(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBufferSrc,               ///< [in] handle of the source buffer object
-    ur_mem_handle_t hBufferDst,               ///< [in] handle of the dest buffer object
+    ur_mem_handle_t hBufferSrc,               ///< [in][bounds(srcOrigin, region)] handle of the source buffer object
+    ur_mem_handle_t hBufferDst,               ///< [in][bounds(dstOrigin, region)] handle of the dest buffer object
     ur_rect_offset_t srcOrigin,               ///< [in] 3D offset in the source buffer
     ur_rect_offset_t dstOrigin,               ///< [in] 3D offset in the destination buffer
     ur_rect_region_t region,                  ///< [in] source 3D rectangular region descriptor: width, height, depth
@@ -6307,7 +6307,7 @@ urEnqueueMemBufferCopyRect(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferFill(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(offset, size)] handle of the buffer object
     const void *pPattern,                     ///< [in] pointer to the fill pattern
     size_t patternSize,                       ///< [in] size in bytes of the pattern
     size_t offset,                            ///< [in] offset into the buffer
@@ -6357,7 +6357,7 @@ urEnqueueMemBufferFill(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemImageRead(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hImage,                   ///< [in] handle of the image object
+    ur_mem_handle_t hImage,                   ///< [in][bounds(origin, region)] handle of the image object
     bool blockingRead,                        ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t origin,                  ///< [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
     ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
@@ -6410,7 +6410,7 @@ urEnqueueMemImageRead(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemImageWrite(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hImage,                   ///< [in] handle of the image object
+    ur_mem_handle_t hImage,                   ///< [in][bounds(origin, region)] handle of the image object
     bool blockingWrite,                       ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t origin,                  ///< [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
     ur_rect_region_t region,                  ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
@@ -6457,8 +6457,8 @@ urEnqueueMemImageWrite(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemImageCopy(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hImageSrc,                ///< [in] handle of the src image object
-    ur_mem_handle_t hImageDst,                ///< [in] handle of the dest image object
+    ur_mem_handle_t hImageSrc,                ///< [in][bounds(srcOrigin, region)] handle of the src image object
+    ur_mem_handle_t hImageDst,                ///< [in][bounds(dstOrigin, region)] handle of the dest image object
     ur_rect_offset_t srcOrigin,               ///< [in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D
                                               ///< image
     ur_rect_offset_t dstOrigin,               ///< [in] defines the (x,y,z) offset in pixels in the destination 1D, 2D,
@@ -6543,7 +6543,7 @@ typedef enum ur_usm_migration_flag_t {
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferMap(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                  ///< [in][bounds(offset, size)] handle of the buffer object
     bool blockingMap,                         ///< [in] indicates blocking (true), non-blocking (false)
     ur_map_flags_t mapFlags,                  ///< [in] flags for read, write, readwrite mapping
     size_t offset,                            ///< [in] offset in bytes of the buffer region being mapped
@@ -6611,7 +6611,7 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ptr`
+///         + `NULL == pMem`
 ///         + `NULL == pPattern`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -6631,7 +6631,7 @@ urEnqueueMemUnmap(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMFill(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    void *ptr,                                ///< [in] pointer to USM memory object
+    void *pMem,                               ///< [in][bounds(0, size)] pointer to USM memory object
     size_t patternSize,                       ///< [in] the size in bytes of the pattern. Must be a power of 2 and less
                                               ///< than or equal to width.
     const void *pPattern,                     ///< [in] pointer with the bytes of the pattern to set.
@@ -6674,8 +6674,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     bool blocking,                            ///< [in] blocking or non-blocking copy
-    void *pDst,                               ///< [in] pointer to the destination USM memory object
-    const void *pSrc,                         ///< [in] pointer to the source USM memory object
+    void *pDst,                               ///< [in][bounds(0, size)] pointer to the destination USM memory object
+    const void *pSrc,                         ///< [in][bounds(0, size)] pointer to the source USM memory object
     size_t size,                              ///< [in] size in bytes to be copied
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6720,7 +6720,7 @@ urEnqueueUSMMemcpy(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
-    const void *pMem,                         ///< [in] pointer to the USM memory object
+    const void *pMem,                         ///< [in][bounds(0, size)] pointer to the USM memory object
     size_t size,                              ///< [in] size in bytes to be fetched
     ur_usm_migration_flags_t flags,           ///< [in] USM prefetch flags
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
@@ -6762,7 +6762,7 @@ urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
-    const void *pMem,             ///< [in] pointer to the USM memory object
+    const void *pMem,             ///< [in][bounds(0, size)] pointer to the USM memory object
     size_t size,                  ///< [in] size in bytes to be advised
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     ur_event_handle_t *phEvent    ///< [out][optional] return an event object that identifies this particular
@@ -6803,7 +6803,7 @@ urEnqueueUSMAdvise(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMFill2D(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.
-    void *pMem,                               ///< [in] pointer to memory to be filled.
+    void *pMem,                               ///< [in][bounds(0, pitch * height)] pointer to memory to be filled.
     size_t pitch,                             ///< [in] the total width of the destination memory including padding.
     size_t patternSize,                       ///< [in] the size in bytes of the pattern. Must be a power of 2 and less
                                               ///< than or equal to width.
@@ -6853,9 +6853,10 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemcpy2D(
     ur_queue_handle_t hQueue,                 ///< [in] handle of the queue to submit to.
     bool blocking,                            ///< [in] indicates if this operation should block the host.
-    void *pDst,                               ///< [in] pointer to memory where data will be copied.
+    void *pDst,                               ///< [in][bounds(0, dstPitch * height)] pointer to memory where data will
+                                              ///< be copied.
     size_t dstPitch,                          ///< [in] the total width of the source memory including padding.
-    const void *pSrc,                         ///< [in] pointer to memory to be copied.
+    const void *pSrc,                         ///< [in][bounds(0, srcPitch * height)] pointer to memory to be copied.
     size_t srcPitch,                          ///< [in] the total width of the source memory including padding.
     size_t width,                             ///< [in] the width in bytes of each row to be copied.
     size_t height,                            ///< [in] the height of columns to be copied.
@@ -9856,7 +9857,7 @@ typedef struct ur_enqueue_mem_unmap_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_enqueue_usm_fill_params_t {
     ur_queue_handle_t *phQueue;
-    void **pptr;
+    void **ppMem;
     size_t *ppatternSize;
     const void **ppPattern;
     size_t *psize;
