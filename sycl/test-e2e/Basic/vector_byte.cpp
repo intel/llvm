@@ -15,7 +15,7 @@
 #include <sycl/sycl.hpp>
 
 #include <cstddef> // std::byte
-#include <tuple> // std::ignore
+#include <tuple>   // std::ignore
 
 int main() {
   std::byte bt{7};
