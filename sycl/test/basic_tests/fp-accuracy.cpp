@@ -3,8 +3,8 @@
 // RUN: -faltmathlib=SVMLAltMathLibrary -fno-math-errno %s
 //
 // Checks that the attribute 'builtin-max-error' is generated.
-// RUN: %clangxx -c -fsycl -ffp-accuracy=high -fno-math-errno \
-// RUN: -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clangxx -S -emit-llvm -fsycl-device-only -ffp-accuracy=high \
+// RUN: -fno-math-errno -o - %s | FileCheck %s
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
@@ -44,10 +44,10 @@ int main() {
     });
   });
 
-  // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel2
+  // CHECK: define {{.*}}spir_kernel void {{.*}}Kernel2
   // CHECK: tail call {{.*}} float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
 
-  // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel3
+  // CHECK: define {{.*}}spir_kernel void {{.*}}Kernel3
   // CHECK: tail call noundef float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_HIGH]]
 
   // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
