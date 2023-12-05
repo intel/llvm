@@ -213,26 +213,16 @@ bounds. For load and fill, the out-of-bounds elements are set to
 
 These functions are similar to the existing ones without bounds
 checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
-`joint_matrix_store`. But they are different in three ways:
-
-* The pointer `src` designates the base pointer of the original memory
-matrix excluding any offset calculations. The coordinates are given
-separately here.
-
-* The coordinates to calculate the base pointer offset to load/store are
-given as separate arguments.  
-
-* These variants take extra arguments to determine the global bounds
-`Height` and `Width` of the two-dimensional region to load to or store
-from.
-
+`joint_matrix_store`. The only difference is that these new variants
+take extra arguments to determine the global bounds `Height` and
+`Width` of the two-dimensional region to load to or store from.
 
 The two-dimensional memory region is interpreted as follows, where
 `Height` is number of rows in the memory matrix, `Width` is number of
 columns in the memory matrix, `stride` is number of rows that include
 the out of bounds data (depicted as x here).
 
-|<-------------`Width`---------->|
+|<------------`Width`-------->|
 
 |DDDDDDDDDDDDDDDDDxxx|
 
@@ -245,16 +235,18 @@ the out of bounds data (depicted as x here).
 |DDDDDDDDDDDDDDDDDxxx|
 
 |<------------`Stride`---------->|
- 
+
 Note that joint matrix shape `Rows` and `Cols` represents a sub-block
-of the picture above for each sub-group execution. At the last
-iteration of the range of the launched kernel, the remainder that
-should exclude the out-of-bounds data is checked against `Width` and
-`Height`. For instance, load of `sub_b` defined as
-`joint_matrix<sub_group, bfloat16, use::b, 2, 3, layout::row_major> sub_b;`
-checks that `Height=10` is not multiple of `3` and the data (2
-elements left) that exceeds getting the total `10` rows will be filled
-by zero.
+of the picture above for each sub-group execution. The out of bounds
+functions checks that the 2d block starting at the address to be accessed
+`[src,0]` and ending at `[src + Cols, src + Rows * stride]` does not
+exceed the bigger 2d block starting at `[src, 0]` and ending at `[src
++ Width, src + Height * stride]`. For instance, load of `sub_b` defined as
+`joint_matrix<sub_group, bfloat16, use::b, 2, 3, layout::row_major>
+sub_b;` from `ptr + 9` checks that `ptr + 9` does not exceed `ptr +
+10` where 10 is `Width` so it reads only 1 element for that
+iteration. The 2 columns left that exceed the total `10` columns are
+filled by zero.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -262,8 +254,7 @@ namespace sycl::ext::intel::experimental::matrix {
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use, layout Layout, typename Tv>
 void joint_matrix_fill_checked(Group g, joint_matrix<Group, T, Use, Rows,
-          Cols, Layout> &m, Tv v, size_t Height, size_t Width,
-	  size_t coordX, size_t coordY);
+          Cols, Layout> &m, Tv v, size_t Stride, size_t Height, size_t Width);
 
 // Only available when std::is_same_v<T1, std::remove_const_t<T2>>
 template <typename Group, typename T1, typename T2,
@@ -271,8 +262,8 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   multi_ptr<T2, Space, IsDecorated> base_src, size_t stride,
-   layout Layout, size_t Height, size_t Width, size_t coordX, size_t coordY);
+   multi_ptr<T2, Space, IsDecorated> src, size_t Stride,
+   layout Layout, size_t Height, size_t Width);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -282,17 +273,16 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-   multi_ptr<T2, Space, IsDecorated> base_src, size_t stride,
-   size_t Height, size_t Width, size_t coordX, size_t coordY);
+   multi_ptr<T2, Space, IsDecorated> src, size_t Stride,
+   size_t Height, size_t Width);
 
 // Only available when std::is_same_v<T1, std::remove_const_t<T2>>
 template <typename Group, typename T1, typename T2,
           size_t Rows, size_t Cols, typename PropertyListT>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
-   size_t stride, layout Layout, size_t Height, size_t Width,
-   size_t coordX, size_t coordY);
+   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+   size_t Stride, layout Layout, size_t Height, size_t Width);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -300,15 +290,15 @@ template <typename Group, typename T1, typename T2, size_t Rows,
           size_t Cols, use Use, layout Layout, typename PropertyListT>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
-   size_t stride, size_t Height, size_t Width, size_t coordX, size_t coordY);
+   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+   size_t Stride, size_t Height, size_t Width);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
-   multi_ptr<T, Space, IsDecorated> base_dest, size_t stride, layout Layout,
-   size_t Height, size_t Width, size_t coordX, size_t coordY);
+   multi_ptr<T, Space, IsDecorated> dest, size_t Stride, layout Layout,
+   size_t Height, size_t Width);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, typename T, size_t Rows, size_t Cols,
@@ -316,23 +306,23 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
-   multi_ptr<T, Space, IsDecorated> base_src, size_t stride,
-   size_t Height, size_t Width, size_t coordX, size_t coordY);
+   multi_ptr<T, Space, IsDecorated> src, size_t Stride,
+   size_t Height, size_t Width);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           typename PropertyListT>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
-   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
-   size_t stride, layout Layout, size_t Height, size_t Width, size_t coordX, size_t coordY);
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
+   size_t Stride, layout Layout, size_t Height, size_t Width);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use, layout Layout, typename PropertyListT>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
-   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
-   size_t stride, size_t Height, size_t Width, size_t coordX, size_t coordY);
+   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+   size_t Stride, size_t Height, size_t Width);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
