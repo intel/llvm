@@ -29,6 +29,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
@@ -912,11 +913,20 @@ private:
   ///
   /// Stores information about kernel properties into the handler.
   template <
+      typename KernelName,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
+    using KI = detail::KernelInfo<KernelName>;
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
+        "Floating point control property is supported for ESIMD kernels only.");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1251,9 +1261,10 @@ private:
                   "first argument of sycl::item type, or of a type which is "
                   "implicitly convertible from sycl::item");
 
+    using RefLambdaArgType = std::add_lvalue_reference_t<LambdaArgType>;
     static_assert(
-        (std::is_invocable_v<KernelType, LambdaArgType> ||
-         std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
+        (std::is_invocable_v<KernelType, RefLambdaArgType> ||
+         std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 #endif
@@ -1304,7 +1315,7 @@ private:
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      processProperties<PropertiesT>(Props);
+      processProperties<NameT, PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       MNDRDesc.set(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1358,7 +1369,7 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1414,7 +1425,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1455,7 +1466,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1635,8 +1646,8 @@ private:
   //   * Provide explicit template type parameters for the call
   //
   // Couldn't think of a better way to achieve both.
-  template <typename KernelType, typename PropertiesT, bool HasKernelHandlerArg,
-            typename FuncTy>
+  template <typename KernelName, typename KernelType, typename PropertiesT,
+            bool HasKernelHandlerArg, typename FuncTy>
   void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
 #ifdef __SYCL_DEVICE_ONLY__
     detail::CheckDeviceCopyable<KernelType>();
@@ -1645,13 +1656,15 @@ private:
         typename detail::GetMergedKernelProperties<KernelType,
                                                    PropertiesT>::type;
     using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
+#ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
                           _KERNELFUNCPARAMTYPE>::value) {
-      processProperties(
+      processProperties<KernelName>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
+#endif
     if constexpr (HasKernelHandlerArg) {
       kernel_handler KH;
       Lambda(Unpacker{}, this, KernelFunc, KH);
@@ -1667,7 +1680,7 @@ private:
       typename KernelName, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
           Unpacker.template kernel_single_task_unpack<KernelName, KernelType>(
@@ -1679,7 +1692,7 @@ private:
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
@@ -1692,7 +1705,7 @@ private:
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
@@ -1726,7 +1739,7 @@ private:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif

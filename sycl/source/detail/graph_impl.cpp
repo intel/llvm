@@ -416,15 +416,13 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 
 std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
   std::vector<sycl::detail::EventImplPtr> Events;
-  auto EnqueueExitNodesEvents = [&](std::shared_ptr<node_impl> &Node,
-                                    std::deque<std::shared_ptr<node_impl>> &) {
+
+  for (auto Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
       Events.push_back(getEventForNode(Node));
     }
-    return false;
-  };
+  }
 
-  searchDepthFirst(EnqueueExitNodesEvents);
   return Events;
 }
 
@@ -724,6 +722,19 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   std::shared_ptr<detail::node_impl> NodeImpl =
       impl->add(impl, CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+}
+
+void modifiable_command_graph::addGraphLeafDependencies(node Node) {
+  // Find all exit nodes in the current graph and add them to the dependency
+  // vector
+  std::shared_ptr<detail::node_impl> DstImpl =
+      sycl::detail::getSyclObjImpl(Node);
+  graph_impl::WriteLock Lock(impl->MMutex);
+  for (auto &NodeImpl : impl->MNodeStorage) {
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
+    }
+  }
 }
 
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {

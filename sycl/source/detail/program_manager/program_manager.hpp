@@ -291,6 +291,8 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  bool kernelUsesAsan() const { return m_AsanFoundInImage; }
+
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
@@ -398,6 +400,9 @@ private:
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
+
+  // True iff there is a device image compiled with AddressSanitizer
+  bool m_AsanFoundInImage;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>

@@ -30,9 +30,12 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -54,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
-  # Merge: 62e6d2f9 5fb82924
+  # commit fe5bc760d0a9fa28247d3f0b57c20114f02eda49
+  # Merge: 47af3ee2 3e1f1636
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 8 13:32:46 2023 +0000
-  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
-  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
-  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
+  # Date:   Fri Dec 1 11:21:41 2023 +0000
+  #     Merge pull request #1102 from hdelan/adapter-batch1
+  #     [HIP] Adapter PR batch
+  set(UNIFIED_RUNTIME_TAG fe5bc760d0a9fa28247d3f0b57c20114f02eda49)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -159,49 +162,6 @@ endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      OpenCL-Headers
-  )
-
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
-
 if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
@@ -237,4 +197,8 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 endif()

@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -DUSE_64_BIT_OFFSET -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -590,7 +590,8 @@ def ExplicitInitializeCall : DiagGroup<"explicit-initialize-call">;
 def OrderedCompareFunctionPointers : DiagGroup<"ordered-compare-function-pointers">;
 def PackedNonPod : DiagGroup<"packed-non-pod">;
 def Packed : DiagGroup<"packed", [PackedNonPod]>;
-def Padded : DiagGroup<"padded">;
+def PaddedBitField : DiagGroup<"padded-bitfield">;
+def Padded : DiagGroup<"padded", [PaddedBitField]>;
 def UnalignedAccess : DiagGroup<"unaligned-access">;
 
 def PessimizingMove : DiagGroup<"pessimizing-move">;
@@ -779,9 +780,11 @@ def SyclIvdepAttribute : DiagGroup<"ivdep-compat">;
 def IndependentClassAttribute : DiagGroup<"IndependentClass-attribute">;
 def UnknownAttributes : DiagGroup<"unknown-attributes">;
 def IgnoredAttributes : DiagGroup<"ignored-attributes", [SyclIvdepAttribute]>;
+def IncorrectSubGroupSize: DiagGroup<"incorrect-sub-group-size">;
 def AcceptedAttributes : DiagGroup<"accepted-attributes">;
 def Attributes : DiagGroup<"attributes", [UnknownAttributes,
                                           IgnoredAttributes,
+                                          IncorrectSubGroupSize,
                                           AcceptedAttributes]>;
 def UnknownSanitizers : DiagGroup<"unknown-sanitizers">;
 def UnnamedTypeTemplateArgs : DiagGroup<"unnamed-type-template-args",
@@ -849,6 +852,7 @@ def DeallocInCategory:DiagGroup<"dealloc-in-category">;
 def SelectorTypeMismatch : DiagGroup<"selector-type-mismatch">;
 def Selector : DiagGroup<"selector", [SelectorTypeMismatch]>;
 def Protocol : DiagGroup<"protocol">;
+def FPAccOverride : DiagGroup<"fp-accuracy-override">;
 // No longer in use, preserve for backwards compatibility.
 def : DiagGroup<"at-protocol">;
 def PropertyAccessDotSyntax: DiagGroup<"property-access-dot-syntax">;
@@ -1330,6 +1334,10 @@ def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
+
+// OpenACC warnings.
+def SourceUsesOpenACC : DiagGroup<"source-uses-openacc">;
+def OpenACC : DiagGroup<"openacc", [SourceUsesOpenACC]>;
 
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;
