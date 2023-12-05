@@ -83,3 +83,6 @@ out/
 # IDE Files
 /.vscode
 /.devcontainer
+
+# External content
+*/**/external

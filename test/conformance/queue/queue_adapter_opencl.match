@@ -1,0 +1,2 @@
+urQueueGetInfoTestWithInfoParam.Success/Intel_R__OpenCL___{{.*}}___UR_QUEUE_INFO_DEVICE_DEFAULT
+urQueueGetInfoTestWithInfoParam.Success/Intel_R__OpenCL___{{.*}}___UR_QUEUE_INFO_SIZE

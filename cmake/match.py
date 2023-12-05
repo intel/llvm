@@ -11,6 +11,16 @@
 import sys
 import re
 
+
+## @brief print the whole content of input and match files
+def print_content(input_lines, match_lines):
+    print("--- Input Lines " + "-" * 64)
+    print("".join(input_lines).strip())
+    print("--- Match Lines " + "-" * 64)
+    print("".join(match_lines).strip())
+    print("-" * 80)
+
+
 if len(sys.argv) != 3:
     print("Usage: python match.py <input_file> <match_file>")
     sys.exit(1)
@@ -22,10 +32,20 @@ with open(input_file, 'r') as input, open(match_file, 'r') as match:
     input_lines = input.readlines()
     match_lines = match.readlines()
 
-if len(match_lines) != len(input_lines):
-    sys.exit(f"Line count doesn't match (is: {len(input_lines)}, expected: {len(match_lines)})")
+if len(match_lines) < len(input_lines):
+    print(f"Match length < input length (input: {len(input_lines)}, match: {len(match_lines)})")
+    print_content(input_lines, match_lines)
+    sys.exit(1)
 
+input_idx = 0
+opt = "{{OPT}}"
 for i, match_line in enumerate(match_lines):
+    if match_line.startswith(opt):
+        optional_line = True
+        match_line = match_line[len(opt):]
+    else:
+        optional_line = False
+
     # split into parts at {{ }}
     match_parts = re.split(r'\{{(.*?)\}}', match_line.strip())
     pattern = ""
@@ -35,9 +55,27 @@ for i, match_line in enumerate(match_lines):
         else:
             pattern += part
 
-    input_line = input_lines[i].strip()
+    # empty input file or end of input file, from now on match file must be optional
+    if not input_lines:
+        if optional_line is True:
+            continue
+        else:
+            print("End of input file or empty file.")
+            print("expected: " + match_line.strip())
+            sys.exit(1)
+
+    input_line = input_lines[input_idx].strip()
     if not re.fullmatch(pattern, input_line):
-        print(f"Line {i+1} does not match".format(i+1))
-        print("is:       " + input_line)
-        print("expected: " + match_line.strip())
-        sys.exit(1)
+        if optional_line is True:
+            continue
+        else:
+            print("Line " + str(i+1) + " does not match")
+            print("is:       " + input_line)
+            print("expected: " + match_line.strip())
+            print_content(input_lines, match_lines)
+            sys.exit(1)
+    else:
+        if (input_idx == len(input_lines) - 1):
+            input_lines = []
+        else:
+            input_idx += 1

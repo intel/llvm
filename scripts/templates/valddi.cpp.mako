@@ -82,7 +82,7 @@ namespace ur_validation_layer
         %elif func_name == n + "AdapterRetain":
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
-            refCountContext.decrementRefCount(${object_param}, true);
+            refCountContext.incrementRefCount(${object_param}, true);
         }
         %elif func_name == n + "AdapterGet":
         if( context.enableLeakChecking && phAdapters && result == UR_RESULT_SUCCESS )

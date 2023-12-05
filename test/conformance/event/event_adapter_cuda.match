@@ -1,0 +1,4 @@
+urEventSetCallbackTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEventSetCallbackTest.ValidateParameters/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEventSetCallbackTest.AllStates/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEventSetCallbackTest.EventAlreadyCompleted/NVIDIA_CUDA_BACKEND___{{.*}}_
