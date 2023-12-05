@@ -28,6 +28,8 @@ public:
 
   ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
+  ur_device_handle_t getDevice() const noexcept { return Queue->getDevice(); }
+
   hipStream_t getStream() const noexcept { return Stream; }
 
   uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
