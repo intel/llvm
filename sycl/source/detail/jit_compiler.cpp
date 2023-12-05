@@ -630,6 +630,11 @@ std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
                           const property_list &PropList) {
+  if (InputKernels.empty()) {
+    printPerformanceWarning("Fusion list is empty");
+    return nullptr;
+  }
+
   // Retrieve the device binary from each of the input
   // kernels to hand them over to the JIT compiler.
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;

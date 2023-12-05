@@ -1111,10 +1111,21 @@ modifiable graph will perform this action, useful in RAII pattern usage.
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
-It is not yet supported to have a host task inside a `command_graph`, and an
-exception will be thrown if used by application code. Support will be added
-subsequently as detailed in the <<future-host-tasks, host tasks>> part from the
-<<future-direction, future direction>> section of this specification.
+A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
+dependency rules. It is valid to record a host task as part of a graph, though it
+may lead to sub-optimal graph performance because a host task node may prevent
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
+
+[source,c++]
+----
+auto node = graph.add([&](sycl::handler& cgh){
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
+});
+----
 
 === Queue Behavior In Recording Mode
 
@@ -1569,27 +1580,6 @@ if all the commands accessing this buffer use `access_mode::write` or the
 `no_init` property because the host memory is not needed in these cases.
 Note, however, that these cases require the application to disable copy-back
 as described in <<buffer-limitations, Buffer Limitations>>.
-
-==== Host Tasks [[future-host-tasks]]
-
-A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
-dependency rules. It is valid to record a host task as part of graph, though it
-may lead to sub-optimal graph performance because a host task node may prevent
-the SYCL runtime from submitting the entire executable `command_graph` to the
-device at once.
-
-Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
-by replacing the whole node with the new callable.
-
-[source,c++]
-----
-auto node = graph.add([&](sycl::handler& cgh){
-  // Host code here is evaluated during the call to add()
-  cgh.host_task([=](){
-    // Code here is evaluated as part of executing the command graph node
-  });
-});
-----
 
 ==== Executable Graph Update
 
