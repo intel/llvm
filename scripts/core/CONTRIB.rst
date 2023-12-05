@@ -53,8 +53,8 @@ Adapter Change Process
 ======================
 
 1.  Create a pull request containing the adapter changes in the
-    `oneapi-src/unified-runtime`_ project targeting the `adapters
-    <https://github.com/oneapi-src/unified-runtime/tree/adapters>`_ branch.
+    `oneapi-src/unified-runtime`_ project targeting the `main
+    <https://github.com/oneapi-src/unified-runtime/tree/main>`_ branch.
 
 2.  Create a draft pull request in the `intel/llvm`_ project to take advantage
     of the pre-merge testing. Add any required implementation changes in
