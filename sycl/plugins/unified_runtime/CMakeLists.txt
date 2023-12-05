@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Dec 5 10:46:45 2023 +0000
   #     Merge pull request #999 from hdelan/hip-adapter-multi-dev-ctx
   #     [HIP] Hip adapter multi dev ctx
-  set(UNIFIED_RUNTIME_TAG fe5bc760d0a9fa28247d3f0b57c20114f02eda49)
+  set(UNIFIED_RUNTIME_TAG 67e7da33596c597ef79d940223d372583a78bb2b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

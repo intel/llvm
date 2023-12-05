@@ -1,8 +1,8 @@
 // RUN: %{build} -std=c++17 -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -std=c++17 %s -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //

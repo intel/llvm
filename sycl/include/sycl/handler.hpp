@@ -1261,9 +1261,10 @@ private:
                   "first argument of sycl::item type, or of a type which is "
                   "implicitly convertible from sycl::item");
 
+    using RefLambdaArgType = std::add_lvalue_reference_t<LambdaArgType>;
     static_assert(
-        (std::is_invocable_v<KernelType, LambdaArgType> ||
-         std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
+        (std::is_invocable_v<KernelType, RefLambdaArgType> ||
+         std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 #endif

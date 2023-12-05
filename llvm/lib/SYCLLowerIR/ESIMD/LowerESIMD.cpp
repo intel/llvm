@@ -1835,6 +1835,17 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
+  // The VC backend doesn't support debugging, and trying to use
+  // non-optimized code often produces crashes or wrong answers.
+  // The recommendation from the VC team was always optimize code,
+  // even if the user requested no optimization. We already drop
+  // debugging flags in the SYCL runtime, so also drop optnone and
+  // noinline here.
+  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
+    F.removeFnAttr(Attribute::OptimizeNone);
+    F.removeFnAttr(Attribute::NoInline);
+  }
+
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
