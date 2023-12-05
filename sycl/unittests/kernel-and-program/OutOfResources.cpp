@@ -150,7 +150,7 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
                      const pi_program *input_programs,
                      void (*pfn_notify)(pi_program program, void *user_data),
                      void *user_data, pi_program *ret_program) {
-  ++nProgramLink;                
+  ++nProgramLink;
   if (outOfResourcesToggle) {
     outOfResourcesToggle = false;
     return PI_ERROR_OUT_OF_RESOURCES;
@@ -160,8 +160,7 @@ redefinedProgramLink(pi_context context, pi_uint32 num_devices,
 
 TEST(OutOfResourcesTest, piProgramLink) {
   sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
+  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
 
   sycl::platform Plt{Mock.getPlatform()};
   sycl::context Ctx{Plt};
