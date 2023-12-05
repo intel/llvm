@@ -222,7 +222,7 @@ The two-dimensional memory region is interpreted as follows, where
 columns in the memory matrix, `stride` is number of rows that include
 the out of bounds data (depicted as x here).
 
-|<------------`Width`-------->|
+|<-----------`Width`-------->|
 
 |DDDDDDDDDDDDDDDDDxxx|
 
@@ -238,15 +238,15 @@ the out of bounds data (depicted as x here).
 
 Note that joint matrix shape `Rows` and `Cols` represents a sub-block
 of the picture above for each sub-group execution. The out of bounds
-functions checks that the 2d block starting at the address to be accessed
-`[src,0]` and ending at `[src + Cols, src + Rows * stride]` does not
-exceed the bigger 2d block starting at `[src, 0]` and ending at `[src
-+ Width, src + Height * stride]`. For instance, load of `sub_b` defined as
-`joint_matrix<sub_group, bfloat16, use::b, 2, 3, layout::row_major>
-sub_b;` from `ptr + 9` checks that `ptr + 9` does not exceed `ptr +
-10` where 10 is `Width` so it reads only 1 element for that
-iteration. The 2 columns left that exceed the total `10` columns are
-filled by zero.
+functions checks that the 2d block starting at the address to be
+accessed `[0, src]` and ending at `[Cols, src + Rows * stride]` does
+not exceed the bigger 2d block starting at `[0, src]` and ending at
+`[Width, src + Height * stride]`. For instance, load of `sub_b`
+defined as `joint_matrix<sub_group, bfloat16, use::b, 2, 3,
+layout::row_major> sub_b;` from `ptr + 9` checks that `ptr + 9` does
+not exceed `ptr + 10` where 10 is `Width` so it reads only 1 element
+for that iteration. The 2 columns left that exceed the total `10`
+columns are filled by zero.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
