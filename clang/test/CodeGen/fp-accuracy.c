@@ -75,7 +75,6 @@ float fsub(float, float);
 double rsqrt(double);
 #endif
 
-
 // CHECK-LABEL: define dso_local void @f1
 // CHECK: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_HIGH:[0-9]+]]
 // CHECK: call double @llvm.fpbuiltin.acosh.f64(double {{.*}}) #[[ATTR_HIGH]]
