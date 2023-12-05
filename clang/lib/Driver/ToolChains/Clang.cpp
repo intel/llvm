@@ -10325,8 +10325,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
   // TODO: Try to extend this feature for non-Intel GPUs.
-  if (!TCArgs.getLastArg(
-          options::OPT_femit_sycl_external_funcs_as_entry_points) &&
+  if (!TCArgs.hasFlag(options::OPT_fsycl_emit_external_funcs_as_entry_points,
+                      options::OPT_fno_sycl_emit_external_funcs_as_entry_points,
+                      false) &&
       !T.isNVPTX() && !T.isAMDGPU())
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 

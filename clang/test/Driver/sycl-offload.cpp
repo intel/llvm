@@ -175,6 +175,6 @@
 // RUN: %clang -### -target spir64_fpga -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // RUN: %clang -### -target spir64_gen -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
-// RUN: %clang -### -target spir64_gen -femit-sycl-external-funcs-as-entry-points -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
+// RUN: %clang -### -target spir64_gen -fsycl-emit-external-funcs-as-entry-points -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 

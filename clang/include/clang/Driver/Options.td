@@ -3929,8 +3929,10 @@ def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">, Group<f_
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Maximum number of 'operator->'s to call for a member access">,
   MarshallingInfoInt<LangOpts<"ArrowDepth">, "256">;
-def femit_sycl_external_funcs_as_entry_points : Flag<["-"], "femit-sycl-external-funcs-as-entry-points">,
+def fsycl_emit_external_funcs_as_entry_points : Flag<["-"], "fsycl-emit-external-funcs-as-entry-points">,
   Group<sycl_Group>, HelpText<"Treat `SYCL_EXTERNAL` functions as entry point in sycl-post-link tool">;
+def fno_sycl_emit_external_funcs_as_entry_points : Flag<["-"], "fno-sycl-emit-external-funcs-as-entry-points">,
+  Group<sycl_Group>, HelpText<"Do not treat `SYCL_EXTERNAL` functions as entry point in sycl-post-link tool">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,
