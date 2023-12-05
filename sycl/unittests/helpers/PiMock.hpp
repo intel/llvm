@@ -31,6 +31,7 @@
 #pragma once
 
 #include "PiMockPlugin.hpp"
+#include "sycl/detail/pi.h"
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
@@ -355,7 +356,7 @@ public:
     auto RTPlugin =
         std::make_shared<sycl::detail::pi::PiPlugin>(sycl::detail::pi::PiPlugin{
             "pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
-            getProxyMockedFunctionPointers()});
+            getProxyMockedFunctionPointers(), _PI_SANITIZE_TYPE_NONE});
 
     MMockPluginPtr = std::make_shared<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);
