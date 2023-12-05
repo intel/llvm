@@ -416,14 +416,7 @@ static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
   CmdArgs.push_back(IsArchive ? "-type=ao" : "-type=o");
   CmdArgs.push_back(Saver.save("-input=" + Filename));
   CmdArgs.push_back("-check-section");
-  Error E = executeCommands(*OffloadBundlerPath, CmdArgs);
-  if (E) {
-    consumeError(std::move(E));
-    return false;
-  }
-
-  return true;
-  // return !(llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs));
+  return !(llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs));
 }
 
 // This routine is used to run the clang-offload-bundler tool and unbundle

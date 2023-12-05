@@ -389,7 +389,7 @@ struct Wrapper {
   // Function returns a pair of Constants that point at entries content.
   std::pair<Constant *, Constant *>
   addOffloadEntriesToModule(std::optional<ArrayRef<char>> Entries) {
-    if (!Entries) {
+    if (!Entries || Entries->empty()) {
       auto *NullPtr = Constant::getNullValue(EntryPtrTy);
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
