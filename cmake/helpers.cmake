@@ -129,22 +129,30 @@ endfunction()
 
 include(FetchContent)
 
+function(FetchSource GIT_REPOSITORY GIT_TAG GIT_DIR DEST)
+    message(STATUS "Fetching sparse source ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
+    IF(NOT EXISTS ${DEST})
+        file(MAKE_DIRECTORY ${DEST})
+        execute_process(COMMAND git init
+            WORKING_DIRECTORY ${DEST})
+        execute_process(COMMAND git checkout -b main
+            WORKING_DIRECTORY ${DEST})
+        execute_process(COMMAND git remote add origin ${GIT_REPOSITORY}
+            WORKING_DIRECTORY ${DEST})
+        execute_process(COMMAND git config core.sparsecheckout true
+            WORKING_DIRECTORY ${DEST})
+        file(APPEND ${DEST}/.git/info/sparse-checkout ${GIT_DIR}/)
+    endif()
+    execute_process(COMMAND git fetch --depth=1 origin refs/tags/${GIT_TAG}:refs/tags/${GIT_TAG}
+        WORKING_DIRECTORY ${DEST})
+    execute_process(COMMAND git checkout --quiet ${GIT_TAG}
+        WORKING_DIRECTORY ${DEST})
+endfunction()
+
 # A wrapper around FetchContent_Declare that supports git sparse checkout.
 # This is useful for including subprojects from large repositories.
 function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
     set(content-build-dir ${CMAKE_BINARY_DIR}/content-${name})
-    message(STATUS "Fetching sparse content ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
-    IF(NOT EXISTS ${content-build-dir})
-        file(MAKE_DIRECTORY ${content-build-dir})
-        execute_process(COMMAND git init -b main
-            WORKING_DIRECTORY ${content-build-dir})
-        execute_process(COMMAND git remote add origin ${GIT_REPOSITORY}
-            WORKING_DIRECTORY ${content-build-dir})
-        execute_process(COMMAND git config core.sparsecheckout true
-            WORKING_DIRECTORY ${content-build-dir})
-        file(APPEND ${content-build-dir}/.git/info/sparse-checkout ${GIT_DIR}/)
-    endif()
-    execute_process(COMMAND git pull --depth=1 origin ${GIT_TAG}
-        WORKING_DIRECTORY ${content-build-dir})
+    FetchSource(${GIT_REPOSITORY} ${GIT_TAG} ${GIT_DIR} ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
 endfunction()

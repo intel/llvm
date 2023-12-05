@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
-project(unified-runtime VERSION 0.8.0)
+project(unified-runtime VERSION 0.9.0)
 
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
@@ -36,7 +36,17 @@ option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
 option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" OFF)
+option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
+option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
+option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
+option(UR_BUILD_ADAPTER_HIP "Build the HIP adapter" OFF)
+option(UR_BUILD_ADAPTER_NATIVE_CPU "Build the Native-CPU adapter" OFF)
+option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
+option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
+set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
+set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
+    "Path of the SYCL runtime library directory")
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -89,7 +99,7 @@ if(UR_ENABLE_TRACING)
     set(XPTI_DIR ${xpti_SOURCE_DIR})
     set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
 
-    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230304" "xptifw")
+    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230703" "xptifw")
 
     FetchContent_MakeAvailable(xptifw)
 

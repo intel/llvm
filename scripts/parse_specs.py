@@ -18,8 +18,8 @@ from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
 
-default_version = "0.8"
-all_versions = ["0.6", "0.7", "0.8"]
+default_version = "0.9"
+all_versions = ["0.6", "0.7", "0.8", "0.9"]
 
 """
     preprocess object
@@ -337,6 +337,15 @@ def _validate_doc(f, d, tags, line_num):
             if type_traits.is_pointer(item['type']) and "_handle_t" in item['type'] and "[in]" in item['desc']:
                 if not param_traits.is_range(item):
                     raise Exception(prefix+"handle type must include a range(start, end) as part of 'desc'")
+
+            if param_traits.is_bounds(item):
+                has_queue = False
+                for p in d['params']:
+                    if re.match(r"hQueue$", p['name']):
+                        has_queue = True
+
+                if not has_queue:
+                    raise Exception(prefix+"bounds must only be used on entry points which take a `hQueue` parameter")
 
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:

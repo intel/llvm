@@ -3,8 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-
+add_subdirectory(urinfo)
 if(UR_ENABLE_TRACING)
     add_subdirectory(urtrace)
 endif()

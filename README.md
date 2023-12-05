@@ -6,21 +6,29 @@
 [![Coverity](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
 [![codecov.io](https://codecov.io/github/oneapi-src/unified-runtime/coverage.svg?branch=main)](https://codecov.io/github/oneapi-src/unified-runtime?branch=master)
 
+## Adapters
+Adapter implementations for Unified Runtime currently reside in the [SYCL repository](https://github.com/intel/llvm/tree/sycl/sycl/plugins/unified_runtime/ur). This branch contains scripts to automatically
+fetch and build them directly in the UR tree. The adapters are disabled by default,
+see cmake options for details.
+
 <!-- TODO: add general description and purpose of the project -->
 
 ## Table of contents
 
-1. [Contents of the repo](#contents-of-the-repo)
-2. [Integration](#integration)
+- [Unified Runtime](#unified-runtime)
+  - [Adapters](#adapters)
+  - [Table of contents](#table-of-contents)
+  - [Contents of the repo](#contents-of-the-repo)
+  - [Integration](#integration)
     - [Weekly tags](#weekly-tags)
-3. [Third-Party tools](#third-party-tools)
-4. [Building](#building)
+  - [Third-Party tools](#third-party-tools)
+  - [Building](#building)
     - [Requirements](#requirements)
     - [Windows](#windows)
     - [Linux](#linux)
     - [CMake standard options](#cmake-standard-options)
     - [Additional make targets](#additional-make-targets)
-5. [Contributions](#contributions)
+  - [Contributions](#contributions)
     - [Adapter naming convention](#adapter-naming-convention)
     - [Source code generation](#source-code-generation)
     - [Documentation](#documentation)
@@ -123,6 +131,16 @@ List of options provided by CMake:
 | UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
+| UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_HIP    | Build the HIP adapter                   | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_NATIVE_CPU | Build the Native-CPU adapter        | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_ALL    | Build all currently supported adapters  | ON/OFF     | OFF     |
+| UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
+| UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
+| UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
 
 ### Additional make targets
 

@@ -1,0 +1,24 @@
+*                               @oneapi-src/unified-runtime-maintain
+
+# Level Zero adapter
+source/adapters/level_zero      @oneapi-src/unified-runtime-level-zero-write
+
+# CUDA and HIP adapters
+source/adapters/cuda            @oneapi-src/unified-runtime-cuda-write
+source/adapters/hip             @oneapi-src/unified-runtime-hip-write
+
+# OpenCL adapter
+source/adapters/opencl          @oneapi-src/unified-runtime-opencl-write
+
+# Native CPU adapter
+source/adapters/native_cpu          @oneapi-src/unified-runtime-native-cpu-write
+
+# Command-buffer experimental feature
+source/adapters/**/command_buffer.*  @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/EXP-COMMAND-BUFFER.rst  @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/exp-command-buffer.yml  @oneapi-src/unified-runtime-command-buffer-write
+
+# Bindless Images experimental feature
+scripts/core/EXP-BINDLESS-IMAGES.rst @oneapi-src/unified-runtime-bindless-images-write
+scripts/core/exp-bindless-images.yml @oneapi-src/unified-runtime-bindless-images-write
+source/adapters/**/image.*           @oneapi-src/unified-runtime-bindless-images-write

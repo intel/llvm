@@ -33,5 +33,5 @@ function(add_loader_platform_test name ENV)
     )
 endfunction()
 
-add_loader_platform_test(no_platforms "")
+add_loader_platform_test(no_platforms "UR_ADAPTERS_FORCE_LOAD=\"\"")
 add_loader_platform_test(null_platform "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\"")

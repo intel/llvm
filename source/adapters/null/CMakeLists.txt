@@ -5,7 +5,7 @@
 
 set(TARGET_NAME ur_adapter_null)
 
-add_ur_library(${TARGET_NAME}
+add_ur_adapter(${TARGET_NAME}
     SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_null.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_null.cpp
@@ -21,8 +21,3 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
 )
-
-if(UNIX)
-    set(GCC_COVERAGE_COMPILE_FLAGS "-fvisibility=hidden -fvisibility-inlines-hidden -fno-strict-aliasing")
-    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
-endif()
