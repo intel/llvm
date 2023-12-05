@@ -10324,9 +10324,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // On FPGA target we don't need non-kernel functions as entry points, because
   // it only increases amount of code for device compiler to handle, without any
   // actual benefits.
-  if ((T.getArchName() == "spir64_fpga") ||
-      !TCArgs.getLastArg(
-          options::OPT_femit_sycl_external_funcs_as_entry_points))
+  if (!TCArgs.getLastArg(
+          options::OPT_femit_sycl_external_funcs_as_entry_points) &&
+      !T.isNVPTX() && !T.isAMDGPU())
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
