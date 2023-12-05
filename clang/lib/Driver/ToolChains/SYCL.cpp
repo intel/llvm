@@ -1017,11 +1017,18 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
-  // All sanitizer options are not currently supported.
-  for (auto A :
-       Args.filtered(options::OPT_fsanitize_EQ, options::OPT_fcf_protection_EQ))
+  // All sanitizer options are not currently supported, except AddressSanitizer
+  for (auto *A : Args.filtered(options::OPT_fsanitize_EQ,
+                               options::OPT_fcf_protection_EQ)) {
+    if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        continue;
+    }
     D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
         << A->getAsString(Args) << getTriple().str();
+  }
 }
 
 void SYCLToolChain::addClangTargetOptions(
@@ -1049,6 +1056,15 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     auto Opt(A->getOption().getID());
     switch (Opt) {
     case options::OPT_fsanitize_EQ:
+      if (A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        if (SanitizeVal == "address") {
+          if (IsNewDAL)
+            DAL->append(A);
+          continue;
+        }
+      }
+      [[fallthrough]];
     case options::OPT_fcf_protection_EQ:
       if (!IsNewDAL)
         DAL->eraseArg(Opt);
@@ -1427,4 +1443,8 @@ void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
                                                  ArgStringList &CC1Args) const {
   HostTC.AddClangCXXStdlibIncludeArgs(Args, CC1Args);
+}
+
+SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+  return SanitizerKind::Address;
 }
