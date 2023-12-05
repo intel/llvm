@@ -1,4 +1,5 @@
-// This test uses a host_task when adding a command_graph node.
+// This test uses a host_task with mulitple dependencies
+// (before and after the host_task) when adding a command_graph node.
 
 #include "../graph_common.hpp"
 
@@ -22,17 +23,19 @@ int main() {
   std::iota(DataB.begin(), DataB.end(), 10);
   std::iota(DataC.begin(), DataC.end(), 1000);
 
-  std::vector<T> Reference(DataC);
+  std::vector<T> ReferenceA(DataA), ReferenceB(DataB), ReferenceC(DataC);
   for (unsigned n = 0; n < Iterations; n++) {
     for (size_t i = 0; i < Size; i++) {
-      Reference[i] += (DataA[i] + DataB[i]) + ModValue + 1;
+      ReferenceB[i] = (i + 100);
+      ReferenceC[i] = (ReferenceA[i] * (ModValue + (i + 100))) + 1;
+      ReferenceA[i] = (i + 100) * (i + 100);
     }
   }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, Queue);
-  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrA = malloc_shared<T>(Size, Queue);
+  T *PtrB = malloc_shared<T>(Size, Queue);
   T *PtrC = malloc_shared<T>(Size, Queue);
 
   Queue.copy(DataA.data(), PtrA, Size);
@@ -42,31 +45,46 @@ int main() {
 
   // Vector add to output
   auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size),
-                     [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] = PtrA[id]; });
+  });
+
+  // Vector add to output
+  auto NodeB = add_node(Graph, Queue, [&](handler &CGH) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrB[id] = 100 + id; });
   });
 
   // Modify the output values in a host_task
-  auto NodeB = add_node(
+  auto NodeC = add_node(
       Graph, Queue,
       [&](handler &CGH) {
-        depends_on_helper(CGH, NodeA);
+        depends_on_helper(CGH, {NodeA, NodeB});
         CGH.host_task([=]() {
           for (size_t i = 0; i < Size; i++) {
-            PtrC[i] += ModValue;
+            PtrC[i] *= (ModValue + PtrB[i]);
+            PtrA[i] = PtrB[i];
           }
         });
       },
-      NodeA);
+      NodeA, NodeB);
 
   // Modify temp buffer and write to output buffer
   add_node(
       Graph, Queue,
       [&](handler &CGH) {
-        depends_on_helper(CGH, NodeB);
+        depends_on_helper(CGH, NodeC);
         CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
       },
-      NodeB);
+      NodeC);
+
+  // Modify temp buffer and write to output buffer
+  add_node(
+      Graph, Queue,
+      [&](handler &CGH) {
+        depends_on_helper(CGH, NodeC);
+        CGH.parallel_for(range<1>(Size),
+                         [=](item<1> id) { PtrA[id] *= PtrB[id]; });
+      },
+      NodeC);
 
   auto GraphExec = Graph.finalize();
 
@@ -80,6 +98,8 @@ int main() {
   }
   Queue.wait_and_throw();
 
+  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrB, DataB.data(), Size);
   Queue.copy(PtrC, DataC.data(), Size);
   Queue.wait_and_throw();
 
@@ -88,7 +108,9 @@ int main() {
   free(PtrC, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, Reference[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
   }
 
   return 0;

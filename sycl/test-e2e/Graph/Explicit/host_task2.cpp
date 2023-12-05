@@ -5,6 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-#define GRAPH_E2E_RECORD_REPLAY
+#define GRAPH_E2E_EXPLICIT
 
-#include "../Inputs/host_task.cpp"
+#include "../Inputs/host_task2.cpp"
