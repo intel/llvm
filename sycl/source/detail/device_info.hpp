@@ -874,8 +874,8 @@ struct get_device_info_impl<
         std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
                   std::back_inserter(sm_72_combinations));
         return sm_72_combinations;
-      } else if (ComputeCapability >= 7.0) 
-          return sm_70_combinations;
+      } else if (ComputeCapability >= 7.0)
+        return sm_70_combinations;
     }
     return {};
   }
