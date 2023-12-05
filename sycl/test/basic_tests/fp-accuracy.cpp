@@ -8,9 +8,6 @@
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
-
-float res[] = {};
-
 constexpr access::mode sycl_write = access::mode::write;
 
 int main() {
@@ -21,7 +18,7 @@ int main() {
 
   range<1> Length{1};
 
-  buffer<float, 1> out(res, 1);
+  buffer<float, 1> out(1);
 
   deviceQueue.submit([&](handler &cgh) {
     cgh.single_task<class Kernel0>([=]() { double res = std::sin(Value); });
@@ -32,7 +29,7 @@ int main() {
   });
 
   deviceQueue.submit([&](handler &cgh) {
-    auto output = out.template get_access<sycl_write>(cgh);
+    sycl::accessor output{out, cgh, sycl::write_only};
 
     cgh.single_task<class Kernel2>([=]() {
       for (int i = 0; i < 1; i++)
@@ -50,7 +47,9 @@ int main() {
 
   // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel2
   // CHECK: tail call {{.*}} float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
-  // CHECK: tail call noundef float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_HIGH:[0-9]+]]
+
+  // CHECK-LABEL: define {{.*}}spir_kernel void {{.*}}Kernel3
+  // CHECK: tail call noundef float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_HIGH]]
 
   // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
   return 0;
