@@ -8,13 +8,12 @@
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
-constexpr access::mode sycl_write = access::mode::write;
 
 int main() {
   queue deviceQueue;
   double Value = 5.;
 
-  float input;
+  float input = 42.0f;
 
   range<1> Length{1};
 
@@ -37,7 +36,7 @@ int main() {
     });
   });
   deviceQueue.submit([&](handler &cgh) {
-    auto output = out.template get_access<sycl_write>(cgh);
+    sycl::accessor output{out, cgh, sycl::write_only};
 
     cgh.single_task<class Kernel3>([=]() {
       for (int i = 0; i < 1; i++)
