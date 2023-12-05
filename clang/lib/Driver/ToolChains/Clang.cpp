@@ -10321,9 +10321,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
 
-  // On FPGA target we don't need non-kernel functions as entry points, because
-  // it only increases amount of code for device compiler to handle, without any
-  // actual benefits.
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
   if (!TCArgs.getLastArg(
           options::OPT_femit_sycl_external_funcs_as_entry_points) &&
       !T.isNVPTX() && !T.isAMDGPU())
