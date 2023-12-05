@@ -538,7 +538,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                 pSyncPointWaitList, DepsList));
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
   try {
     // Add an empty node to preserve dependencies.
@@ -567,7 +568,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                 pSyncPointWaitList, DepsList));
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
   try {
     // Add an empty node to preserve dependencies.
