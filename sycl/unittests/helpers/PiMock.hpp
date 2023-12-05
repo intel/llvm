@@ -31,7 +31,6 @@
 #pragma once
 
 #include "PiMockPlugin.hpp"
-#include "sycl/detail/pi.h"
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
