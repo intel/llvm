@@ -732,7 +732,7 @@ func.func @extui_uses_unsigned(%arg0 : i32) -> i1 {
 }
 
 /// Catch a bug that caused a crash in getLoopBoundFromFold when
-// SparseConstantPropagation is loaded in the solver.
+/// SparseConstantPropagation is loaded in the solver.
 
 // CHECK-LABEL:   func.func @caller(
 // CHECK-SAME:                      %[[VAL_0:.*]]: memref<?xindex, 4>) {
