@@ -715,13 +715,15 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
 // TODO: this function should be removed in favor of community flow
 Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
                                              const ArgList &Args) {
-  auto OutputFileOrErr = createOutputFile(sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
+  auto OutputFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
   StringRef OutputFilePath = *OutputFileOrErr;
   if (Verbose || DryRun) {
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile, OutputFilePath);
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile,
+                      OutputFilePath);
     if (DryRun)
       return OutputFilePath;
   }
