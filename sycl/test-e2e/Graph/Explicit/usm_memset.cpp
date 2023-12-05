@@ -5,6 +5,9 @@
 //
 // CHECK-NOT: LEAK
 
+// USM memset command not supported for OpenCL
+// UNSUPPORTED: opencl
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/usm_memset.cpp"
