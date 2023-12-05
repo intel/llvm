@@ -3848,9 +3848,8 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
     detail::check_atomic<Op, T, N, 0>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-    using Tx = detail::__raw_t<T>;
-    return __esimd_dword_atomic0<Op, Tx, N>(mask.data(), si,
-                                            byte_offset.data());
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si,
+                                           byte_offset.data());
   }
 }
 
@@ -3929,9 +3928,8 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
     detail::check_atomic<Op, T, N, 1>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-    using Tx = detail::__raw_t<T>;
-    return __esimd_dword_atomic1<Op, Tx, N>(mask.data(), si, byte_offset.data(),
-                                            src0.data());
+    return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, byte_offset.data(),
+                                           src0.data());
   }
 }
 
@@ -4012,9 +4010,8 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
     detail::check_atomic<Op, T, N, 2>();
     const auto si =
         __ESIMD_NS::get_surface_index(detail::LocalAccessorMarker());
-    using Tx = detail::__raw_t<T>;
-    return __esimd_dword_atomic2<Op, Tx, N>(mask.data(), si, byte_offset.data(),
-                                            src0.data(), src1.data());
+    return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, byte_offset.data(),
+                                           src0.data(), src1.data());
   }
 }
 
