@@ -7,4 +7,4 @@
 
 #define GRAPH_E2E_RECORD_REPLAY
 
-#include "../Inputs/host_task.cpp"
+#include "../Inputs/host_task_successive.cpp"
