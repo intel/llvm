@@ -189,10 +189,6 @@ public:
     return std::make_pair(It->second, DidInsert);
   }
 
-  template <typename T> void notifyAllBuild(BuildResult<T> &BR) const {
-    BR.MBuildCV.notify_all();
-  }
-
   template <typename KeyT>
   KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);

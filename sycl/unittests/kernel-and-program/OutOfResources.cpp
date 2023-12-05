@@ -80,7 +80,7 @@ static pi_result redefinedProgramCreate(pi_context context, const void *il,
   return PI_SUCCESS;
 }
 
-TEST(OutOfResourcesTest, foo) {
+TEST(OutOfResourcesTest, piProgramCreate) {
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreate);
@@ -105,7 +105,7 @@ TEST(OutOfResourcesTest, foo) {
   {
     detail::KernelProgramCache::ProgramCache &Cache =
         CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-    EXPECT_EQ(Cache.size(), 1U) << "Expect 1 program in cache";
+    EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
   // The next piProgramCreate call will fail with
@@ -125,7 +125,7 @@ TEST(OutOfResourcesTest, foo) {
   {
     detail::KernelProgramCache::ProgramCache &Cache =
         CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-    EXPECT_EQ(Cache.size(), 1U) << "Expect 1 program in cache";
+    EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
@@ -137,6 +137,59 @@ TEST(OutOfResourcesTest, foo) {
   {
     detail::KernelProgramCache::ProgramCache &Cache =
         CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-    EXPECT_EQ(Cache.size(), 2U) << "Expect 2 program in cache";
+    EXPECT_EQ(Cache.size(), 2U) << "Expected 2 program in the cache";
+  }
+}
+
+static int nProgramLink = 0;
+
+static pi_result
+redefinedProgramLink(pi_context context, pi_uint32 num_devices,
+                     const pi_device *device_list, const char *options,
+                     pi_uint32 num_input_programs,
+                     const pi_program *input_programs,
+                     void (*pfn_notify)(pi_program program, void *user_data),
+                     void *user_data, pi_program *ret_program) {
+  ++nProgramLink;                
+  if (outOfResourcesToggle) {
+    outOfResourcesToggle = false;
+    return PI_ERROR_OUT_OF_RESOURCES;
+  }
+  return PI_SUCCESS;
+}
+
+TEST(OutOfResourcesTest, piProgramLink) {
+  sycl::unittest::PiMock Mock;
+  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
+
+  sycl::platform Plt{Mock.getPlatform()};
+  sycl::context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  queue q(Ctx, default_selector_v);
+  // Put some programs in the cache
+  q.single_task<class OutOfResourcesKernel1>([] {});
+  q.single_task<class OutOfResourcesKernel2>([] {});
+  {
+    detail::KernelProgramCache::ProgramCache &Cache =
+        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+    EXPECT_EQ(Cache.size(), 2U) << "Expect 2 programs in the cache";
+  }
+
+  auto b1 = sycl::get_kernel_bundle<OutOfResourcesKernel1,
+                                    sycl::bundle_state::object>(Ctx);
+  auto b2 = sycl::get_kernel_bundle<OutOfResourcesKernel2,
+                                    sycl::bundle_state::object>(Ctx);
+  outOfResourcesToggle = true;
+  EXPECT_EQ(nProgramLink, 0);
+  auto b3 = sycl::link({b1, b2});
+  EXPECT_FALSE(outOfResourcesToggle);
+  // one restart due to out of resources, one link per each of b1 and b2.
+  EXPECT_EQ(nProgramLink, 3);
+  // no programs should be in the cache due to out of resources.
+  {
+    detail::KernelProgramCache::ProgramCache &Cache =
+        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+    EXPECT_EQ(Cache.size(), 0u) << "Expect no programs in the cache";
   }
 }
