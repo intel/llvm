@@ -4371,9 +4371,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask,
-              PropertyListT props = {}) {
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), mask, props);
 }
 
@@ -4410,8 +4409,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, PropertyListT props = {}) {
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), mask, props);
 }
@@ -4532,7 +4531,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask,
+              simd_view<T, RegionTy> src0, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
 }
@@ -4572,7 +4571,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
-              simd_view<simd<T, N>, RegionTy> src0, PropertyListT props = {}) {
+              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
 }
@@ -4809,7 +4808,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask,
+              simd_view<T, RegionTy> src1, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), mask,
                                  props);
@@ -4842,7 +4841,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
-              simd_view<simd<T, N>, RegionTy> src1, PropertyListT props = {}) {
+              simd_view<T, RegionTy> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), mask,
                                  props);
@@ -4877,9 +4876,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
-              simd_mask<N> mask, PropertyListT props = {}) {
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, mask,
                                  props);
 }
@@ -4910,9 +4908,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
-              PropertyListT props = {}) {
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, mask,
                                  props);
@@ -4946,9 +4943,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask,
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              simd_view<T, RegionTy> src1, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(), mask,
                                  props);
@@ -4980,9 +4976,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, PropertyListT props = {}) {
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+              simd_view<T, RegionTy> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(), mask,
                                  props);
@@ -5086,8 +5081,8 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_view<simd<T, N>, RegionTy> src1,
-              simd_mask<N> mask, PropertyListT props = {}) {
+              simd<T, N> src0, simd_view<T, RegionTy> src1, simd_mask<N> mask,
+              PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(), mask,
                                  props);
 }
@@ -5119,7 +5114,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_view<simd<T, N>, RegionTy> src1,
+              simd<T, N> src0, simd_view<T, RegionTy> src1,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(), mask,
@@ -5156,8 +5151,8 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
-              simd_mask<N> mask, PropertyListT props = {}) {
+              simd_view<T, RegionTy> src0, simd<T, N> src1, simd_mask<N> mask,
+              PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1, mask,
                                  props);
 }
@@ -5190,7 +5185,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd<T, N> src1,
+              simd_view<T, RegionTy> src0, simd<T, N> src1,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1, mask,
@@ -5227,9 +5222,8 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, simd_mask<N> mask,
-              PropertyListT props = {}) {
+              simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
+              simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
                                  src1.read(), mask, props);
 }
@@ -5262,8 +5256,8 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0,
-              simd_view<simd<T, N>, RegionTy> src1, PropertyListT props = {}) {
+              simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
+              PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
                                  src1.read(), mask, props);
@@ -5578,7 +5572,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 ///   update.
 ///
 template <atomic_op Op, typename T, int N, typename AccessorTy,
-          typename RegionTy = region1d_t<uint32_t, N, 1>>
+          typename Toffset, typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API
     std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
                          detail::is_local_accessor_with_v<
@@ -5586,8 +5580,7 @@ __ESIMD_API
                          detail::is_local_accessor_with_v<
                              AccessorTy, detail::accessor_mode_cap::can_write>,
                      simd<T, N>>
-    atomic_update(AccessorTy acc,
-                  simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
                   simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), mask);
 }
@@ -5867,8 +5860,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>, typename AccessorTy,
+template <atomic_op Op, typename T, int N, typename Toffset, typename Tsrc,
+          typename RegionTy = region1d_t<Tsrc, N, 1>, typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -5880,7 +5873,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask,
+              simd_view<Tsrc, RegionTy> src0, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
 }
@@ -5918,8 +5911,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>, typename AccessorTy,
+template <atomic_op Op, typename T, int N, typename Toffset, typename Tsrc,
+          typename RegionTy = region1d_t<Tsrc, N, 1>, typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -5931,7 +5924,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, PropertyListT props = {}) {
+              simd_view<Tsrc, RegionTy> src0, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
 }
@@ -6017,8 +6010,8 @@ __ESIMD_API
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N,
-          typename RegionTy = region1d_t<T, N, 1>, typename AccessorTy>
+template <atomic_op Op, typename T, int N, typename Tsrc,
+          typename RegionTy = region1d_t<Tsrc, N, 1>, typename AccessorTy>
 __ESIMD_API
     std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
                          detail::is_local_accessor_with_v<
@@ -6027,7 +6020,7 @@ __ESIMD_API
                              AccessorTy, detail::accessor_mode_cap::can_write>,
                      simd<T, N>>
     atomic_update(AccessorTy acc, simd<uint32_t, N> byte_offset,
-                  simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask) {
+                  simd_view<Tsrc, RegionTy> src0, simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask);
 }
 
@@ -6112,7 +6105,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 ///   update.
 ///
 template <atomic_op Op, typename T, int N, typename AccessorTy,
-          typename RegionTy = region1d_t<uint32_t, N, 1>>
+          typename Toffset, typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API
     std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
                          detail::is_local_accessor_with_v<
@@ -6120,8 +6113,7 @@ __ESIMD_API
                          detail::is_local_accessor_with_v<
                              AccessorTy, detail::accessor_mode_cap::can_write>,
                      simd<T, N>>
-    atomic_update(AccessorTy acc,
-                  simd_view<simd<uint32_t, N>, RegionTy> byte_offset,
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
                   simd<T, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask);
 }
@@ -6204,10 +6196,10 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename Toffset, typename Tsrc,
           typename AccessorTy,
           typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
+          typename RegionTy = region1d_t<Tsrc, N, 1>,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -6219,7 +6211,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask,
+              simd_view<Tsrc, RegionTy> src0, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
                                  props);
@@ -6253,9 +6245,9 @@ atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename AccessorTy,
-          typename OffsetRegionTy = region1d_t<uint32_t, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>>
+template <atomic_op Op, typename T, int N, typename AccessorTy, typename Tsrc,
+          typename Toffset, typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
+          typename RegionTy = region1d_t<Tsrc, N, 1>>
 __ESIMD_API
     std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
                          detail::is_local_accessor_with_v<
@@ -6264,8 +6256,8 @@ __ESIMD_API
                              AccessorTy, detail::accessor_mode_cap::can_write>,
                      simd<T, N>>
     atomic_update(AccessorTy acc,
-                  simd_view<simd<uint32_t, N>, OffsetRegionTy> byte_offset,
-                  simd_view<simd<T, N>, RegionTy> src0, simd_mask<N> mask) {
+                  simd_view<Toffset, OffsetRegionTy> byte_offset,
+                  simd_view<Tsrc, RegionTy> src0, simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask);
 }
 
@@ -6298,10 +6290,10 @@ __ESIMD_API
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename Toffset, typename Tsrc,
           typename AccessorTy,
           typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
+          typename RegionTy = region1d_t<Tsrc, N, 1>,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -6313,7 +6305,7 @@ __ESIMD_API std::enable_if_t<
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<simd<T, N>, RegionTy> src0, PropertyListT props = {}) {
+              simd_view<Tsrc, RegionTy> src0, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
                                  props);
@@ -6532,15 +6524,14 @@ __ESIMD_API
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename AccessorTy,
-          typename RegionTy = region1d_t<uint32_t, N, 1>>
+          typename Toffset, typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API
     std::enable_if_t<detail::is_local_accessor_with_v<
                          AccessorTy, detail::accessor_mode_cap::can_read> &&
                          detail::is_local_accessor_with_v<
                              AccessorTy, detail::accessor_mode_cap::can_write>,
                      simd<Tx, N>>
-    atomic_update(AccessorTy acc,
-                  simd_view<simd<uint32_t, N>, RegionTy> offsets,
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
                   simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
 }
