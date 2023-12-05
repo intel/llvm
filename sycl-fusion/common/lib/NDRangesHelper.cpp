@@ -87,6 +87,17 @@ bool jit_compiler::isHeterogeneousList(ArrayRef<NDRange> NDRanges) {
   return any_of(NDRanges, [&ND](const auto &Other) { return ND != Other; });
 }
 
+static bool
+wouldYieldHomogeneousCombinedNDRange(const NDRange &ND,
+                                     llvm::ArrayRef<NDRange> NDRanges) {
+  const auto GlobalSize = getMaximalGlobalSize(NDRanges);
+  return llvm::all_of(llvm::zip_equal(GlobalSize, ND.getLocalSize()),
+                      [](const std::tuple<std::size_t, std::size_t> &P) {
+                        const auto &[GlobalSize, LocalSize] = P;
+                        return GlobalSize % LocalSize == 0;
+                      });
+}
+
 bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
   if (NDRanges.empty()) {
     return false;
@@ -95,9 +106,12 @@ bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
   const auto &ND = FirstSpecifiedLocalSize == NDRanges.end()
                        ? NDRanges.front()
                        : *FirstSpecifiedLocalSize;
-  return llvm::all_of(NDRanges, [&ND](const auto &Other) {
-    return compatibleRanges(ND, Other);
-  });
+  return llvm::all_of(NDRanges,
+                      [&ND](const auto &Other) {
+                        return compatibleRanges(ND, Other);
+                      }) &&
+         (FirstSpecifiedLocalSize == NDRanges.end() ||
+          wouldYieldHomogeneousCombinedNDRange(ND, NDRanges));
 }
 
 bool jit_compiler::requireIDRemapping(const NDRange &LHS, const NDRange &RHS) {
