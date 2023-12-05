@@ -106,8 +106,8 @@ int main() {
   // CHECK-NOT: Cannot fuse kernels with different offsets or local sizes
   // CHECK: WARNING: Fusion list is empty
 
-  // Scenario: Fusing two kernels that would lead to non-homogeneous work-groups
-  // should lead to fusion being aborted.
+  // Scenario: Fusing two kernels that would lead to non-uniform work-group
+  // sizes should lead to fusion being aborted.
   performFusion<class Kernel1_4, class Kernel2_4>(
       q, nd_range<1>{range<1>{9}, range<1>{3}}, range<1>{dataSize});
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
