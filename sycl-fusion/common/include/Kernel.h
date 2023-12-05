@@ -251,8 +251,8 @@ struct SYCLKernelInfo {
   SYCLKernelInfo(const std::string &KernelName,
                  const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
                  const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
 
   explicit SYCLKernelInfo(const std::string &KernelName)
       : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}

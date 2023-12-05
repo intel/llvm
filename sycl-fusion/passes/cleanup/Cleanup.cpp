@@ -114,7 +114,7 @@ static void applyArgMask(const jit_compiler::ArgUsageMask &NewArgInfo,
   jit_compiler::SYCLModuleInfo *ModuleInfo =
       AM.getResult<SYCLModuleInfoAnalysis>(*NF->getParent()).ModuleInfo;
   jit_compiler::SYCLKernelInfo *Info =
-      ModuleInfo->getKernelFor(NF->getName().str());
+      ModuleInfo->getKernelFor(NF->getName().data());
   if (!Info) {
     errs() << "No info available for kernel " << NF->getName().str() << "\n";
     return;

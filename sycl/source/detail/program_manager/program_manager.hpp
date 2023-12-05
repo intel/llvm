@@ -90,7 +90,7 @@ public:
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
 
-  RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
+  RTDeviceBinaryImage &getDeviceImage(const char *KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
@@ -135,21 +135,20 @@ public:
   /// \param KernelName the kernel's name
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  sycl::detail::pi::PiProgram getBuiltPIProgram(
-      const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram
+  getBuiltPIProgram(const ContextImplPtr &ContextImpl,
+                    const DeviceImplPtr &DeviceImpl, const char *KernelName,
+                    bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
-                    const std::string &KernelName,
-                    const property_list &PropList,
+                    const char *KernelName, const property_list &PropList,
                     bool JITCompilationIsRequired = false);
 
   std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                    const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName);
+                    const DeviceImplPtr &DeviceImpl, const char *KernelName);
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
@@ -181,13 +180,12 @@ public:
   /// within the native program.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  const KernelArgMask *
-  getEliminatedKernelArgMask(pi::PiProgram NativePrg,
-                             const std::string &KernelName);
+  const KernelArgMask *getEliminatedKernelArgMask(pi::PiProgram NativePrg,
+                                                  const char *KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.
-  kernel_id getSYCLKernelID(const std::string &KernelName);
+  kernel_id getSYCLKernelID(const char *KernelName);
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
@@ -282,14 +280,14 @@ public:
                            const property_list &PropList);
 
   std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
-  getOrCreateKernel(const context &Context, const std::string &KernelName,
+  getOrCreateKernel(const context &Context, const char *KernelName,
                     const property_list &PropList,
                     sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;
 
-  bool kernelUsesAssert(const std::string &KernelName) const;
+  bool kernelUsesAssert(const char *KernelName) const;
 
   bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 

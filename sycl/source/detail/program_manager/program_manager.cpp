@@ -626,7 +626,7 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 // its ref count incremented.
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, bool JITCompilationIsRequired) {
+    const char *KernelName, bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -747,10 +747,11 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName) {
+                                  const char *KernelName) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
-              << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
+              << ", " << DeviceImpl.get() << ", " << std::string(KernelName)
+              << ")\n";
   }
 
   using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
@@ -790,7 +791,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
-        Program, KernelName.c_str(), &Kernel);
+        Program, KernelName, &Kernel);
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
@@ -1100,13 +1101,14 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
 }
 
 RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(const std::string &KernelName,
-                               const context &Context, const device &Device,
+ProgramManager::getDeviceImage(const char *KernelName, const context &Context,
+                               const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
+    std::cerr << ">>> ProgramManager::getDeviceImage(\""
+              << std::string(KernelName) << "\", " << getRawSyclObjImpl(Context)
+              << ", " << getRawSyclObjImpl(Device) << ", "
+              << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1129,8 +1131,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                     Context, Device);
       assert(Img && "No binary image found for kernel id");
     } else {
-      Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, Context,
-                                    Device);
+      Img = getBinImageFromMultiMap(m_ServiceKernels, std::string(KernelName),
+                                    Context, Device);
     }
   }
   if (Img) {
@@ -1143,7 +1145,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     return *Img;
   }
 
-  throw runtime_error("No kernel named " + KernelName + " was found",
+  throw runtime_error("No kernel named " + std::string(KernelName) +
+                          " was found",
                       PI_ERROR_INVALID_KERNEL_NAME);
 }
 
@@ -1356,7 +1359,7 @@ void ProgramManager::cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img) {
       m_KernelUsesAssert.insert(Prop->Name);
 }
 
-bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
+bool ProgramManager::kernelUsesAssert(const char *KernelName) const {
   return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
@@ -1606,7 +1609,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 
 const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
-                                           const std::string &KernelName) {
+                                           const char *KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
     return nullptr;
@@ -1678,7 +1681,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
-kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
+kernel_id ProgramManager::getSYCLKernelID(const char *KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
@@ -2447,7 +2450,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 // its ref count incremented.
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
-                                  const std::string &KernelName,
+                                  const char *KernelName,
                                   const property_list &PropList,
                                   sycl::detail::pi::PiProgram Program) {
 
@@ -2461,8 +2464,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     sycl::detail::pi::PiKernel Kernel = nullptr;
 
     const PluginPtr &Plugin = Ctx->getPlugin();
-    Plugin->call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
-                                            &Kernel);
+    Plugin->call<PiApiKind::piKernelCreate>(Program, KernelName, &Kernel);
 
     Plugin->call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
                                                  sizeof(pi_bool), &PI_TRUE);

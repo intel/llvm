@@ -828,11 +828,14 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-std::string handler::getKernelName() {
-  return MKernel->get_info<info::kernel::function_name>();
+// This is a test comment
+const char *handler::getKernelName() {
+  static const std::string &KernelName =
+      MKernel->get_info<info::kernel::function_name>();
+  return KernelName.c_str();
 }
 
-void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+void handler::verifyUsedKernelBundle(const char *KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
