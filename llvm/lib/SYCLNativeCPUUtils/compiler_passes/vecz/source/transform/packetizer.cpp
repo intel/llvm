@@ -1295,6 +1295,7 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
     op.getPacketValues(opPackets);
     auto factor = SimdWidth.divideCoefficientBy(opPackets.size());
     const unsigned subvecSize = factor.getFixedValue();
+    assert(subvecSize > 0 && "Subvector size cannot be zero");
     const unsigned idxVal = cast<ConstantInt>(vecIdx)->getZExtValue();
     // If individual elements are scalar (through instantiation, say) then just
     // use the desired packet directly.

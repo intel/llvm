@@ -118,7 +118,7 @@ entry:
 ; EE-UNI-VEC: [[T6:%.*]] = shl <vscale x 4 x i64> [[STEP]], shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> {{(undef|poison)}}, i64 2, {{(i32|i64)}} 0), <vscale x 4 x i64> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
 
 ; LLVM 16 deduces add/or equivalence and uses `or` instead.
-; EE-UNI-VEC: [[T7:%.*]] = {{add|or}} <vscale x 4 x i64> [[T6]], [[MOD]]
+; EE-UNI-VEC: [[T7:%.*]] = {{add|or}} {{(disjoint )?}}<vscale x 4 x i64> [[T6]], [[MOD]]
 
 ; EE-UNI-VEC: [[T8:%.*]] = getelementptr inbounds float, ptr {{%.*}}, <vscale x 4 x i64> [[T7]]
 ; EE-UNI-VEC: [[T9:%.*]] = call <vscale x 4 x float> @__vecz_b_gather_load4_u5nxv4fu9nxv4u3ptr(<vscale x 4 x ptr> [[T8]])
@@ -132,7 +132,7 @@ entry:
 ; EE-INDICES: store <vscale x 16 x float> {{.*}}, ptr [[ALLOC]], align 64
 ; EE-INDICES: [[STEP:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
 ; EE-INDICES: [[T4:%.*]] = shl <vscale x 4 x i32> [[STEP]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> {{(undef|poison)}}, i32 2, {{i32|i64}} 0), <vscale x 4 x i32> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
-; EE-INDICES: [[T5:%.*]] = {{add|or}} <vscale x 4 x i32> [[T4]], [[T3]]
+; EE-INDICES: [[T5:%.*]] = {{add|or}} {{(disjoint )?}}<vscale x 4 x i32> [[T4]], [[T3]]
 ; EE-INDICES: [[IDX:%.*]] = sext <vscale x 4 x i32> [[T5]] to <vscale x 4 x i64>
 ; EE-INDICES: [[ADDR:%.*]] = getelementptr inbounds float, ptr [[ALLOC]], <vscale x 4 x i64> [[IDX]]
 ; EE-INDICES: [[GATHER:%.*]] = call <vscale x 4 x float> @__vecz_b_gather_load4_u5nxv4fu9nxv4u3ptr(<vscale x 4 x ptr> [[ADDR]])

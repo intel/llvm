@@ -102,7 +102,7 @@ entry:
 ; IE-INDICES: [[T2:%.*]] = shl <vscale x 4 x i32> [[T1]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> {{(undef|poison)}}, i32 2, {{(i32|i64)}} 0), <vscale x 4 x i32> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
 
 ; LLVM 16 deduces add/or equivalence and uses `or` instead.
-; IE-INDICES: [[T3:%.*]] = {{add|or}} <vscale x 4 x i32> [[T2]], {{%.*}}
+; IE-INDICES: [[T3:%.*]] = {{add|or}} {{(disjoint )?}}<vscale x 4 x i32> [[T2]], {{%.*}}
 
 ; IE-INDICES: [[T4:%.*]] = sext <vscale x 4 x i32> [[T3]] to <vscale x 4 x i64>
 ; IE-INDICES: [[ADDR:%.*]] = getelementptr inbounds float, ptr %0, <vscale x 4 x i64> [[T4]]
