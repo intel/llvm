@@ -48,7 +48,7 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 ; CHECK: [[MUL:%.*]] = shl i32 %call, 2
 ; CHECK: [[SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[MUL]], i64 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
-; CHECK: [[ID:%.*]] = or <4 x i32> [[SPLAT]], <i32 0, i32 1, i32 2, i32 3>
+; CHECK: [[ID:%.*]] = or {{(disjoint )?}}<4 x i32> [[SPLAT]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[EXT:%.*]] = sext i32 %call to i64
 ; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
 ; CHECK: store <4 x i32> [[ID]], ptr addrspace(1) %arrayidx
