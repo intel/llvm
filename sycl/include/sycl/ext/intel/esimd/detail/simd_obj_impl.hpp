@@ -650,6 +650,13 @@ protected:
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
       uint16_t Offset = Region.M_offset_x * sizeof(ElemTy);
+      static_assert(M > 0, "Malformed RHS region.");
+      static_assert(M <= BN, "Attempt to write beyond viewed area: The viewed "
+                             "object in LHS does not fit RHS.");
+      // (M > BN) condition is added below to not duplicate the above assert
+      // for big values of M. The assert below is for 'Stride'.
+      static_assert((M > BN) || (M - 1) * Stride < BN,
+                    "Malformed RHS region - too big stride.");
 
       // Merge and update.
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
@@ -685,6 +692,11 @@ protected:
         constexpr int Stride = TR::Stride_x;
         uint16_t Offset = Region.first.M_offset_x * sizeof(ElemTy);
 
+        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
+                                "viewed object in LHS does not fit RHS.");
+        static_assert(M > 0, "Malformed RHS region.");
+        static_assert((M - 1) * Stride < BN,
+                      "Malformed RHS region - too big stride.");
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
@@ -702,6 +714,12 @@ protected:
             (Region.first.M_offset_y * PaTy::Size_x + Region.first.M_offset_x) *
             sizeof(ElemTy));
 
+        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
+                                "viewed object in LHS does not fit RHS.");
+        static_assert(M > 0 && W > 0 && M % W == 0, "Malformed RHS region.");
+        static_assert(W == 0 || ((M / W) - 1) * VS + (W - 1) * HS < BN1,
+                      "Malformed RHS region - too big vertical and/or "
+                      "horizontal stride.");
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(
             Base1, Val, Offset);
