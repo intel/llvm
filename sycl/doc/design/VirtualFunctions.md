@@ -160,6 +160,10 @@ indirectly callable functions (as defined by `indirectly_callable` property set
 by user) and then append those aspects to every kernel which use those sets (as
 defined by `calls_indirectly` property set by user).
 
+**TODO**: should we consider outlining "indirectly used" aspects into a separate
+metadata and device image property? This should allow for more precise and
+user-friendly exceptions at runtime
+
 NOTE: if the aspects propagation pass is ever extended to track function
 pointers, then aspects attached to virtual functions **should not** be attached
 to kernels using this mechanism. For example, if a kernel uses a variable,
@@ -290,14 +294,18 @@ if (q.get_device().has(sycl::aspect::fp64)) {
 ```
 
 This example should work regardless of whether target device supports 'fp64'
-aspect or not. To achieve that, virtual member functions are outlined into
-separate device images which are linked at runtime depending on whether they are
-compatible with a target device.
+aspect or not. Implementation differs for JIT and AOT flows.
+
+##### JIT flow
 
 Regardless of device code split mode selected by a user, functions marked with
-`indirectly_callable` property should be outlined into a separate device images
-by `sycl-post-link` tool based on the property argument, i.e. all functions
-from the same set should be bundled into a dedicated device image.
+`indirectly_callable` property should be outlined into separate device images
+by `sycl-post-link` tool based on the argument of the `indirectly_callable`
+property, i.e. all functions from the same set should be bundled into a
+dedicated device image.
+
+**TODO**: as an optimization, we can consider preserving virtual functions from
+sets that do not use any optional kernel features.
 
 Virtual functions in the original device image should be turned into
 declarations instead of definitions.
@@ -317,10 +325,34 @@ When such kernel is submitted to a device, runtime will check which optional
 features are supported and link one or another device image with virtual
 functions.
 
+##### AOT flow
+
+In AOT mode, there will be no dynamic linking, but at the same time we know the
+list of supported optional features by a device thanks to
+[device config file][device-config-file-design].
+
+Therefore, `sycl-post-link` should read the device config file to determine list
+of optional features supported by a target and based on that drop all virtual
+functions from sets that use unsupported optional features.
+
+Note that we are making decision not based on which aspects are used by each
+individual virtual functions, but based on which aspects are used by a set of
+virtual functions (as identified by the `indirectlly_callable` property
+argument). The latter is computed as conjunction of aspects used by each
+virtual function within a set.
+
+The behavior is defined this way to better match the extension speficiation
+which defines virtual functions availability in terms of whole sets and not
+individual functions.
+
 #### New device image properties
 
 To let runtime know which device images should be linked together to get virtual
 functions working, new property set is introduced: "SYCL/virtual functions".
+
+NOTE: in AOT mode, every device image is already self-contained and contains
+the right (supported by a device) set of virtual functions in it. Therefore, we
+do not need to emit any of those properties when we are in AOT mode.
 
 For device images, which contain virtual functions (i.e. ones produced by
 outlining `indirectly_callable` functions into a separate device image), the
@@ -392,4 +424,5 @@ which needs to be linked together does not change from launch to launch.
 [3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
 [sycl-spec-optional-kernel-features]: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features
 [optional-kernel-features-design]: <OptionalDeviceFeatures.md>
+[device-config-file-design]: <DeviceConfigFile.md>
 
