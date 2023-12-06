@@ -279,6 +279,9 @@ event handler::finalize() {
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+        detail::emitInstrumentationGeneral(
+            StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+            static_cast<const void *>(NewEvent->getHandleRef()));
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
