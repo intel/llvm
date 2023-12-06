@@ -723,11 +723,12 @@ protected:
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MMutex};
       // This dependency is needed for the following purposes:
-      //    - host tasks is handled by runtime and could not be implicitly
-      //    synchronized by backend.
-      //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host
-      //    task. This dependency allows to build enqueue order in RT but will
-      //    be not passed to backend. Look at getPIEvents in Command.
+      //    - host tasks are handled by the runtime and cannot be implicitly
+      //    synchronized by the backend.
+      //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
+      //    by a host task. This dependency allows to build the enqueue order in
+      //    the RT but will not be passed to the backend. See getPIEvents in
+      //    Command.
       auto &EventToBuildDeps =
           MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
       if (EventToBuildDeps)

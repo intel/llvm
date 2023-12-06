@@ -50,7 +50,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   EXPECT_EQ(GEventsWaitCounter, 1u);
 }
 
-enum CommandType { KERNEL = 1, MEMSET = 2 };
+enum class CommandType { KERNEL = 1, MEMSET = 2 };
 std::vector<std::pair<CommandType, size_t>> ExecutedCommands;
 
 inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
@@ -77,10 +77,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
       customextUSMEnqueueMemset);
 
   sycl::platform Plt = Mock.getPlatform();
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    GTEST_SKIP();
-  }
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -116,9 +112,9 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   InOrderQueue.wait();
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
   EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
   EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }
 
@@ -162,8 +158,8 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   InOrderQueue.wait();
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
   EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
   EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }
