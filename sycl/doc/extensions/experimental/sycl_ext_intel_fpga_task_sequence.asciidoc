@@ -53,7 +53,7 @@ This extension depends on the link:./sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties] extension.
 
 This extension interacts with but does not depend upon the
-link:../sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
+link:../proposed/sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
   sycl_ext_intel_fpga_kernel_interface_properties]
 extension.
 
@@ -162,127 +162,62 @@ supports.
 ----
 namespace sycl::ext::intel::experimental {
 
-template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
-          class propertiesT>
-class task_sequence<f, propertiesT> {
-
-public:
-  task_sequence(const task_sequence &) = delete;
-  task_sequence &operator=(const task_sequence &) = delete;
-  task_sequence(task_sequence &&) = delete;
-  task_sequence &operator=(task_sequence &&) = delete;
-
-  task_sequence();
-
-  task_sequence(const propertiesT &);
-
-  void async(ArgsT... args);
-
-  ReturnT get();
-
-  template <typename propertyT>
-  static constexpr bool has_property();
-
-  template <typename propertyT>
-  static constexpr auto get_property();
-
-  ~task_sequence();
-};
+template <auto &f, class propertiesT>
+class task_sequence;
 
 } // namespace sycl::ext::intel::experimental
 
 ----
 
 `task_sequence` is a class template, parameterized by an `auto` reference to a
-+Callable+ `f` and by a list of properties `propertiesT`.
-The +Callable+ `f` defines the asynchronous task to be
-associated with the `task_sequence`, and requiring an auto reference ensures
-that each `f` is statically resolvable at compile time.  Static resolvability by
-the compiler is desirable when compiling for spatial architectures as it can
-enable the generation of more efficient hardware. Templating a task_sequence on
-a non-Callable is malformed.
++Callable+ `f` and by a list of properties `propertiesT`. The +Callable+ `f`
+defines the asynchronous task to be associated with the `task_sequence`, and
+requiring an auto reference ensures that each `f` is statically resolvable at
+compile time. Static resolvability by the compiler is desirable when compiling
+for spatial architectures as it can enable the generation of more efficient
+hardware. Templating a task_sequence on a non-Callable is malformed.
 
 The `task_sequence` interface consists of two member functions, `async` and
-`get`. The `async` function asynchronously invokes `f`. By calling `async` on a
-`task_sequence` more than once, the user implies that the invocations of `f` can
-be run in parallel. The implementation is, however, not obligated to run these
-invocations in parallel except in so far as is necessary to meet the forward
-progress guarantees outlined in the section on Progress Guarantees.
+`get`. The `async` member function, when called with a suitable list of
+arguments matching `f's` list of argument types `ArgTypes`, asynchronously
+invokes the `task_sequence` object's associated +Callable+ `f` with those
+arguments. By calling `async` on a `task_sequence` object more than once, the
+user implies that those invocations of `f` can be run in parallel. The
+implementation is, however, not obligated to run the invocations in parallel
+except in so far as is necessary to meet the forward progress guarantees
+outlined in the section on Progress Guarantees.
 
 The `async` function call is non-blocking in that it may return before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
 begins executing (return from the `async` provides no implicit information on
 the execution status of `f`).
 
-The `get` member function retrieves results in the same order in which `async`
-was invoked. The call blocks if there is no result to retrieve. An asynchronous
-invocation of `f`, upon the end of its execution of `f`, will net a return
-value. At that point, that particular asynchronous invocation is now considered
-to be complete, and the result of that invocation is now ready to be retrieved
-by a `get` call. Results from completed invocations are stored in a results data
-structure until the appropriate `get` call retrieves it. This results data
-structure will keep the results in the same order in which their corresponding
-`async` invocations were invoked.
+The `get` member function, when called, retrieves a return value of type `R`,
+which is the same return type as the `task_sequence` object's associated
++Callable+ `f`. An asynchronous invocation of `f`, upon the end of its execution
+of `f`, will net a return value. At that point, that particular asynchronous
+invocation is now considered to be complete, and the result of that invocation
+is now ready to be retrieved by a `get` call. Results from completed invocations
+are stored in a results data structure until the appropriate `get` call
+retrieves it. This results data structure will keep the results in the same
+order in which their corresponding `async` invocations were invoked. The `get`
+call retrieves results from this results data structure. The `get` call blocks
+if there is no result to retrieve.
 
-Both functions may only be invoked on the device on which a `task_sequence`
-object has been instantiated. Calling `async` or `get` on a different device
-results in undefined behavior.
-
-[frame="topbot",options="header"]
-|===
-|Functions |Description
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-task_sequence(const propertyListT &);
-
-task_sequence();
-----
-|
-Constructor for `task_sequence`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-void async(ArgsT... args);
-----
-|
-Asynchronously calls `f` with `args`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-ReturnT get();
-----
-|
-Synchronously retrieves the result of a previous `async` call to this `task_sequence` object.
-
-Results are retrieved in the order in which the `async` calls were made.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-~task_sequence();
-----
-|
-Destructor for `task_sequence`.
-
-Implicitly invokes `get` on all outstanding invocations launched through `async`
-unless this `task_sequence` object was instantiated with the `balanced` property
-defined below.
-|===
+Both `async` and `get` functions may only be invoked on the device on which a
+`task_sequence` object has been instantiated. Calling `async` or `get` on a
+different device results in undefined behavior.
 
 === `task_sequence` Scoping
 
 `task_sequence` objects should retire all outstanding `async` invocations before
-exiting scope. This is performed by the `task_sequence` destructor unless the
-`balanced` property was specified in which case it is the programmer's
-responsibility to ensure that `get` has been called for all invocations launched
-using `async` before the lifetime of the `task_sequence` object ends.
+exiting scope. This is performed by the `task_sequence` destructor, by calling
+`get` on all outstanding invocations and blocking destruction of the object
+until all invocations are completed. The exception to this case is if the
+`balanced` property was specified, in which case it is the programmer's
+responsibility to ensure that corresponding `get` has been called for all
+invocations launched using `async` before the lifetime of the `task_sequence`
+object ends.
 
 It is expected that many common coding patterns will guarantee that the number
 of `async` and `get` calls match (are balanced) before a `task_sequence` object
@@ -389,8 +324,9 @@ properties:
 
  - `pipelined`
  - `stall_enable_clusters`
+ - `stall_free_clusters`
 
-These are described in the link:../sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
+These are described in the link:../proposed/sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
 sycl_ext_intel_fpga_kernel_interface_properties] document.
 
 Normally these properties are applicable only to kernels however this extension
