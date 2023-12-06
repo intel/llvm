@@ -312,6 +312,11 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
+bool isModuleUsingAsan(const Module &M) {
+  auto *AsanInitFunction = M.getFunction("__asan_init");
+  return AsanInitFunction;
+}
+
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
@@ -537,6 +542,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }
 
+  {
+    if (isModuleUsingAsan(M))
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"asanUsed", true});
+  }
+
   if (GlobProps.EmitDeviceGlobalPropSet) {
     // Extract device global maps per module
     auto DevGlobalPropertyMap = collectDeviceGlobalProperties(M);
@@ -668,6 +678,7 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     // don't save IR, just record the filename
     Res.Ir = IRFilename.str();
   } else {
+    MD.cleanup();
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
@@ -1030,6 +1041,7 @@ processInputModule(std::unique_ptr<Module> M) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
+      MMs.front().cleanup();
       saveModuleIR(MMs.front().getModule(), OutputFilename);
       return Table;
     }

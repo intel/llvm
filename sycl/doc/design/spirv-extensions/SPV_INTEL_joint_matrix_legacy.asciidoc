@@ -1,0 +1,748 @@
+:extension_name: SPV_INTEL_joint_matrix
+:main_capability_name: JointMatrixINTEL
+:main_capability_token: 6118
+:packed_capability_name: PackedJointMatrixINTEL
+:packed_capability_token: 6434
+:wi_capability_name: JointMatrixWIInstructionsINTEL
+:wi_capability_token: 6435
+:tf32_capability_name: JointMatrixTF32ComponentTypeINTEL
+:tf32_capability_token: 6436
+:bf16_capability_name: JointMatrixBF16ComponentTypeINTEL
+:bf16_capability_token: 6437
+:packed2_capability_name: JointMatrixPackedInt2ComponentTypeINTEL
+:packed2_capability_token: 6438
+:packed4_capability_name: JointMatrixPackedInt4ComponentTypeINTEL
+:packed4_capability_token: 6439
+:OpTypeJointMatrixINTEL_token: 6184
+:OpJointMatrixLoadINTEL_token: 6120
+:OpJointMatrixStoreINTEL_token: 6121
+:OpJointMatrixMadINTEL_token: 6122
+:OpJointMatrixSUMadINTEL_token: 6128
+:OpJointMatrixUSMadINTEL_token: 6129
+:OpJointMatrixUUMadINTEL_token: 6130
+:OpJointMatrixWorkItemLengthINTEL_token: 6410
+:OpJointMatrixGetElementCoordINTEL_token: 6440
+
+:DPCPP_URL: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_intel_matrix.asciidoc
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Alexey Sotkin, Intel +
+- Dounia Khaldi, Intel +
+- Mateusz Belicki, Intel +
+- Dmitry Sidorov, Intel +
+- Ben Ashbaugh, Intel +
+- Greg Lueck, Intel +
+- Victor Mustya, Intel +
+- Arvind Sudarsanam, Intel +
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+It's a legacy version of experimental extension that reflects current joint matrix
+implementation in DPC++.
+
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2023-02-01
+| Revision           | 10
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds a type and instructions for joint matrices. Such matrices
+are shared among a group of work-items and are not private to each work-item.
+The type introduced with this extension allows to specify memory scope and
+location where the joint matrix is used in math operation.
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{main_capability_name}
+{packed_capability_name}
+{wi_capability_name}
+{tf32_capability_name}
+{bf16_capability_name}
+{packed2_capability_name}
+{packed4_capability_name}
+----
+
+== New Instructions
+
+Instructions added under the *{main_capability_name}* capability:
+
+----
+
+OpTypeJointMatrixINTEL
+OpJointMatrixLoadINTEL
+OpJointMatrixStoreINTEL
+OpJointMatrixMadINTEL
+OpJointMatrixSUMadINTEL
+OpJointMatrixUSMadINTEL
+OpJointMatrixUUMadINTEL
+
+----
+
+Instructions added under the *{wi_capability_name}* capability:
+
+----
+
+OpJointMatrixWorkItemLengthINTEL
+OpJointMatrixGetElementCoordINTEL
+
+----
+
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{main_capability_name}*            | {main_capability_token}
+|*{packed_capability_name}*          | {packed_capability_token}
+|*{wi_capability_name}*              | {wi_capability_token}
+|*{tf32_capability_name}*            | {tf32_capability_token}
+|*{bf16_capability_name}*            | {bf16_capability_token}
+|*{packed2_capability_name}*         | {packed2_capability_token}
+|*{packed4_capability_name}*         | {packed4_capability_token}
+|*OpTypeJointMatrixINTEL*            | {OpTypeJointMatrixINTEL_token}
+|*OpJointMatrixLoadINTEL*            | {OpJointMatrixLoadINTEL_token}
+|*OpJointMatrixStoreINTEL*           | {OpJointMatrixStoreINTEL_token}
+|*OpJointMatrixMadINTEL*             | {OpJointMatrixMadINTEL_token}
+|*OpJointMatrixSUMadINTEL*           | {OpJointMatrixSUMadINTEL_token}
+|*OpJointMatrixUSMadINTEL*           | {OpJointMatrixUSMadINTEL_token}
+|*OpJointMatrixUUMadINTEL*           | {OpJointMatrixUUMadINTEL_token}
+|*OpJointMatrixWorkItemLengthINTEL*  | {OpJointMatrixWorkItemLengthINTEL_token}
+|*OpJointMatrixGetElementCoordINTEL* | {OpJointMatrixGetElementCoordINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== 2.16 Validation Rules
+
+Joint matrix types (or types containing them) can only be allocated in *Function*
+or *Private* <<Storage Class, Storage Class>>.
+
+=== 2.2 Terms
+Add new terms to section 2.2.2 Types:
+
+_Joint Matrix_: A two-dimensional ordered collection of scalars, whose storage
+is spread across multiple invocations.
+
+Add _Joint Matrix_ to the definition of _Composite_.
+
+Add _Joint Matrix_ to the definition of _Concrete Type_.
+
+=== Joint Matrix Layout
+
+Add section 3.XX, Joint Matrix Layout.
+'Layout' indicates how the values of joint matrix are arranged in memory.
+
+[options="header"]
+|====
+2+^| Layout ^| Enabling capability 
+| 0 | *RowMajor*               |  *{main_capability_name}*
+| 1 | *ColumnMajor*            |  *{main_capability_name}*
+| 2 | *Packed* +
+Suitable for Vector Neural Network Instruction (VNNI) format used in Intel AMX
+and Intel XMX. It specifies that the data was prepacked by user before loading
+a joint matrix.
+More info could be found in {DPCPP_URL}[DPCPP matrix extension spec] | *{packed_capability_name}*
+|====
+
+=== Joint Matrix Use
+
+Add section 3.XX, Joint Matrix Use.
+'Use' specifies where the joint matrix is used in math operation.
+
+[options="header"]
+|====
+2+^| Use ^| Enabling capability
+| 0 | *MatrixA*     | *{main_capability_name}*
+| 1 | *MatrixB*     | *{main_capability_name}*
+| 2 | *Accumulator* | *{main_capability_name}*
+|====
+
+=== Joint Matrix Component Type Interpretation
+
+Add section 3.XX, Joint Matrix Component Type Interpretation.
+To be used by 'Component Type Interpretation' optional parameter of
+*TypeJointMatrixINTEL*.
+
+[options="header"]
+|====
+2+^| Interpretation ^| Enabling capability
+| 0 | *None* |
+| 1 | *TF32* +
+'Component Type' must be _float_. Interpret 'Component Type' of joint matrix
+as TF32. | *{tf32_capability_name}*
+| 2 | *Bfloat16* +
+'Component Type' must be 16-bit _integer_. Interpret 'Component Type' of joint
+matrix as Bfloat16. | *{bf16_capability_name}*
+| 3 | *PackedInt2* +
+'Component Type' must be _integer_. Interpret <N>-bit _integer_ 'Component Type'
+of joint matrix as a vector of 2-bit integers. Number of components of this
+vector is limited by enabled SPIR-V capabilities, which brings limitations on
+possible width of the _integer_. +
+If a joint matrix type that has *ComponentTypeInterpretation* operand with
+*PackedInt2* value is used in an arithmetic instruction, then to verify
+this instruction's inputs 'Column' and 'Row' of the matrix should be taken with
+a factor of a size of this packed vector.  | *{packed2_capability_name}*
+| 4 | *PackedInt4* +
+Interpret <N>-bit _integer_ 'Component Type' of joint matrix as a vector of 4-bit integers.
+Number of components of this vector is limited by enabled SPIR-V capabilities,
+which brings limitations on possible width of the _integer_. +
+If a joint matrix type that has *ComponentTypeInterpretation* operand with
+*PackedInt4* value is used in an arithmetic instruction, then to verify
+this instruction's inputs 'Column' and 'Row' of the matrix should be taken with
+a factor of a size of this packed vector.  | *{packed4_capability_name}*
+|====
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {main_capability_token} | *{main_capability_name}* +
+ +
+Uses *TypeJointMatrixINTEL* +
+See also extension: *{extension_name}*
+|
+| {packed_capability_token} | *{packed_capability_name}* +
+ +
+Uses *Packed* layout to <<Joint Matrix Layout,*Joint Matrix Layout*>>. +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+| {wi_capability_token} | *{wi_capability_name}* +
+ +
+Uses <<OpJointMatrixWorkItemLengthINTEL,*OpJointMatrixWorkItemLengthINTEL*>> and
+<<OpJointMatrixGetElementCoordINTEL,*OpJointMatrixGetElementCoordINTEL*>>
+instructions. +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+| {tf32_capability_token} | *{tf32_capability_name}* +
+ +
+Uses *TF32* in 3.XX, Joint Matrix Component Type Interpretation +
+ +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+| {bf16_capability_token} | *{bf16_capability_name}* +
+ +
+Uses *BF16* in 3.XX, Joint Matrix Component Type Interpretation +
+ +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+| {packed2_capability_token} | *{packed2_capability_name}* +
+ +
+Uses *PackedInt2* in 3.XX, Joint Matrix Component Type Interpretation +
+ +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+| {packed4_capability_token} | *{packed4_capability_name}* +
+ +
+Uses *PackedInt4* in 3.XX, Joint Matrix Component Type Interpretation +
+ +
+See also extension: *{extension_name}*
+| *{main_capability_name}* +
+|====
+--
+
+=== Instructions
+
+==== 3.42.6 Type-Declaration Instructions
+
+[cols="1,1,7*3",width="100%"]
+|=====
+8+|[[OpTypeJointMatrixINTEL]]*OpTypeJointMatrixINTEL* +
+ +
+Declare a joint matrix type. +
+ +
+'Component Type' is the type of each component in the resulting type. It must be
+a scalar 'numerical type'. +
+ +
+'Row Count' is the number of rows in the joint matrix type. It must be an '<id>'
+of 'constant instruction' with scalar 32-bit integer. It is invalid for 'Column Count' to be 0 or
+<<OpConstantNull,*OpConstantNull*>>. +
+ +
+'Column Count' is the number of columns in the joint matrix type. It must be an '<id>'
+of 'constant instruction' with scalar 32-bit integer. It is invalid for 'Column Count' to be 0 or
+<<OpConstantNull,*OpConstantNull*>>. +
+ +
+Execution is a 'Scope'. Must be an '<id>' of 'constant instruction'
+with scalar 32-bit integer. Its value must be either _Workgroup_ or
+_Subgroup_ from the table 3.27. Scope <id>. +
+ +
+'Use' parameter shows location of the matrix in a math operation.
+Must be an '<id>' of 'constant instruction' with scalar 32-bit integer type. Its
+value must be one of the values in the table 3.XX, <<Joint Matrix Use,Joint Matrix Use>>. +
+ +
+_Optional_ 'Component Type Interpretation' specifies how to interpret
+'Component Type' when components of a joint matrix are storages for values of
+different types. Must be an '<id>' of 'constant instruction' with scalar 32-bit
+integer type. Its value must be one of the values in the table 3.XX,
+<<Joint Matrix Component Type Interpretation,Joint Matrix Component Type Interpretation>>. +
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 7+ | {OpTypeJointMatrixINTEL_token}
+| 'Result <id>'
+| '<id>' +
+'Component Type'
+| '<id>' +
+'Row Count'
+| '<id>' +
+'Column Count'
+| '<id>' +
+'Scope'
+| '<id>' +
+'Use'
+|_Optional_ '<id>' +
+'Component Type Interpretation'
+|=====
+
+==== 3.42.8. Memory Instructions
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+|[[OpJointMatrixLoadINTEL]]*OpJointMatrixLoadINTEL* +
+ +
+Load a joint matrix through a pointer. +
+ +
+'Result Type' is the type of the loaded joint matrix. It must be
+<<OpTypeJointMatrixINTEL,OpTypeJointMatrixINTEL>>. +
+ +
+'Pointer' is the pointer to load through. It specifies start of memory region 
+where elements of the joint matrix are stored and arranged according to 'Layout'.
+The <<Storage Class,Storage Class>> of 'Pointer' must be *Workgroup*,
+*CrossWorkgroup*, *StorageBuffer*, *Generic* or *PhysicalStorageBuffer*. +
+ +
+'Stride' describes the number of elements between consecutive rows for the
+RowMajor 'layout', or between columns for the ColumnMajor 'layout'. +
+ +
+'Layout' indicates how the values in memory are arranged.
+Must be an '<id>' of 'constant instruction' with scalar 32-bit integer type. Its
+value must be one of the values in the table 3.XX,
+<<Joint Matrix Layout,Joint Matrix Layout>>. +
+ +
+If present, any 'Memory Operands' must begin with a 
+<<Memory_Operands,*memory operand*>> literal. If not present, it is the same as
+specifying the <<Memory_Operands,*memory operand*>> *None*. +
+ +
+For a given dynamic instance of this instruction, all operands of this
+instruction must be the same for all invocations in a given scope instance
+(where the scope is the scope the joint matrix type was created with).
+All invocations in a given scope instance must be active or all must be
+inactive.
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 6 + variable | {OpJointMatrixLoadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'Pointer'
+| '<id>' +
+'Stride'
+| '<id>' +
+'<<Joint Matrix Layout,Layout>>'
+| Optional +
+'Memory Operands'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpJointMatrixStoreINTEL]]*OpJointMatrixStoreINTEL* +
+ +
+Store a joint matrix through a pointer. +
+ +
+'Pointer' is the pointer to store through. It specifies start of memory region 
+where elements of the joint matrix must be stored and arranged according to 'Layout'. +
+The <<Storage Class,Storage Class>> of 'Pointer' must be *Workgroup*,
+*CrossWorkgroup*, *StorageBuffer*, *Generic* or *PhysicalStorageBuffer*. +
+ +
+'Object' is the joint matrix to store. It must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'Stride' describes the number of elements between consecutive rows for the
+RowMajor 'layout', or between columns for the ColumnMajor 'layout'. +
+ +
+'Layout' indicates how the values stored are arranged in memory.
+Must be an '<id>' of 'constant instruction' with scalar 32-bit integer type. Its
+value must be one of the values in the table 3.XX,
+<<Joint Matrix Layout,Joint Matrix Layout>>. +
+ +
+If present, any 'Memory Operands' must begin with a
+<<Memory_Operands,*memory operand*>> literal. If not present, it is the same as
+specifying the <<Memory_Operands,*memory operand*>> *None*. +
+ +
+For a given dynamic instance of this instruction, all operands of this
+instruction must be the same for all invocations in a given scope instance
+(where the scope is the scope the joint matrix type was created with).
+All invocations in a given scope instance must be active or all must be
+inactive.
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 5 + variable | {OpJointMatrixStoreINTEL_token}
+| '<id>' +
+'Pointer'
+| '<id>' +
+'Object'
+| '<id>' +
+'Stride'
+| '<id>' +
+'<<Joint Matrix Layout,Layout>>'
+| Optional +
+'Memory Operands'
+|=====
+
+==== 3.42.12. Composite Instructions
+
+Modify OpCompositeConstruct to make an exception for joint matrix types:
+"If the 'Result Type' is <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>
+then there must be only one 'Constituent' and it will be used to initialize all
+elements of the joint matrix."
+
+
+Modify *OpVectorExtractDynamic* and *OpVectorInsertDynamic* to accept
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> as the 'Vector' operand.
+In this case the instructions operate on an implicit vector which represents
+part of the joint matrix and holds components owned by the current work-item.
+If the 'index' operand of these instructions is less than zero or exceeds the
+value returned by
+<<OpJointMatrixWorkItemLengthINTEL,*OpJointMatrixWorkItemLengthINTEL*>>,
+behavior is undefined.
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpJointMatrixWorkItemLengthINTEL]]*OpJointMatrixWorkItemLengthINTEL* +
+ +
+Return number of components owned by the current work-item in a joint matrix. +
+ +
+'Result Type' must be an 'integer type' scalar. +
+ +
+'Matrix' is an ID of <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>.
+The instruction returns the number of the components of this joint matrix type
+owned by the current work-item. +
+
+1+|Capability: +
+*{wi_capability_name}*
+1+| 4 | {OpJointMatrixWorkItemLengthINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Matrix'
+|=====
+
+[cols="1,1,4*3",width="100%"]
+|=====
+5+|[[OpJointMatrixGetElementCoordINTEL]]*OpJointMatrixGetElementCoordINTEL* +
+ +
+Returns (Row, Column) coordinate of dynamically selected element of a matrix.  +
+ +
+'Result Type' must be an integer 2-elements vector, where the first component
+contains the row with the selected element, and the second element contains the
+column with the selected element. +
+ +
+'Matrix' is an ID of <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>.
+The instruction returns the element's coordinate of this joint matrix type. +
+ +
+'Index' must be a 'scalar integer'. It is interpreted as an index into the list
+of components owned by this work-item in the joint matrix. The behavior is
+undefined if 'Index' is less than zero or greater than or equal to the number
+that <<OpJointMatrixWorkItemLengthINTEL,*OpJointMatrixWorkItemLengthINTEL*>>
+returns for this work-item. +
+ +
+
+1+|Capability: +
+*{wi_capability_name}*
+1+| 5 | {OpJointMatrixGetElementCoordINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Matrix'
+| '<id>' +
+'Index'
+|=====
+
+==== 3.42.13. Arithmetic Instructions
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpJointMatrixMadINTEL]]*OpJointMatrixMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+It is invalid to have sizes of operands that do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Row Count' equals to 'M' and 'Column Count' equals to 'K'.
+'Use' argument of matrix type must be 'MatrixA'. +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Row Count' equals to 'K' and 'Column Count' equals to 'N'.
+'Use' argument of matrix type must be 'MatrixB'. +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals
+to 'M' and 'Column Count' equals to 'N'. 'Use' argument of joint matrix type
+must be 'Accumulator'. +
+ +
+'Scope' of 'A', 'B', 'C' and 'Result' matrices must match.
+ +
+All invocations in a given 'Scope' instance must be active or all must be
+inactive.
+ +
+Behavior is undefined if not all invocations of this module within 'Scope' of
+'Result' reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Scope' of 'Result'
+execute the same dynamic instance of this instruction. +
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 6 | {OpJointMatrixMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpJointMatrixSUMadINTEL]]*OpJointMatrixSUMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+It is invalid to have sizes of operands that do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is signed 'integer type', 'Row Count' equals to 'M' and
+'Column Count' equals to 'K'. 'Use' argument of matrix type must be 'MatrixA'. +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is unsigned 'integer type', 'Row Count' equals to 'K'
+and 'Column Count' equals to 'N'. 'Use' argument of joint matrix type must be
+'MatrixB'. +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with signed 'integer type'
+'Component Type', 'Row Count' equals to 'M' and 'Column Count' equals to 'N'.
+'Use' argument of joint matrix type must be 'Accumulator'. +
+ +
+'Scope' of 'A', 'B', 'C' and 'Result' matrices must match.
+ +
+All invocations in a given 'Scope' instance must be active or all must be
+inactive.
+ +
+Behavior is undefined if not all invocations of this module within 'Scope' of
+'Result' reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Scope' of 'Result'
+execute the same dynamic instance of this instruction. +
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 6 | {OpJointMatrixSUMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpJointMatrixUSMadINTEL]]*OpJointMatrixUSMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+It is invalid to have sizes of operands that do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is unsigned 'integer type', 'Row Count' equals to 'M' and
+'Column Count' equals to 'K'. 'Use' argument of joint matrix type must be 'MatrixA'. +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is signed 'integer type', 'Row Count' equals to 'K' and
+'Column Count' equals to 'N'. 'Use' argument of matrix type must be 'MatrixB'. +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with signed 'integer type'
+'Component Type', 'Row Count' equals to 'M' and 'Column Count' equals to 'N'.
+'Use' argument of joint matrix type must be 'Accumulator'. +
+ +
+'Scope' of 'A', 'B', 'C' and 'Result' matrices must match.
+ +
+All invocations in a given 'Scope' instance must be active or all must be
+inactive.
+ +
+Behavior is undefined if not all invocations of this module within 'Scope' of
+'Result' reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Scope' of 'Result'
+execute the same dynamic instance of this instruction. +
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 6 | {OpJointMatrixUSMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpJointMatrixUUMadINTEL]]*OpJointMatrixUUMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A x B + C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+It is invalid to have sizes of operands that do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is unsigned 'integer type', 'Row Count' equals to 'M' and
+'Column Count' equals to 'K'. 'Use' argument of joint matrix type must be 'MatrixA'. +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is unsigned 'integer type', 'Row Count' equals to 'K' and
+'Column Count' equals to 'N'. 'Use' argument of joint matrix type must be 'MatrixB'. +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with unsigned 'integer type'
+'Component Type', 'Row Count' equals to 'M' and 'Column Count' equals to 'N'.
+'Use' argument of joint matrix type must be 'Accumulator'. +
+ +
+'Scope' of 'A', 'B', 'C' and 'Result' matrices must match.
+ +
+All invocations in a given 'Scope' instance must be active or all must be
+inactive.
+ +
+Behavior is undefined if not all invocations of this module within 'Scope' of
+'Result' reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Scope' of 'Result'
+execute the same dynamic instance of this instruction. +
+ +
+
+1+|Capability: +
+*{main_capability_name}*
+1+| 6 | {OpJointMatrixUUMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+|=====
+
+=== Issues
+
+None
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-02-16|Alexey Sotkin|Initial revision
+|2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
+|3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
+|4|2022-03-10|Dmitry Sidorov|Add OpJointMatrixWorkItemLengthINTEL instruction
+|5|2022-04-01|Dmitry Sidorov|Add Use parameter to TypeJointMatrixINTEL
+|6|2022-09-07|Dmitry Sidorov|Make Use parameter to be mandatory
+|7|2022-10-13|Dmitry Sidorov|Add ComponentTypeInterpretation decoration and OpJointMatrixGetElementCoordINTEL
+|8|2022-12-02|Dmitry Sidorov|Remove Scope from the instructions and Layout from the type
+|9|2022-12-07|Dmitry Sidorov|Split main capability into 3
+|10|2023-02-01|Dmitry Sidorov|Move ComponentTypeInterpretation to an optional type parameter
+|========================================

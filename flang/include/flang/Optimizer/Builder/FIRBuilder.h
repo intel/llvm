@@ -182,6 +182,15 @@ public:
                             llvm::ArrayRef<mlir::Value> lenParams,
                             bool asTarget = false);
 
+  /// Create a temporary using `fir.alloca`. This function does not hoist.
+  /// It is the callers responsibility to set the insertion point if
+  /// hoisting is required.
+  mlir::Value
+  createTemporaryAlloc(mlir::Location loc, mlir::Type type,
+                       llvm::StringRef name, mlir::ValueRange lenParams = {},
+                       mlir::ValueRange shape = {},
+                       llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
+
   /// Create a temporary. A temp is allocated using `fir.alloca` and can be read
   /// and written using `fir.load` and `fir.store`, resp.  The temporary can be
   /// given a name via a front-end `Symbol` or a `StringRef`.
@@ -244,11 +253,6 @@ public:
     return createGlobal(loc, type, name, /*isConst=*/true, /*isTarget=*/false,
                         bodyBuilder, linkage);
   }
-
-  /// Create a fir::DispatchTable operation.
-  fir::DispatchTableOp createDispatchTableOp(mlir::Location loc,
-                                             llvm::StringRef name,
-                                             llvm::StringRef parentName);
 
   /// Convert a StringRef string into a fir::StringLitOp.
   fir::StringLitOp createStringLitOp(mlir::Location loc,
@@ -673,6 +677,10 @@ mlir::Value genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
 /// to keep all the lower bound and explicit parameter information.
 fir::BoxValue createBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
                              const fir::ExtendedValue &exv);
+
+/// Generate Null BoxProc for procedure pointer null initialization.
+mlir::Value createNullBoxProc(fir::FirOpBuilder &builder, mlir::Location loc,
+                              mlir::Type boxType);
 } // namespace fir::factory
 
 #endif // FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H

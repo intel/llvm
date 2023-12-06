@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
 
@@ -64,70 +66,38 @@ int main() {
        VFloatD3_2);
   TEST(sycl::cross, float, 4, EXPECTED(float, -1.f, -4.f, 3.f, 0.f), 0,
        VFloatD4, VFloatD4_2);
-  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
-       VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
-  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, VFloatD3,
-       VFloatD4_2.swizzle<0, 1, 2>());
-  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
-       VFloatD4.swizzle<0, 1, 2>(), VFloatD4_2.swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
          VDoubleD3, VDoubleD3_2);
     TEST(sycl::cross, double, 4, EXPECTED(double, -1.f, -4.f, 3.f, 0.f), 0,
          VDoubleD4, VDoubleD4_2);
-    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
-    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
-    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD4_2.swizzle<0, 1, 2>());
   }
 
   TEST2(sycl::dot, float, 13.f, 0, VFloatD2, VFloatD2_2);
   TEST2(sycl::dot, float, 32.f, 0, VFloatD3, VFloatD3_2);
   TEST2(sycl::dot, float, 48.f, 0, VFloatD4, VFloatD4_2);
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST2(sycl::dot, double, 13, 0, VDoubleD2, VDoubleD2_2);
     TEST2(sycl::dot, double, 32, 0, VDoubleD3, VDoubleD3_2);
     TEST2(sycl::dot, double, 48, 0, VDoubleD4, VDoubleD4_2);
-    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
-    TEST2(sycl::dot, double, 32, 0, VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
-    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(),
-          VDoubleD4_2.swizzle<0, 1, 2>());
   }
 
   TEST2(sycl::length, float, 2.236068f, 1e-6, VFloatD2);
   TEST2(sycl::length, float, 3.741657f, 1e-6, VFloatD3);
   TEST2(sycl::length, float, 5.477225f, 1e-6, VFloatD4);
-  TEST2(sycl::length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST2(sycl::length, double, 2.236068, 1e-6, VDoubleD2);
     TEST2(sycl::length, double, 3.741657, 1e-6, VDoubleD3);
     TEST2(sycl::length, double, 5.477225, 1e-6, VDoubleD4);
-    TEST2(sycl::length, double, 3.741657, 1e-6, VDoubleD4.swizzle<0, 1, 2>());
   }
 
   TEST2(sycl::distance, float, 3.605551f, 1e-6, VFloatD2, VFloatD2_2);
   TEST2(sycl::distance, float, 5.f, 0, VFloatD3, VFloatD3_2);
   TEST2(sycl::distance, float, 5.f, 0, VFloatD4, VFloatD4_2);
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST2(sycl::distance, double, 3.605551, 1e-6, VDoubleD2, VDoubleD2_2);
     TEST2(sycl::distance, double, 5.0, 0, VDoubleD3, VDoubleD3_2);
     TEST2(sycl::distance, double, 5.0, 0, VDoubleD4, VDoubleD4_2);
-    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
-          VDoubleD3_2);
-    TEST2(sycl::distance, double, 5.0, 0, VDoubleD3,
-          VDoubleD4_2.swizzle<0, 1, 2>());
-    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
-          VDoubleD4_2.swizzle<0, 1, 2>());
   }
 
   TEST(sycl::normalize, float, 2, EXPECTED(float, 0.447213f, 0.894427f), 1e-6,
@@ -137,8 +107,6 @@ int main() {
   TEST(sycl::normalize, float, 4,
        EXPECTED(float, 0.182574f, 0.365148f, 0.547723f, 0.730297f), 1e-6,
        VFloatD4);
-  TEST(sycl::normalize, float, 3, EXPECTED(float, 0.267261, 0.534522, 0.801784),
-       1e-6, VFloatD4.swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST(sycl::normalize, double, 2, EXPECTED(double, 0.447213, 0.894427), 1e-6,
          VDoubleD2);
@@ -147,25 +115,15 @@ int main() {
     TEST(sycl::normalize, double, 4,
          EXPECTED(double, 0.182574, 0.365148, 0.547723, 0.730297), 1e-6,
          VDoubleD4);
-    TEST(sycl::normalize, double, 3,
-         EXPECTED(double, 0.267261, 0.534522, 0.801784), 1e-6,
-         VDoubleD4.swizzle<0, 1, 2>());
   }
 
   TEST2(sycl::fast_distance, float, 3.605551f, 1e-6, VFloatD2, VFloatD2_2);
   TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD3, VFloatD3_2);
   TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4, VFloatD4_2);
-  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD3_2);
-  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD3,
-        VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
 
   TEST2(sycl::fast_length, float, 2.236068f, 1e-6, VFloatD2);
   TEST2(sycl::fast_length, float, 3.741657f, 1e-6, VFloatD3);
   TEST2(sycl::fast_length, float, 5.477225f, 1e-6, VFloatD4);
-  TEST2(sycl::fast_length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
 
   TEST(sycl::fast_normalize, float, 2, EXPECTED(float, 0.447213f, 0.894427f),
        1e-3, VFloatD2);
@@ -174,9 +132,73 @@ int main() {
   TEST(sycl::fast_normalize, float, 4,
        EXPECTED(float, 0.182574f, 0.365148f, 0.547723f, 0.730297f), 1e-3,
        VFloatD4);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
+       VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
+  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, VFloatD3,
+       VFloatD4_2.swizzle<0, 1, 2>());
+  TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
+       VFloatD4.swizzle<0, 1, 2>(), VFloatD4_2.swizzle<0, 1, 2>());
+  if (Dev.has(sycl::aspect::fp64)) {
+    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
+         VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
+    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
+         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
+    TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
+         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD4_2.swizzle<0, 1, 2>());
+  }
+
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(),
+        VFloatD4_2.swizzle<0, 1, 2>());
+  if (Dev.has(sycl::aspect::fp64)) {
+    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
+    TEST2(sycl::dot, double, 32, 0, VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
+    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(),
+          VDoubleD4_2.swizzle<0, 1, 2>());
+  }
+
+  TEST2(sycl::length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
+  if (Dev.has(sycl::aspect::fp64)) {
+    TEST2(sycl::length, double, 3.741657, 1e-6, VDoubleD4.swizzle<0, 1, 2>());
+  }
+
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
+        VFloatD4_2.swizzle<0, 1, 2>());
+  if (Dev.has(sycl::aspect::fp64)) {
+    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
+          VDoubleD3_2);
+    TEST2(sycl::distance, double, 5.0, 0, VDoubleD3,
+          VDoubleD4_2.swizzle<0, 1, 2>());
+    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
+          VDoubleD4_2.swizzle<0, 1, 2>());
+  }
+
+  TEST(sycl::normalize, float, 3, EXPECTED(float, 0.267261, 0.534522, 0.801784),
+       1e-6, VFloatD4.swizzle<0, 1, 2>());
+  if (Dev.has(sycl::aspect::fp64)) {
+    TEST(sycl::normalize, double, 3,
+         EXPECTED(double, 0.267261, 0.534522, 0.801784), 1e-6,
+         VDoubleD4.swizzle<0, 1, 2>());
+  }
+
+  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
+        VFloatD3_2);
+  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD3,
+        VFloatD4_2.swizzle<0, 1, 2>());
+  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
+        VFloatD4_2.swizzle<0, 1, 2>());
+
+  TEST2(sycl::fast_length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
+
   TEST(sycl::fast_normalize, float, 3,
        EXPECTED(float, 0.267261f, 0.534522f, 0.801784f), 1e-3,
        VFloatD4.swizzle<0, 1, 2>());
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }

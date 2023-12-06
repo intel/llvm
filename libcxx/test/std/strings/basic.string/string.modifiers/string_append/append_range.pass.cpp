@@ -23,9 +23,8 @@
 
 constexpr bool test_constexpr() {
   for_all_iterators_and_allocators_constexpr<char, const char*>([]<class Iter, class Sent, class Alloc>() {
-    test_sequence_append_range<std::basic_string<char, std::char_traits<char>, Alloc>, Iter, Sent>([](auto&& c) {
-      LIBCPP_ASSERT(c.__invariants());
-    });
+    test_sequence_append_range<std::basic_string<char, std::char_traits<char>, Alloc>, Iter, Sent>(
+        []([[maybe_unused]] auto&& c) { LIBCPP_ASSERT(c.__invariants()); });
   });
 
   return true;
@@ -35,17 +34,14 @@ int main(int, char**) {
   static_assert(test_constraints_append_range<std::basic_string, char, int>());
 
   for_all_iterators_and_allocators<char, const char*>([]<class Iter, class Sent, class Alloc>() {
-    test_sequence_append_range<std::basic_string<char, std::char_traits<char>, Alloc>, Iter, Sent>([](auto&& c) {
-      LIBCPP_ASSERT(c.__invariants());
-    });
+    test_sequence_append_range<std::basic_string<char, std::char_traits<char>, Alloc>, Iter, Sent>(
+        []([[maybe_unused]] auto&& c) { LIBCPP_ASSERT(c.__invariants()); });
   });
   static_assert(test_constexpr());
 
   { // Check that `append_range` returns a reference to the string.
     std::string c;
-    static_assert(std::is_lvalue_reference_v<decltype(
-        c.append_range(FullContainer_Begin_EmptyRange<char>.input)
-    )>);
+    static_assert(std::is_lvalue_reference_v<decltype(c.append_range(FullContainer_Begin_EmptyRange<char>.input))>);
     assert(&c.append_range(FullContainer_Begin_EmptyRange<char>.input) == &c);
     assert(&c.append_range(FullContainer_Begin_OneElementRange<char>.input) == &c);
     assert(&c.append_range(FullContainer_Begin_MidRange<char>.input) == &c);

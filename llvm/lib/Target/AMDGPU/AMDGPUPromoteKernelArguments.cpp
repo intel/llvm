@@ -115,13 +115,8 @@ bool AMDGPUPromoteKernelArguments::promotePointer(Value *Ptr) {
 
   // Cast pointer to global address space and back to flat and let
   // Infer Address Spaces pass to do all necessary rewriting.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   PointerType *NewPT =
       PointerType::get(PT->getContext(), AMDGPUAS::GLOBAL_ADDRESS);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  PointerType *NewPT =
-      PointerType::getWithSamePointeeType(PT, AMDGPUAS::GLOBAL_ADDRESS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *Cast =
       B.CreateAddrSpaceCast(Ptr, NewPT, Twine(Ptr->getName(), ".global"));
   Value *CastBack =

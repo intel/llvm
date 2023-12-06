@@ -698,7 +698,8 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
       if (!BC.MIB->isNoop(Instr))
         break;
 
-      Offset += BC.MIB->getAnnotationWithDefault<uint32_t>(Instr, "Size");
+      if (std::optional<uint32_t> Size = BC.MIB->getSize(Instr))
+        Offset += *Size;
     }
 
     if (To == Offset)
@@ -785,9 +786,8 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
         FTBI.MispredictedCount += Mispreds;
       ToBB = FTSuccessor;
     } else {
-      LLVM_DEBUG(dbgs() << "invalid branch in " << BF << '\n'
-                        << Twine::utohexstr(From) << " -> "
-                        << Twine::utohexstr(To) << '\n');
+      LLVM_DEBUG(dbgs() << "invalid branch in " << BF
+                        << formatv(": {0:x} -> {1:x}\n", From, To));
       return false;
     }
   }

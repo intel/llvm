@@ -42,8 +42,8 @@ DebugTranslation::DebugTranslation(Operation *module, llvm::Module &llvmModule)
     llvmModule.addModuleFlag(llvm::Module::Warning, debugVersionKey,
                              llvm::DEBUG_METADATA_VERSION);
 
-  if (auto targetTripleAttr =
-          module->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName())) {
+  if (auto targetTripleAttr = module->getDiscardableAttr(
+          LLVM::LLVMDialect::getTargetTripleAttrName())) {
     auto targetTriple =
         llvm::Triple(cast<StringAttr>(targetTripleAttr).getValue());
     if (targetTriple.isKnownWindowsMSVCEnvironment()) {
@@ -84,7 +84,7 @@ llvm::DIType *DebugTranslation::translateImpl(DINullTypeAttr attr) {
 }
 
 llvm::MDString *DebugTranslation::getMDStringOrNull(StringAttr stringAttr) {
-  if (!stringAttr || stringAttr.getValue().empty())
+  if (!stringAttr || stringAttr.empty())
     return nullptr;
   return llvm::MDString::get(llvmCtx, stringAttr);
 }
@@ -286,7 +286,7 @@ llvm::DILocation *DebugTranslation::translateLoc(Location loc,
                                                  llvm::DILocalScope *scope,
                                                  llvm::DILocation *inlinedAt) {
   // LLVM doesn't have a representation for unknown.
-  if (!scope || isa<UnknownLoc>(loc))
+  if (isa<UnknownLoc>(loc))
     return nullptr;
 
   // Check for a cached instance.
@@ -301,17 +301,12 @@ llvm::DILocation *DebugTranslation::translateLoc(Location loc,
     llvmLoc = translateLoc(callLoc.getCallee(), scope, callerLoc);
 
   } else if (auto fileLoc = dyn_cast<FileLineColLoc>(loc)) {
-    llvm::DILocalScope *locationScope = scope;
-    // Only construct a new DIFile when no local scope is present. This
-    // prioritizes existing DI information when it's present.
-    if (!locationScope) {
-      auto *file = translateFile(fileLoc.getFilename());
-      locationScope = llvm::DILexicalBlockFile::get(llvmCtx, scope, file,
-                                                    /*Discriminator=*/0);
-    }
-    llvmLoc = llvm::DILocation::get(llvmCtx, fileLoc.getLine(),
-                                    fileLoc.getColumn(), locationScope,
-                                    const_cast<llvm::DILocation *>(inlinedAt));
+    // A scope of a DILocation cannot be null.
+    if (!scope)
+      return nullptr;
+    llvmLoc =
+        llvm::DILocation::get(llvmCtx, fileLoc.getLine(), fileLoc.getColumn(),
+                              scope, const_cast<llvm::DILocation *>(inlinedAt));
 
   } else if (auto fusedLoc = dyn_cast<FusedLoc>(loc)) {
     ArrayRef<Location> locations = fusedLoc.getLocations();

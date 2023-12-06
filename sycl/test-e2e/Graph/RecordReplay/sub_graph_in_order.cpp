@@ -1,8 +1,7 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for leaks in Level Zero using ZE_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
@@ -16,20 +15,24 @@ int main() {
       sycl::ext::intel::property::queue::no_immediate_command_list{}};
   queue Queue{Properties};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
 
   SubGraph.begin_recording(Queue);
 
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2; });
   });
 
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] += 0.5f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] += 1; });
   });
 
   SubGraph.end_recording(Queue);
@@ -38,14 +41,13 @@ int main() {
 
   Graph.begin_recording(Queue);
 
-  Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] = 1.0f; });
-  });
+  Queue.submit(
+      [&](handler &CGH) { CGH.parallel_for(N, [=](id<1> it) { X[it] = 1; }); });
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecSubGraph); });
 
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] += 3.0f; });
+    CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] += 3; });
   });
 
   Graph.end_recording();
@@ -54,10 +56,10 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  float Output;
-  Queue.memcpy(&Output, X, sizeof(float)).wait();
+  int Output;
+  Queue.memcpy(&Output, X, sizeof(int)).wait();
 
-  assert(Output == 5.5f);
+  assert(Output == 6);
 
   sycl::free(X, Queue);
 

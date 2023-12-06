@@ -21,7 +21,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/DynamicCheckerFunctions.h"
 #include "lldb/Expression/UserExpression.h"
@@ -90,7 +89,7 @@ using namespace std::chrono;
 class ProcessOptionValueProperties
     : public Cloneable<ProcessOptionValueProperties, OptionValueProperties> {
 public:
-  ProcessOptionValueProperties(ConstString name) : Cloneable(name) {}
+  ProcessOptionValueProperties(llvm::StringRef name) : Cloneable(name) {}
 
   const Property *
   GetPropertyAtIndex(size_t idx,
@@ -147,8 +146,7 @@ class ProcessExperimentalOptionValueProperties
                        OptionValueProperties> {
 public:
   ProcessExperimentalOptionValueProperties()
-      : Cloneable(
-            ConstString(Properties::GetExperimentalSettingsName())) {}
+      : Cloneable(Properties::GetExperimentalSettingsName()) {}
 };
 
 ProcessExperimentalProperties::ProcessExperimentalProperties()
@@ -163,8 +161,7 @@ ProcessProperties::ProcessProperties(lldb_private::Process *process)
 {
   if (process == nullptr) {
     // Global process properties, set them up one time
-    m_collection_sp =
-        std::make_shared<ProcessOptionValueProperties>(ConstString("process"));
+    m_collection_sp = std::make_shared<ProcessOptionValueProperties>("process");
     m_collection_sp->Initialize(g_process_properties);
     m_collection_sp->AppendProperty(
         "thread", "Settings specific to threads.", true,
@@ -439,7 +436,7 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
       m_exit_status_mutex(), m_thread_mutex(), m_thread_list_real(this),
       m_thread_list(this), m_thread_plans(*this), m_extended_thread_list(this),
       m_extended_thread_stop_id(0), m_queue_list(this), m_queue_list_stop_id(0),
-      m_notifications(), m_image_tokens(), m_listener_sp(listener_sp),
+      m_notifications(), m_image_tokens(),
       m_breakpoint_site_list(), m_dynamic_checkers_up(),
       m_unix_signals_sp(unix_signals_sp), m_abi_sp(), m_process_input_reader(),
       m_stdio_communication("process.stdio"), m_stdio_communication_mutex(),
@@ -475,10 +472,9 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
   m_private_state_control_broadcaster.SetEventName(
       eBroadcastInternalStateControlResume, "control-resume");
 
-  m_listener_sp->StartListeningForEvents(
-      this, eBroadcastBitStateChanged | eBroadcastBitInterrupt |
-                eBroadcastBitSTDOUT | eBroadcastBitSTDERR |
-                eBroadcastBitProfileData | eBroadcastBitStructuredData);
+  // The listener passed into process creation is the primary listener:
+  // It always listens for all the event bits for Process:
+  SetPrimaryListener(listener_sp);
 
   m_private_state_listener_sp->StartListeningForEvents(
       &m_private_state_broadcaster,
@@ -565,15 +561,6 @@ void Process::Finalize() {
   // Clear the last natural stop ID since it has a strong reference to this
   // process
   m_mod_id.SetStopEventForLastNaturalStopID(EventSP());
-  //#ifdef LLDB_CONFIGURATION_DEBUG
-  //    StreamFile s(stdout, false);
-  //    EventSP event_sp;
-  //    while (m_private_state_listener_sp->GetNextEvent(event_sp))
-  //    {
-  //        event_sp->Dump (&s);
-  //        s.EOL();
-  //    }
-  //#endif
   // We have to be very careful here as the m_private_state_listener might
   // contain events that have ProcessSP values in them which can keep this
   // process around forever. These events need to be cleared out.
@@ -628,7 +615,7 @@ void Process::SynchronouslyNotifyStateChanged(StateType state) {
 StateType Process::GetNextEvent(EventSP &event_sp) {
   StateType state = eStateInvalid;
 
-  if (m_listener_sp->GetEventForBroadcaster(this, event_sp,
+  if (GetPrimaryListener()->GetEventForBroadcaster(this, event_sp,
                                             std::chrono::seconds(0)) &&
       event_sp)
     state = Process::ProcessEventData::GetStateFromEvent(event_sp.get());
@@ -640,7 +627,7 @@ void Process::SyncIOHandler(uint32_t iohandler_id,
                             const Timeout<std::micro> &timeout) {
   // don't sync (potentially context switch) in case where there is no process
   // IO
-  if (!m_process_input_reader)
+  if (!ProcessIOHandlerExists())
     return;
 
   auto Result = m_iohandler_sync.WaitForValueNotEqualTo(iohandler_id, timeout);
@@ -976,7 +963,7 @@ StateType Process::GetStateChangedEvents(EventSP &event_sp,
 
   ListenerSP listener_sp = hijack_listener_sp;
   if (!listener_sp)
-    listener_sp = m_listener_sp;
+    listener_sp = GetPrimaryListener();
 
   StateType state = eStateInvalid;
   if (listener_sp->GetEventForBroadcasterWithType(
@@ -998,7 +985,7 @@ Event *Process::PeekAtStateChangedEvents() {
   LLDB_LOGF(log, "Process::%s...", __FUNCTION__);
 
   Event *event_ptr;
-  event_ptr = m_listener_sp->PeekAtNextEventForBroadcasterWithType(
+  event_ptr = GetPrimaryListener()->PeekAtNextEventForBroadcasterWithType(
       this, eBroadcastBitStateChanged);
   if (log) {
     if (event_ptr) {
@@ -1063,27 +1050,27 @@ const char *Process::GetExitDescription() {
   return nullptr;
 }
 
-bool Process::SetExitStatus(int status, const char *cstr) {
+bool Process::SetExitStatus(int status, llvm::StringRef exit_string) {
   // Use a mutex to protect setting the exit status.
   std::lock_guard<std::mutex> guard(m_exit_status_mutex);
 
   Log *log(GetLog(LLDBLog::State | LLDBLog::Process));
-  LLDB_LOGF(log, "(plugin = %s status=%i (0x%8.8x), description=%s%s%s)",
-           GetPluginName().data(), status, status, cstr ? "\"" : "",
-           cstr ? cstr : "NULL", cstr ? "\"" : "");
+  LLDB_LOG(log, "(plugin = {0} status = {1} ({1:x8}), description=\"{2}\")",
+           GetPluginName(), status, exit_string);
 
   // We were already in the exited state
   if (m_private_state.GetValue() == eStateExited) {
-    LLDB_LOGF(log,
-             "(plugin = %s) ignoring exit status because state was already set "
-             "to eStateExited",
-             GetPluginName().data());
+    LLDB_LOG(
+        log,
+        "(plugin = {0}) ignoring exit status because state was already set "
+        "to eStateExited",
+        GetPluginName());
     return false;
   }
 
   m_exit_status = status;
-  if (cstr)
-    m_exit_string = cstr;
+  if (!exit_string.empty())
+    m_exit_string = exit_string.str();
   else
     m_exit_string.clear();
 
@@ -1135,11 +1122,9 @@ bool Process::SetProcessExitStatus(
     if (target_sp) {
       ProcessSP process_sp(target_sp->GetProcessSP());
       if (process_sp) {
-        const char *signal_cstr = nullptr;
-        if (signo)
-          signal_cstr = process_sp->GetUnixSignals()->GetSignalAsCString(signo);
-
-        process_sp->SetExitStatus(exit_status, signal_cstr);
+        llvm::StringRef signal_str =
+            process_sp->GetUnixSignals()->GetSignalAsStringRef(signo);
+        process_sp->SetExitStatus(exit_status, signal_str);
       }
     }
     return true;
@@ -2419,16 +2404,7 @@ bool Process::GetLoadAddressPermissions(lldb::addr_t load_addr,
       range_info.GetExecutable() == MemoryRegionInfo::eDontKnow) {
     return false;
   }
-
-  if (range_info.GetReadable() == MemoryRegionInfo::eYes)
-    permissions |= lldb::ePermissionsReadable;
-
-  if (range_info.GetWritable() == MemoryRegionInfo::eYes)
-    permissions |= lldb::ePermissionsWritable;
-
-  if (range_info.GetExecutable() == MemoryRegionInfo::eYes)
-    permissions |= lldb::ePermissionsExecutable;
-
+  permissions = range_info.GetLLDBPermissions();
   return true;
 }
 
@@ -2515,7 +2491,11 @@ Status Process::LaunchPrivate(ProcessLaunchInfo &launch_info, StateType &state,
   m_jit_loaders_up.reset();
   m_system_runtime_up.reset();
   m_os_up.reset();
-  m_process_input_reader.reset();
+
+  {
+    std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
+    m_process_input_reader.reset();
+  }
 
   Module *exe_module = GetTarget().GetExecutableModulePointer();
 
@@ -2813,7 +2793,10 @@ Status Process::WillAttachToProcessWithName(const char *process_name,
 
 Status Process::Attach(ProcessAttachInfo &attach_info) {
   m_abi_sp.reset();
-  m_process_input_reader.reset();
+  {
+    std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
+    m_process_input_reader.reset();
+  }
   m_dyld_up.reset();
   m_jit_loaders_up.reset();
   m_system_runtime_up.reset();
@@ -3064,7 +3047,10 @@ void Process::CompleteAttach() {
 
 Status Process::ConnectRemote(llvm::StringRef remote_url) {
   m_abi_sp.reset();
-  m_process_input_reader.reset();
+  {
+    std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
+    m_process_input_reader.reset();
+  }
 
   // Find the process and its architecture.  Make sure it matches the
   // architecture of the current Target, and if not adjust it.
@@ -3352,10 +3338,13 @@ Status Process::DestroyImpl(bool force_kill) {
     m_stdio_communication.Disconnect();
     m_stdin_forward = false;
 
-    if (m_process_input_reader) {
-      m_process_input_reader->SetIsDone(true);
-      m_process_input_reader->Cancel();
-      m_process_input_reader.reset();
+    {
+      std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
+      if (m_process_input_reader) {
+        m_process_input_reader->SetIsDone(true);
+        m_process_input_reader->Cancel();
+        m_process_input_reader.reset();
+      }
     }
 
     // If we exited when we were waiting for a process to stop, then forward
@@ -4114,8 +4103,8 @@ void Process::ProcessEventData::DoOnRemoval(Event *event_ptr) {
   if (!still_should_stop && does_anybody_have_an_opinion) {
     // We've been asked to continue, so do that here.
     SetRestarted(true);
-    // Use the public resume method here, since this is just extending a
-    // public resume.
+    // Use the private resume method here, since we aren't changing the run
+    // lock state.
     process_sp->PrivateResume();
   } else {
     bool hijacked = process_sp->IsHijackedForEvent(eBroadcastBitStateChanged) &&
@@ -4533,20 +4522,25 @@ void Process::SetSTDIOFileDescriptor(int fd) {
     m_stdio_communication.StartReadThread();
 
     // Now read thread is set up, set up input reader.
-
-    if (!m_process_input_reader)
-      m_process_input_reader =
-          std::make_shared<IOHandlerProcessSTDIO>(this, fd);
+    {
+      std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
+      if (!m_process_input_reader)
+        m_process_input_reader =
+            std::make_shared<IOHandlerProcessSTDIO>(this, fd);
+    }
   }
 }
 
 bool Process::ProcessIOHandlerIsActive() {
+  std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
   IOHandlerSP io_handler_sp(m_process_input_reader);
   if (io_handler_sp)
     return GetTarget().GetDebugger().IsTopIOHandler(io_handler_sp);
   return false;
 }
+
 bool Process::PushProcessIOHandler() {
+  std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
   IOHandlerSP io_handler_sp(m_process_input_reader);
   if (io_handler_sp) {
     Log *log = GetLog(LLDBLog::Process);
@@ -4566,6 +4560,7 @@ bool Process::PushProcessIOHandler() {
 }
 
 bool Process::PopProcessIOHandler() {
+  std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
   IOHandlerSP io_handler_sp(m_process_input_reader);
   if (io_handler_sp)
     return GetTarget().GetDebugger().RemoveIOHandler(io_handler_sp);
@@ -5907,12 +5902,12 @@ size_t Process::AddImageToken(lldb::addr_t image_ptr) {
 lldb::addr_t Process::GetImagePtrFromToken(size_t token) const {
   if (token < m_image_tokens.size())
     return m_image_tokens[token];
-  return LLDB_INVALID_ADDRESS;
+  return LLDB_INVALID_IMAGE_TOKEN;
 }
 
 void Process::ResetImageToken(size_t token) {
   if (token < m_image_tokens.size())
-    m_image_tokens[token] = LLDB_INVALID_ADDRESS;
+    m_image_tokens[token] = LLDB_INVALID_IMAGE_TOKEN;
 }
 
 Address
@@ -6247,4 +6242,186 @@ Status Process::WriteMemoryTags(lldb::addr_t addr, size_t len,
 
   return DoWriteMemoryTags(addr, len, tag_manager->GetAllocationTagType(),
                            *packed_tags);
+}
+
+// Create a CoreFileMemoryRange from a MemoryRegionInfo
+static Process::CoreFileMemoryRange
+CreateCoreFileMemoryRange(const MemoryRegionInfo &region) {
+  const addr_t addr = region.GetRange().GetRangeBase();
+  llvm::AddressRange range(addr, addr + region.GetRange().GetByteSize());
+  return {range, region.GetLLDBPermissions()};
+}
+
+// Add dirty pages to the core file ranges and return true if dirty pages
+// were added. Return false if the dirty page information is not valid or in
+// the region.
+static bool AddDirtyPages(const MemoryRegionInfo &region,
+                          Process::CoreFileMemoryRanges &ranges) {
+  const auto &dirty_page_list = region.GetDirtyPageList();
+  if (!dirty_page_list)
+    return false;
+  const uint32_t lldb_permissions = region.GetLLDBPermissions();
+  const addr_t page_size = region.GetPageSize();
+  if (page_size == 0)
+    return false;
+  llvm::AddressRange range(0, 0);
+  for (addr_t page_addr : *dirty_page_list) {
+    if (range.empty()) {
+      // No range yet, initialize the range with the current dirty page.
+      range = llvm::AddressRange(page_addr, page_addr + page_size);
+    } else {
+      if (range.end() == page_addr) {
+        // Combine consective ranges.
+        range = llvm::AddressRange(range.start(), page_addr + page_size);
+      } else {
+        // Add previous contiguous range and init the new range with the
+        // current dirty page.
+        ranges.push_back({range, lldb_permissions});
+        range = llvm::AddressRange(page_addr, page_addr + page_size);
+      }
+    }
+  }
+  // The last range
+  if (!range.empty())
+    ranges.push_back({range, lldb_permissions});
+  return true;
+}
+
+// Given a region, add the region to \a ranges.
+//
+// Only add the region if it isn't empty and if it has some permissions.
+// If \a try_dirty_pages is true, then try to add only the dirty pages for a
+// given region. If the region has dirty page information, only dirty pages
+// will be added to \a ranges, else the entire range will be added to \a
+// ranges.
+static void AddRegion(const MemoryRegionInfo &region, bool try_dirty_pages,
+                      Process::CoreFileMemoryRanges &ranges) {
+  // Don't add empty ranges or ranges with no permissions.
+  if (region.GetRange().GetByteSize() == 0 || region.GetLLDBPermissions() == 0)
+    return;
+  if (try_dirty_pages && AddDirtyPages(region, ranges))
+    return;
+  ranges.push_back(CreateCoreFileMemoryRange(region));
+}
+
+// Save all memory regions that are not empty or have at least some permissions
+// for a full core file style.
+static void GetCoreFileSaveRangesFull(Process &process,
+                                      const MemoryRegionInfos &regions,
+                                      Process::CoreFileMemoryRanges &ranges) {
+
+  // Don't add only dirty pages, add full regions.
+const bool try_dirty_pages = false;
+  for (const auto &region : regions)
+    AddRegion(region, try_dirty_pages, ranges);
+}
+
+// Save only the dirty pages to the core file. Make sure the process has at
+// least some dirty pages, as some OS versions don't support reporting what
+// pages are dirty within an memory region. If no memory regions have dirty
+// page information fall back to saving out all ranges with write permissions.
+static void
+GetCoreFileSaveRangesDirtyOnly(Process &process,
+                               const MemoryRegionInfos &regions,
+                               Process::CoreFileMemoryRanges &ranges) {
+  // Iterate over the regions and find all dirty pages.
+  bool have_dirty_page_info = false;
+  for (const auto &region : regions) {
+    if (AddDirtyPages(region, ranges))
+      have_dirty_page_info = true;
+  }
+
+  if (!have_dirty_page_info) {
+    // We didn't find support for reporting dirty pages from the process
+    // plug-in so fall back to any region with write access permissions.
+    const bool try_dirty_pages = false;
+    for (const auto &region : regions)
+      if (region.GetWritable() == MemoryRegionInfo::eYes)
+        AddRegion(region, try_dirty_pages, ranges);
+  }
+}
+
+// Save all thread stacks to the core file. Some OS versions support reporting
+// when a memory region is stack related. We check on this information, but we
+// also use the stack pointers of each thread and add those in case the OS
+// doesn't support reporting stack memory. This function also attempts to only
+// emit dirty pages from the stack if the memory regions support reporting
+// dirty regions as this will make the core file smaller. If the process
+// doesn't support dirty regions, then it will fall back to adding the full
+// stack region.
+static void
+GetCoreFileSaveRangesStackOnly(Process &process,
+                               const MemoryRegionInfos &regions,
+                               Process::CoreFileMemoryRanges &ranges) {
+  // Some platforms support annotating the region information that tell us that
+  // it comes from a thread stack. So look for those regions first.
+
+  // Keep track of which stack regions we have added
+  std::set<addr_t> stack_bases;
+
+  const bool try_dirty_pages = true;
+  for (const auto &region : regions) {
+    if (region.IsStackMemory() == MemoryRegionInfo::eYes) {
+      stack_bases.insert(region.GetRange().GetRangeBase());
+      AddRegion(region, try_dirty_pages, ranges);
+    }
+  }
+
+  // Also check with our threads and get the regions for their stack pointers
+  // and add those regions if not already added above.
+  for (lldb::ThreadSP thread_sp : process.GetThreadList().Threads()) {
+    if (!thread_sp)
+      continue;
+    StackFrameSP frame_sp = thread_sp->GetStackFrameAtIndex(0);
+    if (!frame_sp)
+      continue;
+    RegisterContextSP reg_ctx_sp = frame_sp->GetRegisterContext();
+    if (!reg_ctx_sp)
+      continue;
+    const addr_t sp = reg_ctx_sp->GetSP();
+    lldb_private::MemoryRegionInfo sp_region;
+    if (process.GetMemoryRegionInfo(sp, sp_region).Success()) {
+      // Only add this region if not already added above. If our stack pointer
+      // is pointing off in the weeds, we will want this range.
+      if (stack_bases.count(sp_region.GetRange().GetRangeBase()) == 0)
+        AddRegion(sp_region, try_dirty_pages, ranges);
+    }
+  }
+}
+
+Status Process::CalculateCoreFileSaveRanges(lldb::SaveCoreStyle core_style,
+                                            CoreFileMemoryRanges &ranges) {
+  lldb_private::MemoryRegionInfos regions;
+  Status err = GetMemoryRegions(regions);
+  if (err.Fail())
+    return err;
+  if (regions.empty())
+    return Status("failed to get any valid memory regions from the process");
+
+  switch (core_style) {
+  case eSaveCoreUnspecified:
+    err = Status("callers must set the core_style to something other than "
+                 "eSaveCoreUnspecified");
+    break;
+
+  case eSaveCoreFull:
+    GetCoreFileSaveRangesFull(*this, regions, ranges);
+    break;
+
+  case eSaveCoreDirtyOnly:
+    GetCoreFileSaveRangesDirtyOnly(*this, regions, ranges);
+    break;
+
+  case eSaveCoreStackOnly:
+    GetCoreFileSaveRangesStackOnly(*this, regions, ranges);
+    break;
+  }
+
+  if (err.Fail())
+    return err;
+
+  if (ranges.empty())
+    return Status("no valid address ranges found for core style");
+
+  return Status(); // Success!
 }

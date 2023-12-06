@@ -12,6 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
+#include <cmath>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
@@ -574,7 +575,7 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
     for (unsigned s = 0; s < systolic_depth; s++) {
       src1_ops_per_dword = 32 / (ops_per_chan * src1_el_bits);
       // U = s / src1_ops_per_dword;
-      U = s >> unsigned(log2(src1_ops_per_dword));
+      U = s >> unsigned(std::log2(src1_ops_per_dword));
 
       for (unsigned n = 0; n < SIMDSize; n++) {
         for (unsigned d = 0; d < ops_per_chan; d++) {

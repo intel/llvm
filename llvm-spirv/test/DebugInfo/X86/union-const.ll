@@ -34,7 +34,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind readnone ssp uwtable
 define i32 @mfi_aen_setup() #0 !dbg !4 {
 entry:
-  tail call void @llvm.dbg.declare(metadata %union.mfi_evt* undef, metadata !16, metadata !21), !dbg !22
+  tail call void @llvm.dbg.declare(metadata ptr undef, metadata !16, metadata !21), !dbg !22
   tail call void @llvm.dbg.value(metadata i32 0, metadata !16, metadata !21), !dbg !22
   ret i32 undef, !dbg !23
 }

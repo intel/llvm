@@ -24,7 +24,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -139,96 +138,6 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
-#else
-template <typename T, typename Tp, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S> *
-__spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
-                             __spv::MatrixLayout Layout = L,
-                             __spv::Scope::Flag Sc = S, int MemOperand = 0);
-
-template <typename T, typename Tp, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S> *Object,
-    std::size_t Stride, __spv::MatrixLayout Layout = L,
-    __spv::Scope::Flag Sc = S, int MemOperand = 0);
-
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *
-__spirv_JointMatrixMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
-
-template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
-__spirv_JointMatrixUUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
-
-template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
-__spirv_JointMatrixUSMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
-
-template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
-          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
-__spirv_JointMatrixSUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
-    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
-
-template <typename T, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
-__spirv_CompositeConstruct(const T v);
-
-template <typename T, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *);
-
-template <typename T, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *, size_t i);
-
-template <typename T, std::size_t R, std::size_t C,
-          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
-          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
-__spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *,
-                            T val, size_t i);
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -1212,19 +1121,6 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 #undef __CLC_BF16_SCAL_VEC
 #undef __CLC_BF16
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __spv::complex_half
-    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
-                           __spv::complex_half) noexcept;
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __spv::complex_float
-    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
-                           __spv::complex_float) noexcept;
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __spv::complex_double
-    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
-                           __spv::complex_double) noexcept;
-
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 
@@ -1233,7 +1129,7 @@ extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
 
-#else // if !__SYCL_DEVICE_ONLY__
+#else  // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t

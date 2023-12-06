@@ -5,13 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
-// UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
 

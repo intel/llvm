@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_HYPOT_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_HYPOT_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_HYPOT_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_HYPOT_H
 
 #include "BasicOperations.h"
 #include "FEnvImpl.h"
@@ -16,10 +16,10 @@
 #include "src/__support/CPP/bit.h"
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/UInt128.h"
-#include "src/__support/builtin_wrappers.h"
+#include "src/__support/bit.h"
 #include "src/__support/common.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace fputil {
 
 namespace internal {
@@ -260,6 +260,6 @@ LIBC_INLINE T hypot(T x, T y) {
 }
 
 } // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_HYPOT_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_HYPOT_H

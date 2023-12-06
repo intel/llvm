@@ -215,6 +215,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_diagnostics, syclCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_task_begin, syclCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_task_end, syclCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_queue_create, syclCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_queue_destroy, syclCallback);
   }
   if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
     vPrintersInit();

@@ -28,8 +28,8 @@ target triple = "spir"
 ; Function Attrs: convergent noinline norecurse nounwind optnone
 define dso_local spir_kernel void @test() #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !2 !kernel_arg_type !2 !kernel_arg_base_type !2 !kernel_arg_type_qual !2 !kernel_arg_host_accessible !2 !kernel_arg_pipe_depth !2 !kernel_arg_pipe_io !2 !kernel_arg_buffer_location !2 {
 entry:
-  %0 = load i32, i32 addrspace(2)* @var.const, align 4
-  %1 = load i32, i32 addrspace(2)* @var2.const, align 4
+  %0 = load i32, ptr addrspace(2) @var.const, align 4
+  %1 = load i32, ptr addrspace(2) @var2.const, align 4
   %mul = mul nsw i32 %0, %1
   %mul1 = mul nsw i32 %mul, 2
   ret void

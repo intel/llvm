@@ -16,7 +16,6 @@ target triple = "spir64-unknown-unknown"
 
 define spir_func void @_Z3barBase() !dbg !12 {
 entry:
-  %0 = getelementptr inbounds [13 x i8], ptr addrspace(2) @.str, i64 0, i64 0
   ret void
 }
 

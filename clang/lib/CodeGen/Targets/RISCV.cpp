@@ -318,7 +318,7 @@ ABIArgInfo RISCVABIInfo::coerceVLSVector(QualType Ty) const {
   assert(Ty->isVectorType() && "expected vector type!");
 
   const auto *VT = Ty->castAs<VectorType>();
-  assert(VT->getVectorKind() == VectorType::RVVFixedLengthDataVector &&
+  assert(VT->getVectorKind() == VectorKind::RVVFixedLengthData &&
          "Unexpected vector kind");
 
   assert(VT->getElementType()->isBuiltinType() && "expected builtin type!");
@@ -431,7 +431,7 @@ ABIArgInfo RISCVABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
   }
 
   if (const VectorType *VT = Ty->getAs<VectorType>())
-    if (VT->getVectorKind() == VectorType::RVVFixedLengthDataVector)
+    if (VT->getVectorKind() == VectorKind::RVVFixedLengthData)
       return coerceVLSVector(Ty);
 
   // Aggregates which are <= 2*XLen will be passed in registers if possible,
@@ -474,15 +474,8 @@ Address RISCVABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
   // Empty records are ignored for parameter passing purposes.
   if (isEmptyRecord(getContext(), Ty, true)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return Address(CGF.Builder.CreateLoad(VAListAddr),
                    CGF.ConvertTypeForMem(Ty), SlotSize);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Address Addr = Address(CGF.Builder.CreateLoad(VAListAddr),
-                           getVAListElementType(CGF), SlotSize);
-    Addr = CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
-    return Addr;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   auto TInfo = getContext().getTypeInfoInChars(Ty);

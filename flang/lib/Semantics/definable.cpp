@@ -95,9 +95,7 @@ static std::optional<parser::Message> WhyNotDefinableBase(parser::CharBlock at,
   bool acceptAllocatable{flags.test(DefinabilityFlag::AcceptAllocatable)};
   bool isTargetDefinition{!isPointerDefinition && IsPointer(ultimate)};
   if (const auto *association{ultimate.detailsIf<AssocEntityDetails>()}) {
-    if (association->rank().has_value()) {
-      return std::nullopt; // SELECT RANK always modifiable variable
-    } else if (!IsVariable(association->expr())) {
+    if (!IsVariable(association->expr())) {
       return BlameSymbol(at,
           "'%s' is construct associated with an expression"_en_US, original);
     } else if (evaluate::HasVectorSubscript(association->expr().value())) {
@@ -169,7 +167,7 @@ static std::optional<parser::Message> WhyNotDefinableLast(parser::CharBlock at,
   const Symbol &ultimate{original.GetUltimate()};
   if (flags.test(DefinabilityFlag::PointerDefinition)) {
     if (flags.test(DefinabilityFlag::AcceptAllocatable)) {
-      if (!IsAllocatableOrPointer(ultimate)) {
+      if (!IsAllocatableOrObjectPointer(&ultimate)) {
         return BlameSymbol(
             at, "'%s' is neither a pointer nor an allocatable"_en_US, original);
       }

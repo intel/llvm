@@ -196,13 +196,7 @@ OpDescriptor llvm::fuzzerop::gepDescriptor(unsigned Weight) {
   auto buildGEP = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
     // TODO: It would be better to generate a random type here, rather than
     // generating a random value and picking its type.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *Ty = Srcs[1]->getType();
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Type *Ty = Srcs[0]->getType()->isOpaquePointerTy()
-                   ? Srcs[1]->getType()
-                   : Srcs[0]->getType()->getNonOpaquePointerElementType();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     auto Indices = ArrayRef(Srcs).drop_front(2);
     return GetElementPtrInst::Create(Ty, Srcs[0], Indices, "G", Inst);
   };

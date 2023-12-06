@@ -11,13 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.h"
-#include "OmptCallback.h"
-#include "OmptInterface.h"
+#include "OpenMP/OMPT/Callback.h"
+#include "OpenMP/OMPT/Interface.h"
 #include "omptarget.h"
 #include "private.h"
 #include "rtl.h"
 
-#include "Utilities.h"
+#include "Shared/Utils.h"
 
 #include <cassert>
 #include <climits>
@@ -482,7 +482,8 @@ void *DeviceTy::getTgtPtrBegin(HDTTMapAccessorTy &HDTTMap, void *HstPtrBegin,
 int DeviceTy::eraseMapEntry(HDTTMapAccessorTy &HDTTMap,
                             HostDataToTargetTy *Entry, int64_t Size) {
   assert(Entry && "Trying to delete a null entry from the HDTT map.");
-  assert(Entry->getTotalRefCount() == 0 && Entry->getDataEndThreadCount() == 0 &&
+  assert(Entry->getTotalRefCount() == 0 &&
+         Entry->getDataEndThreadCount() == 0 &&
          "Trying to delete entry that is in use or owned by another thread.");
 
   INFO(OMP_INFOTYPE_MAPPING_CHANGED, DeviceID,
@@ -538,15 +539,10 @@ void DeviceTy::init() {
     // Enables saving the device memory kernel output post execution if set.
     llvm::omp::target::BoolEnvar OMPX_ReplaySaveOutput(
         "LIBOMPTARGET_RR_SAVE_OUTPUT", false);
-    // Sets the maximum to pre-allocate device memory.
-    llvm::omp::target::UInt64Envar OMPX_DeviceMemorySize(
-        "LIBOMPTARGET_RR_DEVMEM_SIZE", 16);
-    DP("Activating Record-Replay for Device %d with %lu GB memory\n",
-       RTLDeviceID, OMPX_DeviceMemorySize.get());
 
-    RTL->activate_record_replay(RTLDeviceID,
-                                OMPX_DeviceMemorySize * 1024 * 1024 * 1024,
-                                true, OMPX_ReplaySaveOutput);
+    uint64_t ReqPtrArgOffset;
+    RTL->activate_record_replay(RTLDeviceID, 0, nullptr, true,
+                                OMPX_ReplaySaveOutput, ReqPtrArgOffset);
   }
 
   IsInit = true;
@@ -567,11 +563,6 @@ int32_t DeviceTy::initOnce() {
   return OFFLOAD_FAIL;
 }
 
-void DeviceTy::deinit() {
-  if (RTL->deinit_device)
-    RTL->deinit_device(RTLDeviceID);
-}
-
 // Load binary to device.
 __tgt_target_table *DeviceTy::loadBinary(void *Img) {
   std::lock_guard<decltype(RTL->Mtx)> LG(RTL->Mtx);
@@ -580,19 +571,21 @@ __tgt_target_table *DeviceTy::loadBinary(void *Img) {
 
 void *DeviceTy::allocData(int64_t Size, void *HstPtr, int32_t Kind) {
   /// RAII to establish tool anchors before and after data allocation
+  void *TargetPtr = nullptr;
   OMPT_IF_BUILT(InterfaceRAII TargetDataAllocRAII(
                     RegionInterface.getCallbacks<ompt_target_data_alloc>(),
-                    RTLDeviceID, HstPtr, Size,
+                    DeviceID, HstPtr, &TargetPtr, Size,
                     /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
-  return RTL->data_alloc(RTLDeviceID, Size, HstPtr, Kind);
+  TargetPtr = RTL->data_alloc(RTLDeviceID, Size, HstPtr, Kind);
+  return TargetPtr;
 }
 
 int32_t DeviceTy::deleteData(void *TgtAllocBegin, int32_t Kind) {
   /// RAII to establish tool anchors before and after data deletion
   OMPT_IF_BUILT(InterfaceRAII TargetDataDeleteRAII(
                     RegionInterface.getCallbacks<ompt_target_data_delete>(),
-                    RTLDeviceID, TgtAllocBegin,
+                    DeviceID, TgtAllocBegin,
                     /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
   return RTL->data_delete(RTLDeviceID, TgtAllocBegin, Kind);
@@ -630,7 +623,7 @@ int32_t DeviceTy::submitData(void *TgtPtrBegin, void *HstPtrBegin, int64_t Size,
   OMPT_IF_BUILT(
       InterfaceRAII TargetDataSubmitRAII(
           RegionInterface.getCallbacks<ompt_target_data_transfer_to_device>(),
-          RTLDeviceID, TgtPtrBegin, HstPtrBegin, Size,
+          DeviceID, TgtPtrBegin, HstPtrBegin, Size,
           /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
   if (!AsyncInfo || !RTL->data_submit_async || !RTL->synchronize)
@@ -658,7 +651,7 @@ int32_t DeviceTy::retrieveData(void *HstPtrBegin, void *TgtPtrBegin,
   OMPT_IF_BUILT(
       InterfaceRAII TargetDataRetrieveRAII(
           RegionInterface.getCallbacks<ompt_target_data_transfer_from_device>(),
-          RTLDeviceID, HstPtrBegin, TgtPtrBegin, Size,
+          DeviceID, HstPtrBegin, TgtPtrBegin, Size,
           /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
   if (!RTL->data_retrieve_async || !RTL->synchronize)

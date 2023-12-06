@@ -1,95 +1,102 @@
-#include <iostream>
-#include <random>
-
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t TM = 8;
-constexpr size_t TK = 16;
+template <size_t TM, size_t TN, typename T1, size_t NUM_ROWS, size_t NUM_COLS>
+void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
+                           queue q) {
+  size_t M = NUM_ROWS;
+  size_t N = NUM_COLS;
 
-template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
-          size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
-          size_t NUM_COLS_C>
-void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
-  size_t M = NUM_ROWS_C;
-  size_t N = NUM_COLS_C;
-  size_t K = NUM_COLS_A;
+  static_assert((NUM_ROWS % TM) == 0);
+  static_assert((NUM_COLS % TN) == 0);
 
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = multi_ptr<T2, sycl::access::address_space::global_space>(A);
-  auto pB = multi_ptr<T2, sycl::access::address_space::global_space>(B);
-  auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
+  auto p_input = address_space_cast<sycl::access::address_space::global_space,
+                                    sycl::access::decorated::no>(input);
+
+  auto p_out_col_major =
+      address_space_cast<sycl::access::address_space::global_space,
+                         sycl::access::decorated::no>(out_col_major);
+  auto p_out_row_major =
+      address_space_cast<sycl::access::address_space::global_space,
+                         sycl::access::decorated::no>(out_row_major);
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
-         {
-           // The submatrix API has to be accessed by all the workitems in a
-           // subgroup these functions will be called once by the subgroup no
-           // code divergence between the workitems
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
-               sub_a;
+           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_matrix;
 
-           // For B, since current implementation does not support non-packed
-           // layout, users need to specify the packed_b layout.
-           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
-               sub_b;
-           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-           joint_matrix_load(sg, sub_c,
-                             pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                             N, layout::col_major);
-           for (int k = 0; k < K; k += TK) {
-             joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
-             // Assume we alreay in vnni format.
-             joint_matrix_load(sg, sub_b,
-                               pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
-                               N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-           }
-           joint_matrix_store(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::col_major);
+           auto row_major_offset =
+               (sg_startx * TM) * N + (sg_starty / SG_SZ * TN);
+           auto col_major_offset =
+               (sg_startx * TM) + (sg_starty / SG_SZ * TN) * M;
+
+           joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, M,
+                             layout::col_major);
+
+           joint_matrix_store(sg, sub_matrix,
+                              p_out_col_major + row_major_offset, N,
+                              layout::row_major);
+
+           joint_matrix_store(sg, sub_matrix,
+                              p_out_row_major + col_major_offset, M,
+                              layout::col_major);
          }); // parallel for
    }).wait();
 }
 
-int main() {
-  static constexpr size_t MATRIX_M = 1024;
-  static constexpr size_t MATRIX_N = 1024;
-  static constexpr size_t MATRIX_K = 1024;
-  static constexpr unsigned int vnniFactor = 2;
+template <size_t TM> void run_matrix_test() {
+  static constexpr size_t MATRIX_M = TM * 16;
+  static constexpr size_t MATRIX_N = TN * 16;
+
   queue q;
-  bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
-  bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
-  bfloat16 *vnniB = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
-  float *C = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
-  float *D = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
+  float *input = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
+  float *out_col_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
+  float *out_row_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
+  float *ref_col_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  matrix_rand(MATRIX_M, MATRIX_K, A, (bfloat16)5);
-  matrix_rand(MATRIX_K, MATRIX_N, B, (bfloat16)5);
-  matrix_fill(MATRIX_M, MATRIX_N, C, (float)1.0);
-  matrix_fill(MATRIX_M, MATRIX_N, D, (float)1.0);
+  // input is column majot matrix so it is of NxM shape
+  matrix_rand(MATRIX_N, MATRIX_M, input, (float)5.0);
+  matrix_fill(MATRIX_M, MATRIX_N, out_col_major, (float)0);
+  matrix_fill(MATRIX_N, MATRIX_M, out_row_major, (float)0);
+  matrix_transpose(MATRIX_N, MATRIX_M, ref_col_major, input);
 
-  matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, vnniFactor);
-  matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
-                  MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q,
-                                                             vnniFactor);
-  matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K,
-                      true /*transposed c*/);
+  matrix_load_and_store<TM, TN, float, MATRIX_M, MATRIX_N>(input, out_col_major,
+                                                           out_row_major, q);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
+  // we use exact comparison as no low precision calculation is used in this
+  // test
+  std::cout << "compare results for TM " << TM << "\n";
+  bool res = matrix_compare<float, float, true>(MATRIX_M, MATRIX_N,
+                                                out_col_major, ref_col_major) &&
+             matrix_compare<float, float, true>(MATRIX_N, MATRIX_M,
+                                                out_row_major, input);
+  free(input, q);
+  free(out_col_major, q);
+  free(out_row_major, q);
+  free(ref_col_major, q);
+  assert(res);
+}
 
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+int main() {
+  run_matrix_test<8>();
+  run_matrix_test<7>();
+  run_matrix_test<6>();
+  run_matrix_test<5>();
+  run_matrix_test<4>();
+  run_matrix_test<3>();
+  run_matrix_test<2>();
+  run_matrix_test<1>();
+
+  std::cout << "Passed\n";
+  return 0;
 }

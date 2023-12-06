@@ -62,6 +62,23 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedPiDevicesGet(pi_platform platform,
+                                       pi_device_type device_type,
+                                       pi_uint32 num_entries,
+                                       pi_device *devices,
+                                       pi_uint32 *num_devices) {
+  // Host/Device timer syncronization isn't done all the time (cached), so we
+  // need brand new device for some of the testcases.
+  static std::intptr_t device_id = 10;
+  if (num_devices)
+    *num_devices = 1;
+
+  if (devices && num_entries > 0)
+    devices[0] = reinterpret_cast<pi_device>(++device_id);
+
+  return PI_SUCCESS;
+}
+
 TEST(GetProfilingInfo, normal_pass_without_exception) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
@@ -318,6 +335,7 @@ TEST(GetProfilingInfo,
   using namespace sycl;
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedPiDevicesGet);
   Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
       redefinedPiGetDeviceAndHostTimer);
   device Dev = Plt.get_devices()[0];
@@ -339,6 +357,7 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   using namespace sycl;
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedPiDevicesGet);
   Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
       redefinedPiGetDeviceAndHostTimer);
   device Dev = Plt.get_devices()[0];
@@ -379,6 +398,7 @@ static pi_result redefinedDeviceGetInfoAcc(pi_device device,
 TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedPiDevicesGet);
   Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
@@ -416,6 +436,7 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
 TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedPiDevicesGet);
   Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(

@@ -42,6 +42,7 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
+* [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
 ## Usage
 
@@ -265,7 +266,7 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
 Then, `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A, 
+syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A,
                               d_B, d_C, n);
 ```
 
@@ -835,141 +836,196 @@ wrong queue is used as an argument in any of the member functions of the
 #### Atomic Operations
 
 SYCLcompat provides an interface for common atomic operations (`add`, `sub`,
-`and`, `or`, `xor`, `min`, `max`, `exchange`, `compare_exchange`). While SYCL
-exposes atomic operations through member functions of `sycl::atomic_ref`, this
-library provides access via functions taking a standard pointer argument.
-Template arguments control the `sycl::memory_scope`, `sycl::memory_order` and
-`sycl::access::address_space` of these atomic operations. SYCLcompat also
-exposes overloads for these atomic functions which take a runtime memoryScope
-argument. Every atomic operation is implemented via an API function taking a raw
-pointer as the target. Additional overloads for
+`and`, `or`, `xor`, `min`, `max`, `inc`, `dec`, `exchange`, `compare_exchange`).
+While SYCL exposes atomic operations through member functions of
+`sycl::atomic_ref`, this library provides access via functions taking a standard
+pointer argument. Template arguments control the `sycl::memory_scope`,
+`sycl::memory_order` and `sycl::access::address_space` of these atomic
+operations. SYCLcompat also exposes overloads for these atomic functions which
+take a runtime memoryScope argument. Every atomic operation is implemented via
+an API function taking a raw pointer as the target. Additional overloads for
 `syclcompat::compare_exchange_strong` are provided which take a
-`sycl::multi_ptr` instead of a raw pointer. Addition and subtraction make use of
-`arith_t` to differentiate between numeric and pointer arithmetics.
+`sycl::multi_ptr` instead of a raw pointer. The type of the operand for most
+atomic operations is defined as `syclcompat::type_identity_t<T>` to avoid
+template deduction issues when an operand of a different type (e.g. double
+literal) is supplied. Atomic addition and subtraction free functions make use of
+`syclcompat::arith_t<T>` to differentiate between numeric and pointer
+arithmetics.
 
 The available operations are exposed as follows:
 
 ``` c++
 namespace syclcompat {
 
+template <class T> struct type_identity {
+  using type = T;
+};
+template <class T> using type_identity_t = typename type_identity<T>::type;
+
 template <typename T> struct arith {
   using type = std::conditional_t<std::is_pointer_v<T>, std::ptrdiff_t, T>;
 };
 template <typename T> using arith_t = typename arith<T>::type;
 
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
 T atomic_fetch_add(T *addr, arith_t<T> operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_add(T *addr, arith_t<T> operand,
-                   sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_sub(T *addr, arith_t<T> operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_sub(T *addr, arith_t<T> operand,
-                          sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_and(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_and(T *addr, T operand, sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_or(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_or(T *addr, T operand, sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_xor(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_xor(T *addr, T operand, sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_min(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_min(T *addr, T operand, sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_fetch_max(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_fetch_max(T *addr, T operand, sycl::memory_order memoryOrder);
 
 template <sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_sub(T *addr, arith_t<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_and(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_or(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_xor(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_min(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_fetch_max(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
 unsigned int atomic_fetch_compare_inc(unsigned int *addr,
                                       unsigned int operand);
+
 template <sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space>
-unsigned int atomic_fetch_compare_inc(unsigned int *addr,
-                                      unsigned int operand,
-                                      sycl::memory_order memoryOrder);
-
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
+              sycl::access::address_space::generic_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-T atomic_exchange(T *addr, T operand);
-template <typename T, sycl::access::address_space addressSpace =
-                          sycl::access::address_space::global_space>
-T atomic_exchange(T *addr, T operand, sycl::memory_order memoryOrder);
+unsigned int atomic_fetch_compare_dec(unsigned int *addr,
+                                      unsigned int operand);
 
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
+T atomic_exchange(T *addr, type_identity<T> operand);
+
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
 T atomic_compare_exchange_strong(
-    sycl::multi_ptr<T, sycl::access::address_space::global_space> addr,
+    sycl::multi_ptr<T, sycl::access::address_space::generic_space> addr,
     T expected, T desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::generic_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
+          sycl::memory_scope memoryScope = sycl::memory_scope::device,
+          typename T>
 T atomic_compare_exchange_strong(
     T *addr, T expected, T desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed);
+
+} // namespace syclcompat
+```
+
+SYCLcompat also provides an atomic class with the `store`, `load`, `exchange`,
+`compare_exchange_weak`, `fetch_add`, and `fetch_sub` operations. The atomic
+class wrapper supports int, unsigned int, long, unsigned long, long long,
+unsigned long long, float, double and pointer datatypes.
+
+```cpp
+namespace syclcompat {
+
+template <typename T,
+          sycl::memory_scope DefaultScope = sycl::memory_scope::system,
+          sycl::memory_order DefaultOrder = sycl::memory_order::seq_cst,
+          sycl::access::address_space Space =
+              sycl::access::address_space::generic_space>
+class atomic {
+  static constexpr sycl::memory_order default_read_order =
+      sycl::atomic_ref<T, DefaultOrder, DefaultScope,
+                       Space>::default_read_order;
+  static constexpr sycl::memory_order default_write_order =
+      sycl::atomic_ref<T, DefaultOrder, DefaultScope,
+                       Space>::default_write_order;
+  static constexpr sycl::memory_scope default_scope = DefaultScope;
+  static constexpr sycl::memory_order default_read_modify_write_order =
+      DefaultOrder;
+
+  constexpr atomic() noexcept = default;
+
+  constexpr atomic(T d) noexcept;
+
+  void store(T operand, sycl::memory_order memoryOrder = default_write_order,
+             sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  T load(sycl::memory_order memoryOrder = default_read_order,
+         sycl::memory_scope memoryScope = default_scope) const noexcept;
+
+  T exchange(T operand,
+             sycl::memory_order memoryOrder = default_read_modify_write_order,
+             sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  bool compare_exchange_weak(
+      T &expected, T desired, sycl::memory_order success,
+      sycl::memory_order failure,
+      sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  bool compare_exchange_weak(
+      T &expected, T desired,
+      sycl::memory_order memoryOrder = default_read_modify_write_order,
+      sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  bool compare_exchange_strong(
+      T &expected, T desired, sycl::memory_order success,
+      sycl::memory_order failure,
+      sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  bool compare_exchange_strong(
+      T &expected, T desired,
+      sycl::memory_order memoryOrder = default_read_modify_write_order,
+      sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  T fetch_add(arith_t<T> operand,
+              sycl::memory_order memoryOrder = default_read_modify_write_order,
+              sycl::memory_scope memoryScope = default_scope) noexcept;
+
+  T fetch_sub(arith_t<T> operand,
+              sycl::memory_order memoryOrder = default_read_modify_write_order,
+              sycl::memory_scope memoryScope = default_scope) noexcept;
+};
 
 } // namespace syclcompat
 ```

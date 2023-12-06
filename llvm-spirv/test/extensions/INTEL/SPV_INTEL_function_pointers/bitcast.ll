@@ -40,8 +40,7 @@ define dso_local spir_func signext i8 @foo(i8 signext %0) #0 {
 
 ; Function Attrs: noinline nounwind optnone
 define dso_local spir_func void @bar() #0 {
-  %1 = bitcast i8 (i8)* @foo to i32 (i32)*
-  %2 = call i32 %1(i32 0)
+  %1 = call i32 @foo(i32 0)
   ret void
 }
 

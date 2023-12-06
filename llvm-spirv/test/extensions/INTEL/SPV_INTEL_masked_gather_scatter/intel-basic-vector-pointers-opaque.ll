@@ -58,7 +58,7 @@ entry:
   ret void
 }
 
-declare <4 x i32 addrspace(1)*> @boo(<4 x i32 addrspace(1)*> %a)
+declare <4 x ptr addrspace(1)> @boo(<4 x ptr addrspace(1)> %a)
 
 !llvm.module.flags = !{!0}
 !opencl.spir.version = !{!1}

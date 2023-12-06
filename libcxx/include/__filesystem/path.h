@@ -36,7 +36,7 @@
 #  pragma GCC system_header
 #endif
 
-#ifndef _LIBCPP_CXX03_LANG
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
@@ -76,9 +76,9 @@ struct __can_convert_char<char32_t> {
   using __char_type = char32_t;
 };
 
-template <class _ECharT>
+template <class _ECharT, __enable_if_t<__can_convert_char<_ECharT>::value, int> = 0>
 _LIBCPP_HIDE_FROM_ABI
-typename enable_if<__can_convert_char<_ECharT>::value, bool>::type
+bool
 __is_separator(_ECharT __e) {
 #if defined(_LIBCPP_WIN32API)
   return __e == _ECharT('/') || __e == _ECharT('\\');
@@ -107,7 +107,6 @@ struct __is_pathable_string<
     _Void<typename __can_convert_char<_ECharT>::__char_type> >
     : public __can_convert_char<_ECharT> {
   using _Str = basic_string<_ECharT, _Traits, _Alloc>;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(_Str const& __s) { return __s.data(); }
@@ -129,7 +128,6 @@ struct __is_pathable_string<
     _Void<typename __can_convert_char<_ECharT>::__char_type> >
     : public __can_convert_char<_ECharT> {
   using _Str = basic_string_view<_ECharT, _Traits>;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(_Str const& __s) { return __s.data(); }
@@ -155,8 +153,6 @@ struct __is_pathable_char_array : false_type {};
 template <class _Source, class _ECharT, class _UPtr>
 struct __is_pathable_char_array<_Source, _ECharT*, _UPtr, true>
     : __can_convert_char<__remove_const_t<_ECharT> > {
-  using _Base = __can_convert_char<__remove_const_t<_ECharT> >;
-
   _LIBCPP_HIDE_FROM_ABI
   static _ECharT const* __range_begin(const _ECharT* __b) { return __b; }
 
@@ -185,7 +181,6 @@ struct __is_pathable_iter<
         typename iterator_traits<_Iter>::value_type>::__char_type> >
     : __can_convert_char<typename iterator_traits<_Iter>::value_type> {
   using _ECharT = typename iterator_traits<_Iter>::value_type;
-  using _Base = __can_convert_char<_ECharT>;
 
   _LIBCPP_HIDE_FROM_ABI
   static _Iter __range_begin(_Iter __b) { return __b; }
@@ -305,17 +300,17 @@ struct _PathCVT {
 template <>
 struct _PathCVT<__path_value> {
 
-  template <class _Iter>
+  template <class _Iter, __enable_if_t<__has_exactly_input_iterator_category<_Iter>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__has_exactly_input_iterator_category<_Iter>::value>::type
+  static void
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     for (; __b != __e; ++__b)
       __dest.push_back(*__b);
   }
 
-  template <class _Iter>
+  template <class _Iter, __enable_if_t<__has_forward_iterator_category<_Iter>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__has_forward_iterator_category<_Iter>::value>::type
+  static void
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     __dest.append(__b, __e);
   }
@@ -350,17 +345,17 @@ struct _PathCVT<char> {
       __char_to_wide(__str, const_cast<__path_value*>(__dest.data()) + __pos, __size);
   }
 
-  template <class _Iter>
+  template <class _Iter, __enable_if_t<__has_exactly_input_iterator_category<_Iter>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__has_exactly_input_iterator_category<_Iter>::value>::type
+  static void
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     basic_string<char> __tmp(__b, __e);
     __append_string(__dest, __tmp);
   }
 
-  template <class _Iter>
+  template <class _Iter, __enable_if_t<__has_forward_iterator_category<_Iter>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI
-  static typename enable_if<__has_forward_iterator_category<_Iter>::value>::type
+  static void
   __append_range(__path_string& __dest, _Iter __b, _Iter __e) {
     basic_string<char> __tmp(__b, __e);
     __append_string(__dest, __tmp);
@@ -445,8 +440,7 @@ struct _PathExport<char8_t> {
 
 class _LIBCPP_EXPORTED_FROM_ABI path {
   template <class _SourceOrIter, class _Tp = path&>
-  using _EnableIfPathable =
-      typename enable_if<__is_pathable<_SourceOrIter>::value, _Tp>::type;
+  using _EnableIfPathable = __enable_if_t<__is_pathable<_SourceOrIter>::value, _Tp>;
 
   template <class _Tp>
   using _SourceChar = typename __is_pathable<_Tp>::__char_type;
@@ -465,7 +459,7 @@ public:
   typedef basic_string<value_type> string_type;
   typedef basic_string_view<value_type> __string_view;
 
-  enum _LIBCPP_ENUM_VIS format : unsigned char {
+  enum format : unsigned char {
     auto_format,
     native_format,
     generic_format
@@ -623,7 +617,7 @@ public:
   _EnableIfPathable<_Source> append(const _Source& __src) {
     using _Traits = __is_pathable<_Source>;
     using _CVT = _PathCVT<_SourceChar<_Source> >;
-    bool __source_is_absolute = _VSTD_FS::__is_separator(_Traits::__first_or_null(__src));
+    bool __source_is_absolute = filesystem::__is_separator(_Traits::__first_or_null(__src));
     if (__source_is_absolute)
       __pn_.clear();
     else if (has_filename())
@@ -638,7 +632,7 @@ public:
     typedef typename iterator_traits<_InputIt>::value_type _ItVal;
     static_assert(__can_convert_char<_ItVal>::value, "Must convertible");
     using _CVT = _PathCVT<_ItVal>;
-    if (__first != __last && _VSTD_FS::__is_separator(*__first))
+    if (__first != __last && filesystem::__is_separator(*__first))
       __pn_.clear();
     else if (has_filename())
       __pn_ += preferred_separator;
@@ -678,9 +672,9 @@ public:
     return *this;
   }
 
-  template <class _ECharT>
+  template <class _ECharT, __enable_if_t<__can_convert_char<_ECharT>::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI
-  typename enable_if<__can_convert_char<_ECharT>::value, path&>::type
+  path&
   operator+=(_ECharT __x) {
     _PathCVT<_ECharT>::__append_source(__pn_,
                                        basic_string_view<_ECharT>(&__x, 1));
@@ -1040,21 +1034,19 @@ public:
   iterator end() const;
 
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
-  template <class _CharT, class _Traits>
+  template <class _CharT, class _Traits, __enable_if_t<is_same<_CharT, value_type>::value &&
+                                                       is_same<_Traits, char_traits<value_type> >::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI friend
-      typename enable_if<is_same<_CharT, value_type>::value &&
-                             is_same<_Traits, char_traits<value_type> >::value,
-                         basic_ostream<_CharT, _Traits>&>::type
+  basic_ostream<_CharT, _Traits>&
       operator<<(basic_ostream<_CharT, _Traits>& __os, const path& __p) {
     __os << _VSTD::__quoted(__p.native());
     return __os;
   }
 
-  template <class _CharT, class _Traits>
+  template <class _CharT, class _Traits, __enable_if_t<!is_same<_CharT, value_type>::value ||
+                                                       !is_same<_Traits, char_traits<value_type> >::value, int> = 0>
   _LIBCPP_HIDE_FROM_ABI friend
-      typename enable_if<!is_same<_CharT, value_type>::value ||
-                             !is_same<_Traits, char_traits<value_type> >::value,
-                         basic_ostream<_CharT, _Traits>&>::type
+  basic_ostream<_CharT, _Traits>&
       operator<<(basic_ostream<_CharT, _Traits>& __os, const path& __p) {
     __os << _VSTD::__quoted(__p.string<_CharT, _Traits>());
     return __os;
@@ -1071,8 +1063,7 @@ public:
 #endif // !_LIBCPP_HAS_NO_LOCALIZATION
 
 private:
-  inline _LIBCPP_HIDE_FROM_ABI path&
-  __assign_view(__string_view const& __s) noexcept {
+  inline _LIBCPP_HIDE_FROM_ABI path& __assign_view(__string_view const& __s) {
     __pn_ = string_type(__s);
     return *this;
   }
@@ -1092,14 +1083,14 @@ _LIBCPP_END_NAMESPACE_FILESYSTEM
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <>
-struct _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY hash<_VSTD_FS::path> : __unary_function<_VSTD_FS::path, size_t> {
-  _LIBCPP_HIDE_FROM_ABI size_t operator()(_VSTD_FS::path const& __p) const noexcept {
-    return _VSTD_FS::hash_value(__p);
+struct _LIBCPP_AVAILABILITY_FILESYSTEM_LIBRARY hash<filesystem::path> : __unary_function<filesystem::path, size_t> {
+  _LIBCPP_HIDE_FROM_ABI size_t operator()(filesystem::path const& __p) const noexcept {
+    return filesystem::hash_value(__p);
   }
 };
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___FILESYSTEM_PATH_H

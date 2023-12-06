@@ -3,6 +3,7 @@
 #file = #llvm.di_file<"foo.mlir" in "/foo/">
 #variable = #llvm.di_local_variable<scope = #file>
 #variableAddr = #llvm.di_local_variable<scope = #file>
+#label = #llvm.di_label<scope = #file>
 
 func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
   %0 = llvm.mlir.constant(42 : i32) : i32
@@ -11,6 +12,7 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
   %1 = llvm.load %ptr { alignment = 8 } : !llvm.ptr -> i32
   llvm.intr.dbg.value #variable = %0 : i32
   llvm.intr.dbg.declare #variableAddr = %ptr : !llvm.ptr
+  llvm.intr.dbg.label #label
   %byte = llvm.mlir.constant(43 : i8) : i8
   %true = llvm.mlir.constant(1 : i1) : i1
   "llvm.intr.memset"(%ptr, %byte, %0) <{isVolatile = true}> : (!llvm.ptr, i8, i32) -> ()
@@ -26,6 +28,7 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
   llvm.unreachable
 ^bb2:
   llvm.intr.stackrestore %stack : !llvm.ptr
+  llvm.call_intrinsic "llvm.x86.sse41.round.ss"() : () -> (vector<8xf32>)
   return %1 : i32
 }
 
@@ -37,6 +40,7 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
 // CHECK: %[[RES:.+]] = llvm.load %[[PTR]]
 // CHECK: llvm.intr.dbg.value #{{.+}} = %[[CST]]
 // CHECK: llvm.intr.dbg.declare #{{.+}} = %[[PTR]]
+// CHECK: llvm.intr.dbg.label #{{.+}}
 // CHECK: "llvm.intr.memset"(%[[PTR]]
 // CHECK: "llvm.intr.memmove"(%[[PTR]], %[[PTR]]
 // CHECK: "llvm.intr.memcpy"(%[[PTR]], %[[PTR]]
@@ -47,6 +51,7 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
 // CHECK: llvm.inline_asm has_side_effects "foo", "bar"
 // CHECK: llvm.unreachable
 // CHECK: llvm.intr.stackrestore %[[STACK]]
+// CHECK: llvm.call_intrinsic "llvm.x86.sse41.round.ss"(
 func.func @test_inline(%ptr : !llvm.ptr) -> i32 {
   %0 = call @inner_func_inlinable(%ptr) : (!llvm.ptr) -> i32
   return %0 : i32
@@ -79,7 +84,7 @@ llvm.func internal fastcc @callee() -> (i32) attributes { function_entry_count =
 // CHECK-NEXT: llvm.return %[[CST]]
 llvm.func @caller() -> (i32) {
   // Include all call attributes that don't prevent inlining.
-  %0 = llvm.call @callee() { fastmathFlags = #llvm.fastmath<nnan, ninf>, branch_weights = dense<42> : vector<1xi32> } : () -> (i32)
+  %0 = llvm.call fastcc @callee() { fastmathFlags = #llvm.fastmath<nnan, ninf>, branch_weights = dense<42> : vector<1xi32> } : () -> (i32)
   llvm.return %0 : i32
 }
 

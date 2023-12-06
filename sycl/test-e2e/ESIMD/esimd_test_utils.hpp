@@ -8,10 +8,11 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
-#define NOMINMAX
 
+#define NOMINMAX
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -37,10 +38,7 @@ namespace esimd_test {
 // Require GPU device
 inline int ESIMDSelector(const device &device) {
   const std::string intel{"Intel(R) Corporation"};
-  if (device.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 1000;
-  } else if (device.is_gpu() &&
-             (device.get_info<info::device::vendor>() == intel)) {
+  if (device.is_gpu() && (device.get_info<info::device::vendor>() == intel)) {
     // pick gpu device if esimd not available but give it a lower score in
     // order not to compete with the esimd in environments where both are
     // present
@@ -641,7 +639,8 @@ enum GPUDriverOS { Linux = 1, Windows = 2, LinuxAndWindows = 3 };
 /// for win/opencl see the link:
 /// https://www.intel.com/content/www/us/en/download/726609/intel-arc-iris-xe-graphics-whql-windows.html
 bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
-                   std::string WinOpenCLRequiredVersion = "") {
+                   std::string WinOpenCLRequiredVersion = "",
+                   bool VerifyFormat = true) {
   auto Dev = Q.get_device();
   if (!Dev.is_gpu())
     return false;
@@ -655,17 +654,16 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
 
   // A and B must have digits at the same positions.
   // Otherwise, A and B symbols must be equal, e.g. both be equal to '.'.
-  auto verifyDriverVersionFormat = [](const std::string &A,
-                                      const std::string &B) {
+  auto isExpectedDriverVersionFormat = [](const std::string &A,
+                                          const std::string &B) {
     if (A.size() != B.size())
-      throw std::runtime_error(
-          "Inconsistent expected & actual driver versions");
+      return false;
     for (int I = 0; I < A.size(); I++) {
       if ((A[I] >= '0' && A[I] <= '9' && !(B[I] >= '0' && B[I] <= '9')) &&
           A[I] != B[I])
-        throw std::runtime_error(
-            "Inconsistent expected & actual driver versions");
+        return false;
     }
+    return true;
   };
 
   auto BE = Q.get_backend();
@@ -686,10 +684,32 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
       !IsLinux && (OSCheck & GPUDriverOS::Windows)) {
     auto CurrentVersion = Dev.get_info<sycl::info::device::driver_version>();
     CurrentVersion = CurrentVersion.substr(Start, Length);
-    verifyDriverVersionFormat(CurrentVersion, RequiredVersion);
-    IsGE &= CurrentVersion >= RequiredVersion;
+    if (isExpectedDriverVersionFormat(CurrentVersion, RequiredVersion)) {
+      IsGE = CurrentVersion >= RequiredVersion;
+    } else if (VerifyFormat) {
+      std::string Msg =
+          std::string("Inconsistent expected & actual driver versions: ") +
+          CurrentVersion + " vs " + RequiredVersion;
+      throw std::runtime_error(
+          "Inconsistent expected & actual driver versions");
+    } else {
+      IsGE = false;
+    }
   }
   return IsGE;
+}
+
+template <typename T> T getRandomValue() {
+  using Tuint = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  Tuint v = rand();
+  if constexpr (sizeof(Tuint) > 4)
+    v = (v << 32) | rand();
+  return sycl::bit_cast<T>(v);
 }
 
 } // namespace esimd_test

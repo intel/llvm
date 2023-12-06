@@ -11,6 +11,7 @@
 // RUN:     readability-identifier-naming.ClassConstantPrefix: 'k', \
 // RUN:     readability-identifier-naming.ClassMemberCase: CamelCase, \
 // RUN:     readability-identifier-naming.ClassMethodCase: camelBack, \
+// RUN:     readability-identifier-naming.ConceptCase: CamelCase, \
 // RUN:     readability-identifier-naming.ConstantCase: UPPER_CASE, \
 // RUN:     readability-identifier-naming.ConstantSuffix: '_CST', \
 // RUN:     readability-identifier-naming.ConstexprFunctionCase: lower_case, \
@@ -49,7 +50,7 @@
 // RUN:     readability-identifier-naming.StaticConstantCase: UPPER_CASE, \
 // RUN:     readability-identifier-naming.StaticVariableCase: camelBack, \
 // RUN:     readability-identifier-naming.StaticVariablePrefix: 's_', \
-// RUN:     readability-identifier-naming.StructCase: lower_case, \
+// RUN:     readability-identifier-naming.StructCase: Leading_upper_snake_case, \
 // RUN:     readability-identifier-naming.TemplateParameterCase: UPPER_CASE, \
 // RUN:     readability-identifier-naming.TemplateTemplateParameterCase: CamelCase, \
 // RUN:     readability-identifier-naming.TemplateUsingCase: lower_case, \
@@ -251,6 +252,15 @@ class my_derived_class : public virtual my_class {};
 class CMyWellNamedClass {};
 // No warning expected as this class is well named.
 
+template<typename t_t>
+concept MyConcept = requires (t_t a_t) { {a_t++}; };
+// No warning expected as this concept is well named.
+
+template<typename t_t>
+concept my_concept_2 = requires (t_t a_t) { {a_t++}; };
+// CHECK-MESSAGES: :[[@LINE-1]]:9: warning: invalid case style for concept 'my_concept_2'
+// CHECK-FIXES: {{^}}concept MyConcept2 = requires (t_t a_t) { {a_t++}; };{{$}}
+
 template <typename t_t>
 class CMyWellNamedClass2 : public my_class {
   // CHECK-FIXES: {{^}}class CMyWellNamedClass2 : public CMyClass {{{$}}
@@ -413,7 +423,8 @@ class my_other_templated_class : my_templated_class<  my_class>, private my_deri
 
 template<typename t_t>
 using mysuper_tpl_t = my_other_templated_class  <:: FOO_NS  ::my_class>;
-// CHECK-FIXES: {{^}}using mysuper_tpl_t = CMyOtherTemplatedClass  <:: foo_ns  ::CMyClass>;{{$}}
+// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for type alias 'mysuper_tpl_t'
+// CHECK-FIXES: {{^}}using mysuper_Tpl_t = CMyOtherTemplatedClass  <:: foo_ns  ::CMyClass>;{{$}}
 
 const int global_Constant = 6;
 // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: invalid case style for global constant 'global_Constant'
@@ -513,9 +524,9 @@ constexpr int CE_function() { return 3; }
 
 struct THIS___Structure {
 // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: invalid case style for struct 'THIS___Structure'
-// CHECK-FIXES: {{^}}struct this_structure {{{$}}
+// CHECK-FIXES: {{^}}struct This_structure {{{$}}
     THIS___Structure();
-// CHECK-FIXES: {{^}}    this_structure();{{$}}
+// CHECK-FIXES: {{^}}    This_structure();{{$}}
 
   union __MyUnion_is_wonderful__ {};
 // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: invalid case style for union '__MyUnion_is_wonderful__'
@@ -524,7 +535,7 @@ struct THIS___Structure {
 
 typedef THIS___Structure struct_type;
 // CHECK-MESSAGES: :[[@LINE-1]]:26: warning: invalid case style for typedef 'struct_type'
-// CHECK-FIXES: {{^}}typedef this_structure struct_type_t;{{$}}
+// CHECK-FIXES: {{^}}typedef This_structure struct_type_t;{{$}}
 
 struct_type GlobalTypedefTestFunction(struct_type a_argument1) {
 // CHECK-FIXES: {{^}}struct_type_t GlobalTypedefTestFunction(struct_type_t a_argument1) {
@@ -534,7 +545,7 @@ struct_type GlobalTypedefTestFunction(struct_type a_argument1) {
 
 using my_struct_type = THIS___Structure;
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for type alias 'my_struct_type'
-// CHECK-FIXES: {{^}}using my_Struct_Type_t = this_structure;{{$}}
+// CHECK-FIXES: {{^}}using my_Struct_Type_t = This_structure;{{$}}
 
 template<typename t_t>
 using SomeOtherTemplate = my_other_templated_class  <:: FOO_NS  ::my_class>;
@@ -596,6 +607,8 @@ void MY_TEST_Macro(function) {}
 }
 
 template <typename t_t> struct a {
+// CHECK-MESSAGES: :[[@LINE-1]]:32: warning: invalid case style for struct 'a'
+// CHECK-FIXES: {{^}}template <typename t_t> struct A {{{$}}
   typename t_t::template b<> c;
 
   char const MY_ConstMember_string[4] = "123";
@@ -609,9 +622,11 @@ template <typename t_t> struct a {
 
 template<typename t_t>
 char const a<t_t>::MyConstClass_string[] = "123";
-// CHECK-FIXES: {{^}}char const a<t_t>::kMyConstClassString[] = "123";{{$}}
+// CHECK-FIXES: {{^}}char const A<t_t>::kMyConstClassString[] = "123";{{$}}
 
 template <template <typename> class A> struct b { A<int> c; };
+// CHECK-MESSAGES: :[[@LINE-1]]:47: warning: invalid case style for struct 'b'
+// CHECK-FIXES:template <template <typename> class A> struct B { A<int> c; };{{$}}
 
 unsigned MY_GLOBAL_array[] = {1,2,3};
 // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: invalid case style for global variable 'MY_GLOBAL_array'
@@ -645,17 +660,17 @@ using namespace FOO_NS::InlineNamespace;
 // CHECK-FIXES: {{^}}using namespace foo_ns::inline_namespace;
 
 void QualifiedTypeLocTest(THIS___Structure);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(this_structure);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(This_structure);{{$}}
 void QualifiedTypeLocTest(THIS___Structure &);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(this_structure &);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(This_structure &);{{$}}
 void QualifiedTypeLocTest(THIS___Structure &&);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(this_structure &&);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(This_structure &&);{{$}}
 void QualifiedTypeLocTest(const THIS___Structure);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(const this_structure);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(const This_structure);{{$}}
 void QualifiedTypeLocTest(const THIS___Structure &);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(const this_structure &);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(const This_structure &);{{$}}
 void QualifiedTypeLocTest(volatile THIS___Structure &);
-// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(volatile this_structure &);{{$}}
+// CHECK-FIXES: {{^}}void QualifiedTypeLocTest(volatile This_structure &);{{$}}
 
 namespace redecls {
 // We only want the warning to show up once here for the first decl.
@@ -700,6 +715,8 @@ auto GetRes(type_t& Param) -> decltype(Param.res());
 // Check implicit declarations in coroutines
 
 struct async_obj {
+// CHECK-MESSAGES: :[[@LINE-1]]:8: warning: invalid case style for struct 'async_obj'
+// CHECK-FIXES: {{^}}struct Async_obj {{{$}}
 public:
   never_suspend operator co_await() const noexcept;
 };
@@ -711,8 +728,8 @@ task ImplicitDeclTest(async_obj &a_object) {
 // Test scenario when canonical declaration will be a forward declaration
 struct ForwardDeclStruct;
 // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: invalid case style for struct 'ForwardDeclStruct' [readability-identifier-naming]
-// CHECK-FIXES: {{^}}struct forward_decl_struct;
-// CHECK-FIXES: {{^}}struct forward_decl_struct {
+// CHECK-FIXES: {{^}}struct Forward_decl_struct;
+// CHECK-FIXES: {{^}}struct Forward_decl_struct {
 struct ForwardDeclStruct {
 };
 
@@ -723,3 +740,29 @@ struct forward_declared_as_struct;
 class forward_declared_as_struct {
 };
 
+namespace pr55156 {
+
+template<typename> struct Wrap;
+
+typedef enum {
+  VALUE0,
+  VALUE1,
+} ValueType;
+// CHECK-MESSAGES: :[[@LINE-1]]:3: warning: invalid case style for typedef 'ValueType' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}} value_type_t;
+
+typedef ValueType (*MyFunPtr)(const ValueType&, Wrap<ValueType>*);
+// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: invalid case style for typedef 'MyFunPtr' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}typedef value_type_t (*my_fun_ptr_t)(const value_type_t&, Wrap<value_type_t>*);
+
+#define STATIC_MACRO static
+STATIC_MACRO void someFunc(ValueType a_v1, const ValueType& a_v2) {}
+// CHECK-FIXES: {{^}}STATIC_MACRO void someFunc(value_type_t a_v1, const value_type_t& a_v2) {}
+STATIC_MACRO void someFunc(const ValueType** p_a_v1, ValueType (*p_a_v2)()) {}
+// CHECK-FIXES: {{^}}STATIC_MACRO void someFunc(const value_type_t** p_a_v1, value_type_t (*p_a_v2)()) {}
+STATIC_MACRO ValueType someFunc() {}
+// CHECK-FIXES: {{^}}STATIC_MACRO value_type_t someFunc() {}
+STATIC_MACRO void someFunc(MyFunPtr, const MyFunPtr****) {}
+// CHECK-FIXES: {{^}}STATIC_MACRO void someFunc(my_fun_ptr_t, const my_fun_ptr_t****) {}
+#undef STATIC_MACRO
+}

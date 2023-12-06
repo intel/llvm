@@ -209,11 +209,7 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
     auto GlobalAS = getContext().getTargetAddressSpace(LangAS::cuda_device);
     auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(LTy);
     if (PtrTy && PtrTy->getAddressSpace() == DefaultAS) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       LTy = llvm::PointerType::get(PtrTy->getContext(), GlobalAS);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      LTy = llvm::PointerType::getWithSamePointeeType(PtrTy, GlobalAS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
     }
 

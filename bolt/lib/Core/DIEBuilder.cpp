@@ -39,6 +39,9 @@
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "bolt"
+namespace opts {
+extern cl::opt<unsigned> Verbosity;
+}
 namespace llvm {
 namespace bolt {
 
@@ -105,6 +108,14 @@ uint32_t DIEBuilder::allocDIE(const DWARFUnit &DU, const DWARFDie &DDie,
     return DWARFUnitInfo.DIEIDMap[DDieOffset];
 
   DIE *Die = DIE::get(Alloc, dwarf::Tag(DDie.getTag()));
+  // This handles the case where there is a DIE ref which points to
+  // invalid DIE. This prevents assert when IR is written out.
+  // Also it makes debugging easier.
+  // DIE dump is not very useful.
+  // It's nice to know original offset from which this DIE was constructed.
+  Die->setOffset(DDie.getOffset());
+  if (opts::Verbosity >= 1)
+    getState().DWARFDieAddressesParsed.insert(DDie.getOffset());
   const uint32_t DId = DWARFUnitInfo.DieInfoVector.size();
   DWARFUnitInfo.DIEIDMap[DDieOffset] = DId;
   DWARFUnitInfo.DieInfoVector.emplace_back(
@@ -182,12 +193,6 @@ void DIEBuilder::buildTypeUnits(const bool Init) {
   if (Init)
     BuilderState.reset(new State());
 
-  unsigned int CUNum = getCUNum(DwarfContext, IsDWO);
-  getState().CloneUnitCtxMap.resize(CUNum);
-  DWARFContext::unit_iterator_range CU4TURanges =
-      IsDWO ? DwarfContext->dwo_types_section_units()
-            : DwarfContext->types_section_units();
-
   const DWARFUnitIndex &TUIndex = DwarfContext->getTUIndex();
   if (!TUIndex.getRows().empty()) {
     for (auto &Row : TUIndex.getRows()) {
@@ -197,6 +202,11 @@ void DIEBuilder::buildTypeUnits(const bool Init) {
                                        true);
     }
   }
+  const unsigned int CUNum = getCUNum(DwarfContext, IsDWO);
+  getState().CloneUnitCtxMap.resize(CUNum);
+  DWARFContext::unit_iterator_range CU4TURanges =
+      IsDWO ? DwarfContext->dwo_types_section_units()
+            : DwarfContext->types_section_units();
 
   getState().Type = ProcessingType::DWARF4TUs;
   for (std::unique_ptr<DWARFUnit> &DU : CU4TURanges)
@@ -267,11 +277,13 @@ void DIEBuilder::buildCompileUnits(const std::vector<DWARFUnit *> &CUs) {
     constructFromUnit(*DU);
 }
 
-void DIEBuilder::buildBoth() {
+void DIEBuilder::buildDWOUnit(DWARFUnit &U) {
   BuilderState.release();
   BuilderState = std::make_unique<State>();
   buildTypeUnits(false);
-  buildCompileUnits(false);
+  getState().Type = ProcessingType::CUs;
+  registerUnit(U, false);
+  constructFromUnit(U);
 }
 
 DIE *DIEBuilder::constructDIEFast(DWARFDie &DDie, DWARFUnit &U,
@@ -290,10 +302,6 @@ DIE *DIEBuilder::constructDIEFast(DWARFDie &DDie, DWARFUnit &U,
   DIEInfo &DieInfo = getDIEInfo(UnitId, *Idx);
 
   uint64_t Offset = DDie.getOffset();
-  // Just for making debugging easier.
-  // DIE dump is not very useful.
-  // It's nice to know original offset from which this DIE was constructed.
-  DieInfo.Die->setOffset(Offset);
   uint64_t NextOffset = Offset;
   DWARFDataExtractor Data = U.getDebugInfoExtractor();
   DWARFDebugInfoEntry DDIEntry;
@@ -369,6 +377,7 @@ getUnitForOffset(DIEBuilder &Builder, DWARFContext &DWCtx,
 
 uint32_t DIEBuilder::computeDIEOffset(const DWARFUnit &CU, DIE &Die,
                                       uint32_t &CurOffset) {
+  getState().DWARFDieAddressesParsed.erase(Die.getOffset());
   uint32_t CurSize = 0;
   Die.setOffset(CurOffset);
   for (DIEValue &Val : Die.values())
@@ -421,6 +430,13 @@ void DIEBuilder::finish() {
       continue;
     computeOffset(*CU, UnitSize);
   }
+  if (opts::Verbosity >= 1) {
+    if (!getState().DWARFDieAddressesParsed.empty())
+      dbgs() << "Referenced DIE offsets not in .debug_info\n";
+    for (const uint64_t Address : getState().DWARFDieAddressesParsed) {
+      dbgs() << Twine::utohexstr(Address) << "\n";
+    }
+  }
   updateReferences();
 }
 
@@ -457,11 +473,20 @@ DWARFDie DIEBuilder::resolveDIEReference(
           allocDIE(*RefCU, RefDie, getState().DIEAlloc, *UnitId);
         return RefDie;
       }
-    }
-  }
+      errs() << "BOLT-WARNING: [internal-dwarf-error]: invalid referenced DIE "
+                "at offset: "
+             << Twine::utohexstr(RefOffset) << ".\n";
 
-  errs() << "BOLT-WARNING: [internal-dwarf-error]: could not find referenced "
-            "CU.\n";
+    } else {
+      errs() << "BOLT-WARNING: [internal-dwarf-error]: could not parse "
+                "referenced DIE at offset: "
+             << Twine::utohexstr(RefOffset) << ".\n";
+    }
+  } else {
+    errs() << "BOLT-WARNING: [internal-dwarf-error]: could not find referenced "
+              "CU. Referenced DIE offset: "
+           << Twine::utohexstr(RefOffset) << ".\n";
+  }
   return DWARFDie();
 }
 

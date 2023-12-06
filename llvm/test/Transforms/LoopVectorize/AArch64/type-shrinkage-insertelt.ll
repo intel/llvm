@@ -20,7 +20,7 @@ define void @test0(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:    [[TMP4:%.*]] = getelementptr inbounds i16, ptr [[A]], i64 [[TMP0]]
 ; CHECK-NEXT:    [[TMP5:%.*]] = getelementptr inbounds i16, ptr [[TMP4]], i32 0
 ; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x i16>, ptr [[TMP5]], align 2
-; CHECK-NEXT:    [[TMP6:%.*]] = add <4 x i16> [[WIDE_LOAD]], undef
+; CHECK-NEXT:    [[TMP6:%.*]] = add <4 x i16> [[WIDE_LOAD]], <i16 10, i16 10, i16 10, i16 10>
 ; CHECK-NEXT:    [[TMP7:%.*]] = zext <4 x i16> [[TMP6]] to <4 x i32>
 ; CHECK-NEXT:    [[TMP8:%.*]] = trunc <4 x i32> [[TMP7]] to <4 x i16>
 ; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i64, ptr [[B]], i64 [[TMP0]]
@@ -51,8 +51,7 @@ define void @test0(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:    [[TMP29:%.*]] = icmp eq i64 [[INDEX_NEXT]], 16
 ; CHECK-NEXT:    br i1 [[TMP29]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP0:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 16, 16
-; CHECK-NEXT:    br i1 [[CMP_N]], label [[FOR_INC1286_LOOPEXIT:%.*]], label [[SCALAR_PH]]
+; CHECK-NEXT:    br i1 true, label [[FOR_INC1286_LOOPEXIT:%.*]], label [[SCALAR_PH]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ 16, [[MIDDLE_BLOCK]] ], [ 0, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    br label [[IF_THEN1165_US:%.*]]
@@ -61,7 +60,7 @@ define void @test0(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:    [[GEP_A:%.*]] = getelementptr inbounds i16, ptr [[A]], i64 [[INDVARS_IV1783]]
 ; CHECK-NEXT:    [[L_A:%.*]] = load i16, ptr [[GEP_A]], align 2
 ; CHECK-NEXT:    [[CONV1177_US:%.*]] = zext i16 [[L_A]] to i32
-; CHECK-NEXT:    [[ADD1178_US:%.*]] = add nsw i32 [[CONV1177_US]], undef
+; CHECK-NEXT:    [[ADD1178_US:%.*]] = add nsw i32 [[CONV1177_US]], 10
 ; CHECK-NEXT:    [[CONV1179_US:%.*]] = trunc i32 [[ADD1178_US]] to i16
 ; CHECK-NEXT:    [[GEP_B:%.*]] = getelementptr inbounds i64, ptr [[B]], i64 [[INDVARS_IV1783]]
 ; CHECK-NEXT:    [[L_B:%.*]] = load i64, ptr [[GEP_B]], align 8
@@ -82,7 +81,7 @@ if.then1165.us:                                   ; preds = %if.then1165.us, %en
   %gep.A  = getelementptr inbounds i16, ptr %A, i64 %indvars.iv1783
   %l.A = load i16, ptr %gep.A
   %conv1177.us = zext i16 %l.A to i32
-  %add1178.us = add nsw i32 %conv1177.us, undef
+  %add1178.us = add nsw i32 %conv1177.us, 10
   %conv1179.us = trunc i32 %add1178.us to i16
   %gep.B  = getelementptr inbounds i64, ptr %B, i64 %indvars.iv1783
   %l.B = load i64, ptr %gep.B
@@ -97,9 +96,9 @@ for.inc1286.loopexit:                             ; preds = %if.then1165.us
   ret void
 }
 
-define void @test1(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
+define void @test1(ptr noalias %M3, ptr noalias %A, ptr noalias %B, ptr noalias %C) {
 ; CHECK-LABEL: define void @test1
-; CHECK-SAME: (ptr noalias [[M3:%.*]], ptr noalias [[A:%.*]], ptr noalias [[B:%.*]]) {
+; CHECK-SAME: (ptr noalias [[M3:%.*]], ptr noalias [[A:%.*]], ptr noalias [[B:%.*]], ptr noalias [[C:%.*]]) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 false, label [[SCALAR_PH:%.*]], label [[VECTOR_PH:%.*]]
 ; CHECK:       vector.ph:
@@ -110,7 +109,7 @@ define void @test1(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i64 [[INDEX]], 1
 ; CHECK-NEXT:    [[TMP2:%.*]] = add i64 [[INDEX]], 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = add i64 [[INDEX]], 3
-; CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr undef, align 4
+; CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[C]], align 4
 ; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[TMP4]], i64 0
 ; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <4 x i32> [[BROADCAST_SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK-NEXT:    [[TMP5:%.*]] = getelementptr inbounds i16, ptr [[A]], i64 [[TMP0]]
@@ -148,14 +147,13 @@ define void @test1(ptr noalias %M3, ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:    [[TMP31:%.*]] = icmp eq i64 [[INDEX_NEXT]], 16
 ; CHECK-NEXT:    br i1 [[TMP31]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP4:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 16, 16
-; CHECK-NEXT:    br i1 [[CMP_N]], label [[FOR_INC1286_LOOPEXIT:%.*]], label [[SCALAR_PH]]
+; CHECK-NEXT:    br i1 true, label [[FOR_INC1286_LOOPEXIT:%.*]], label [[SCALAR_PH]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ 16, [[MIDDLE_BLOCK]] ], [ 0, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    br label [[IF_THEN1165_US:%.*]]
 ; CHECK:       if.then1165.us:
 ; CHECK-NEXT:    [[INDVARS_IV1783:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[INDVARS_IV_NEXT1784:%.*]], [[IF_THEN1165_US]] ]
-; CHECK-NEXT:    [[FPTR:%.*]] = load i32, ptr undef, align 4
+; CHECK-NEXT:    [[FPTR:%.*]] = load i32, ptr [[C]], align 4
 ; CHECK-NEXT:    [[GEP_A:%.*]] = getelementptr inbounds i16, ptr [[A]], i64 [[INDVARS_IV1783]]
 ; CHECK-NEXT:    [[L_A:%.*]] = load i16, ptr [[GEP_A]], align 2
 ; CHECK-NEXT:    [[CONV1177_US:%.*]] = zext i16 [[L_A]] to i32
@@ -177,7 +175,7 @@ entry:
 
 if.then1165.us:                                   ; preds = %if.then1165.us, %entry
   %indvars.iv1783 = phi i64 [ 0, %entry ], [ %indvars.iv.next1784, %if.then1165.us ]
-  %fptr = load i32, ptr undef, align 4
+  %fptr = load i32, ptr %C, align 4
   %gep.A  = getelementptr inbounds i16, ptr %A, i64 %indvars.iv1783
   %l.A = load i16, ptr %gep.A
   %conv1177.us = zext i16 %l.A to i32

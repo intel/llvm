@@ -33,20 +33,20 @@ target triple = "spir"
 %opencl.sampler_t = type opaque
 
 ; Function Attrs: convergent nounwind
-define spir_func <4 x float> @foo(%opencl.image2d_ro_t addrspace(1)* %src) local_unnamed_addr #0 {
+define spir_func <4 x float> @foo(ptr addrspace(1) %src) local_unnamed_addr #0 {
 entry:
-  %0 = tail call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 23) #2
-  %1 = tail call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 0) #2
-  %call = tail call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(%opencl.image2d_ro_t addrspace(1)* %src, %opencl.sampler_t addrspace(2)* %0, <2 x float> zeroinitializer, float 0.000000e+00) #3
-  %call1 = tail call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(%opencl.image2d_ro_t addrspace(1)* %src, %opencl.sampler_t addrspace(2)* %1, <2 x float> zeroinitializer, float 0.000000e+00) #3
+  %0 = tail call ptr addrspace(2) @__translate_sampler_initializer(i32 23) #2
+  %1 = tail call ptr addrspace(2) @__translate_sampler_initializer(i32 0) #2
+  %call = tail call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1) %src, ptr addrspace(2) %0, <2 x float> zeroinitializer, float 0.000000e+00) #3
+  %call1 = tail call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1) %src, ptr addrspace(2) %1, <2 x float> zeroinitializer, float 0.000000e+00) #3
   %add = fadd <4 x float> %call, %call1
   ret <4 x float> %add
 }
 
-declare %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32) local_unnamed_addr
+declare ptr addrspace(2) @__translate_sampler_initializer(i32) local_unnamed_addr
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(%opencl.image2d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*, <2 x float>, float) local_unnamed_addr #1
+declare spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1), ptr addrspace(2), <2 x float>, float) local_unnamed_addr #1
 
 attributes #0 = { convergent nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

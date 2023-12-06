@@ -5,21 +5,7 @@
 // RUN: FileCheck -input-file=%t.ll %s 
 
 #include "sycl.hpp"
-typedef __typeof__(sizeof(int)) size_t;
-struct __nativecpu_state {
-  alignas(16) size_t MGlobal_id[3];
-};
-#define __SYCL_HC_ATTRS                                                        \
-  __attribute__((weak)) __attribute((alwaysinline))                            \
-  [[intel::device_indirectly_callable]]
-
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_global_id(__attribute((address_space(0)))
-                            __nativecpu_state *s) {
-  return &(s->MGlobal_id[0]);
-}
-
-
+typedef long unsigned int size_t;
 
 using namespace sycl;
 const size_t N = 10;

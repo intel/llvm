@@ -11,6 +11,12 @@ set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
 set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "" CACHE STRING "Override HIP include dir path (set to \"\" for default behavior)")
 set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "" CACHE STRING "Override HSA include dir path (set to \"\" for default behavior)")
 
+if(SYCL_ENABLE_KERNEL_FUSION)
+  set(SYCL_ENABLE_COMGR ON)
+else(SYCL_ENABLE_KERNEL_FUSION)
+  set(SYCL_ENABLE_COMGR OFF)
+endif(SYCL_ENABLE_KERNEL_FUSION)
+
 if("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "")
   set(PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/include")
 else()
@@ -26,7 +32,7 @@ endif()
 # Set HIP lib dir
 set(SYCL_BUILD_PI_HIP_LIB_DIR "" CACHE STRING "Override HIP lib dir path (set to \"\" for default behavior)")
 if("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "")
-  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib")
+  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/lib")
 else()
   set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_LIB_DIR}")
 endif()
@@ -84,43 +90,16 @@ endif()
 # Set includes used in added library (rocmdrv)
 set(HIP_HEADERS "${PI_HIP_INCLUDE_DIR};${PI_HIP_HSA_INCLUDE_DIR}")
 
+# Get the HIP sources so they can be shared with HIP PI plugin
+get_target_property(UR_HIP_ADAPTER_SOURCES ur_adapter_hip SOURCES)
+
 # Create pi_hip library
 add_sycl_plugin(hip
   SOURCES
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
     "../unified_runtime/pi2ur.cpp"
-    "../unified_runtime/ur/ur.hpp"
-    "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/adapters/hip/adapter.cpp"
-    "../unified_runtime/ur/adapters/hip/adapter.hpp"
-    "../unified_runtime/ur/adapters/hip/command_buffer.cpp"
-    "../unified_runtime/ur/adapters/hip/command_buffer.hpp"
-    "../unified_runtime/ur/adapters/hip/common.cpp"
-    "../unified_runtime/ur/adapters/hip/common.hpp"
-    "../unified_runtime/ur/adapters/hip/context.cpp"
-    "../unified_runtime/ur/adapters/hip/context.hpp"
-    "../unified_runtime/ur/adapters/hip/device.cpp"
-    "../unified_runtime/ur/adapters/hip/device.hpp"
-    "../unified_runtime/ur/adapters/hip/enqueue.cpp"
-    "../unified_runtime/ur/adapters/hip/event.cpp"
-    "../unified_runtime/ur/adapters/hip/event.hpp"
-    "../unified_runtime/ur/adapters/hip/image.cpp"
-    "../unified_runtime/ur/adapters/hip/kernel.cpp"
-    "../unified_runtime/ur/adapters/hip/kernel.hpp"
-    "../unified_runtime/ur/adapters/hip/memory.cpp"
-    "../unified_runtime/ur/adapters/hip/memory.hpp"
-    "../unified_runtime/ur/adapters/hip/platform.cpp"
-    "../unified_runtime/ur/adapters/hip/platform.hpp"
-    "../unified_runtime/ur/adapters/hip/program.cpp"
-    "../unified_runtime/ur/adapters/hip/program.hpp"
-    "../unified_runtime/ur/adapters/hip/queue.cpp"
-    "../unified_runtime/ur/adapters/hip/queue.hpp"
-    "../unified_runtime/ur/adapters/hip/sampler.cpp"
-    "../unified_runtime/ur/adapters/hip/sampler.hpp"
-    "../unified_runtime/ur/adapters/hip/ur_interface_loader.cpp"
-    "../unified_runtime/ur/adapters/hip/usm.cpp"
-    "../unified_runtime/ur/adapters/hip/usm_p2p.cpp"
+    ${UR_HIP_ADAPTER_SOURCES}
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_hip.hpp"
@@ -128,16 +107,17 @@ add_sycl_plugin(hip
   INCLUDE_DIRS
     ${sycl_plugin_dir}
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
+    ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/hip
   LIBRARIES
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
   HEADER
     ${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp
 )
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-  # Import HIP runtime library
-  add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
   set_target_properties(
     rocmdrv PROPERTIES
@@ -146,6 +126,18 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )
   target_link_libraries(pi_hip PUBLIC rocmdrv)
+
+  if(SYCL_ENABLE_COMGR)
+    add_library(amd_comgr SHARED IMPORTED GLOBAL)
+    set_target_properties(
+      amd_comgr PROPERTIES
+        IMPORTED_LOCATION                    "${PI_HIP_LIB_DIR}/libamd_comgr.so"
+        INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+    )
+    target_link_libraries(pi_hip PUBLIC amd_comgr)
+    target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+  endif(SYCL_ENABLE_COMGR)
 
   # Set HIP define to select AMD platform
   target_compile_definitions(pi_hip PRIVATE __HIP_PLATFORM_AMD__)

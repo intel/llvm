@@ -534,8 +534,8 @@ void ASTStmtReader::VisitExpr(Expr *E) {
 void ASTStmtReader::VisitConstantExpr(ConstantExpr *E) {
   VisitExpr(E);
 
-  auto StorageKind = Record.readInt();
-  assert(E->ConstantExprBits.ResultKind == StorageKind && "Wrong ResultKind!");
+  auto StorageKind = static_cast<ConstantResultStorageKind>(Record.readInt());
+  assert(E->getResultStorageKind() == StorageKind && "Wrong ResultKind!");
 
   E->ConstantExprBits.APValueKind = Record.readInt();
   E->ConstantExprBits.IsUnsigned = Record.readInt();
@@ -544,22 +544,20 @@ void ASTStmtReader::VisitConstantExpr(ConstantExpr *E) {
   E->ConstantExprBits.IsImmediateInvocation = Record.readInt();
 
   switch (StorageKind) {
-  case ConstantExpr::RSK_None:
+  case ConstantResultStorageKind::None:
     break;
 
-  case ConstantExpr::RSK_Int64:
+  case ConstantResultStorageKind::Int64:
     E->Int64Result() = Record.readInt();
     break;
 
-  case ConstantExpr::RSK_APValue:
+  case ConstantResultStorageKind::APValue:
     E->APValueResult() = Record.readAPValue();
     if (E->APValueResult().needsCleanup()) {
       E->ConstantExprBits.HasCleanup = true;
       Record.getContext().addDestruction(&E->APValueResult());
     }
     break;
-  default:
-    llvm_unreachable("unexpected ResultKind!");
   }
 
   E->setSubExpr(Record.readSubExpr());
@@ -606,6 +604,7 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
   E->DeclRefExprBits.RefersToEnclosingVariableOrCapture = Record.readInt();
   E->DeclRefExprBits.NonOdrUseReason = Record.readInt();
   E->DeclRefExprBits.IsImmediateEscalating = Record.readInt();
+  E->DeclRefExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = false;
   unsigned NumTemplateArgs = 0;
   if (E->hasTemplateKWAndArgsInfo())
     NumTemplateArgs = Record.readInt();
@@ -691,7 +690,7 @@ void ASTStmtReader::VisitCharacterLiteral(CharacterLiteral *E) {
   VisitExpr(E);
   E->setValue(Record.readInt());
   E->setLocation(readSourceLocation());
-  E->setKind(static_cast<CharacterLiteral::CharacterKind>(Record.readInt()));
+  E->setKind(static_cast<CharacterLiteralKind>(Record.readInt()));
 }
 
 void ASTStmtReader::VisitParenExpr(ParenExpr *E) {
@@ -805,13 +804,9 @@ readConstraintSatisfaction(ASTRecordReader &Record) {
 void ASTStmtReader::VisitConceptSpecializationExpr(
         ConceptSpecializationExpr *E) {
   VisitExpr(E);
-  E->NestedNameSpec = Record.readNestedNameSpecifierLoc();
-  E->TemplateKWLoc = Record.readSourceLocation();
-  E->ConceptName = Record.readDeclarationNameInfo();
-  E->NamedConcept = readDeclAs<ConceptDecl>();
-  E->FoundDecl = Record.readDeclAs<NamedDecl>();
   E->SpecDecl = Record.readDeclAs<ImplicitConceptSpecializationDecl>();
-  E->ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
+  if (Record.readBool())
+    E->ConceptRef = Record.readConceptReference();
   E->Satisfaction = E->isValueDependent() ? nullptr :
       ASTConstraintSatisfaction::Create(Record.getContext(),
                                         readConstraintSatisfaction(Record));
@@ -934,6 +929,8 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
   }
   std::copy(Requirements.begin(), Requirements.end(),
             E->getTrailingObjects<concepts::Requirement *>());
+  E->LParenLoc = Record.readSourceLocation();
+  E->RParenLoc = Record.readSourceLocation();
   E->RBraceLoc = Record.readSourceLocation();
 }
 
@@ -1304,8 +1301,7 @@ void ASTStmtReader::VisitSourceLocExpr(SourceLocExpr *E) {
   E->ParentContext = readDeclAs<DeclContext>();
   E->BuiltinLoc = readSourceLocation();
   E->RParenLoc = readSourceLocation();
-  E->SourceLocExprBits.Kind =
-      static_cast<SourceLocExpr::IdentKind>(Record.readInt());
+  E->SourceLocExprBits.Kind = Record.readInt();
 }
 
 void ASTStmtReader::VisitAddrLabelExpr(AddrLabelExpr *E) {
@@ -2423,6 +2419,11 @@ void ASTStmtReader::VisitOMPSectionDirective(OMPSectionDirective *D) {
   D->setHasCancel(Record.readBool());
 }
 
+void ASTStmtReader::VisitOMPScopeDirective(OMPScopeDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitOMPSingleDirective(OMPSingleDirective *D) {
   VisitStmt(D);
   VisitOMPExecutableDirective(D);
@@ -2952,7 +2953,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CONSTANT:
       S = ConstantExpr::CreateEmpty(
-          Context, static_cast<ConstantExpr::ResultStorageKind>(
+          Context, static_cast<ConstantResultStorageKind>(
                        /*StorageKind=*/Record[ASTStmtReader::NumExprFields]));
       break;
 
@@ -3386,6 +3387,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_SECTION_DIRECTIVE:
       S = OMPSectionDirective::CreateEmpty(Context, Empty);
+      break;
+
+    case STMT_OMP_SCOPE_DIRECTIVE:
+      S = OMPScopeDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
     case STMT_OMP_SINGLE_DIRECTIVE:
@@ -3922,7 +3928,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CXX_THIS:
-      S = new (Context) CXXThisExpr(Empty);
+      S = CXXThisExpr::CreateEmpty(Context);
       break;
 
     case EXPR_CXX_THROW:

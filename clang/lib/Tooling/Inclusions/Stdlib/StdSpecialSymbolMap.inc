@@ -364,6 +364,18 @@ SYMBOL(make_integer_sequence, std::, <utility>)
 // Remove when the generator starts producing them.
 SYMBOL(make_any, std::, <any>)
 SYMBOL(any_cast, std::, <any>)
+SYMBOL(div, std::, <cstdlib>)
+SYMBOL(abort, std::, <cstdlib>)
+
+// These are C symbols that are not under std namespace.
+SYMBOL(localtime_r, None, <ctime>)
+SYMBOL(localtime_r, None, <time.h>)
+SYMBOL(localtime_s, None, <ctime>)
+SYMBOL(localtime_s, None, <time.h>)
+SYMBOL(gmtime_r, None, <ctime>)
+SYMBOL(gmtime_r, None, <time.h>)
+SYMBOL(gmtime_s, None, <ctime>)
+SYMBOL(gmtime_s, None, <time.h>)
 
 // The std::placeholder symbols (_1, ..., _N) are listed in the cppreference
 // placeholder.html, but the index only contains a single entry with "_1, _2, ..., _N"

@@ -81,6 +81,7 @@ predefined HW configuration(s). As a general solution it is reasonable to have
 program persistent cache which works between application restarts (e.g. cache
 on disk for device code built for specific HW/SW configuration).
 
+(what-is-program)=
 <a name="what-is-program">1</a>: Here "program" means an internal SYCL runtime
 object corresponding to a device code module or native binary defining a set of
 SYCL kernels and/or device functions.
@@ -112,9 +113,11 @@ The kernels map's key consists of two components:
 - the program the kernel belongs to,
 - kernel name<sup>[3](#what-is-kname)</sup>.
 
+(what-is-ksid)=
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
 
+(what-is-bopts)=
 <a name="what-is-bopts">2</a>: The concatenation of build options (both compile
 and link options) set in application or environment variables. There are three
 sources of build options that the cache is aware of:
@@ -131,6 +134,7 @@ values (e.g. IGC has
 which affect JIT process). Changing such configuration will invalidate cache and
 manual cache cleanup should be done.
 
+(what-is-kname)=
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `sycl::handler` (e.g. `parallel_for` or
 `single_task`).
@@ -162,9 +166,11 @@ stored on disk (in every <n>.src file located in the cache item directory):
   containing 2 files: <max_n+1>.src for key values and <max_n+1>.bin for
   built image.
 
+(what-is-diid)=
 <a name="what-is-diid">1</a>: Hash out of the device code image used as input
 for the build.
 
+(what-is-did)=
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of
 values for `info::platform::name`, `info::device::name`,
 `info::device::version`, `info::device::driver_version` parameters to
@@ -321,9 +327,11 @@ condition variable. We employ them to signal waiting threads that the build
 process for this kernel/program is finished (either successfully or with a
 failure).
 
+(remove-pointer)=
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
 
+(exception-data)=
 <a name="exception-data">2</a>: Actually, we store contents of the exception:
 its message and error code.
 
@@ -387,6 +395,7 @@ in a directory, the directory should be locked until file creation is done.
 Advisory locking <sup>[1](#advisory-lock)</sup> is used to ensure that the
 user/OS tools are able to manage files.
 
+(advisory-lock)=
 <a name="advisory-lock">1.</a> Advisory locks work only when a process
 explicitly acquires and releases locks, and are ignored if a process is not
 aware of locks.

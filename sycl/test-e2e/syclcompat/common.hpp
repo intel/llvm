@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <sycl/half_type.hpp>
+#include <tuple>
+
 // Typed call helper
 // Iterates over all types and calls Functor f for each of them
 template <typename tuple, typename Functor>
@@ -34,3 +37,7 @@ void instantiate_all_types(Functor &&f) {
 
 #define INSTANTIATE_ALL_TYPES(tuple, f)                                        \
   instantiate_all_types<tuple>([]<typename T>() { f<T>(); });
+
+using value_type_list =
+    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
+               long long, unsigned long long, float, double, sycl::half>;

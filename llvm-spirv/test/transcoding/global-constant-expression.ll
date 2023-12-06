@@ -10,7 +10,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @k_var = addrspace(1) global [2 x ptr addrspace(1)] [ptr addrspace(1) getelementptr inbounds ([2 x i8], ptr addrspace(1) @a_var, i32 0, i64 1), ptr addrspace(1) @a_var], align 4
 
 @a_var = addrspace(1) global [2 x i8] c"\96\96", align 1
-@k_var = addrspace(1) global [2 x i8 addrspace(1)*] [i8 addrspace(1)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(1)* @a_var, i32 0, i64 1), i8 addrspace(1)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(1)* @a_var, i32 0, i32 0)], align 4
+@k_var = addrspace(1) global [2 x ptr addrspace(1)] [ptr addrspace(1) getelementptr inbounds ([2 x i8], ptr addrspace(1) @a_var, i32 0, i64 1), ptr addrspace(1) getelementptr inbounds ([2 x i8], ptr addrspace(1) @a_var, i32 0, i32 0)], align 4
 
 !opencl.enable.FP_CONTRACT = !{}
 !opencl.spir.version = !{!0}

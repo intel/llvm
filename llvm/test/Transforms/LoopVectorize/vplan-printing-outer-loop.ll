@@ -1,6 +1,6 @@
 ; REQUIRES: asserts
 
-; RUN: opt -passes=loop-vectorize -enable-vplan-native-path -debug -disable-output %s 2>&1 | FileCheck %s
+; RUN: opt -passes=loop-vectorize -pass-remarks=loop-vectorize -enable-vplan-native-path -debug -disable-output %s 2>&1 | FileCheck %s
 
 @arr2 = external global [8 x i64], align 16
 @arr = external global [8 x [8 x i64]], align 16
@@ -11,9 +11,9 @@ define void @foo(i64 %n) {
 ; CHECK-NEXT: ir<8> = original trip-count
 ; CHECK-EMPTY:
 ; CHECK-NEXT: vector.ph:
-; CHECK-NEXT: Successor(s): outer.header
+; CHECK-NEXT: Successor(s): vector loop
 ; CHECK-EMPTY:
-; CHECK-NEXT: <x1> outer.header: {
+; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT:   vector.body:
 ; CHECK-NEXT:     WIDEN-PHI ir<%outer.iv> = phi ir<0>, ir<%outer.iv.next>
 ; CHECK-NEXT:     EMIT ir<%gep.1> = getelementptr ir<@arr2>, ir<0>, ir<%outer.iv>
@@ -39,9 +39,9 @@ define void @foo(i64 %n) {
 ; CHECK-NEXT:     EMIT branch-on-cond ir<%outer.ec>
 ; CHECK-NEXT:   No successors
 ; CHECK-NEXT:  }
-; CHECK-NEXT: Successor(s): exit
+; CHECK-NEXT: Successor(s): middle.block
 ; CHECK-EMPTY:
-; CHECK-NEXT: exit:
+; CHECK-NEXT: middle.block:
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 entry:
@@ -70,6 +70,8 @@ outer.latch:
 exit:
   ret void
 }
+
+; CHECK: remark: <unknown>:0:0: vectorized outer loop (vectorization width: 4, interleaved count: 1)
 
 !1 = distinct !{!1, !2, !3}
 !2 = !{!"llvm.loop.vectorize.width", i32 4}

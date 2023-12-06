@@ -17,6 +17,14 @@
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable
 #endif
 
+#ifdef _WIN32
+#define MANGLE_FUNC_IMG_HANDLE(namelength, name, prefix, postfix)              \
+  _Z##namelength##name##prefix##y##postfix
+#else
+#define MANGLE_FUNC_IMG_HANDLE(namelength, name, prefix, postfix)              \
+  _Z##namelength##name##prefix##m##postfix
+#endif
+
 // CLC helpers
 int __clc__sampler_extract_normalized_coords_prop(int) __asm(
     "__clc__sampler_extract_normalized_coords_prop");
@@ -211,6 +219,11 @@ pixelf32 as_pixelf32(int4 v) { return as_float4(v); }
     return (to_t##2)((to_t)from.x, (to_t)from.y);                              \
   }
 
+#define _DEFINE_VEC4_TO_VEC2_CAST(from_t, to_t)                                \
+  inline to_t##2 cast_##from_t##4_to_##to_t##2(from_t##4 from) {               \
+    return (to_t##2)((to_t)from.x, (to_t)from.y);                              \
+  }
+
 #define _DEFINE_CAST(from_t, to_t)                                             \
   inline to_t cast_##from_t##_to_##to_t(from_t from) { return (to_t)from; }
 
@@ -249,8 +262,28 @@ _DEFINE_VEC4_CAST(float, uint)
 _DEFINE_VEC4_CAST(uint, float)
 _DEFINE_VEC4_CAST(uint, int)
 _DEFINE_VEC4_CAST(int, uint)
+_DEFINE_VEC4_CAST(int, short)
+_DEFINE_VEC4_CAST(int, char)
+_DEFINE_VEC4_CAST(uint, ushort)
+_DEFINE_VEC4_CAST(uint, uchar)
+_DEFINE_VEC4_CAST(short, char)
+_DEFINE_VEC4_CAST(short, uchar)
+_DEFINE_VEC4_CAST(float, half)
+
+_DEFINE_VEC4_TO_VEC2_CAST(int, int)
+_DEFINE_VEC4_TO_VEC2_CAST(uint, uint)
+_DEFINE_VEC4_TO_VEC2_CAST(float, float)
+_DEFINE_VEC4_TO_VEC2_CAST(short, short)
+_DEFINE_VEC4_TO_VEC2_CAST(short, char)
+_DEFINE_VEC4_TO_VEC2_CAST(int, short)
+_DEFINE_VEC4_TO_VEC2_CAST(int, char)
+_DEFINE_VEC4_TO_VEC2_CAST(uint, ushort)
+_DEFINE_VEC4_TO_VEC2_CAST(uint, uchar)
+_DEFINE_VEC4_TO_VEC2_CAST(float, half)
 
 _DEFINE_VEC2_CAST(int, float)
+_DEFINE_VEC2_CAST(short, char)
+_DEFINE_VEC2_CAST(short, uchar)
 
 _DEFINE_CAST(int, float)
 _DEFINE_CAST(float, float)
@@ -989,30 +1022,18 @@ int __nvvm_suld_3d_i32_clamp_s(long, int, int,
                                int) __asm("llvm.nvvm.suld.3d.i32.clamp");
 
 int2 __nvvm_suld_1d_v2i32_clamp_s(long imageHandle, int coord) {
-  int4 ret;
-  ret = __nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord);
-  int2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  int4 a = __nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord);
+  return cast_int4_to_int2(a);
 }
 
 int2 __nvvm_suld_2d_v2i32_clamp_s(long imageHandle, int x, int y) {
-  int4 ret;
-  ret = __nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y);
-  int2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  int4 a = __nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y);
+  return cast_int4_to_int2(a);
 }
 
 int2 __nvvm_suld_3d_v2i32_clamp_s(long imageHandle, int x, int y, int z) {
-  int4 ret;
-  ret = __nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z);
-  int2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  int4 a = __nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z);
+  return cast_int4_to_int2(a);
 }
 
 // unsigned int
@@ -1044,7 +1065,7 @@ uint4 __nvvm_suld_3d_v4j32_clamp_s(long imageHandle, int x, int y, int z) {
   return as_uint4(__nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z));
 }
 
-// short -- short4 already define
+// short -- short4 already defined
 short __nvvm_suld_1d_i16_clamp_s(long,
                                  int) __asm("llvm.nvvm.suld.1d.i16.clamp");
 short __nvvm_suld_2d_i16_clamp_s(long, int,
@@ -1053,30 +1074,18 @@ short __nvvm_suld_3d_i16_clamp_s(long, int, int,
                                  int) __asm("llvm.nvvm.suld.3d.i16.clamp");
 
 short2 __nvvm_suld_1d_v2i16_clamp_s(long imageHandle, int coord) {
-  short4 ret;
-  ret = __nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord);
-  short2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  short4 a = __nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord);
+  return cast_short4_to_short2(a);
 }
 
 short2 __nvvm_suld_2d_v2i16_clamp_s(long imageHandle, int x, int y) {
-  short4 ret;
-  ret = __nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y);
-  short2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  short4 a = __nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y);
+  return cast_short4_to_short2(a);
 }
 
 short2 __nvvm_suld_3d_v2i16_clamp_s(long imageHandle, int x, int y, int z) {
-  short4 ret;
-  ret = __nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z);
-  short2 b;
-  b.x = ret.x;
-  b.y = ret.y;
-  return b;
+  short4 a = __nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z);
+  return cast_short4_to_short2(a);
 }
 
 // unsigned short
@@ -1135,66 +1144,42 @@ short2 __nvvm_suld_1d_v2i8_clamp_s_helper(long, int) __asm(
     "__clc_llvm_nvvm_suld_1d_v2i8_clamp");
 char2 __nvvm_suld_1d_v2i8_clamp_s(long imageHandle, int coord) {
   short2 a = __nvvm_suld_1d_v2i8_clamp_s_helper(imageHandle, coord);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_short2_to_char2(a);
 }
 
 short2 __nvvm_suld_2d_v2i8_clamp_s_helper(long, int, int) __asm(
     "__clc_llvm_nvvm_suld_2d_v2i8_clamp");
 char2 __nvvm_suld_2d_v2i8_clamp_s(long imageHandle, int x, int y) {
   short2 a = __nvvm_suld_2d_v2i8_clamp_s_helper(imageHandle, x, y);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_short2_to_char2(a);
 }
 
 short2 __nvvm_suld_3d_v2i8_clamp_s_helper(long, int, int, int) __asm(
     "__clc_llvm_nvvm_suld_3d_v2i8_clamp");
 char2 __nvvm_suld_3d_v2i8_clamp_s(long imageHandle, int x, int y, int z) {
   short2 a = __nvvm_suld_3d_v2i8_clamp_s_helper(imageHandle, x, y, z);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_short2_to_char2(a);
 }
 
 short4 __nvvm_suld_1d_v4i8_clamp_s_helper(long, int) __asm(
     "__clc_llvm_nvvm_suld_1d_v4i8_clamp");
 char4 __nvvm_suld_1d_v4i8_clamp_s(long imageHandle, int coord) {
   short4 a = __nvvm_suld_1d_v4i8_clamp_s_helper(imageHandle, coord);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_short4_to_char4(a);
 }
 
 short4 __nvvm_suld_2d_v4i8_clamp_s_helper(long, int, int) __asm(
     "__clc_llvm_nvvm_suld_2d_v4i8_clamp");
 char4 __nvvm_suld_2d_v4i8_clamp_s(long imageHandle, int x, int y) {
   short4 a = __nvvm_suld_2d_v4i8_clamp_s_helper(imageHandle, x, y);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_short4_to_char4(a);
 }
 
 short4 __nvvm_suld_3d_v4i8_clamp_s_helper(long, int, int, int) __asm(
     "__clc_llvm_nvvm_suld_3d_v4i8_clamp");
 char4 __nvvm_suld_3d_v4i8_clamp_s(long imageHandle, int x, int y, int z) {
   short4 a = __nvvm_suld_3d_v4i8_clamp_s_helper(imageHandle, x, y, z);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_short4_to_char4(a);
 }
 
 // unsigned char
@@ -1224,56 +1209,32 @@ unsigned char __nvvm_suld_3d_h8_clamp_s(long imageHandle, int x, int y, int z) {
 
 uchar2 __nvvm_suld_1d_v2h8_clamp_s(long imageHandle, int coord) {
   short2 a = __nvvm_suld_1d_v2i8_clamp_s_helper(imageHandle, coord);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_short2_to_uchar2(a);
 }
 
 uchar2 __nvvm_suld_2d_v2h8_clamp_s(long imageHandle, int x, int y) {
   short2 a = __nvvm_suld_2d_v2i8_clamp_s_helper(imageHandle, x, y);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_short2_to_uchar2(a);
 }
 
 uchar2 __nvvm_suld_3d_v2h8_clamp_s(long imageHandle, int x, int y, int z) {
   short2 a = __nvvm_suld_3d_v2i8_clamp_s_helper(imageHandle, x, y, z);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_short2_to_uchar2(a);
 }
 
 uchar4 __nvvm_suld_1d_v4h8_clamp_s(long imageHandle, int coord) {
   short4 a = __nvvm_suld_1d_v4i8_clamp_s_helper(imageHandle, coord);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_short4_to_uchar4(a);
 }
 
 uchar4 __nvvm_suld_2d_v4h8_clamp_s(long imageHandle, int x, int y) {
   short4 a = __nvvm_suld_2d_v4i8_clamp_s_helper(imageHandle, x, y);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_short4_to_uchar4(a);
 }
 
 uchar4 __nvvm_suld_3d_v4h8_clamp_s(long imageHandle, int x, int y, int z) {
   short4 a = __nvvm_suld_3d_v4i8_clamp_s_helper(imageHandle, x, y, z);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_short4_to_uchar4(a);
 }
 
 // float
@@ -1679,9 +1640,9 @@ void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
 #define _CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(                               \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF                                                                     \
-  elem_t _Z17__spirv_ImageReadI##elem_t_mangled##m##coord_mangled##ET_T0_T1_(  \
-      unsigned long imageHandle, coord_input) {                                \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      17, __spirv_ImageRead, I##elem_t_mangled,                                \
+      coord_mangled##ET_T0_T1_)(ulong imageHandle, coord_input) {              \
     return __nvvm_suld_##dimension##d_##vec_size##_clamp_s(imageHandle,        \
                                                            __VA_ARGS__);       \
   }
@@ -1689,11 +1650,10 @@ void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
 #define _CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(                              \
     elem_t, dimension, write_mangled, elem_t_mangled, vec_size, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF void                                                                \
-      _Z18__spirv_ImageWriteIm##write_mangled##elem_t_mangled##EvT_T0_T1_(     \
-          unsigned long imageHandle, coord_input, elem_t c) {                  \
-    __nvvm_sust_##dimension##d_##vec_size##_clamp_s(                           \
-        imageHandle, __VA_ARGS__);                                             \
+  _CLC_DEF void MANGLE_FUNC_IMG_HANDLE(                                        \
+      18, __spirv_ImageWrite, I, write_mangled##elem_t_mangled##EvT_T0_T1_)(   \
+      ulong imageHandle, coord_input, elem_t c) {                              \
+    __nvvm_sust_##dimension##d_##vec_size##_clamp_s(imageHandle, __VA_ARGS__); \
   }
 
 // READS
@@ -1886,25 +1846,16 @@ int4 __nvvm_tex_3d_v4i32_f32(unsigned long, float, float,
                              float) __asm("__clc_llvm_nvvm_tex_3d_v4i32_f32");
 int2 __nvvm_tex_1d_v2i32_f32(unsigned long imageHandle, float x) {
   int4 a = __nvvm_tex_1d_v4i32_f32(imageHandle, x);
-  int2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_int4_to_int2(a);
 }
 int2 __nvvm_tex_2d_v2i32_f32(unsigned long imageHandle, float x, float y) {
   int4 a = __nvvm_tex_2d_v4i32_f32(imageHandle, x, y);
-  int2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_int4_to_int2(a);
 }
 int2 __nvvm_tex_3d_v2i32_f32(unsigned long imageHandle, float x, float y,
                              float z) {
   int4 a = __nvvm_tex_3d_v4i32_f32(imageHandle, x, y, z);
-  int2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_int4_to_int2(a);
 }
 int __nvvm_tex_1d_i32_f32(unsigned long imageHandle, float x) {
   return __nvvm_tex_1d_v4i32_f32(imageHandle, x)[0];
@@ -1927,27 +1878,18 @@ uint4 __nvvm_tex_3d_v4j32_f32(unsigned long, float, float,
 
 uint2 __nvvm_tex_1d_v2j32_f32(unsigned long imageHandle, float x) {
   uint4 a = __nvvm_tex_1d_v4j32_f32(imageHandle, x);
-  uint2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_uint4_to_uint2(a);
 }
 
 uint2 __nvvm_tex_2d_v2j32_f32(unsigned long imageHandle, float x, float y) {
   uint4 a = __nvvm_tex_2d_v4j32_f32(imageHandle, x, y);
-  uint2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_uint4_to_uint2(a);
 }
 
 uint2 __nvvm_tex_3d_v2j32_f32(unsigned long imageHandle, float x, float y,
                               float z) {
   uint4 a = __nvvm_tex_3d_v4j32_f32(imageHandle, x, y, z);
-  uint2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_uint4_to_uint2(a);
 }
 
 uint __nvvm_tex_1d_j32_f32(unsigned long imageHandle, float x) {
@@ -1966,58 +1908,34 @@ uint __nvvm_tex_3d_j32_f32(unsigned long imageHandle, float x, float y,
 // Short
 short4 __nvvm_tex_1d_v4i16_f32(unsigned long imageHandle, float x) {
   int4 a = __nvvm_tex_1d_v4i32_f32(imageHandle, x);
-  short4 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  ret.z = (short)a.z;
-  ret.w = (short)a.w;
-  return ret;
+  return cast_int4_to_short4(a);
 }
 
 short4 __nvvm_tex_2d_v4i16_f32(unsigned long imageHandle, float x, float y) {
   int4 a = __nvvm_tex_2d_v4i32_f32(imageHandle, x, y);
-  short4 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  ret.z = (short)a.z;
-  ret.w = (short)a.w;
-  return ret;
+  return cast_int4_to_short4(a);
 }
 
 short4 __nvvm_tex_3d_v4i16_f32(unsigned long imageHandle, float x, float y,
                                float z) {
   int4 a = __nvvm_tex_3d_v4i32_f32(imageHandle, x, y, z);
-  short4 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  ret.z = (short)a.z;
-  ret.w = (short)a.w;
-  return ret;
+  return cast_int4_to_short4(a);
 }
 
 short2 __nvvm_tex_1d_v2i16_f32(unsigned long imageHandle, float x) {
   int4 a = __nvvm_tex_1d_v4i32_f32(imageHandle, x);
-  short2 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  return ret;
+  return cast_int4_to_short2(a);
 }
 
 short2 __nvvm_tex_2d_v2i16_f32(unsigned long imageHandle, float x, float y) {
   int4 a = __nvvm_tex_2d_v4i32_f32(imageHandle, x, y);
-  short2 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  return ret;
+  return cast_int4_to_short2(a);
 }
 
 short2 __nvvm_tex_3d_v2i16_f32(unsigned long imageHandle, float x, float y,
                                float z) {
   int4 a = __nvvm_tex_3d_v4i32_f32(imageHandle, x, y, z);
-  short2 ret;
-  ret.x = (short)a.x;
-  ret.y = (short)a.y;
-  return ret;
+  return cast_int4_to_short2(a);
 }
 
 short __nvvm_tex_1d_i16_f32(unsigned long imageHandle, float x) {
@@ -2036,58 +1954,34 @@ short __nvvm_tex_3d_i16_f32(unsigned long imageHandle, float x, float y,
 // Unsigned Short
 ushort4 __nvvm_tex_1d_v4t16_f32(unsigned long imageHandle, float x) {
   uint4 a = __nvvm_tex_1d_v4j32_f32(imageHandle, x);
-  ushort4 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  ret.z = (ushort)a.z;
-  ret.w = (ushort)a.w;
-  return ret;
+  return cast_uint4_to_ushort4(a);
 }
 
 ushort4 __nvvm_tex_2d_v4t16_f32(unsigned long imageHandle, float x, float y) {
   uint4 a = __nvvm_tex_2d_v4j32_f32(imageHandle, x, y);
-  ushort4 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  ret.z = (ushort)a.z;
-  ret.w = (ushort)a.w;
-  return ret;
+  return cast_uint4_to_ushort4(a);
 }
 
 ushort4 __nvvm_tex_3d_v4t16_f32(unsigned long imageHandle, float x, float y,
                                 float z) {
   uint4 a = __nvvm_tex_3d_v4j32_f32(imageHandle, x, y, z);
-  ushort4 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  ret.z = (ushort)a.z;
-  ret.w = (ushort)a.w;
-  return ret;
+  return cast_uint4_to_ushort4(a);
 }
 
 ushort2 __nvvm_tex_1d_v2t16_f32(unsigned long imageHandle, float x) {
   uint4 a = __nvvm_tex_1d_v4j32_f32(imageHandle, x);
-  ushort2 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  return ret;
+  return cast_uint4_to_ushort2(a);
 }
 
 ushort2 __nvvm_tex_2d_v2t16_f32(unsigned long imageHandle, float x, float y) {
   uint4 a = __nvvm_tex_2d_v4j32_f32(imageHandle, x, y);
-  ushort2 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  return ret;
+  return cast_uint4_to_ushort2(a);
 }
 
 ushort2 __nvvm_tex_3d_v2t16_f32(unsigned long imageHandle, float x, float y,
                                 float z) {
   uint4 a = __nvvm_tex_3d_v4j32_f32(imageHandle, x, y, z);
-  ushort2 ret;
-  ret.x = (ushort)a.x;
-  ret.y = (ushort)a.y;
-  return ret;
+  return cast_uint4_to_ushort2(a);
 }
 
 ushort __nvvm_tex_1d_t16_f32(unsigned long imageHandle, float x) {
@@ -2106,58 +2000,34 @@ ushort __nvvm_tex_3d_t16_f32(unsigned long imageHandle, float x, float y,
 // Char
 char4 __nvvm_tex_1d_v4i8_f32(unsigned long imageHandle, float x) {
   int4 a = __nvvm_tex_1d_v4i32_f32(imageHandle, x);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_int4_to_char4(a);
 }
 
 char4 __nvvm_tex_2d_v4i8_f32(unsigned long imageHandle, float x, float y) {
   int4 a = __nvvm_tex_2d_v4i32_f32(imageHandle, x, y);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_int4_to_char4(a);
 }
 
 char4 __nvvm_tex_3d_v4i8_f32(unsigned long imageHandle, float x, float y,
                              float z) {
   int4 a = __nvvm_tex_3d_v4i32_f32(imageHandle, x, y, z);
-  char4 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  ret.z = (char)a.z;
-  ret.w = (char)a.w;
-  return ret;
+  return cast_int4_to_char4(a);
 }
 
 char2 __nvvm_tex_1d_v2i8_f32(unsigned long imageHandle, float x) {
   int4 a = __nvvm_tex_1d_v4i32_f32(imageHandle, x);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_int4_to_char2(a);
 }
 
 char2 __nvvm_tex_2d_v2i8_f32(unsigned long imageHandle, float x, float y) {
   int4 a = __nvvm_tex_2d_v4i32_f32(imageHandle, x, y);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_int4_to_char2(a);
 }
 
 char2 __nvvm_tex_3d_v2i8_f32(unsigned long imageHandle, float x, float y,
                              float z) {
   int4 a = __nvvm_tex_3d_v4i32_f32(imageHandle, x, y, z);
-  char2 ret;
-  ret.x = (char)a.x;
-  ret.y = (char)a.y;
-  return ret;
+  return cast_int4_to_char2(a);
 }
 
 char __nvvm_tex_1d_i8_f32(unsigned long imageHandle, float x) {
@@ -2176,58 +2046,34 @@ char __nvvm_tex_3d_i8_f32(unsigned long imageHandle, float x, float y,
 // Unsigned Char
 uchar4 __nvvm_tex_1d_v4h8_f32(unsigned long imageHandle, float x) {
   uint4 a = __nvvm_tex_1d_v4j32_f32(imageHandle, x);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_uint4_to_uchar4(a);
 }
 
 uchar4 __nvvm_tex_2d_v4h8_f32(unsigned long imageHandle, float x, float y) {
   uint4 a = __nvvm_tex_2d_v4j32_f32(imageHandle, x, y);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_uint4_to_uchar4(a);
 }
 
 uchar4 __nvvm_tex_3d_v4h8_f32(unsigned long imageHandle, float x, float y,
                               float z) {
   uint4 a = __nvvm_tex_3d_v4j32_f32(imageHandle, x, y, z);
-  uchar4 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  ret.z = (uchar)a.z;
-  ret.w = (uchar)a.w;
-  return ret;
+  return cast_uint4_to_uchar4(a);
 }
 
 uchar2 __nvvm_tex_1d_v2h8_f32(unsigned long imageHandle, float x) {
   uint4 a = __nvvm_tex_1d_v4j32_f32(imageHandle, x);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_uint4_to_uchar2(a);
 }
 
 uchar2 __nvvm_tex_2d_v2h8_f32(unsigned long imageHandle, float x, float y) {
   uint4 a = __nvvm_tex_2d_v4j32_f32(imageHandle, x, y);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_uint4_to_uchar2(a);
 }
 
 uchar2 __nvvm_tex_3d_v2h8_f32(unsigned long imageHandle, float x, float y,
                               float z) {
   uint4 a = __nvvm_tex_3d_v4j32_f32(imageHandle, x, y, z);
-  uchar2 ret;
-  ret.x = (uchar)a.x;
-  ret.y = (uchar)a.y;
-  return ret;
+  return cast_uint4_to_uchar2(a);
 }
 
 uchar __nvvm_tex_1d_h8_f32(unsigned long imageHandle, float x) {
@@ -2253,27 +2099,18 @@ float4 __nvvm_tex_3d_v4f32_f32(unsigned long, float, float,
 
 float2 __nvvm_tex_1d_v2f32_f32(unsigned long imageHandle, float x) {
   float4 a = __nvvm_tex_1d_v4f32_f32(imageHandle, x);
-  float2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_float4_to_float2(a);
 }
 
 float2 __nvvm_tex_2d_v2f32_f32(unsigned long imageHandle, float x, float y) {
   float4 a = __nvvm_tex_2d_v4f32_f32(imageHandle, x, y);
-  float2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_float4_to_float2(a);
 }
 
 float2 __nvvm_tex_3d_v2f32_f32(unsigned long imageHandle, float x, float y,
                                float z) {
   float4 a = __nvvm_tex_3d_v4f32_f32(imageHandle, x, y, z);
-  float2 ret;
-  ret.x = a.x;
-  ret.y = a.y;
-  return ret;
+  return cast_float4_to_float2(a);
 }
 
 float __nvvm_tex_1d_f32_f32(unsigned long imageHandle, float x) {
@@ -2292,58 +2129,34 @@ float __nvvm_tex_3d_f32_f32(unsigned long imageHandle, float x, float y,
 // Half
 half4 __nvvm_tex_1d_v4f16_f32(unsigned long imageHandle, float x) {
   float4 a = __nvvm_tex_1d_v4f32_f32(imageHandle, x);
-  half4 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  ret.z = (half)a.z;
-  ret.w = (half)a.w;
-  return ret;
+  return cast_float4_to_half4(a);
 }
 
 half4 __nvvm_tex_2d_v4f16_f32(unsigned long imageHandle, float x, float y) {
   float4 a = __nvvm_tex_2d_v4f32_f32(imageHandle, x, y);
-  half4 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  ret.z = (half)a.z;
-  ret.w = (half)a.w;
-  return ret;
+  return cast_float4_to_half4(a);
 }
 
 half4 __nvvm_tex_3d_v4f16_f32(unsigned long imageHandle, float x, float y,
                               float z) {
   float4 a = __nvvm_tex_1d_v4f32_f32(imageHandle, x);
-  half4 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  ret.z = (half)a.z;
-  ret.w = (half)a.w;
-  return ret;
+  return cast_float4_to_half4(a);
 }
 
 half2 __nvvm_tex_1d_v2f16_f32(unsigned long imageHandle, float x) {
   float4 a = __nvvm_tex_1d_v4f32_f32(imageHandle, x);
-  half2 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  return ret;
+  return cast_float4_to_half2(a);
 }
 
 half2 __nvvm_tex_2d_v2f16_f32(unsigned long imageHandle, float x, float y) {
   float4 a = __nvvm_tex_2d_v4f32_f32(imageHandle, x, y);
-  half2 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  return ret;
+  return cast_float4_to_half2(a);
 }
 
 half2 __nvvm_tex_3d_v2f16_f32(unsigned long imageHandle, float x, float y,
                               float z) {
   float4 a = __nvvm_tex_3d_v4f32_f32(imageHandle, x, y, z);
-  half2 ret;
-  ret.x = (half)a.x;
-  ret.y = (half)a.y;
-  return ret;
+  return cast_float4_to_half2(a);
 }
 
 half __nvvm_tex_1d_f16_f32(unsigned long imageHandle, float x) {
@@ -2362,9 +2175,9 @@ half __nvvm_tex_3d_f16_f32(unsigned long imageHandle, float x, float y,
 #define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(                        \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF                                                                     \
-  elem_t _Z17__spirv_ImageReadI##elem_t_mangled##m##coord_mangled##ET_T0_T1_(  \
-      unsigned long imageHandle, coord_input) {                                \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      17, __spirv_ImageRead, I##elem_t_mangled,                                \
+      coord_mangled##ET_T0_T1_)(ulong imageHandle, coord_input) {              \
     return __nvvm_tex_##dimension##d_##vec_size##_f32(imageHandle,             \
                                                       __VA_ARGS__);            \
   }
@@ -2512,27 +2325,22 @@ uint4 __nvvm_tex_3d_grad_v4j32_f32(
     unsigned long, float, float, float, float, float, float, float, float,
     float) __asm("__clc_llvm_nvvm_tex_3d_grad_v4j32_f32");
 
-// Macro to generate mipmap vec2 fetches
-#define _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(                   \
-    elem_t, dimension, vec_size, fetch_vec_size, coord_input, coord_parameter, \
-    grad_input, ...)                                                           \
-  elem_t##2 __nvvm_tex_##dimension##d_level_##vec_size##_f32(                  \
+// Macro to generate mipmap vec4 fetches
+#define _CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(                   \
+    elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
+    coord_parameter, grad_input, ...)                                          \
+  elem_t##4 __nvvm_tex_##dimension##d_level_##vec_size##_f32(                  \
       unsigned long imageHandle, coord_input, float level) {                   \
-    elem_t##4 a = __nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(      \
-        imageHandle, coord_parameter, level);                                  \
-    elem_t##2 ret;                                                             \
-    ret.x = a.x;                                                               \
-    ret.y = a.y;                                                               \
-    return ret;                                                                \
+    fetch_elem_t##4 a =                                                        \
+        __nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(                \
+            imageHandle, coord_parameter, level);                              \
+    return cast_##fetch_elem_t##4_to_##elem_t##4(a);                           \
   }                                                                            \
-  elem_t##2 __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                   \
+  elem_t##4 __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                   \
       unsigned long imageHandle, coord_input, grad_input) {                    \
-    elem_t##4 a = __nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(       \
+    fetch_elem_t##4 a = __nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32( \
         imageHandle, coord_parameter, __VA_ARGS__);                            \
-    elem_t##2 ret;                                                             \
-    ret.x = a.x;                                                               \
-    ret.y = a.y;                                                               \
-    return ret;                                                                \
+    return cast_##fetch_elem_t##4_to_##elem_t##4(a);                           \
   }
 
 #define COORD_INPUT_1D float x
@@ -2547,15 +2355,67 @@ uint4 __nvvm_tex_3d_grad_v4j32_f32(
 #define GRAD_INPUT_2D float dXx, float dXy, float dYx, float dYy
 #define GRAD_INPUT_3D float dXx, float dXy, float dXz, float dYx, float dYy, float dYz
 
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, 1, v2f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, 2, v2f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, 3, v2f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, 1, v2i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, 2, v2i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, 3, v2i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, 1, v2j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, 2, v2j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, 3, v2j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 1, v4i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 2, v4i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 3, v4i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 1, v4j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 2, v4j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 3, v4j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 1, v4i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 2, v4i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 3, v4i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 1, v4j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 2, v4j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 3, v4j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 1, v4f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 2, v4f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 3, v4f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+
+
+// Macro to generate mipmap vec2 fetches
+#define _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(                   \
+    elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
+    coord_parameter, grad_input, ...)                                          \
+  elem_t##2 __nvvm_tex_##dimension##d_level_##vec_size##_f32(                  \
+      unsigned long imageHandle, coord_input, float level) {                   \
+    fetch_elem_t##4 a =                                                        \
+        __nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(                \
+            imageHandle, coord_parameter, level);                              \
+    return cast_##fetch_elem_t##4_to_##elem_t##2(a);                           \
+  }                                                                            \
+  elem_t##2 __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                   \
+      unsigned long imageHandle, coord_input, grad_input) {                    \
+    fetch_elem_t##4 a = __nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32( \
+        imageHandle, coord_parameter, __VA_ARGS__);                            \
+    return cast_##fetch_elem_t##4_to_##elem_t##2(a);                           \
+  }
+
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 1, v2f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 2, v2f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 3, v2f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 1, v2i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 2, v2i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 3, v2i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 1, v2j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 2, v2j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 3, v2j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 1, v2i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 2, v2i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 3, v2i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 1, v2j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 2, v2j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 3, v2j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 1, v2i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 2, v2i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 3, v2i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 1, v2j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 2, v2j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 3, v2j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 1, v2f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 2, v2f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+
+
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN
 
 // Macro to generate mipmap singular data type fetches
@@ -2564,12 +2424,12 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, 3, v2j32, v4j32, COORD
     grad_input, ...)                                                           \
   elem_t __nvvm_tex_##dimension##d_level_##vec_size##_f32(                     \
       unsigned long imageHandle, coord_input, float level) {                   \
-    return __nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(             \
+    return (elem_t)__nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(     \
         imageHandle, coord_parameter, level)[0];                               \
   }                                                                            \
   elem_t __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                      \
       unsigned long imageHandle, coord_input, grad_input) {                    \
-    return __nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(              \
+    return (elem_t)__nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(      \
         imageHandle, coord_parameter, __VA_ARGS__)[0];                         \
   }
 
@@ -2582,6 +2442,22 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 3, i32, v4i32, COORD_INPUT_
 _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 1, j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
 _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 2, j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
 _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 3, j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 1, i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 2, i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 3, i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 1, j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 2, j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 3, j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 1, i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 2, i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 3, i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 1, j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 2, j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 3, j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 1, f16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 2, f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+
 
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN
 
@@ -2596,21 +2472,23 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 3, j32, v4j32, COORD_INPUT
 #undef GRAD_INPUT_3D
 
 // Macro to generate the mangled names for mipmap fetches
-#define _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(                                                        \
-    elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,                              \
-    coord_parameter, grad_mangled, grad_input, ...)                                                       \
-  _CLC_DEF                                                                                                \
-  elem_t                                                                                                  \
-      _Z30__spirv_ImageSampleExplicitLodIm##elem_t_mangled##coord_mangled##ET0_T_T1_if(                   \
-          unsigned long imageHandle, coord_input, int type, float level) {                                \
-    return __nvvm_tex_##dimension##d_level_##vec_size##_f32(                                              \
-        imageHandle, coord_parameter, level);                                                             \
-  }                                                                                                       \
-  _CLC_DEF elem_t                                                                                         \
-      _Z30__spirv_ImageSampleExplicitLodIm##elem_t_mangled##coord_mangled##ET0_T_T1_i##grad_mangled(      \
-          unsigned long imageHandle, coord_input, int type, float##grad_input dX, float##grad_input dY) { \
-    return __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                                               \
-        imageHandle, coord_parameter, __VA_ARGS__);                                                       \
+#define _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(                             \
+    elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
+    coord_parameter, grad_mangled, grad_input, ...)                            \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      30, __spirv_ImageSampleExplicitLod, I,                                   \
+      elem_t_mangled##coord_mangled##ET0_T_T1_if)(                             \
+      ulong imageHandle, coord_input, int type, float level) {                 \
+    return __nvvm_tex_##dimension##d_level_##vec_size##_f32(                   \
+        imageHandle, coord_parameter, level);                                  \
+  }                                                                            \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      30, __spirv_ImageSampleExplicitLod, I,                                   \
+      elem_t_mangled##coord_mangled##ET0_T_T1_i##grad_mangled)(                \
+      ulong imageHandle, coord_input, int type, float##grad_input dX,          \
+      float##grad_input dY) {                                                  \
+    return __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                    \
+        imageHandle, coord_parameter, __VA_ARGS__);                            \
   }
 
 #define COORD_PARAMS_1D coord
@@ -2649,6 +2527,61 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 3, Dv2_f, v2f32, Dv4_f, float4
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 1, Dv4_f, v4f32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 3, Dv4_f, v4f32, S0_, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// Short
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 1, s, i16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 2, s, i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 3, s, i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 1, Dv2_s, v2i16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 3, Dv2_s, v2i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 1, Dv4_s, v4i16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 3, Dv4_s, v4i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// Unsigned Short
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 1, t, j16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 2, t, j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 3, t, j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 1, Dv2_t, v2j16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 2, Dv2_t, v2j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 3, Dv2_t, v2j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 1, Dv4_t, v4j16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 2, Dv4_t, v4j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 3, Dv4_t, v4j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// Char
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 1, a, i8, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 2, a, i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 3, a, i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 1, Dv2_a, v2i8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 3, Dv2_a, v2i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 1, Dv4_a, v4i8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 3, Dv4_a, v4i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// Unsigned Char
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 1, h, j8, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 2, h, j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 3, h, j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 1, Dv2_h, v2j8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 2, Dv2_h, v2j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 3, Dv2_h, v2j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 1, Dv4_h, v4j8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 2, Dv4_h, v4j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 3, Dv4_h, v4j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// Half
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, DF16_, f16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, DF16_, f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, DF16_, f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D

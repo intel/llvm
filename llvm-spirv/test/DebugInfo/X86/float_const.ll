@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind optsize readnone uwtable
 define void @foo() #0 !dbg !7 {
 entry:
-  tail call void @llvm.dbg.declare(metadata float* undef, metadata !13, metadata !19), !dbg !20
+  tail call void @llvm.dbg.declare(metadata ptr undef, metadata !13, metadata !19), !dbg !20
   tail call void @llvm.dbg.value(metadata i32 1078523331, metadata !13, metadata !19), !dbg !20
   tail call void @llvm.dbg.value(metadata i32 0, metadata !13, metadata !19), !dbg !20
 ; CHECK:  DW_AT_const_value [DW_FORM_sdata]    (0)

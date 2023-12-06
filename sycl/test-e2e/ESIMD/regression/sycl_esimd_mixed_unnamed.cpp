@@ -8,10 +8,8 @@
 // This is basic test for mixing unnamed SYCL and ESIMD kernels in the same
 // source and in the same program .
 
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: esimd_emulator
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>

@@ -17,6 +17,6 @@ target triple = "spir-unknown-unknown"
 
 define dso_local spir_kernel void @bar() local_unnamed_addr {
 entry:
-  store i32 42, i32 addrspace(1)* @foo, align 4
+  store i32 42, ptr addrspace(1) @foo, align 4
   ret void
 }

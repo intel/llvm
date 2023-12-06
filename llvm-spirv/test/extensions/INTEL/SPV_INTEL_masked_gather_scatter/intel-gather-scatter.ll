@@ -54,18 +54,18 @@ target triple = "spir"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo() {
 entry:
-  %arg0 = alloca <4 x i32 addrspace(4)*>
-  %arg1 = alloca <4 x i32 addrspace(4)*>
-  %0 = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>* %arg0
-  %1 = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>* %arg1
-  %res = call <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*> %0, i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
-  call void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32> %res, <4 x i32 addrspace(4)*> %1, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
+  %arg0 = alloca <4 x ptr addrspace(4)>
+  %arg1 = alloca <4 x ptr addrspace(4)>
+  %0 = load <4 x ptr addrspace(4)>, ptr %arg0
+  %1 = load <4 x ptr addrspace(4)>, ptr %arg1
+  %res = call <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)> %0, i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
+  call void @llvm.masked.scatter.v4i32.v4p4(<4 x i32> %res, <4 x ptr addrspace(4)> %1, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
   ret void
 }
 
-declare <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*>, i32, <4 x i1>, <4 x i32>)
+declare <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)>, i32, <4 x i1>, <4 x i32>)
 
-declare void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32>, <4 x i32 addrspace(4)*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4i32.v4p4(<4 x i32>, <4 x ptr addrspace(4)>, i32, <4 x i1>)
 
 !llvm.module.flags = !{!0}
 !opencl.spir.version = !{!1}

@@ -1,8 +1,6 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: gpu-intel-pvc
 // The test checks that invalid exception is thrown
 // when trying to use sycl_ext_oneapi_device_global
 // along with Graph.
@@ -18,24 +16,23 @@ sycl::ext::oneapi::experimental::device_global<int, TestProperties>
 
 enum OperationPath { Explicit, RecordReplay, Shortcut };
 
-template <OperationPath PathKind> void test() {
-  queue Q;
+template <OperationPath PathKind> void test(queue Queue) {
   int MemcpyWrite = 42, CopyWrite = 24, MemcpyRead = 1, CopyRead = 2;
 
-  exp_ext::command_graph Graph{Q.get_context(), Q.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   if constexpr (PathKind != OperationPath::Explicit) {
-    Graph.begin_recording(Q);
+    Graph.begin_recording(Queue);
   }
 
   // Copy from device globals before having written anything.
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
+      Queue.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
     }
     if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit([&](handler &CGH) {
+      Queue.submit([&](handler &CGH) {
         return CGH.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
       });
     }
@@ -52,10 +49,10 @@ template <OperationPath PathKind> void test() {
   ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.copy(CopyDeviceGlobal, &CopyRead);
+      Queue.copy(CopyDeviceGlobal, &CopyRead);
     }
     if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit(
+      Queue.submit(
           [&](handler &CGH) { return CGH.copy(CopyDeviceGlobal, &CopyRead); });
     }
     if constexpr (PathKind == OperationPath::Explicit) {
@@ -71,10 +68,10 @@ template <OperationPath PathKind> void test() {
   ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.memcpy(MemcpyDeviceGlobal, &MemcpyWrite);
+      Queue.memcpy(MemcpyDeviceGlobal, &MemcpyWrite);
     }
     if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit([&](handler &CGH) {
+      Queue.submit([&](handler &CGH) {
         return CGH.memcpy(MemcpyDeviceGlobal, &MemcpyWrite);
       });
     }
@@ -91,9 +88,9 @@ template <OperationPath PathKind> void test() {
   ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.copy(&CopyWrite, CopyDeviceGlobal);
+      Queue.copy(&CopyWrite, CopyDeviceGlobal);
     } else if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit(
+      Queue.submit(
           [&](handler &CGH) { return CGH.copy(&CopyWrite, CopyDeviceGlobal); });
     } else if constexpr (PathKind == OperationPath::Explicit) {
       Graph.add(
@@ -107,9 +104,9 @@ template <OperationPath PathKind> void test() {
   ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
+      Queue.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
     } else if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit([&](handler &CGH) {
+      Queue.submit([&](handler &CGH) {
         return CGH.memcpy(&MemcpyRead, MemcpyDeviceGlobal);
       });
     } else if constexpr (PathKind == OperationPath::Explicit) {
@@ -125,9 +122,9 @@ template <OperationPath PathKind> void test() {
   ExceptionCode = make_error_code(sycl::errc::success);
   try {
     if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.copy(CopyDeviceGlobal, &CopyRead);
+      Queue.copy(CopyDeviceGlobal, &CopyRead);
     } else if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit(
+      Queue.submit(
           [&](handler &CGH) { return CGH.copy(CopyDeviceGlobal, &CopyRead); });
     } else if constexpr (PathKind == OperationPath::Explicit) {
       Graph.add(
@@ -144,8 +141,14 @@ template <OperationPath PathKind> void test() {
 }
 
 int main() {
-  test<OperationPath::Explicit>();
-  test<OperationPath::RecordReplay>();
-  test<OperationPath::Shortcut>();
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
+  test<OperationPath::Explicit>(Queue);
+  test<OperationPath::RecordReplay>(Queue);
+  test<OperationPath::Shortcut>(Queue);
   return 0;
 }

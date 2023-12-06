@@ -62,10 +62,8 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
@@ -404,6 +402,7 @@ static void splitCallSite(CallBase &CB,
       NewPN->insertBefore(&*TailBB->begin());
       CurrentI->replaceAllUsesWith(NewPN);
     }
+    CurrentI->dropDbgValues();
     CurrentI->eraseFromParent();
     // We are done once we handled the first original instruction in TailBB.
     if (CurrentI == OriginalBegin)

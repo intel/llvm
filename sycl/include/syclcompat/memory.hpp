@@ -42,9 +42,12 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/usm.hpp>
 
 #include <syclcompat/device.hpp>
+#include <syclcompat/traits.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
@@ -56,6 +59,14 @@
 #endif
 
 namespace syclcompat {
+
+template <typename AllocT> auto *local_mem() {
+  sycl::multi_ptr<AllocT, sycl::access::address_space::local_space>
+      As_multi_ptr = sycl::ext::oneapi::group_local_memory<AllocT>(
+          sycl::ext::oneapi::experimental::this_nd_item<3>().get_group());
+  auto *As = *As_multi_ptr;
+  return As;
+}
 
 namespace detail {
 enum memcpy_direction {
@@ -554,13 +565,6 @@ static sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
   return detail::memcpy(q, to_ptr, from_ptr, size);
 }
 
-namespace detail {
-template <class T> struct dont_deduce {
-  using type = T;
-};
-template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
-} // namespace detail
-
 /// Asynchronously copies \p count T's from the address specified by \p
 /// from_ptr to the address specified by \p to_ptr. The return of the function
 /// does NOT guarantee the copy is completed.
@@ -572,10 +576,9 @@ template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
-                                const detail::dont_deduce_t<T> *from_ptr,
-                                size_t count,
-                                sycl::queue q = get_default_queue()) {
+static sycl::event
+memcpy_async(type_identity_t<T> *to_ptr, const type_identity_t<T> *from_ptr,
+             size_t count, sycl::queue q = get_default_queue()) {
   return detail::memcpy(q, static_cast<void *>(to_ptr),
                         static_cast<const void *>(from_ptr), count * sizeof(T));
 }
@@ -591,8 +594,8 @@ static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static void memcpy(detail::dont_deduce_t<T> *to_ptr,
-                   const detail::dont_deduce_t<T> *from_ptr, size_t count,
+static void memcpy(type_identity_t<T> *to_ptr,
+                   const type_identity_t<T> *from_ptr, size_t count,
                    sycl::queue q = get_default_queue()) {
   detail::memcpy(q, static_cast<void *>(to_ptr),
                  static_cast<const void *>(from_ptr), count * sizeof(T))
@@ -867,12 +870,14 @@ public:
   using value_t = typename detail::memory_traits<Memory, T>::value_t;
   using compat_accessor_t = syclcompat::accessor<T, Memory, Dimension>;
 
-  device_memory() : device_memory(sycl::range<Dimension>(1)) {}
+  device_memory(sycl::queue q = get_default_queue())
+      : device_memory(sycl::range<Dimension>(1), q) {}
 
   /// Constructor of 1-D array with initializer list
   device_memory(const sycl::range<Dimension> &in_range,
-                std::initializer_list<value_t> &&init_list)
-      : device_memory(in_range) {
+                std::initializer_list<value_t> &&init_list,
+                sycl::queue q = get_default_queue())
+      : device_memory(in_range, q) {
     assert(init_list.size() <= in_range.size());
     _host_ptr = (value_t *)std::malloc(_size);
     std::memset(_host_ptr, 0, _size);
@@ -883,8 +888,9 @@ public:
   template <size_t D = Dimension>
   device_memory(
       const typename std::enable_if<D == 2, sycl::range<2>>::type &in_range,
-      std::initializer_list<std::initializer_list<value_t>> &&init_list)
-      : device_memory(in_range) {
+      std::initializer_list<std::initializer_list<value_t>> &&init_list,
+      sycl::queue q = get_default_queue())
+      : device_memory(in_range, q) {
     assert(init_list.size() <= in_range[0]);
     _host_ptr = (value_t *)std::malloc(_size);
     std::memset(_host_ptr, 0, _size);
@@ -897,9 +903,10 @@ public:
   }
 
   /// Constructor with range
-  device_memory(const sycl::range<Dimension> &range_in)
+  device_memory(const sycl::range<Dimension> &range_in,
+                sycl::queue q = get_default_queue())
       : _size(range_in.size() * sizeof(T)), _range(range_in), _reference(false),
-        _host_ptr(nullptr), _device_ptr(nullptr) {
+        _host_ptr(nullptr), _device_ptr(nullptr), _q(q) {
     static_assert((Memory == memory_region::global) ||
                       (Memory == memory_region::constant) ||
                       (Memory == memory_region::usm_shared),
@@ -909,19 +916,28 @@ public:
   }
 
   /// Constructor with range
-  template <class... Args>
+  // enable_if_t SFINAE to avoid ambiguity with
+  // device_memory(Args... Arguments, sycl::queue q)
+  template <class... Args, size_t D = Dimension,
+            typename = std::enable_if_t<sizeof...(Args) == D>>
   device_memory(Args... Arguments)
-      : device_memory(sycl::range<Dimension>(Arguments...)) {}
+      : device_memory(sycl::range<Dimension>(Arguments...),
+                      get_default_queue()) {}
+
+  /// Constructor with range and queue
+  template <class... Args>
+  device_memory(Args... Arguments, sycl::queue q)
+      : device_memory(sycl::range<Dimension>(Arguments...), q) {}
 
   ~device_memory() {
     if (_device_ptr && !_reference)
-      free(_device_ptr);
+      syclcompat::free(_device_ptr, _q);
     if (_host_ptr)
       std::free(_host_ptr);
   }
 
   /// Allocate memory with default queue, and init memory if has initial value.
-  void init() { init(get_default_queue()); }
+  void init() { init(_q); }
   /// Allocate memory with specified queue, and init memory if has initial
   /// value.
   void init(sycl::queue q) {
@@ -937,12 +953,12 @@ public:
   /// The variable is assigned to a device pointer.
   void assign(value_t *src, size_t size) {
     this->~device_memory();
-    new (this) device_memory(src, size);
+    new (this) device_memory(src, size, _q);
   }
 
   /// Get memory pointer of the memory object, which is virtual pointer when
   /// usm is not used, and device pointer when usm is used.
-  value_t *get_ptr() { return get_ptr(get_default_queue()); }
+  value_t *get_ptr() { return get_ptr(_q); }
   /// Get memory pointer of the memory object, which is virtual pointer when
   /// usm is not used, and device pointer when usm is used.
   value_t *get_ptr(sycl::queue q) {
@@ -968,9 +984,10 @@ public:
   }
 
 private:
-  device_memory(value_t *memory_ptr, size_t size)
+  device_memory(value_t *memory_ptr, size_t size,
+                sycl::queue q = get_default_queue())
       : _size(size), _range(size / sizeof(T)), _reference(true),
-        _device_ptr(memory_ptr) {}
+        _device_ptr(memory_ptr), _q(q) {}
 
   void allocate_device(sycl::queue q) {
     if (Memory == memory_region::usm_shared) {
@@ -978,6 +995,14 @@ private:
                                                    q.get_context());
       return;
     }
+#ifdef SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY
+    if (Memory == memory_region::constant) {
+      _device_ptr = (value_t *)sycl::malloc_device(
+          _size, q.get_device(), q.get_context(),
+          sycl::ext::oneapi::property::usm::device_read_only());
+      return;
+    }
+#endif
     _device_ptr = (value_t *)detail::malloc(_size, q);
   }
 
@@ -986,6 +1011,7 @@ private:
   bool _reference;
   value_t *_host_ptr;
   value_t *_device_ptr;
+  sycl::queue _q;
 };
 template <class T, memory_region Memory>
 class device_memory<T, Memory, 0> : public device_memory<T, Memory, 1> {

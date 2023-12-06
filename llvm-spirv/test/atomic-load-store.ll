@@ -19,17 +19,17 @@ entry:
   %0 = alloca i32
 
 ; CHECK: AtomicStore [[#PTR]] [[#DeviceScope]] [[#Relaxed]] [[#]]
-  store atomic i32 0, i32* %0 monotonic, align 4
+  store atomic i32 0, ptr %0 monotonic, align 4
 ; CHECK: AtomicStore [[#PTR]] [[#DeviceScope]] [[#Release]] [[#]]
-  store atomic i32 0, i32* %0 release, align 4
+  store atomic i32 0, ptr %0 release, align 4
 ; CHECK: AtomicStore [[#PTR]] [[#DeviceScope]] [[#SequentiallyConsistent]] [[#]]
-  store atomic i32 0, i32* %0 seq_cst, align 4
+  store atomic i32 0, ptr %0 seq_cst, align 4
 
 ; CHECK: AtomicLoad [[#]] [[#]] [[#PTR]] [[#DeviceScope]] [[#Relaxed]]
-  %1 = load atomic i32, i32* %0 monotonic, align 4
+  %1 = load atomic i32, ptr %0 monotonic, align 4
 ; CHECK: AtomicLoad [[#]] [[#]] [[#PTR]] [[#DeviceScope]] [[#Acquire]]
-  %2 = load atomic i32, i32* %0 acquire, align 4
+  %2 = load atomic i32, ptr %0 acquire, align 4
 ; CHECK: AtomicLoad [[#]] [[#]] [[#PTR]] [[#DeviceScope]] [[#SequentiallyConsistent]]
-  %3 = load atomic i32, i32* %0 seq_cst, align 4
+  %3 = load atomic i32, ptr %0 seq_cst, align 4
   ret void
 }

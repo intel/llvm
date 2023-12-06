@@ -1,6 +1,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
+#include "../helpers.hpp"
+#include <complex>
 #include <cstdint>
 #include <limits>
 #include <numeric>
@@ -45,7 +47,7 @@ void test(queue &q, const InputContainer &input, InitT init,
   host_accessor a_reduce_out(b_reduce_out);
   host_accessor a_scan_out(b_scan_out);
 
-  const auto r = std::reduce(input.begin(), input.end(), init, binary_op);
+  const auto r = std::accumulate(input.begin(), input.end(), init, binary_op);
   assert(r == a_reduce_out[0]);
   assert(r == a_reduce_out[1]);
   assert(r == a_reduce_out[2]);
@@ -54,14 +56,14 @@ void test(queue &q, const InputContainer &input, InitT init,
     return std::equal(C1.begin(), C1.end(), C2.begin());
   };
   std::vector<OutT> escan_ref(N);
-  std::exclusive_scan(input.begin(), input.end(), escan_ref.begin(), init,
+  emu::exclusive_scan(input.begin(), input.end(), escan_ref.begin(), init,
                       binary_op);
   assert(equal(escan_ref, span(&a_scan_out[0][0], N)));
   assert(equal(escan_ref, span(&a_scan_out[1][0], N)));
   assert(equal(escan_ref, span(&a_scan_out[2][0], N)));
 
   std::vector<OutT> iscan_ref(N);
-  std::inclusive_scan(input.begin(), input.end(), iscan_ref.begin(), binary_op,
+  emu::inclusive_scan(input.begin(), input.end(), iscan_ref.begin(), binary_op,
                       init);
   assert(equal(iscan_ref, span(&a_scan_out[3][0], N)));
   assert(equal(iscan_ref, span(&a_scan_out[4][0], N)));

@@ -45,7 +45,7 @@ public:
   /// The ORC runtime requires access to a number of symbols in libc++, and
   /// requires access to symbols in libobjc, and libswiftCore to support
   /// Objective-C and Swift code. It is up to the caller to ensure that the
-  /// requried symbols can be referenced by code added to PlatformJD. The
+  /// required symbols can be referenced by code added to PlatformJD. The
   /// standard way to achieve this is to first attach dynamic library search
   /// generators for either the given process, or for the specific required
   /// libraries, to PlatformJD, then to create the platform instance:
@@ -159,6 +159,9 @@ private:
     struct ObjCImageInfo {
       uint32_t Version = 0;
       uint32_t Flags = 0;
+      /// Whether this image info can no longer be mutated, as it may have been
+      /// registered with the objc runtime.
+      bool Finalized = false;
     };
 
     Error bootstrapPipelineStart(jitlink::LinkGraph &G);
@@ -173,6 +176,9 @@ private:
 
     Error processObjCImageInfo(jitlink::LinkGraph &G,
                                MaterializationResponsibility &MR);
+    Error mergeImageInfoFlags(jitlink::LinkGraph &G,
+                              MaterializationResponsibility &MR,
+                              ObjCImageInfo &Info, uint32_t NewFlags);
 
     Error fixTLVSectionsAndEdges(jitlink::LinkGraph &G, JITDylib &JD);
 
@@ -275,12 +281,6 @@ private:
   std::atomic<BootstrapInfo *> Bootstrap;
 };
 
-namespace shared {
-
-using SPSNamedExecutorAddrRangeSequence =
-    SPSSequence<SPSTuple<SPSString, SPSExecutorAddrRange>>;
-
-} // end namespace shared
 } // end namespace orc
 } // end namespace llvm
 

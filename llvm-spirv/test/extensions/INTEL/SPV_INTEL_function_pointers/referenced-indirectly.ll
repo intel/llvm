@@ -36,26 +36,26 @@ target triple = "spir64-unknown-unknown"
 define spir_func i32 @foo(i32 %arg) #0 {
 entry:
   %arg.addr = alloca i32, align 4
-  store i32 %arg, i32* %arg.addr, align 4
-  %0 = load i32, i32* %arg.addr, align 4
+  store i32 %arg, ptr %arg.addr, align 4
+  %0 = load i32, ptr %arg.addr, align 4
   %add = add nsw i32 %0, 10
   ret i32 %add
 }
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @test(i32 addrspace(1)* %data, i32 %input) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @test(ptr addrspace(1) %data, i32 %input) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %data.addr = alloca i32 addrspace(1)*, align 8
+  %data.addr = alloca ptr addrspace(1), align 8
   %input.addr = alloca i32, align 4
-  %fp = alloca i32 (i32)*, align 8
-  store i32 addrspace(1)* %data, i32 addrspace(1)** %data.addr, align 8
-  store i32 %input, i32* %input.addr, align 4
-  store i32 (i32)* @foo, i32 (i32)** %fp, align 8
-  %0 = load i32 (i32)*, i32 (i32)** %fp, align 8
-  %1 = load i32, i32* %input.addr, align 4
+  %fp = alloca ptr, align 8
+  store ptr addrspace(1) %data, ptr %data.addr, align 8
+  store i32 %input, ptr %input.addr, align 4
+  store ptr @foo, ptr %fp, align 8
+  %0 = load ptr, ptr %fp, align 8
+  %1 = load i32, ptr %input.addr, align 4
   %call = call spir_func i32 %0(i32 %1) #2
-  %2 = load i32 addrspace(1)*, i32 addrspace(1)** %data.addr, align 8
-  store i32 %call, i32 addrspace(1)* %2, align 4
+  %2 = load ptr addrspace(1), ptr %data.addr, align 8
+  store i32 %call, ptr addrspace(1) %2, align 4
   ret void
 }
 

@@ -16,14 +16,14 @@ target triple = "spir64-unknown-unknown"
 ; PR 9879
 
 ; CHECK: #DEBUG_VALUE: tid <-
-%0 = type { i8*, i8*, i8*, i8*, i32 }
+%0 = type { ptr, ptr, ptr, ptr, i32 }
 
 @sgv = internal addrspace(2) constant [1 x i8] zeroinitializer
 @fgv = internal addrspace(2) constant [1 x i8] zeroinitializer
 
-define void @__OpenCL_nbt02_kernel(i32 addrspace(1)* %ip) nounwind !dbg !0 {
+define void @__OpenCL_nbt02_kernel(ptr addrspace(1) %ip) nounwind !dbg !0 {
 entry:
-  call void @llvm.dbg.value(metadata i32 addrspace(1)* %ip, metadata !8, metadata !DIExpression()), !dbg !9
+  call void @llvm.dbg.value(metadata ptr addrspace(1) %ip, metadata !8, metadata !DIExpression()), !dbg !9
   %0 = call <4 x i32> @__amdil_get_local_id_int() nounwind
   %1 = extractelement <4 x i32> %0, i32 0
   br label %2
@@ -71,7 +71,7 @@ get_local_size.exit:                              ; preds = %18
   call void @llvm.dbg.value(metadata i32 %20, metadata !15, metadata !DIExpression()), !dbg !16
   %tmp5 = add i32 %6, %13, !dbg !17
   %tmp7 = add i32 %tmp5, %20, !dbg !17
-  store i32 %tmp7, i32 addrspace(1)* %ip, align 4, !dbg !17
+  store i32 %tmp7, ptr addrspace(1) %ip, align 4, !dbg !17
   br label %return, !dbg !17
 
 return:                                           ; preds = %get_local_size.exit

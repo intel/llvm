@@ -1,6 +1,6 @@
 """
-Test that LLDB correctly reads and writes AArch64 SIMD registers in SVE,
-streaming SVE and normal SIMD modes.
+Test that LLDB correctly reads and writes and restores AArch64 SIMD registers
+in SVE, streaming SVE and normal SIMD modes.
 
 There are a few operating modes and we use different strategies for each:
 * Without SVE, in SIMD mode - read the SIMD regset.
@@ -41,12 +41,24 @@ class SVESIMDRegistersTestCase(TestBase):
         if (mode == Mode.SVE) and not self.isAArch64SVE():
             self.skipTest("SVE registers must be supported.")
 
-        if (mode == Mode.SSVE) and not self.isAArch64SME():
-            self.skipTest("SSVE registers must be supported.")
+        if (mode == Mode.SSVE) and not self.isAArch64SMEFA64():
+            self.skipTest(
+                "SSVE registers must be supported and the smefa64 "
+                "extension must be present."
+            )
 
     def make_simd_value(self, n):
         pad = " ".join(["0x00"] * 7)
         return "{{0x{:02x} {} 0x{:02x} {}}}".format(n, pad, n, pad)
+
+    def check_simd_values(self, value_offset):
+        # These are 128 bit registers, so getting them from the API as unsigned
+        # values doesn't work. Check the command output instead.
+        for i in range(32):
+            self.expect(
+                "register read v{}".format(i),
+                substrs=[self.make_simd_value(i + value_offset)],
+            )
 
     def sve_simd_registers_impl(self, mode):
         self.skip_if_needed(mode)
@@ -68,12 +80,9 @@ class SVESIMDRegistersTestCase(TestBase):
             substrs=["stop reason = breakpoint 1."],
         )
 
-        # These are 128 bit registers, so getting them from the API as unsigned
-        # values doesn't work. Check the command output instead.
-        for i in range(32):
-            self.expect(
-                "register read v{}".format(i), substrs=[self.make_simd_value(i)]
-            )
+        self.check_simd_values(0)
+        self.runCmd("expression write_simd_regs(1)")
+        self.check_simd_values(0)
 
         # Write a new set of values. The kernel will move the program back to
         # non-streaming mode here.
@@ -83,10 +92,7 @@ class SVESIMDRegistersTestCase(TestBase):
             )
 
         # Should be visible within lldb.
-        for i in range(32):
-            self.expect(
-                "register read v{}".format(i), substrs=[self.make_simd_value(i + 1)]
-            )
+        self.check_simd_values(1)
 
         # The program should agree with lldb.
         self.expect("continue", substrs=["exited with status = 0"])

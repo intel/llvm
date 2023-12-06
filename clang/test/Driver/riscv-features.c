@@ -10,6 +10,7 @@
 // RUN: %clang --target=riscv32-unknown-elf -### %s -mrelax 2>&1 | FileCheck %s -check-prefix=RELAX
 // RUN: %clang --target=riscv32-unknown-elf -### %s -mno-relax 2>&1 | FileCheck %s -check-prefix=NO-RELAX
 
+// ANDROID: "-target-feature" "+v"
 // ANDROID: "-target-feature" "+zba"
 // ANDROID: "-target-feature" "+zbb"
 // ANDROID: "-target-feature" "+zbs"
@@ -39,8 +40,6 @@
 // NO-UNALIGNED-SCALAR-MEM: "-target-feature" "-unaligned-scalar-mem"
 // UNALIGNED-VECTOR-MEM: "-target-feature" "+unaligned-vector-mem"
 // NO-UNALIGNED-VECTOR-MEM: "-target-feature" "-unaligned-vector-mem"
-// DEFAULT: "-target-feature" "-unaligned-scalar-mem"
-// DEFAULT-NOT: "-target-feature" "+unaligned-scalar-mem"
 
 // RUN: %clang --target=riscv32-linux -### %s -fsyntax-only 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=DEFAULT-LINUX

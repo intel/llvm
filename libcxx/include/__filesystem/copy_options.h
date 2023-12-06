@@ -17,11 +17,11 @@
 #  pragma GCC system_header
 #endif
 
-#ifndef _LIBCPP_CXX03_LANG
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
-enum class _LIBCPP_ENUM_VIS copy_options : unsigned short {
+enum class copy_options : unsigned short {
   none = 0,
   skip_existing = 1,
   overwrite_existing = 2,
@@ -75,6 +75,6 @@ inline copy_options& operator^=(copy_options& __lhs, copy_options __rhs) {
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 
-#endif // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___FILESYSTEM_COPY_OPTIONS_H

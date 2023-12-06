@@ -617,7 +617,8 @@ std::optional<HighlightingModifier> scopeModifier(const NamedDecl *D) {
   if (DC->isTranslationUnit() && D->isTemplateParameter())
     return std::nullopt;
   // ExternalLinkage threshold could be tweaked, e.g. module-visible as global.
-  if (D->getLinkageInternal() < ExternalLinkage)
+  if (llvm::to_underlying(D->getLinkageInternal()) <
+      llvm::to_underlying(Linkage::External))
     return HighlightingModifier::FileScope;
   return HighlightingModifier::GlobalScope;
 }
@@ -715,13 +716,6 @@ public:
     return true;
   }
 
-  bool VisitClassScopeFunctionSpecializationDecl(
-      ClassScopeFunctionSpecializationDecl *D) {
-    if (auto *Args = D->getTemplateArgsAsWritten())
-      H.addAngleBracketTokens(Args->getLAngleLoc(), Args->getRAngleLoc());
-    return true;
-  }
-
   bool VisitDeclRefExpr(DeclRefExpr *E) {
     H.addAngleBracketTokens(E->getLAngleLoc(), E->getRAngleLoc());
     return true;
@@ -733,14 +727,6 @@ public:
 
   bool VisitTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc L) {
     H.addAngleBracketTokens(L.getLAngleLoc(), L.getRAngleLoc());
-    return true;
-  }
-
-  bool VisitAutoTypeLoc(AutoTypeLoc L) {
-    if (L.isConstrained()) {
-      H.addAngleBracketTokens(L.getLAngleLoc(), L.getRAngleLoc());
-      H.addToken(L.getConceptNameInfo().getLoc(), HighlightingKind::Concept);
-    }
     return true;
   }
 
@@ -760,8 +746,6 @@ public:
     }
     if (auto *Args = D->getTemplateSpecializationArgsAsWritten())
       H.addAngleBracketTokens(Args->getLAngleLoc(), Args->getRAngleLoc());
-    if (auto *I = D->getDependentSpecializationInfo())
-      H.addAngleBracketTokens(I->getLAngleLoc(), I->getRAngleLoc());
     return true;
   }
 

@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+#include "../common.hpp"
 
 #define SG_SZ 8
 static constexpr int TN = 8;

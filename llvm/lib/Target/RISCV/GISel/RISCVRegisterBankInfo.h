@@ -32,6 +32,25 @@ protected:
 class RISCVRegisterBankInfo final : public RISCVGenRegisterBankInfo {
 public:
   RISCVRegisterBankInfo(unsigned HwMode);
+
+  const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                             LLT Ty) const override;
+
+  const InstructionMapping &
+  getInstrMapping(const MachineInstr &MI) const override;
+
+private:
+  /// \returns true if \p MI only uses and defines FPRs.
+  bool hasFPConstraints(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                        const TargetRegisterInfo &TRI) const;
+
+  /// \returns true if \p MI only uses FPRs.
+  bool onlyUsesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                  const TargetRegisterInfo &TRI) const;
+
+  /// \returns true if \p MI only defines FPRs.
+  bool onlyDefinesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                     const TargetRegisterInfo &TRI) const;
 };
 } // end namespace llvm
 #endif

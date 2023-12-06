@@ -14,7 +14,7 @@ entry:
 
 declare spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0), target("spirv.Sampler"), <2 x float>) local_unnamed_addr
 
-define hidden spir_kernel void @kernel_fn(float addrspace(1)* %0, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %1, target("spirv.Sampler") %2, i32 %3, i32 %4) local_unnamed_addr {
+define hidden spir_kernel void @kernel_fn(ptr addrspace(1) %0, target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %1, target("spirv.Sampler") %2, i32 %3, i32 %4) local_unnamed_addr {
 entry:
   %5 = call spir_func <4 x float> @user_fn(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %1, target("spirv.Sampler") %2, <2 x float> undef)
   %add16 = add nsw i32 undef, undef

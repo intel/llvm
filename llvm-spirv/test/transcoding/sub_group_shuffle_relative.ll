@@ -121,12 +121,12 @@ target triple = "spir64"
 ; CHECK-LLVM: call spir_func i8 @_Z22sub_group_shuffle_downcj(i8 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeChar(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func signext i8 @_Z20sub_group_shuffle_upcj(i8 signext 0, i32 0) #2
-  store i8 %2, i8 addrspace(1)* %0, align 1, !tbaa !7
+  store i8 %2, ptr addrspace(1) %0, align 1, !tbaa !7
   %3 = tail call spir_func signext i8 @_Z22sub_group_shuffle_downcj(i8 signext 0, i32 0) #2
-  %4 = getelementptr inbounds i8, i8 addrspace(1)* %0, i64 1
-  store i8 %3, i8 addrspace(1)* %4, align 1, !tbaa !7
+  %4 = getelementptr inbounds i8, ptr addrspace(1) %0, i64 1
+  store i8 %3, ptr addrspace(1) %4, align 1, !tbaa !7
   ret void
 }
 
@@ -146,12 +146,12 @@ declare dso_local spir_func signext i8 @_Z22sub_group_shuffle_downcj(i8 signext,
 ; CHECK-LLVM: call spir_func i8 @_Z22sub_group_shuffle_downcj(i8 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeUChar(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func zeroext i8 @_Z20sub_group_shuffle_uphj(i8 zeroext 0, i32 0) #2
-  store i8 %2, i8 addrspace(1)* %0, align 1, !tbaa !7
+  store i8 %2, ptr addrspace(1) %0, align 1, !tbaa !7
   %3 = tail call spir_func zeroext i8 @_Z22sub_group_shuffle_downhj(i8 zeroext 0, i32 0) #2
-  %4 = getelementptr inbounds i8, i8 addrspace(1)* %0, i64 1
-  store i8 %3, i8 addrspace(1)* %4, align 1, !tbaa !7
+  %4 = getelementptr inbounds i8, ptr addrspace(1) %0, i64 1
+  store i8 %3, ptr addrspace(1) %4, align 1, !tbaa !7
   ret void
 }
 
@@ -171,12 +171,12 @@ declare dso_local spir_func zeroext i8 @_Z22sub_group_shuffle_downhj(i8 zeroext,
 ; CHECK-LLVM: call spir_func i16 @_Z22sub_group_shuffle_downsj(i16 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeShort(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func signext i16 @_Z20sub_group_shuffle_upsj(i16 signext 0, i32 0) #2
-  store i16 %2, i16 addrspace(1)* %0, align 2, !tbaa !12
+  store i16 %2, ptr addrspace(1) %0, align 2, !tbaa !12
   %3 = tail call spir_func signext i16 @_Z22sub_group_shuffle_downsj(i16 signext 0, i32 0) #2
-  %4 = getelementptr inbounds i16, i16 addrspace(1)* %0, i64 1
-  store i16 %3, i16 addrspace(1)* %4, align 2, !tbaa !12
+  %4 = getelementptr inbounds i16, ptr addrspace(1) %0, i64 1
+  store i16 %3, ptr addrspace(1) %4, align 2, !tbaa !12
   ret void
 }
 
@@ -196,12 +196,12 @@ declare dso_local spir_func signext i16 @_Z22sub_group_shuffle_downsj(i16 signex
 ; CHECK-LLVM: call spir_func i16 @_Z22sub_group_shuffle_downsj(i16 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeUShort(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func zeroext i16 @_Z20sub_group_shuffle_uptj(i16 zeroext 0, i32 0) #2
-  store i16 %2, i16 addrspace(1)* %0, align 2, !tbaa !12
+  store i16 %2, ptr addrspace(1) %0, align 2, !tbaa !12
   %3 = tail call spir_func zeroext i16 @_Z22sub_group_shuffle_downtj(i16 zeroext 0, i32 0) #2
-  %4 = getelementptr inbounds i16, i16 addrspace(1)* %0, i64 1
-  store i16 %3, i16 addrspace(1)* %4, align 2, !tbaa !12
+  %4 = getelementptr inbounds i16, ptr addrspace(1) %0, i64 1
+  store i16 %3, ptr addrspace(1) %4, align 2, !tbaa !12
   ret void
 }
 
@@ -221,12 +221,12 @@ declare dso_local spir_func zeroext i16 @_Z22sub_group_shuffle_downtj(i16 zeroex
 ; CHECK-LLVM: call spir_func i32 @_Z22sub_group_shuffle_downij(i32 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeInt(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z20sub_group_shuffle_upij(i32 0, i32 0) #2
-  store i32 %2, i32 addrspace(1)* %0, align 4, !tbaa !16
+  store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !16
   %3 = tail call spir_func i32 @_Z22sub_group_shuffle_downij(i32 0, i32 0) #2
-  %4 = getelementptr inbounds i32, i32 addrspace(1)* %0, i64 1
-  store i32 %3, i32 addrspace(1)* %4, align 4, !tbaa !16
+  %4 = getelementptr inbounds i32, ptr addrspace(1) %0, i64 1
+  store i32 %3, ptr addrspace(1) %4, align 4, !tbaa !16
   ret void
 }
 
@@ -246,12 +246,12 @@ declare dso_local spir_func i32 @_Z22sub_group_shuffle_downij(i32, i32) local_un
 ; CHECK-LLVM: call spir_func i32 @_Z22sub_group_shuffle_downij(i32 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeUInt(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z20sub_group_shuffle_upjj(i32 0, i32 0) #2
-  store i32 %2, i32 addrspace(1)* %0, align 4, !tbaa !16
+  store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !16
   %3 = tail call spir_func i32 @_Z22sub_group_shuffle_downjj(i32 0, i32 0) #2
-  %4 = getelementptr inbounds i32, i32 addrspace(1)* %0, i64 1
-  store i32 %3, i32 addrspace(1)* %4, align 4, !tbaa !16
+  %4 = getelementptr inbounds i32, ptr addrspace(1) %0, i64 1
+  store i32 %3, ptr addrspace(1) %4, align 4, !tbaa !16
   ret void
 }
 
@@ -271,12 +271,12 @@ declare dso_local spir_func i32 @_Z22sub_group_shuffle_downjj(i32, i32) local_un
 ; CHECK-LLVM: call spir_func i64 @_Z22sub_group_shuffle_downlj(i64 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeLong(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i64 @_Z20sub_group_shuffle_uplj(i64 0, i32 0) #2
-  store i64 %2, i64 addrspace(1)* %0, align 8, !tbaa !20
+  store i64 %2, ptr addrspace(1) %0, align 8, !tbaa !20
   %3 = tail call spir_func i64 @_Z22sub_group_shuffle_downlj(i64 0, i32 0) #2
-  %4 = getelementptr inbounds i64, i64 addrspace(1)* %0, i64 1
-  store i64 %3, i64 addrspace(1)* %4, align 8, !tbaa !20
+  %4 = getelementptr inbounds i64, ptr addrspace(1) %0, i64 1
+  store i64 %3, ptr addrspace(1) %4, align 8, !tbaa !20
   ret void
 }
 
@@ -296,12 +296,12 @@ declare dso_local spir_func i64 @_Z22sub_group_shuffle_downlj(i64, i32) local_un
 ; CHECK-LLVM: call spir_func i64 @_Z22sub_group_shuffle_downlj(i64 0, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeULong(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i64 @_Z20sub_group_shuffle_upmj(i64 0, i32 0) #2
-  store i64 %2, i64 addrspace(1)* %0, align 8, !tbaa !20
+  store i64 %2, ptr addrspace(1) %0, align 8, !tbaa !20
   %3 = tail call spir_func i64 @_Z22sub_group_shuffle_downmj(i64 0, i32 0) #2
-  %4 = getelementptr inbounds i64, i64 addrspace(1)* %0, i64 1
-  store i64 %3, i64 addrspace(1)* %4, align 8, !tbaa !20
+  %4 = getelementptr inbounds i64, ptr addrspace(1) %0, i64 1
+  store i64 %3, ptr addrspace(1) %4, align 8, !tbaa !20
   ret void
 }
 
@@ -321,12 +321,12 @@ declare dso_local spir_func i64 @_Z22sub_group_shuffle_downmj(i64, i32) local_un
 ; CHECK-LLVM: call spir_func float @_Z22sub_group_shuffle_downfj(float 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeFloat(float addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !23 !kernel_arg_base_type !23 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeFloat(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !23 !kernel_arg_base_type !23 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func float @_Z20sub_group_shuffle_upfj(float 0.000000e+00, i32 0) #2
-  store float %2, float addrspace(1)* %0, align 4, !tbaa !24
+  store float %2, ptr addrspace(1) %0, align 4, !tbaa !24
   %3 = tail call spir_func float @_Z22sub_group_shuffle_downfj(float 0.000000e+00, i32 0) #2
-  %4 = getelementptr inbounds float, float addrspace(1)* %0, i64 1
-  store float %3, float addrspace(1)* %4, align 4, !tbaa !24
+  %4 = getelementptr inbounds float, ptr addrspace(1) %0, i64 1
+  store float %3, ptr addrspace(1) %4, align 4, !tbaa !24
   ret void
 }
 
@@ -346,12 +346,12 @@ declare dso_local spir_func float @_Z22sub_group_shuffle_downfj(float, i32) loca
 ; CHECK-LLVM: call spir_func half @_Z22sub_group_shuffle_downDhj(half 0xH0000, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeHalf(half addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeHalf(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func half @_Z20sub_group_shuffle_upDhj(half 0xH0000, i32 0) #2
-  store half %2, half addrspace(1)* %0, align 2, !tbaa !27
+  store half %2, ptr addrspace(1) %0, align 2, !tbaa !27
   %3 = tail call spir_func half @_Z22sub_group_shuffle_downDhj(half 0xH0000, i32 0) #2
-  %4 = getelementptr inbounds half, half addrspace(1)* %0, i64 1
-  store half %3, half addrspace(1)* %4, align 2, !tbaa !27
+  %4 = getelementptr inbounds half, ptr addrspace(1) %0, i64 1
+  store half %3, ptr addrspace(1) %4, align 2, !tbaa !27
   ret void
 }
 
@@ -371,12 +371,12 @@ declare dso_local spir_func half @_Z22sub_group_shuffle_downDhj(half, i32) local
 ; CHECK-LLVM: call spir_func double @_Z22sub_group_shuffle_downdj(double 0.000000e+00, i32 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testShuffleRelativeDouble(double addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !29 !kernel_arg_base_type !29 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testShuffleRelativeDouble(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !29 !kernel_arg_base_type !29 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func double @_Z20sub_group_shuffle_updj(double 0.000000e+00, i32 0) #2
-  store double %2, double addrspace(1)* %0, align 8, !tbaa !30
+  store double %2, ptr addrspace(1) %0, align 8, !tbaa !30
   %3 = tail call spir_func double @_Z22sub_group_shuffle_downdj(double 0.000000e+00, i32 0) #2
-  %4 = getelementptr inbounds double, double addrspace(1)* %0, i64 1
-  store double %3, double addrspace(1)* %4, align 8, !tbaa !30
+  %4 = getelementptr inbounds double, ptr addrspace(1) %0, i64 1
+  store double %3, ptr addrspace(1) %4, align 8, !tbaa !30
   ret void
 }
 

@@ -30,7 +30,7 @@ class IteratorTypeAttr;
 class LinalgOp;
 
 namespace detail {
-/// Implementation of the method that that check if given operands
+/// Implementation of the method that check if given operands
 /// can be dropped, i.e. the remaining operands can compute the loop
 /// bounds of the op.
 bool canOpOperandsBeDroppedImpl(linalg::LinalgOp linalgOp,
@@ -109,6 +109,9 @@ FailureOr<ConvolutionDimensions> inferConvolutionDims(LinalgOp linalgOp);
 /// Checks whether `linalgOp` conforms to ConvolutionOpInterface.
 // TODO: embed within `isa<ConvolutionOpInterface>` if possible / natural.
 bool isaConvolutionOpInterface(LinalgOp linalgOp);
+
+/// Checks whether `linalgOp` is semantically equivalent to a `linalg.copyOp`.
+bool isaCopyOpInterface(LinalgOp linalgOp);
 
 namespace detail {
 

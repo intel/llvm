@@ -14,6 +14,8 @@ namespace ext::oneapi::experimental {
 
 enum class architecture {
   x86_64,
+  intel_cpu_spr,
+  intel_cpu_gnr,
   intel_gpu_bdw,
   intel_gpu_skl,
   intel_gpu_kbl,

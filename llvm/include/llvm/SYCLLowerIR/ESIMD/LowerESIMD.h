@@ -80,6 +80,12 @@ class SYCLFixupESIMDKernelWrapperMDPass
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
+
+class ESIMDRemoveHostCodePass : public PassInfoMixin<ESIMDRemoveHostCodePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERESIMD_H

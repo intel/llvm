@@ -37,12 +37,14 @@ transform.sequence failures(propagate) {
 ^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["test.container"]} in %arg1 : (!transform.any_op) -> !transform.any_op
   %1 = transform.structured.match ops{["test.foo"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  // expected-error @below {{tracking listener failed to find replacement op}}
+  // expected-error @below {{tracking listener failed to find replacement op during application of this transform op}}
+  // expected-note @below {{ran out of suitable replacement values}}
   transform.apply_patterns to %0 {
     transform.apply_patterns.transform.test_patterns
   } : !transform.any_op
   // %1 must be used in some way. If no replacement payload op could be found,
   // an error is thrown only if the handle is not dead.
+  // expected-note @below {{replacement is required because alive handle(s) exist (first use in this op as operand number 0)}}
   transform.annotate %1 "annotated" : !transform.any_op
 }
 
@@ -248,24 +250,61 @@ transform.sequence failures(propagate) {
   %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
   transform.apply_conversion_patterns to %0 {
     transform.apply_conversion_patterns.transform.test_conversion_patterns
-  }, {
+  } with type_converter {
     transform.apply_conversion_patterns.transform.test_type_converter
-  } {illegal_ops = ["test.foo"],
-     legal_ops = ["func.func", "func.return", "test.new_op"]}
+  } {legal_ops = ["func.func", "func.return", "test.new_op"]}
       : !transform.any_op
 }
 
 // -----
 
+// Full dialect conversion fails because test.bar is not replaced and not legal.
+
+// expected-note @below{{target op}}
+func.func @full_dialect_conversion_failed() -> tensor<5xf32> {
+  %0 = "test.foo"() {replace_with_new_op = "test.bar"} : () -> (tensor<5xf32>)
+  // expected-error @below{{failed to legalize operation 'test.bar'}}
+  "test.bar"() : () -> ()
+  return %0 : tensor<5xf32>
+}
+
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  // expected-error @below{{conversion target is not specified}}
+  // expected-error @below{{dialect conversion failed}}
   transform.apply_conversion_patterns to %0 {
     transform.apply_conversion_patterns.transform.test_conversion_patterns
-  }, {
+  } with type_converter {
     transform.apply_conversion_patterns.transform.test_type_converter
-  } : !transform.any_op
+  } {legal_ops = ["func.func", "func.return", "test.new_op"]}
+      : !transform.any_op
+}
+
+// -----
+
+// Partial dialect conversion succeeds because test.bar is not explicitly
+// illegal.
+
+// CHECK-LABEL: func @partial_dialect_conversion
+//  CHECK-NEXT:   %[[m:.*]] = "test.new_op"() : () -> memref<5xf32>
+//  CHECK-NEXT:   %[[cast:.*]] = builtin.unrealized_conversion_cast %0 : memref<5xf32> to tensor<5xf32>
+//  CHECK-NEXT:   "test.bar"
+//  CHECK-NEXT:   return %[[cast]]
+func.func @partial_dialect_conversion() -> tensor<5xf32> {
+  %0 = "test.foo"() {replace_with_new_op = "test.bar"} : () -> (tensor<5xf32>)
+  "test.bar"() : () -> ()
+  return %0 : tensor<5xf32>
+}
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_conversion_patterns to %0 {
+    transform.apply_conversion_patterns.transform.test_conversion_patterns
+  } with type_converter {
+    transform.apply_conversion_patterns.transform.test_type_converter
+  } {legal_ops = ["func.func", "func.return", "test.new_op"],
+     partial_conversion} : !transform.any_op
 }
 
 // -----
@@ -278,4 +317,49 @@ transform.sequence failures(propagate) {
     // expected-note @below{{pattern descriptor op}}
     transform.apply_conversion_patterns.transform.test_conversion_patterns
   } {illegal_ops = ["test.foo"]} : !transform.any_op
+}
+
+// -----
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_conversion_patterns to %0 {
+    // expected-error @below{{expected LLVMTypeConverter}}
+    transform.apply_conversion_patterns.dialect_to_llvm "test"
+  } with type_converter {
+    transform.apply_conversion_patterns.transform.test_type_converter
+  } {illegal_ops = ["test.foo"],
+     legal_ops = ["func.func", "func.return", "test.new_op"]}
+      : !transform.any_op
+}
+
+// -----
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_conversion_patterns to %0 {
+    // expected-error @below{{unknown dialect or dialect not loaded: this_dialect_does_not_exist}}
+    transform.apply_conversion_patterns.dialect_to_llvm "this_dialect_does_not_exist"
+  } with type_converter {
+    transform.apply_conversion_patterns.memref.memref_to_llvm_type_converter
+  } {illegal_ops = ["test.foo"],
+     legal_ops = ["func.func", "func.return", "test.new_op"]}
+      : !transform.any_op
+}
+
+// -----
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_conversion_patterns to %0 {
+    // expected-error @below{{dialect does not implement ConvertToLLVMPatternInterface or extension was not loaded: transform}}
+    transform.apply_conversion_patterns.dialect_to_llvm "transform"
+  } with type_converter {
+    transform.apply_conversion_patterns.memref.memref_to_llvm_type_converter
+  } {illegal_ops = ["test.foo"],
+     legal_ops = ["func.func", "func.return", "test.new_op"]}
+      : !transform.any_op
 }

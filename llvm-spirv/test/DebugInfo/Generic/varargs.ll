@@ -51,9 +51,9 @@ define spir_func void @_Z1biz(i32 %c, ...) #0 !dbg !6 {
 entry:
   %c.addr = alloca i32, align 4
   %a = alloca %struct.A, align 1
-  store i32 %c, i32* %c.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %c.addr, metadata !11, metadata !DIExpression()), !dbg !12
-  call void @llvm.dbg.declare(metadata %struct.A* %a, metadata !13, metadata !DIExpression()), !dbg !20
+  store i32 %c, ptr %c.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %c.addr, metadata !11, metadata !DIExpression()), !dbg !12
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !13, metadata !DIExpression()), !dbg !20
   ret void, !dbg !21
 }
 

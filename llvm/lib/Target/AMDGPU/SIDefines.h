@@ -44,6 +44,7 @@ enum {
   GFX90A = 8,
   GFX940 = 9,
   GFX11 = 10,
+  GFX12 = 11,
 };
 }
 
@@ -329,13 +330,20 @@ enum : unsigned {
   LITERAL_CONST = 255,
   VGPR_MIN = 256,
   VGPR_MAX = 511,
-  IS_VGPR = 256  // Indicates VGPR or AGPR
+  IS_VGPR = 256, // Indicates VGPR or AGPR
 };
 
 } // namespace EncValues
-} // namespace AMDGPU
 
-namespace AMDGPU {
+// Register codes as defined in the TableGen's HWEncoding field.
+namespace HWEncoding {
+enum : unsigned {
+  REG_IDX_MASK = 0xff,
+  IS_VGPR_OR_AGPR = 1 << 8,
+  IS_HI = 1 << 9, // High 16-bit register.
+};
+} // namespace HWEncoding
+
 namespace CPol {
 
 enum CPol {

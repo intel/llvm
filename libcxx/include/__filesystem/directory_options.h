@@ -17,11 +17,11 @@
 #  pragma GCC system_header
 #endif
 
-#ifndef _LIBCPP_CXX03_LANG
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
-enum class _LIBCPP_ENUM_VIS directory_options : unsigned char {
+enum class directory_options : unsigned char {
   none = 0,
   follow_directory_symlink = 1,
   skip_permission_denied = 2
@@ -73,6 +73,6 @@ inline directory_options& operator^=(directory_options& __lhs,
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 
-#endif // _LIBCPP_CXX03_LANG
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___FILESYSTEM_DIRECTORY_OPTIONS_H

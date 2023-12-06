@@ -96,15 +96,15 @@ DECLARE_REAL_AND_INTERCEPTOR(void, free, void *)
   ASAN_WRITE_RANGE(ctx, ptr, size)
 #define COMMON_INTERCEPTOR_READ_RANGE(ctx, ptr, size) \
   ASAN_READ_RANGE(ctx, ptr, size)
-#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...)                               \
-  ASAN_INTERCEPTOR_ENTER(ctx, func);                                           \
-  do {                                                                         \
-    if (asan_init_is_running)                                                  \
-      return REAL(func)(__VA_ARGS__);                                          \
-    if (SANITIZER_APPLE && UNLIKELY(!asan_inited))                               \
-      return REAL(func)(__VA_ARGS__);                                          \
-    ENSURE_ASAN_INITED();                                                      \
-  } while (false)
+#  define COMMON_INTERCEPTOR_ENTER(ctx, func, ...)    \
+    ASAN_INTERCEPTOR_ENTER(ctx, func);                \
+    do {                                              \
+      if (AsanInitIsRunning())                        \
+        return REAL(func)(__VA_ARGS__);               \
+      if (SANITIZER_APPLE && UNLIKELY(!AsanInited())) \
+        return REAL(func)(__VA_ARGS__);               \
+      ENSURE_ASAN_INITED();                           \
+    } while (false)
 #define COMMON_INTERCEPTOR_DIR_ACQUIRE(ctx, path) \
   do {                                            \
   } while (false)
@@ -138,7 +138,7 @@ DECLARE_REAL_AND_INTERCEPTOR(void, free, void *)
 #  define COMMON_INTERCEPTOR_ON_EXIT(ctx) OnExit()
 #  define COMMON_INTERCEPTOR_LIBRARY_LOADED(filename, handle)
 #  define COMMON_INTERCEPTOR_LIBRARY_UNLOADED()
-#  define COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED (!asan_inited)
+#  define COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED (!AsanInited())
 #  define COMMON_INTERCEPTOR_GET_TLS_RANGE(begin, end) \
     if (AsanThread *t = GetCurrentThread()) {          \
       *begin = t->tls_begin();                         \
@@ -251,7 +251,7 @@ INTERCEPTOR(int, pthread_create, void *thread, void *attr,
 
   u32 current_tid = GetCurrentTidOrInvalid();
 
-  __sanitizer_sigset_t sigset;
+  __sanitizer_sigset_t sigset = {};
 #    if SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD || \
         SANITIZER_SOLARIS
   ScopedBlockSignals block(&sigset);
@@ -300,9 +300,9 @@ INTERCEPTOR(int, pthread_detach, void *thread) {
   return result;
 }
 
-INTERCEPTOR(int, pthread_exit, void *retval) {
+INTERCEPTOR(void, pthread_exit, void *retval) {
   asanThreadArgRetval().Finish(GetThreadSelf(), retval);
-  return REAL(pthread_exit)(retval);
+  REAL(pthread_exit)(retval);
 }
 
 #    if ASAN_INTERCEPT_TRYJOIN
@@ -535,12 +535,12 @@ INTERCEPTOR(char *, strcpy, char *to, const char *from) {
   void *ctx;
   ASAN_INTERCEPTOR_ENTER(ctx, strcpy);
 #if SANITIZER_APPLE
-  if (UNLIKELY(!asan_inited))
+  if (UNLIKELY(!AsanInited()))
     return REAL(strcpy)(to, from);
 #endif
   // strcpy is called from malloc_default_purgeable_zone()
   // in __asan::ReplaceSystemAlloc() on Mac.
-  if (asan_init_is_running) {
+  if (AsanInitIsRunning()) {
     return REAL(strcpy)(to, from);
   }
   ENSURE_ASAN_INITED();
@@ -556,7 +556,8 @@ INTERCEPTOR(char *, strcpy, char *to, const char *from) {
 INTERCEPTOR(char*, strdup, const char *s) {
   void *ctx;
   ASAN_INTERCEPTOR_ENTER(ctx, strdup);
-  if (UNLIKELY(!asan_inited)) return internal_strdup(s);
+  if (UNLIKELY(!AsanInited()))
+    return internal_strdup(s);
   ENSURE_ASAN_INITED();
   uptr length = internal_strlen(s);
   if (flags()->replace_str) {
@@ -574,7 +575,8 @@ INTERCEPTOR(char*, strdup, const char *s) {
 INTERCEPTOR(char*, __strdup, const char *s) {
   void *ctx;
   ASAN_INTERCEPTOR_ENTER(ctx, strdup);
-  if (UNLIKELY(!asan_inited)) return internal_strdup(s);
+  if (UNLIKELY(!AsanInited()))
+    return internal_strdup(s);
   ENSURE_ASAN_INITED();
   uptr length = internal_strlen(s);
   if (flags()->replace_str) {
@@ -602,25 +604,41 @@ INTERCEPTOR(char*, strncpy, char *to, const char *from, uptr size) {
   return REAL(strncpy)(to, from, size);
 }
 
-INTERCEPTOR(long, strtol, const char *nptr, char **endptr, int base) {
-  void *ctx;
-  ASAN_INTERCEPTOR_ENTER(ctx, strtol);
-  ENSURE_ASAN_INITED();
-  if (!flags()->replace_str) {
-    return REAL(strtol)(nptr, endptr, base);
-  }
+template <typename Fn>
+static ALWAYS_INLINE auto StrtolImpl(void *ctx, Fn real, const char *nptr,
+                                     char **endptr, int base)
+    -> decltype(real(nullptr, nullptr, 0)) {
+  if (!flags()->replace_str)
+    return real(nptr, endptr, base);
   char *real_endptr;
-  long result = REAL(strtol)(nptr, &real_endptr, base);
+  auto res = real(nptr, &real_endptr, base);
   StrtolFixAndCheck(ctx, nptr, endptr, real_endptr, base);
-  return result;
+  return res;
 }
+
+#  define INTERCEPTOR_STRTO_BASE(ret_type, func)                             \
+    INTERCEPTOR(ret_type, func, const char *nptr, char **endptr, int base) { \
+      void *ctx;                                                             \
+      ASAN_INTERCEPTOR_ENTER(ctx, func);                                     \
+      ENSURE_ASAN_INITED();                                                  \
+      return StrtolImpl(ctx, REAL(func), nptr, endptr, base);                \
+    }
+
+INTERCEPTOR_STRTO_BASE(long, strtol)
+INTERCEPTOR_STRTO_BASE(long long, strtoll)
+
+#  if SANITIZER_GLIBC
+INTERCEPTOR_STRTO_BASE(long, __isoc23_strtol)
+INTERCEPTOR_STRTO_BASE(long long, __isoc23_strtoll)
+#  endif
 
 INTERCEPTOR(int, atoi, const char *nptr) {
   void *ctx;
   ASAN_INTERCEPTOR_ENTER(ctx, atoi);
 #if SANITIZER_APPLE
-  if (UNLIKELY(!asan_inited)) return REAL(atoi)(nptr);
-#endif
+  if (UNLIKELY(!AsanInited()))
+    return REAL(atoi)(nptr);
+#  endif
   ENSURE_ASAN_INITED();
   if (!flags()->replace_str) {
     return REAL(atoi)(nptr);
@@ -640,8 +658,9 @@ INTERCEPTOR(long, atol, const char *nptr) {
   void *ctx;
   ASAN_INTERCEPTOR_ENTER(ctx, atol);
 #if SANITIZER_APPLE
-  if (UNLIKELY(!asan_inited)) return REAL(atol)(nptr);
-#endif
+  if (UNLIKELY(!AsanInited()))
+    return REAL(atol)(nptr);
+#  endif
   ENSURE_ASAN_INITED();
   if (!flags()->replace_str) {
     return REAL(atol)(nptr);
@@ -650,20 +669,6 @@ INTERCEPTOR(long, atol, const char *nptr) {
   long result = REAL(strtol)(nptr, &real_endptr, 10);
   FixRealStrtolEndptr(nptr, &real_endptr);
   ASAN_READ_STRING(ctx, nptr, (real_endptr - nptr) + 1);
-  return result;
-}
-
-#if ASAN_INTERCEPT_ATOLL_AND_STRTOLL
-INTERCEPTOR(long long, strtoll, const char *nptr, char **endptr, int base) {
-  void *ctx;
-  ASAN_INTERCEPTOR_ENTER(ctx, strtoll);
-  ENSURE_ASAN_INITED();
-  if (!flags()->replace_str) {
-    return REAL(strtoll)(nptr, endptr, base);
-  }
-  char *real_endptr;
-  long long result = REAL(strtoll)(nptr, &real_endptr, base);
-  StrtolFixAndCheck(ctx, nptr, endptr, real_endptr, base);
   return result;
 }
 
@@ -680,7 +685,6 @@ INTERCEPTOR(long long, atoll, const char *nptr) {
   ASAN_READ_STRING(ctx, nptr, (real_endptr - nptr) + 1);
   return result;
 }
-#endif  // ASAN_INTERCEPT_ATOLL_AND_STRTOLL
 
 #if ASAN_INTERCEPT___CXA_ATEXIT || ASAN_INTERCEPT_ATEXIT
 static void AtCxaAtexit(void *unused) {
@@ -693,8 +697,9 @@ static void AtCxaAtexit(void *unused) {
 INTERCEPTOR(int, __cxa_atexit, void (*func)(void *), void *arg,
             void *dso_handle) {
 #if SANITIZER_APPLE
-  if (UNLIKELY(!asan_inited)) return REAL(__cxa_atexit)(func, arg, dso_handle);
-#endif
+  if (UNLIKELY(!AsanInited()))
+    return REAL(__cxa_atexit)(func, arg, dso_handle);
+#    endif
   ENSURE_ASAN_INITED();
 #if CAN_SANITIZE_LEAKS
   __lsan::ScopedInterceptorDisabler disabler;
@@ -765,11 +770,13 @@ void InitializeAsanInterceptors() {
 
   ASAN_INTERCEPT_FUNC(atoi);
   ASAN_INTERCEPT_FUNC(atol);
-  ASAN_INTERCEPT_FUNC(strtol);
-#if ASAN_INTERCEPT_ATOLL_AND_STRTOLL
   ASAN_INTERCEPT_FUNC(atoll);
+  ASAN_INTERCEPT_FUNC(strtol);
   ASAN_INTERCEPT_FUNC(strtoll);
-#endif
+#  if SANITIZER_GLIBC
+  ASAN_INTERCEPT_FUNC(__isoc23_strtol);
+  ASAN_INTERCEPT_FUNC(__isoc23_strtoll);
+#  endif
 
   // Intecept jump-related functions.
   ASAN_INTERCEPT_FUNC(longjmp);

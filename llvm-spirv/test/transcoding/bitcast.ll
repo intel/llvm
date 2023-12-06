@@ -13,16 +13,16 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: bitcast
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_fn(<2 x i8> addrspace(1)* nocapture readonly %src, i16 addrspace(1)* nocapture %dst) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @test_fn(ptr addrspace(1) nocapture readonly %src, ptr addrspace(1) nocapture %dst) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
 entry:
   %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
   %sext = shl i64 %call, 32
   %idxprom = ashr exact i64 %sext, 32
-  %arrayidx = getelementptr inbounds <2 x i8>, <2 x i8> addrspace(1)* %src, i64 %idxprom
-  %0 = load <2 x i8>, <2 x i8> addrspace(1)* %arrayidx, align 2, !tbaa !9
+  %arrayidx = getelementptr inbounds <2 x i8>, ptr addrspace(1) %src, i64 %idxprom
+  %0 = load <2 x i8>, ptr addrspace(1) %arrayidx, align 2, !tbaa !9
   %astype = bitcast <2 x i8> %0 to i16
-  %arrayidx2 = getelementptr inbounds i16, i16 addrspace(1)* %dst, i64 %idxprom
-  store i16 %astype, i16 addrspace(1)* %arrayidx2, align 2, !tbaa !12
+  %arrayidx2 = getelementptr inbounds i16, ptr addrspace(1) %dst, i64 %idxprom
+  store i16 %astype, ptr addrspace(1) %arrayidx2, align 2, !tbaa !12
   ret void
 }
 

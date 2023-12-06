@@ -25,15 +25,15 @@ target triple = "spir-unknown-unknown"
 %opencl.image2d_ro_t = type opaque
 
 ; Function Attrs: convergent nounwind
-define spir_func void @bar(%opencl.image2d_ro_t addrspace(1)* %srcImage) local_unnamed_addr #0 {
+define spir_func void @bar(ptr addrspace(1) %srcImage) local_unnamed_addr #0 {
 entry:
 ; CHECK-LLVM: call spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1) %srcImage)
-  tail call spir_func void @_Z3foo14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %srcImage) #2
+  tail call spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1) %srcImage) #2
   ret void
 }
 
 ; Function Attrs: convergent
-declare spir_func void @_Z3foo14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)*) local_unnamed_addr #1
+declare spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1)) local_unnamed_addr #1
 
 attributes #0 = { convergent nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

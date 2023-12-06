@@ -248,8 +248,10 @@ void OpenStatementState::CompleteOperation() {
   }
   if (path_.get() || wasExtant_ ||
       (status_ && *status_ == OpenStatus::Scratch)) {
-    unit().OpenUnit(status_, action_, position_.value_or(Position::AsIs),
-        std::move(path_), pathLength_, convert_, *this);
+    if (unit().OpenUnit(status_, action_, position_.value_or(Position::AsIs),
+            std::move(path_), pathLength_, convert_, *this)) {
+      wasExtant_ = false; // existing unit was closed
+    }
   } else {
     unit().OpenAnonymousUnit(
         status_, action_, position_.value_or(Position::AsIs), convert_, *this);
@@ -1271,7 +1273,7 @@ bool InquireNoUnitState::Inquire(
 bool InquireNoUnitState::Inquire(InquiryKeywordHash inquiry, bool &result) {
   switch (inquiry) {
   case HashInquiryKeyword("EXIST"):
-    result = true;
+    result = badUnitNumber() >= 0;
     return true;
   case HashInquiryKeyword("NAMED"):
   case HashInquiryKeyword("OPENED"):
@@ -1347,13 +1349,16 @@ bool InquireUnconnectedFileState::Inquire(
     str = "UNKNONN";
     break;
   case HashInquiryKeyword("READ"):
-    str = MayRead(path_.get()) ? "YES" : "NO";
+    str =
+        IsExtant(path_.get()) ? MayRead(path_.get()) ? "YES" : "NO" : "UNKNOWN";
     break;
   case HashInquiryKeyword("READWRITE"):
-    str = MayReadAndWrite(path_.get()) ? "YES" : "NO";
+    str = IsExtant(path_.get()) ? MayReadAndWrite(path_.get()) ? "YES" : "NO"
+                                : "UNKNOWN";
     break;
   case HashInquiryKeyword("WRITE"):
-    str = MayWrite(path_.get()) ? "YES" : "NO";
+    str = IsExtant(path_.get()) ? MayWrite(path_.get()) ? "YES" : "NO"
+                                : "UNKNOWN";
     break;
   case HashInquiryKeyword("NAME"):
     str = path_.get();

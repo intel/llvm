@@ -546,6 +546,27 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_intel_esimd: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_ballot_group:
+  case aspect::ext_oneapi_fixed_size_group:
+  case aspect::ext_oneapi_opportunistic_group: {
+    return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+           (this->getBackend() == backend::opencl) ||
+           (this->getBackend() == backend::ext_oneapi_cuda);
+  }
+  case aspect::ext_oneapi_tangle_group: {
+    // TODO: tangle_group is not currently supported for CUDA devices. Add when
+    //       implemented.
+    return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+           (this->getBackend() == backend::opencl);
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);

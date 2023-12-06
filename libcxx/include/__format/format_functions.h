@@ -245,6 +245,9 @@ __handle_replacement_field(_Iterator __begin, _Iterator __end,
   using _CharT = iter_value_t<_Iterator>;
   __format::__parse_number_result __r = __format::__parse_arg_id(__begin, __end, __parse_ctx);
 
+  if (__r.__last == __end)
+    std::__throw_format_error("The argument index should end with a ':' or a '}'");
+
   bool __parse = *__r.__last == _CharT(':');
   switch (*__r.__last) {
   case _CharT(':'):
@@ -335,6 +338,30 @@ __vformat_to(_ParseCtx&& __parse_ctx, _Ctx&& __ctx) {
 
 } // namespace __format
 
+#  if _LIBCPP_STD_VER >= 26
+template <class _CharT>
+struct _LIBCPP_TEMPLATE_VIS __runtime_format_string {
+private:
+  basic_string_view<_CharT> __str_;
+
+  template <class _Cp, class... _Args>
+  friend struct _LIBCPP_TEMPLATE_VIS basic_format_string;
+
+public:
+  _LIBCPP_HIDE_FROM_ABI __runtime_format_string(basic_string_view<_CharT> __s) noexcept : __str_(__s) {}
+
+  __runtime_format_string(const __runtime_format_string&)            = delete;
+  __runtime_format_string& operator=(const __runtime_format_string&) = delete;
+};
+
+_LIBCPP_HIDE_FROM_ABI inline __runtime_format_string<char> runtime_format(string_view __fmt) noexcept { return __fmt; }
+#    ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+_LIBCPP_HIDE_FROM_ABI inline __runtime_format_string<wchar_t> runtime_format(wstring_view __fmt) noexcept {
+  return __fmt;
+}
+#    endif
+#  endif //_LIBCPP_STD_VER >= 26
+
 template <class _CharT, class... _Args>
 struct _LIBCPP_TEMPLATE_VIS basic_format_string {
   template <class _Tp>
@@ -347,6 +374,9 @@ struct _LIBCPP_TEMPLATE_VIS basic_format_string {
   _LIBCPP_HIDE_FROM_ABI constexpr basic_string_view<_CharT> get() const noexcept {
     return __str_;
   }
+#  if _LIBCPP_STD_VER >= 26
+  _LIBCPP_HIDE_FROM_ABI basic_format_string(__runtime_format_string<_CharT> __s) noexcept : __str_(__s.__str_) {}
+#  endif
 
 private:
   basic_string_view<_CharT> __str_;

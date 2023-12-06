@@ -131,20 +131,9 @@ private:
 Function *GenEmptyFunction(Module *M) {
   // Define a few arguments
   LLVMContext &Context = M->getContext();
-  Type* ArgsTy[] = {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    Type::getInt8PtrTy(Context),
-    Type::getInt32PtrTy(Context),
-    Type::getInt64PtrTy(Context),
-#else
-    PointerType::get(Context, 0),
-    PointerType::get(Context, 0),
-    PointerType::get(Context, 0),
-#endif
-    Type::getInt32Ty(Context),
-    Type::getInt64Ty(Context),
-    Type::getInt8Ty(Context)
-  };
+  Type *ArgsTy[] = {PointerType::get(Context, 0), PointerType::get(Context, 0),
+                    PointerType::get(Context, 0), Type::getInt32Ty(Context),
+                    Type::getInt64Ty(Context),    Type::getInt8Ty(Context)};
 
   auto *FuncTy = FunctionType::get(Type::getVoidTy(Context), ArgsTy, false);
   // Pick a unique name to describe the input parameters
@@ -347,13 +336,7 @@ struct LoadModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *Ty = pickType();
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Type *Ty = Ptr->getType()->isOpaquePointerTy()
-                   ? pickType()
-                   : Ptr->getType()->getNonOpaquePointerElementType();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *V = new LoadInst(Ty, Ptr, "L", BB->getTerminator());
     PT->push_back(V);
   }
@@ -366,13 +349,7 @@ struct StoreModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *ValTy = pickType();
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Type *ValTy = Ptr->getType()->isOpaquePointerTy()
-                      ? pickType()
-                      : Ptr->getType()->getNonOpaquePointerElementType();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Do not store vectors of i1s because they are unsupported
     // by the codegen.

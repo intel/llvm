@@ -46,7 +46,7 @@ using ldg_vector_types = sycl::detail::type_list<
     sycl::vec<double, 2>, sycl::vec<double, 3>, sycl::vec<double, 4>>;
 
 using ldg_types =
-    sycl::detail::type_list<ldg_vector_types,
+    sycl::detail::tl_append<ldg_vector_types,
                             sycl::detail::gtl::scalar_signed_basic_list,
                             sycl::detail::gtl::scalar_unsigned_basic_list>;
 } // namespace detail

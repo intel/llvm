@@ -22,7 +22,7 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace printf_core {
 
 using MantissaInt = fputil::FPBits<long double>::UIntType;
@@ -39,24 +39,21 @@ LIBC_INLINE int convert_float_hex_exp(Writer *writer,
   MantissaInt mantissa;
   bool is_inf_or_nan;
   uint32_t mantissa_width;
-  int exponent_bias;
   if (to_conv.length_modifier == LengthModifier::L) {
     mantissa_width = fputil::MantissaWidth<long double>::VALUE;
-    exponent_bias = fputil::FPBits<long double>::EXPONENT_BIAS;
     fputil::FPBits<long double>::UIntType float_raw = to_conv.conv_val_raw;
     fputil::FPBits<long double> float_bits(float_raw);
     is_negative = float_bits.get_sign();
-    exponent = float_bits.get_exponent();
+    exponent = float_bits.get_explicit_exponent();
     mantissa = float_bits.get_explicit_mantissa();
     is_inf_or_nan = float_bits.is_inf_or_nan();
   } else {
     mantissa_width = fputil::MantissaWidth<double>::VALUE;
-    exponent_bias = fputil::FPBits<double>::EXPONENT_BIAS;
     fputil::FPBits<double>::UIntType float_raw =
         static_cast<fputil::FPBits<double>::UIntType>(to_conv.conv_val_raw);
     fputil::FPBits<double> float_bits(float_raw);
     is_negative = float_bits.get_sign();
-    exponent = float_bits.get_exponent();
+    exponent = float_bits.get_explicit_exponent();
     mantissa = float_bits.get_explicit_mantissa();
     is_inf_or_nan = float_bits.is_inf_or_nan();
   }
@@ -74,20 +71,13 @@ LIBC_INLINE int convert_float_hex_exp(Writer *writer,
            FormatFlags::SPACE_PREFIX)
     sign_char = ' ';
 
-  // Handle the exponent for numbers with a 0 exponent
-  if (exponent == -exponent_bias) {
-    if (mantissa > 0) // Subnormals
-      ++exponent;
-    else // Zeroes
-      exponent = 0;
-  }
-
   constexpr size_t BITS_IN_HEX_DIGIT = 4;
 
   // This is to handle situations where the mantissa isn't an even number of hex
   // digits. This is primarily relevant for x86 80 bit long doubles, which have
-  // 63 bit mantissas.
-  if (mantissa_width % BITS_IN_HEX_DIGIT != 0) {
+  // 63 bit mantissas. In the case where the mantissa is 0, however, the
+  // exponent should stay as 0.
+  if (mantissa_width % BITS_IN_HEX_DIGIT != 0 && mantissa > 0) {
     exponent -= mantissa_width % BITS_IN_HEX_DIGIT;
   }
 
@@ -215,7 +205,7 @@ LIBC_INLINE int convert_float_hex_exp(Writer *writer,
   constexpr int EXP_SEPERATOR_LEN = 1;
 
   padding = static_cast<int>(to_conv.min_width - (sign_char > 0 ? 1 : 0) -
-                             PREFIX_LEN - mant_digits -
+                             PREFIX_LEN - mant_digits - trailing_zeroes -
                              static_cast<int>(has_hexadecimal_point) -
                              EXP_SEPERATOR_LEN - (EXP_LEN - exp_cur));
   if (padding < 0)
@@ -267,6 +257,6 @@ LIBC_INLINE int convert_float_hex_exp(Writer *writer,
 }
 
 } // namespace printf_core
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
 #endif // LLVM_LIBC_SRC_STDIO_PRINTF_CORE_FLOAT_HEX_CONVERTER_H

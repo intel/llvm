@@ -16,7 +16,7 @@ target triple = "spir64"
 ; CHECK-LLVM: @two = internal addrspace(1) global ptr @_Z4barrii
 ; CHECK-LLVM: define spir_func i32 @_Z4barrii(i32 %[[#]], i32 %[[#]])
 
-@two = internal addrspace(1) global i32 (i32, i32)* @_Z4barrii, align 8
+@two = internal addrspace(1) global ptr @_Z4barrii, align 8
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn writeonly
 define protected spir_func noundef i32 @_Z4barrii(i32 %0, i32 %1) {

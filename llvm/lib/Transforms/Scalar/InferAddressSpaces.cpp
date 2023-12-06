@@ -164,9 +164,13 @@ class InferAddressSpaces : public FunctionPass {
 public:
   static char ID;
 
-  InferAddressSpaces() :
-    FunctionPass(ID), FlatAddrSpace(UninitializedAddressSpace) {}
-  InferAddressSpaces(unsigned AS) : FunctionPass(ID), FlatAddrSpace(AS) {}
+  InferAddressSpaces()
+      : FunctionPass(ID), FlatAddrSpace(UninitializedAddressSpace) {
+    initializeInferAddressSpacesPass(*PassRegistry::getPassRegistry());
+  }
+  InferAddressSpaces(unsigned AS) : FunctionPass(ID), FlatAddrSpace(AS) {
+    initializeInferAddressSpacesPass(*PassRegistry::getPassRegistry());
+  }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -221,8 +225,8 @@ class InferAddressSpacesImpl {
       Value *V, PostorderStackTy &PostorderStack,
       DenseSet<Value *> &Visited) const;
 
-  bool rewriteIntrinsicOperands(IntrinsicInst *II,
-                                Value *OldV, Value *NewV) const;
+  bool rewriteIntrinsicOperands(IntrinsicInst *II, Value *OldV,
+                                Value *NewV) const;
   void collectRewritableIntrinsicOperands(IntrinsicInst *II,
                                           PostorderStackTy &PostorderStack,
                                           DenseSet<Value *> &Visited) const;
@@ -256,13 +260,11 @@ INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_END(InferAddressSpaces, DEBUG_TYPE, "Infer address spaces",
                     false, false)
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
 static Type *getPtrOrVecOfPtrsWithNewAS(Type *Ty, unsigned NewAddrSpace) {
   assert(Ty->isPtrOrPtrVectorTy());
   PointerType *NPT = PointerType::get(Ty->getContext(), NewAddrSpace);
   return Ty->getWithNewType(NPT);
 }
-#endif
 
 // Check whether that's no-op pointer bicast using a pair of
 // `ptrtoint`/`inttoptr` due to the missing no-op pointer bitcast over
@@ -309,22 +311,14 @@ static bool isAddressExpression(const Value &V, const DataLayout &DL,
 
   switch (Op->getOpcode()) {
   case Instruction::PHI:
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     assert(Op->getType()->isPtrOrPtrVectorTy());
-#else
-    assert(Op->getType()->isPointerTy());
-#endif
     return true;
   case Instruction::BitCast:
   case Instruction::AddrSpaceCast:
   case Instruction::GetElementPtr:
     return true;
   case Instruction::Select:
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return Op->getType()->isPtrOrPtrVectorTy();
-#else
-    return Op->getType()->isPointerTy();
-#endif
   case Instruction::Call: {
     const IntrinsicInst *II = dyn_cast<IntrinsicInst>(&V);
     return II && II->getIntrinsicID() == Intrinsic::ptrmask;
@@ -389,7 +383,6 @@ bool InferAddressSpacesImpl::rewriteIntrinsicOperands(IntrinsicInst *II,
   case Intrinsic::ptrmask:
     // This is handled as an address expression, not as a use memory operation.
     return false;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   case Intrinsic::masked_gather: {
     Type *RetTy = II->getType();
     Type *NewPtrTy = NewV->getType();
@@ -408,7 +401,6 @@ bool InferAddressSpacesImpl::rewriteIntrinsicOperands(IntrinsicInst *II,
     II->setCalledFunction(NewDecl);
     return true;
   }
-#endif
   default: {
     Value *Rewrite = TTI->rewriteIntrinsicWithAddressSpace(II, OldV, NewV);
     if (!Rewrite)
@@ -430,7 +422,6 @@ void InferAddressSpacesImpl::collectRewritableIntrinsicOperands(
     appendsFlatAddressExpressionToPostorderStack(II->getArgOperand(0),
                                                  PostorderStack, Visited);
     break;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   case Intrinsic::masked_gather:
     appendsFlatAddressExpressionToPostorderStack(II->getArgOperand(0),
                                                  PostorderStack, Visited);
@@ -439,7 +430,6 @@ void InferAddressSpacesImpl::collectRewritableIntrinsicOperands(
     appendsFlatAddressExpressionToPostorderStack(II->getArgOperand(1),
                                                  PostorderStack, Visited);
     break;
-#endif
   default:
     SmallVector<int, 2> OpIndexes;
     if (TTI->collectFlatAddressOperands(OpIndexes, IID)) {
@@ -458,11 +448,7 @@ void InferAddressSpacesImpl::collectRewritableIntrinsicOperands(
 void InferAddressSpacesImpl::appendsFlatAddressExpressionToPostorderStack(
     Value *V, PostorderStackTy &PostorderStack,
     DenseSet<Value *> &Visited) const {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   assert(V->getType()->isPtrOrPtrVectorTy());
-#else
-  assert(V->getType()->isPointerTy());
-#endif
   // Generic addressing expressions may be hidden in nested constant
   // expressions.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V)) {
@@ -490,7 +476,7 @@ void InferAddressSpacesImpl::appendsFlatAddressExpressionToPostorderStack(
 }
 
 // Returns all flat address expressions in function F. The elements are ordered
-// ordered in postorder.
+// in postorder.
 std::vector<WeakTrackingVH>
 InferAddressSpacesImpl::collectFlatAddressExpressions(Function &F) const {
   // This function implements a non-recursive postorder traversal of a partial
@@ -500,8 +486,7 @@ InferAddressSpacesImpl::collectFlatAddressExpressions(Function &F) const {
   DenseSet<Value *> Visited;
 
   auto PushPtrOperand = [&](Value *Ptr) {
-    appendsFlatAddressExpressionToPostorderStack(Ptr, PostorderStack,
-                                                 Visited);
+    appendsFlatAddressExpressionToPostorderStack(Ptr, PostorderStack, Visited);
   };
 
   // Look at operations that may be interesting accelerate by moving to a known
@@ -509,12 +494,7 @@ InferAddressSpacesImpl::collectFlatAddressExpressions(Function &F) const {
   // addressing calculations may also be faster.
   for (Instruction &I : instructions(F)) {
     if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PushPtrOperand(GEP->getPointerOperand());
-#else
-      if (!GEP->getType()->isVectorTy())
-        PushPtrOperand(GEP->getPointerOperand());
-#endif
     } else if (auto *LI = dyn_cast<LoadInst>(&I))
       PushPtrOperand(LI->getPointerOperand());
     else if (auto *SI = dyn_cast<StoreInst>(&I))
@@ -533,26 +513,19 @@ InferAddressSpacesImpl::collectFlatAddressExpressions(Function &F) const {
     } else if (auto *II = dyn_cast<IntrinsicInst>(&I))
       collectRewritableIntrinsicOperands(II, PostorderStack, Visited);
     else if (ICmpInst *Cmp = dyn_cast<ICmpInst>(&I)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       if (Cmp->getOperand(0)->getType()->isPtrOrPtrVectorTy()) {
-#else
-      // FIXME: Handle vectors of pointers
-      if (Cmp->getOperand(0)->getType()->isPointerTy()) {
-#endif
         PushPtrOperand(Cmp->getOperand(0));
         PushPtrOperand(Cmp->getOperand(1));
       }
     } else if (auto *ASC = dyn_cast<AddrSpaceCastInst>(&I)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PushPtrOperand(ASC->getPointerOperand());
-#else
-      if (!ASC->getType()->isVectorTy())
-        PushPtrOperand(ASC->getPointerOperand());
-#endif
     } else if (auto *I2P = dyn_cast<IntToPtrInst>(&I)) {
       if (isNoopPtrIntCastPair(cast<Operator>(I2P), *DL, TTI))
-        PushPtrOperand(
-            cast<Operator>(I2P->getOperand(0))->getOperand(0));
+        PushPtrOperand(cast<Operator>(I2P->getOperand(0))->getOperand(0));
+    } else if (auto *RI = dyn_cast<ReturnInst>(&I)) {
+      if (auto *RV = RI->getReturnValue();
+          RV && RV->getType()->isPtrOrPtrVectorTy())
+        PushPtrOperand(RV);
     }
   }
 
@@ -590,12 +563,7 @@ static Value *operandWithNewAddressSpaceOrCreatePoison(
     SmallVectorImpl<const Use *> *PoisonUsesToFix) {
   Value *Operand = OperandUse.get();
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *NewPtrTy = getPtrOrVecOfPtrsWithNewAS(Operand->getType(), NewAddrSpace);
-#else
-  Type *NewPtrTy = PointerType::getWithSamePointeeType(
-      cast<PointerType>(Operand->getType()), NewAddrSpace);
-#endif
 
   if (Constant *C = dyn_cast<Constant>(Operand))
     return ConstantExpr::getAddrSpaceCast(C, NewPtrTy);
@@ -608,12 +576,7 @@ static Value *operandWithNewAddressSpaceOrCreatePoison(
   if (I != PredicatedAS.end()) {
     // Insert an addrspacecast on that operand before the user.
     unsigned NewAS = I->second;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *NewPtrTy = getPtrOrVecOfPtrsWithNewAS(Operand->getType(), NewAS);
-#else
-    Type *NewPtrTy = PointerType::getWithSamePointeeType(
-        cast<PointerType>(Operand->getType()), NewAS);
-#endif
     auto *NewI = new AddrSpaceCastInst(Operand, NewPtrTy);
     NewI->insertBefore(Inst);
     NewI->setDebugLoc(Inst->getDebugLoc());
@@ -641,12 +604,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
     const ValueToValueMapTy &ValueWithNewAddrSpace,
     const PredicatedAddrSpaceMapTy &PredicatedAS,
     SmallVectorImpl<const Use *> *PoisonUsesToFix) const {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *NewPtrType = getPtrOrVecOfPtrsWithNewAS(I->getType(), NewAddrSpace);
-#else
-  Type *NewPtrType = PointerType::getWithSamePointeeType(
-      cast<PointerType>(I->getType()), NewAddrSpace);
-#endif
   if (I->getOpcode() == Instruction::AddrSpaceCast) {
     Value *Src = I->getOperand(0);
     // Because `I` is flat, the source address space must be specific.
@@ -679,12 +637,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
   if (AS != UninitializedAddressSpace) {
     // For the assumed address space, insert an `addrspacecast` to make that
     // explicit.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *NewPtrTy = getPtrOrVecOfPtrsWithNewAS(I->getType(), AS);
-#else
-    Type *NewPtrTy = PointerType::getWithSamePointeeType(
-        cast<PointerType>(I->getType()), AS);
-#endif
     auto *NewI = new AddrSpaceCastInst(I, NewPtrTy);
     NewI->insertAfter(I);
     return NewI;
@@ -693,11 +646,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
   // Computes the converted pointer operands.
   SmallVector<Value *, 4> NewPointerOperands;
   for (const Use &OperandUse : I->operands()) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     if (!OperandUse.get()->getType()->isPtrOrPtrVectorTy())
-#else
-    if (!OperandUse.get()->getType()->isPointerTy())
-#endif
       NewPointerOperands.push_back(nullptr);
     else
       NewPointerOperands.push_back(operandWithNewAddressSpaceOrCreatePoison(
@@ -709,11 +658,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
   case Instruction::BitCast:
     return new BitCastInst(NewPointerOperands[0], NewPtrType);
   case Instruction::PHI: {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     assert(I->getType()->isPtrOrPtrVectorTy());
-#else
-    assert(I->getType()->isPointerTy());
-#endif
     PHINode *PHI = cast<PHINode>(I);
     PHINode *NewPHI = PHINode::Create(NewPtrType, PHI->getNumIncomingValues());
     for (unsigned Index = 0; Index < PHI->getNumIncomingValues(); ++Index) {
@@ -732,11 +677,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
     return NewGEP;
   }
   case Instruction::Select:
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     assert(I->getType()->isPtrOrPtrVectorTy());
-#else
-    assert(I->getType()->isPointerTy());
-#endif
     return SelectInst::Create(I->getOperand(0), NewPointerOperands[1],
                               NewPointerOperands[2], "", nullptr, I);
   case Instruction::IntToPtr: {
@@ -762,17 +703,10 @@ static Value *cloneConstantExprWithNewAddressSpace(
     ConstantExpr *CE, unsigned NewAddrSpace,
     const ValueToValueMapTy &ValueWithNewAddrSpace, const DataLayout *DL,
     const TargetTransformInfo *TTI) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *TargetType =
       CE->getType()->isPtrOrPtrVectorTy()
           ? getPtrOrVecOfPtrsWithNewAS(CE->getType(), NewAddrSpace)
           : CE->getType();
-#else
-  Type *TargetType = CE->getType()->isPointerTy()
-                         ? PointerType::getWithSamePointeeType(
-                               cast<PointerType>(CE->getType()), NewAddrSpace)
-                         : CE->getType();
-#endif
 
   if (CE->getOpcode() == Instruction::AddrSpaceCast) {
     // Because CE is flat, the source address space must be specific.
@@ -993,12 +927,14 @@ bool InferAddressSpacesImpl::updateAddressSpace(
     Value *Src1 = Op.getOperand(2);
 
     auto I = InferredAddrSpace.find(Src0);
-    unsigned Src0AS = (I != InferredAddrSpace.end()) ?
-      I->second : Src0->getType()->getPointerAddressSpace();
+    unsigned Src0AS = (I != InferredAddrSpace.end())
+                          ? I->second
+                          : Src0->getType()->getPointerAddressSpace();
 
     auto J = InferredAddrSpace.find(Src1);
-    unsigned Src1AS = (J != InferredAddrSpace.end()) ?
-      J->second : Src1->getType()->getPointerAddressSpace();
+    unsigned Src1AS = (J != InferredAddrSpace.end())
+                          ? J->second
+                          : Src1->getType()->getPointerAddressSpace();
 
     auto *C0 = dyn_cast<Constant>(Src0);
     auto *C1 = dyn_cast<Constant>(Src1);
@@ -1167,7 +1103,8 @@ bool InferAddressSpacesImpl::isSafeToCastConstAddrSpace(Constant *C,
     // If we already have a constant addrspacecast, it should be safe to cast it
     // off.
     if (Op->getOpcode() == Instruction::AddrSpaceCast)
-      return isSafeToCastConstAddrSpace(cast<Constant>(Op->getOperand(0)), NewAS);
+      return isSafeToCastConstAddrSpace(cast<Constant>(Op->getOperand(0)),
+                                        NewAS);
 
     if (Op->getOpcode() == Instruction::IntToPtr &&
         Op->getType()->getPointerAddressSpace() == FlatAddrSpace)
@@ -1198,7 +1135,7 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
   // construction.
   ValueToValueMapTy ValueWithNewAddrSpace;
   SmallVector<const Use *, 32> PoisonUsesToFix;
-  for (Value* V : Postorder) {
+  for (Value *V : Postorder) {
     unsigned NewAddrSpace = InferredAddrSpace.lookup(V);
 
     // In some degenerate cases (e.g. invalid IR in unreachable code), we may
@@ -1231,6 +1168,8 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
   }
 
   SmallVector<Instruction *, 16> DeadInstructions;
+  ValueToValueMapTy VMap;
+  ValueMapper VMapper(VMap, RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
 
   // Replaces the uses of the old address expressions with the new ones.
   for (const WeakTrackingVH &WVH : Postorder) {
@@ -1244,18 +1183,41 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
                       << *NewV << '\n');
 
     if (Constant *C = dyn_cast<Constant>(V)) {
-      Constant *Replace = ConstantExpr::getAddrSpaceCast(cast<Constant>(NewV),
-                                                         C->getType());
+      Constant *Replace =
+          ConstantExpr::getAddrSpaceCast(cast<Constant>(NewV), C->getType());
       if (C != Replace) {
         LLVM_DEBUG(dbgs() << "Inserting replacement const cast: " << Replace
                           << ": " << *Replace << '\n');
-        C->replaceAllUsesWith(Replace);
+        SmallVector<User *, 16> WorkList;
+        for (User *U : make_early_inc_range(C->users())) {
+          if (auto *I = dyn_cast<Instruction>(U)) {
+            if (I->getFunction() == F)
+              I->replaceUsesOfWith(C, Replace);
+          } else {
+            WorkList.append(U->user_begin(), U->user_end());
+          }
+        }
+        if (!WorkList.empty()) {
+          VMap[C] = Replace;
+          DenseSet<User *> Visited{WorkList.begin(), WorkList.end()};
+          while (!WorkList.empty()) {
+            User *U = WorkList.pop_back_val();
+            if (auto *I = dyn_cast<Instruction>(U)) {
+              if (I->getFunction() == F)
+                VMapper.remapInstruction(*I);
+              continue;
+            }
+            for (User *U2 : U->users())
+              if (Visited.insert(U2).second)
+                WorkList.push_back(U2);
+          }
+        }
         V = Replace;
       }
     }
 
     Value::use_iterator I, E, Next;
-    for (I = V->use_begin(), E = V->use_end(); I != E; ) {
+    for (I = V->use_begin(), E = V->use_end(); I != E;) {
       Use &U = *I;
 
       // Some users may see the same pointer operand in multiple operands. Skip
@@ -1275,6 +1237,11 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
       // Skip if the current user is the new value itself.
       if (CurUser == NewV)
         continue;
+
+      if (auto *CurUserI = dyn_cast<Instruction>(CurUser);
+          CurUserI && CurUserI->getFunction() != F)
+        continue;
+
       // Handle more complex cases like intrinsic that need to be remangled.
       if (auto *MI = dyn_cast<MemIntrinsic>(CurUser)) {
         if (!MI->isVolatile() && handleMemIntrinsicPtrUse(MI, V, NewV))
@@ -1311,8 +1278,8 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
           if (auto *KOtherSrc = dyn_cast<Constant>(OtherSrc)) {
             if (isSafeToCastConstAddrSpace(KOtherSrc, NewAS)) {
               Cmp->setOperand(SrcIdx, NewV);
-              Cmp->setOperand(OtherIdx,
-                ConstantExpr::getAddrSpaceCast(KOtherSrc, NewV->getType()));
+              Cmp->setOperand(OtherIdx, ConstantExpr::getAddrSpaceCast(
+                                            KOtherSrc, NewV->getType()));
               continue;
             }
           }
@@ -1321,22 +1288,6 @@ bool InferAddressSpacesImpl::rewriteWithNewAddressSpaces(
         if (AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(CurUser)) {
           unsigned NewAS = NewV->getType()->getPointerAddressSpace();
           if (ASC->getDestAddressSpace() == NewAS) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-            if (!cast<PointerType>(ASC->getType())
-                    ->hasSameElementTypeAs(
-                        cast<PointerType>(NewV->getType()))) {
-              BasicBlock::iterator InsertPos;
-              if (Instruction *NewVInst = dyn_cast<Instruction>(NewV))
-                InsertPos = std::next(NewVInst->getIterator());
-              else if (Instruction *VInst = dyn_cast<Instruction>(V))
-                InsertPos = std::next(VInst->getIterator());
-              else
-                InsertPos = ASC->getIterator();
-
-              NewV = CastInst::Create(Instruction::BitCast, NewV,
-                                      ASC->getType(), "", &*InsertPos);
-            }
-#endif
             ASC->replaceAllUsesWith(NewV);
             DeadInstructions.push_back(ASC);
             continue;

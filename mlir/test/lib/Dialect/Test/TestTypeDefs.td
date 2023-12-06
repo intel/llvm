@@ -157,7 +157,7 @@ def TestTypeWithLayoutType : Test_Type<"TestTypeWithLayout", [
                                 ::mlir::Location loc) const;
 
   private:
-    unsigned extractKind(::mlir::DataLayoutEntryListRef params,
+    uint64_t extractKind(::mlir::DataLayoutEntryListRef params,
                          ::llvm::StringRef expectedKind) const;
 
   public:
@@ -371,6 +371,24 @@ def TestTypeElseAnchorStruct : Test_Type<"TestTypeElseAnchorStruct"> {
 
 def TestI32 : Test_Type<"TestI32"> {
   let mnemonic = "i32";
+}
+
+def TestRecursiveAlias
+    : Test_Type<"TestRecursiveAlias", [NativeTypeTrait<"IsMutable">]> {
+  let mnemonic = "test_rec_alias";
+  let storageClass = "TestRecursiveTypeStorage";
+  let storageNamespace = "test";
+  let genStorageClass = 0;
+
+  let parameters = (ins "llvm::StringRef":$name);
+
+  let hasCustomAssemblyFormat = 1;
+
+  let extraClassDeclaration = [{
+    Type getBody() const;
+
+    void setBody(Type type);
+  }];
 }
 
 #endif // TEST_TYPEDEFS

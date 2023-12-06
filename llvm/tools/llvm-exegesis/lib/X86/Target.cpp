@@ -1087,11 +1087,11 @@ ExegesisX86Target::generateExitSyscall(unsigned ExitCode) const {
 #define MAP_FIXED_NOREPLACE MAP_FIXED
 #endif
 
-// 32 bit ARM doesn't have mmap and uses mmap2 instead. The only difference
-// between the two syscalls is that mmap2's offset parameter is in terms 4096
-// byte offsets rather than individual bytes, so for our purposes they are
-// effectively the same as all ofsets here are set to 0.
-#ifdef __arm__
+// Some 32-bit architectures don't have mmap and define mmap2 instead. The only
+// difference between the two syscalls is that mmap2's offset parameter is in
+// terms 4096 byte offsets rather than individual bytes, so for our purposes
+// they are effectively the same as all ofsets here are set to 0.
+#if defined(SYS_mmap2) && !defined(SYS_mmap)
 #define SYS_mmap SYS_mmap2
 #endif
 
@@ -1185,10 +1185,14 @@ std::vector<MCInst>
 ExegesisX86Target::configurePerfCounter(long Request, bool SaveRegisters) const {
   std::vector<MCInst> ConfigurePerfCounterCode;
   if(SaveRegisters) {
-    // Preservie RAX, RDI, and RSI by pushing them to the stack.
+    // Preserve RAX, RDI, and RSI by pushing them to the stack.
     generateRegisterStackPush(X86::RAX, ConfigurePerfCounterCode);
     generateRegisterStackPush(X86::RDI, ConfigurePerfCounterCode);
     generateRegisterStackPush(X86::RSI, ConfigurePerfCounterCode);
+    // RCX and R11 will get clobbered by the syscall instruction, so save them
+    // as well.
+    generateRegisterStackPush(X86::RCX, ConfigurePerfCounterCode);
+    generateRegisterStackPush(X86::R11, ConfigurePerfCounterCode);
   }
   ConfigurePerfCounterCode.push_back(
       loadImmediate(X86::RDI, 64, APInt(64, getAuxiliaryMemoryStartAddress())));
@@ -1203,9 +1207,12 @@ ExegesisX86Target::configurePerfCounter(long Request, bool SaveRegisters) const 
       loadImmediate(X86::RSI, 64, APInt(64, Request)));
   generateSyscall(SYS_ioctl, ConfigurePerfCounterCode);
   if(SaveRegisters) {
+    // Restore R11 then RCX
+    generateRegisterStackPop(X86::R11, ConfigurePerfCounterCode);
+    generateRegisterStackPop(X86::RCX, ConfigurePerfCounterCode);
     // Restore RAX, RDI, and RSI, in reverse order.
     generateRegisterStackPop(X86::RSI, ConfigurePerfCounterCode);
-    generateRegisterStackPop(X86::RIP, ConfigurePerfCounterCode);
+    generateRegisterStackPop(X86::RDI, ConfigurePerfCounterCode);
     generateRegisterStackPop(X86::RAX, ConfigurePerfCounterCode);
   }
   return ConfigurePerfCounterCode;
@@ -1216,7 +1223,7 @@ std::vector<unsigned> ExegesisX86Target::getArgumentRegisters() const {
 }
 
 std::vector<unsigned> ExegesisX86Target::getRegistersNeedSaving() const {
-  return {X86::RAX, X86::RDI, X86::RSI};
+  return {X86::RAX, X86::RDI, X86::RSI, X86::RCX, X86::R11};
 }
 
 #endif // __linux__

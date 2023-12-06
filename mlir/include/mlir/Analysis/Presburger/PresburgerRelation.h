@@ -66,6 +66,14 @@ public:
 
   void insertVarInPlace(VarKind kind, unsigned pos, unsigned num = 1);
 
+  /// Converts variables of the specified kind in the column range [srcPos,
+  /// srcPos + num) to variables of the specified kind at position dstPos. The
+  /// ranges are relative to the kind of variable.
+  ///
+  /// srcKind and dstKind must be different.
+  void convertVarKind(VarKind srcKind, unsigned srcPos, unsigned num,
+                      VarKind dstKind, unsigned dstPos);
+
   /// Return a reference to the list of disjuncts.
   ArrayRef<IntegerRelation> getAllDisjuncts() const;
 
@@ -85,17 +93,22 @@ public:
   /// Return the intersection of this set and the given set.
   PresburgerRelation intersect(const PresburgerRelation &set) const;
 
-  /// Intersect the given `set` with the range in-place.
+  /// Return the range intersection of the given `set` with `this` relation.
   ///
   /// Formally, let the relation `this` be R: A -> B and `set` is C, then this
-  /// operation modifies R to be A -> (B intersection C).
-  PresburgerRelation intersectRange(PresburgerSet &set);
+  /// operation returns A -> (B intersection C).
+  PresburgerRelation intersectRange(const PresburgerSet &set) const;
 
-  /// Intersect the given `set` with the domain in-place.
+  /// Return the domain intersection of the given `set` with `this` relation.
   ///
   /// Formally, let the relation `this` be R: A -> B and `set` is C, then this
-  /// operation modifies R to be (A intersection C) -> B.
-  PresburgerRelation intersectDomain(const PresburgerSet &set);
+  /// operation returns (A intersection C) -> B.
+  PresburgerRelation intersectDomain(const PresburgerSet &set) const;
+
+  /// Return a set corresponding to the domain of the relation.
+  PresburgerSet getDomainSet() const;
+  /// Return a set corresponding to the range of the relation.
+  PresburgerSet getRangeSet() const;
 
   /// Invert the relation, i.e. swap its domain and range.
   ///
@@ -156,17 +169,17 @@ public:
   bool isIntegerEmpty() const;
 
   /// Return true if there is no disjunct, false otherwise.
-  bool isPlainEmpty() const;
+  bool isObviouslyEmpty() const;
 
   /// Return true if the set is known to have one unconstrained disjunct, false
   /// otherwise.
-  bool isPlainUniverse() const;
+  bool isObviouslyUniverse() const;
 
   /// Perform a quick equality check on `this` and `other`. The relations are
   /// equal if the check return true, but may or may not be equal if the check
   /// returns false. This is doing by directly comparing whether each internal
   /// disjunct is the same.
-  bool isPlainEqual(const PresburgerRelation &set) const;
+  bool isObviouslyEqual(const PresburgerRelation &set) const;
 
   /// Return true if the set is consist of a single disjunct, without any local
   /// variables, false otherwise.
@@ -199,6 +212,10 @@ public:
   /// representation may involve local ids that correspond to divisions, and may
   /// also be a union of convex disjuncts.
   PresburgerRelation computeReprWithOnlyDivLocals() const;
+
+  /// Simplify each disjunct, canonicalizing each disjunct and removing
+  /// redundencies.
+  PresburgerRelation simplify() const;
 
   /// Print the set's internal state.
   void print(raw_ostream &os) const;

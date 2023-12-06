@@ -40,12 +40,13 @@ bool addSanitizerRuntimes(const ToolChain &TC, const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs);
 
 void linkSanitizerRuntimeDeps(const ToolChain &TC,
+                              const llvm::opt::ArgList &Args,
                               llvm::opt::ArgStringList &CmdArgs);
 
 bool addXRayRuntime(const ToolChain &TC, const llvm::opt::ArgList &Args,
                     llvm::opt::ArgStringList &CmdArgs);
 
-void linkXRayRuntimeDeps(const ToolChain &TC,
+void linkXRayRuntimeDeps(const ToolChain &TC, const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs);
 
 void AddRunTimeLibs(const ToolChain &TC, const Driver &D,
@@ -58,7 +59,7 @@ void AddStaticDeviceLibsLinking(Compilation &C, const Tool &T,
                                 const llvm::opt::ArgList &DriverArgs,
                                 llvm::opt::ArgStringList &CmdArgs,
                                 StringRef Arch, StringRef Target,
-                                bool isBitCodeSDL, bool postClangLink);
+                                bool isBitCodeSDL);
 void AddStaticDeviceLibsPostLinking(const Driver &D,
                                     const llvm::opt::ArgList &DriverArgs,
                                     llvm::opt::ArgStringList &CmdArgs,
@@ -68,22 +69,7 @@ void AddStaticDeviceLibs(Compilation *C, const Tool *T, const JobAction *JA,
                          const InputInfoList *Inputs, const Driver &D,
                          const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CmdArgs, StringRef Arch,
-                         StringRef Target, bool isBitCodeSDL,
-                         bool postClangLink);
-
-bool SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
-               llvm::opt::ArgStringList &CmdArgs,
-               SmallVector<std::string, 8> LibraryPaths, std::string Lib,
-               StringRef Arch, StringRef Target, bool isBitCodeSDL,
-               bool postClangLink);
-
-bool GetSDLFromOffloadArchive(Compilation &C, const Driver &D, const Tool &T,
-                              const JobAction &JA, const InputInfoList &Inputs,
-                              const llvm::opt::ArgList &DriverArgs,
-                              llvm::opt::ArgStringList &CC1Args,
-                              SmallVector<std::string, 8> LibraryPaths,
-                              StringRef Lib, StringRef Arch, StringRef Target,
-                              bool isBitCodeSDL, bool postClangLink);
+                         StringRef Target, bool isBitCodeSDL);
 
 const char *SplitDebugName(const JobAction &JA, const llvm::opt::ArgList &Args,
                            const InputInfo &Input, const InputInfo &Output);
@@ -135,7 +121,7 @@ bool addOpenMPRuntime(llvm::opt::ArgStringList &CmdArgs, const ToolChain &TC,
                       bool IsOffloadingHost = false, bool GompNeedsRT = false);
 
 /// Adds Fortran runtime libraries to \p CmdArgs.
-void addFortranRuntimeLibs(const ToolChain &TC,
+void addFortranRuntimeLibs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs);
 
 /// Adds the path for the Fortran runtime libraries to \p CmdArgs.
@@ -147,7 +133,8 @@ void addHIPRuntimeLibArgs(const ToolChain &TC, Compilation &C,
                           const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs);
 
-const char *getAsNeededOption(const ToolChain &TC, bool as_needed);
+void addAsNeededOption(const ToolChain &TC, const llvm::opt::ArgList &Args,
+                       llvm::opt::ArgStringList &CmdArgs, bool as_needed);
 
 llvm::opt::Arg *getLastCSProfileGenerateArg(const llvm::opt::ArgList &Args);
 llvm::opt::Arg *getLastProfileUseArg(const llvm::opt::ArgList &Args);

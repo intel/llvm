@@ -181,9 +181,6 @@ enum class image_channel_type : /* unspecified */ {
   snorm_int16,
   unorm_int8,
   unorm_int16,
-  unorm_short_565,
-  unorm_short_555,
-  unorm_int_101010,
   signed_int8,
   signed_int16,
   signed_int32,
@@ -325,8 +322,8 @@ void free_image_mem(image_mem_handle memHandle,
 
 The first method of allocating device memory for images is through 
 `alloc_image_mem`. This takes a `sycl::device`, `sycl::context`, 
-and `image_descriptor` to allocate device memory, appropriately sized 
-based on the `image_descriptor`. Alternatively, we can also pass a 
+and `image_descriptor` to allocate device memory, with the appropriate image 
+type and size based on the `image_descriptor`. Alternatively, we can also pass a 
 `sycl::queue` instead of both `sycl::device` and `sycl::context`.
 
 Memory allocated in this way requires the user to free that memory after all 
@@ -391,20 +388,30 @@ namespace sycl::ext::oneapi {
 sycl::range<3> get_image_range(const image_mem_handle memHandle,
                                const sycl::device &syclDevice,
                                const sycl::context &syclContext);
+sycl::range<3> get_image_range(const image_mem_handle memHandle,
+                               const sycl::queue &syclQueue);
 
 sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext);
+sycl::image_channel_type
+get_image_channel_type(const image_mem_handle memHandle,
+                       const sycl::queue &syclQueue);
 
 unsigned int get_image_num_channels(const image_mem_handle memHandle,
                                     const sycl::device &syclDevice,
                                     const sycl::context &syclContext);
+unsigned int get_image_num_channels(const image_mem_handle memHandle,
+                                    const sycl::queue &syclQueue);
 
 image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
                                           unsigned int level, 
                                           const sycl::device &syclDevice,
                                           const sycl::context &syclContext);
+image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
+                                          unsigned int level,
+                                          const sycl::queue &syclQueue);
 }
 ```
 
@@ -498,16 +505,19 @@ namespace sycl::ext::oneapi::experimental {
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
-  raw_image_handle_type image_handle;
+
+  unsampled_image_handle(raw_image_handle_type raw_handle);
+
+  raw_image_handle_type raw_handle;
 };
 
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
-  using raw_sampler_handle_type = /* Implementation defined */
 
-  raw_image_handle_type image_handle;
-  raw_sampler_handle_type sampler_handle;
+  sampled_image_handle(raw_image_handle_type raw_image_handle);
+
+  raw_image_handle_type raw_handle;
 };
 
 // Creating an unsampled image from an `image_mem_handle`
@@ -610,6 +620,9 @@ with error code `sycl::errc::runtime`.
 The `unsampled_image_handle` and `sampled_image_handle` types shall be 
 default-constructible, copy-constructible, and device-copyable.
 
+The `unsampled_image_handle` and `sampled_image_handle` types have a 
+constructor to allow creation of the types from a `raw_image_handle_type`
+
 [NOTE]
 ====
 In the DPC++ CUDA backend a sampled image will correspond to a CUDA texture, 
@@ -645,17 +658,23 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing;
-  sycl::coordinate_normalization_mode coordinate;
-  sycl::filtering_mode filtering;
-  sycl::filtering_mode mipmap_filtering;
-  float min_mipmap_level_clamp;
-  float max_mipmap_level_clamp;
-  float max_anisotropy;
+  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  sycl::coordinate_normalization_mode coordinate =
+      sycl::coordinate_normalization_mode::unnormalized;
+  sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
+  sycl::filtering_mode mipmap_filtering = sycl::filtering_mode::nearest;
+  float min_mipmap_level_clamp = 0.f;
+  float max_mipmap_level_clamp = 0.f;
+  float max_anisotropy = 0.f;
 };
 
 }
 ```
+
+The `bindless_image_sampler` shall be default constructible and follow by-value 
+semantics. The value for the addressing mode, `addressing_mode::none`, 
+represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
+`addressing_mode::repeat`.
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -666,7 +685,7 @@ sample, with the minimum value being 0.
 `max_mipmap_level_clamp` defines the maximum mipmap level from which we can 
 sample. This cannot value cannot be higher than the number of allocated levels.
 
-`max_anisotropy` dictates the anisotropic ratio used when samplling the mipmap 
+`max_anisotropy` dictates the anisotropic ratio used when sampling the mipmap 
 with anisotropic filtering.
 
 === Explicit copies
@@ -938,15 +957,15 @@ with error code `sycl::errc::invalid`, and relay an error message back to the
 user through `sycl::exception::what()`, describing which of the scenarios 
 listed above caused the failure.
 
-=== Reading and writing inside the kernel
+=== Reading and writing inside the kernel [[reading_writing_inside_kernel]]
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image(const unsampled_image_handle &ImageHandle,
                  const CoordT &Coords);
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &ImageHandle, 
                  const CoordT &Coords);
 
@@ -960,37 +979,43 @@ Inside a kernel, it's possible to read an image via `read_image`, passing
 the image handle. For the form that takes `unsampled_image_handle`, image data 
 will be fetched exactly as is in device memory. For the form that takes a 
 `sampled_image_handle`, the image will be sampled according to the 
-`bindless_image_sampler` that was passed to the image upon construction. The 
-sampler handle is included in the `sampled_image_handle` as 
-`sampled_image_handle::raw_sampler_handle`. 
+`bindless_image_sampler` that was passed to the image upon construction.
 
-The returned data will be of templated type `DataT`, which is specified by the 
-user, and should map to the type that the image was created with (a combination 
-of `image_channel_type` and `image_channel_order`). An example of a type 
-resulting from these two is shown below.
+The user is required to pass a `DataT` template parameter, which specifies the
+return type of the `read_image` function. If `DataT` is not a recognized 
+standard type, as defined in <<recognized_standard_types>>, and instead a 
+user-defined type, the user must provide a `HintT` template parameter to the 
+`read_image` function, to allow the backend to select the correct device 
+intrinsic to fetch or sample their data.
+`HintT` must be one of the the <<recognized_standard_types>>, and must be the 
+same size as `DataT`.
+If `DataT` is a recognized standard type, and `HintT` is also passed, `HintT` 
+will be ignored.
 
-For reads or writes, `DataT` must correspond to the type specified in the 
-`image_descriptor` when the image was created. For multi-channel types, the 
-resultant `DataT` should be a `sycl::vec` type. E.g., for a channel order of 
-`image_channel_order::rg` and channel type of `image_channel_type::fp16`, the 
-resultant `DataT` should be `sycl::vec<sycl::half, 2>`.
+When reading a texture backed by a normalized integer channel type, either 
+`DataT` must be a 32-bit or 16-bit floating point value, a `sycl::vec` of 
+32-bit or 16-bit floating point values, or, in the case `DataT` is not one of 
+the above, then `HintT` must be one of the above, and be of the same size as 
+`DataT`.
 
-It's possible to write to an image via `write_image` passing the 
+It's possible to write to an unsampled image via `write_image` passing the 
 handle of the image to be written to, along with the coordinates to write to and 
-the data.
+the data. User-defined types are allowed to be written provided that type is 
+trivially copyable. The user defined type must also be of the same size as any 
+of the <<recognized_standard_types>>.
 
 Sampled images cannot be written to using `write_image`.
 
-For unsampled images, coordinates are specified by `int`, `sycl::vec<int, 2>`, 
-and `sycl::vec<int, 4>` for 1D, 2D, and 3D images respectively.
+For reading and writing of unsampled images, coordinates are specified by `int`, 
+`sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
+respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
-`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images respectively. 
+`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
 
-In the case of 3D reads or writes, the fourth element in the coordinate vector 
-is ignored.
-
-Note that coordinates for 3D images take a vector of size 4, not 3.
+Note that in the case of 3D reads or writes, coordinates for 3D images take a 
+vector of size 4, not 3, as the fourth element in the coordinate vector is 
+ignored.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -999,6 +1024,41 @@ Note also that read-after-write functionality is not supported. Unsampled
 images may be read from and written back to within the same kernel, however, 
 reading from that same image again will result in undefined behaviour. A new 
 kernel must be submitted for the written data to be accessible.
+
+[NOTE]
+====
+Attempting to read an image with `read_mipmap` or any other defined read 
+function will result in undefined behaviour.
+====
+
+=== Recognized standard types [[recognized_standard_types]]
+
+For the purposes of this extension, the following are classified as recognized 
+standard types.
+
+* All POD types (`char`, `short`, `int`, `float`, etc.) excluding `double`
+* `sycl::half`
+* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `4`
+
+Any other types are classified as user-defined types.
+
+==== User-defined types
+
+Some examples of a user-defined types may be:
+
+```c++
+struct my_float4 {
+  float r, g, b, a;
+};
+
+struct my_short2 {
+  short r, g;
+};
+```
+
+When providing the above types as `DataT` parameters to an image read function, 
+the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and 
+`sycl::vec<short, 2>`, respectively.
 
 == Mipmapped images
 
@@ -1089,27 +1149,40 @@ level of a given top-level descriptor.
 
 === Reading a mipmap
 
-Inside the kernel, it's possible to read a mipmap via `read_image`, passing the 
+Inside the kernel, it's possible to read a mipmap via `read_mipmap`, passing the 
 `sampled_image_handle`, the coordinates, and either the level or anisotropic 
 gradient values.
 
-The method of sampling a mipmap is different based on which `read_image` 
+The method of sampling a mipmap is different based on which `read_mipmap` 
 function is used, and the sampler attributes passed upon creation of the 
 mipmap.
 
 ```c++
 // Nearest/linear filtering between mip levels
-template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle,
-                 const CoordT &Coords,
-                 const float Level);
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords,
+                  const float Level);
 
 // Anisotropic filtering
-template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle,
-                 const CoordT &Coords,
-                 const CoordT &Dx, const CoordT &Dy);
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords,
+                  const CoordT &Dx, const CoordT &Dy);
 ```
+
+Reading a mipmap follows the same restrictions on what coordinate types may be 
+used as laid out in <<reading_writing_inside_kernel>>, and the viewing gradients 
+are bound to the same type as used for the coordinates.
+
+Reading a mipmap by providing a user-defined return `DataT` type also follows 
+the restrictions as laid out in <<reading_writing_inside_kernel>>.
+
+[NOTE]
+====
+Attempting to read a mipmap with `read_image` or any other defined read function 
+will result in undefined behaviour.
+====
 
 == Interoperability
 
@@ -1209,12 +1282,12 @@ interop_mem_handle import_external_memory(
     external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
@@ -1644,9 +1717,9 @@ try {
       float x = (static_cast<float>(id[0]) + 0.5f) / static_cast<float>(width);
       // Read mipmap level 0 with anisotropic filtering
       // and level 1 with level filtering
-      float px1 = sycl::ext::oneapi::experimental::read_image<float>(
+      float px1 = sycl::ext::oneapi::experimental::read_mipmap<float>(
           mipHandle, x, 0.0f, 0.0f);
-      float px2 = sycl::ext::oneapi::experimental::read_image<float>(
+      float px2 = sycl::ext::oneapi::experimental::read_mipmap<float>(
           mipHandle, x, 1.0f);
 
       sum = px1 + px2;
@@ -1755,10 +1828,10 @@ try {
 
   // Extension: map imported external memory to image memory
   sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           input_interop_mem_handle, desc, queue);
   sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           output_interop_mem_handle, desc, queue);
 
   // Extension: create images from mapped memory and return the handles
@@ -1957,4 +2030,29 @@ These features still need to be handled:
 
                  - Updated code samples.
 |4.1|2023-07-21| - Made bindless image sampler member names snake-case
+|4.2|2023-08-18| - `write_image` now allows passing of user-defined types
+|4.3|2023-09-08| - Clarify how normalized image formats are read
+                 - Remove support for packed normalized image formats 
+                   (`unorm_short_555`, `unorm_short_565`, `unorm_int_101010`)
+|4.4|2023-09-12| - Added overload with `sycl::queue` to standalone functions
+|4.5|2023-09-14| - Update wording for allocating images + fix typo
+|4.6|2023-09-19| - Clarify restrictions on reading/writing coordinate types
+|4.7|2023-10-16| - Introduce `read_mipmap` for mipmap access and clarify reading 
+                   restrictions on image types
+|4.8|2023-10-25| - Change the name of `map_external_memory_array` to 
+                   `map_external_image_memory` to avoid CUDA terminology
+|4.9|2023-11-13| - Add that the bindless sampler is default constructible 
+                   and follows by-value semantics
+|4.10|2023-11-15| - Added constructors for `sampled_image_handle` and 
+                    `unsampled_image_handle` structs.
+                  - Removed `raw_sampler_handle` member from 
+                    `sampled_image_handle` struct. Awaiting LevelZero 
+                    and SPIR-V extensions to mature before before deciding 
+                    whether a `raw_sampler_handle` member is necessary.
+                  - Renamed `image_handle` members in `sampled_image_handle` and
+                    `unsampled_image_handle` structs to `raw_handle`.
+|5.0|2023-11-21| - Added section "Recognized standard types", to simplify 
+                   wording around what types are allowed to be read or written.
+                 - Allow `read_image` and `read_mipmap` to return a 
+                   user-defined type.
 |======================

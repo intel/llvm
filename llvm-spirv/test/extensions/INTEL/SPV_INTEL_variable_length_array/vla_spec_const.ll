@@ -70,66 +70,60 @@ $_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv = comdat any
 define weak_odr dso_local spir_kernel void @_ZTS17SpecializedKernel() #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon", align 1
-  %1 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #4
-  %2 = addrspacecast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*
-  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #4
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse
-define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this) #2 align 2 {
+define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*, align 8
-  %saved_stack = alloca i8*, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+  %saved_stack = alloca ptr, align 8
   %__vla_expr0 = alloca i64, align 8
-  store %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)** %this.addr, align 8, !tbaa !5
-  %this1 = load %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)** %this.addr, align 8
-  %0 = getelementptr inbounds %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon", %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this1, i32 0, i32 0
-  %call = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(%"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)* %0)
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !5
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
+  %call = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(ptr addrspace(4) %this1)
 ; CHECK-LLVM:  %[[SPEC_CONST:[[:alnum:]]+]] = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(
-  %1 = call i8* @llvm.stacksave()
-; CHECK-LLVM: call ptr @llvm.stacksave()
-  store i8* %1, i8** %saved_stack, align 8
+  %0 = call ptr @llvm.stacksave.p0()
+; CHECK-LLVM: call ptr @llvm.stacksave.p0()
+  store ptr %0, ptr %saved_stack, align 8
   %vla = alloca i32, i64 %call, align 4
 ; CHECK-LLVM: alloca i32, i64 %[[SPEC_CONST]], align 4
-  store i64 %call, i64* %__vla_expr0, align 8
-  %ptridx = getelementptr inbounds i32, i32* %vla, i64 0
-  store i32 42, i32* %ptridx, align 4, !tbaa !9
-  %2 = load i8*, i8** %saved_stack, align 8
-  call void @llvm.stackrestore(i8* %2)
-; CHECK-LLVM: call void @llvm.stackrestore(ptr
+  store i64 %call, ptr %__vla_expr0, align 8
+  store i32 42, ptr %vla, align 4, !tbaa !9
+  %1 = load ptr, ptr %saved_stack, align 8
+  call void @llvm.stackrestore.p0(ptr %1)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse
-define linkonce_odr dso_local spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(%"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)* %this) #3 comdat align 2 {
+define linkonce_odr dso_local spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(ptr addrspace(4) %this) #3 comdat align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)*, align 8
-  %TName = alloca i8 addrspace(4)*, align 8
-  store %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)* %this, %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)** %this.addr, align 8, !tbaa !5
-  %0 = bitcast i8 addrspace(4)** %TName to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #4
-  %1 = call i64 @_Z20__spirv_SpecConstantix(i32 0, i64 0), !SYCL_SPEC_CONST_SYM_ID !11
-  %2 = bitcast i8 addrspace(4)** %TName to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %2) #4
+  %this.addr = alloca ptr addrspace(4), align 8
+  %TName = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %TName) #4
+  %0 = call i64 @_Z20__spirv_SpecConstantix(i32 0, i64 0), !SYCL_SPEC_CONST_SYM_ID !11
+  call void @llvm.lifetime.end.p0(i64 8, ptr %TName) #4
 ; CHECK-LLVM: ret i64 28
-  ret i64 %1
+  ret i64 %0
 }
 
 ; Function Attrs: nounwind
-declare i8* @llvm.stacksave() #4
+declare ptr @llvm.stacksave.p0() #4
 
 ; Function Attrs: nounwind
-declare void @llvm.stackrestore(i8*) #4
+declare void @llvm.stackrestore.p0(ptr) #4
 
 declare i64 @_Z20__spirv_SpecConstantix(i32, i64)
 

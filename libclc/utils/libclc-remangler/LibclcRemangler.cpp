@@ -601,7 +601,7 @@ private:
         std::string StructName =
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
-        RD = RecordDecl::Create(*AST, TTK_Struct, SpvNamespace, SL, SL, II);
+        RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
         auto RecordQT = AST->getRecordType(RD);
         NNS = NestedNameSpecifier::Create(*AST, NNS, false,
@@ -614,7 +614,7 @@ private:
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
         Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ETK_None, NNS, Res);
+        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -631,7 +631,7 @@ private:
       }
       case Node::Kind::KVectorType: {
         Res = AST->getVectorType(Res, I->Data,
-                                 clang::VectorType::VectorKind::GenericVector);
+                                 clang::VectorKind::Generic);
         break;
       }
       case Node::Kind::KQualType: {
@@ -778,11 +778,6 @@ public:
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
     SMDiagnostic Err;
-#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
-    LLVMCtx.setOpaquePointers(true);
-#else
-    LLVMCtx.setOpaquePointers(false);
-#endif
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
     std::unique_ptr<llvm::Module> const M =

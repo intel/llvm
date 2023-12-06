@@ -281,7 +281,7 @@ EVT X86TargetLowering::getOptimalMemOpType(
     if (Op.size() >= 16 &&
         (!Subtarget.isUnalignedMem16Slow() || Op.isAligned(Align(16)))) {
       // FIXME: Check if unaligned 64-byte accesses are slow.
-      if (Op.size() >= 64 && Subtarget.hasAVX512() &&
+      if (Op.size() >= 64 && Subtarget.hasAVX512() && Subtarget.hasEVEX512() &&
           (Subtarget.getPreferVectorWidth() >= 512)) {
         return Subtarget.hasBWI() ? MVT::v64i8 : MVT::v16i32;
       }
@@ -395,7 +395,7 @@ bool X86TargetLowering::allowsMemoryAccess(LLVMContext &Context,
         return true;
       return false;
     case 512:
-      if (Subtarget.hasAVX512())
+      if (Subtarget.hasAVX512() && Subtarget.hasEVEX512())
         return true;
       return false;
     default:
@@ -413,6 +413,9 @@ unsigned X86TargetLowering::getJumpTableEncoding() const {
   // symbol.
   if (isPositionIndependent() && Subtarget.isPICStyleGOT())
     return MachineJumpTableInfo::EK_Custom32;
+  if (isPositionIndependent() &&
+      getTargetMachine().getCodeModel() == CodeModel::Large)
+    return MachineJumpTableInfo::EK_LabelDifference64;
 
   // Otherwise, use the normal jump table encoding heuristics.
   return TargetLowering::getJumpTableEncoding();
@@ -512,7 +515,9 @@ const MCExpr *X86TargetLowering::
 getPICJumpTableRelocBaseExpr(const MachineFunction *MF, unsigned JTI,
                              MCContext &Ctx) const {
   // X86-64 uses RIP relative addressing based on the jump table label.
-  if (Subtarget.isPICStyleRIPRel())
+  if (Subtarget.isPICStyleRIPRel() ||
+      (Subtarget.is64Bit() &&
+       getTargetMachine().getCodeModel() == CodeModel::Large))
     return TargetLowering::getPICJumpTableRelocBaseExpr(MF, JTI, Ctx);
 
   // Otherwise, the reference is relative to the PIC base.
@@ -561,11 +566,7 @@ static Constant* SegmentOffset(IRBuilderBase &IRB,
                                int Offset, unsigned AddressSpace) {
   return ConstantExpr::getIntToPtr(
       ConstantInt::get(Type::getInt32Ty(IRB.getContext()), Offset),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       IRB.getPtrTy(AddressSpace));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Type::getInt8PtrTy(IRB.getContext())->getPointerTo(AddressSpace));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *X86TargetLowering::getIRStackGuard(IRBuilderBase &IRB) const {
@@ -621,12 +622,12 @@ void X86TargetLowering::insertSSPDeclarations(Module &M) const {
       Subtarget.getTargetTriple().isWindowsItaniumEnvironment()) {
     // MSVC CRT has a global variable holding security cookie.
     M.getOrInsertGlobal("__security_cookie",
-                        Type::getInt8PtrTy(M.getContext()));
+                        PointerType::getUnqual(M.getContext()));
 
     // MSVC CRT has a function to validate security cookie.
     FunctionCallee SecurityCheckCookie = M.getOrInsertFunction(
         "__security_check_cookie", Type::getVoidTy(M.getContext()),
-        Type::getInt8PtrTy(M.getContext()));
+        PointerType::getUnqual(M.getContext()));
     if (Function *F = dyn_cast<Function>(SecurityCheckCookie.getCallee())) {
       F->setCallingConv(CallingConv::X86_FastCall);
       F->addParamAttr(0, Attribute::AttrKind::InReg);
@@ -663,9 +664,6 @@ Function *X86TargetLowering::getSSPStackGuardCheck(const Module &M) const {
 
 Value *
 X86TargetLowering::getSafeStackPointerLocation(IRBuilderBase &IRB) const {
-  if (Subtarget.getTargetTriple().isOSContiki())
-    return getDefaultSafeStackPointerLocation(IRB, false);
-
   // Android provides a fixed TLS slot for the SafeStack pointer. See the
   // definition of TLS_SLOT_SAFESTACK in
   // https://android.googlesource.com/platform/bionic/+/master/libc/private/bionic_tls.h
@@ -2647,7 +2645,8 @@ bool MatchingStackOffset(SDValue Arg, unsigned Offset, ISD::ArgFlagsTy Flags,
   for (;;) {
     // Look through nodes that don't alter the bits of the incoming value.
     unsigned Op = Arg.getOpcode();
-    if (Op == ISD::ZERO_EXTEND || Op == ISD::ANY_EXTEND || Op == ISD::BITCAST) {
+    if (Op == ISD::ZERO_EXTEND || Op == ISD::ANY_EXTEND || Op == ISD::BITCAST ||
+        Op == ISD::AssertZext) {
       Arg = Arg.getOperand(0);
       continue;
     }

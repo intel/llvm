@@ -186,8 +186,7 @@ int main(int argc, const char **argv) {
   }
 
   LLVMContext Context;
-  Context.setOpaquePointers(SPIRV_ENABLE_OPAQUE_POINTERS);
-  Type *Int8PtrTy = Type::getInt8PtrTy(Context);
+  Type *Int8PtrTy = PointerType::getUnqual(Context);
 
   // Create bitcode file with the symbol names for each target and write it to
   // the output file.

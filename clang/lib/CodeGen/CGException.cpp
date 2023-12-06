@@ -263,12 +263,7 @@ static llvm::FunctionCallee getPersonalityFn(CodeGenModule &CGM,
 static llvm::Constant *getOpaquePersonalityFn(CodeGenModule &CGM,
                                         const EHPersonality &Personality) {
   llvm::FunctionCallee Fn = getPersonalityFn(CGM, Personality);
-  llvm::PointerType* Int8PtrTy = llvm::PointerType::get(
-      llvm::Type::getInt8Ty(CGM.getLLVMContext()),
-      CGM.getDataLayout().getProgramAddressSpace());
-
-  return llvm::ConstantExpr::getBitCast(cast<llvm::Constant>(Fn.getCallee()),
-                                        Int8PtrTy);
+  return cast<llvm::Constant>(Fn.getCallee());
 }
 
 /// Check whether a landingpad instruction only uses C++ features.
@@ -401,11 +396,7 @@ void CodeGenFunction::EmitAnyExprToExn(const Expr *e, Address addr) {
   // __cxa_allocate_exception returns a void*;  we need to cast this
   // to the appropriate type for the object.
   llvm::Type *ty = ConvertTypeForMem(e->getType());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address typedAddr = addr.withElementType(ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Address typedAddr = Builder.CreateElementBitCast(addr, ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // FIXME: this isn't quite right!  If there's a final unelided call
   // to a copy constructor, then according to [except.terminate]p1 we
@@ -444,6 +435,15 @@ llvm::Value *CodeGenFunction::getSelectorFromSlot() {
 
 void CodeGenFunction::EmitCXXThrowExpr(const CXXThrowExpr *E,
                                        bool KeepInsertionPoint) {
+  // If the exception is being emitted in an OpenMP target region,
+  // and the target is a GPU, we do not support exception handling.
+  // Therefore, we emit a trap which will abort the program, and
+  // prompt a warning indicating that a trap will be emitted.
+  const llvm::Triple &T = Target.getTriple();
+  if (CGM.getLangOpts().OpenMPIsTargetDevice && (T.isNVPTX() || T.isAMDGCN())) {
+    EmitTrapCall(llvm::Intrinsic::trap);
+    return;
+  }
   if (const Expr *SubExpr = E->getSubExpr()) {
     QualType ThrowType = SubExpr->getType();
     if (ThrowType->isObjCObjectPointerType()) {
@@ -613,9 +613,16 @@ void CodeGenFunction::EmitEndEHSpec(const Decl *D) {
 }
 
 void CodeGenFunction::EmitCXXTryStmt(const CXXTryStmt &S) {
-  EnterCXXTryStmt(S);
+  const llvm::Triple &T = Target.getTriple();
+  // If we encounter a try statement on in an OpenMP target region offloaded to
+  // a GPU, we treat it as a basic block.
+  const bool IsTargetDevice =
+      (CGM.getLangOpts().OpenMPIsTargetDevice && (T.isNVPTX() || T.isAMDGCN()));
+  if (!IsTargetDevice)
+    EnterCXXTryStmt(S);
   EmitStmt(S.getTryBlock());
-  ExitCXXTryStmt(S);
+  if (!IsTargetDevice)
+    ExitCXXTryStmt(S);
 }
 
 void CodeGenFunction::EnterCXXTryStmt(const CXXTryStmt &S, bool IsFnTryBlock) {
@@ -1124,6 +1131,8 @@ static void emitCatchDispatchBlock(CodeGenFunction &CGF,
   // Select the right handler.
   llvm::Function *llvm_eh_typeid_for =
     CGF.CGM.getIntrinsic(llvm::Intrinsic::eh_typeid_for);
+  llvm::Type *argTy = llvm_eh_typeid_for->getArg(0)->getType();
+  LangAS globAS = CGF.CGM.GetGlobalVarAddressSpace(nullptr);
 
   // Load the selector value.
   llvm::Value *selector = CGF.getSelectorFromSlot();
@@ -1137,7 +1146,11 @@ static void emitCatchDispatchBlock(CodeGenFunction &CGF,
     assert(handler.Type.Flags == 0 &&
            "landingpads do not support catch handler flags");
     assert(typeValue && "fell into catch-all case!");
-    typeValue = CGF.Builder.CreateBitCast(typeValue, CGF.Int8PtrTy);
+    // With opaque ptrs, only the address space can be a mismatch.
+    if (typeValue->getType() != argTy)
+      typeValue =
+        CGF.getTargetHooks().performAddrSpaceCast(CGF, typeValue, globAS,
+                                                  LangAS::Default, argTy);
 
     // Figure out the next block.
     bool nextIsEnd;
@@ -1820,13 +1833,11 @@ Address CodeGenFunction::recoverAddrOfEscapedLocal(CodeGenFunction &ParentCGF,
     auto InsertPair = ParentCGF.EscapedLocals.insert(
         std::make_pair(ParentAlloca, ParentCGF.EscapedLocals.size()));
     int FrameEscapeIdx = InsertPair.first->second;
-    // call i8* @llvm.localrecover(i8* bitcast(@parentFn), i8* %fp, i32 N)
+    // call ptr @llvm.localrecover(ptr @parentFn, ptr %fp, i32 N)
     llvm::Function *FrameRecoverFn = llvm::Intrinsic::getDeclaration(
         &CGM.getModule(), llvm::Intrinsic::localrecover);
-    llvm::Constant *ParentI8Fn =
-        llvm::ConstantExpr::getBitCast(ParentCGF.CurFn, Int8PtrTy);
     RecoverCall = Builder.CreateCall(
-        FrameRecoverFn, {ParentI8Fn, ParentFP,
+        FrameRecoverFn, {ParentCGF.CurFn, ParentFP,
                          llvm::ConstantInt::get(Int32Ty, FrameEscapeIdx)});
 
   } else {
@@ -1889,9 +1900,7 @@ void CodeGenFunction::EmitCapturedLocals(CodeGenFunction &ParentCGF,
     // since finally funclets recover the parent FP for us.
     llvm::Function *RecoverFPIntrin =
         CGM.getIntrinsic(llvm::Intrinsic::eh_recoverfp);
-    llvm::Constant *ParentI8Fn =
-        llvm::ConstantExpr::getBitCast(ParentCGF.CurFn, Int8PtrTy);
-    ParentFP = Builder.CreateCall(RecoverFPIntrin, {ParentI8Fn, EntryFP});
+    ParentFP = Builder.CreateCall(RecoverFPIntrin, {ParentCGF.CurFn, EntryFP});
 
     // if the parent is a _finally, the passed-in ParentFP is the FP
     // of parent _finally, not Establisher's FP (FP of outermost function).
@@ -1919,19 +1928,15 @@ void CodeGenFunction::EmitCapturedLocals(CodeGenFunction &ParentCGF,
       int FrameEscapeIdx = InsertPair.first->second;
 
       // an example of a filter's prolog::
-      // %0 = call i8* @llvm.eh.recoverfp(bitcast(@"?fin$0@0@main@@"),..)
-      // %1 = call i8* @llvm.localrecover(bitcast(@"?fin$0@0@main@@"),..)
-      // %2 = bitcast i8* %1 to i8**
-      // %3 = load i8*, i8* *%2, align 8
-      //   ==> %3 is the frame-pointer of outermost host function
+      // %0 = call ptr @llvm.eh.recoverfp(@"?fin$0@0@main@@",..)
+      // %1 = call ptr @llvm.localrecover(@"?fin$0@0@main@@",..)
+      // %2 = load ptr, ptr %1, align 8
+      //   ==> %2 is the frame-pointer of outermost host function
       llvm::Function *FrameRecoverFn = llvm::Intrinsic::getDeclaration(
           &CGM.getModule(), llvm::Intrinsic::localrecover);
-      llvm::Constant *ParentI8Fn =
-          llvm::ConstantExpr::getBitCast(ParentCGF.CurFn, Int8PtrTy);
       ParentFP = Builder.CreateCall(
-          FrameRecoverFn, {ParentI8Fn, ParentFP,
+          FrameRecoverFn, {ParentCGF.CurFn, ParentFP,
                            llvm::ConstantInt::get(Int32Ty, FrameEscapeIdx)});
-      ParentFP = Builder.CreateBitCast(ParentFP, CGM.VoidPtrPtrTy);
       ParentFP = Builder.CreateLoad(
           Address(ParentFP, CGM.VoidPtrTy, getPointerAlign()));
     }
@@ -2023,17 +2028,17 @@ void CodeGenFunction::startOutlinedSEHHelper(CodeGenFunction &ParentCGF,
       Args.push_back(ImplicitParamDecl::Create(
           getContext(), /*DC=*/nullptr, StartLoc,
           &getContext().Idents.get("exception_pointers"),
-          getContext().VoidPtrTy, ImplicitParamDecl::Other));
+          getContext().VoidPtrTy, ImplicitParamKind::Other));
     } else {
       Args.push_back(ImplicitParamDecl::Create(
           getContext(), /*DC=*/nullptr, StartLoc,
           &getContext().Idents.get("abnormal_termination"),
-          getContext().UnsignedCharTy, ImplicitParamDecl::Other));
+          getContext().UnsignedCharTy, ImplicitParamKind::Other));
     }
     Args.push_back(ImplicitParamDecl::Create(
         getContext(), /*DC=*/nullptr, StartLoc,
         &getContext().Idents.get("frame_pointer"), getContext().VoidPtrTy,
-        ImplicitParamDecl::Other));
+        ImplicitParamKind::Other));
   }
 
   QualType RetTy = IsFilter ? getContext().LongTy : getContext().VoidTy;
@@ -2105,9 +2110,6 @@ void CodeGenFunction::EmitSEHExceptionCodeSave(CodeGenFunction &ParentCGF,
     // pointer is stored in the second field. So, GEP 20 bytes backwards and
     // load the pointer.
     SEHInfo = Builder.CreateConstInBoundsGEP1_32(Int8Ty, EntryFP, -20);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    SEHInfo = Builder.CreateBitCast(SEHInfo, Int8PtrTy->getPointerTo());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     SEHInfo = Builder.CreateAlignedLoad(Int8PtrTy, SEHInfo, getPointerAlign());
     SEHCodeSlotStack.push_back(recoverAddrOfEscapedLocal(
         ParentCGF, ParentCGF.SEHCodeSlotStack.back(), ParentFP));
@@ -2120,16 +2122,9 @@ void CodeGenFunction::EmitSEHExceptionCodeSave(CodeGenFunction &ParentCGF,
   //   CONTEXT *ContextRecord;
   // };
   // int exceptioncode = exception_pointers->ExceptionRecord->ExceptionCode;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *RecordTy = llvm::PointerType::getUnqual(getLLVMContext());
   llvm::Type *PtrsTy = llvm::StructType::get(RecordTy, CGM.VoidPtrTy);
   llvm::Value *Rec = Builder.CreateStructGEP(PtrsTy, SEHInfo, 0);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  llvm::Type *RecordTy = CGM.Int32Ty->getPointerTo();
-  llvm::Type *PtrsTy = llvm::StructType::get(RecordTy, CGM.VoidPtrTy);
-  llvm::Value *Ptrs = Builder.CreateBitCast(SEHInfo, PtrsTy->getPointerTo());
-  llvm::Value *Rec = Builder.CreateStructGEP(PtrsTy, Ptrs, 0);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Rec = Builder.CreateAlignedLoad(RecordTy, Rec, getPointerAlign());
   llvm::Value *Code = Builder.CreateAlignedLoad(Int32Ty, Rec, getIntAlign());
   assert(!SEHCodeSlotStack.empty() && "emitting EH code outside of __except");
@@ -2198,9 +2193,7 @@ void CodeGenFunction::EnterSEHTryStmt(const SEHTryStmt &S) {
   // in place of the RTTI typeinfo global that C++ EH uses.
   llvm::Function *FilterFunc =
       HelperCGF.GenerateSEHFilterFunction(*this, *Except);
-  llvm::Constant *OpaqueFunc =
-      llvm::ConstantExpr::getBitCast(FilterFunc, Int8PtrTy);
-  CatchScope->setHandler(0, OpaqueFunc, createBasicBlock("__except.ret"));
+  CatchScope->setHandler(0, FilterFunc, createBasicBlock("__except.ret"));
 }
 
 void CodeGenFunction::ExitSEHTryStmt(const SEHTryStmt &S) {

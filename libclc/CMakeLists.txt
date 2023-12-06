@@ -181,6 +181,8 @@ set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
+# TODO: Does this need to be set for each possible triple?
+set( x86_64-unknown-linux-gnu_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -342,6 +344,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# AMDGCN needs libclc to be compiled to high bc version since all atomic
 				# clang builtins need to be accessible
 				set( flags "SHELL:-mcpu=gfx940")
+      elseif( ${ARCH}  STREQUAL x86_64)
+        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
+        set( flags "SHELL:-Xclang -target-feature -Xclang +avx"
+            "SHELL:-Xclang -fsycl-is-native-cpu"
+            "SHELL:-Xclang -target-feature -Xclang +avx512f")
 			else()
 				set ( flags )
 			endif()
@@ -380,28 +387,30 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 # Enable SPIR-V builtin function declarations, so they don't
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
-                if (${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64")
-                  if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
-                    list(APPEND flags "-UENABLE_OPAQUE_POINTERS")
-                    list(APPEND flags "SHELL:-Xclang -no-opaque-pointers")
-                    list(APPEND opt_flags "-opaque-pointers=0")
-                  endif()
-                endif()
 
                 # OpenCL 3.0 extensions
                 list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
                 string(CONCAT CL_3_0_EXTENSIONS
                   "-cl-ext="
                   "+cl_khr_fp64,"
+                  "+cl_khr_fp16,"
                   "+__opencl_c_3d_image_writes,"
                   "+__opencl_c_images,"
                   "+cl_khr_3d_image_writes,"
                   "+__opencl_c_generic_address_space")
-                if ( NOT ${ARCH} STREQUAL amdgcn )
-                  string(APPEND CL_3_0_EXTENSIONS
-                    ",+cl_khr_fp16")
-                endif()
                 list( APPEND flags ${CL_3_0_EXTENSIONS})
+
+		# Add platform specific flags
+		if(WIN32)
+			list(APPEND flags -D_WIN32)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+			list(APPEND flags -D__APPLE__)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+			list(APPEND flags -D__unix__ -D__linux__)
+		else()
+			# Assume some UNIX system otherwise
+			list(APPEND flags -D__unix__)
+		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

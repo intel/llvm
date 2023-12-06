@@ -11,8 +11,8 @@
 // This version runs the test when the platform has Unicode support.
 // UNSUPPORTED: libcpp-has-no-unicode
 
-// TODO FMT Investigate Windows and 32-bit AIX issues.
-// UNSUPPORTED: msvc, target={{.+}}-windows-gnu, target=powerpc-ibm-aix{{.*}}
+// TODO FMT Investigate Windows issues.
+// UNSUPPORTED: msvc, target={{.+}}-windows-gnu
 
 // TODO FMT This test should not require std::to_chars(floating-point)
 // XFAIL: availability-fp_to_chars-missing
@@ -155,7 +155,7 @@ void test_char() {
   // *** P2286 examples ***
   test_format(SV("['\\'', '\"']"), SV("[{:?}, {:?}]"), CharT('\''), CharT('"'));
 
-  // *** Specical cases ***
+  // *** Special cases ***
   test_format(SV("'\\t'"), SV("{:?}"), CharT('\t'));
   test_format(SV("'\\n'"), SV("{:?}"), CharT('\n'));
   test_format(SV("'\\r'"), SV("{:?}"), CharT('\r'));
@@ -324,7 +324,7 @@ void test_string() {
 
   test_format(SV(R"(["🤷🏻\u{200d}♂\u{fe0f}"])"), SV("[{:?}]"), SV("🤷🏻‍♂️"));
 
-  // *** Specical cases ***
+  // *** Special cases ***
   test_format(SV(R"("\t\n\r\\'\" ")"), SV("{:?}"), SV("\t\n\r\\'\" "));
 
   // *** Printable ***
@@ -565,7 +565,6 @@ int main(int, char**) {
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
 #  ifdef _LIBCPP_SHORT_WCHAR
   test_ill_formed_utf16();
-  assert(false);
 #  else  // _LIBCPP_SHORT_WCHAR
   test_ill_formed_utf32();
 #  endif // _LIBCPP_SHORT_WCHAR

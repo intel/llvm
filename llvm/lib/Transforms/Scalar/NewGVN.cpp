@@ -1904,7 +1904,7 @@ NewGVN::ExprResult NewGVN::performSymbolicCmpEvaluation(Instruction *I) const {
       LastPredInfo = PI;
       // In phi of ops cases, we may have predicate info that we are evaluating
       // in a different context.
-      if (!DT->dominates(PBranch->To, getBlockForValue(I)))
+      if (!DT->dominates(PBranch->To, I->getParent()))
         continue;
       // TODO: Along the false edge, we may know more things too, like
       // icmp of
@@ -2617,42 +2617,14 @@ bool NewGVN::OpIsSafeForPHIOfOps(Value *V, const BasicBlock *PHIBlock,
     }
 
     auto *OrigI = cast<Instruction>(I);
-    
-    if (MemoryAccess *OriginalAccess = getMemoryAccess(OrigI)) {
-      SmallVector<MemoryAccess *, 4> MemAccessWorkList;
-      MemAccessWorkList.push_back(
-          MSSAWalker->getClobberingMemoryAccess(OriginalAccess));
-
-      // We only want memory defs/phis that might alias with the original
-      // access, so if we can, pass the location to the walker.
-      MemoryLocation Loc =
-          MemoryLocation::getOrNone(OrigI).value_or(MemoryLocation());
-      while (!MemAccessWorkList.empty()) {
-        auto *MemAccess = MemAccessWorkList.pop_back_val();
-        if (MSSA->isLiveOnEntryDef(MemAccess))
-          continue;
-
-        // Phi block is dominated - safe.
-        if (DT->properlyDominates(MemAccess->getBlock(), PHIBlock)) {
-          OpSafeForPHIOfOps.insert({I, true});
-          continue;
-        }
-
-        // Clobbering MemoryPhi - unsafe.
-        // Note : Only checking memory phis allows us to skip redundant stores
-        if (isa<MemoryPhi>(MemAccess) &&
-            MemAccess ==
-                MSSAWalker->getClobberingMemoryAccess(MemAccess, Loc)) {
-          OpSafeForPHIOfOps.insert({I, false});
-          return false;
-        }
-
-        // Add potential clobber of the original access.
-        MemAccessWorkList.push_back(MSSAWalker->getClobberingMemoryAccess(
-            cast<MemoryUseOrDef>(MemAccess)));
-        continue;
-      }
-    }
+    // When we hit an instruction that reads memory (load, call, etc), we must
+    // consider any store that may happen in the loop. For now, we assume the
+    // worst: there is a store in the loop that alias with this read.
+    // The case where the load is outside the loop is already covered by the
+    // dominator check above.
+    // TODO: relax this condition
+    if (OrigI->mayReadFromMemory())
+      return false;
 
     // Check the operands of the current instruction.
     for (auto *Op : OrigI->operand_values()) {
@@ -2793,6 +2765,9 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
       // Clone the instruction, create an expression from it that is
       // translated back into the predecessor, and see if we have a leader.
       Instruction *ValueOp = I->clone();
+      // Emit the temporal instruction in the predecessor basic block where the
+      // corresponding value is defined.
+      ValueOp->insertBefore(PredBB->getTerminator());
       if (MemAccess)
         TempToMemory.insert({ValueOp, MemAccess});
       bool SafeForPHIOfOps = true;
@@ -2822,7 +2797,7 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
       FoundVal = !SafeForPHIOfOps ? nullptr
                                   : findLeaderForInst(ValueOp, Visited,
                                                       MemAccess, I, PredBB);
-      ValueOp->deleteValue();
+      ValueOp->eraseFromParent();
       if (!FoundVal) {
         // We failed to find a leader for the current ValueOp, but this might
         // change in case of the translated operands change.
@@ -3563,7 +3538,7 @@ struct NewGVN::ValueDFS {
     // the second. We only want it to be less than if the DFS orders are equal.
     //
     // Each LLVM instruction only produces one value, and thus the lowest-level
-    // differentiator that really matters for the stack (and what we use as as a
+    // differentiator that really matters for the stack (and what we use as a
     // replacement) is the local dfs number.
     // Everything else in the structure is instruction level, and only affects
     // the order in which we will replace operands of a given instruction.
@@ -3745,11 +3720,7 @@ void NewGVN::deleteInstructionsInBlock(BasicBlock *BB) {
   Type *Int8Ty = Type::getInt8Ty(BB->getContext());
   new StoreInst(
       PoisonValue::get(Int8Ty),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Constant::getNullValue(PointerType::getUnqual(BB->getContext())),
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Constant::getNullValue(Int8Ty->getPointerTo()),
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       BB->getTerminator());
 }
 
@@ -4059,9 +4030,18 @@ bool NewGVN::eliminateInstructions(Function &F) {
             // because stores are put in terms of the stored value, we skip
             // stored values here. If the stored value is really dead, it will
             // still be marked for deletion when we process it in its own class.
-            if (!EliminationStack.empty() && Def != EliminationStack.back() &&
-                isa<Instruction>(Def) && !FromStore)
-              markInstructionForDeletion(cast<Instruction>(Def));
+            auto *DefI = dyn_cast<Instruction>(Def);
+            if (!EliminationStack.empty() && DefI && !FromStore) {
+              Value *DominatingLeader = EliminationStack.back();
+              if (DominatingLeader != Def) {
+                // Even if the instruction is removed, we still need to update
+                // flags/metadata due to downstreams users of the leader.
+                if (!match(DefI, m_Intrinsic<Intrinsic::ssa_copy>()))
+                  patchReplacementInstruction(DefI, DominatingLeader);
+
+                markInstructionForDeletion(DefI);
+              }
+            }
             continue;
           }
           // At this point, we know it is a Use we are trying to possibly
@@ -4120,9 +4100,12 @@ bool NewGVN::eliminateInstructions(Function &F) {
           // For copy instructions, we use their operand as a leader,
           // which means we remove a user of the copy and it may become dead.
           if (isSSACopy) {
-            unsigned &IIUseCount = UseCounts[II];
-            if (--IIUseCount == 0)
-              ProbablyDead.insert(II);
+            auto It = UseCounts.find(II);
+            if (It != UseCounts.end()) {
+              unsigned &IIUseCount = It->second;
+              if (--IIUseCount == 0)
+                ProbablyDead.insert(II);
+            }
           }
           ++LeaderUseCount;
           AnythingReplaced = true;
