@@ -54,8 +54,7 @@ not rely on APIs defined in this specification.*
 == Overview
 
 When launching kernels that are represented as `sycl::kernel` objects,
-developers must pass arguments via the `set_arg` or `set_args` functions. These
-functions accept trivially copyable types.
+developers must pass arguments via the `set_arg` or `set_args` functions.
 
 There are situations where developers would like to pass a raw byte
 representation of the kernel argument to the backend (e.g., when a single
