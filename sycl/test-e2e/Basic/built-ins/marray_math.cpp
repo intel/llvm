@@ -2,6 +2,8 @@
 
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} %{mathflags} -fpreview-breaking-changes -o %t_preview.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #include <sycl/sycl.hpp>
 
@@ -115,8 +117,33 @@ int main() {
   TEST3(sycl::nan, float, 3, ma7);
   if (deviceQueue.get_device().has(sycl::aspect::fp64))
     TEST3(sycl::nan, double, 3, ma8);
-  TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
+
+  TEST(sycl::half_precision::sin, float, 3,
+       EXPECTED(float, 0.98545f, -0.871576f, -0.832267f), 0.001, ma6);
+  TEST(sycl::half_precision::cos, float, 3,
+       EXPECTED(float, 0.169967, -0.490261, 0.554375), 0.001, ma6);
+  TEST(sycl::half_precision::tan, float, 3,
+       EXPECTED(float, 5.797, 1.777, -1.501), 0.001, ma6);
+  TEST(sycl::half_precision::divide, float, 2, EXPECTED(float, 3.0f, 1.0f), 0,
+       ma2, ma1);
+  TEST(sycl::half_precision::log, float, 2, EXPECTED(float, 0.0f, 0.693f),
+       0.001, ma1);
+  TEST(sycl::half_precision::log2, float, 2, EXPECTED(float, 0.0f, 1.f), 0,
        ma1);
+  TEST(sycl::half_precision::log10, float, 2, EXPECTED(float, 0.0f, 0.301f),
+       0.001, ma1);
+  TEST(sycl::half_precision::powr, float, 2, EXPECTED(float, 3.0f, 4.0f), 0,
+       ma2, ma1);
+  TEST(sycl::half_precision::recip, float, 2, EXPECTED(float, 0.333f, 0.5f),
+       0.001, ma2);
+  TEST(sycl::half_precision::sqrt, float, 2, EXPECTED(float, 1.0f, 1.414f),
+       0.001, ma1);
+  TEST(sycl::half_precision::rsqrt, float, 2, EXPECTED(float, 1.0f, 0.707f),
+       0.001, ma1);
+  TEST(sycl::half_precision::exp, float, 2, EXPECTED(float, 2.718f, 7.389f),
+       0.001, ma1);
+  TEST(sycl::half_precision::exp2, float, 2, EXPECTED(float, 2, 4), 0, ma1);
+  TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0, ma1);
 
   return 0;
 }
