@@ -69,8 +69,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       urPrint("Unknown device type");
       break;
     }
-    if (Matched)
+    // Filter out composite devices when ZE_FLAT_DEVICE_HIERARCHY=COMBINED:
+    // component devices (tiles) enable ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE while
+    // composite devices (cards) don't.
+    bool isComposite =
+        (D->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
+    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
+    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+    if (Matched && (!Combined || !isComposite)) {
       MatchedDevices.push_back(D.get());
+    }
   }
 
   uint32_t ZeDeviceCount = MatchedDevices.size();
@@ -818,6 +826,47 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
                       Device->ZeDeviceProperties->vendorId == 0x8086;
     return ReturnValue(result);
+  }
+
+  case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
+    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+    if (Combined) {
+      ze_device_handle_t DevHandle = Device->ZeDevice;
+      uint32_t SubDeviceCount = 0;
+      // First call to get SubDeviceCount.
+      ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
+      std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
+      // Second call to get the actual list of devices.
+      ZE2UR_CALL(zeDeviceGetSubDevices,
+                 (DevHandle, &SubDeviceCount, SubDevs.data()));
+
+      size_t SubDeviceCount_s{SubDeviceCount};
+      auto ResSize = std::min(SubDeviceCount_s, propSize);
+      if (pSize)
+        *pSize = SubDeviceCount * sizeof(ur_device_handle_t);
+      if (ParamValue) {
+        std::vector<ur_device_handle_t> Res;
+        for (const auto &d : SubDevs)
+          Res.push_back(Device->Platform->getDeviceFromNativeHandle(d));
+        return ReturnValue(Res.data(), ResSize);
+      }
+      return UR_RESULT_SUCCESS;
+    }
+    return ReturnValue(0);
+  }
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+    ur_device_handle_t UrRootDev = nullptr;
+    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
+    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+    if (Combined) {
+      ze_device_handle_t DevHandle = Device->ZeDevice;
+      ze_device_handle_t RootDev;
+      // Query Root Device
+      ZE2UR_CALL(zeDeviceGetRootDevice, (DevHandle, &RootDev));
+      UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
+    }
+    return ReturnValue(UrRootDev);
   }
 
   default:
