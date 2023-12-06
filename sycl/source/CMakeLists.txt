@@ -170,6 +170,7 @@ set(SYCL_SOURCES
     "detail/builtins_relational.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
+    "detail/composite_device/composite_device.cpp"
     "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"

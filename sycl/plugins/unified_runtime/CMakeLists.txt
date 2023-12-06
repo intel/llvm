@@ -57,13 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f
-  # Merge: 95f90926 815a2869
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Dec 14 12:03:01 2023 +0000
-  #     Merge pull request #1105 from jandres742/fixtestusm
-  #     [UR][L0] Add several fixes to L0 adapter for test-usm
-  set(UNIFIED_RUNTIME_TAG 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f)
+  # commit e31ef293e1e0a4ed0df351b8b11b03c6dd0967eb 
+  # Author: Maronas, Marcos <marcos.maronas@intel.com>
+  # Date:   Wed Dec 6 03:41:39 2023 -0800
+  #     Initial support for ext_oneapi_composite_device
+  set(UNIFIED_RUNTIME_TAG e31ef293e1e0a4ed0df351b8b11b03c6dd0967eb)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

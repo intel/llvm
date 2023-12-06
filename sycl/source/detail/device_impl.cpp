@@ -53,6 +53,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     InteroperabilityConstructor = true;
   }
 
+
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
@@ -566,6 +567,28 @@ bool device_impl::has(aspect Aspect) const {
     //       implemented.
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl);
+  }
+  case aspect::ext_oneapi_is_composite: {
+    if (getBackend() != backend::ext_oneapi_level_zero)
+      return false;
+    auto components = get_info<
+        sycl::ext::oneapi::experimental::info::device::component_devices>();
+    // Any device with ext_oneapi_is_composite aspect will have at least two
+    // constituent component devices.
+    return components.size() >= 2;
+  }
+  case aspect::ext_oneapi_is_component: {
+    if (getBackend() != backend::ext_oneapi_level_zero)
+      return false;
+
+    typename sycl_to_pi<device>::type Result;
+    getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    return Result != nullptr;
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
