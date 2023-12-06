@@ -454,7 +454,7 @@ bool test_block_store_usm(queue Q) {
 
   bool Passed = true;
 
-  // Test block_store() that is available on Gen12, DG2 PVC.
+  // Test block_store() that is available on Gen12, DG2 and PVC.
   Passed &= testUSM<T, 1, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
   Passed &= testUSM<T, 2, !CheckMask, CheckProperties>(Q, 1, 4, AlignElemProps);
   Passed &= testUSM<T, 3, !CheckMask, CheckProperties>(Q, 2, 8, AlignElemProps);
