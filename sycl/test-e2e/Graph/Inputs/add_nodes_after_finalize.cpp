@@ -68,8 +68,10 @@ int main() {
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit(
-        [&](handler &CGH) { CGH.ext_oneapi_graph(GraphExecAdditional); });
+    Queue.submit([&](handler &CGH) {
+      CGH.depends_on(Event);
+      CGH.ext_oneapi_graph(GraphExecAdditional);
+    });
   }
 
   Queue.wait_and_throw();
