@@ -89,7 +89,7 @@ class annotated_ref<T, detail::properties_t<Props...>> {
 
 private:
   T *m_Ptr;
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
+  explicit annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
   annotated_ref(const annotated_ref &) = delete;

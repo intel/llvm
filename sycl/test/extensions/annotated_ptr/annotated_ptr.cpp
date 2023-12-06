@@ -169,6 +169,16 @@ void TestVectorAddWithAnnotatedMMHosts() {
 
   annotated_ptr<void> void_type;
 
+  struct g {
+    int a;
+  };
+  g g0, g1;
+  // expected-error-re@*:* {{invalid operands to binary expression {{.+}}}}
+  auto g2 = g0 + g1;
+
+  annotated_ptr gp{&g0};
+  auto g3 = *gp;
+
   free(raw, q);
 }
 
