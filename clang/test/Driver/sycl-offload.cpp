@@ -120,7 +120,7 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// SYCL_TARGET_OPT: clang-offload-wrapper{{.*}} "-compile-opts=-DFOO" "-link-opts=-DFOO2"
+// SYCL_TARGET_OPT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-DFOO" "-link-opts=-DFOO2"
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \

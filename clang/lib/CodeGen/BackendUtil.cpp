@@ -122,6 +122,12 @@ static cl::opt<bool> SYCLNativeCPUBackend(
 static cl::opt<bool> SYCLNativeCPUNoVecz(
     "sycl-native-cpu-no-vecz", cl::init(false),
     cl::desc("Disable vectorizer for SYCL Native CPU"));
+
+// Re-link builtin bitcodes after optimization
+cl::opt<bool> ClRelinkBuiltinBitcodePostop(
+    "relink-builtin-bitcode-postop", cl::Optional,
+    cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
+
 }
 
 namespace {
