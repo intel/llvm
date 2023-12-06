@@ -558,7 +558,6 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
-  bool producesPiEvent() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -580,7 +579,6 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
-  bool producesPiEvent() const final;
 
 private:
   pi_int32 enqueueImp() final;

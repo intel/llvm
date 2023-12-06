@@ -1388,8 +1388,6 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const { return true; }
-
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1475,8 +1473,6 @@ void MemCpyCommand::emitInstrumentationData() {
 const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
 }
-
-bool MemCpyCommand::producesPiEvent() const { return true; }
 
 pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
