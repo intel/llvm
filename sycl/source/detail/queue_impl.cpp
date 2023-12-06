@@ -141,6 +141,13 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "The memset feature is not yet available "
+                          "for use with the SYCL Graph extension.");
+  }
+
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {

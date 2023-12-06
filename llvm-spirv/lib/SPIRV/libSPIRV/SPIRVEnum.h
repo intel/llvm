@@ -215,6 +215,10 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
                {internal::CapabilityJointMatrixINTEL});
   ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
                {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityCooperativeMatrixPrefetchINTEL,
+               {CapabilityCooperativeMatrixKHR});
+  ADD_VEC_INIT(internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL,
+               {CapabilityCooperativeMatrixKHR});
 }
 
 template <> inline void SPIRVMap<SPIRVExecutionModelKind, SPIRVCapVec>::init() {
@@ -478,6 +482,12 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationImplementInCSRINTEL,
                {internal::CapabilityGlobalVariableDecorationsINTEL});
+  ADD_VEC_INIT(DecorationHostAccessINTEL,
+               {CapabilityGlobalVariableHostAccessINTEL});
+  ADD_VEC_INIT(DecorationInitModeINTEL,
+               {CapabilityGlobalVariableFPGADecorationsINTEL});
+  ADD_VEC_INIT(DecorationImplementInRegisterMapINTEL,
+               {CapabilityGlobalVariableFPGADecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationArgumentAttributeINTEL,
                {CapabilityFunctionPointersINTEL});
   ADD_VEC_INIT(internal::DecorationCacheControlLoadINTEL,
