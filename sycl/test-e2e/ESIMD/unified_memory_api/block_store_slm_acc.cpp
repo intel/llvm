@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //==----------------------------------------------------------==//
+// TODO: Enable after driver bug is fixed
+// UNSUPPORTED: intel-gpu-dg2 && windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
