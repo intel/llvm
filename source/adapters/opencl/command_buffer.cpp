@@ -297,6 +297,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferFillExp(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
+    ur_usm_migration_flags_t flags, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)mem;
+  (void)size;
+  (void)flags;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
+    ur_usm_migration_flags_t flags, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)mem;
+  (void)size;
+  (void)flags;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
