@@ -132,8 +132,9 @@ and `set_args` functions defined by the SYCL specification.
 
 This extension adds a new overload of `set_arg`, as defined below.
 
-[_Note:_ The parameter pack accepted by `set_args` has no constraints, and
-therefore requires no modification to support `raw_kernel_arg`. _{endnote}_]
+[_Note:_ Since the definition of `set_args` says that it acts "as if each
+argument in `args` was passed to `set_arg` ", adding a new overload of
+`set_arg` is sufficient to change the behavior of `set_args`. _{endnote}_]
 
 [source,c++]
 ----
