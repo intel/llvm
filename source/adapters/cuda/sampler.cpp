@@ -37,7 +37,13 @@ urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
       Sampler->MaxMipmapLevelClamp = SamplerMipProperties->maxMipmapLevelClamp;
       Sampler->MinMipmapLevelClamp = SamplerMipProperties->minMipmapLevelClamp;
       Sampler->MaxAnisotropy = SamplerMipProperties->maxAnisotropy;
-      Sampler->Props |= SamplerMipProperties->mipFilterMode << 5;
+      Sampler->Props |= SamplerMipProperties->mipFilterMode << 11;
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES) {
+      const ur_exp_sampler_addr_modes_t *SamplerAddrModes =
+          reinterpret_cast<const ur_exp_sampler_addr_modes_t *>(pNext);
+      Sampler->Props |= SamplerAddrModes->addrModes[0] << 2;
+      Sampler->Props |= SamplerAddrModes->addrModes[1] << 5;
+      Sampler->Props |= SamplerAddrModes->addrModes[2] << 8;
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
