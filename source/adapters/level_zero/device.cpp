@@ -267,7 +267,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{64});
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
+    // if not optimized for 32-bit access, return total memory size.
+    // otherwise, return only maximum allocatable size.
+    if (Device->useOptimized32bitAccess() == 0) {
+      return ReturnValue(uint64_t{calculateGlobalMemSize(Device)});
+    } else {
+      return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
+    }
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     // Support to read physicalSize depends on kernel,
     // so fallback into reading totalSize if physicalSize
@@ -909,6 +915,22 @@ ur_device_handle_t_::useImmediateCommandLists() {
   default:
     return NotUsed;
   }
+}
+
+int32_t ur_device_handle_t_::useOptimized32bitAccess() {
+  static const int32_t Optimize32bitAccessMode = [this] {
+    // If device is Intel(R) Data Center GPU Max,
+    // use default provided by L0 driver.
+    // TODO: Use IP versioning to select based on range of devices
+    if (this->isPVC())
+      return -1;
+    const char *UrRet = std::getenv("UR_L0_USE_OPTIMIZED_32BIT_ACCESS");
+    if (!UrRet)
+      return 0;
+    return std::atoi(UrRet);
+  }();
+
+  return Optimize32bitAccessMode;
 }
 
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,

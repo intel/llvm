@@ -148,9 +148,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
   ZeModuleDesc.format = (hProgram->State == ur_program_handle_t_::IL)
                             ? ZE_MODULE_FORMAT_IL_SPIRV
                             : ZE_MODULE_FORMAT_NATIVE;
+
   ZeModuleDesc.inputSize = hProgram->CodeLength;
   ZeModuleDesc.pInputModule = hProgram->Code.get();
-  ZeModuleDesc.pBuildFlags = pOptions;
+
+  // if large allocations are selected, then pass
+  // ze-opt-greater-than-4GB-buffer-required to disable
+  // stateful optimizations and be able to use larger than
+  // 4GB allocations on these kernels.
+  std::string ZeBuildOptions{};
+  if (pOptions) {
+    ZeBuildOptions += pOptions;
+  }
+
+  if (phDevices[0]->useOptimized32bitAccess() == 0) {
+    ZeBuildOptions += " -ze-opt-greater-than-4GB-buffer-required";
+  }
+
+  ZeModuleDesc.pBuildFlags = ZeBuildOptions.c_str();
   ZeModuleDesc.pConstants = Shim.ze();
 
   ze_device_handle_t ZeDevice = phDevices[0]->ZeDevice;
@@ -234,8 +249,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
   // This produces better code because the driver can do cross-module
   // optimizations.  Therefore, we just remember the compilation flags, so we
   // can use them later.
-  if (Options)
+  if (Options) {
     Program->BuildFlags = Options;
+
+    // if large allocations are selected, then pass
+    // ze-opt-greater-than-4GB-buffer-required to disable
+    // stateful optimizations and be able to use larger than
+    // 4GB allocations on these kernels.
+    if (Context->Devices[0]->useOptimized32bitAccess() == 0) {
+      Program->BuildFlags += " -ze-opt-greater-than-4GB-buffer-required";
+    }
+  }
   Program->State = ur_program_handle_t_::Object;
 
   return UR_RESULT_SUCCESS;
