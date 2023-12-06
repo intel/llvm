@@ -722,6 +722,7 @@ struct get_device_info_impl<
   get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
+    using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
     backend CurrentBackend = Dev->getBackend();
     architecture DeviceArch = get_device_info_impl<
         ext::oneapi::experimental::architecture,

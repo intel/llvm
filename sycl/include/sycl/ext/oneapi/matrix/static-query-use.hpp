@@ -490,20 +490,17 @@ struct matrix_params<
 template <typename Ta, typename Tc>
 constexpr bool is_combination_valid_amd_gfx90a(size_t sM, size_t sN,
                                                size_t sK) {
-  if ((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-       ((sM == 32 && sN == 32 && sK == 8) ||
-        (sM == 16 && sN == 16 && sK == 16))) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
-       ((sM == 32 && sN == 32 && sK == 8) ||
-        (sM == 16 && sN == 16 && sK == 16))) ||
-      (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
-       ((sM == 32 && sN == 32 && sK == 8) ||
-        (sM == 16 && sN == 16 && sK == 16))) ||
-      (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
-       (sM == 16 && sN == 16 && sK == 4)))
-    return true;
-  else
-    return false;
+  return ((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
+           ((sM == 32 && sN == 32 && sK == 8) ||
+            (sM == 16 && sN == 16 && sK == 16))) ||
+          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
+           ((sM == 32 && sN == 32 && sK == 8) ||
+            (sM == 16 && sN == 16 && sK == 16))) ||
+          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
+           ((sM == 32 && sN == 32 && sK == 8) ||
+            (sM == 16 && sN == 16 && sK == 16))) ||
+          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
+           (sM == 16 && sN == 16 && sK == 4)));
 }
 
 template <typename Ta, typename Tc>
@@ -511,7 +508,7 @@ constexpr bool are_types_valid_amd_gfx90a() {
   return ((std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
           (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
           (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) ||
-          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>))
+          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>));
 }
 
 // Default-values query:
@@ -581,86 +578,70 @@ struct matrix_params<
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool is_combination_valid_cuda_sm70(size_t sM, size_t sN, size_t sK) {
-  if (((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, float>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-        std::is_same_v<Td, half>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, half>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-        std::is_same_v<Td, float>)) &&
-      ((sM == 8 && sN == 32 && sK == 16) ||
-       (sM == 16 && sN == 16 && sK == 16) || (sM == 32 && sN == 8 && sK == 16)))
-    return true;
-  else
-    return false;
+  return (((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
+            std::is_same_v<Td, half>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, half>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
+            std::is_same_v<Td, float>)) &&
+          ((sM == 8 && sN == 32 && sK == 16) ||
+           (sM == 16 && sN == 16 && sK == 16) ||
+           (sM == 32 && sN == 8 && sK == 16)));
 }
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool is_combination_valid_cuda_sm72(size_t sM, size_t sN, size_t sK) {
-  if (((std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
-        std::is_same_v<Td, int32_t>) ||
-       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tc, int32_t> &&
-        std::is_same_v<Td, int32_t>)) &&
-      ((sM == 8 && sN == 32 && sK == 16) ||
-       (sM == 16 && sN == 16 && sK == 16) || (sM == 32 && sN == 8 && sK == 16)))
-    return true;
-  else
-    return false;
+  return (((std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
+            std::is_same_v<Td, int32_t>) ||
+           (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tc, int32_t> &&
+            std::is_same_v<Td, int32_t>)) &&
+          ((sM == 8 && sN == 32 && sK == 16) ||
+           (sM == 16 && sN == 16 && sK == 16) ||
+           (sM == 32 && sN == 8 && sK == 16)));
 }
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool is_combination_valid_cuda_sm80(size_t sM, size_t sN, size_t sK) {
-  if (((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, float>)&&(sM == 16 && sN == 16 && sK == 8)) ||
-      ((std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, float>)&&((sM == 16 && sN == 16 && sK == 16) ||
-                                     (sM == 8 && sN == 32 && sK == 16) ||
-                                     (sM == 32 && sN == 8 && sK == 16))) ||
-      ((std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
-        std::is_same_v<Td, double>)&&(sM == 8 && sN == 8 && sK == 4)))
-    return true;
-  else
-    return false;
+  return (((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>)&&(sM == 16 && sN == 16 && sK == 8)) ||
+          ((std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>)&&((sM == 16 && sN == 16 && sK == 16) ||
+                                         (sM == 8 && sN == 32 && sK == 16) ||
+                                         (sM == 32 && sN == 8 && sK == 16))) ||
+          ((std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
+            std::is_same_v<Td, double>)&&(sM == 8 && sN == 8 && sK == 4)));
 }
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool are_types_valid_cuda_sm70() {
-  if (((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, float>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-        std::is_same_v<Td, half>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-        std::is_same_v<Td, half>) ||
-       (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-        std::is_same_v<Td, float>)))
-    return true;
-  else
-    return false;
+  return (((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
+            std::is_same_v<Td, half>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, half>) ||
+           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
+            std::is_same_v<Td, float>)));
 }
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool are_types_valid_cuda_sm72() {
-  if (((std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
-        std::is_same_v<Td, int32_t>) ||
-       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tc, int32_t> &&
-        std::is_same_v<Td, int32_t>)))
-    return true;
-  else
-    return false;
+  return (((std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
+            std::is_same_v<Td, int32_t>) ||
+           (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tc, int32_t> &&
+            std::is_same_v<Td, int32_t>)));
 }
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool are_types_valid_cuda_sm80() {
-  if ((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
-       std::is_same_v<Td, float>) ||
-      (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
-       std::is_same_v<Td, float>) ||
-      (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
-       std::is_same_v<Td, double>))
-    return true;
-  else
-    return false;
+  return ((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
+           std::is_same_v<Td, float>) ||
+          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
+           std::is_same_v<Td, float>) ||
+          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
+           std::is_same_v<Td, double>));
 }
 
 // Default-values query (nvidia sm70):
