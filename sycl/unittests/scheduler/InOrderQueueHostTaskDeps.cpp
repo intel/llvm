@@ -106,7 +106,10 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     CGH.single_task<TestKernel<>>([] {});
   });
 
-  ready = true;
+  {
+    std::unique_lock lk(CvMutex);
+    ready = true;
+  }
   Cv.notify_one();
 
   InOrderQueue.wait();
@@ -152,7 +155,10 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
 
-  ready = true;
+  {
+    std::unique_lock lk(CvMutex);
+    ready = true;
+  }
   Cv.notify_one();
 
   InOrderQueue.wait();
