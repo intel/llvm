@@ -1,0 +1,532 @@
+:data-uri:
+:sectanchors:
+:icons: font
+:source-highlighter: coderay
+// TODO: try rouge?
+
+= cl_intel_concurrent_dispatch
+
+// clEnqueueNDRangeKernel
+:clEnqueueNDRangeKernel: pass:q[*clEnqueueNDRangeKernel*]
+
+// clGetKernelSuggestedLocalWorkSizeKHR
+:clGetKernelSuggestedLocalWorkSizeKHR: pass:q[*clGetKernelSuggestedLocalWorkSizeKHR*]
+
+// clSetKernelExecInfo
+:clSetKernelExecInfo: pass:q[*clSetKernelExecInfo*]
+
+// cl_uint
+:cl_uint_TYPE: pass:q[`cl_uint`]
+
+// cl_kernel_exec_info_dispatch_type_intel
+:cl_kernel_exec_info_dispatch_type_intel_TYPE: pass:q[`cl_kernel_<wbr>exec_<wbr>info_<wbr>dispatch_<wbr>type_<wbr>intel`]
+
+// CL_INVALID_OPERATION
+:CL_INVALID_OPERATION: pass:q[`CL_INVALID_<wbr>OPERATION`]
+:CL_INVALID_OPERATION_anchor: {CL_INVALID_OPERATION}
+
+// CL_INVALID_VALUE
+:CL_INVALID_VALUE: pass:q[`CL_INVALID_<wbr>VALUE`]
+:CL_INVALID_VALUE_anchor: {CL_INVALID_VALUE}
+
+// CL_INVALID_WORK_GROUP_SIZE
+:CL_INVALID_WORK_GROUP_SIZE: pass:q[`CL_INVALID_<wbr>WORK_<wbr>GROUP_<wbr>SIZE`]
+:CL_INVALID_WORK_GROUP_SIZE_anchor: {CL_INVALID_WORK_GROUP_SIZE}
+
+// CL_OUT_OF_HOST_MEMORY
+:CL_OUT_OF_HOST_MEMORY: pass:q[`CL_OUT_<wbr>OF_<wbr>HOST_<wbr>MEMORY`]
+:CL_OUT_OF_HOST_MEMORY_anchor: {CL_OUT_OF_HOST_MEMORY}
+
+// CL_OUT_OF_RESOURCES
+:CL_OUT_OF_RESOURCES: pass:q[`CL_OUT_<wbr>OF_<wbr>RESOURCES`]
+:CL_OUT_OF_RESOURCES_anchor: {CL_OUT_OF_RESOURCES}
+
+// CL_SUCCESS
+:CL_SUCCESS: pass:q[`CL_SUCCESS`]
+:CL_SUCCESS_anchor: {CL_SUCCESS}
+
+// clGetKernelMaxConcurrentWorkGroupCountINTEL
+:clGetKernelMaxConcurrentWorkGroupCountINTEL: pass:q[*clGetKernelMaxConcurrentWorkGroupCountINTEL*]
+
+// CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL: pass:q[`CL_KERNEL_<wbr>EXEC_<wbr>INFO_<wbr>DISPATCH_<wbr>TYPE_<wbr>INTEL`]
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL_anchor: {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL}
+
+// CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL: pass:q[`CL_KERNEL_<wbr>EXEC_<wbr>INFO_<wbr>DISPATCH_<wbr>TYPE_<wbr>DEFAULT_<wbr>INTEL`]
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL_anchor: {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL}
+
+// CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL: pass:q[`CL_KERNEL_<wbr>EXEC_<wbr>INFO_<wbr>DISPATCH_<wbr>TYPE_<wbr>CONCURRENT_<wbr>INTEL`]
+:CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL_anchor: {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL}
+
+== Name Strings
+
+`cl_intel_concurrent_dispatch`
+
+== Contact
+
+Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
+
+== Contributors
+
+// spell-checker: disable
+Ben Ashbaugh, Intel +
+Chunyang Dai, Intel +
+Filip Hazubski, Intel +
+Pekka Jääskeläinen, Intel and Tampere University +
+Michał Mrozek, Intel +
+John Pennycook, Intel +
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback.
+When the feature matures, this specification may be released as a formal
+extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+If you are interested in using this feature in your software product, please let
+us know!
+
+== Version
+
+Built On: {docdate} +
+Version: 0.9.0
+
+== Dependencies
+
+This extension is written against the OpenCL API specification, the OpenCL C
+Language specification and the OpenCL SPIR-V Environment specification, V3.0.14.
+
+This extension extends the {clSetKernelExecInfo} API from OpenCL 2.0 and hence
+requires an OpenCL 2.0 or newer platform, however it may be implemented by
+devices supporting many OpenCL versions.
+
+== Overview
+
+This extension allows an application to change the way a kernel executes on a
+device such that all of the work-items in all of the work-groups in an ND-range
+must execute concurrently, not just the work-items in a work-group.
+This allows work-items in different work-groups to safely use additional
+higher-level synchronization constructs (e.g. device-wide barriers), and may
+enable additional code patterns for devices with stronger forward progress
+guarantees.
+
+The number of work-items in an ND-range that execute concurrently may be limited
+on some devices, so this extension also adds a new API to query the number of
+work-groups that may be executed as a concurrent ND-range.
+
+NOTE: Usage of the term _concurrent_ in this extension specification is
+consistent with the meaning of _concurrent_ in the OpenCL specification, but is
+different from and does not imply _concurrent forward progress_ as defined by
+the C++17 standard.
+
+== New API Functions
+
+[source]
+----
+cl_int clGetKernelMaxConcurrentWorkGroupCountINTEL(
+    cl_command_queue command_queue,
+    cl_kernel kernel,
+    cl_uint work_dim,
+    const size_t *global_work_offset,
+    const size_t *local_work_size,
+    size_t *max_work_group_count);
+----
+
+== New API Types
+
+None.
+
+== New API Enums
+
+Accepted value for the _param_name_ parameter to {clSetKernelExecInfo} to set
+the type of dispatch for a kernel:
+
+[source]
+----
+#define CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL             0x4257
+----
+
+Accepted values for the _param_value_ parameter to {clSetKernelExecInfo} when
+_param_name_ is {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL}:
+
+[source]
+----
+typedef cl_uint cl_kernel_exec_info_dispatch_type_intel;
+
+#define CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL     0
+#define CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL  1
+----
+
+****
+IMPORTANT: Remove before final publication!
+
+Several of these enums have been renamed from old extension drafts:
+
+* `CL_KERNEL_EXEC_INFO_KERNEL_TYPE_INTEL` became {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL}
+    * This enum used to have the placeholder value `0x1000C` and was changed to the value `0x4257`.
+* `CL_KERNEL_EXEC_INFO_DEFAULT_TYPE_INTEL` became {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL}
+    * This enum used to have the placeholder value `0x1000D` and was changed to the value `0`.
+* `CL_KERNEL_EXEC_INFO_CONCURRENT_TYPE_INTEL` became {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL}
+    * This enum used to have the placeholder value `0x1000E` and was changed to the value `1`.
+****
+
+== New OpenCL C Functions
+
+[source]
+----
+void intel_device_barrier(cl_mem_fence_flags flags);
+void intel_device_barrier(cl_mem_fence_flags flags, memory_scope scope);
+
+bool intel_is_device_barrier_valid();
+----
+
+== Modifications to the OpenCL API Specification
+
+=== Add to Section 5.9.2 - Setting Kernel Arguments
+
+Add a new entry to Table 31 - List of supported param_names by
+{clSetKernelExecInfo}:
+
+[caption="Table 31. "]
+.List of supported param_names by clSetKernelExecInfo
+[width="100%",cols="<33%,<17%,<50%",options="header"]
+|====
+| Kernel Exec Info | Type | Description
+
+| {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL_anchor}
+  | {cl_kernel_exec_info_dispatch_type_intel_TYPE}
+    | Sets the dispatch type for the kernel.
+      Valid dispatch types are:
+
+      {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL_anchor} - This is the
+      default dispatch type for a kernel and does not provide any additional
+      concurrent execution guarantees, therefore this dispatch type does not
+      support cross-work-group synchronization (e.g. device-wide barriers).
+
+      {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL_anchor} - Requires
+      that the work-items in an ND-range must execute concurrently.  This
+      dispatch type allows work-items in the ND-range to safely use additional
+      higher-level synchronization constructs for cross-work-group
+      synchronization.
+
+|====
+
+Add to the list of error codes that may be returned by {clSetKernelExecInfo}:
+
+* {CL_INVALID_OPERATION} if _param_name_ is
+{CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL} and _param_value_ is not
+{CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL} and no devices in the context
+associated with _kernel_ support concurrent dispatch.
+
+=== Add a new Section 5.9.4.X - Maximum Concurrent Work-Group Count
+
+To query the maximum work-group count for a concurrent dispatch, call the function
+
+[source]
+----
+cl_int clGetKernelMaxConcurrentWorkGroupCountINTEL(
+    cl_command_queue command_queue,
+    cl_kernel kernel,
+    cl_uint work_dim,
+    const size_t *global_work_offset,
+    const size_t *local_work_size,
+    size_t *max_work_group_count);
+----
+
+The returned work-group count is the maximum number of work-groups supported for
+concurrent dispatch if the specified kernel object, with the same kernel
+arguments (including local memory kernel arguments), were enqueued into the
+specified command-queue with the specified global work offset and local work
+size.
+
+* _command_queue_ specifies the command-queue and device for the query.
+* _kernel_ specifies the kernel object and kernel arguments for the query. The
+OpenCL context associated with _kernel_ and _command_queue_ must be the same.
+* _work_dim_ specifies the number of work dimensions in the input global work
+offset and local work size.
+* _global_work_offset_ can be used to specify an array of at least _work_dim_
+global ID offset values for the query. This is optional and may be `NULL` to
+indicate there is no global ID offset.
+* _local_work_size_ is an array of at least _work_dim_ values describing the
+local work-group size for the query. This is required and must not be `NULL`.
+* _max_work_group_count_ is an output that will contain the result of the query.
+The result of the query must be at least one if the query executed successfully.
+
+{clGetKernelMaxConcurrentWorkGroupCountINTEL} returns {CL_SUCCESS} if the query
+executed successfully.
+Otherwise, it returns one of the following errors:
+
+* Any errors related to _command_queue_, _kernel_, _work_dim_,
+_global_work_offset_, or _local_work_size_ from {clEnqueueNDRangeKernel}.
+* {CL_INVALID_WORK_GROUP_SIZE} if _local_work_size_ is `NULL`.
+* {CL_INVALID_VALUE} if _max_work_group_count_ is `NULL`.
+* {CL_OUT_OF_RESOURCES} if there is a failure to allocate resources required by
+the OpenCL implementation on the device.
+* {CL_OUT_OF_HOST_MEMORY} if there is a failure to allocate resources required
+by the OpenCL implementation on the host.
+
+=== Add to Section 5.10 - Executing Kernels
+
+Add to the list of error codes that may be returned by {clEnqueueNDRangeKernel}:
+
+* {CL_INVALID_WORK_GROUP_SIZE} if the {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL}
+for _kernel_ is not {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL} and either
+the _local_work_size_ is `NULL` or the _global_work_size_ is not evenly
+divisible by the _local_work_size_.
+
+* {CL_INVALID_VALUE} if the {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL} for
+_kernel_ is {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL} and the total
+number of work-groups in the ND-range exceeds the maximum number of work-groups
+supported for concurrent dispatch for _command_queue_ for _kernel_.
+
+* {CL_INVALID_VALUE} if the {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_INTEL} for
+_kernel_ is not {CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_DEFAULT_INTEL} and the device
+associated with _command_queue_ does not support concurrent dispatch.
+
+== Modifications to the OpenCL C Specification
+
+=== Add to Section 6.15.8 - Synchronization Functions
+
+Add a new Table XX - Built-in Cross-Work-Group Synchronization Functions:
+
+[caption="Table XX. "]
+[cols="4a,5",options="header"]
+|====
+| Function | Description
+
+|[source]
+----
+void intel_device_barrier(
+    cl_mem_fence_flags flags);
+
+/* For OpenCL C 2.0 or newer: */
+
+void intel_device_barrier(
+    cl_mem_fence_flags flags,
+    memory_scope scope);
+----
+  | These *intel_device_barrier* functions behave similarly to a
+    *work_group_barrier* except the barrier applies to all work-items in the
+    ND-range, not just the work-items in the work-group.
+
+    The *intel_device_barrier* functions must only be called when
+    *intel_is_device_barrier_valid* returns `true`. Behavior is undefined if an
+    *intel_device_barrier* function is called when
+    *intel_is_device_barrier_valid* returns `false`.
+
+|[source]
+----
+bool intel_is_device_barrier_valid();
+----
+  | Returns `true` if it is valid to call the *intel_device_barrier* function
+    and `false` otherwise.
+
+    The value returned by this function must be the same for all work-items in
+    all work-groups in a kernel-instance, and must be invariant for the duration
+    of a work-item's execution.
+
+|====
+
+== Modifications to the OpenCL SPIR-V Environment Specification
+
+=== Add a new section 5.2.X - `cl_intel_concurrent_dispatch`
+
+If the OpenCL environment supports the extension
+`cl_intel_concurrent_dispatch` then the environment must accept modules that
+declare use of the extension `SPV_INTEL_device_barrier` and that declare
+the SPIR-V capability *DeviceBarrierINTEL*.
+
+The required SPIR-V type for an *OpVariable* decorated with the
+*DeviceBarrierValidINTEL* *BuiltIn* decoration is *OpTypeBool*.
+
+Variables decorated with the *DeviceBarrierValidINTEL* decoration must be *true*
+if the invocation is from a kernel with the
+{CL_KERNEL_EXEC_INFO_DISPATCH_TYPE_CONCURRENT_INTEL} dispatch type and must be
+*false* otherwise.
+
+== Issues
+
+. What should the name of this extension be?
++
+--
+*UNRESOLVED*: Some options:
+
+* `cl_intel_concurrent_dispatch`: this is the current name.
+* `cl_intel_concurrent_kernel`: this was the old name, but I don't like it
+because I think the concurrency guarantees are a property of a dispatch and
+not a property of a kernel.
+* `cl_intel_concurrent_ndrange`: another possibility, though there is an
+extension with "dispatch" in the name but there are no extensions with "ndrange"
+in the name.
+* `cl_intel_concurrent_work_groups`: another possibility, though this does not
+describe which work-groups are executing concurrently.
+* `cl_intel_concurrent_instance`: another possibility; the term "kernel
+instance" is used in the OpenCL spec, though it is not used in any APIs or in
+any other extensions.
+--
+
+. Should we allow passing `NULL` as the local work size to
+{clGetKernelMaxConcurrentWorkGroupCountINTEL}?
++
+--
+*RESOLVED*:
+Because the query returns the maximum concurrent work-group count, we need to
+know the local work size to compute a global work size with that count,
+therefore it does not make sense to allow a `NULL` local work size for
+{clGetKernelMaxConcurrentWorkGroupCountINTEL}.
+
+If desired, an application can use {clGetKernelSuggestedLocalWorkSizeKHR} from
+`cl_khr_suggested_local_work_size` with an estimated global work size to
+determine a reasonable local work size to use with
+{clGetKernelMaxConcurrentWorkGroupCountINTEL}, though this may not work in all
+cases.
+--
+
+. Should we have a kernel query for the current dispatch type?
++
+--
+*UNRESOLVED*:
+This might be useful for some types of profiling tools, though there are no
+similar queries for other properties set by {clSetKernelExecInfo}. It is not
+too difficult for profiling tools to track the dispatch type for a kernel
+themselves.
+--
+
+. What do we want to call the new barrier function?
++
+--
+*UNRESOLVED*: Some options:
+
+* `device_barrier`: this is the current name, which matches the SPIR-V scope.
+* `ndrange_barrier`: maybe better? because the barrier only synchronizes the
+work-items in this ND-range.
+* `global_barrier`: probably too general.
+* `root_barrier`: matches SYCL but we don't use "root" anywhere else in OpenCL
+C.
+* `grid_barrier`: matches CUDA but we don't use "grid" anywhere else in OpenCL.
+* `dispatch_barrier`: possibly matches the name of the extension, the OpenCL
+spec does use dispatch in a few places (though rarely).
+* `kernel_barrier`: possibly better than "device barrier" because the barrier
+only synchronizes the work-items from this kernel command.
+* `kernel_command_barrier` or `command_barrier`: possibly better than "kernel
+barrier" because the barrier only synchronizes the work-items from one kernel
+command.
+* `kernel_instance_barrier` or `instance_barrier`: another variant of "kernel
+command barrier"; "instance" is a term used in the OpenCL spec.
+
+Note, the name of the `is_device_barrier_valid` function should be kept in sync
+with the name of the device barrier function!
+
+Note also, the name of the function should be prefixed if this is an Intel
+extension, and should have no prefix if this is an EXT or KHR extension.
+--
+
+. What should behavior be if a device barrier is used in a kernel that does not
+have the special concurrent dispatch type?
++
+--
+*RESOLVED*: Note specifically what "used" means:
+
+* It is valid (no error) to enqueue a kernel that has a device barrier in it
+without the special concurrent dispatch type, as long as the device barrier is
+never called (dead code).
+The device barrier may be statically dead code (proven to never be called by the
+compiler) or dynamically dead code (never called with the specific set of
+parameters).
+* It is invalid (undefined behavior) to call a device barrier from a kernel
+without the concurrent dispatch type.
+* For completeness, it is also valid (no error) to enqueue a kernel without a
+device barrier with the special concurrent dispatch type, although using the
+special concurrent dispatch type in this scenario may not perform as well as
+other dispatch types.
+
+The `is_device_barrier_valid` function can be used to dynamically test whether
+it is valid to call `device_barrier` in the kernel.
+
+This behavior is consistent with CUDA.
+--
+
+. Do we need any special queue properties for concurrent dispatch?
++
+--
+*UNRESOLVED*: We could add this if it is valuable, either in this extension or
+in a related extension.
+--
+
+. Should we support non-uniform work-groups with concurrent dispatch?
++
+--
+*RESOLVED*: No, we will require uniform work-groups for concurrent dispatch for
+the initial version of this extension.
+--
+
+. Can kernels with cooperative dispatch be recorded into command buffers?
++
+--
+*RESOLVED*: Yes, I don't see why not.
+--
+
+. What should the required SPIR-V type be for variables decorated by the
+*DeviceBarrierValidINTEL* decoration?
++
+--
+*UNRESOLVED*: Probably *OpTypeBool*, which would match the return value of the
+OpenCL C built-in function `is_device_barrier_valid`, though this does not seem
+to have been done before.
+
+It could also be a (32-bit?) integer type scalar, where a value of zero
+indicates "false" and a non-zero value indicates "true".
+--
+
+. Should this extension also add an OpenCL C split device barrier function when
+`cl_intel_split_work_group_barrier` is also supported?
++
+--
+*UNRESOLVED*: Probably not at this time.
+This can be added as a layered extension later, if desired.
+--
+
+. Should the kernel exec info dispatch type be a bitfield or an enumerated
+value?
++
+--
+*UNRESOLVED*: A bitfield would allow specifying a combination of dispatch
+properties.
+We don't have a use for this right now, but conceivably there could be one in
+the future.
+Note that the sizes of these types is typically different, where an OpenCL
+bitfield is unconditionally 64-bits, and an enumerated type is 32-bits.
+Perhaps we should support a 32-bit enumerated value for now, and a 64-bit
+bitfield value in the future, if specifying a combination becomes important.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Version|Date|Author|Changes
+|0.9.0|2023-11-17|Ben Ashbaugh|*Initial revision for public preview*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use `mono` text for device APIs, or [source] syntax highlighting.
+//* Use `mono` text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
