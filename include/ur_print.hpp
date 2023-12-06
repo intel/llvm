@@ -2449,6 +2449,12 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value) {
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
         break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES:
+        os << "UR_DEVICE_INFO_COMPONENT_DEVICES";
+        break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+        os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -3996,6 +4002,32 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
