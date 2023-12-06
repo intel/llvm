@@ -311,24 +311,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   (void)pSyncPoint;
 
   // Not implemented
-  return PI_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
-    ur_usm_migration_flags_t flags, uint32_t numSyncPointsInWaitList,
+    ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
   (void)hCommandBuffer;
   (void)mem;
   (void)size;
-  (void)flags;
+  (void)advice;
   (void)numSyncPointsInWaitList;
   (void)pSyncPointWaitList;
   (void)pSyncPoint;
 
   // Not implemented
-  return PI_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
