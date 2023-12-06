@@ -1082,37 +1082,23 @@ pi_result piextCommandBufferMemBufferWriteRect(
 }
 
 pi_result piextCommandBufferPrefetchUSM(
-    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
-    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
-    const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point) {
-  (void)command_buffer;
-  (void)ptr;
-  (void)size;
-  (void)flags;
-  (void)num_sync_points_in_wait_list;
-  (void)sync_point_wait_list;
-  (void)sync_point;
-
-  // Not implemented
-  return PI_ERROR_INVALID_OPERATION;
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList,
+    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferAdviseUSM(
-    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
-    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
-    const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point) {
-  (void)command_buffer;
-  (void)ptr;
-  (void)length;
-  (void)advice;
-  (void)num_sync_points_in_wait_list;
-  (void)sync_point_wait_list;
-  (void)sync_point;
-
-  // Not implemented
-  return PI_ERROR_INVALID_OPERATION;
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList,
+    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
