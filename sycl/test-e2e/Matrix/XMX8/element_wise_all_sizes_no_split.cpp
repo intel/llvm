@@ -5,11 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// This is a version of element_wise_all_sizes test with disabled device code
+// split to test against fixed bug in IGC
+
 // REQUIRES: matrix-xmx8
 
 // TODO: Currently fails and regularly times out on DG2. Re-enable when this has
 //       been addressed.
-// XFAIL: gpu-intel-dg2
+// UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -fsycl-device-code-split=off -o %t.out
 // RUN: %{run} %t.out
