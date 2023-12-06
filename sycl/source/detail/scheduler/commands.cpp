@@ -501,19 +501,21 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(
     CommandType Type, QueueImplPtr Queue,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints)
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    bool ProducesPiEvent)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
-      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints),
+      MProducesPiEvent(ProducesPiEvent) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
-  MEvent->setProducesPiEvent(producesPiEvent());
+  MEvent->setProducesPiEvent(MProducesPiEvent);
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -737,8 +739,6 @@ const QueueImplPtr &Command::getWorkerQueue() const {
   assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
   return MWorkerQueue;
 }
-
-bool Command::producesPiEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
@@ -977,11 +977,11 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
                                      AllocaCommandBase *LinkedAllocaCmd,
                                      bool IsConst)
-    : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
+    : Command(Type, Queue, nullptr, {}, false),
+      MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
       MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
-  MEvent->setProducesPiEvent(producesPiEvent());
   emitInstrumentationDataProxy();
 }
 
@@ -1006,8 +1006,6 @@ void AllocaCommandBase::emitInstrumentationData() {
   }
 #endif
 }
-
-bool AllocaCommandBase::producesPiEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1101,7 +1099,6 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
   Command *ConnectionCmd = addDep(
       DepDesc(MParentAlloca, getRequirement(), MParentAlloca), ToCleanUp);
   if (ConnectionCmd)
@@ -1178,9 +1175,9 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 }
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+    : Command(CommandType::RELEASE, std::move(Queue), nullptr, {}, false),
+      MAllocaCmd(AllocaCmd) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void ReleaseCommand::emitInstrumentationData() {
@@ -1290,8 +1287,6 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool ReleaseCommand::producesPiEvent() const { return false; }
-
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
 bool ReleaseCommand::readyForCleanup() const { return false; }
@@ -1303,7 +1298,6 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
       MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
       MMapMode(MapMode) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MapMemObject::emitInstrumentationData() {
@@ -1367,7 +1361,6 @@ UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue)),
       MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void UnMapMemObject::emitInstrumentationData() {
@@ -1442,7 +1435,6 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MemCpyCommand::emitInstrumentationData() {
@@ -1597,7 +1589,6 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MemCpyCommandHost::emitInstrumentationData() {
@@ -1665,9 +1656,8 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+    : Command(CommandType::EMPTY_TASK, std::move(Queue), nullptr, {}, false) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 pi_int32 EmptyCommand::enqueueImp() {
@@ -1740,8 +1730,6 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
-
-bool EmptyCommand::producesPiEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -1853,7 +1841,9 @@ ExecCGCommand::ExecCGCommand(
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
-              Dependencies),
+              Dependencies,
+              !CommandBuffer &&
+                  CommandGroup->getType() != CG::CGTYPE::CodeplayHostTask),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
@@ -1861,7 +1851,6 @@ ExecCGCommand::ExecCGCommand(
   }
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -3140,11 +3129,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   return PI_ERROR_INVALID_OPERATION;
 }
 
-bool ExecCGCommand::producesPiEvent() const {
-  return !MCommandBuffer &&
-         MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
-}
-
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
   // Host tasks are cleaned up upon completion instead.
   return Command::supportsPostEnqueueCleanup() &&
@@ -3158,10 +3142,9 @@ bool ExecCGCommand::readyForCleanup() const {
 }
 
 KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
-    : Command(Command::CommandType::FUSION, Queue),
+    : Command(Command::CommandType::FUSION, Queue, nullptr, {}, false),
       MStatus(FusionStatus::ACTIVE) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 std::vector<Command *> &KernelFusionCommand::auxiliaryCommands() {
@@ -3175,8 +3158,6 @@ void KernelFusionCommand::addToFusionList(ExecCGCommand *Kernel) {
 std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
   return MFusionList;
 }
-
-bool KernelFusionCommand::producesPiEvent() const { return false; }
 
 pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
