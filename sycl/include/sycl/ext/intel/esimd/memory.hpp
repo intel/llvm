@@ -4522,7 +4522,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset, tpename Tsrc,
+template <atomic_op Op, typename T, int N, typename Toffset, typename Tsrc,
           typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
           typename RegionTy = region1d_t<Tsrc, N, 1>,
           typename PropertyListT =
