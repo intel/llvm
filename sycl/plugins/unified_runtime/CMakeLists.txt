@@ -57,11 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 712d79120e0a9293daf5741f9c0b5269ddd862ce
+  # commit 67e7da33596c597ef79d940223d372583a78bb2b
+  # Merge: 9b1fb4e9 f0e0be24
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Nov 24 12:34:51 2023 +0000
-  #     Set version to v0.8.0
-  set(UNIFIED_RUNTIME_TAG v0.8.0)
+  # Date:   Tue Dec 5 10:46:45 2023 +0000
+  #     Merge pull request #999 from hdelan/hip-adapter-multi-dev-ctx
+  #     [HIP] Hip adapter multi dev ctx
+  set(UNIFIED_RUNTIME_TAG 67e7da33596c597ef79d940223d372583a78bb2b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

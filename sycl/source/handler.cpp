@@ -377,11 +377,14 @@ event handler::finalize() {
         MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
         std::move(CGData), MCodeLoc));
     break;
-  case detail::CG::CodeplayHostTask:
+  case detail::CG::CodeplayHostTask: {
+    auto context = MGraph ? detail::getSyclObjImpl(MGraph->getContext())
+                          : MQueue->getContextImplPtr();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
-        std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
+        std::move(MHostTask), MQueue, context, std::move(MArgs),
+        std::move(CGData), MCGType, MCodeLoc));
     break;
+  }
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
