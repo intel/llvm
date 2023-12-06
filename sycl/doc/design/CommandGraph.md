@@ -277,6 +277,13 @@ Level Zero:
    `waitForEvents` on the same command-list. Resulting in additional latency when
    executing a UR command-buffer.
 
+3. Dependencies between multiple submissions must be handled by the runtime.
+   Indeed, when a second submission is performed the signal conditions 
+   of *WaitEvent* are redefined by this second submission. 
+   Therefore, this can lead to an undefined behavior and potential
+   hangs especially if the conditions of the first submissions were not yet 
+   satisfied and the event has not yet been signaled.
+
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
 
