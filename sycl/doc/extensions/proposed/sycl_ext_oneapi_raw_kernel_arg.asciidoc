@@ -121,8 +121,8 @@ raw_kernel_arg(void* bytes, size_t count);
 ----
 _Preconditions_: `bytes` must point to an array of at least `count` bytes.
 
-_Effects_: Constructs a `raw_kernel_arg` representing the `count` bytes
-starting at the address specified by `bytes`.
+_Effects_: Constructs a `raw_kernel_arg` representing a view of the `count`
+bytes starting at the address specified by `bytes`.
 
 === Using a raw kernel argument
 
