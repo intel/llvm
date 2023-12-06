@@ -103,7 +103,6 @@ Currently only the following commands are supported:
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
->>>>>>> 118f696b ([CMDBUF] Add fill commands to cmd buffer exp feature)
   
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equiavalent adapter native constructs.
