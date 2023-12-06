@@ -496,7 +496,7 @@ constexpr bool is_combination_valid_amd_gfx90a(size_t sM, size_t sN,
       (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
        ((sM == 32 && sN == 32 && sK == 8) ||
         (sM == 16 && sN == 16 && sK == 16))) ||
-      (std::is_same_v<Ta, unsigned short> && std::is_same_v<Tc, float> &&
+      (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
        ((sM == 32 && sN == 32 && sK == 8) ||
         (sM == 16 && sN == 16 && sK == 16))) ||
       (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
@@ -508,13 +508,10 @@ constexpr bool is_combination_valid_amd_gfx90a(size_t sM, size_t sN,
 
 template <typename Ta, typename Tc>
 constexpr bool are_types_valid_amd_gfx90a() {
-  if ((std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
-      (std::is_same_v<Ta, unsigned short> && std::is_same_v<Tc, float>) ||
-      (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>))
-    return true;
-  else
-    return false;
+  return ((std::is_same_v<Ta, half> && std::is_same_v<Tc, float>) ||
+          (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) ||
+          (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) ||
+          (std::is_same_v<Ta, double> && std::is_same_v<Tc, double>))
 }
 
 // Default-values query:
@@ -530,8 +527,7 @@ struct matrix_params<
   static_assert(
       (are_types_valid_amd_gfx90a<Ta, Tc>()),
       "Invalid types for AMD gfx90a, supported types are half, float, "
-      "int8_t, int32_t, double and bf16 (Note that unsigned short"
-      "should be used in the DPC++ code to implement bf16) ");
+      "int8_t, int32_t, double and bfloat16 ");
 
   // Default sizes for AMD gfx90a were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
@@ -617,7 +613,7 @@ template <typename Ta, typename Tc, typename Td>
 constexpr bool is_combination_valid_cuda_sm80(size_t sM, size_t sN, size_t sK) {
   if (((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
         std::is_same_v<Td, float>)&&(sM == 16 && sN == 16 && sK == 8)) ||
-      ((std::is_same_v<Ta, unsigned short> && std::is_same_v<Tc, float> &&
+      ((std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
         std::is_same_v<Td, float>)&&((sM == 16 && sN == 16 && sK == 16) ||
                                      (sM == 8 && sN == 32 && sK == 16) ||
                                      (sM == 32 && sN == 8 && sK == 16))) ||
@@ -658,7 +654,7 @@ template <typename Ta, typename Tc, typename Td>
 constexpr bool are_types_valid_cuda_sm80() {
   if ((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
        std::is_same_v<Td, float>) ||
-      (std::is_same_v<Ta, unsigned short> && std::is_same_v<Tc, float> &&
+      (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
        std::is_same_v<Td, float>) ||
       (std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
        std::is_same_v<Td, double>))
@@ -741,8 +737,7 @@ struct matrix_params<
        are_types_valid_cuda_sm72<Ta, Tc, Td>() ||
        are_types_valid_cuda_sm80<Ta, Tc, Td>()),
       "Invalid types for nvidia sm80, supported types are half, float "
-      "int8_t, uint8_t, int32_t, double, tf32 and bf16 (Note that "
-      "unsigned short should be used in the DPC++ code to implement bf16) ");
+      "int8_t, uint8_t, int32_t, double, tf32 and bfloat16 ");
 
   static constexpr std::size_t M = ((sizeof(Ta) == 8) ? 8 : 16);
   static constexpr std::size_t N = ((sizeof(Ta) == 8) ? 8 : 16);

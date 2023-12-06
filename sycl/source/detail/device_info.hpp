@@ -722,7 +722,6 @@ struct get_device_info_impl<
   get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
-    using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
     backend CurrentBackend = Dev->getBackend();
     architecture DeviceArch = get_device_info_impl<
         ext::oneapi::experimental::architecture,
@@ -813,6 +812,10 @@ struct get_device_info_impl<
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
       auto GetArchNum = [](const architecture &arch) {
         NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD_ARCH);
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_device_architecture.");
       };
       float ComputeCapability = std::stof(GetArchNum(DeviceArch));
       std::vector<combination> sm_70_combinations = {
