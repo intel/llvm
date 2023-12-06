@@ -2056,6 +2056,45 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
   ASSERT_NO_THROW({ host_accessor HostAcc{Buffer}; });
 }
 
+TEST_F(CommandGraphTest, GraphPartitionsMerging) {
+  // Tests that the parition merging algo works as expected in case of backward
+  // dependencies
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeA)});
+  auto NodeHT1 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeB)});
+  auto NodeC = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT1)});
+  auto NodeD = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeB)});
+  auto NodeHT2 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeD)});
+  auto NodeE = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+  auto NodeF = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+
+  // Backward dependency
+  Graph.make_edge(NodeE, NodeHT1);
+
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto PartitionsList = GraphExecImpl->getPartitions();
+  ASSERT_EQ(PartitionsList.size(), 5ul);
+  ASSERT_FALSE(PartitionsList[0]->isHostTask());
+  ASSERT_TRUE(PartitionsList[1]->isHostTask());
+  ASSERT_FALSE(PartitionsList[2]->isHostTask());
+  ASSERT_TRUE(PartitionsList[3]->isHostTask());
+  ASSERT_FALSE(PartitionsList[4]->isHostTask());
+}
+
 class MultiThreadGraphTest : public CommandGraphTest {
 public:
   MultiThreadGraphTest()

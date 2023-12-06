@@ -12,8 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
+
+#include <cstddef> // std::byte
+#include <tuple>   // std::ignore
 
 int main() {
   std::byte bt{7};
@@ -30,7 +32,7 @@ int main() {
     // operator[]
     assert(vb16[3] == std::byte{2});
     // explicit conversion
-    std::byte(vb1.x());
+    std::ignore = std::byte(vb1.x());
     std::byte b = vb1;
 
     // operator=
