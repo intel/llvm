@@ -6,7 +6,8 @@
 //
 //==----------------------------------------------------------==//
 // TODO: Enable after driver bug is fixed
-// UNSUPPORTED: intel-gpu-dg2 && windows
+// XFAIL: gpu-intel-dg2
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

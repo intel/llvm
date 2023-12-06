@@ -6,7 +6,7 @@
 //
 //==------------------------------------------------------------==//
 // TODO: Enable after driver bug is fixed
-// UNSUPPORTED: windows
+// XFAIL: *
 
 // REQUIRES: gpu-intel-dg2
 
