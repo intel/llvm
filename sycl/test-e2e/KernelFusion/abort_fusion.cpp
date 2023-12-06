@@ -74,6 +74,15 @@ void performFusion(queue &q, range<Kernel1Dim> k1Global,
   assert(numErrors == 0);
 }
 
+static void emptyFusionList(queue &q) {
+  ext::codeplay::experimental::fusion_wrapper fw(q);
+  fw.start_fusion();
+  assert(fw.is_in_fusion_mode() && "Queue should be in fusion mode");
+  fw.complete_fusion();
+  assert(!fw.is_in_fusion_mode() &&
+         "Queue should not be in fusion mode anymore");
+}
+
 int main() {
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
@@ -85,6 +94,12 @@ int main() {
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
   // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
   // CHECK: COMPUTATION OK
+
+  // Scenario: An empty fusion list should not be classified as having
+  // incompatible ND ranges.
+  emptyFusionList(q);
+  // CHECK-NOT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK: WARNING: Fusion list is empty
 
   return 0;
 }
