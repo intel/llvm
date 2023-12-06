@@ -118,7 +118,9 @@ namespace sycl::ext::oneapi {
 ----
 raw_kernel_arg(void* bytes, size_t count);
 ----
-_Preconditions_: `bytes` must point to an array of at least `count` bytes, which is the byte representation of a kernel argument that is trivially copyable.
+_Preconditions_: `bytes` must point to an array of at least `count` bytes,
+which is the byte representation of a kernel argument that is trivially
+copyable.
 
 _Effects_: Constructs a `raw_kernel_arg` representing a view of the `count`
 bytes starting at the address specified by `bytes`.
