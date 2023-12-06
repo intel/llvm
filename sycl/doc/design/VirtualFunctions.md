@@ -131,7 +131,8 @@ compile-time properties, no extra work is required to propagate necessary
 information down to passes from headers.
 
 However, we do need to filter out those virtual functions which are not
-considered to be device  as defined by the [extension specifiction][1], such as:
+considered to be device  as defined by the [extension specification][1], such
+as:
 
 - virtual member functions annotated with `indirectly_callable` compile-time
   property should be emitted into device code;
