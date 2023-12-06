@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 31b654f981f6098936e7f04c65803395a2ea343a
-  # Merge: 71957e84 3da21336
+  # commit 67e7da33596c597ef79d940223d372583a78bb2b
+  # Merge: 9b1fb4e9 f0e0be24
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 22 11:27:33 2023 +0000
-  #     Merge pull request #1053 from jandres742/url0leakkey
-  #     [UR][L0] Add UR_L0_LEAKS_DEBUG key
-  set(UNIFIED_RUNTIME_TAG 31b654f981f6098936e7f04c65803395a2ea343a)
+  # Date:   Tue Dec 5 10:46:45 2023 +0000
+  #     Merge pull request #999 from hdelan/hip-adapter-multi-dev-ctx
+  #     [HIP] Hip adapter multi dev ctx
+  set(UNIFIED_RUNTIME_TAG 67e7da33596c597ef79d940223d372583a78bb2b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -70,10 +70,8 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event =
-        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 
@@ -85,7 +83,7 @@ int main() {
   free(PtrC, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, Reference[i], DataC[i], "DataC"));
   }
 
   return 0;
