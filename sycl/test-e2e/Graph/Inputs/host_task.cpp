@@ -76,6 +76,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    Event.wait();
   }
   Queue.wait_and_throw();
 
@@ -87,7 +88,7 @@ int main() {
   free(PtrC, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, Reference[i], DataC[i], "DataC"));
   }
 
   return 0;

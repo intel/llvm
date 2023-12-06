@@ -3755,6 +3755,7 @@ template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 0, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3795,6 +3796,7 @@ __ESIMD_API std::enable_if_t<get_num_args<Op>() == 1, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
                    simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3837,6 +3839,7 @@ __ESIMD_API std::enable_if_t<get_num_args<Op>() == 2, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
                    simd<T, N> src1, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3880,8 +3883,10 @@ template <atomic_op Op, typename T, int N,
           typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     get_num_args<Op>() == 0 &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
+        __ESIMD_DNS::is_device_accessor_with_v<
+            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+        __ESIMD_DNS::is_device_accessor_with_v<
+            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
     simd<T, N>>
 atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
                    simd_mask<N> pred) {
@@ -3933,8 +3938,10 @@ template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
           cache_hint L2H, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
+        __ESIMD_DNS::is_device_accessor_with_v<
+            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+        __ESIMD_DNS::is_device_accessor_with_v<
+            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
     simd<T, N>>
 atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
                    simd<T, N> src0, simd_mask<N> pred) {
