@@ -3,5 +3,10 @@
  <VALIDATION>[ERROR]: There are no valid references to handle {{[0-9xa-fA-F]+}}
 {{IGNORE}}
 [ RUN      ] valAdapterTest.testUrAdapterHandleLifetimeExpectSuccess
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
 {{^(?!.*There are no valid references to handle).*$}}
+{{IGNORE}}
+[ RUN      ] valAdapterTest.testUrAdapterHandleTypeMismatchExpectFail
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[ERROR]: There are no valid references to handle {{[0-9xa-fA-F]+}}
 {{IGNORE}}
