@@ -356,6 +356,11 @@ event queue_impl::memcpyFromDeviceGlobal(
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+event queue_impl::getLastEvent() const {
+  std::lock_guard<std::mutex> Lock{MLastEventMtx};
+  return MDiscardEvents ? createDiscardedEvent() : MLastEvent;
+}
+
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");

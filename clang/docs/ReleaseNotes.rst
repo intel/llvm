@@ -182,6 +182,8 @@ C++2c Feature Support
   This is applied to both C++ standard attributes, and other attributes supported by Clang.
   This completes the implementation of `P2361R6 Unevaluated Strings <https://wg21.link/P2361R6>`_
 
+- Implemented `P2864R2 Remove Deprecated Arithmetic Conversion on Enumerations From C++26 <https://wg21.link/P2864R2>`_.
+
 
 Resolutions to C++ Defect Reports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -225,8 +227,10 @@ Non-comprehensive list of changes in this release
   determined at runtime.
 * The ``__datasizeof`` keyword has been added. It is similar to ``sizeof``
   except that it returns the size of a type ignoring tail padding.
-* ``__builtin_classify_type()`` now classifies ``_BitInt`` values as the return value ``18``,
-  to match GCC 14's behavior.
+* ``__builtin_classify_type()`` now classifies ``_BitInt`` values as the return value ``18``
+  and vector types as return value ``19``, to match GCC 14's behavior.
+
+* Added ``#pragma clang fp reciprocal``.
 
 New Compiler Flags
 ------------------
@@ -333,6 +337,10 @@ Attribute Changes in Clang
       void func() {
         [[clang::code_align(A)]] for(;;) { }
       }
+
+- Clang now introduced ``[[clang::coro_lifetimebound]]`` attribute.
+  All parameters of a function are considered to be lifetime bound if the function
+  returns a type annotated with ``[[clang::coro_lifetimebound]]`` and ``[[clang::coro_return_type]]``.
 
 Improvements to Clang's diagnostics
 -----------------------------------
@@ -474,6 +482,24 @@ Improvements to Clang's diagnostics
   with GCC.
 - Clang will warn on deprecated specializations used in system headers when their instantiation
   is caused by user code.
+- Clang will now print ``static_assert`` failure details for arithmetic binary operators.
+  Example:
+
+  .. code-block:: cpp
+
+    static_assert(1 << 4 == 15);
+
+  will now print:
+
+  .. code-block:: text
+
+    error: static assertion failed due to requirement '1 << 4 == 15'
+       48 | static_assert(1 << 4 == 15);
+          |               ^~~~~~~~~~~~
+    note: expression evaluates to '16 == 15'
+       48 | static_assert(1 << 4 == 15);
+          |               ~~~~~~~^~~~~
+
 
 Improvements to Clang's time-trace
 ----------------------------------
@@ -613,6 +639,12 @@ Bug Fixes in This Version
 - Fix crash during code generation of C++ coroutine initial suspend when the return
   type of await_resume is not trivially destructible.
   Fixes (`#63803 <https://github.com/llvm/llvm-project/issues/63803>`_)
+- ``__is_trivially_relocatable`` no longer returns true for non-object types
+  such as references and functions.
+  Fixes (`#67498 <https://github.com/llvm/llvm-project/issues/67498>`_)
+- Fix crash when the object used as a ``static_assert`` message has ``size`` or ``data`` members
+  which are not member functions.
+- Support UDLs in ``static_assert`` message.
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -736,6 +768,11 @@ Bug Fixes to C++ Support
 - Clang now properly compares constraints on an out of line class template
   declaration definition. Fixes:
   (`#61763 <https://github.com/llvm/llvm-project/issues/61763>`_)
+
+- Fix a bug where implicit deduction guides are not correctly generated for nested template
+  classes. Fixes:
+  (`#46200 <https://github.com/llvm/llvm-project/issues/46200>`_)
+  (`#57812 <https://github.com/llvm/llvm-project/issues/57812>`_)
 
 - Diagnose use of a variable-length array in a coroutine. The design of
   coroutines is such that it is not possible to support VLA use. Fixes:
@@ -929,11 +966,14 @@ clang-format
 - Add ``AllowBreakBeforeNoexceptSpecifier`` option.
 - Add ``AllowShortCompoundRequirementOnASingleLine`` option.
 - Change ``BreakAfterAttributes`` from ``Never`` to ``Leave`` in LLVM style.
+- Add ``BreakAdjacentStringLiterals`` option.
 
 libclang
 --------
 
 - Exposed arguments of ``clang::annotate``.
+- ``clang::getCursorKindForDecl`` now recognizes linkage specifications such as
+  ``extern "C"`` and reports them as ``CXCursor_LinkageSpec``.
 
 Static Analyzer
 ---------------
