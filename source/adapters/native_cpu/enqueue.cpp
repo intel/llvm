@@ -25,7 +25,8 @@ struct NDRDescT {
   RangeT GlobalSize;
   RangeT LocalSize;
   NDRDescT(uint32_t WorkDim, const size_t *GlobalWorkOffset,
-           const size_t *GlobalWorkSize, const size_t *LocalWorkSize) {
+           const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
+      : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
       GlobalOffset[I] = GlobalWorkOffset[I];
       GlobalSize[I] = GlobalWorkSize[I];
