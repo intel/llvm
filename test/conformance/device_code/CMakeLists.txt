@@ -3,7 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
+if(NOT "${AMD_ARCH}" STREQUAL "" AND "${UR_CONFORMANCE_AMD_ARCH}" STREQUAL "")
+    message(WARNING "Passing the HIP target architecture with AMD_ARCH is deprecated. "
+                    "Please use UR_CONFORMANCE_AMD_ARCH instead.")
+else()
+    set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
+endif()
 
 if("${AMD_ARCH}" STREQUAL "" AND "${TARGET_TRIPLES}" MATCHES "amd")
     find_package(RocmAgentEnumerator)
