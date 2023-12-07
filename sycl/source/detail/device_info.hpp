@@ -867,7 +867,7 @@ struct get_device_info_impl<
           {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
-           matrix_type::fp16, matrix_type::fp64}};
+           matrix_type::fp64, matrix_type::fp64}};
       if (ComputeCapability >= 8.0) {
         std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
                   std::back_inserter(sm_80_combinations));
