@@ -9,6 +9,7 @@
 #include "ur_validation_layer.hpp"
 
 #include <mutex>
+#include <typeindex>
 #include <unordered_map>
 #include <utility>
 
@@ -20,7 +21,12 @@ struct RefCountContext {
   private:
     struct RefRuntimeInfo {
         int64_t refCount;
+        std::type_index type;
         std::vector<BacktraceLine> backtrace;
+
+        RefRuntimeInfo(int64_t refCount, std::type_index type,
+                       std::vector<BacktraceLine> backtrace)
+            : refCount(refCount), type(type), backtrace(backtrace) {}
     };
 
     enum RefCountUpdateType {
@@ -34,26 +40,32 @@ struct RefCountContext {
     std::unordered_map<void *, struct RefRuntimeInfo> counts;
     int64_t adapterCount = 0;
 
-    void updateRefCount(void *ptr, enum RefCountUpdateType type,
+    template <typename T>
+    void updateRefCount(T handle, enum RefCountUpdateType type,
                         bool isAdapterHandle = false) {
         std::unique_lock<std::mutex> ulock(mutex);
 
+        void *ptr = static_cast<void *>(handle);
         auto it = counts.find(ptr);
 
         switch (type) {
         case REFCOUNT_CREATE_OR_INCREASE:
             if (it == counts.end()) {
-                counts[ptr] = {1, getCurrentBacktrace()};
+                std::tie(it, std::ignore) = counts.emplace(
+                    ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
+                                        getCurrentBacktrace()});
                 if (isAdapterHandle) {
                     adapterCount++;
                 }
             } else {
-                counts[ptr].refCount++;
+                it->second.refCount++;
             }
             break;
         case REFCOUNT_CREATE:
             if (it == counts.end()) {
-                counts[ptr] = {1, getCurrentBacktrace()};
+                std::tie(it, std::ignore) = counts.emplace(
+                    ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
+                                        getCurrentBacktrace()});
             } else {
                 context.logger.error("Handle {} already exists", ptr);
                 return;
@@ -65,29 +77,31 @@ struct RefCountContext {
                     "Attempting to retain nonexistent handle {}", ptr);
                 return;
             } else {
-                counts[ptr].refCount++;
+                it->second.refCount++;
             }
             break;
         case REFCOUNT_DECREASE:
             if (it == counts.end()) {
-                counts[ptr] = {-1, getCurrentBacktrace()};
+                std::tie(it, std::ignore) = counts.emplace(
+                    ptr, RefRuntimeInfo{-1, std::type_index(typeid(handle)),
+                                        getCurrentBacktrace()});
             } else {
-                counts[ptr].refCount--;
+                it->second.refCount--;
             }
 
-            if (counts[ptr].refCount < 0) {
+            if (it->second.refCount < 0) {
                 context.logger.error(
                     "Attempting to release nonexistent handle {}", ptr);
-            } else if (counts[ptr].refCount == 0 && isAdapterHandle) {
+            } else if (it->second.refCount == 0 && isAdapterHandle) {
                 adapterCount--;
             }
             break;
         }
 
         context.logger.debug("Reference count for handle {} changed to {}", ptr,
-                             counts[ptr].refCount);
+                             it->second.refCount);
 
-        if (counts[ptr].refCount == 0) {
+        if (it->second.refCount == 0) {
             counts.erase(ptr);
         }
 
@@ -99,23 +113,35 @@ struct RefCountContext {
     }
 
   public:
-    void createRefCount(void *ptr) { updateRefCount(ptr, REFCOUNT_CREATE); }
-
-    void incrementRefCount(void *ptr, bool isAdapterHandle = false) {
-        updateRefCount(ptr, REFCOUNT_INCREASE, isAdapterHandle);
+    template <typename T> void createRefCount(T handle) {
+        updateRefCount<T>(handle, REFCOUNT_CREATE);
     }
 
-    void decrementRefCount(void *ptr, bool isAdapterHandle = false) {
-        updateRefCount(ptr, REFCOUNT_DECREASE, isAdapterHandle);
+    template <typename T>
+    void incrementRefCount(T handle, bool isAdapterHandle = false) {
+        updateRefCount(handle, REFCOUNT_INCREASE, isAdapterHandle);
     }
 
-    void createOrIncrementRefCount(void *ptr, bool isAdapterHandle = false) {
-        updateRefCount(ptr, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
+    template <typename T>
+    void decrementRefCount(T handle, bool isAdapterHandle = false) {
+        updateRefCount(handle, REFCOUNT_DECREASE, isAdapterHandle);
+    }
+
+    template <typename T>
+    void createOrIncrementRefCount(T handle, bool isAdapterHandle = false) {
+        updateRefCount(handle, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
     }
 
     void clear() { counts.clear(); }
 
-    bool isReferenceValid(void *ptr) { return counts.count(ptr) > 0; }
+    template <typename T> bool isReferenceValid(T handle) {
+        auto it = counts.find(static_cast<void *>(handle));
+        if (it == counts.end() || it->second.refCount < 1) {
+            return false;
+        }
+
+        return (it->second.type == std::type_index(typeid(handle)));
+    }
 
     void logInvalidReferences() {
         for (auto &[ptr, refRuntimeInfo] : counts) {
