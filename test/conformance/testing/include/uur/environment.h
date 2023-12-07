@@ -17,6 +17,7 @@ struct PlatformEnvironment : ::testing::Environment {
 
     struct PlatformOptions {
         std::string platform_name;
+        unsigned long platforms_count;
     };
 
     PlatformEnvironment(int argc, char **argv);
@@ -36,17 +37,26 @@ struct PlatformEnvironment : ::testing::Environment {
 
 struct DevicesEnvironment : PlatformEnvironment {
 
+    struct DeviceOptions {
+        std::string device_name;
+        unsigned long devices_count;
+    };
+
     DevicesEnvironment(int argc, char **argv);
     virtual ~DevicesEnvironment() override = default;
 
     virtual void SetUp() override;
     virtual void TearDown() override;
 
+    DeviceOptions parseDeviceOptions(int argc, char **argv);
+
     inline const std::vector<ur_device_handle_t> &GetDevices() const {
         return devices;
     }
 
+    DeviceOptions device_options;
     std::vector<ur_device_handle_t> devices;
+    ur_device_handle_t device = nullptr;
     static DevicesEnvironment *instance;
 };
 
