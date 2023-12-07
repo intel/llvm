@@ -1376,8 +1376,7 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
     return Src;
 
   const auto *AliasDecl = cast<TypeAliasTemplateDecl>(TD)->getTemplatedDecl();
-  if (AliasDecl->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(AliasDecl,CGM))
+  if (AliasDecl->hasAttr<NoDebugAttr>() || noSystemDebugInfo(AliasDecl, CGM))
     return Src;
 
   SmallString<128> NS;
@@ -1437,7 +1436,7 @@ llvm::DIType *CGDebugInfo::CreateType(const TypedefType *Ty,
       getOrCreateType(Ty->getDecl()->getUnderlyingType(), Unit);
 
   if (Ty->getDecl()->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(Ty->getDecl(),CGM))
+      noSystemDebugInfo(Ty->getDecl(), CGM))
     return Underlying;
 
   // We don't set size information, but do specify where the typedef was
@@ -1820,8 +1819,7 @@ void CGDebugInfo::CollectRecordFields(
     // the corresponding declarations in the source program.
     for (const auto *I : record->decls())
       if (const auto *V = dyn_cast<VarDecl>(I)) {
-        if (V->hasAttr<NoDebugAttr>() ||
-            noSystemDebugInfo(V,CGM))
+        if (V->hasAttr<NoDebugAttr>() || noSystemDebugInfo(V, CGM))
           continue;
 
         // Skip variable template specializations when emitting CodeView. MSVC
@@ -2085,7 +2083,7 @@ void CGDebugInfo::CollectCXXMemberFunctions(
     // it, so I'm not rushing to fix this. (GCC seems to produce them, if
     // referenced)
     if (!Method || Method->isImplicit() || Method->hasAttr<NoDebugAttr>() ||
-        noSystemDebugInfo(Method,CGM))
+        noSystemDebugInfo(Method, CGM))
       continue;
 
     if (Method->getType()->castAs<FunctionProtoType>()->getContainedAutoType())
@@ -4456,7 +4454,7 @@ void CGDebugInfo::EmitFuncDeclForCallSite(llvm::CallBase *CallOrInvoke,
   // Do not emit a declaration subprogram for a function with nodebug
   // attribute, or if call site info isn't required.
   if (CalleeDecl->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(CalleeDecl,CGM) ||
+      noSystemDebugInfo(CalleeDecl, CGM) ||
       getCallSiteRelatedAttrs() == llvm::DINode::FlagZero)
     return;
 
@@ -4648,8 +4646,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
                                                 const bool UsePointerValue) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
   assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
-  if (VD->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(VD,CGM))
+  if (VD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(VD, CGM))
     return nullptr;
 
   bool Unwritten =
@@ -4863,8 +4860,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const BindingDecl *BD,
                                                 const bool UsePointerValue) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
   assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
-  if (BD->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(BD,CGM))
+  if (BD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(BD, CGM))
     return nullptr;
 
   // Skip the tuple like case, we don't handle that here
@@ -4970,8 +4966,7 @@ void CGDebugInfo::EmitLabel(const LabelDecl *D, CGBuilderTy &Builder) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
   assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
 
-  if (D->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(D,CGM))
+  if (D->hasAttr<NoDebugAttr>() || noSystemDebugInfo(D, CGM))
     return;
 
   auto *Scope = cast<llvm::DIScope>(LexicalBlockStack.back());
@@ -5010,8 +5005,7 @@ void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
 
   if (Builder.GetInsertBlock() == nullptr)
     return;
-  if (VD->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(VD,CGM))
+  if (VD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(VD, CGM))
     return;
 
   bool isByRef = VD->hasAttr<BlocksAttr>();
@@ -5531,8 +5525,7 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
 void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
                                      const VarDecl *D) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
-  if (D->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(D,CGM))
+  if (D->hasAttr<NoDebugAttr>() || noSystemDebugInfo(D, CGM))
     return;
 
   llvm::TimeTraceScope TimeScope("DebugGlobalVariable", [&]() {
@@ -5597,8 +5590,7 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
 
 void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
-  if (VD->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(VD,CGM))
+  if (VD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(VD, CGM))
     return;
   llvm::TimeTraceScope TimeScope("DebugConstGlobalVariable", [&]() {
     return GetName(VD, true);
@@ -5675,8 +5667,7 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
 void CGDebugInfo::EmitExternalVariable(llvm::GlobalVariable *Var,
                                        const VarDecl *D) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
-  if (D->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(D,CGM))
+  if (D->hasAttr<NoDebugAttr>() || noSystemDebugInfo(D, CGM))
     return;
 
   auto Align = getDeclAlignIfRequired(D, CGM.getContext());
@@ -5701,8 +5692,7 @@ void CGDebugInfo::EmitGlobalAlias(const llvm::GlobalValue *GV,
     return;
 
   const auto *D = cast<ValueDecl>(GD.getDecl());
-  if (D->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(D,CGM))
+  if (D->hasAttr<NoDebugAttr>() || noSystemDebugInfo(D, CGM))
     return;
 
   auto AliaseeDecl = CGM.getMangledNameDecl(GV->getName());
@@ -5759,7 +5749,7 @@ llvm::DIScope *CGDebugInfo::getCurrentContextDescriptor(const Decl *D) {
 void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD,CGM))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   const NamespaceDecl *NSDecl = UD.getNominatedNamespace();
   if (!NSDecl->isAnonymousNamespace() ||
@@ -5786,7 +5776,7 @@ void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
 void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD,CGM))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingDecl containing no decls");
@@ -5813,7 +5803,7 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
 void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD,CGM))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingEnumDecl"
@@ -5840,7 +5830,7 @@ llvm::DIImportedEntity *
 CGDebugInfo::EmitNamespaceAlias(const NamespaceAliasDecl &NA) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return nullptr;
-  if (noSystemDebugInfo(&NA,CGM))
+  if (noSystemDebugInfo(&NA, CGM))
     return nullptr;
   auto &VH = NamespaceAliasCache[&NA];
   if (VH)
@@ -6034,18 +6024,20 @@ CGDebugInfo::createConstantValueExpression(const clang::ValueDecl *VD,
   return nullptr;
 }
 
-bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM) {
+bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
+                                       const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
 
     // -fno-system-debug was used.  Do not generate debug info.
-    if (CGM.getCodeGenOpts().NoSystemDebug) return true;
+    if (CGM.getCodeGenOpts().NoSystemDebug)
+      return true;
 
     // Declaration is not referenced and debug level<FullDebugInfo
-    // (i.e. neither -fstandalone-debug nor -fno-eliminate-unused-debug-types are used)
-    // Do not generate debug info.
-    if (!D->isReferenced() &&
-        CGM.getCodeGenOpts().getDebugInfo()<llvm::codegenoptions::FullDebugInfo)
+    // (i.e. neither -fstandalone-debug nor -fno-eliminate-unused-debug-types
+    // are used) Do not generate debug info.
+    if (!D->isReferenced() && CGM.getCodeGenOpts().getDebugInfo() <
+                                  llvm::codegenoptions::FullDebugInfo)
       return true;
   }
 

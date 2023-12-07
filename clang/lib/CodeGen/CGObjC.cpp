@@ -755,8 +755,7 @@ void CodeGenFunction::StartObjCMethod(const ObjCMethodDecl *OMD,
   FunctionArgList args;
 
   // Check if we should generate debug info for this method.
-  if (OMD->hasAttr<NoDebugAttr>() ||
-      noSystemDebugInfo(OMD,CGM))
+  if (OMD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(OMD, CGM))
     DebugInfo = nullptr; // disable debug info indefinitely for this function
 
   llvm::Function *Fn = CGM.getObjCRuntime().GenerateMethod(OMD, CD);
