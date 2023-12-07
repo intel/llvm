@@ -6041,11 +6041,11 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM) 
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug) return true;
 
-    // Declaration is not referenced and debug level<UnusedTypeInfo
-    // (i.e. -fno-eliminate-unused-debug-types was not used)
+    // Declaration is not referenced and debug level<FullDebugInfo
+    // (i.e. neither -fstandalone-debug nor -fno-eliminate-unused-debug-types are used)
     // Do not generate debug info.
     if (!D->isReferenced() &&
-        CGM.getCodeGenOpts().getDebugInfo()<llvm::codegenoptions::UnusedTypeInfo)
+        CGM.getCodeGenOpts().getDebugInfo()<llvm::codegenoptions::FullDebugInfo)
       return true;
   }
 
