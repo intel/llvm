@@ -66,12 +66,14 @@ struct SYCLInternalizerImpl {
   ///   - Promote the function and call the new function instead,
   ///   keeping the original function.
   /// - The value appears in a load/store operation: Do nothing
-  void promoteValue(Value *Val, PromotionInfo PromInfo, bool InAggregate) const;
+  void promoteValue(Value *Val, const PromotionInfo &PromInfo,
+                    bool InAggregate) const;
 
   void promoteGEPI(GetElementPtrInst *GEPI, const Value *Val,
-                   PromotionInfo PromInfo, bool InAggregate) const;
+                   const PromotionInfo &PromInfo, bool InAggregate) const;
 
-  void promoteCall(CallBase *C, const Value *Val, PromotionInfo PromInfo) const;
+  void promoteCall(CallBase *C, const Value *Val,
+                   const PromotionInfo &PromInfo) const;
 
   ///
   /// Function to promote a set of arguments from a function.
@@ -93,22 +95,22 @@ struct SYCLInternalizerImpl {
   /// pure offset computation on the original candidate argument.
   /// For address-space casts, pointer-to-int conversions and unknown users,
   /// return an error.
-  Error canPromoteValue(Value *Val, PromotionInfo PromInfo,
+  Error canPromoteValue(Value *Val, const PromotionInfo &PromInfo,
                         bool InAggregate) const;
 
   ///
   /// Check that the operand of a GEP can be promoted to its users, and
   /// propagate whether it represents a pointer into an aggregate object.
   Error canPromoteGEP(GetElementPtrInst *GEPI, const Value *Val,
-                      PromotionInfo PromInfo, bool InAggregate) const;
+                      const PromotionInfo &PromInfo, bool InAggregate) const;
 
   ///
   /// Check if operand to a function call can be promoted.
   /// If the function returns a pointer, or the operand points into an aggregate
   /// object, return an error. Otherwise, check if the corresponding formal
   /// parameter can be promoted in the function body.
-  Error canPromoteCall(CallBase *C, const Value *Val, PromotionInfo PromInfo,
-                       bool InAggregate) const;
+  Error canPromoteCall(CallBase *C, const Value *Val,
+                       const PromotionInfo &PromInfo, bool InAggregate) const;
 
   Error checkArgsPromotable(Function *F,
                             SmallVectorImpl<PromotionInfo> &PromInfos) const;
@@ -187,7 +189,7 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 ///
 /// When performing internalization, GEP instructions must be remapped, as the
 /// address space has changed from N to N / LocalSize.
-static void remap(GetElementPtrInst *GEPI, PromotionInfo PromInfo) {
+static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
   IRBuilder<> Builder{GEPI};
   Value *C0 = Builder.getInt64(0);
 
@@ -252,7 +254,7 @@ static void remap(GetElementPtrInst *GEPI, PromotionInfo PromInfo) {
 /// Function to get the indices of a user in which a value appears.
 static SmallVector<PromotionInfo>
 getUsagesInternalization(const User *U, const Value *V,
-                         PromotionInfo PromInfo) {
+                         const PromotionInfo &PromInfo) {
   SmallVector<PromotionInfo> InternInfo;
   std::transform(
       U->op_begin(), U->op_end(), std::back_inserter(InternInfo),
@@ -261,7 +263,7 @@ getUsagesInternalization(const User *U, const Value *V,
 }
 
 Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
-                                           PromotionInfo PromInfo,
+                                           const PromotionInfo &PromInfo,
                                            bool InAggregate) const {
   if (isa<PointerType>(C->getType())) {
     // With opaque pointers, we do not have the necessary information to compare
@@ -290,7 +292,7 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
 
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
                                           const Value *Val,
-                                          PromotionInfo PromInfo,
+                                          const PromotionInfo &PromInfo,
                                           bool InAggregate) const {
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() == AS) {
     // If the GEPI is already using the correct address-space, no change is
@@ -305,7 +307,8 @@ Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
                          InAggregate || GEPI->getNumIndices() >= 2);
 }
 
-Error SYCLInternalizerImpl::canPromoteValue(Value *Val, PromotionInfo PromInfo,
+Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
+                                            const PromotionInfo &PromInfo,
                                             bool InAggregate) const {
   for (auto *U : Val->users()) {
     auto *I = dyn_cast<Instruction>(U);
@@ -359,7 +362,7 @@ Error SYCLInternalizerImpl::checkArgsPromotable(
     Function *F, SmallVectorImpl<PromotionInfo> &PromInfos) const {
   Error DeferredErrs = Error::success();
   for (auto I : enumerate(PromInfos)) {
-    const auto PromInfo = I.value();
+    const auto &PromInfo = I.value();
     if (PromInfo.LocalSize == 0) {
       continue;
     }
@@ -402,7 +405,7 @@ static void cleanup(Function *OldF, Function *NewF, bool KeepOriginal,
 }
 
 void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
-                                       PromotionInfo PromInfo) const {
+                                       const PromotionInfo &PromInfo) const {
 
   const SmallVector<PromotionInfo> InternInfo =
       getUsagesInternalization(C, Val, PromInfo);
@@ -415,7 +418,8 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
 }
 
 void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
-                                       const Value *Val, PromotionInfo PromInfo,
+                                       const Value *Val,
+                                       const PromotionInfo &PromInfo,
                                        bool InAggregate) const {
   // Not PointerType is unreachable. Other case is caught in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
@@ -431,7 +435,8 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
   }
 }
 
-void SYCLInternalizerImpl::promoteValue(Value *Val, PromotionInfo PromInfo,
+void SYCLInternalizerImpl::promoteValue(Value *Val,
+                                        const PromotionInfo &PromInfo,
                                         bool InAggregate) const {
   // Freeze the current list of users, as promoteGEPI re-links the elements in a
   // GEP chain, and hence may introduce new users to `Val`.
@@ -493,7 +498,8 @@ getPromotedFunctionDeclaration(Function *F, ArrayRef<PromotionInfo> PromInfos,
 
 ///
 /// For private promotion, we want to replace each argument by an alloca.
-Value *replaceByNewAlloca(Argument *Arg, unsigned AS, PromotionInfo PromInfo) {
+Value *replaceByNewAlloca(Argument *Arg, unsigned AS,
+                          const PromotionInfo &PromInfo) {
   IRBuilder<> Builder{
       &*Arg->getParent()->getEntryBlock().getFirstInsertionPt()};
   auto ArgAS = cast<PointerType>(Arg->getType())->getAddressSpace();
@@ -531,7 +537,7 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
   // Update each of the values to promote.
   SmallVector<bool> ArgIsPromoted(PromInfos.size());
   for (auto I : enumerate(PromInfos)) {
-    const auto PromInfo = I.value();
+    const auto &PromInfo = I.value();
     if (PromInfo.LocalSize == 0) {
       continue;
     }
@@ -595,8 +601,9 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
     // the promotion infeasible.
     updateInternalizationMD(F, Kind, PromInfos);
 
-    if (llvm::none_of(PromInfos,
-                      [](auto PromInfo) { return PromInfo.LocalSize > 0; })) {
+    if (llvm::none_of(PromInfos, [](const auto &PromInfo) {
+          return PromInfo.LocalSize > 0;
+        })) {
       // If no arguments is requested & eligible for promotion after analysis,
       // skip the transformation phase.
       continue;
