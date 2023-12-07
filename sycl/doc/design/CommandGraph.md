@@ -366,6 +366,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferWriteRectExp |  | No |
 | urCommandBufferAppendMemBufferReadRectExp |  | No |
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
+| urCommandBufferAppendUSMPrefetchExp |  | No |
+| urCommandBufferAppendUSMAdviseExp |  | No |
 | urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |
