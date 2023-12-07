@@ -417,13 +417,11 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
 void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
                                        const Value *Val, PromotionInfo PromInfo,
                                        bool InAggregate) const {
-  // Not PointerType is unreachable. Other case is catched in caller.
+  // Not PointerType is unreachable. Other case is caught in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
     if (!InAggregate)
       remap(GEPI, PromInfo);
-    auto *ValTy = cast<PointerType>(Val->getType());
-    GEPI->mutateType(PointerType::getWithSamePointeeType(
-        cast<PointerType>(GEPI->getType()), ValTy->getAddressSpace()));
+    GEPI->mutateType(PointerType::get(GEPI->getContext(), AS));
     // Recurse to promote to all users of the GEP. We are either already in
     // `InAggregate` mode, or inspect the current instruction. Recall that a
     // GEP's first index is used to step through the base pointer, whereas any
@@ -473,8 +471,8 @@ static FunctionType *getPromotedFunctionType(FunctionType *OrigTypes,
     }
     Type *&Ty = Types[Arg.index()];
     // TODO: Catch this case earlier
-    if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
-      Ty = PointerType::getWithSamePointeeType(PtrTy, AS);
+    if (isa<PointerType>(Ty)) {
+      Ty = PointerType::get(Ty->getContext(), AS);
     }
   }
   return FunctionType::get(OrigTypes->getReturnType(), Types,
