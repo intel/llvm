@@ -850,7 +850,7 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
-  MCGType = detail::CG::BarrierWaitlist;
+  MCGType = WaitList.size() ? detail::CG::BarrierWaitlist : detail::CG::Barrier;
   std::transform(
       WaitList.begin(), WaitList.end(), std::back_inserter(CGData.MEvents),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
