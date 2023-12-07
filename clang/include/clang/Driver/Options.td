@@ -3930,13 +3930,9 @@ def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">, Group<f_
   HelpText<"Maximum number of 'operator->'s to call for a member access">,
   MarshallingInfoInt<LangOpts<"ArrowDepth">, "256">;
 def fsycl_emit_external_funcs_as_entry_points : Flag<["-"], "fsycl-emit-external-funcs-as-entry-points">,
-  Group<sycl_Group>, HelpText<"Treat `SYCL_EXTERNAL` functions as entry points "
-                              "in device post-link tool. This helps in preventing "
-                              "removal of unused `SYCL_EXTERNAL` functions">;
+  Group<sycl_Group>, HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
 def fno_sycl_emit_external_funcs_as_entry_points : Flag<["-"], "fno-sycl-emit-external-funcs-as-entry-points">,
-  Group<sycl_Group>, HelpText<"Do not treat `SYCL_EXTERNAL` functions as entry points "
-                              " in device post-link tool. This allows removal of unused "
-                              "`SYCL_EXTERNAL` functions (default)">;
+  Group<sycl_Group>, HelpText<"Allow removal of unused `SYCL_EXTERNAL` functions (default)">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,
