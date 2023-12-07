@@ -750,20 +750,20 @@ lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   return detail::lsc_format_ret<T>(Result);
 }
 
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
-    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset, typename RegionTy>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_gather<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred);
 }
 
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
-    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset, typename RegionTy>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
            __ESIMD_NS::simd_mask<N> pred,
@@ -1316,10 +1316,10 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                                                       addrs.data());
 }
 
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
-    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset, typename RegionTy>
 __ESIMD_API void lsc_prefetch(const T *p,
                               __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -1592,10 +1592,10 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                                                    Tmp.data());
 }
 
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
-    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset, typename RegionTy>
 __ESIMD_API void lsc_scatter(T *p,
                              __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                              __ESIMD_NS::simd<T, N * NElts> vals,
@@ -2767,8 +2767,7 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+          typename Toffset, typename RegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
@@ -2826,8 +2825,7 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+          typename Toffset, typename RegionTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
@@ -3130,7 +3128,7 @@ atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask) {
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+          typename RegionTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 0,
                              simd<T, N>>
@@ -3162,7 +3160,7 @@ __ESIMD_API
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+          typename RegionTy>
 __ESIMD_API
     __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                      __ESIMD_DNS::get_num_args<Op>() == 1,
@@ -3197,7 +3195,7 @@ atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0, simd<T, N> src1,
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+          typename RegionTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 2,
                              simd<T, N>>
@@ -3229,8 +3227,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
-          typename AccessorTy>
+          typename RegionTy, typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 0 &&
                                  !std::is_pointer_v<AccessorTy>,
@@ -3267,8 +3264,7 @@ __ESIMD_API
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
-          typename AccessorTy>
+          typename RegionTy, typename AccessorTy>
 __ESIMD_API
     __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                      __ESIMD_DNS::get_num_args<Op>() == 1 &&
@@ -3309,8 +3305,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
-          typename AccessorTy>
+          typename RegionTy, typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 2 &&
                                  !std::is_pointer_v<AccessorTy>,
