@@ -340,6 +340,8 @@ The types of commands which are unsupported, and lead to this exception are:
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
    `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::prefetch()`.
+* `handler::mem_advise()`.
 
 Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
 is supported, as a memory buffer copy command exists in the OpenCL extension.
