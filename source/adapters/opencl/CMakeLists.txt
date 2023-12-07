@@ -45,7 +45,41 @@ find_package(Threads REQUIRED)
 
 # The OpenCL target can be set manually on upstream cmake to avoid using find_package().
 if (NOT UR_OPENCL_ICD_LOADER_LIBRARY)
-    find_package(OpenCL REQUIRED)
+set(OCL_HEADERS_REPO
+"https://github.com/intel-innersource/applications.compilers.source.opencl-headers")
+set(OCL_LOADER_REPO
+"https://github.com/intel-innersource/applications.compilers.source.opencl-icd-loader")
+
+set(OCL_HEADERS_TAG 9ddb236e6eb3cf844f9e2f81677e1045f9bf838e)
+set(OCL_LOADER_TAG 9a3e962f16f5097d2054233ad8b6dad51b6f41b7)
+
+
+FetchContent_Declare(ocl-headers
+GIT_REPOSITORY    ${OCL_HEADERS_REPO}
+GIT_TAG           ${OCL_HEADERS_TAG}
+)
+
+FetchContent_MakeAvailable(ocl-headers)
+FetchContent_GetProperties(ocl-headers)
+set(OpenCL_INCLUDE_DIR
+  ${ocl-headers_SOURCE_DIR} CACHE PATH "Path to OpenCL Headers")
+
+target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=300)
+add_library(OpenCL-Headers ALIAS Headers)
+
+set(OPENCL_ICD_LOADER_HEADERS_DIR
+  ${OpenCL_INCLUDE_DIR} CACHE PATH "Path to OpenCL Headers")
+  set(BUILD_SHARED_LIBS ON)
+  FetchContent_Declare(ocl-icd
+    GIT_REPOSITORY    ${OCL_LOADER_REPO}
+    GIT_TAG           ${OCL_LOADER_TAG}
+  )
+
+FetchContent_MakeAvailable(ocl-icd)
+
+add_library(OpenCL-ICD ALIAS OpenCL)
+
+#     find_package(OpenCL REQUIRED)
     message(STATUS "OpenCL_LIBRARY: ${OpenCL_LIBRARY}")
     message(STATUS "OpenCL_INCLUDE_DIR: ${OpenCL_INCLUDE_DIR}")
     set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL::OpenCL)
