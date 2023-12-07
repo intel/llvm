@@ -5840,6 +5840,8 @@ llvm::DIImportedEntity *
 CGDebugInfo::EmitNamespaceAlias(const NamespaceAliasDecl &NA) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return nullptr;
+  if (noSystemDebugInfo(&NA,CGM))
+    return nullptr;
   auto &VH = NamespaceAliasCache[&NA];
   if (VH)
     return cast<llvm::DIImportedEntity>(VH);
