@@ -6033,6 +6033,19 @@ CGDebugInfo::createConstantValueExpression(const clang::ValueDecl *VD,
 }
 
 bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM) {
-  return (CGM.getCodeGenOpts().NoSystemDebug &&
-          CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation()));
+  // Declaration is in system file
+  if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
+
+    // -fno-system-debug was used.  Do not generate debug info.
+    if (CGM.getCodeGenOpts().NoSystemDebug) return true;
+
+    // Declaration is not referenced and debug level<UnusedTypeInfo
+    // (i.e. -fno-eliminate-unused-debug-types was not used)
+    // Do not generate debug info.
+    if (!D->isReferenced() &&
+        CGM.getCodeGenOpts().getDebugInfo()<llvm::codegenoptions::UnusedTypeInfo)
+      return true;
+  }
+
+  return false;
 }
