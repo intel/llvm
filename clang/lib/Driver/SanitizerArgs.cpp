@@ -1010,6 +1010,17 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       AsanUseAfterReturn = parsedAsanUseAfterReturn;
     }
 
+    if (const auto *Arg = Args.getLastArg(options::OPT_sanitize_targets_EQ)) {
+      auto parsedAsanTargetsToEnable =
+          AsanTargetsToEnableFromString(Arg->getValue());
+      if (parsedAsanTargetsToEnable == llvm::AsanTargetsToEnable::Invalid &&
+          DiagnoseErrors) {
+        TC.getDriver().Diag(clang::diag::err_drv_unsupported_option_argument)
+            << Arg->getSpelling() << Arg->getValue();
+      }
+      AsanTargetsToEnable = parsedAsanTargetsToEnable;
+    }
+
   } else {
     AsanUseAfterScope = false;
     // -fsanitize=pointer-compare/pointer-subtract requires -fsanitize=address.
@@ -1137,6 +1148,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       return;
     GPUSanitize = true;
   }
+
   // SPIR sanitizer support is experimental and will pass a fixed set of flags
   if (TC.getTriple().isSPIR()) {
     if (Sanitizers.has(SanitizerKind::Address)) {
@@ -1152,8 +1164,18 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-globals=0");
+      CmdArgs.push_back(
+          Args.MakeArgString("-fsanitize-target=" +
+                             AsanTargetsToEnableToString(AsanTargetsToEnable)));
     }
     return;
+  }
+
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      Sanitizers.has(SanitizerKind::Address)) {
+    CmdArgs.push_back(
+        Args.MakeArgString("-fsanitize-target=" +
+                           AsanTargetsToEnableToString(AsanTargetsToEnable)));
   }
 
   // Translate available CoverageFeatures to corresponding clang-cc1 flags.

@@ -733,7 +733,22 @@ static void addSanitizers(const Triple &TargetTriple,
                                          DestructorKind));
       }
     };
-    ASanPass(SanitizerKind::Address, false);
+    // AddressSanitizer can be enabled in offloading scenario to detect bugs in
+    // both host and device code bugs. Sometimes, users may care device or host,
+    // they can use '-fsanitizer-targets' flag to control, the default behavior
+    // is we will enable AddressSanitizer in both host and device compilation.
+    bool IgnoreAsanPass = false;
+    if (LangOpts.isSYCL()) {
+      auto AsanTarget = CodeGenOpts.getSanitizeTargetsToEnable();
+      if ((AsanTarget == llvm::AsanTargetsToEnable::Device) &&
+          LangOpts.SYCLIsHost)
+        IgnoreAsanPass = true;
+      if ((AsanTarget == llvm::AsanTargetsToEnable::Host) &&
+          LangOpts.SYCLIsDevice)
+        IgnoreAsanPass = true;
+    }
+    if (!IgnoreAsanPass)
+      ASanPass(SanitizerKind::Address, false);
     ASanPass(SanitizerKind::KernelAddress, true);
 
     auto HWASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
