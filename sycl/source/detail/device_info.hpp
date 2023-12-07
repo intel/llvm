@@ -559,9 +559,6 @@ struct get_device_info_impl<range<Dimensions>,
 
 using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
 
-using UniqueDeviceArchIDToArchPair =
-    std::pair<const int, oneapi_exp_arch>;
-
 // Only for NVIDIA and AMD GPU architectures
 constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
     {
