@@ -80,7 +80,7 @@ int main() {
       {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
-       matrix_type::fp16, matrix_type::fp64}};
+       matrix_type::fp64, matrix_type::fp64}};
 
   std::vector<combination> expected_combinations;
 
