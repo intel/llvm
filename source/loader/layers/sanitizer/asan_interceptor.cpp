@@ -148,7 +148,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     context.logger.info(
         "AllocInfos(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
-        AllocBegin, UserBegin, UserEnd, NeededSize, Type);
+        (void *)AllocBegin, (void *)UserBegin, (void *)UserEnd, NeededSize,
+        Type);
 
     return UR_RESULT_SUCCESS;
 }
@@ -273,16 +274,23 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
 
         // TODO: Protect Bad Zone
-        UR_CALL(context.urDdiTable.VirtualMem.pfnReserve(
-            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset));
+        auto Result = context.urDdiTable.VirtualMem.pfnReserve(
+            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset);
+        if (Result != UR_RESULT_SUCCESS) {
+            context.logger.error(
+                "Shadow memory is allocated failed on PVC ({})", Result);
+            return Result;
+        }
 
         DeviceInfo->ShadowOffsetEnd = DeviceInfo->ShadowOffset + SHADOW_SIZE;
     } else {
         die("Unsupport device type");
     }
-    context.logger.info("Device ShadowOffset: {} - {}",
+
+    context.logger.info("Shadow memory ({} - {})",
                         (void *)DeviceInfo->ShadowOffset,
                         (void *)DeviceInfo->ShadowOffsetEnd);
+
     return UR_RESULT_SUCCESS;
 }
 
