@@ -322,7 +322,7 @@ def GENX_MatrixDPASOp : GENX_Op<"matrix.dpas">,
 def GENX_Matrix2DBlockLoadOp : GENX_Op<"matrix.2Dblockload">,
   Results<(outs FixedVectorOf<[GENX_MatrixElemType]>:$res)>,
   Arguments<(ins
-    Arg<LLVM_PointerTo<GENX_MatrixElemType>, "", [MemRead]>:$ptr,
+    Arg<LLVM_AnyPointer, "", [MemRead]>:$ptr,
     I32:$base_width,
     I32:$base_height,
     I32:$base_pitch,
@@ -368,7 +368,7 @@ def GENX_Matrix2DBlockLoadOp : GENX_Op<"matrix.2Dblockload">,
 
 def GENX_Matrix2DBlockStoreOp : GENX_Op<"matrix.2Dblockstore">,
   Arguments<(ins
-    Arg<LLVM_PointerTo<GENX_MatrixElemType>, "", [MemWrite]>:$ptr,
+    Arg<LLVM_AnyPointer, "", [MemWrite]>:$ptr,
     I32:$base_width,
     I32:$base_height,
     I32:$base_pitch,
