@@ -107,18 +107,18 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
   }
   SmallVector<CallInst *, 4> Worklist;
-  SmallVector<LoadInst *, 4> LI;
+  SmallVector<LoadInst *, 4> Loads;
   SmallVector<Instruction *, 4> PtrUses;
 
   // Collect all GEPs and Loads from the intrinsic's CallInsts
   for (Value *V : ImplicitOffsetIntrinsic->users()) {
     Worklist.push_back(cast<CallInst>(V));
     for (Value *V2 : V->users())
-      getLoads(cast<Instruction>(V2), PtrUses, LI);
+      getLoads(cast<Instruction>(V2), PtrUses, Loads);
   }
 
   // Replace each use of a collected Load with a Constant 0
-  for (LoadInst *L : LI)
+  for (LoadInst *L : Loads)
     L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
 
   // Remove all collected Loads and GEPs from the kernel.
@@ -199,9 +199,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     if (EntryPointMetadata.count(Caller) != 0)
       processKernelEntryPoint(Caller);
 
-    // Determine if `Caller` needs to be processed or if this is
-    // another callsite from a non-offset function
-    // or an already-processed function.
+    // Determine if `Caller` needs to be processed or if this is another
+    // callsite from a non-offset function or an already-processed function.
     Value *ImplicitOffset = ProcessedFunctions[Caller];
     bool AlreadyProcessed = ImplicitOffset != nullptr;
 

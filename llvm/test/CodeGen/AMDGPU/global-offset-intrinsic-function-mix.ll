@@ -7,7 +7,7 @@ target datalayout =
 target triple = "amdgcn-amd-amdhsa"
 
 ; This test checks that the pass works with functions containing calls to the
-; intrinsic and calls to function functions that call the intrinsic
+; intrinsic and calls to other functions that call the intrinsic
 
 declare ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: llvm.amdgcn.implicit.offset

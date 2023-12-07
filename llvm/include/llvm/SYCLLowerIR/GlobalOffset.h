@@ -44,7 +44,7 @@ private:
   void processKernelEntryPoint(Function *Func);
 
   /// For a function containing a call instruction to the implicit offset
-  /// intrinsic or another function which eventually calls the intrinsic,
+  /// intrinsic, or another function which eventually calls the intrinsic,
   /// this function clones the function and adds an implicit parameter to the
   /// clone.
   /// If the call instruction is to the implicit offset intrinsic then the
