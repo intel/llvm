@@ -279,10 +279,8 @@ template <typename T> void testAlign(sycl::queue &q, size_t align) {
   CheckNullAll(std::tuple{
       // Case: aligned_alloc_xxx with no alignment property, and the alignment
       // argument is not a power of 2, the result is nullptr
-      [&]() { return ADevice(3, q); },
-      [&]() { return ADevice(7, dev, Ctx); },
-      [&]() { return AHost(7, q); },
-      [&]() { return AHost(9, Ctx); },
+      [&]() { return ADevice(3, q); }, [&]() { return ADevice(7, dev, Ctx); },
+      [&]() { return AHost(7, q); }, [&]() { return AHost(9, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
       [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
 
@@ -292,8 +290,7 @@ template <typename T> void testAlign(sycl::queue &q, size_t align) {
       ,
       [&]() { return ATDevice(65, q); },
       [&]() { return ATDevice(70, dev, Ctx); },
-      [&]() { return ATHost(174, q); },
-      [&]() { return ATHost(299, Ctx); },
+      [&]() { return ATHost(174, q); }, [&]() { return ATHost(299, Ctx); },
       [&]() { return ATAnnotated(550, q, alloc::device); },
       [&]() { return ATAnnotated(1700, dev, Ctx, alloc::host); }});
 }
