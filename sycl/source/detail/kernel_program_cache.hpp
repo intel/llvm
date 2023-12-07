@@ -246,7 +246,8 @@ public:
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
-      auto [BuildResult, InsertionTookPlace] = GetCachedBuild();
+      auto Res = GetCachedBuild();
+      auto &BuildResult = Res.first;
       BuildState Expected = BuildState::BS_Initial;
       BuildState Desired = BuildState::BS_InProgress;
       if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
