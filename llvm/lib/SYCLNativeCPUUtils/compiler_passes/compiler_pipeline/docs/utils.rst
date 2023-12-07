@@ -1199,6 +1199,20 @@ about some of the above types, such as the type of images passed to any of the
 it may be required to skip other passes such as the
 ``compiler::ImageArgumentSubstitutionPass``.
 
+ManualTypeLegalizationPass
+--------------------------
+
+The ``ManualTypeLegalizationPass`` pass replaces ``half`` operations with
+``float`` operations, inserting conversions as needed. It does this to work
+around LLVM issue 73805, where LLVM's own legalization replaces whole chains of
+operations rather than each operation individually, thus leaving out rounding
+operations implied by the LLVM IR.
+
+This replacement is only done on targets that promote ``half`` to ``float``
+during type legalization. On targets where ``half`` is a native type, or where
+``half`` is known to be promoted using "soft-promotion" rules, LLVM is presumed
+to translate ``half`` correctly.
+
 Metadata Utilities
 ------------------
 
