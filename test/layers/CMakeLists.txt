@@ -8,3 +8,5 @@ add_subdirectory(validation)
 if(UR_ENABLE_TRACING)
     add_subdirectory(tracing)
 endif()
+
+add_subdirectory(sanitizer)
