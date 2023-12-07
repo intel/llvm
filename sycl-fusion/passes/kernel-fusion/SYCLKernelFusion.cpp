@@ -490,6 +490,8 @@ Error SYCLKernelFusion::fuseKernel(
                ParamMapping, DefaultInternalizationVal);
     copyArgsMD(LLVMCtx, SYCLInternalizer::LocalSizeKey, StubFunction,
                *FusedFunction, ParamMapping);
+    copyArgsMD(LLVMCtx, SYCLInternalizer::ElemSizeKey, StubFunction,
+               *FusedFunction, ParamMapping);
     // and JIT constants
     copyArgsMD(LLVMCtx, SYCLCP::Key, StubFunction, *FusedFunction,
                ParamMapping);
