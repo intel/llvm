@@ -516,11 +516,10 @@ constexpr bool are_types_valid_amd_gfx90a() {
 template <typename Ta, typename Tb, typename Tc, typename Td>
 struct matrix_params<
     architecture::amd_gpu_gfx90a, Ta, Tb, Tc, Td, 0, 0, 0,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>::type> {
-
+        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>> {
   static_assert(
       (are_types_valid_amd_gfx90a<Ta, Tc>()),
       "Invalid types for AMD gfx90a, supported types are half, float, "
@@ -547,11 +546,11 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::amd_gpu_gfx90a, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
         std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td> && sM != 0 &&
-        sN != 0 && sK != 0)>::type> {
+        sN != 0 && sK != 0)>> {
   static_assert(
       is_combination_valid_amd_gfx90a<Ta, Tc>(sM, sN, sK),
       "Invalid parameters for AMD gfx90a, query valid combinations "
@@ -575,44 +574,6 @@ struct matrix_params<
 /////////////////////////////////////////////////
 /// CUDA Tensor Cores - sm70, sm72 and sm80 ///
 /////////////////////////////////////////////////
-
-template <typename Ta, typename Tc, typename Td>
-constexpr bool is_combination_valid_cuda_sm70(size_t sM, size_t sN, size_t sK) {
-  return (((std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-            std::is_same_v<Td, float>) ||
-           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-            std::is_same_v<Td, half>) ||
-           (std::is_same_v<Ta, half> && std::is_same_v<Tc, float> &&
-            std::is_same_v<Td, half>) ||
-           (std::is_same_v<Ta, half> && std::is_same_v<Tc, half> &&
-            std::is_same_v<Td, float>)) &&
-          ((sM == 8 && sN == 32 && sK == 16) ||
-           (sM == 16 && sN == 16 && sK == 16) ||
-           (sM == 32 && sN == 8 && sK == 16)));
-}
-
-template <typename Ta, typename Tc, typename Td>
-constexpr bool is_combination_valid_cuda_sm72(size_t sM, size_t sN, size_t sK) {
-  return (((std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
-            std::is_same_v<Td, int32_t>) ||
-           (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tc, int32_t> &&
-            std::is_same_v<Td, int32_t>)) &&
-          ((sM == 8 && sN == 32 && sK == 16) ||
-           (sM == 16 && sN == 16 && sK == 16) ||
-           (sM == 32 && sN == 8 && sK == 16)));
-}
-
-template <typename Ta, typename Tc, typename Td>
-constexpr bool is_combination_valid_cuda_sm80(size_t sM, size_t sN, size_t sK) {
-  return (((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
-            std::is_same_v<Td, float>)&&(sM == 16 && sN == 16 && sK == 8)) ||
-          ((std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
-            std::is_same_v<Td, float>)&&((sM == 16 && sN == 16 && sK == 16) ||
-                                         (sM == 8 && sN == 32 && sK == 16) ||
-                                         (sM == 32 && sN == 8 && sK == 16))) ||
-          ((std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
-            std::is_same_v<Td, double>)&&(sM == 8 && sN == 8 && sK == 4)));
-}
 
 template <typename Ta, typename Tc, typename Td>
 constexpr bool are_types_valid_cuda_sm70() {
@@ -644,16 +605,43 @@ constexpr bool are_types_valid_cuda_sm80() {
            std::is_same_v<Td, double>));
 }
 
+template <typename Ta, typename Tc, typename Td>
+constexpr bool is_combination_valid_cuda_sm70(size_t sM, size_t sN, size_t sK) {
+  return (are_types_valid_cuda_sm70<Ta, Tc, Td>() &&
+          ((sM == 8 && sN == 32 && sK == 16) ||
+           (sM == 16 && sN == 16 && sK == 16) ||
+           (sM == 32 && sN == 8 && sK == 16)));
+}
+
+template <typename Ta, typename Tc, typename Td>
+constexpr bool is_combination_valid_cuda_sm72(size_t sM, size_t sN, size_t sK) {
+  return (are_types_valid_cuda_sm72<Ta, Tc, Td>() &&
+          ((sM == 8 && sN == 32 && sK == 16) ||
+           (sM == 16 && sN == 16 && sK == 16) ||
+           (sM == 32 && sN == 8 && sK == 16)));
+}
+
+template <typename Ta, typename Tc, typename Td>
+constexpr bool is_combination_valid_cuda_sm80(size_t sM, size_t sN, size_t sK) {
+  return (((std::is_same_v<Ta, precision::tf32> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>)&&(sM == 16 && sN == 16 && sK == 8)) ||
+          ((std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float> &&
+            std::is_same_v<Td, float>)&&((sM == 16 && sN == 16 && sK == 16) ||
+                                         (sM == 8 && sN == 32 && sK == 16) ||
+                                         (sM == 32 && sN == 8 && sK == 16))) ||
+          ((std::is_same_v<Ta, double> && std::is_same_v<Tc, double> &&
+            std::is_same_v<Td, double>)&&(sM == 8 && sN == 8 && sK == 4)));
+}
+
 // Default-values query (nvidia sm70):
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc, typename Td>
 struct matrix_params<
     architecture::nvidia_gpu_sm_70, Ta, Tb, Tc, Td, 0, 0, 0,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb>)>::type> {
-
+        std::is_same_v<Ta, Tb>)>> {
   static_assert(
       (are_types_valid_cuda_sm70<Ta, Tc, Td>()),
       "Invalid types for nvidia sm70, supported types are half and float ");
@@ -682,7 +670,6 @@ struct matrix_params<
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
         std::is_same_v<Ta, Tb>)>::type> {
-
   static_assert(
       (are_types_valid_cuda_sm70<Ta, Tc, Td>() ||
        are_types_valid_cuda_sm72<Ta, Tc, Td>()),
@@ -708,11 +695,10 @@ struct matrix_params<
 template <typename Ta, typename Tb, typename Tc, typename Td>
 struct matrix_params<
     architecture::nvidia_gpu_sm_80, Ta, Tb, Tc, Td, 0, 0, 0,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb>)>::type> {
-
+        std::is_same_v<Ta, Tb>)>> {
   static_assert(
       (are_types_valid_cuda_sm70<Ta, Tc, Td>() ||
        are_types_valid_cuda_sm72<Ta, Tc, Td>() ||
@@ -742,11 +728,10 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::nvidia_gpu_sm_70, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>::type> {
-
+        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
       is_combination_valid_cuda_sm70<Ta, Tc, Td>(sM, sN, sK),
       "Invalid parameters for nvidia sm70, query valid combinations "
@@ -773,10 +758,10 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::nvidia_gpu_sm_72, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>::type> {
+        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
       (is_combination_valid_cuda_sm70<Ta, Tc, Td>(sM, sN, sK) ||
        is_combination_valid_cuda_sm72<Ta, Tc, Td>(sM, sN, sK)),
@@ -804,11 +789,10 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::nvidia_gpu_sm_80, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<(
+    typename std::enable_if_t<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
-        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>::type> {
-
+        std::is_same_v<Ta, Tb> && sM != 0 && sN != 0 && sK != 0)>> {
   static_assert(
       (is_combination_valid_cuda_sm70<Ta, Tc, Td>(sM, sN, sK) ||
        is_combination_valid_cuda_sm72<Ta, Tc, Td>(sM, sN, sK) ||
