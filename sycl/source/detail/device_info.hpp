@@ -812,11 +812,11 @@ struct get_device_info_impl<
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
       auto GetArchNum = [](const architecture &arch) {
-        NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD_ARCH);
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
+        for (const auto &Item : NvidiaAmdGPUArchitectures) {
+          if (Item.second == arch)
+            return Item.first;
+        }
+        throw; 
       };
       float ComputeCapability = std::stof(GetArchNum(DeviceArch));
       std::vector<combination> sm_70_combinations = {
