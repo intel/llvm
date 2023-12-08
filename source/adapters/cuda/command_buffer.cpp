@@ -113,7 +113,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
           Result);
 
   try {
-    size_t N = Size / PatternSize;
+    const size_t N = Size / PatternSize;
     auto Value = *static_cast<const uint32_t *>(Pattern);
     auto DstPtr = DstType == CU_MEMORYTYPE_DEVICE
                       ? *static_cast<CUdeviceptr *>(DstDevice)
