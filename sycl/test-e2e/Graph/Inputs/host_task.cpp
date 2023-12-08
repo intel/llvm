@@ -5,6 +5,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
@@ -66,12 +70,8 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 
@@ -83,7 +83,7 @@ int main() {
   free(PtrC, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, Reference[i], DataC[i], "DataC"));
   }
 
   return 0;
