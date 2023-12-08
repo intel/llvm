@@ -51,7 +51,7 @@ class DisjointPoolAllConfigs {
 // Example of usage:
 // "1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M"
 DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
-                                               bool trace = 1);
+                                               int trace = 1);
 } // namespace usm
 
 #endif
