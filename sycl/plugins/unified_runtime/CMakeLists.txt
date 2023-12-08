@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ce4acbc4e479c3e8c591f345f7ba30345a8a2a40
-  # Merge: 76aaf05c 28590a82
+  # commit e69ed21468e04ed6e832accf162422ed11736446
+  # Merge: 20fa0b5f 7fd9dafd
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Dec 6 17:13:51 2023 +0000
-  #     Merge pull request #1099 from jandres742/largeallocations
-  #     [UR][L0] Unify use of large allocation in L0 adapter
-  set(UNIFIED_RUNTIME_TAG ce4acbc4e479c3e8c591f345f7ba30345a8a2a40)
+  # Date:   Fri Dec 8 12:18:51 2023 +0000
+  #     Merge pull request #962 from jandres742/fixwaitbarrierwithevent
+  #     [UR][L0] Correctly wait on barrier on urEnqueueEventsWaitWithBarrier
+  set(UNIFIED_RUNTIME_TAG e69ed21468e04ed6e832accf162422ed11736446)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
