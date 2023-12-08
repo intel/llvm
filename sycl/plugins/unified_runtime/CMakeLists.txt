@@ -59,14 +59,9 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c2d78257ba7e7bbc230333f291282d16145aaac7
-  # Merge: 8bb539c5 b3a1d52d
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 10 11:24:12 2024 +0000
-  #     Merge pull request #1129 from sarnex/adapters
-  #     [UR][L0] Make urPlatformGetBackendOption return -ze-opt-level=2 for -O1 and -O2
-  set(UNIFIED_RUNTIME_TAG c2d78257ba7e7bbc230333f291282d16145aaac7)
+  # DO NOT MERGE
+  set(UNIFIED_RUNTIME_REPO https://github.com/jchlanda/unified-runtime.git)
+  set(UNIFIED_RUNTIME_TAG jakub/hip_custom_dirs)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
