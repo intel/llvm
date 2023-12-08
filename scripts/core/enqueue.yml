@@ -158,7 +158,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
     - type: bool
       name: blockingRead
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -211,7 +211,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
     - type: bool
       name: blockingWrite
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -265,7 +265,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(bufferOrigin, region)] handle of the buffer object"
     - type: bool
       name: blockingRead
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -341,7 +341,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(bufferOrigin, region)] handle of the buffer object"
     - type: bool
       name: blockingWrite
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -414,10 +414,10 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBufferSrc
-      desc: "[in] handle of the src buffer object"
+      desc: "[in][bounds(srcOffset, size)] handle of the src buffer object"
     - type: $x_mem_handle_t
       name: hBufferDst
-      desc: "[in] handle of the dest buffer object"
+      desc: "[in][bounds(dstOffset, size)] handle of the dest buffer object"
     - type: size_t
       name: srcOffset
       desc: "[in] offset into hBufferSrc to begin copying from"
@@ -466,10 +466,10 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBufferSrc
-      desc: "[in] handle of the source buffer object"
+      desc: "[in][bounds(srcOrigin, region)] handle of the source buffer object"
     - type: $x_mem_handle_t
       name: hBufferDst
-      desc: "[in] handle of the dest buffer object"
+      desc: "[in][bounds(dstOrigin, region)] handle of the dest buffer object"
     - type: $x_rect_offset_t
       name: srcOrigin
       desc: "[in] 3D offset in the source buffer"
@@ -537,7 +537,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
     - type: "const void*"
       name: pPattern
       desc: "[in] pointer to the fill pattern"
@@ -571,6 +571,11 @@ returns:
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`(patternSize & (patternSize - 1)) != 0`"
+        - "`size % patternSize != 0`"
+        - "`offset % patternSize != 0`"
         - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -590,7 +595,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hImage
-      desc: "[in] handle of the image object"
+      desc: "[in][bounds(origin, region)] handle of the image object"
     - type: bool
       name: blockingRead
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -629,6 +634,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -647,7 +654,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hImage
-      desc: "[in] handle of the image object"
+      desc: "[in][bounds(origin, region)] handle of the image object"
     - type: bool
       name: blockingWrite
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -686,6 +693,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -702,10 +711,10 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hImageSrc
-      desc: "[in] handle of the src image object"
+      desc: "[in][bounds(srcOrigin, region)] handle of the src image object"
     - type: $x_mem_handle_t
       name: hImageDst
-      desc: "[in] handle of the dest image object"
+      desc: "[in][bounds(dstOrigin, region)] handle of the dest image object"
     - type: $x_rect_offset_t
       name: srcOrigin
       desc: "[in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D image"
@@ -735,6 +744,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -831,7 +842,7 @@ params:
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
       name: hBuffer
-      desc: "[in] handle of the buffer object"
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
     - type: bool
       name: blockingMap
       desc: "[in] indicates blocking (true), non-blocking (false)"
@@ -985,8 +996,8 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: void*
-      name: ptr
-      desc: "[in] pointer to USM memory object"
+      name: pMem
+      desc: "[in][bounds(0, size)] pointer to USM memory object"
     - type: size_t
       name: patternSize
       desc: "[in] the size in bytes of the pattern. Must be a power of 2 and less than or equal to width."
@@ -1039,10 +1050,10 @@ params:
       desc: "[in] blocking or non-blocking copy"
     - type: void*
       name: pDst
-      desc: "[in] pointer to the destination USM memory object"
+      desc: "[in][bounds(0, size)] pointer to the destination USM memory object"
     - type: "const void*"
       name: pSrc
-      desc: "[in] pointer to the source USM memory object"
+      desc: "[in][bounds(0, size)] pointer to the source USM memory object"
     - type: size_t
       name: size
       desc: "[in] size in bytes to be copied"
@@ -1077,13 +1088,16 @@ desc: "Enqueue a command to prefetch USM memory"
 class: $xEnqueue
 name: USMPrefetch
 ordinal: "0"
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
+    is not supported, the prefetch hint will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: "const void*"
       name: pMem
-      desc: "[in] pointer to the USM memory object"
+      desc: "[in][bounds(0, size)] pointer to the USM memory object"
     - type: size_t
       name: size
       desc: "[in] size in bytes to be fetched"
@@ -1117,17 +1131,20 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to set USM memory advice" 
+desc: "Enqueue a command to set USM memory advice"
 class: $xEnqueue
 name: USMAdvise
 ordinal: "0"
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. 
+    If a memory advice hint is not supported, it will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: "const void*"
       name: pMem
-      desc: "[in] pointer to the USM memory object"
+      desc: "[in][bounds(0, size)] pointer to the USM memory object"
     - type: size_t
       name: size
       desc: "[in] size in bytes to be advised"
@@ -1159,7 +1176,7 @@ params:
       desc: "[in] handle of the queue to submit to."
     - type: void*
       name: pMem
-      desc: "[in] pointer to memory to be filled."
+      desc: "[in][bounds(0, pitch * height)] pointer to memory to be filled."
     - type: size_t
       name: pitch
       desc: "[in] the total width of the destination memory including padding."
@@ -1221,13 +1238,13 @@ params:
       desc: "[in] indicates if this operation should block the host."
     - type: void*
       name: pDst
-      desc: "[in] pointer to memory where data will be copied."
+      desc: "[in][bounds(0, dstPitch * height)] pointer to memory where data will be copied."
     - type: size_t
       name: dstPitch
       desc: "[in] the total width of the source memory including padding."
     - type: "const void*"
       name: pSrc
-      desc: "[in] pointer to memory to be copied."
+      desc: "[in][bounds(0, srcPitch * height)] pointer to memory to be copied."
     - type: size_t
       name: srcPitch
       desc: "[in] the total width of the source memory including padding."
@@ -1441,7 +1458,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent 
       desc: |
-            [out] returns an event object that identifies this write command 
+            [out][optional] returns an event object that identifies this write command
             and can be used to query or queue a wait for this command to complete.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:

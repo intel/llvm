@@ -15,7 +15,7 @@ struct urKernelSetArgPointerTest : uur::urKernelExecutionTest {
         if (allocation) {
             ASSERT_SUCCESS(urUSMFree(context, allocation));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::TearDown());
     }
 
     void ValidateAllocation(void *pointer) {
@@ -129,9 +129,9 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
     }
 
     void SetUp() {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelSetArgPointerTest::SetUp());
         SetUpAllocation();
         ASSERT_NE(allocation, nullptr);
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelSetArgPointerTest::SetUp());
     }
 };
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgPointerNegativeTest);

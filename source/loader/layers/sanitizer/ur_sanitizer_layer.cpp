@@ -23,6 +23,8 @@ context_t::context_t()
 
 bool context_t::isAvailable() const { return true; }
 
+ur_result_t context_t::tearDown() { return UR_RESULT_SUCCESS; }
+
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
 } // namespace ur_sanitizer_layer

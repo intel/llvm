@@ -206,8 +206,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
-                                            ur_event_handle_t *Event,
-                                            bool SetCallback) {
+                                            ur_event_handle_t *Event) {
     auto Program = getProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 

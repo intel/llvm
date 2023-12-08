@@ -163,9 +163,10 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: CUDA, triplet: nvptx64-nvidia-cuda},
-          {name: HIP, triplet: amdgcn-amd-amdhsa}, 
-          {name: L0, triplet: spir64}
+          {name: CUDA, triplet: nvptx64-nvidia-cuda, platform: ""},
+          {name: HIP, triplet: amdgcn-amd-amdhsa, platform: ""},
+          {name: L0, triplet: spir64, platform: ""},
+          {name: OPENCL, triplet: spir64, platform: "Intel(R) OpenCL"}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -219,7 +220,11 @@ jobs:
     - name: Test adapters
       if: matrix.adapter.name != 'L0'
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: .github/scripts/get_system_info.sh
 
   examples-build-hw:
     name: Build - examples on HW
@@ -273,6 +278,10 @@ jobs:
         cat ${HOME}/.profile || true
         rm ${HOME}/.profile || true
 
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: .github/scripts/get_system_info.sh
+
   windows-build:
     name: Build - Windows
     strategy:
@@ -282,12 +291,18 @@ jobs:
           {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
         ]
 
-        # TODO: building level zero loader on windows-2019 is currently broken
+        # TODO: building level zero loader on windows-2019 and clang-cl is currently broken
         exclude:
          - os: 'windows-2019'
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+         - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+           compiler: {c: clang-cl, cxx: clang-cl}
+
         build_type: [Debug, Release]
-        compiler: [{c: cl.exe, cxx: cl.exe}, {c: clang-cl.exe, cxx: clang-cl.exe}]
+        compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
+        include:
+          - compiler: {c: clang-cl, cxx: clang-cl}
+            toolset: "-T ClangCL"
     runs-on: ${{matrix.os}}
 
     steps:
@@ -300,10 +315,18 @@ jobs:
     - name: Install prerequisites
       run: python3 -m pip install -r third_party/requirements.txt
 
+    - name: Install doxygen
+      run: |
+        $WorkingDir = $PWD.Path
+        Invoke-WebRequest -Uri https://github.com/doxygen/doxygen/releases/download/Release_1_9_8/doxygen-1.9.8.windows.x64.bin.zip -OutFile "$WorkingDir\doxygen.zip"
+        Expand-Archive -Path "$WorkingDir\doxygen.zip"
+        Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
+
     - name: Configure CMake
       run: >
         cmake
         -B${{github.workspace}}/build
+        ${{matrix.toolset}}
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_POLICY_DEFAULT_CMP0094=NEW
@@ -319,7 +342,7 @@ jobs:
     #   run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
 
     - name: Build all
-      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 2
+      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j $Env:NUMBER_OF_PROCESSORS
 
     - name: Test
       working-directory: ${{github.workspace}}/build

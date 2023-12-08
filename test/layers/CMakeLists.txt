@@ -9,6 +9,6 @@ if(UR_ENABLE_TRACING)
     add_subdirectory(tracing)
 endif()
 
-if(UR_BUILD_EXAMPLE_SANITIZER)
+if(UR_ENABLE_SANITIZER)
     add_subdirectory(sanitizer)
 endif()

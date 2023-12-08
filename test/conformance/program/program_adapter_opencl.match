@@ -1,0 +1,10 @@
+urProgramCreateWithBinaryTest.Success/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidNullHandleDevice/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidNullPointerBinary/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidNullPointerProgram/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidNullPointerMetadata/Intel_R__OpenCL___{{.*}}_
+urProgramCreateWithBinaryTest.InvalidSizePropertyCount/Intel_R__OpenCL___{{.*}}_
+urProgramGetFunctionPointerTest.InvalidFunctionName/Intel_R__OpenCL___{{.*}}_
+urProgramGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROGRAM_INFO_SOURCE
+urProgramGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROGRAM_INFO_BINARIES

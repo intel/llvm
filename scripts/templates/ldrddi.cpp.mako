@@ -51,22 +51,7 @@ namespace ur_loader
         add_local = False
     %>
 
-        %if re.match(r"Init", obj['name']):
-        for( auto& platform : context->platforms )
-        {
-            if(platform.initStatus != ${X}_RESULT_SUCCESS)
-                continue;
-            platform.initStatus = platform.dditable.${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
-        }
-
-        %elif re.match(r"\w+TearDown$", th.make_func_name(n, tags, obj)):
-
-        for( auto& platform : context->platforms )
-        {
-            platform.dditable.${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
-        }
-
-        %elif re.match(r"\w+AdapterGet$", th.make_func_name(n, tags, obj)):
+        %if re.match(r"\w+AdapterGet$", th.make_func_name(n, tags, obj)):
         
         size_t adapterIndex = 0;
         if( nullptr != ${obj['params'][1]['name']} && ${obj['params'][0]['name']} !=0)
@@ -86,6 +71,9 @@ namespace ur_loader
                     break;
                 }
                 adapterIndex++;
+                if (adapterIndex == NumEntries) {
+                    break;
+                }
             }
         }
 

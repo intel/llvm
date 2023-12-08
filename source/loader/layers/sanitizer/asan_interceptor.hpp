@@ -95,7 +95,7 @@ class SanitizerInterceptor {
     bool preLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                          ur_event_handle_t &Event);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                          ur_event_handle_t *Event, bool SetCallback = true);
+                          ur_event_handle_t *Event);
 
     ur_result_t addContext(ur_context_handle_t Context);
     ur_result_t removeContext(ur_context_handle_t Context);

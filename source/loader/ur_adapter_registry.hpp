@@ -41,7 +41,8 @@ class AdapterRegistry {
                 }
 
                 if (exists) {
-                    adaptersLoadPaths.emplace_back(std::vector{path});
+                    adaptersLoadPaths.emplace_back(
+                        std::vector{std::move(path)});
                 } else {
                     logger::warning(
                         "Detected nonexistent path {} in environmental "
@@ -113,10 +114,11 @@ class AdapterRegistry {
     // to load the adapter.
     std::vector<std::vector<fs::path>> adaptersLoadPaths;
 
-    static constexpr std::array<const char *, 3> knownAdapterNames{
+    static constexpr std::array<const char *, 4> knownAdapterNames{
         MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0"),
-        MAKE_LIBRARY_NAME("ur_adapter_cuda", "0"),
-        MAKE_LIBRARY_NAME("ur_adapter_hip", "0")};
+        MAKE_LIBRARY_NAME("ur_adapter_hip", "0"),
+        MAKE_LIBRARY_NAME("ur_adapter_opencl", "0"),
+        MAKE_LIBRARY_NAME("ur_adapter_cuda", "0")};
 
     std::optional<std::vector<fs::path>> getEnvAdapterSearchPaths() {
         std::optional<std::vector<std::string>> pathStringsOpt;
@@ -163,12 +165,12 @@ class AdapterRegistry {
 
             auto adapterNamePathOpt = getAdapterNameAsPath(adapterName);
             if (adapterNamePathOpt.has_value()) {
-                auto adapterNamePath = adapterNamePathOpt.value();
+                const auto &adapterNamePath = adapterNamePathOpt.value();
                 loadPaths.emplace_back(adapterNamePath);
             }
 
             if (loaderLibPathOpt.has_value()) {
-                auto loaderLibPath = loaderLibPathOpt.value();
+                const auto &loaderLibPath = loaderLibPathOpt.value();
                 loadPaths.emplace_back(loaderLibPath / adapterName);
             }
 

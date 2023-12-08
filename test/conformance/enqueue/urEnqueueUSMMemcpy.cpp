@@ -115,6 +115,7 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
                                       allocation_size, 0, nullptr,
                                       &memcpy_event));
     ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
+    ASSERT_SUCCESS(urEventRelease(memcpy_event));
 
     ASSERT_NO_FATAL_FAILURE(verifyData());
 }
@@ -157,6 +158,11 @@ TEST_P(urEnqueueUSMMemcpyTest, InvalidNullPtrEventWaitList) {
     ASSERT_EQ_RESULT(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
                                         allocation_size, 0, &memset_event,
                                         nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
+                                        allocation_size, 1, &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 

@@ -38,21 +38,20 @@ context_t::context_t() {
         return UR_RESULT_SUCCESS;
     };
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.Platform.pfnGet = [](ur_adapter_handle_t *phAdapters,
-                                    uint32_t NumAdapters, uint32_t NumEntries,
-                                    ur_platform_handle_t *phPlatforms,
-                                    uint32_t *pNumPlatforms) {
-        if (phPlatforms != nullptr && NumEntries != 1) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        if (pNumPlatforms != nullptr) {
-            *pNumPlatforms = 1;
-        }
-        if (nullptr != phPlatforms) {
-            *reinterpret_cast<void **>(phPlatforms) = d_context.get();
-        }
-        return UR_RESULT_SUCCESS;
-    };
+    urDdiTable.Platform.pfnGet =
+        [](ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+           ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+            if (phPlatforms != nullptr && NumEntries != 1) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            if (pNumPlatforms != nullptr) {
+                *pNumPlatforms = 1;
+            }
+            if (nullptr != phPlatforms) {
+                *reinterpret_cast<void **>(phPlatforms) = d_context.get();
+            }
+            return UR_RESULT_SUCCESS;
+        };
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Platform.pfnGetApiVersion = [](ur_platform_handle_t,
@@ -122,8 +121,8 @@ context_t::context_t() {
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Device.pfnGetInfo =
-        [](ur_device_handle_t hDevice, ur_device_info_t infoType,
-           size_t propSize, void *pDeviceInfo, size_t *pPropSizeRet) {
+        [](ur_device_handle_t, ur_device_info_t infoType, size_t propSize,
+           void *pDeviceInfo, size_t *pPropSizeRet) {
             switch (infoType) {
             case UR_DEVICE_INFO_TYPE:
                 if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {
@@ -165,25 +164,24 @@ context_t::context_t() {
         };
 
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.USM.pfnHostAlloc =
-        [](ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
-           ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
-            if (size == 0) {
-                *ppMem = nullptr;
-                return UR_RESULT_ERROR_UNSUPPORTED_SIZE;
-            }
-            *ppMem = malloc(size);
-            if (ppMem == nullptr) {
-                return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-            }
-            return UR_RESULT_SUCCESS;
-        };
+    urDdiTable.USM.pfnHostAlloc = [](ur_context_handle_t, const ur_usm_desc_t *,
+                                     ur_usm_pool_handle_t, size_t size,
+                                     void **ppMem) {
+        if (size == 0) {
+            *ppMem = nullptr;
+            return UR_RESULT_ERROR_UNSUPPORTED_SIZE;
+        }
+        *ppMem = malloc(size);
+        if (ppMem == nullptr) {
+            return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        return UR_RESULT_SUCCESS;
+    };
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.USM.pfnDeviceAlloc =
-        [](ur_context_handle_t hContext, ur_device_handle_t hDevice,
-           const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
-           size_t size, void **ppMem) {
+        [](ur_context_handle_t, ur_device_handle_t, const ur_usm_desc_t *,
+           ur_usm_pool_handle_t, size_t size, void **ppMem) {
             if (size == 0) {
                 *ppMem = nullptr;
                 return UR_RESULT_ERROR_UNSUPPORTED_SIZE;
@@ -196,16 +194,15 @@ context_t::context_t() {
         };
 
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.USM.pfnFree = [](ur_context_handle_t hContext, void *pMem) {
+    urDdiTable.USM.pfnFree = [](ur_context_handle_t, void *pMem) {
         free(pMem);
         return UR_RESULT_SUCCESS;
     };
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.USM.pfnGetMemAllocInfo =
-        [](ur_context_handle_t hContext, const void *pMem,
-           ur_usm_alloc_info_t propName, size_t propSize, void *pPropValue,
-           size_t *pPropSizeRet) {
+        [](ur_context_handle_t, const void *pMem, ur_usm_alloc_info_t propName,
+           size_t, void *pPropValue, size_t *pPropSizeRet) {
             switch (propName) {
             case UR_USM_ALLOC_INFO_TYPE:
                 *reinterpret_cast<ur_usm_type_t *>(pPropValue) =

@@ -220,13 +220,13 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
 
   cl_int CallbackType = 0;
   switch (execStatus) {
-  case UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED:
+  case UR_EXECUTION_INFO_SUBMITTED:
     CallbackType = CL_SUBMITTED;
     break;
-  case UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING:
+  case UR_EXECUTION_INFO_RUNNING:
     CallbackType = CL_RUNNING;
     break;
-  case UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE:
+  case UR_EXECUTION_INFO_COMPLETE:
     CallbackType = CL_COMPLETE;
     break;
   default:

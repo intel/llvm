@@ -13,9 +13,19 @@ accepted into the project.
 
 .. important::
 
-    Before making a contribution you *should* determine if the change should be
-    made directly to the core specification or introduced as an experimental
-    feature. The criteria we use to make this distinction are as follows:
+    Any contributions that fall into the following criteria *must* follow the
+    `Adapter Change Process`_:
+
+    *   Changing the API/ABI of the specification and or loader.
+
+    *   Changing the implementation of an adapter.
+
+    *   Changing the implementation of shared/common code used by an adapter.
+
+    Before making a contribution to the specification you *should* determine if
+    the change should be made directly to the core specification or introduced
+    as an experimental feature. The criteria we use to make this distinction
+    are as follows:
 
     *   The feature exists to enable an experimental feature in a parallel
         language runtime being built on top of Unified Runtime.
@@ -39,6 +49,114 @@ accepted into the project.
     Runtime team via the `GitHub issue tracker
     <https://github.com/oneapi-src/unified-runtime/issues/new>`_.
 
+Adapter Change Process
+======================
+
+1.  Create a pull request containing the adapter changes in the
+    `oneapi-src/unified-runtime`_ project targeting the `main
+    <https://github.com/oneapi-src/unified-runtime/tree/main>`_ branch.
+
+2.  Create a draft pull request in the `intel/llvm`_ project to take advantage
+    of the pre-merge testing. Add any required implementation changes in
+    addition to changing:
+
+    *   `UNIFIED_RUNTIME_REPO`_ to point at your fork of Unified Runtime.
+
+    *   `UNIFIED_RUNTIME_TAG`_ to point at your development branch name used to
+        create the Unified Runtime pull request in step 1.
+
+3.  Add a comment in the *oneapi-src/unified-runtime* pull request linking to
+    the *intel/llvm* pull request created in step 2.
+
+4.  Code reviews for the adapter changes are carried out in the
+    *oneapi-src/unified-runtime* pull request.
+
+5.  Any new commits to the *oneapi-src/unified-runtime* pull request *must* be
+    accompanied by a corresponding update in the *intel/llvm* pull request as
+    indicated in step 2, so the testing is always up-to-date.
+
+6.  The Unified Runtime maintainers *must* ensure that step 5 has been carried
+    out and that all pre-merge testing has passed before accepting the
+    *oneapi-src/unified-runtime* pull request.
+
+7.  Once the *oneapi-src/unified-runtime* pull request is accepted:
+
+    *   Reverse the change to `UNIFIED_RUNTIME_REPO`_ made in step 2.
+    *   Update the `UNIFIED_RUNTIME_TAG`_ to point at the
+        *oneapi-src/unified-runtime* commit/tag containing the merged adapter
+        changes.
+    *   Update the pull request description, linking to any other *intel/llvm*
+        pull requests who's changes have been merged into
+        *oneapi-src/unified-runtime* but have not yet been merge into
+        *intel/llvm*.
+    *   Mark the *intel/llvm* pull request as ready for review and follow their
+        review process.
+
+.. _oneapi-src/unified-runtime:
+   https://github.com/oneapi-src/unified-runtime
+.. _intel/llvm:
+   https://github.com/intel/llvm
+.. _UNIFIED_RUNTIME_REPO:
+   https://github.com/intel/llvm/blob/sycl/sycl/plugins/unified_runtime/CMakeLists.txt#L7
+.. _UNIFIED_RUNTIME_TAG:
+   https://github.com/intel/llvm/blob/sycl/sycl/plugins/unified_runtime/CMakeLists.txt#L8
+
+Build Environment
+=================
+
+To be able to generate the source from the YAML files, the build environment
+must be configured correctly and all dependencies must be installed. The
+instructions for a basic setup are available in the `README
+<https://github.com/oneapi-src/unified-runtime/blob/main/README.md#building>`_.
+
+The following additional dependencies are required to support the ``generate``
+target:
+
+*    Doxygen (>= 1.8)
+
+*    The Python script requirements listed in `thirdparty/requirements.txt`_
+
+Doxygen can be installed via your system's package manager, e.g. on Ubuntu
+``sudo apt install doxygen``, or by downloading it from the Doxygen website. It
+must be available on the current ``PATH`` when the script is run.
+
+One way to install the requirements for the script is using a Python virtual
+environment. This can be set up by running the following commands from the
+project root:
+
+.. code-block:: console
+
+    $ python3 -m venv .local
+    $ source .local/bin/activate
+    $ pip install -r third_party/requirements.txt
+
+The virtual environment can be subsequently reactivated before any builds
+without needing to reinstall the requirements:
+
+.. code-block:: console
+
+    $ source .local/bin/activate
+
+Alternatively, a Docker container can be used instead of a virtual environment.
+Instructions on building and using a Docker image can be found in
+`.github/docker`_
+
+You *must* also enable the ``UR_FORMAT_CPP_STYLE`` CMake option to allow
+formatting of the generated code, or the ``generate`` target will not be
+available.
+
+.. code-block:: console
+
+    $ cmake build/ -DUR_FORMAT_CPP_STYLE=ON
+
+You can then follow the instructions below to use the ``generate`` target to
+regenerate the source.
+
+.. _thirdparty/requirements.txt:
+   https://github.com/oneapi-src/unified-runtime/blob/main/third_party/requirements.txt
+.. _.github/docker:
+   https://github.com/oneapi-src/unified-runtime/blob/main/.github/docker
+
 Generating Source
 =================
 
@@ -46,10 +164,9 @@ The specification and many other components in the Unified Runtime repository
 are generated from a set of YAML_ files which are used as inputs to a Mako_
 based templating system. The YAML file syntax is defined in `YAML syntax`_. To
 generate the outputs of the Mako templates a build directory must be
-configured, instructions are available in the `README
-<https://github.com/oneapi-src/unified-runtime/blob/main/README.md>`_ file.
-Upon successfully configuring a build directory, generate the outputs with the
-following command (or suitable build system equivalent):
+configured as detailed above. Upon successfully configuring a build directory,
+generate the outputs with the following command (or suitable build system
+equivalent):
 
 .. code-block:: console
 
@@ -137,8 +254,8 @@ defined within them, with the following exceptions:
     enumerations, and structure type enumerations.
 *   `scripts/core/enqueue.yml`_ defines commands which can be enqueued on a
     queue object.
-*   `scripts/core/runtime.yml`_ defines global symbols pertaining to
-    initialization and tear down of the entire runtime.
+*   `scripts/core/loader.yml`_ defines global symbols pertaining to
+    initialization and tear down of the loader.
 *   `scripts/core/registry.yml`_ contains an enumeration of all entry-points,
     past and present, for use in the XPTI tracing framework. It is
     automatically updated so shouldn't require manual editing.
@@ -148,8 +265,8 @@ defined within them, with the following exceptions:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/common.yml
 .. _scripts/core/enqueue.yml:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/enqueue.yml
-.. _scripts/core/runtime.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/runtime.yml
+.. _scripts/core/loader.yml:
+   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/loader.yml
 .. _scripts/core/registry.yml:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/registry.yml
 
