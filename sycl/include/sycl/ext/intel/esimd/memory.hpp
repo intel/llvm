@@ -5989,7 +5989,6 @@ __ESIMD_API
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-
 template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
