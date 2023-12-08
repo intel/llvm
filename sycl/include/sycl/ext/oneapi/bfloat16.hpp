@@ -150,13 +150,13 @@ public:
 
   // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 & rhs) {          \
+  friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
   template <typename T, class = std::enable_if_t<std::is_scalar_v<T>>>         \
-  friend bfloat16 &operator op(bfloat16 &lhs, const T & rhs) {                 \
+  friend bfloat16 &operator op(bfloat16 & lhs, const T & rhs) {                \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
