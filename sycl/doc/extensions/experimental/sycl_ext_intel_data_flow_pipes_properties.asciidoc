@@ -103,7 +103,10 @@ value to determine which of the extension's APIs the implementation supports.
 Below is a list of compile-time-constant properties which `pipe` supports.
 
 ```c++
-namespace sycl::ext::intel::experimental {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
 
 struct ready_latency_key {
   template <unsigned Latency>
@@ -123,15 +126,15 @@ struct uses_valid_key {
   using value_t =
       oneapi::experimental::property_value<uses_valid_key,
                                            std::bool_constant<Valid>>;
-};  
+};
 
 struct uses_ready_key {
   template <bool Valid>
   using value_t =
       oneapi::experimental::property_value<uses_ready_key,
                                            std::bool_constant<Valid>>;
-};  
-    
+};
+
 struct first_symbol_in_high_order_bits_key {
   template <bool HighOrder>
   using value_t =
@@ -170,7 +173,33 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
 
-} // namespace sycl::ext::intel::experimental
+namespace avalon-st {
+  using sycl::ext::intel::experimental::bits_per_symbol;
+  using sycl::ext::intel::experimental::bits_per_symbol_key;
+  using sycl::ext::intel::experimental::first_symbol_in_high_order_bits;
+  using sycl::ext::intel::experimental::first_symbol_in_high_order_bits_key;
+  using sycl::ext::intel::experimental::protocol;
+  using sycl::ext::intel::experimental::protocol_key;
+  using sycl::ext::intel::experimental::protocol_name;
+  using sycl::ext::intel::experimental::ready_latency;
+  using sycl::ext::intel::experimental::ready_latency_key;
+  using sycl::ext::intel::experimental::uses_ready;
+  using sycl::ext::intel::experimental::uses_ready_key;
+  using sycl::ext::intel::experimental::uses_valid;
+  using sycl::ext::intel::experimental::uses_valid_key;
+} // namespace avalon-st
+
+namespace axi-st {
+  using sycl::ext::intel::experimental::protocol;
+  using sycl::ext::intel::experimental::protocol_key;
+  using sycl::ext::intel::experimental::protocol_name;
+} // namespace axi-st
+
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+
 ```
 
 --
