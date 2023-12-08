@@ -5895,7 +5895,7 @@ __ESIMD_API
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
-/// scalar using \c local_accessor .
+/// scalar using \c local_accessor.
 ///
 /// @tparam Op The atomic operation - can be \c atomic_op::inc,
 /// \c atomic_op::dec, or \c atomic_op::load.
