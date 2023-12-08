@@ -110,102 +110,6 @@ createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
   return Program;
 }
 
-/// Try to fetch entity (kernel or program) from cache. If there is no such
-/// entity try to build it. Throw any exception build process may throw.
-/// This method eliminates unwanted builds by employing atomic variable with
-/// build state and waiting until the entity is built in another thread.
-/// If the building thread has failed the awaiting thread will fail either.
-/// Exception thrown by build procedure are rethrown.
-///
-/// \tparam RetT type of entity to get
-/// \tparam ExceptionT type of exception to throw on awaiting thread if the
-///         building thread fails build step.
-/// \tparam KeyT key (in cache) to fetch built entity with
-/// \tparam AcquireFT type of function which will acquire the locked version of
-///         the cache. Accept reference to KernelProgramCache.
-/// \tparam GetCacheFT type of function which will fetch proper cache from
-///         locked version. Accepts reference to locked version of cache.
-/// \tparam BuildFT type of function which will build the entity if it is not in
-///         cache. Accepts nothing. Return pointer to built entity.
-///
-/// \return a pointer to cached build result, return value must not be nullptr.
-template <typename RetT, typename ExceptionT, typename GetCachedBuildFT,
-          typename BuildFT>
-KernelProgramCache::BuildResult<RetT> *
-getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
-           BuildFT &&Build) {
-  using BuildState = KernelProgramCache::BuildState;
-
-  auto [BuildResult, InsertionTookPlace] = GetCachedBuild();
-
-  // no insertion took place, thus some other thread has already inserted smth
-  // in the cache
-  if (!InsertionTookPlace) {
-    for (;;) {
-      RetT *Result = KPCache.waitUntilBuilt<ExceptionT>(BuildResult);
-
-      if (Result)
-        return BuildResult;
-
-      // Previous build is failed. There was no SYCL exception though.
-      // We might try to build once more.
-      BuildState Expected = BuildState::BS_Failed;
-      BuildState Desired = BuildState::BS_InProgress;
-
-      if (BuildResult->State.compare_exchange_strong(Expected, Desired))
-        break; // this thread is the building thread now
-    }
-  }
-
-  // only the building thread will run this
-  try {
-    BuildResult->Val = Build();
-    RetT *Desired = &BuildResult->Val;
-
-#ifndef NDEBUG
-    RetT *Expected = nullptr;
-
-    if (!BuildResult->Ptr.compare_exchange_strong(Expected, Desired))
-      // We've got a funny story here
-      assert(false && "We've build an entity that is already have been built.");
-#else
-    BuildResult->Ptr.store(Desired);
-#endif
-
-    {
-      // Even if shared variable is atomic, it must be modified under the mutex
-      // in order to correctly publish the modification to the waiting thread
-      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BuildState::BS_Done);
-    }
-
-    KPCache.notifyAllBuild(*BuildResult);
-
-    return BuildResult;
-  } catch (const exception &Ex) {
-    BuildResult->Error.Msg = Ex.what();
-    BuildResult->Error.Code = Ex.get_cl_code();
-
-    {
-      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BuildState::BS_Failed);
-    }
-
-    KPCache.notifyAllBuild(*BuildResult);
-
-    std::rethrow_exception(std::current_exception());
-  } catch (...) {
-    {
-      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BuildState::BS_Failed);
-    }
-
-    KPCache.notifyAllBuild(*BuildResult);
-
-    std::rethrow_exception(std::current_exception());
-  }
-}
-
 // TODO replace this with a new PI API function
 static bool
 isDeviceBinaryTypeSupported(const context &C,
@@ -727,8 +631,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     return BuildF();
 
   auto BuildResult =
-      getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
-          Cache, GetCachedBuildF, BuildF);
+      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -736,9 +639,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
-      *BuildResult->Ptr.load());
-  return *BuildResult->Ptr.load();
+  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(BuildResult->Val);
+  return BuildResult->Val;
 }
 
 // When caching is enabled, the returned PiProgram and PiKernel will
@@ -815,11 +717,11 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return make_tuple(Kernel, nullptr, ArgMask, Program);
   }
 
-  auto BuildResult = getOrBuild<KernelArgMaskPairT, invalid_object_error>(
-      Cache, GetCachedBuildF, BuildF);
+  auto BuildResult =
+      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  const KernelArgMaskPairT &KernelArgMaskPair = *BuildResult->Ptr.load();
+  const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_tuple(KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
                                  KernelArgMaskPair.second, Program);
@@ -1278,16 +1180,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
               << ")\n";
   }
 
-  // TODO: old sycl compiler always marks cassert fallback device library as
-  // "required", this will lead to compatibilty issue when we enable online
-  // link in SYCL runtime. If users compile their code with old compiler and run
-  // their executable with latest SYCL runtime, cassert fallback spv file will
-  // always be loaded which is not expected, cassert device library development
-  // is still in progress, the unexpected loading may lead to runtime problem.
-  // So, we clear bit 0 in device library require mask to avoid loading cassert
-  // fallback device library and will revert this when cassert development is
-  // done.
-  DeviceLibReqMask &= 0xFFFFFFFE;
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
@@ -1327,11 +1219,17 @@ ProgramManager::ProgramPtr ProgramManager::build(
   LinkPrograms.push_back(Program.get());
 
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          Context->getHandleRef(), /*num devices =*/1, &Device,
-          LinkOptions.c_str(), LinkPrograms.size(), LinkPrograms.data(),
-          nullptr, nullptr, &LinkedProg);
+  auto doLink = [&] {
+    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
+        Context->getHandleRef(), /*num devices =*/1, &Device,
+        LinkOptions.c_str(), LinkPrograms.size(), LinkPrograms.data(), nullptr,
+        nullptr, &LinkedProg);
+  };
+  sycl::detail::pi::PiResult Error = doLink();
+  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+    Context->getKernelProgramCache().reset();
+    Error = doLink();
+  }
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
@@ -2214,13 +2112,19 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   const PluginPtr &Plugin = ContextImpl->getPlugin();
 
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
-  sycl::detail::pi::PiResult Error =
-      Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-          /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
-          PIPrograms.data(),
-          /*pfn_notify=*/nullptr,
-          /*user_data=*/nullptr, &LinkedProg);
+  auto doLink = [&] {
+    return Plugin->call_nocheck<PiApiKind::piProgramLink>(
+        ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
+        /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(),
+        PIPrograms.data(),
+        /*pfn_notify=*/nullptr,
+        /*user_data=*/nullptr, &LinkedProg);
+  };
+  sycl::detail::pi::PiResult Error = doLink();
+  if (Error == PI_ERROR_OUT_OF_RESOURCES) {
+    ContextImpl->getKernelProgramCache().reset();
+    Error = doLink();
+  }
 
   if (Error != PI_SUCCESS) {
     if (LinkedProg) {
@@ -2399,12 +2303,11 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   // TODO: Throw SYCL2020 style exception
   auto BuildResult =
-      getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
-          Cache, GetCachedBuildF, BuildF);
+      Cache.getOrBuild<compile_program_error>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
-  sycl::detail::pi::PiProgram ResProgram = *BuildResult->Ptr.load();
+  sycl::detail::pi::PiProgram ResProgram = BuildResult->Val;
 
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
@@ -2423,8 +2326,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second = PiDeviceAdd;
-    getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
-        Cache, GetCachedBuildF, CacheOtherDevices);
+    Cache.getOrBuild<compile_program_error>(GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2488,19 +2390,17 @@ ProgramManager::getOrCreateKernel(const context &Context,
   }
 
   auto BuildResult =
-      getOrBuild<KernelProgramCache::KernelArgMaskPairT, invalid_object_error>(
-          Cache, GetCachedBuildF, BuildF);
+      Cache.getOrBuild<invalid_object_error>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   // If caching is enabled, one copy of the kernel handle will be
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  Ctx->getPlugin()->call<PiApiKind::piKernelRetain>(
-      BuildResult->Ptr.load()->first);
-  return std::make_tuple(BuildResult->Ptr.load()->first,
+  Ctx->getPlugin()->call<PiApiKind::piKernelRetain>(BuildResult->Val.first);
+  return std::make_tuple(BuildResult->Val.first,
                          &(BuildResult->MBuildResultMutex),
-                         BuildResult->Ptr.load()->second);
+                         BuildResult->Val.second);
 }
 
 bool doesDevSupportDeviceRequirements(const device &Dev,

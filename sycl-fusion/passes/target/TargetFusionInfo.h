@@ -66,7 +66,7 @@ public:
   unsigned getLocalAddressSpace() const;
 
   void updateAddressSpaceMetadata(Function *KernelFunc,
-                                  ArrayRef<size_t> LocalSize,
+                                  ArrayRef<bool> ArgIsPromoted,
                                   unsigned AddressSpace) const;
 
   ///
