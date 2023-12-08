@@ -106,6 +106,7 @@ public:
 // nop.
 class ur_mutex {
   std::mutex Mutex;
+  friend class ur_lock;
 
 public:
   void lock() {
@@ -117,6 +118,17 @@ public:
   void unlock() {
     if (!SingleThreadMode) {
       Mutex.unlock();
+    }
+  }
+};
+
+class ur_lock {
+  std::unique_lock<std::mutex> Lock;
+
+public:
+  explicit ur_lock(ur_mutex &Mutex) {
+    if (!SingleThreadMode) {
+      Lock = std::unique_lock<std::mutex>(Mutex.Mutex);
     }
   }
 };

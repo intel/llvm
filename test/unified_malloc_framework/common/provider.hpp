@@ -30,21 +30,27 @@ struct provider_base {
     enum umf_result_t alloc(size_t, size_t, void **) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t free(void *ptr, size_t size) noexcept {
+    enum umf_result_t free([[maybe_unused]] void *ptr,
+                           [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     void get_last_native_error(const char **, int32_t *) noexcept {}
-    enum umf_result_t get_recommended_page_size(size_t size,
-                                                size_t *pageSize) noexcept {
+    enum umf_result_t
+    get_recommended_page_size([[maybe_unused]] size_t size,
+                              [[maybe_unused]] size_t *pageSize) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t get_min_page_size(void *ptr, size_t *pageSize) noexcept {
+    enum umf_result_t
+    get_min_page_size([[maybe_unused]] void *ptr,
+                      [[maybe_unused]] size_t *pageSize) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t purge_lazy(void *ptr, size_t size) noexcept {
+    enum umf_result_t purge_lazy([[maybe_unused]] void *ptr,
+                                 [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t purge_force(void *ptr, size_t size) noexcept {
+    enum umf_result_t purge_force([[maybe_unused]] void *ptr,
+                                  [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     const char *get_name() noexcept { return "base"; }
@@ -74,6 +80,28 @@ struct provider_malloc : public provider_base {
         return UMF_RESULT_SUCCESS;
     }
     const char *get_name() noexcept { return "malloc"; }
+};
+
+struct provider_mock_out_of_mem : public provider_base {
+    provider_malloc helper_prov;
+    int allocNum = 0;
+    umf_result_t initialize(int allocNum) noexcept {
+        this->allocNum = allocNum;
+        return UMF_RESULT_SUCCESS;
+    }
+    enum umf_result_t alloc(size_t size, size_t align, void **ptr) noexcept {
+        if (allocNum <= 0) {
+            *ptr = nullptr;
+            return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        allocNum--;
+
+        return helper_prov.alloc(size, align, ptr);
+    }
+    enum umf_result_t free(void *ptr, size_t size) noexcept {
+        return helper_prov.free(ptr, size);
+    }
+    const char *get_name() noexcept { return "mock_out_of_mem"; }
 };
 
 } // namespace umf_test

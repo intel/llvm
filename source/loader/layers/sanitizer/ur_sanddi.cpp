@@ -198,7 +198,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        context.interceptor->postLaunchKernel(hKernel, hQueue, phEvent, false);
+        context.interceptor->postLaunchKernel(hKernel, hQueue, phEvent);
     }
 
     return result;
@@ -425,7 +425,8 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
 }
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
-                            const std::set<std::string> &enabledLayerNames) {
+                            const std::set<std::string> &enabledLayerNames,
+                            [[maybe_unused]] codeloc_data codelocData) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {

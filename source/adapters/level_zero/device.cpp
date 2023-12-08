@@ -88,6 +88,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   return UR_RESULT_SUCCESS;
 }
 
+uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
+  // Cache GlobalMemSize
+  Device->ZeGlobalMemSize.Compute =
+      [Device](struct ze_global_memsize &GlobalMemSize) {
+        for (const auto &ZeDeviceMemoryExtProperty :
+             Device->ZeDeviceMemoryProperties->second) {
+          GlobalMemSize.value += ZeDeviceMemoryExtProperty.physicalSize;
+        }
+        if (GlobalMemSize.value == 0) {
+          for (const auto &ZeDeviceMemoryProperty :
+               Device->ZeDeviceMemoryProperties->first) {
+            GlobalMemSize.value += ZeDeviceMemoryProperty.totalSize;
+          }
+        }
+      };
+  return Device->ZeGlobalMemSize.operator->()->value;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
@@ -249,22 +267,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{64});
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
+    // if not optimized for 32-bit access, return total memory size.
+    // otherwise, return only maximum allocatable size.
+    if (Device->useOptimized32bitAccess() == 0) {
+      return ReturnValue(uint64_t{calculateGlobalMemSize(Device)});
+    } else {
+      return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
+    }
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
-    uint64_t GlobalMemSize = 0;
     // Support to read physicalSize depends on kernel,
     // so fallback into reading totalSize if physicalSize
     // is not available.
-    for (const auto &ZeDeviceMemoryExtProperty :
-         Device->ZeDeviceMemoryProperties->second) {
-      GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
-    }
-    if (GlobalMemSize == 0) {
-      for (const auto &ZeDeviceMemoryProperty :
-           Device->ZeDeviceMemoryProperties->first) {
-        GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
-      }
-    }
+    uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
     return ReturnValue(uint64_t{GlobalMemSize});
   }
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
@@ -637,6 +651,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
                       static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
+    // Calculate the global memory size as the max limit that can be reported as
+    // "free" memory for the user to allocate.
+    uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
     // Only report device memory which zeMemAllocDevice can allocate from.
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
@@ -661,7 +678,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         }
       }
     }
-    return ReturnValue(FreeMemory);
+    return ReturnValue(std::min(GlobalMemSize, FreeMemory));
   }
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     // If there are not any memory modules then return 0.
@@ -901,6 +918,22 @@ ur_device_handle_t_::useImmediateCommandLists() {
   default:
     return NotUsed;
   }
+}
+
+int32_t ur_device_handle_t_::useOptimized32bitAccess() {
+  static const int32_t Optimize32bitAccessMode = [this] {
+    // If device is Intel(R) Data Center GPU Max,
+    // use default provided by L0 driver.
+    // TODO: Use IP versioning to select based on range of devices
+    if (this->isPVC())
+      return -1;
+    const char *UrRet = std::getenv("UR_L0_USE_OPTIMIZED_32BIT_ACCESS");
+    if (!UrRet)
+      return 0;
+    return std::atoi(UrRet);
+  }();
+
+  return Optimize32bitAccessMode;
 }
 
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,

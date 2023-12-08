@@ -1,4 +1,1 @@
-urDeviceGetTest.InvalidValueNumEntries
-{{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_SUPPORTED_PARTITIONS
-{{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_PARTITION_TYPE
-{{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT
+{{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime

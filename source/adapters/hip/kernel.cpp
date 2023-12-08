@@ -19,7 +19,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getContext()->getDevice());
+    ScopedContext Active(hProgram->getDevice());
 
     hipFunction_t HIPFunc;
     hipError_t KernelError =
@@ -259,13 +259,14 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->setKernelPtrArg(argIndex, sizeof(pArgValue), pArgValue);
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *Properties,
+                     ur_mem_handle_t hArgValue) {
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
   if (hArgValue == nullptr) {
@@ -275,8 +276,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    if (hArgValue->MemType == ur_mem_handle_t_::Type::Surface) {
-      auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray();
+    auto Device = hKernel->getProgram()->getDevice();
+    hKernel->Args.addMemObjArg(argIndex, hArgValue, Properties->memoryAccess);
+    if (hArgValue->isImage()) {
+      auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray(Device);
       hipArray_Format Format;
       size_t NumChannels;
       getArrayDesc(array, Format, NumChannels);
@@ -288,10 +291,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
             "uint32, float, and half.");
       }
       hipSurfaceObject_t hipSurf =
-          std::get<SurfaceMem>(hArgValue->Mem).getSurface();
+          std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
       hKernel->setKernelArg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
     } else {
-      void *HIPPtr = std::get<BufferMem>(hArgValue->Mem).getVoid();
+      void *HIPPtr = std::get<BufferMem>(hArgValue->Mem).getVoid(Device);
       hKernel->setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
     }
   } catch (ur_result_t Err) {

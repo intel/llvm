@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_ddi.h
- * @version v0.7-r0
+ * @version v0.9-r0
  *
  */
 #ifndef UR_DDI_H_INCLUDED
@@ -624,6 +624,39 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
     ur_kernel_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCountExp
+typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t)(
+    ur_kernel_handle_t,
+    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of KernelExp functions pointers
+typedef struct ur_kernel_exp_dditable_t {
+    ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t pfnSuggestMaxCooperativeGroupCountExp;
+} ur_kernel_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's KernelExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetKernelExpProcAddrTable(
+    ur_api_version_t version,           ///< [in] API version requested
+    ur_kernel_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetKernelExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetKernelExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_kernel_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urSamplerCreate
 typedef ur_result_t(UR_APICALL *ur_pfnSamplerCreate_t)(
     ur_context_handle_t,
@@ -858,6 +891,70 @@ urGetPhysicalMemProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetPhysicalMemProcAddrTable_t)(
     ur_api_version_t,
     ur_physical_mem_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGet
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(
+    uint32_t,
+    ur_adapter_handle_t *,
+    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRelease
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(
+    ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRetain
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(
+    ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetLastError
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
+    ur_adapter_handle_t,
+    const char **,
+    int32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(
+    ur_adapter_handle_t,
+    ur_adapter_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of Global functions pointers
+typedef struct ur_global_dditable_t {
+    ur_pfnAdapterGet_t pfnAdapterGet;
+    ur_pfnAdapterRelease_t pfnAdapterRelease;
+    ur_pfnAdapterRetain_t pfnAdapterRetain;
+    ur_pfnAdapterGetLastError_t pfnAdapterGetLastError;
+    ur_pfnAdapterGetInfo_t pfnAdapterGetInfo;
+} ur_global_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Global table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetGlobalProcAddrTable(
+    ur_api_version_t version,       ///< [in] API version requested
+    ur_global_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetGlobalProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetGlobalProcAddrTable_t)(
+    ur_api_version_t,
+    ur_global_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueKernelLaunch
@@ -1237,6 +1334,46 @@ urGetEnqueueProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t,
     ur_enqueue_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
+    ur_queue_handle_t,
+    ur_kernel_handle_t,
+    uint32_t,
+    const size_t *,
+    const size_t *,
+    const size_t *,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of EnqueueExp functions pointers
+typedef struct ur_enqueue_exp_dditable_t {
+    ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
+} ur_enqueue_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version,            ///< [in] API version requested
+    ur_enqueue_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetEnqueueExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_enqueue_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueGetInfo
@@ -1719,8 +1856,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemcpyUSMExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendUSMMemcpyExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMMemcpyExp_t)(
     ur_exp_command_buffer_handle_t,
     void *,
     const void *,
@@ -1730,8 +1867,20 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemcpyUSMExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferCopyExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendUSMFillExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMFillExp_t)(
+    ur_exp_command_buffer_handle_t,
+    void *,
+    const void *,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendMemBufferCopyExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1743,8 +1892,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferWriteExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferWriteExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     size_t,
@@ -1755,8 +1904,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferReadExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferReadExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     size_t,
@@ -1767,8 +1916,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferCopyRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferCopyRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1784,8 +1933,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyRectExp_t)
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferWriteRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferWriteRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_rect_offset_t,
@@ -1801,8 +1950,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteRectExp_t
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferReadRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferReadRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_rect_offset_t,
@@ -1813,6 +1962,41 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadRectExp_t)
     size_t,
     size_t,
     void *,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendMemBufferFillExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferFillExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_mem_handle_t,
+    const void *,
+    size_t,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendUSMPrefetchExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMPrefetchExp_t)(
+    ur_exp_command_buffer_handle_t,
+    const void *,
+    size_t,
+    ur_usm_migration_flags_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendUSMAdviseExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
+    ur_exp_command_buffer_handle_t,
+    const void *,
+    size_t,
+    ur_usm_advice_flags_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *);
@@ -1834,13 +2018,17 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferReleaseExp_t pfnReleaseExp;
     ur_pfnCommandBufferFinalizeExp_t pfnFinalizeExp;
     ur_pfnCommandBufferAppendKernelLaunchExp_t pfnAppendKernelLaunchExp;
-    ur_pfnCommandBufferAppendMemcpyUSMExp_t pfnAppendMemcpyUSMExp;
-    ur_pfnCommandBufferAppendMembufferCopyExp_t pfnAppendMembufferCopyExp;
-    ur_pfnCommandBufferAppendMembufferWriteExp_t pfnAppendMembufferWriteExp;
-    ur_pfnCommandBufferAppendMembufferReadExp_t pfnAppendMembufferReadExp;
-    ur_pfnCommandBufferAppendMembufferCopyRectExp_t pfnAppendMembufferCopyRectExp;
-    ur_pfnCommandBufferAppendMembufferWriteRectExp_t pfnAppendMembufferWriteRectExp;
-    ur_pfnCommandBufferAppendMembufferReadRectExp_t pfnAppendMembufferReadRectExp;
+    ur_pfnCommandBufferAppendUSMMemcpyExp_t pfnAppendUSMMemcpyExp;
+    ur_pfnCommandBufferAppendUSMFillExp_t pfnAppendUSMFillExp;
+    ur_pfnCommandBufferAppendMemBufferCopyExp_t pfnAppendMemBufferCopyExp;
+    ur_pfnCommandBufferAppendMemBufferWriteExp_t pfnAppendMemBufferWriteExp;
+    ur_pfnCommandBufferAppendMemBufferReadExp_t pfnAppendMemBufferReadExp;
+    ur_pfnCommandBufferAppendMemBufferCopyRectExp_t pfnAppendMemBufferCopyRectExp;
+    ur_pfnCommandBufferAppendMemBufferWriteRectExp_t pfnAppendMemBufferWriteRectExp;
+    ur_pfnCommandBufferAppendMemBufferReadRectExp_t pfnAppendMemBufferReadRectExp;
+    ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
+    ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
+    ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
 } ur_command_buffer_exp_dditable_t;
 
@@ -1915,83 +2103,6 @@ urGetUsmP2PExpProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
     ur_api_version_t,
     ur_usm_p2p_exp_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urInit
-typedef ur_result_t(UR_APICALL *ur_pfnInit_t)(
-    ur_device_init_flags_t,
-    ur_loader_config_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urTearDown
-typedef ur_result_t(UR_APICALL *ur_pfnTearDown_t)(
-    void *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGet
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(
-    uint32_t,
-    ur_adapter_handle_t *,
-    uint32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRelease
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(
-    ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRetain
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(
-    ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetLastError
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
-    ur_adapter_handle_t,
-    const char **,
-    int32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetInfo
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(
-    ur_adapter_handle_t,
-    ur_adapter_info_t,
-    size_t,
-    void *,
-    size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Global functions pointers
-typedef struct ur_global_dditable_t {
-    ur_pfnInit_t pfnInit;
-    ur_pfnTearDown_t pfnTearDown;
-    ur_pfnAdapterGet_t pfnAdapterGet;
-    ur_pfnAdapterRelease_t pfnAdapterRelease;
-    ur_pfnAdapterRetain_t pfnAdapterRetain;
-    ur_pfnAdapterGetLastError_t pfnAdapterGetLastError;
-    ur_pfnAdapterGetInfo_t pfnAdapterGetInfo;
-} ur_global_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetGlobalProcAddrTable(
-    ur_api_version_t version,       ///< [in] API version requested
-    ur_global_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetGlobalProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetGlobalProcAddrTable_t)(
-    ur_api_version_t,
-    ur_global_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemGranularityGetInfo
@@ -2197,17 +2308,19 @@ typedef struct ur_dditable_t {
     ur_program_dditable_t Program;
     ur_program_exp_dditable_t ProgramExp;
     ur_kernel_dditable_t Kernel;
+    ur_kernel_exp_dditable_t KernelExp;
     ur_sampler_dditable_t Sampler;
     ur_mem_dditable_t Mem;
     ur_physical_mem_dditable_t PhysicalMem;
+    ur_global_dditable_t Global;
     ur_enqueue_dditable_t Enqueue;
+    ur_enqueue_exp_dditable_t EnqueueExp;
     ur_queue_dditable_t Queue;
     ur_bindless_images_exp_dditable_t BindlessImagesExp;
     ur_usm_dditable_t USM;
     ur_usm_exp_dditable_t USMExp;
     ur_command_buffer_exp_dditable_t CommandBufferExp;
     ur_usm_p2p_exp_dditable_t UsmP2PExp;
-    ur_global_dditable_t Global;
     ur_virtual_mem_dditable_t VirtualMem;
     ur_device_dditable_t Device;
 } ur_dditable_t;

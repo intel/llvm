@@ -293,6 +293,8 @@ class DisjointPool::AllocImpl {
         // Generate buckets sized such as: 64, 96, 128, 192, ..., CutOff.
         // Powers of 2 and the value halfway between the powers of 2.
         auto Size1 = params.MinBucketSize;
+        // Buckets sized smaller than the bucket default size- 8 aren't needed.
+        Size1 = std::max(Size1, MIN_BUCKET_DEFAULT_SIZE);
         auto Size2 = Size1 + Size1 / 2;
         for (; Size2 < CutOff; Size1 *= 2, Size2 *= 2) {
             Buckets.push_back(std::make_unique<Bucket>(Size1, *this));
@@ -381,6 +383,15 @@ Slab::~Slab() {
     } catch (MemoryProviderError &e) {
         std::cout << "DisjointPool: error from memory provider: " << e.code
                   << "\n";
+        if (e.code == UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC) {
+            const char *message = "";
+            int error = 0;
+
+            umfMemoryProviderGetLastNativeError(
+                umfGetLastFailedMemoryProvider(), &message, &error);
+            std::cout << "Native error msg: " << message
+                      << ", native error code: " << error << std::endl;
+        }
     }
 }
 
@@ -885,6 +896,12 @@ umf_result_t DisjointPool::initialize(umf_memory_provider_handle_t *providers,
     if (numProviders != 1 || !providers[0]) {
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
+    // MinBucketSize parameter must be a power of 2 for bucket sizes
+    // to generate correctly.
+    if (!parameters.MinBucketSize ||
+        !((parameters.MinBucketSize & (parameters.MinBucketSize - 1)) == 0)) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
 
     impl = std::make_unique<AllocImpl>(providers[0], parameters);
     return UMF_RESULT_SUCCESS;
@@ -896,7 +913,7 @@ void *DisjointPool::malloc(size_t size) { // For full-slab allocations indicates
     auto Ptr = impl->allocate(size, FromPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Allocated " << std::setw(8) << size << " " << MT
                   << " bytes from " << (FromPool ? "Pool" : "Provider") << " ->"
                   << Ptr << std::endl;
@@ -921,7 +938,7 @@ void *DisjointPool::aligned_malloc(size_t size, size_t alignment) {
     auto Ptr = impl->allocate(size, alignment, FromPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Allocated " << std::setw(8) << size << " " << MT
                   << " bytes aligned at " << alignment << " from "
                   << (FromPool ? "Pool" : "Provider") << " ->" << Ptr
@@ -940,7 +957,7 @@ enum umf_result_t DisjointPool::free(void *ptr) try {
     impl->deallocate(ptr, ToPool);
 
     if (impl->getParams().PoolTrace > 2) {
-        auto MT = impl->getParams().name;
+        const auto &MT = impl->getParams().name;
         std::cout << "Freed " << MT << " " << ptr << " to "
                   << (ToPool ? "Pool" : "Provider")
                   << ", Current total pool size "

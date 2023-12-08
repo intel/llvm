@@ -62,7 +62,7 @@ struct urEnqueueMemImageCopyTest
 
     void TearDown() override {
         if (srcImage) {
-            EXPECT_SUCCESS(urMemRelease(dstImage));
+            EXPECT_SUCCESS(urMemRelease(srcImage));
         }
         if (dstImage) {
             EXPECT_SUCCESS(urMemRelease(dstImage));
@@ -233,6 +233,12 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidNullPtrEventWaitList) {
                                            {0, 0, 0}, size, 0, &validEvent,
                                            nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
+                                           {0, 0, 0}, size, 1, &inv_evt,
+                                           nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
@@ -244,4 +250,64 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
                      urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                            {1, 0, 0}, size, 0, nullptr,
                                            nullptr));
+}
+
+using urEnqueueMemImageCopyMultiDeviceTest =
+    uur::urMultiDeviceMemImageWriteTest;
+
+TEST_F(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
+    ur_mem_handle_t dstImage1D = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
+                                    &desc1D, nullptr, &dstImage1D));
+    ASSERT_SUCCESS(urEnqueueMemImageCopy(queues[0], image1D, dstImage1D, origin,
+                                         origin, region1D, 0, nullptr,
+                                         nullptr));
+
+    ur_mem_handle_t dstImage2D = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
+                                    &desc2D, nullptr, &dstImage2D));
+    ASSERT_SUCCESS(urEnqueueMemImageCopy(queues[0], image2D, dstImage2D, origin,
+                                         origin, region2D, 0, nullptr,
+                                         nullptr));
+
+    ur_mem_handle_t dstImage3D = nullptr;
+    ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
+                                    &desc3D, nullptr, &dstImage3D));
+    ASSERT_SUCCESS(urEnqueueMemImageCopy(queues[0], image3D, dstImage3D, origin,
+                                         origin, region3D, 0, nullptr,
+                                         nullptr));
+
+    // Wait for the queue to finish executing.
+    EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+
+    // The remaining queues do blocking reads from the image1D/2D/3D. Since the
+    // queues target different devices this checks that any devices memory has
+    // been synchronized.
+    for (unsigned i = 1; i < queues.size(); ++i) {
+        const auto queue = queues[i];
+
+        std::vector<uint32_t> output1D(width * 4, 42);
+        ASSERT_SUCCESS(urEnqueueMemImageRead(queue, image1D, true, origin,
+                                             region1D, 0, 0, output1D.data(), 0,
+                                             nullptr, nullptr));
+
+        std::vector<uint32_t> output2D(width * height * 4, 42);
+        ASSERT_SUCCESS(urEnqueueMemImageRead(queue, image2D, true, origin,
+                                             region2D, 0, 0, output2D.data(), 0,
+                                             nullptr, nullptr));
+
+        std::vector<uint32_t> output3D(width * height * depth * 4, 42);
+        ASSERT_SUCCESS(urEnqueueMemImageRead(queue, image3D, true, origin,
+                                             region3D, 0, 0, output3D.data(), 0,
+                                             nullptr, nullptr));
+
+        ASSERT_EQ(input1D, output1D)
+            << "Result on queue " << i << " for 1D image did not match!";
+
+        ASSERT_EQ(input2D, output2D)
+            << "Result on queue " << i << " for 2D image did not match!";
+
+        ASSERT_EQ(input3D, output3D)
+            << "Result on queue " << i << " for 3D image did not match!";
+    }
 }

@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+option(UR_TEST_DEVICES_COUNT "Count of devices on which CTS will be run" 1)
+option(UR_TEST_PLATFORMS_COUNT "Count of platforms on which CTS will be run" 1)
 
 function(add_test_adapter name adapter)
     set(TEST_TARGET_NAME test-${name})
@@ -12,7 +14,7 @@ function(add_test_adapter name adapter)
     add_test(NAME ${TEST_NAME}
         COMMAND ${CMAKE_COMMAND}
         -D TEST_FILE=${Python3_EXECUTABLE}
-        -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${CMAKE_BINARY_DIR}/bin/${TEST_TARGET_NAME}"
+        -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${CMAKE_BINARY_DIR}/bin/${TEST_TARGET_NAME} --test_devices_count=${UR_TEST_DEVICES_COUNT} --test_platforms_count=${UR_TEST_PLATFORMS_COUNT}"
         -D MODE=stdout
         -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match
         -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
@@ -39,25 +41,25 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::common
         GTest::gtest_main)
 
-    if(UR_BUILD_ADAPTER_CUDA)
+    if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_cuda)
     endif()
-    if(UR_BUILD_ADAPTER_HIP)
+    if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_hip)
     endif()
-    if(UR_BUILD_ADAPTER_L0)
+    if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_level_zero)
     endif()
-    if(UR_BUILD_ADAPTER_OPENCL)
+    if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_opencl)
     endif()
-    if(UR_BUILD_ADAPTER_NATIVE_CPU)
+    if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_native_cpu)
     endif()
 
     if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
             OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
-            OR UR_BUILD_ADAPTER_NATIVE_CPU))
+            OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL))
         add_test_adapter(${name} adapter_null)
     endif()
 endfunction()
@@ -82,7 +84,7 @@ endfunction()
 
 add_subdirectory(testing)
 
-add_subdirectory(runtime)
+add_subdirectory(adapter)
 add_subdirectory(platform)
 add_subdirectory(device)
 add_subdirectory(context)

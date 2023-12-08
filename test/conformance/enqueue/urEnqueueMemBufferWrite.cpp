@@ -61,6 +61,12 @@ TEST_P(urEnqueueMemBufferWriteTest, InvalidNullPtrEventWaitList) {
                                              input.data(), 0, &validEvent,
                                              nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
+                                             input.data(), 1, &inv_evt,
+                                             nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 TEST_P(urEnqueueMemBufferWriteTest, InvalidSize) {
