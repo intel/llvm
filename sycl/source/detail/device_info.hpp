@@ -722,7 +722,6 @@ struct get_device_info_impl<
   get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
-    using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
     backend CurrentBackend = Dev->getBackend();
     architecture DeviceArch = get_device_info_impl<
         ext::oneapi::experimental::architecture,
@@ -816,7 +815,7 @@ struct get_device_info_impl<
           if (Item.second == arch)
             return Item.first;
         }
-        throw; 
+        throw;
       };
       float ComputeCapability = std::stof(GetArchNum(DeviceArch));
       std::vector<combination> sm_70_combinations = {
