@@ -10,14 +10,14 @@ set(UR_HIP_PLATFORM "AMD" CACHE STRING "UR HIP platform, AMD or NVIDIA")
 
 # Set default ROCm installation directory
 set(UR_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
-
-set(UR_HIP_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/include")
-
+# Allow custom location of HIP/HSA include and HIP library directories
+set(UR_HIP_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/include" CACHE FILEPATH
+  "Custom ROCm HIP include dir")
 set(UR_HIP_HSA_INCLUDE_DIRS
-    "${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include")
-
-# Set HIP lib dir
-set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/lib")
+  "${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include" CACHE FILEPATH
+  "Custom ROCm HSA include dir")
+set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/lib" CACHE FILEPATH
+  "Custom ROCm HIP library dir")
 
 # Check if HIP library path exists (AMD platform only)
 if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
