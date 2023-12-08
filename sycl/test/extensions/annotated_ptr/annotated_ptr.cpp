@@ -16,8 +16,7 @@ using annotated_ptr_t1 =
                                            dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int, decltype(properties(buffer_location<0>, register_map,
-                                           alignment<8>))>;
+    annotated_ptr<int, decltype(properties(buffer_location<0>, register_map))>;
 
 using annotated_ptr_t3 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>))>;
@@ -144,11 +143,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(annotated_ptr_t2::has_property<latency_key>() == false,
                 "has_property 2");
 
-  static_assert(annotated_ptr_t2::has_property<alignment_key>(),
-                "has_property 3");
-
-  static_assert(annotated_ptr_t2::get_property<alignment_key>() == alignment<8>,
-                "get_property 3");
   // auto dwidth_prop = annotated_ptr_t3::get_property<dwidth_key>();   // ERR
 
   q.submit([&](handler &h) { h.single_task(MyIP{raw, 5}); }).wait();
@@ -168,6 +162,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   annotated_ptr<test> non_trivially_copyable;
 
   annotated_ptr<void> void_type;
+
+  // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement '!hasAlignment': The alignment property is not supported in annotated_ptr class in oneAPI 2024.1.}}
+  annotated_ptr<int, decltype(properties(alignment<1>))> x;
 
   free(raw, q);
 }
