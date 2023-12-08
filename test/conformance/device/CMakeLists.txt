@@ -9,6 +9,7 @@ add_conformance_test_with_platform_environment(device
     urDeviceGetGlobalTimestamps.cpp
     urDeviceGetInfo.cpp
     urDeviceGetNativeHandle.cpp
+    urDeviceGetSelected.cpp
     urDevicePartition.cpp
     urDeviceRelease.cpp
     urDeviceRetain.cpp

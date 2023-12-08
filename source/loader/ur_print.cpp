@@ -2523,6 +2523,14 @@ ur_result_t urPrintDeviceGetParams(const struct ur_device_get_params_t *params,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintDeviceGetSelectedParams(
+    const struct ur_device_get_selected_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintDeviceGetInfoParams(const struct ur_device_get_info_params_t *params,
                            char *buffer, const size_t buff_size,

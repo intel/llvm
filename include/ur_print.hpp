@@ -909,6 +909,9 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP";
         break;
+    case UR_FUNCTION_DEVICE_GET_SELECTED:
+        os << "UR_FUNCTION_DEVICE_GET_SELECTED";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -16283,6 +16286,48 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_get_selected_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_device_get_selected_params_t *params) {
+
+    os << ".hPlatform = ";
+
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
+
+    os << ", ";
+    os << ".DeviceType = ";
+
+    os << *(params->pDeviceType);
+
+    os << ", ";
+    os << ".NumEntries = ";
+
+    os << *(params->pNumEntries);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pNumEntries; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNumDevices = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppNumDevices));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_get_info_params_t type
 /// @returns
 ///     std::ostream &
@@ -17079,6 +17124,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_DEVICE_GET: {
         os << (const struct ur_device_get_params_t *)params;
+    } break;
+    case UR_FUNCTION_DEVICE_GET_SELECTED: {
+        os << (const struct ur_device_get_selected_params_t *)params;
     } break;
     case UR_FUNCTION_DEVICE_GET_INFO: {
         os << (const struct ur_device_get_info_params_t *)params;
