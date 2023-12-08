@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//==- bfloat16_vector_plus_eq_scalar.cpp.cpp - Test for bfloat16 operators -==//
+//= bfloat16_half_vector_plus_eq_scalar.cpp - Test for bfloat16 operators =//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -51,45 +51,52 @@ template <typename T> ESIMD_NOINLINE bool test(queue Q) {
      }
    }).wait();
 
-  bool returnValue = true;
+  bool ReturnValue = true;
   for (int i = 0; i < N; ++i) {
     if (Mem[i] != TOne + TTen) {
-      returnValue = false;
+      ReturnValue = false;
       break;
     }
     if (Mem[i + N] != TOne - TTen) {
-      returnValue = false;
+      ReturnValue = false;
       break;
     }
     if (Mem[i + 2 * N] != TOne * TTen) {
-      returnValue = false;
+      ReturnValue = false;
       break;
     }
     if (!((Mem[i + 3 * N] == (TOne / TTen)) ||
           (std::abs((double)(Mem[i + 3 * N] - (TOne / TTen)) /
                     (double)(TOne / TTen)) <= 0.001))) {
-      returnValue = false;
+      ReturnValue = false;
       break;
     }
   }
 
   free(Mem, Q);
-  return returnValue;
+  return ReturnValue;
 }
 
 int main() {
   queue Q;
-  std::cout << "Running on " << Q.get_device().get_info<info::device::name>()
-            << "\n";
+  esimd_test::printTestLabel(Q);
+
+  bool SupportsHalf = Q.get_device().has(aspect::fp16);
 
   bool Passed = true;
   Passed &= test<int>(Q);
   Passed &= test<float>(Q);
-  Passed &= test<sycl::half>(Q);
-  // TODO: Reenable once the issue with bfloat16 is resolved
-  // Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
-  Passed &= test<sycl::ext::intel::experimental::esimd::tfloat32>(Q);
+  if (SupportsHalf) {
+    Passed &= test<sycl::half>(Q);
+  }
 
+#ifdef USE_BF16
+// TODO: Reenable once the issue with bfloat16 is resolved
+// Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
+#endif
+#ifdef USE_TF32
+  Passed &= test<sycl::ext::intel::experimental::esimd::tfloat32>(Q);
+#endif
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }
