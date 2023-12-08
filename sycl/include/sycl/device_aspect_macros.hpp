@@ -299,7 +299,7 @@
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 55)
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 58)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__ 0
 #endif
 
@@ -594,6 +594,6 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 53)
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 58)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__ 0
 #endif
