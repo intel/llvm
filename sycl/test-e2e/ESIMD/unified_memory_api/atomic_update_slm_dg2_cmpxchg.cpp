@@ -1,4 +1,4 @@
-//==------- atomic_update_usm_pvc_cmpxchg.cpp- DPC++ ESIMD on-device test --==//
+//==----- atomic_update_slm_dg2_cmpxchg.cpp -- DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #define CMPXCHG_TEST
 
-#include "atomic_update_usm_pvc.cpp"
+#include "atomic_update_slm_dg2.cpp"
