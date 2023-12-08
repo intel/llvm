@@ -96,9 +96,8 @@ __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
       ContextImpl->getHandleRef(), Ptr, NumBytes, AccessFlags);
 }
 
-__SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
-                                                  size_t NumBytes,
-                                                  const context &SyclContext) {
+__SYCL_EXPORT address_access_mode
+get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();

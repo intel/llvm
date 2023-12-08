@@ -2186,10 +2186,11 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
 /// \param param_value_size is the size of the result in bytes.
 /// \param param_value is the result.
 /// \param param_value_size_ret is how many bytes were written.
-__SYCL_EXPORT pi_result piextVirtualMemGranularityGetInfo(
-    pi_context context, pi_device device,
-    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
-    void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result
+piextVirtualMemGranularityGetInfo(pi_context context, pi_device device,
+                                  pi_virtual_mem_granularity_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret);
 
 /// API for creating a physical memory handle that virtual memory can be mapped
 /// to.
@@ -2261,9 +2262,8 @@ __SYCL_EXPORT pi_result piextVirtualMemMap(pi_context context, const void *ptr,
 ///        currently mapped.
 /// \param ptr is the pointer to the start of the virtual memory range.
 /// \param range_size is the size of the virtual address range in bytes.
-__SYCL_EXPORT pi_result piextVirtualMemUnmap(pi_context context,
-                                             const void *ptr,
-                                             size_t range_size);
+__SYCL_EXPORT pi_result
+piextVirtualMemUnmap(pi_context context, const void *ptr, size_t range_size);
 
 /// API for setting the access mode of a mapped virtual memory range.
 ///
