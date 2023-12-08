@@ -4182,31 +4182,13 @@ atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
 ///               simd<T, N> src0, props = {});                  // (usm-au1-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (usm-au1-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-5)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               props = {});                                   // (usm-au1-6)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-7)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (usm-au1-8)
 ///
 
 /// simd<T, N>
@@ -4332,7 +4314,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// simd<T, N>
 /// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-5)
+///               simd_mask<N> mask, props = {});                // (usm-au1-3)
 ///
 /// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object.
@@ -4371,7 +4353,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// simd<T, N>
 /// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
-///               props = {});                                   // (usm-au1-6)
+///               props = {});                                   // (usm-au1-4)
 ///
 /// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object and no mask operand.
@@ -4404,47 +4386,6 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-7)
-///
-/// A variation of \c atomic_update API with byte_offset and src0 represented as
-/// \c simd_view objects.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset, typename ViewedTy,
-          typename OffsetRegionTy, typename RegionTy,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
-              simd_view<ViewedTy, RegionTy> src0, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -4490,67 +4431,13 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd_mask<N> mask) {
 ///               props = {});                                  // (usm-au2-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-5)
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-6)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-7)
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-8)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-9)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-10)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-11)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-12)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-13)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-14)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-15)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-16)
 ///
 
 /// simd<T, N>
@@ -4653,7 +4540,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// simd<T, N>
 /// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-9)
+///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 ///
 /// @tparam Op The atomic operation - can be one of the following:
 ///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
@@ -4688,7 +4575,7 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 /// simd<T, N>
 /// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-10)
+///               props = {})                                   // (usm-au2-4)
 ///
 /// @tparam Op The atomic operation - can be one of the following:
 ///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
