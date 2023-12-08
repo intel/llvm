@@ -2965,6 +2965,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::Barrier:
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
@@ -2973,11 +2974,14 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     // All dependencies should be already enqueued by our scheduler and wait list must be empty even if we add MLastEvent to the deps. Empty wait list enables the rigth barrier work scenario.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
+    
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   case CG::CGTYPE::BarrierWaitlist: {
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
@@ -2988,6 +2992,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], Event);
+    
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   }

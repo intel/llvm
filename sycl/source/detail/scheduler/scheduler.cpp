@@ -491,8 +491,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       // update self-event status
       CmdEvent->setComplete();
     }
-    Cmd->getQueue()->removeHostTaskFromDeps(CmdEvent);
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    Cmd->getQueue()->revisitNotEnqueuedCommandsState();
   }
   cleanupCommands(ToCleanUp);
 }

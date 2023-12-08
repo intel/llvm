@@ -709,16 +709,27 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
-  void removeHostTaskFromDeps(const EventImplPtr& CompletedEvent)
+  // Helps to manage host tasks presence in scenario with barrier usage. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not neede for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr& EnqueuedBarrierEvent)
   {
+    if (MIsInorder)
+      return;
     std::lock_guard<std::mutex> Lock{MMutex};
-    if (!MHostTasksToBlockBarrier.empty())
+    if (MLastBarrier == EnqueuedBarrierEvent)
     {
-      MHostTasksToBlockBarrier.erase(std::remove_if(MHostTasksToBlockBarrier.begin(), 
-                              MHostTasksToBlockBarrier.end(),
-                              [&CompletedEvent](const EventImplPtr& Event) { return CompletedEvent == Event; }),
-               MHostTasksToBlockBarrier.end());
+      MLastBarrier = nullptr;
+      MNotEnqueuedCmdEvents.clear();
     }
+  }
+  // Called on host task completion that could block some kernels from enqueue. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not neede for in order ones.
+  void revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask)
+  {
+    if (MIsInorder)
+      return;
+    std::lock_guard<std::mutex> Lock{MMutex};
+    if (MNotEnqueuedCmdEvents.empty())
+      return;
+    MNotEnqueuedCmdEvents.erase(std::remove_if(MNotEnqueuedCmdEvents.begin(), MNotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->producesPiEvent() && CommandEvent->enqueued()); }), MNotEnqueuedCmdEvents.end());
   }
 
 protected:
@@ -751,38 +762,23 @@ protected:
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
     {
-      // We need to store host task and barrier events to provide proper barrier vs host tasks synchronization.
-      // Not completed host tasks should be explicitly added as barrier dependency.
-      // Host task will try to erase itself from the storage on its completion in Scheduler::notifyHostTaskCompletion.
-      // WRONG! // Barrier should also have dependency on previous barrier
-      // BarrierWaitList already has dependencies set and no need to extra events to be added.
-      if (Type == CG::Barrier)
-      {
-        if (!MHostTasksToBlockBarrier.empty())
-          Handler.depends_on(MHostTasksToBlockBarrier);
-        // WRONG! NOT ENOUGH!
-        if (MLastBarrier && !MLastBarrier->getHandleRef())
-          Handler.depends_on(MLastBarrier);
-      }
-      else if (MLastBarrier)
-      {
-        // Barrier should be explicitly added as pi task dependency if it is not enqueued.
-        // Barrier should be explicitly asses as host task dependency if it is not completed.
-        if (Type == CG::CodeplayHostTask? !MLastBarrier->isCompleted() : !MLastBarrier->getHandleRef())
-          Handler.depends_on(MLastBarrier);
-      }
+      //HOW to Support Graph
 
+      // The following code supports barrier synchronization if host task is involve to the scenario.
+      // Native barriers could not handle host task dependency so in case if some commands was not enqueued - blocked we track them to prevent barrier to be enqueued earlier.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      if (Type == CG::Barrier && !MNotEnqueuedCmdEvents.empty())
+      {
+        Handler.depends_on(MNotEnqueuedCmdEvents);
+      }
+      if (MLastBarrier->enqueued())
+        Handler.depends_on(MLastBarrier);
       EventRet = Handler.finalize();
-      if (Type == CG::CodeplayHostTask)
-      {
-        std::lock_guard<std::mutex> Lock{MMutex};
-        MHostTasksToBlockBarrier.push_back(getSyclObjImpl(EventRet));
-      }
-      else if ((Type == CG::Barrier) || (Type == CG::BarrierWaitlist))
-      {
-        std::lock_guard<std::mutex> Lock{MMutex};
-        MLastBarrier = getSyclObjImpl(EventRet);
-      }
+      if (!EventRet->enqueued() || Type == CG::CodeplayHostTask)
+        MNotEnqueuedCmdEvents.push_back(EventRet);
+      if (Type == CG::Barrier || Type == CG::BarrierWaitlist)
+        MLastBarrier = EventRet;
+        MNotEnqueuedCmdEvents.clear();
     }
   }
 
@@ -910,7 +906,7 @@ protected:
   // Protected by common queue object mutex MMutex.
   EventImplPtr MGraphLastEventPtr;
   
-  std::vector<EventImplPtr> MHostTasksToBlockBarrier;
+  std::vector<EventImplPtr> MNotEnqueuedCmdEvents;
   EventImplPtr MLastBarrier;
 
   const bool MIsInorder;
