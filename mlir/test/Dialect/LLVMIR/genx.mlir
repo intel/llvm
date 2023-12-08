@@ -94,14 +94,14 @@ llvm.func @genx.dpas(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<32xi8>)
   llvm.return
 }
 
-func.func @genx.2Dblockload(%ptr : !llvm.ptr<f16>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
-  // CHECK: %0 = genx.matrix.2Dblockload %arg0, %arg1, %arg2, %arg3, %arg4, %arg5 {elem_size_in_bits = 16 : i32, tile_height = 16 : i32, tile_width = 16 : i32, transpose = false, v_blocks = 1 : i32, vnni_transform = false} : (!llvm.ptr<f16>, i32, i32, i32, i32, i32) -> vector<16xf16>
-  %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=16:i32, tile_width=16:i32, tile_height=16:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f16>, i32, i32, i32, i32, i32) -> vector<16xf16>
+func.func @genx.2Dblockload(%ptr : !llvm.ptr, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
+  // CHECK: %0 = genx.matrix.2Dblockload %arg0, %arg1, %arg2, %arg3, %arg4, %arg5 {elem_size_in_bits = 16 : i32, tile_height = 16 : i32, tile_width = 16 : i32, transpose = false, v_blocks = 1 : i32, vnni_transform = false} : (!llvm.ptr, i32, i32, i32, i32, i32) -> vector<16xf16>
+  %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=16:i32, tile_width=16:i32, tile_height=16:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr, i32, i32, i32, i32, i32) -> vector<16xf16>
   llvm.return
 }
 
-func.func @genx.2Dblockstore(%ptr : !llvm.ptr<f32>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<8xf32>) {
-  // CHECK: genx.matrix.2Dblockstore %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6 {elem_size_in_bits = 32 : i32, tile_height = 8 : i32, tile_width = 8 : i32, transpose = false, v_blocks = 1 : i32, vnni_transform = false} : (!llvm.ptr<f32>, i32, i32, i32, i32, i32, vector<8xf32>)
-  genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=8:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f32>, i32, i32, i32, i32, i32, vector<8xf32>)
+func.func @genx.2Dblockstore(%ptr : !llvm.ptr, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<8xf32>) {
+  // CHECK: genx.matrix.2Dblockstore %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6 {elem_size_in_bits = 32 : i32, tile_height = 8 : i32, tile_width = 8 : i32, transpose = false, v_blocks = 1 : i32, vnni_transform = false} : (!llvm.ptr, i32, i32, i32, i32, i32, vector<8xf32>)
+  genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=8:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr, i32, i32, i32, i32, i32, vector<8xf32>)
   llvm.return
 }

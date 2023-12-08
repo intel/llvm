@@ -164,12 +164,8 @@ static LogicalResult verifyInput(Op op) {
 
   uint32_t TileWidth = op.getTileWidth();
   uint32_t TileHeight = op.getTileHeight();
-  Type InputElemType = op.getPtr().getType().getElementType();
   switch (op.getElemSizeInBits()) {
     case 32:
-    if (!InputElemType.isF32())
-      return op->emitOpError(
-         "element of size 32 should be of type bf32 or f32");
     if (TileWidth != 8)
       return op->emitOpError("tile_width for 32 bit elements should be equal "
                                "to systolic depth, i.e., 8 elements");
@@ -178,9 +174,6 @@ static LogicalResult verifyInput(Op op) {
       break;
 
     case 16:
-    if (!InputElemType.isF16() && !InputElemType.isBF16())
-      return op->emitOpError(
-          "element of size 16 should be of type bf16 or f16");
     if (TileWidth != 16)
       return op->emitOpError("tile_width for 16 bit elements should be equal "
                                "to systolic depth times 2, i.e., 16 elements");
@@ -189,9 +182,6 @@ static LogicalResult verifyInput(Op op) {
       break;
 
     case 8:
-    if (!InputElemType.isInteger(8))
-      return op->emitOpError(
-          "element of size 8 should be of type int8 or uint8");
     if (TileWidth != 32)
       return op->emitOpError("tile_width for 8 bit elements should be equal "
                                "to systolic depth times 4, i.e., 32 elements");
