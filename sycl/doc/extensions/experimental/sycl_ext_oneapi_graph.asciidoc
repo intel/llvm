@@ -1292,11 +1292,8 @@ which is layered ontop of `sycl_ext_oneapi_graph`.
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
 
 ==== sycl_ext_oneapi_prod
 
