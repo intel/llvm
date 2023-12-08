@@ -661,7 +661,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
-   auto  KenelNameStringHash = KernelCG->MKenelNameStringHash;
+    auto KenelNameStringHash = KernelCG->MKenelNameStringHash;
     if (KernelName.empty()) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
@@ -748,8 +748,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName, KenelNameStringHash,ArgDescriptor, JITCompilerNDR,
-                                 BinInfo);
+    InputKernelInfo.emplace_back(KernelName, KenelNameStringHash, ArgDescriptor,
+                                 JITCompilerNDR, BinInfo);
     InputKernelNames.push_back(KernelName);
 
     // Collect information for the fused kernel
@@ -889,8 +889,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, FusedKernelInfo.KenelNameStringHash,{}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig));
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name,
+      FusedKernelInfo.KenelNameStringHash, {}, {}, CG::CGTYPE::Kernel,
+      KernelCacheConfig));
   return FusedCG;
 }
 

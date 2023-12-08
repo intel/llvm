@@ -178,7 +178,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,std::size_t KenelNameStringHash,
+               std::string KernelName, std::size_t KenelNameStringHash,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
@@ -188,7 +188,9 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)),MKenelNameStringHash(std::move(KenelNameStringHash)),MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)),
+        MKenelNameStringHash(std::move(KenelNameStringHash)),
+        MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");
@@ -198,9 +200,7 @@ public:
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
-  std::size_t getKenelNameStringHash() {
-    return MKenelNameStringHash;
-  }
+  std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
 
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;

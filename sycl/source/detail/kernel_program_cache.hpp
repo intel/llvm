@@ -21,9 +21,9 @@
 #include <mutex>
 #include <type_traits>
 
+#include <boost/container_hash/hash.hpp>
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>
-#include <boost/container_hash/hash.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -99,34 +99,32 @@ public:
   using KernelFastCacheKeyT =
       std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string>;
 
-// Wrapper for the cache key tuple with precomputed hash
-struct CachedKernelKey {
-  KernelFastCacheKeyT originalKey;
-  std::size_t precomputedHash;
-  
+  // Wrapper for the cache key tuple with precomputed hash
+  struct CachedKernelKey {
+    KernelFastCacheKeyT originalKey;
+    std::size_t precomputedHash;
+
     // Constructor to initialize both the key and the hash
-     CachedKernelKey(const KernelFastCacheKeyT& key)
+    CachedKernelKey(const KernelFastCacheKeyT &key)
         : originalKey(key), precomputedHash(0) {}
 
-  bool operator==(const CachedKernelKey& other) const {
-        return true;
+    bool operator==(const CachedKernelKey &other) const { return true; }
+    // Setter function to update precomputedHash
+    void setPrecomputedHash(std::size_t hash) { precomputedHash = hash; }
+  };
+
+  struct KeyHasher {
+    std::size_t operator()(const CachedKernelKey &k) const {
+      std::size_t combinedHash = k.precomputedHash;
+      ::boost::hash_combine(combinedHash,
+                            ::boost::hash_value((std::get<0>(
+                                k.originalKey)))); // hash of SerializedObj
+      ::boost::hash_combine(
+          combinedHash, ::boost::hash_value(
+                            (std::get<1>(k.originalKey)))); // hash of PiDevice
+      return combinedHash;
     }
-  // Setter function to update precomputedHash
-  void setPrecomputedHash(std::size_t hash) {
-    precomputedHash = hash;
-  }
-};
-
-struct KeyHasher
-{
-  std::size_t operator()(const CachedKernelKey& k) const {
-  std::size_t combinedHash = k.precomputedHash;
-    ::boost::hash_combine(combinedHash, ::boost::hash_value((std::get<0>(k.originalKey)))); // hash of SerializedObj
-    ::boost::hash_combine(combinedHash, ::boost::hash_value ((std::get<1>(k.originalKey)))); // hash of PiDevice
-    return combinedHash;
-}
-
-};
+  };
 
   using KernelFastCacheValT =
       std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
@@ -137,7 +135,8 @@ struct KeyHasher
   // higher overhead of insertion that comes with unordered_flat_map is more
   // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<CachedKernelKey, KernelFastCacheValT, KeyHasher>;
+      ::boost::unordered_flat_map<CachedKernelKey, KernelFastCacheValT,
+                                  KeyHasher>;
 
   ~KernelProgramCache();
 
