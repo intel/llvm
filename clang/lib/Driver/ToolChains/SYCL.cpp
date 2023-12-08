@@ -1088,7 +1088,8 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
-        if (A->getValues().size() == 1) {
+        if (Opt.getID() == options::OPT_fsanitize_EQ &&
+            A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
           if (SanitizeVal == "address") {
             if (IsNewDAL)
