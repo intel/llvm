@@ -506,7 +506,7 @@ Value *replaceByNewAlloca(Argument *Arg, unsigned AS,
   auto *Alloca = Builder.CreateAlloca(
       Builder.getInt8Ty(), ArgAS,
       Builder.getInt64(PromInfo.LocalSize * PromInfo.ElemSize));
-  Alloca->setAlignment(Align{PromInfo.ElemSize});
+  Alloca->setAlignment(Arg->getParamAlign().valueOrOne());
   Arg->replaceAllUsesWith(Alloca);
   Alloca->mutateType(Builder.getPtrTy(AS));
   return Alloca;
