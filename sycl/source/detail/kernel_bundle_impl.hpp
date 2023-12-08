@@ -369,8 +369,7 @@ public:
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     Plugin->call<PiApiKind::piProgramCreate>(
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
-
-    Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
+    // program created by piProgramCreate is implicitly retained.
 
     std::vector<pi::PiDevice> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -437,8 +436,7 @@ public:
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     sycl::detail::pi::PiKernel PiKernel = nullptr;
     Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
-
-    Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
+    // Kernel created by piKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         PiKernel, detail::getSyclObjImpl(MContext), Self);

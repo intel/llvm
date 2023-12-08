@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fe5bc760d0a9fa28247d3f0b57c20114f02eda49
-  # Merge: 47af3ee2 3e1f1636
+  # commit e69ed21468e04ed6e832accf162422ed11736446
+  # Merge: 20fa0b5f 7fd9dafd
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Dec 1 11:21:41 2023 +0000
-  #     Merge pull request #1102 from hdelan/adapter-batch1
-  #     [HIP] Adapter PR batch
-  set(UNIFIED_RUNTIME_TAG fe5bc760d0a9fa28247d3f0b57c20114f02eda49)
+  # Date:   Fri Dec 8 12:18:51 2023 +0000
+  #     Merge pull request #962 from jandres742/fixwaitbarrierwithevent
+  #     [UR][L0] Correctly wait on barrier on urEnqueueEventsWaitWithBarrier
+  set(UNIFIED_RUNTIME_TAG e69ed21468e04ed6e832accf162422ed11736446)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
