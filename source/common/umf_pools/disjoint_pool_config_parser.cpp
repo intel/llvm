@@ -61,7 +61,7 @@ DisjointPoolAllConfigs::DisjointPoolAllConfigs() {
 }
 
 DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
-                                               bool trace) {
+                                               int trace) {
     DisjointPoolAllConfigs AllConfigs;
 
     // TODO: replace with UR ENV var parser and avoid creating a copy of 'config'

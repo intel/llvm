@@ -64,7 +64,7 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
                                  ? PoolUrTraceVal
                                  : (PoolPiTraceVal ? PoolPiTraceVal : nullptr);
 
-  bool PoolTrace = false;
+  int PoolTrace = 0;
   if (PoolTraceVal != nullptr) {
     PoolTrace = std::atoi(PoolTraceVal);
   }
