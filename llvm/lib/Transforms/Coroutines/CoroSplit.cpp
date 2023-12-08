@@ -529,13 +529,20 @@ void CoroCloner::handleFinalSuspend() {
     BasicBlock *OldSwitchBB = Switch->getParent();
     auto *NewSwitchBB = OldSwitchBB->splitBasicBlock(Switch, "Switch");
     Builder.SetInsertPoint(OldSwitchBB->getTerminator());
-    auto *GepIndex = Builder.CreateStructGEP(Shape.FrameTy, NewFramePtr,
-                                       coro::Shape::SwitchFieldIndex::Resume,
-                                             "ResumeFn.addr");
-    auto *Load = Builder.CreateLoad(Shape.getSwitchResumePointerType(),
-                                    GepIndex);
-    auto *Cond = Builder.CreateIsNull(Load);
-    Builder.CreateCondBr(Cond, ResumeBB, NewSwitchBB);
+
+    if (NewF->isCoroOnlyDestroyWhenComplete()) {
+      // When the coroutine can only be destroyed when complete, we don't need
+      // to generate code for other cases.
+      Builder.CreateBr(ResumeBB);
+    } else {
+      auto *GepIndex = Builder.CreateStructGEP(
+          Shape.FrameTy, NewFramePtr, coro::Shape::SwitchFieldIndex::Resume,
+          "ResumeFn.addr");
+      auto *Load =
+          Builder.CreateLoad(Shape.getSwitchResumePointerType(), GepIndex);
+      auto *Cond = Builder.CreateIsNull(Load);
+      Builder.CreateCondBr(Cond, ResumeBB, NewSwitchBB);
+    }
     OldSwitchBB->getTerminator()->eraseFromParent();
   }
 }
@@ -1474,10 +1481,9 @@ static void handleNoSuspendCoroutine(coro::Shape &Shape) {
       IRBuilder<> Builder(AllocInst);
       auto *Frame = Builder.CreateAlloca(Shape.FrameTy);
       Frame->setAlignment(Shape.FrameAlign);
-      auto *VFrame = Builder.CreateBitCast(Frame, Builder.getInt8PtrTy());
       AllocInst->replaceAllUsesWith(Builder.getFalse());
       AllocInst->eraseFromParent();
-      CoroBegin->replaceAllUsesWith(VFrame);
+      CoroBegin->replaceAllUsesWith(Frame);
     } else {
       CoroBegin->replaceAllUsesWith(CoroBegin->getMem());
     }

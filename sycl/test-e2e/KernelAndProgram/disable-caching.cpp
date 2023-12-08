@@ -2,9 +2,9 @@
 // if and only if caching is disabled.
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
+// RUN: env ZE_DEBUG=-6 SYCL_PI_TRACE=-1 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
 // RUN: | FileCheck %s
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out \
+// RUN: env ZE_DEBUG=-6 SYCL_PI_TRACE=-1 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
 #include <sycl/sycl.hpp>
 
@@ -25,8 +25,10 @@ int main() {
 
   // CHECK-CACHE: piProgramCreate
   // CHECK-CACHE: piProgramRetain
+  // CHECK-CACHE-NOT: piProgramRetain
   // CHECK-CACHE: piKernelCreate
   // CHECK-CACHE: piKernelRetain
+  // CHECK-CACHE-NOT: piKernelCreate
   // CHECK-CACHE: piEnqueueKernelLaunch
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
@@ -44,8 +46,10 @@ int main() {
 
   // CHECK-CACHE: piProgramCreate
   // CHECK-CACHE: piProgramRetain
+  // CHECK-CACHE-NOT: piProgramRetain
   // CHECK-CACHE: piKernelCreate
   // CHECK-CACHE: piKernelRetain
+  // CHECK-CACHE-NOT: piKernelCreate
   // CHECK-CACHE: piEnqueueKernelLaunch
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
@@ -62,8 +66,10 @@ int main() {
 
   // CHECK-CACHE: piProgramCreate
   // CHECK-CACHE: piProgramRetain
+  // CHECK-CACHE-NOT: piProgramRetain
   // CHECK-CACHE: piKernelCreate
   // CHECK-CACHE: piKernelRetain
+  // CHECK-CACHE-NOT: piKernelCreate
   // CHECK-CACHE: piEnqueueKernelLaunch
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
@@ -82,6 +88,8 @@ int main() {
 
 // (Program cache releases)
 // CHECK-CACHE: piKernelRelease
-// CHECK-CACHE: piProgramRelease
 // CHECK-CACHE: piKernelRelease
+// CHECK-CACHE: piKernelRelease
+// CHECK-CACHE: piProgramRelease
+// CHECK-CACHE: piProgramRelease
 // CHECK-CACHE: piProgramRelease

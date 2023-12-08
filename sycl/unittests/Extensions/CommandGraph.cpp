@@ -1458,7 +1458,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //     (B2)
   //     /|\
   //    / | \
-  // (6) (7) (8) (those nodes also have B1 as a predecessor)
+  // (6) (7) (8)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
   for (auto Root : GraphImpl->MRoots) {
     auto Node = Root.lock();
@@ -1468,7 +1468,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
-      ASSERT_EQ(SuccNode->MSuccessors.size(), 6lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
       for (auto Succ1 : SuccNode->MSuccessors) {
         auto SuccBarrier1 = Succ1.lock();
         if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
@@ -1479,7 +1479,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
           for (auto Succ2 : SuccBarrier1->MSuccessors) {
             auto SuccBarrier2 = Succ2.lock();
             // Nodes 6, 7, 8
-            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 2lu);
+            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 1lu);
             ASSERT_EQ(SuccBarrier2->MSuccessors.size(), 0lu);
           }
         } else {
@@ -1718,6 +1718,25 @@ TEST_F(CommandGraphTest, KernelPropertiesExceptionCheck) {
                                                     KernelFunction);
   testSingleTaskProperties<OperationPath::RecordReplay>(Graph, Queue, Props,
                                                         KernelFunction);
+}
+
+TEST_F(CommandGraphTest, USMMemsetShortcutExceptionCheck) {
+
+  const size_t N = 10;
+  unsigned char *Arr = malloc_device<unsigned char>(N, Queue);
+  int Value = 77;
+
+  Graph.begin_recording(Queue);
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Queue.memset(Arr, Value, N);
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  Graph.end_recording(Queue);
 }
 
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
@@ -2035,6 +2054,45 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
   }
   // Graph is now out of scope so we should be able to create a host_accessor
   ASSERT_NO_THROW({ host_accessor HostAcc{Buffer}; });
+}
+
+TEST_F(CommandGraphTest, GraphPartitionsMerging) {
+  // Tests that the parition merging algo works as expected in case of backward
+  // dependencies
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeA)});
+  auto NodeHT1 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeB)});
+  auto NodeC = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT1)});
+  auto NodeD = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeB)});
+  auto NodeHT2 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeD)});
+  auto NodeE = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+  auto NodeF = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+
+  // Backward dependency
+  Graph.make_edge(NodeE, NodeHT1);
+
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto PartitionsList = GraphExecImpl->getPartitions();
+  ASSERT_EQ(PartitionsList.size(), 5ul);
+  ASSERT_FALSE(PartitionsList[0]->isHostTask());
+  ASSERT_TRUE(PartitionsList[1]->isHostTask());
+  ASSERT_FALSE(PartitionsList[2]->isHostTask());
+  ASSERT_TRUE(PartitionsList[3]->isHostTask());
+  ASSERT_FALSE(PartitionsList[4]->isHostTask());
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {

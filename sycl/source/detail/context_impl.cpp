@@ -447,7 +447,7 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
-  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+  KernelProgramCache::ProgramBuildResultPtr BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
@@ -471,12 +471,18 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
       assert(KeyMappingsIt != KeyMap.end());
       auto CachedProgIt = Cache.find(KeyMappingsIt->second);
       assert(CachedProgIt != Cache.end());
-      BuildRes = &CachedProgIt->second;
+      BuildRes = CachedProgIt->second;
     }
   }
   if (!BuildRes)
     return std::nullopt;
-  return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  using BuildState = KernelProgramCache::BuildState;
+  BuildState NewState = BuildRes->waitUntilTransition();
+  if (NewState == BuildState::BS_Failed)
+    throw compile_program_error(BuildRes->Error.Msg, BuildRes->Error.Code);
+
+  assert(NewState == BuildState::BS_Done);
+  return BuildRes->Val;
 }
 
 std::optional<sycl::detail::pi::PiProgram>

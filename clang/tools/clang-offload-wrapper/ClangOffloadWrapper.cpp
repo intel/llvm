@@ -216,16 +216,25 @@ static cl::opt<std::string> DescriptorName(
         "and makes it globally visible"),
     cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
 
-/// batch mode - all input files are grouped in file table files
+// clang-format off
+/// batch mode - All input files are treated as a table file.  One table file per target.
+///            - Table files consist of a table of filenames that provide
+///            - Code, Symbols, Properties, etc.
 static cl::opt<bool> BatchMode(
     "batch", cl::NotHidden, cl::init(false), cl::Optional,
-    cl::desc("All input files are provided as cells in a file table file,\n"
-             "other command-line input files are not allowed.\n"
-             "Example input file table in batch mode:\n"
-             "[Code|Symbols|Properties|Manifest]\n"
-             "a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
-             "a_1.bin|||"),
+    cl::desc("All input files are treated as a table file.  One table file per target.\n"
+             "Table files consist of a table of filenames that provide\n"
+             "Code, Symbols, Properties, etc.\n"
+             "Example input table file in batch mode:\n"
+             "  [Code|Symbols|Properties|Manifest]\n"
+             "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "  a_1.bin|||\n"
+             "Example usage:\n"
+             "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
+             "    -kind=openmp -target=spir64_gen table1.txt\n"
+             "    -kind=openmp -target=spir64     table2.txt"),
     cl::cat(ClangOffloadWrapperCategory));
+// clang-format on
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
@@ -1728,12 +1737,6 @@ int main(int argc, const char **argv) {
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
-  if (BatchMode && Inputs.size() != 1) {
-    reportError(
-        createStringError(errc::invalid_argument,
-                          "batch job table file must be the only input file"));
-    return 1;
-  }
   if (Target.empty()) {
     Target = sys::getProcessTriple();
     if (Verbose)
