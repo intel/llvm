@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit fe5bc760d0a9fa28247d3f0b57c20114f02eda49
-  # Merge: 47af3ee2 3e1f1636
+  # commit ce4acbc4e479c3e8c591f345f7ba30345a8a2a40
+  # Merge: 76aaf05c 28590a82
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Dec 1 11:21:41 2023 +0000
-  #     Merge pull request #1102 from hdelan/adapter-batch1
-  #     [HIP] Adapter PR batch
-  set(UNIFIED_RUNTIME_TAG fe5bc760d0a9fa28247d3f0b57c20114f02eda49)
+  # Date:   Wed Dec 6 17:13:51 2023 +0000
+  #     Merge pull request #1099 from jandres742/largeallocations
+  #     [UR][L0] Unify use of large allocation in L0 adapter
+  set(UNIFIED_RUNTIME_TAG ce4acbc4e479c3e8c591f345f7ba30345a8a2a40)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

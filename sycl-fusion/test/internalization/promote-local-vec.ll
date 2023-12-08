@@ -35,7 +35,7 @@ declare  spir_func void @__itt_offload_wi_finish_stub(ptr addrspace(4) %group_id
 ; Function Attrs: noinline nounwind
 declare spir_func void @__itt_offload_wi_start_stub(ptr addrspace(4) %group_id, i64 %wi_id, i32 %wg_size) #4
 
-define spir_kernel void @fused_0(ptr addrspace(1) align 16 %KernelOne_accTmp, ptr byval(%1) align 8 %KernelOne_accTmp3, ptr addrspace(1) align 16 %KernelOne_accIn1, ptr byval(%1) align 8 %KernelOne_accIn16, ptr addrspace(1) align 16 %KernelOne_accIn2, ptr addrspace(1) align 16 %KernelTwo_accOut, ptr addrspace(1) align 16 %KernelTwo_accIn3) !kernel_arg_addr_space !12 !kernel_arg_access_qual !13 !kernel_arg_type !14 !kernel_arg_type_qual !15 !kernel_arg_base_type !14 !kernel_arg_name !16 !sycl.kernel.promote !17 !sycl.kernel.promote.localsize !18 {
+define spir_kernel void @fused_0(ptr addrspace(1) align 16 %KernelOne_accTmp, ptr byval(%1) align 8 %KernelOne_accTmp3, ptr addrspace(1) align 16 %KernelOne_accIn1, ptr byval(%1) align 8 %KernelOne_accIn16, ptr addrspace(1) align 16 %KernelOne_accIn2, ptr addrspace(1) align 16 %KernelTwo_accOut, ptr addrspace(1) align 16 %KernelTwo_accIn3) !kernel_arg_addr_space !12 !kernel_arg_access_qual !13 !kernel_arg_type !14 !kernel_arg_type_qual !15 !kernel_arg_base_type !14 !kernel_arg_name !16 !sycl.kernel.promote !17 !sycl.kernel.promote.localsize !18 !sycl.kernel.promote.elemsize !19 {
 ; Scenario: Test the successful private internalization of the first pointer
 ; argument. This means, the first pointer argument has been replaced by a
 ; function-local alloca and all accesses have been updated to use this alloca
@@ -147,3 +147,4 @@ attributes #5 = { nounwind }
 !16 = !{!"KernelOne_accTmp", !"KernelOne_accTmp3", !"KernelOne_accIn1", !"KernelOne_accIn16", !"KernelOne_accIn2", !"KernelTwo_accOut", !"KernelTwo_accIn3"}
 !17 = !{!"local", !"none", !"none", !"none", !"none", !"none", !"none"}
 !18 = !{i64 16, !"", !"", !"", !"", !"", !""}
+!19 = !{i64 16, !"", !"", !"", !"", !"", !""}

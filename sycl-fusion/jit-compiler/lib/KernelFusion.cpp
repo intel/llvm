@@ -87,8 +87,9 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes or "
-        "different global sizes in dimensions [2, N) and non-zero offsets"};
+        "Cannot fuse kernels with different offsets or local sizes, or "
+        "different global sizes in dimensions [2, N) and non-zero offsets, "
+        "or those whose fusion would yield non-uniform work-groups sizes"};
   }
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);

@@ -54,6 +54,11 @@ public:
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
 
+  /// Partition number needed to assign a Node to a a partition.
+  /// Note : This number is only used during the partitionning process and
+  /// cannot be used to find out the partion of a node outside of this process.
+  int MPartitionNum = -1;
+
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
@@ -145,13 +150,31 @@ public:
       return createCGCopy<sycl::detail::CGFill2DUSM>();
     case sycl::detail::CG::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
-    case sycl::detail::CG::CodeplayHostTask:
-      assert(false);
-      break;
-      // TODO: Uncomment this once we implement support for host task so we can
-      // test required changes to the CG class.
+    case sycl::detail::CG::CodeplayHostTask: {
+      // The unique_ptr to the `sycl::detail::HostTask` in the HostTask CG
+      // prevents from copying the CG.
+      // We overcome this restriction by creating a new CG with the same data.
+      auto CommandGroupPtr =
+          static_cast<sycl::detail::CGHostTask *>(MCommandGroup.get());
+      sycl::detail::HostTask HostTask = *CommandGroupPtr->MHostTask.get();
+      auto HostTaskUPtr = std::make_unique<sycl::detail::HostTask>(HostTask);
 
-      // return createCGCopy<sycl::detail::CGHostTask>();
+      sycl::detail::CG::StorageInitHelper Data(
+          CommandGroupPtr->getArgsStorage(), CommandGroupPtr->getAccStorage(),
+          CommandGroupPtr->getSharedPtrStorage(),
+          CommandGroupPtr->getRequirements(), CommandGroupPtr->getEvents());
+
+      sycl::detail::code_location Loc(CommandGroupPtr->MFileName.data(),
+                                      CommandGroupPtr->MFunctionName.data(),
+                                      CommandGroupPtr->MLine,
+                                      CommandGroupPtr->MColumn);
+
+      return std::make_unique<sycl::detail::CGHostTask>(
+          sycl::detail::CGHostTask(
+              std::move(HostTaskUPtr), CommandGroupPtr->MQueue,
+              CommandGroupPtr->MContext, CommandGroupPtr->MArgs, Data,
+              CommandGroupPtr->getType(), Loc));
+    }
     case sycl::detail::CG::Barrier:
     case sycl::detail::CG::BarrierWaitlist:
       return createCGCopy<sycl::detail::CGBarrier>();
@@ -251,7 +274,8 @@ public:
     }
 
     for (std::weak_ptr<node_impl> Succ : MSuccessors) {
-      Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+      if (MPartitionNum == Succ.lock()->MPartitionNum)
+        Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
     }
   }
 
@@ -457,6 +481,30 @@ private:
   template <typename CGT> std::unique_ptr<CGT> createCGCopy() const {
     return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
   }
+};
+
+class partition {
+public:
+  /// Constructor.
+  partition() : MSchedule(), MPiCommandBuffers() {}
+
+  /// List of root nodes.
+  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
+      MRoots;
+  /// Execution schedule of nodes in the graph.
+  std::list<std::shared_ptr<node_impl>> MSchedule;
+  /// Map of devices to command buffers.
+  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
+      MPiCommandBuffers;
+
+  /// @return True if the partition contains a host task
+  bool isHostTask() const {
+    return (MRoots.size() && ((*MRoots.begin()).lock()->MCGType ==
+                              sycl::detail::CG::CGTYPE::CodeplayHostTask));
+  }
+
+  /// Add nodes to MSchedule.
+  void schedule();
 };
 
 /// Implementation details of command_graph<modifiable>.
@@ -896,17 +944,19 @@ public:
   /// @param GraphImpl Modifiable graph implementation to create with.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
-      : MSchedule(), MGraphImpl(GraphImpl), MPiCommandBuffers(),
-        MPiSyncPoints(), MContext(Context), MRequirements(),
-        MExecutionEvents() {}
+      : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
+        MRequirements(), MExecutionEvents() {}
 
   /// Destructor.
   ///
   /// Releases any PI command-buffers the object has created.
   ~exec_graph_impl();
 
-  /// Add nodes to MSchedule.
-  void schedule();
+  /// Partition the graph nodes and put the partition in MPartitions.
+  /// The partitioning splits the graph to allow synchronization between
+  /// device events and events that do not run on the same device such as
+  /// host_task.
+  void makePartitions();
 
   /// Called by handler::ext_oneapi_command_graph() to schedule graph for
   /// execution.
@@ -919,7 +969,10 @@ public:
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
   /// @param Device Device to create backend command-buffers for.
-  void createCommandBuffers(sycl::device Device);
+  /// @param Partion Partition to which the created command-buffer should be
+  /// attached.
+  void createCommandBuffers(sycl::device Device,
+                            std::shared_ptr<partition> &Partition);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -934,6 +987,12 @@ public:
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
+  /// Query the vector of the partitions composing the exec_graph.
+  /// @return Vector of partitions in execution order.
+  const std::vector<std::shared_ptr<partition>> &getPartitions() const {
+    return MPartitions;
+  }
 
   /// Checks if the previous submissions of this graph have been completed
   /// This function checks the status of events associated to the previous graph
@@ -977,8 +1036,12 @@ private:
   /// Iterates back through predecessors to find the real dependency.
   /// @param[out] Deps Found dependencies.
   /// @param[in] CurrentNode Node to find dependencies for.
+  /// @param[in] ReferencePartitionNum Number of the partition containing the
+  /// SyncPoint for CurrentNode, otherwise we need to
+  /// synchronize on the host with the completion of previous partitions.
   void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
-                    std::shared_ptr<node_impl> CurrentNode);
+                    std::shared_ptr<node_impl> CurrentNode,
+                    int ReferencePartitionNum);
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
@@ -989,14 +1052,14 @@ private:
   /// This specificity must be taken into account when trying to lock
   /// the graph_impl mutex from an exec_graph_impl to avoid deadlock.
   std::shared_ptr<graph_impl> MGraphImpl;
-  /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
-      MPiCommandBuffers;
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
   std::unordered_map<std::shared_ptr<node_impl>,
                      sycl::detail::pi::PiExtSyncPoint>
       MPiSyncPoints;
+  /// Map of nodes in the exec graph to the partition number to which they
+  /// belong.
+  std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
   /// Context associated with this executable graph.
   sycl::context MContext;
   /// List of requirements for enqueueing this command graph, accumulated from
@@ -1007,6 +1070,8 @@ private:
   std::vector<sycl::detail::AccessorImplPtr> MAccessors;
   /// List of all execution events returned from command buffer enqueue calls.
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
+  /// List of the partitions that compose the exec graph.
+  std::vector<std::shared_ptr<partition>> MPartitions;
 };
 
 } // namespace detail
