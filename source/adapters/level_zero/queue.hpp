@@ -515,6 +515,11 @@ struct ur_queue_handle_t_ : _ur_object {
   // lists in the queue.
   ur_result_t
   insertStartBarrierIfDiscardEventsMode(ur_command_list_ptr_t &CmdList);
+
+  // returns true if queue has profiling enabled
+  bool isProfilingEnabled() {
+    return ((this->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0);
+  }
 };
 
 // This helper function creates a ur_event_handle_t and associate a
