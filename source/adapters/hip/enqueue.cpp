@@ -1532,37 +1532,6 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
-  // If the device does not support managed memory access, we can't set
-  // mem_advise.
-  if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
-    setErrorMessage("mem_advise ignored as device does not support "
-                    " managed memory access",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to hipMemAdvise
-  // on a GPU device requires the GPU device to report a non-zero value for
-  // hipDeviceAttributeConcurrentManagedAccess. Therefore, ignore the mem advice
-  // if concurrent managed memory access is not available.
-  if (advice & (UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION |
-                UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION |
-                UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE |
-                UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE |
-                UR_USM_ADVICE_FLAG_DEFAULT)) {
-    if (!getAttribute(Device, hipDeviceAttributeConcurrentManagedAccess)) {
-      setErrorMessage("mem_advise ignored as device does not support "
-                      "concurrent managed access",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
-
-    // TODO: If pMem points to valid system-allocated pageable memory, we should
-    // check that the device also has the hipDeviceAttributePageableMemoryAccess
-    // property, so that a valid read-only copy can be created on the device.
-    // This also applies for UR_USM_MEM_ADVICE_SET/MEM_ADVICE_CLEAR_READ_MOSTLY.
-  }
-
 #if HIP_VERSION_MAJOR >= 5
   // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while this
   // is feature complete, it is still open to changes and outstanding issues.
@@ -1574,16 +1543,58 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 #endif
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
     ScopedContext Active(Device);
+    std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
       EventPtr->start();
+    }
+
+    // Helper to ensure returning a valid event on early exit.
+    auto releaseEvent = [&EventPtr, &phEvent]() -> void {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    };
+
+    // If the device does not support managed memory access, we can't set
+    // mem_advise.
+    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+      releaseEvent();
+      setErrorMessage("mem_advise ignored as device does not support "
+                      "managed memory access",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to
+    // hipMemAdvise on a GPU device requires the GPU device to report a non-zero
+    // value for hipDeviceAttributeConcurrentManagedAccess. Therefore, ignore
+    // the mem advice if concurrent managed memory access is not available.
+    if (advice & (UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION |
+                  UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION |
+                  UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE |
+                  UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE |
+                  UR_USM_ADVICE_FLAG_DEFAULT)) {
+      if (!getAttribute(Device, hipDeviceAttributeConcurrentManagedAccess)) {
+        releaseEvent();
+        setErrorMessage("mem_advise ignored as device does not support "
+                        "concurrent managed access",
+                        UR_RESULT_SUCCESS);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+
+      // TODO: If pMem points to valid system-allocated pageable memory, we
+      // should check that the device also has the
+      // hipDeviceAttributePageableMemoryAccess property, so that a valid
+      // read-only copy can be created on the device. This also applies for
+      // UR_USM_MEM_ADVICE_SET/MEM_ADVICE_CLEAR_READ_MOSTLY.
     }
 
     const auto DeviceID = Device->get();
@@ -1600,6 +1611,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // currently unmapped advice arguments as not supported by this platform.
       // Therefore, warn the user instead of throwing and aborting the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
+        releaseEvent();
         setErrorMessage("mem_advise is ignored as the advice argument is not "
                         "supported by this device",
                         UR_RESULT_SUCCESS);
@@ -1607,10 +1619,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       }
     }
 
-    if (phEvent) {
-      Result = EventPtr->record();
-      *phEvent = EventPtr.release();
-    }
+    releaseEvent();
   } catch (ur_result_t err) {
     Result = err;
   } catch (...) {
