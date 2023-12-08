@@ -1,3 +1,0 @@
-urSamplerGetNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urSamplerGetNativeHandleTest.InvalidNullHandleSampler/AMD_HIP_BACKEND___{{.*}}_
-urSamplerGetNativeHandleTest.InvalidNullPointerNativeHandle/AMD_HIP_BACKEND___{{.*}}_

@@ -69,9 +69,15 @@ void umfPoolDestroy(umf_memory_pool_handle_t hPool) {
     free(hPool);
 }
 
-enum umf_result_t umfFree(void *ptr) { return UMF_RESULT_ERROR_NOT_SUPPORTED; }
+enum umf_result_t umfFree(void *ptr) {
+    (void)ptr;
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
 
-umf_memory_pool_handle_t umfPoolByPtr(const void *ptr) { return NULL; }
+umf_memory_pool_handle_t umfPoolByPtr(const void *ptr) {
+    (void)ptr;
+    return NULL;
+}
 
 enum umf_result_t
 umfPoolGetMemoryProviders(umf_memory_pool_handle_t hPool, size_t numProviders,

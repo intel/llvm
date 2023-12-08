@@ -24,6 +24,7 @@ struct RefCountContext {
     };
 
     enum RefCountUpdateType {
+        REFCOUNT_CREATE_OR_INCREASE,
         REFCOUNT_CREATE,
         REFCOUNT_INCREASE,
         REFCOUNT_DECREASE,
@@ -31,13 +32,25 @@ struct RefCountContext {
 
     std::mutex mutex;
     std::unordered_map<void *, struct RefRuntimeInfo> counts;
+    int64_t adapterCount = 0;
 
-    void updateRefCount(void *ptr, enum RefCountUpdateType type) {
+    void updateRefCount(void *ptr, enum RefCountUpdateType type,
+                        bool isAdapterHandle = false) {
         std::unique_lock<std::mutex> ulock(mutex);
 
         auto it = counts.find(ptr);
 
         switch (type) {
+        case REFCOUNT_CREATE_OR_INCREASE:
+            if (it == counts.end()) {
+                counts[ptr] = {1, getCurrentBacktrace()};
+                if (isAdapterHandle) {
+                    adapterCount++;
+                }
+            } else {
+                counts[ptr].refCount++;
+            }
+            break;
         case REFCOUNT_CREATE:
             if (it == counts.end()) {
                 counts[ptr] = {1, getCurrentBacktrace()};
@@ -65,6 +78,8 @@ struct RefCountContext {
             if (counts[ptr].refCount < 0) {
                 context.logger.error(
                     "Attempting to release nonexistent handle {}", ptr);
+            } else if (counts[ptr].refCount == 0 && isAdapterHandle) {
+                adapterCount--;
             }
             break;
         }
@@ -75,17 +90,27 @@ struct RefCountContext {
         if (counts[ptr].refCount == 0) {
             counts.erase(ptr);
         }
+
+        // No more active adapters, so any references still held are leaked
+        if (adapterCount == 0) {
+            logInvalidReferences();
+            clear();
+        }
     }
 
   public:
     void createRefCount(void *ptr) { updateRefCount(ptr, REFCOUNT_CREATE); }
 
-    void incrementRefCount(void *ptr) {
-        updateRefCount(ptr, REFCOUNT_INCREASE);
+    void incrementRefCount(void *ptr, bool isAdapterHandle = false) {
+        updateRefCount(ptr, REFCOUNT_INCREASE, isAdapterHandle);
     }
 
-    void decrementRefCount(void *ptr) {
-        updateRefCount(ptr, REFCOUNT_DECREASE);
+    void decrementRefCount(void *ptr, bool isAdapterHandle = false) {
+        updateRefCount(ptr, REFCOUNT_DECREASE, isAdapterHandle);
+    }
+
+    void createOrIncrementRefCount(void *ptr, bool isAdapterHandle = false) {
+        updateRefCount(ptr, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
     }
 
     void clear() { counts.clear(); }

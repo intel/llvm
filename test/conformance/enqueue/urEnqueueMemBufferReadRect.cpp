@@ -176,12 +176,20 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
                                    host_offset, region, size, size, size, size,
                                    dst.data(), 0, &validEvent, nullptr),
         UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferReadRect(queue, buffer, true, buffer_offset,
+                                   host_offset, region, size, size, size, size,
+                                   dst.data(), 1, &inv_evt, nullptr),
+        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 using urEnqueueMemBufferReadRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
 
-TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest, WriteReadDifferentQueues) {
+TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest,
+       WriteRectReadDifferentQueues) {
     // First queue does a blocking write of 42 into the buffer.
     // Then a rectangular write the buffer as 1024x1x1 1D.
     std::vector<uint32_t> input(count, 42);

@@ -1,0 +1,50 @@
+name: Nightly
+
+on:
+  schedule:
+    # Run every day at 23:00 UTC
+    - cron: '0 23 * * *'
+
+jobs:
+  long-fuzz-test:
+    name: Run long fuzz tests
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+        compiler: [{c: clang, cxx: clang++}]
+
+    runs-on: 'ubuntu-22.04'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install pip packages
+      run: pip install -r third_party/requirements.txt
+
+    - name: Download DPC++
+      run: |
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-08-31/sycl_linux.tar.gz
+        mkdir dpcpp_compiler
+        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DUR_ENABLE_TRACING=ON
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_BUILD_TESTS=ON
+        -DUR_USE_ASAN=ON
+        -DUR_USE_UBSAN=ON
+        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+
+    - name: Build
+      run: >
+        LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
+        cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    - name: Fuzz long test
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-long"

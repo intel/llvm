@@ -56,6 +56,12 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
                                            &global_offset, &global_size,
                                            nullptr, 0, &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                           &global_offset, &global_size,
+                                           nullptr, 1, &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
@@ -208,5 +214,51 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
     // verify fill worked
     for (size_t i = 0; i < data.size(); i++) {
         ASSERT_EQ(fill_val, data.at(i));
+    }
+}
+
+struct urEnqueueKernelLaunchMultiDeviceTest : public urEnqueueKernelLaunchTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urEnqueueKernelLaunchTest::SetUp());
+        queues.reserve(uur::DevicesEnvironment::instance->devices.size());
+        for (const auto &device : uur::DevicesEnvironment::instance->devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(this->context, device, 0, &queue));
+            queues.push_back(queue);
+        }
+    }
+
+    void TearDown() override {
+        for (const auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urEnqueueKernelLaunchTest::TearDown());
+    }
+
+    std::vector<ur_queue_handle_t> queues;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchMultiDeviceTest);
+
+TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
+    ur_mem_handle_t buffer = nullptr;
+    AddBuffer1DArg(sizeof(val) * global_size, &buffer);
+    AddPodArg(val);
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, n_dimensions,
+                                         &global_offset, &global_size, nullptr,
+                                         0, nullptr, nullptr));
+
+    // Wait for the queue to finish executing.
+    EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+
+    // Then the remaining queues do blocking reads from the buffer. Since the
+    // queues target different devices this checks that any devices memory has
+    // been synchronized.
+    for (unsigned i = 1; i < queues.size(); ++i) {
+        const auto queue = queues[i];
+        uint32_t output = 0;
+        ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0,
+                                              sizeof(output), &output, 0,
+                                              nullptr, nullptr));
+        ASSERT_EQ(val, output) << "Result on queue " << i << " did not match!";
     }
 }

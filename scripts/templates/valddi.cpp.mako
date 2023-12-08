@@ -60,11 +60,36 @@ namespace ur_validation_layer
 
             %endfor
             %endfor
+            %if func_name in th.get_event_wait_list_functions(specs, n, tags):
+            if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+                for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                    if (phEventWaitList[i] == NULL) {
+                        return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                    }
+                }
+            }
+            %endif
+
         }
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
-        %if func_name in create_retain_release_funcs["create"]:
+        %if func_name == n + "AdapterRelease":
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.decrementRefCount(${object_param}, true);
+        }
+        %elif func_name == n + "AdapterRetain":
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.incrementRefCount(${object_param}, true);
+        }
+        %elif func_name == n + "AdapterGet":
+        if( context.enableLeakChecking && phAdapters && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.createOrIncrementRefCount(*phAdapters, true);
+        }
+        %elif func_name in create_retain_release_funcs["create"]:
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
             refCountContext.createRefCount(*${object_param});
@@ -78,12 +103,6 @@ namespace ur_validation_layer
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
             refCountContext.decrementRefCount(${object_param});
-        }
-        %elif func_name == n + "TearDown":
-        if ( context.enableLeakChecking )
-        {
-            refCountContext.logInvalidReferences();
-            refCountContext.clear();
         }
         %endif
 
@@ -141,9 +160,10 @@ namespace ur_validation_layer
     %endfor
     ${x}_result_t
     context_t::init(ur_dditable_t *dditable,
-                    const std::set<std::string> &enabledLayerNames) {
+                    const std::set<std::string> &enabledLayerNames,
+                    codeloc_data) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
-        
+
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
             enableLeakChecking = true;
@@ -167,6 +187,16 @@ namespace ur_validation_layer
         }
 
         %endfor
+        return result;
+    }
+
+    ${x}_result_t context_t::tearDown() {
+        ${x}_result_t result = ${X}_RESULT_SUCCESS;
+
+        if (enableLeakChecking) {
+            refCountContext.logInvalidReferences();
+            refCountContext.clear();
+        }
         return result;
     }
 
