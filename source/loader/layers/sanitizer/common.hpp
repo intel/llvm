@@ -14,7 +14,6 @@
 
 #include "ur/ur.hpp"
 #include "ur_ddi.h"
-#include "ur_params.hpp"
 
 #include <cassert>
 #include <cstdint>

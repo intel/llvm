@@ -45,7 +45,10 @@ class __urdlllocal context_t : public proxy_layer_context_t {
         return {"UR_LAYER_ASAN", "UR_LAYER_MSAN", "UR_LAYER_TSAN"};
     }
     ur_result_t init(ur_dditable_t *dditable,
-                     const std::set<std::string> &enabledLayerNames) override;
+                     const std::set<std::string> &enabledLayerNames,
+                     codeloc_data codelocData) override;
+
+    ur_result_t tearDown() override;
 };
 
 extern context_t context;
