@@ -82,11 +82,11 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 /// @return A vector of elements read. Elements in masked out lanes are
 ///   undefined.
 ///
-template <typename Tx, int N, typename Toffset>
-__ESIMD_API simd<Tx, N> gather(const Tx *p, simd<Toffset, N> offsets,
+template <typename Tx, int N, typename OffsetObjT>
+__ESIMD_API simd<Tx, N> gather(const Tx *p, simd<OffsetObjT, N> offsets,
                                simd_mask<N> mask = 1) {
   using T = detail::__raw_t<Tx>;
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -121,9 +121,9 @@ __ESIMD_API simd<Tx, N> gather(const Tx *p, simd<Toffset, N> offsets,
 /// @return A vector of elements read. Elements in masked out lanes are
 ///   undefined.
 ///
-template <typename Tx, int N, typename Toffset, typename RegionTy>
+template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API simd<Tx, N> gather(const Tx *p,
-                               simd_view<Toffset, RegionTy> offsets,
+                               simd_view<OffsetObjT, RegionTy> offsets,
                                simd_mask<N> mask = 1) {
   return gather<Tx, N>(p, offsets.read(), mask);
 }
@@ -140,10 +140,10 @@ __ESIMD_API simd<Tx, N> gather(const Tx *p,
 /// @return A vector of elements read. Elements in masked out lanes are
 ///   undefined.
 ///
-template <typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
-gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
-  return gather<Tx, N>(p, simd<Toffset, N>(offset), mask);
+template <typename Tx, int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT>, simd<Tx, N>>
+gather(const Tx *p, OffsetObjT offset, simd_mask<N> mask = 1) {
+  return gather<Tx, N>(p, simd<OffsetObjT, N>(offset), mask);
 }
 
 /// Writes ("scatters") elements of the input vector to different memory
@@ -159,11 +159,11 @@ gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
 /// @param vals The vector to scatter.
 /// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int N, typename Toffset>
-__ESIMD_API void scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
+template <typename Tx, int N, typename OffsetObjT>
+__ESIMD_API void scatter(Tx *p, simd<OffsetObjT, N> offsets, simd<Tx, N> vals,
                          simd_mask<N> mask = 1) {
   using T = detail::__raw_t<Tx>;
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -198,8 +198,8 @@ __ESIMD_API void scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
 /// @param vals The vector to scatter.
 /// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int N, typename Toffset, typename RegionTy>
-__ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
+template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
+__ESIMD_API void scatter(Tx *p, simd_view<OffsetObjT, RegionTy> offsets,
                          simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, offsets.read(), vals, mask);
 }
@@ -215,10 +215,10 @@ __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
 /// @param vals The vector to scatter.
 /// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
-scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
+template <typename Tx, int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT> && N == 1>
+scatter(Tx *p, OffsetObjT offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
+  scatter<Tx, N>(p, simd<OffsetObjT, N>(offset), vals, mask);
 }
 
 namespace detail {
@@ -1753,48 +1753,48 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
 
 /// The semantics, assumptions and restrictions are identical to
 /// (usm-bs-1) defined above.
-template <typename T, int N, typename Toffset, typename RegionTy,
+template <typename T, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, simd_view<Toffset, RegionTy> vals,
+block_store(T *ptr, simd_view<OffsetObjT, RegionTy> vals,
             PropertyListT props = {}) {
   block_store<T, N>(ptr, vals.read(), props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (usm-bs-2) defined above.
-template <typename T, int N, typename Toffset, typename RegionTy,
+template <typename T, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
+block_store(T *ptr, size_t byte_offset, simd_view<OffsetObjT, RegionTy> vals,
             PropertyListT props = {}) {
   block_store<T, N>(ptr, byte_offset, vals.read(), props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (usm-bs-3) defined above.
-template <typename T, int N, typename Toffset, typename RegionTy,
+template <typename T, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
+block_store(T *ptr, simd_view<OffsetObjT, RegionTy> vals, simd_mask<1> pred,
             PropertyListT props = {}) {
   block_store<T, N>(ptr, vals.read(), pred, props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (usm-bs-4) defined above.
-template <typename T, int N, typename Toffset, typename RegionTy,
+template <typename T, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
+block_store(T *ptr, size_t byte_offset, simd_view<OffsetObjT, RegionTy> vals,
             simd_mask<1> pred, PropertyListT props = {}) {
   block_store<T, N>(ptr, byte_offset, vals.read(), pred, props);
 }
@@ -2079,7 +2079,7 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
 
 /// The semantics, assumptions and restrictions are identical to
 /// (acc-bs-2) defined above.
-template <typename AccessorT, int N, typename Toffset, typename RegionTy,
+template <typename AccessorT, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -2087,14 +2087,14 @@ __ESIMD_API std::enable_if_t<
                                       detail::accessor_mode_cap::can_write> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals,
+block_store(AccessorT acc, simd_view<OffsetObjT, RegionTy> vals,
             PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, vals.read(), props);
+  block_store<OffsetObjT, N>(acc, vals.read(), props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (acc-bs-1) defined above.
-template <typename AccessorT, int N, typename Toffset, typename RegionTy,
+template <typename AccessorT, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -2103,13 +2103,13 @@ __ESIMD_API std::enable_if_t<
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
-            simd_view<Toffset, RegionTy> vals, PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, byte_offset, vals.read(), props);
+            simd_view<OffsetObjT, RegionTy> vals, PropertyListT props = {}) {
+  block_store<OffsetObjT, N>(acc, byte_offset, vals.read(), props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (acc-bs-4) defined above.
-template <typename AccessorT, int N, typename Toffset, typename RegionTy,
+template <typename AccessorT, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -2117,14 +2117,14 @@ __ESIMD_API std::enable_if_t<
                                       detail::accessor_mode_cap::can_write> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
-            PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, vals.read(), pred, props);
+block_store(AccessorT acc, simd_view<OffsetObjT, RegionTy> vals,
+            simd_mask<1> pred, PropertyListT props = {}) {
+  block_store<OffsetObjT, N>(acc, vals.read(), pred, props);
 }
 
 /// The semantics, assumptions and restrictions are identical to
 /// (acc-bs-3) defined above.
-template <typename AccessorT, int N, typename Toffset, typename RegionTy,
+template <typename AccessorT, int N, typename OffsetObjT, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
@@ -2133,9 +2133,9 @@ __ESIMD_API std::enable_if_t<
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
-            simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
+            simd_view<OffsetObjT, RegionTy> vals, simd_mask<1> pred,
             PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, byte_offset, vals.read(), pred, props);
+  block_store<OffsetObjT, N>(acc, byte_offset, vals.read(), pred, props);
 }
 
 /// @} sycl_esimd_memory_block
@@ -2267,14 +2267,14 @@ gather(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 }
 
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-template <typename T, int N, typename AccessorTy, typename Toffset>
+template <typename T, int N, typename AccessorTy, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
         detail::is_device_accessor_with_v<
             AccessorTy, detail::accessor_mode_cap::can_read> &&
-        std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
+        std::is_integral_v<OffsetObjT> && !std::is_same_v<OffsetObjT, uint64_t>,
     simd<T, N>>
-gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
+gather(AccessorTy acc, simd<OffsetObjT, N> offsets, uint64_t glob_offset = 0,
        simd_mask<N> mask = 1) {
   return gather<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), glob_offset,
                                   mask);
@@ -2317,13 +2317,13 @@ scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 }
 
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-template <typename T, int N, typename AccessorTy, typename Toffset>
+template <typename T, int N, typename AccessorTy, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
     detail::is_device_accessor_with_v<AccessorTy,
                                       detail::accessor_mode_cap::can_write> &&
-    std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
-scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+    std::is_integral_v<OffsetObjT> && !std::is_same_v<OffsetObjT, uint64_t>>
+scatter(AccessorTy acc, simd<OffsetObjT, N> offsets, simd<T, N> vals,
         uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
   scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
                             mask);
@@ -2393,10 +2393,10 @@ __ESIMD_API void scalar_store(AccessorTy acc,
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
+          int N, typename OffsetObjT>
 __ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
-gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+gather_rgba(const T *p, simd<OffsetObjT, N> offsets, simd_mask<N> mask = 1) {
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   static_assert((N == 8 || N == 16 || N == 32), "Unsupported value of N");
   static_assert(sizeof(T) == 4, "Unsupported size of type T");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -2422,9 +2422,9 @@ gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset, typename RegionTy>
+          int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
-gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
+gather_rgba(const T *p, simd_view<OffsetObjT, RegionTy> offsets,
             simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, T, N>(p, offsets.read(), mask);
 }
@@ -2445,11 +2445,11 @@ gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
+          int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT>,
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(const T *p, Toffset offset, simd_mask<N> mask = 1) {
-  return gather_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), mask);
+gather_rgba(const T *p, OffsetObjT offset, simd_mask<N> mask = 1) {
+  return gather_rgba<RGBAMask, T, N>(p, simd<OffsetObjT, N>(offset), mask);
 }
 
 namespace detail {
@@ -2483,12 +2483,12 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///   undefined.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
+          int N, typename OffsetObjT>
 __ESIMD_API void
-scatter_rgba(T *p, simd<Toffset, N> offsets,
+scatter_rgba(T *p, simd<OffsetObjT, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   static_assert((N == 8 || N == 16 || N == 32), "Unsupported value of N");
   static_assert(sizeof(T) == 4, "Unsupported size of type T");
   detail::validate_rgba_write_channel_mask<RGBAMask>();
@@ -2515,9 +2515,9 @@ scatter_rgba(T *p, simd<Toffset, N> offsets,
 ///   undefined.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset, typename RegionTy>
+          int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API void
-scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
+scatter_rgba(T *p, simd_view<OffsetObjT, RegionTy> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
   scatter_rgba<RGBAMask, T, N>(p, offsets.read(), vals, mask);
@@ -2539,12 +2539,12 @@ scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
 ///   undefined.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
-scatter_rgba(T *p, Toffset offset,
+          int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT> && N == 1>
+scatter_rgba(T *p, OffsetObjT offset,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
-  scatter_rgba<RGBAMask, T, N>(p, simd<Toffset, N>(offset), vals, mask);
+  scatter_rgba<RGBAMask, T, N>(p, simd<OffsetObjT, N>(offset), vals, mask);
 }
 
 template <typename T, int N, rgba_channel_mask RGBAMask>
@@ -2606,15 +2606,15 @@ __ESIMD_API
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
-          typename T = typename AccessorT::value_type, typename Toffset>
+          typename T = typename AccessorT::value_type, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     ((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
      detail::is_device_accessor_with_v<AccessorT,
                                        detail::accessor_mode_cap::can_read> &&
-     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>),
+     std::is_integral_v<OffsetObjT> && !std::is_same_v<OffsetObjT, uint64_t>),
     simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
-            simd_mask<N> mask = 1) {
+gather_rgba(AccessorT acc, simd<OffsetObjT, N> offsets,
+            uint64_t global_offset = 0, simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets),
                                                 global_offset, mask);
 }
@@ -2661,13 +2661,13 @@ __ESIMD_API
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
-          typename T = typename AccessorT::value_type, typename Toffset>
+          typename T = typename AccessorT::value_type, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
     detail::is_device_accessor_with_v<AccessorT,
                                       detail::accessor_mode_cap::can_write> &&
-    std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
-scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
+    std::is_integral_v<OffsetObjT> && !std::is_same_v<OffsetObjT, uint64_t>>
+scatter_rgba(AccessorT acc, simd<OffsetObjT, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint64_t global_offset = 0, simd_mask<N> mask = 1) {
   scatter_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets), vals,
@@ -3739,11 +3739,11 @@ ESIMD_INLINE simd<RT, N> lsc_format_input(simd<T, N> Vals) {
 /// @param pred is predicates.
 ///
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+          cache_hint L2H, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 0, simd<T, N>>
-atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
+atomic_update_impl(T *p, simd<OffsetObjT, N> offsets, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3779,12 +3779,12 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
 /// @param pred is predicates.
 ///
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+          cache_hint L2H, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 1, simd<T, N>>
-atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
+atomic_update_impl(T *p, simd<OffsetObjT, N> offsets, simd<T, N> src0,
                    simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3822,12 +3822,12 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 /// @param pred predicates.
 ///
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+          cache_hint L2H, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 2, simd<T, N>>
-atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
+atomic_update_impl(T *p, simd<OffsetObjT, N> offsets, simd<T, N> src0,
                    simd<T, N> src1, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3868,7 +3868,7 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
-          typename AccessorTy, typename Toffset>
+          typename AccessorTy, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     get_num_args<Op>() == 0 &&
         __ESIMD_DNS::is_device_accessor_with_v<
@@ -3876,14 +3876,14 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_device_accessor_with_v<
             AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
     simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
+atomic_update_impl(AccessorTy acc, simd<OffsetObjT, N> byte_offsets,
                    simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
                                                     byte_offsets, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+  static_assert(std::is_integral_v<OffsetObjT> && sizeof(OffsetObjT) == 4,
                 "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
@@ -3923,7 +3923,7 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename AccessorTy, typename Toffset>
+          cache_hint L2H, typename AccessorTy, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
     get_num_args<Op>() == 1 &&
         __ESIMD_DNS::is_device_accessor_with_v<
@@ -3931,14 +3931,14 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_device_accessor_with_v<
             AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
     simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
+atomic_update_impl(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
                    simd<T, N> src0, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
                                                     byte_offset, src0, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+  static_assert(std::is_integral_v<OffsetObjT> && sizeof(OffsetObjT) == 4,
                 "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
@@ -3968,23 +3968,23 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// @brief No-argument variant of the atomic update operation.
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-1)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               props = {});                                  /// (usm-au0-2)
 /// simd<T, N>
 ///
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (usm-au0-4)
 ///
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-1)
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
@@ -4006,16 +4006,16 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, simd_mask<N> mask,
               PropertyListT props = {}) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
 
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
@@ -4031,8 +4031,9 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
-    return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+    return detail::atomic_update_impl<Op, T, N,
+                                      detail::lsc_data_size::default_size,
+                                      L1Hint, L2Hint, OffsetObjT>(
         p, byte_offset, mask);
   } else {
     if constexpr (Op == atomic_op::load) {
@@ -4059,7 +4060,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               props = {});                                  /// (usm-au0-2)
 ///
 /// A variation of \c atomic_update API without mask operand.
@@ -4076,20 +4077,20 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 ///   ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 ///
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -4108,20 +4109,21 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset, typename RegionTy,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, offsets.read(), mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (usm-au0-4)
 ///
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -4138,14 +4140,15 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset, typename RegionTy,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), mask, props);
@@ -4165,34 +4168,34 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<T, N>>
-atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
-  return atomic_update<Op, T, N>(p, simd<Toffset, N>(byte_offset), mask);
+template <atomic_op Op, typename T, int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT>, simd<T, N>>
+atomic_update(T *p, OffsetObjT byte_offset, simd_mask<N> mask = 1) {
+  return atomic_update<Op, T, N>(p, simd<OffsetObjT, N>(byte_offset), mask);
 }
 
 /// @anchor usm_atomic_update1
 /// @brief Single-argument variant of the atomic update operation.
 ///
 /// simd<T, N>
-/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+/// atomic_update(T *ptr, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd_mask<N> mask, props = {});//(usm-au1-1)
 /// simd<T, N>
-/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+/// atomic_update(T *ptr, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, props = {});                  // (usm-au1-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (usm-au1-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
 ///
 
 /// simd<T, N>
-/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+/// atomic_update(T *ptr, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd_mask<N> mask, props = {});//(usm-au1-1)
 ///
 /// Atomically updates \c N memory locations represented by a USM pointer and
@@ -4219,16 +4222,16 @@ atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
               simd_mask<N> mask, PropertyListT props = {}) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
 
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
@@ -4247,8 +4250,9 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
                 (Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub) ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
-    return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+    return detail::atomic_update_impl<Op, T, N,
+                                      detail::lsc_data_size::default_size,
+                                      L1Hint, L2Hint, OffsetObjT>(
         p, byte_offset, src0, mask);
   } else {
     if constexpr (Op == atomic_op::store) {
@@ -4276,7 +4280,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(T *ptr, simd<Toffset, N> byte_offset,
+/// atomic_update(T *ptr, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, props = {});                  // (usm-au1-2)
 
 /// A variation of \c atomic_update API without mask operand.
@@ -4298,21 +4302,21 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (usm-au1-3)
 ///
@@ -4338,20 +4342,21 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset, typename RegionTy,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd<T, N> src0,
               simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
 ///
@@ -4375,14 +4380,15 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset, typename RegionTy,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
@@ -4406,13 +4412,15 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
+template <atomic_op Op, typename Tx, int N, typename OffsetObjT>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> &&
+    std::is_integral_v<OffsetObjT> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
-atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(byte_offset), src0, mask);
+atomic_update(Tx *p, OffsetObjT byte_offset, simd<Tx, N> src0,
+              simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(p, simd<OffsetObjT, N>(byte_offset), src0,
+                                  mask);
 }
 
 /// @anchor usm_atomic_update2
@@ -4422,26 +4430,26 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd_mask<N> mask) {
 /// has 2 additional arguments.
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {});               // (usm-au2-1)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                  // (usm-au2-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
 ///
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {});               // (usm-au2-1)
 ///
@@ -4461,16 +4469,16 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd_mask<N> mask) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
 
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
@@ -4491,8 +4499,9 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
-    return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+    return detail::atomic_update_impl<Op, T, N,
+                                      detail::lsc_data_size::default_size,
+                                      L1Hint, L2Hint, OffsetObjT>(
         p, byte_offset, src1, src0, mask);
   } else {
     detail::check_atomic<Op, T, N, 2>();
@@ -4506,7 +4515,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
+/// atomic_update(T *p, simd<OffsetObjT, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                  // (usm-au2-2)
 //
@@ -4524,21 +4533,21 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
+atomic_update(T *p, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset, src0, src1, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 ///
@@ -4557,7 +4566,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 //    Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename OffsetRegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -4565,7 +4574,7 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
               simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
@@ -4573,7 +4582,7 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
 ///
@@ -4590,7 +4599,7 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 //    Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
           typename OffsetRegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -4598,7 +4607,7 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
               simd<T, N> src0, simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
@@ -4621,12 +4630,12 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
-atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
+template <atomic_op Op, typename Tx, int N, typename OffsetObjT>
+__ESIMD_API std::enable_if_t<std::is_integral_v<OffsetObjT>, simd<Tx, N>>
+atomic_update(Tx *p, OffsetObjT byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
               simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(byte_offset), src0, src1,
-                                  mask);
+  return atomic_update<Op, Tx, N>(p, simd<OffsetObjT, N>(byte_offset), src0,
+                                  src1, mask);
 }
 
 /// @anchor accessor_atomic_update0
@@ -6195,9 +6204,10 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+template <int ChunkSize, typename Flags, typename AccessorT,
+          typename OffsetObjT>
 ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
-    AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION {
+    AccessorT acc, OffsetObjT offset) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr unsigned Align = Flags::template alignment<T1>;
@@ -6264,9 +6274,10 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+template <int ChunkSize, typename Flags, typename AccessorT,
+          typename OffsetObjT>
 ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
-    AccessorT acc, TOffset offset) SYCL_ESIMD_FUNCTION {
+    AccessorT acc, OffsetObjT offset) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
   constexpr unsigned Size = sizeof(T) * N;
