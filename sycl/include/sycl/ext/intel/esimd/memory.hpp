@@ -5894,7 +5894,7 @@ __ESIMD_API
   return atomic_update<Op, T, N>(acc, simd<Toffset, N>(byte_offset), mask);
 }
 
-/// A variation of \c atomic_update API with \c offset represented as
+/// A variation of \c atomic_update API with \p byte_offset represented as
 /// scalar using \c local_accessor.
 ///
 /// @tparam Op The atomic operation - can be \c atomic_op::inc,
