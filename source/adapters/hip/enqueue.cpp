@@ -1459,34 +1459,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = flags;
+
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getDevice();
 
-  // If the device does not support managed memory access, we can't set
-  // mem_advise.
-  if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
-    setErrorMessage("mem_advise ignored as device does not support "
-                    " managed memory access",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  hipPointerAttribute_t attribs;
-  // TODO: hipPointerGetAttributes will fail if pMem is non-HIP allocated
-  // memory, as it is neither registered as host memory, nor into the address
-  // space for the current device, meaning the pMem ptr points to a
-  // system-allocated memory. This means we may need to check system-alloacted
-  // memory and handle the failure more gracefully.
-  UR_CHECK_ERROR(hipPointerGetAttributes(&attribs, pMem));
-  // async prefetch requires USM pointer (or hip SVM) to work.
-  if (!attribs.isManaged) {
-    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
-  // HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
-  // so we can't perform this check for such cases.
+// HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
+// so we can't perform this check for such cases.
 #if HIP_VERSION_MAJOR >= 5
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
@@ -1494,29 +1473,60 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 #endif
-  // flags is currently unused so fail if set
-  if (flags != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+
   ur_result_t Result = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
     ScopedContext Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
     Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
+
+    std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
+
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_PREFETCH, hQueue, HIPStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
+
+    // Helper to ensure returning a valid event on early exit.
+    auto releaseEvent = [&EventPtr, &phEvent]() -> void {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    };
+
+    // If the device does not support managed memory access, we can't set
+    // mem_advise.
+    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+      releaseEvent();
+      setErrorMessage("mem_advise ignored as device does not support "
+                      "managed memory access",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    hipPointerAttribute_t attribs;
+    // TODO: hipPointerGetAttributes will fail if pMem is non-HIP allocated
+    // memory, as it is neither registered as host memory, nor into the address
+    // space for the current device, meaning the pMem ptr points to a
+    // system-allocated memory. This means we may need to check system-alloacted
+    // memory and handle the failure more gracefully.
+    UR_CHECK_ERROR(hipPointerGetAttributes(&attribs, pMem));
+    // async prefetch requires USM pointer (or hip SVM) to work.
+    if (!attribs.isManaged) {
+      releaseEvent();
+      setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
     UR_CHECK_ERROR(
         hipMemPrefetchAsync(pMem, size, hQueue->getDevice()->get(), HIPStream));
-    if (phEvent) {
-      UR_CHECK_ERROR(EventPtr->record());
-      *phEvent = EventPtr.release();
-    }
+    releaseEvent();
   } catch (ur_result_t Err) {
     Result = Err;
   }
