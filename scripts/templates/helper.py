@@ -105,6 +105,7 @@ class type_traits:
     RE_DESC     = r"(.*)desc_t.*"
     RE_PROPS    = r"(.*)properties_t.*"
     RE_FLAGS    = r"(.*)flags_t"
+    RE_ARRAY    = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
     def base(name):
@@ -216,6 +217,29 @@ class type_traits:
             return None
         except:
             return None
+
+    @classmethod
+    def is_array(cls, name):
+        try:
+            return True if re.match(cls.RE_ARRAY, name) else False
+        except:
+            return False
+        
+    @classmethod
+    def get_array_length(cls, name):
+        if not cls.is_array(name):
+            raise Exception("Cannot find array length of non-array type.")
+
+        match = re.match(cls.RE_ARRAY, name)
+        return match.groups()[1]
+    
+    @classmethod
+    def get_array_element_type(cls, name):
+        if not cls.is_array(name):
+            raise Exception("Cannot find array type of non-array type.")
+
+        match = re.match(cls.RE_ARRAY, name)
+        return match.groups()[0]
 
 """
     Extracts traits from a value name
@@ -332,6 +356,7 @@ class param_traits:
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
     RE_TAGGED   = r".*\[tagged_by\((.+)\)].*"
+    RE_BOUNDS   = r".*\[bounds\((.+),\s*(.+)\)].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -388,6 +413,13 @@ class param_traits:
             return True if re.match(cls.RE_TAGGED, item['desc']) else False
         except:
             return False
+
+    @classmethod
+    def is_bounds(cls, item):
+        try:
+            return True if re.match(cls.RE_BOUNDS, item['desc']) else False
+        except:
+            return False
     
     @classmethod
     def tagged_member(cls, item):
@@ -428,6 +460,22 @@ class param_traits:
     @classmethod
     def typename_size(cls, item):
         match = re.match(cls.RE_TYPENAME, item['desc'])
+        if match:
+            return match.group(2)
+        else:
+            return None
+
+    @classmethod
+    def bounds_offset(cls, item):
+        match = re.match(cls.RE_BOUNDS, item['desc'])
+        if match:
+            return match.group(1)
+        else:
+            return None
+
+    @classmethod
+    def bounds_size(cls, item):
+        match = re.match(cls.RE_BOUNDS, item['desc'])
         if match:
             return match.group(2)
         else:
@@ -729,7 +777,10 @@ Private:
     returns c/c++ name of any type
 """
 def _get_type_name(namespace, tags, obj, item):
-    name = subt(namespace, tags, item['type'],)
+    type = item['type']
+    if type_traits.is_array(type):
+        type = type_traits.get_array_element_type(type)
+    name = subt(namespace, tags, type,)
     return name
 
 """
@@ -763,9 +814,9 @@ def get_ctype_name(namespace, tags, item):
     while type_traits.is_pointer(name):
         name = "POINTER(%s)"%_remove_ptr(name)
 
-    if 'name' in item and value_traits.is_array(item['name']):
-        length = subt(namespace, tags, value_traits.get_array_length(item['name']))
-        name = "%s * %s"%(name, length)
+    if 'name' in item and type_traits.is_array(item['type']):
+        length = subt(namespace, tags, type_traits.get_array_length(item['type'])) 
+        name = "%s * %s"%(type_traits.get_array_element_type(name), length)
 
     return name
 
@@ -804,7 +855,8 @@ def make_member_lines(namespace, tags, obj, prefix="", py=False, meta=None):
             delim = "," if i < (len(obj['members'])-1) else ""
             prologue = "(\"%s\", %s)%s"%(name, tname, delim)
         else:
-            prologue = "%s %s;"%(tname, name)
+            array_suffix = f"[{type_traits.get_array_length(item['type'])}]" if type_traits.is_array(item['type']) else ""
+            prologue = "%s %s %s;"%(tname, name, array_suffix)
 
         comment_style = "##" if py else "///<"
         ws_count = 64 if py else 48
@@ -1013,7 +1065,35 @@ def make_pfncb_param_type(namespace, tags, obj):
 
 """
 Public:
-    returns a dict of auto-generated c++ parameter validation checks
+    returns an appropriate bounds helper function call for an entry point
+    parameter with the [bounds] tag
+"""
+def get_bounds_check(param, bounds_error):
+    # Images need their own helper, since function signature wise they would be
+    # identical to buffer rect
+    bounds_function = 'boundsImage' if 'image' in param['name'].lower() else 'bounds'
+    bounds_check = "auto {0} = {1}({2}, {3}, {4})".format(
+        bounds_error,
+        bounds_function,
+        param["name"],
+        param_traits.bounds_offset(param),
+        param_traits.bounds_size(param),
+    )
+    bounds_check += '; {0} != UR_RESULT_SUCCESS'.format(bounds_error)
+
+    # USM bounds checks need the queue handle parameter to be able to use the
+    # GetMemAllocInfo entry point
+    if type_traits.is_pointer(param['type']):
+        # If no `hQueue` parameter exists that should have been caught at spec
+        # generation.
+        return re.sub(r'bounds\(', 'bounds(hQueue, ', bounds_check)
+
+    return bounds_check
+
+"""
+Public:
+    returns a dict of auto-generated c++ parameter validation checks for the
+    given function (specified by `obj`)
 """
 def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
     checks = {}
@@ -1026,6 +1106,13 @@ def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
                     if key not in checks:
                         checks[key] = []
                     checks[key].append(subt(namespace, tags, code.group(1), False, cpp))
+
+    for p in obj.get('params', []):
+        if param_traits.is_bounds(p):
+            if 'boundsError' not in checks:
+                checks['boundsError'] = []
+            checks['boundsError'].append(get_bounds_check(p, 'boundsError'))
+
     return checks
 
 """
@@ -1300,3 +1387,14 @@ def get_create_retain_release_functions(specs, namespace, tags):
     )
 
     return {"create": create_funcs, "retain": retain_funcs, "release": release_funcs}
+
+
+def get_event_wait_list_functions(specs, namespace, tags):
+    funcs = []
+    for s in specs:
+        for obj in s['objects']:
+            if re.match(r"function", obj['type']):
+                if any(x['name'] == 'phEventWaitList' for x in obj['params']) and any(
+                        x['name'] == 'numEventsInWaitList' for x in obj['params']):
+                    funcs.append(make_func_name(namespace, tags, obj))
+    return funcs

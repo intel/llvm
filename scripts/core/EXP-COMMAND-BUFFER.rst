@@ -92,13 +92,17 @@ of event handles.
 Currently only the following commands are supported:
 
 * ${x}CommandBufferAppendKernelLaunchExp
-* ${x}CommandBufferAppendMemcpyUSMExp
-* ${x}CommandBufferAppendMembufferCopyExp
-* ${x}CommandBufferAppendMembufferCopyRectExp
-* ${x}CommandBufferAppendMembufferReadExp
-* ${x}CommandBufferAppendMembufferReadRectExp
-* ${x}CommandBufferAppendMembufferWriteExp
-* ${x}CommandBufferAppendMembufferWriteRectExp
+* ${x}CommandBufferAppendUSMMemcpyExp
+* ${x}CommandBufferAppendUSMFillExp
+* ${x}CommandBufferAppendMemBufferCopyExp
+* ${x}CommandBufferAppendMemBufferCopyRectExp
+* ${x}CommandBufferAppendMemBufferReadExp
+* ${x}CommandBufferAppendMemBufferReadRectExp
+* ${x}CommandBufferAppendMemBufferWriteExp
+* ${x}CommandBufferAppendMemBufferWriteRectExp
+* ${x}CommandBufferAppendMemBufferFillExp
+* ${x}CommandBufferAppendUSMPrefetchExp
+* ${x}CommandBufferAppendUSMAdviseExp
   
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equiavalent adapter native constructs.
@@ -118,7 +122,7 @@ were obtained from.
     // Append a memcpy with no sync-point dependencies
     ${x}_exp_command_buffer_sync_point_t syncPoint;
 
-    ${x}CommandBufferAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size, 0, 
+    ${x}CommandBufferAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size, 0, 
                                         nullptr, &syncPoint);
     
     // Append a kernel launch with syncPoint as a dependency, ignore returned
@@ -167,13 +171,17 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
 
 
 
@@ -191,13 +199,17 @@ Functions
 * ${x}CommandBufferReleaseExp
 * ${x}CommandBufferFinalizeExp
 * ${x}CommandBufferAppendKernelLaunchExp
-* ${x}CommandBufferAppendMemcpyUSMExp
-* ${x}CommandBufferAppendMembufferCopyExp
-* ${x}CommandBufferAppendMembufferCopyRectExp
-* ${x}CommandBufferAppendMembufferReadExp
-* ${x}CommandBufferAppendMembufferReadRectExp
-* ${x}CommandBufferAppendMembufferWriteExp
-* ${x}CommandBufferAppendMembufferWriteRectExp
+* ${x}CommandBufferAppendUSMMemcpyExp
+* ${x}CommandBufferAppendUSMFillExp
+* ${x}CommandBufferAppendMemBufferCopyExp
+* ${x}CommandBufferAppendMemBufferCopyRectExp
+* ${x}CommandBufferAppendMemBufferReadExp
+* ${x}CommandBufferAppendMemBufferReadRectExp
+* ${x}CommandBufferAppendMemBufferWriteExp
+* ${x}CommandBufferAppendMemBufferWriteRectExp
+* ${x}CommandBufferAppendMemBufferFillExp
+* ${x}CommandBufferAppendUSMPrefetchExp
+* ${x}CommandBufferAppendUSMAdviseExp
 * ${x}CommandBufferEnqueueExp
 
 Changelog
@@ -208,7 +220,12 @@ Changelog
 +===========+=======================================================+
 | 1.0       | Initial Draft                                         |
 +-----------+-------------------------------------------------------+
-| 1.1       | add function definitions for buffer read and write    |
+| 1.1       | Add function definitions for buffer read and write    |
++-----------+-------------------------------------------------------+
+| 1.2       | Add function definitions for fill commands            |
++-----------+-------------------------------------------------------+
+| 1.3       | Add function definitions for Prefetch and Advise      |
+|           | commands                                              |
 +-----------+-------------------------------------------------------+
 
 Contributors

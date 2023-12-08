@@ -39,6 +39,10 @@ enum EventsScope {
   LastCommandInBatchHostVisible
 };
 
+struct ze_global_memsize {
+  uint64_t value;
+};
+
 struct ur_device_handle_t_ : _ur_object {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
@@ -141,6 +145,22 @@ struct ur_device_handle_t_ : _ur_object {
   // Returns whether immediate command lists are used on this device.
   ImmCmdlistMode ImmCommandListUsed{};
 
+  // Returns whether large allocations are being used
+  // or not to have a consistent behavior throughout
+  // the adapter between the creation of large allocations
+  // and the compilation of kernels into stateful and
+  // stateless modes.
+  // With stateful mode, kernels are compiled with
+  // pointer-arithmetic optimizations for optimized
+  // access of allocations smaller than 4GB.
+  // In stateless mode, such optimizations are not
+  // applied.
+  // Even if a GPU supports both modes, L0 driver may
+  // provide support for only one, like for Intel(R)
+  // Data Center GPU Max, for which L0 driver only
+  // supports stateless.
+  int32_t useOptimized32bitAccess();
+
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Is this a Data Center GPU Max series (aka PVC)?
@@ -170,4 +190,5 @@ struct ur_device_handle_t_ : _ur_object {
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
+  ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
 };

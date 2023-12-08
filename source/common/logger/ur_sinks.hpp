@@ -13,6 +13,7 @@
 
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
+#include "ur_print.hpp"
 
 namespace logger {
 
@@ -65,16 +66,17 @@ class Sink {
                 if (*(++fmt) == '{') {
                     buffer << *fmt++;
                 } else {
-                    std::cerr
-                        << error_prefix
-                        << "No arguments provided and braces not escaped!";
+                    std::cerr << error_prefix
+                              << "No arguments provided and braces not escaped!"
+                              << std::endl;
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
                     buffer << *fmt++;
                 } else {
                     std::cerr << error_prefix
-                              << "Closing curly brace not escaped!";
+                              << "Closing curly brace not escaped!"
+                              << std::endl;
                 }
             }
         }
@@ -95,7 +97,7 @@ class Sink {
                     buffer << *fmt++;
                 } else if (*fmt != '}') {
                     std::cerr << error_prefix
-                              << "Only empty braces are allowed!";
+                              << "Only empty braces are allowed!" << std::endl;
                 } else {
                     buffer << arg;
                     arg_printed = true;
@@ -105,8 +107,16 @@ class Sink {
                     buffer << *fmt++;
                 } else {
                     std::cerr << error_prefix
-                              << "Closing curly brace not escaped!";
+                              << "Closing curly brace not escaped!"
+                              << std::endl;
                 }
+            }
+
+            if (*fmt == '\0') {
+                std::cerr << error_prefix << "Too many arguments!" << std::endl;
+                // ignore all left arguments and finalize message
+                format(buffer, fmt);
+                return;
             }
         }
 

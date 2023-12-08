@@ -104,6 +104,7 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
     ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
         memcpy_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
+    ASSERT_SUCCESS(urEventRelease(memcpy_event));
 
     ASSERT_NO_FATAL_FAILURE(verifyMemcpySucceeded());
 }
@@ -169,7 +170,7 @@ TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidSize) {
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidEventWaitList) {
     // enqueue something to get an event
     ur_event_handle_t event = nullptr;
-    int fill_pattern = 14;
+    uint8_t fill_pattern = 14;
     ASSERT_SUCCESS(urEnqueueUSMFill2D(queue, pDst, pitch, sizeof(fill_pattern),
                                       &fill_pattern, width, height, 0, nullptr,
                                       &event));
@@ -182,6 +183,11 @@ TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidEventWaitList) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                      urEnqueueUSMMemcpy2D(queue, true, pDst, pitch, pSrc, pitch,
                                           width, height, 0, &event, nullptr));
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMMemcpy2D(queue, true, pDst, pitch, pSrc, pitch,
+                                          width, height, 1, &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ASSERT_SUCCESS(urEventRelease(event));
 }

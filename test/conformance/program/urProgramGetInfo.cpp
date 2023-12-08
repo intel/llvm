@@ -5,7 +5,14 @@
 
 #include <uur/fixtures.h>
 
-using urProgramGetInfoTest = uur::urProgramTestWithParam<ur_program_info_t>;
+struct urProgramGetInfoTest : uur::urProgramTestWithParam<ur_program_info_t> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urProgramTestWithParam<ur_program_info_t>::SetUp());
+        // Some queries need the program to be built.
+        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    }
+};
 
 UUR_TEST_SUITE_P(
     urProgramGetInfoTest,
@@ -29,8 +36,9 @@ TEST_P(urProgramGetInfoTest, Success) {
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
     uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(nullptr, UR_PROGRAM_INFO_REFERENCE_COUNT,
-                                    sizeof(ref_count), &ref_count, nullptr));
+    ASSERT_EQ_RESULT(urProgramGetInfo(nullptr, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      sizeof(ref_count), &ref_count, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetInfoTest, InvalidEnumeration) {

@@ -1,2 +1,7 @@
-urMemBufferCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
-Segmentation fault
+{{OPT}}urMemGetInfoTest.InvalidNullPointerParamValue/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemGetInfoTest.InvalidNullPointerParamValue/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemGetInfoTest.InvalidNullPointerPropSizeRet/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemGetInfoTest.InvalidNullPointerPropSizeRet/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemImageCreateTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}
+{{OPT}}urMemImageGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}

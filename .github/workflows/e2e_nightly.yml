@@ -1,0 +1,118 @@
+name: E2E Nightly
+
+on:
+  schedule:
+    # Run every day at 23:00 UTC
+    - cron: '0 23 * * *'
+
+jobs:
+  e2e-build-hw:
+    name: Build SYCL, UR, run E2E
+    strategy:
+      matrix:
+        adapter: [
+          {name: CUDA}
+        ]
+        build_type: [Release]
+        compiler: [{c: clang, cxx: clang++}]
+
+    runs-on: ${{matrix.adapter.name}}
+
+    steps:
+    # Workspace on self-hosted runners is not cleaned automatically.
+    # We have to delete the files created outside of using actions.
+    - name: Cleanup self-hosted workspace
+      if: always()
+      run: |
+        ls -la ./
+        rm -rf ./* || true
+
+    - name: Checkout UR
+      uses: actions/checkout@v4
+      with:
+        path: ur-repo
+
+    - name: Checkout SYCL
+      uses: actions/checkout@v4
+      with:
+        repository: intel/llvm
+        ref: sycl
+        path: sycl-repo
+
+    - name: Install pip packages
+      working-directory: ${{github.workspace}}/ur-repo
+      run: pip install -r third_party/requirements.txt
+
+    - name: Configure CMake UR
+      working-directory: ${{github.workspace}}/ur-repo
+      run: >
+        cmake
+        -B build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+
+    - name: Build UR
+      run: LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
+        cmake --build ${{github.workspace}}/ur-repo/build -j $(nproc)
+
+    - name: Set env vars & pre setup
+      run: |
+        echo "SYCL_PREFER_UR=1" >> $GITHUB_ENV
+        echo "CUDA_LIB_PATH=/usr/local/cuda/lib64/stubs" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        source /opt/intel/oneapi/setvars.sh
+        sycl-ls
+
+    - name: Configure SYCL
+      run: >
+        python3 sycl-repo/buildbot/configure.py
+        -t ${{matrix.build_type}}
+        -o ${{github.workspace}}/sycl_build
+        --cmake-gen "Unix Makefiles"
+        --ci-defaults --cuda --hip
+        --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
+        --cmake-opt="-DSYCL_PI_TESTS=OFF"
+        --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
+        --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+    - name: Build SYCL
+      run: cmake --build ${{github.workspace}}/sycl_build
+
+    - name: Run check-sycl
+      # Remove after fixing SYCL test :: abi/layout_handler.cpp
+      # This issue does not affect further execution of e2e with UR.
+      continue-on-error: true
+      run: cmake --build ${{github.workspace}}/sycl_build --target check-sycl
+
+    - name: Swap UR loader and adapters
+      run: |
+        cp ${{github.workspace}}/ur-repo/build/lib/libur_loader.so* ${{github.workspace}}/sycl_build/lib/
+        cp ${{github.workspace}}/ur-repo/build/lib/libur_adapter_cuda.so* ${{github.workspace}}/sycl_build/lib/
+
+    - name: Set additional env. vars
+      run: |
+        echo "${{github.workspace}}/sycl_build/bin" >> $GITHUB_PATH
+        echo "LD_LIBRARY_PATH=${{github.workspace}}/sycl_build/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    # Running (newly built) sycl-ls sets up some extra variables
+    - name: Setup SYCL variables
+      run: |
+        which clang++ sycl-ls
+        SYCL_PI_TRACE=-1 sycl-ls
+
+    - name: Build e2e tests
+      run: >
+        cmake
+        -GNinja
+        -B ${{github.workspace}}/build-e2e/
+        -S ${{github.workspace}}/sycl-repo/sycl/test-e2e/
+        -DSYCL_TEST_E2E_TARGETS="ext_oneapi_cuda:gpu"
+        -DCMAKE_CXX_COMPILER="$(which clang++)"
+        -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
+
+    - name: Run e2e tests
+      run: ninja -C build-e2e check-sycl-e2e

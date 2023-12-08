@@ -14,15 +14,14 @@ struct urTest : ::testing::Test {
         ASSERT_SUCCESS(urLoaderConfigCreate(&loader_config));
         ASSERT_SUCCESS(urLoaderConfigEnableLayer(loader_config,
                                                  "UR_LAYER_FULL_VALIDATION"));
-        ASSERT_SUCCESS(urInit(device_flags, loader_config));
+        ASSERT_SUCCESS(urLoaderInit(device_flags, loader_config));
     }
 
     void TearDown() override {
         if (loader_config) {
             ASSERT_SUCCESS(urLoaderConfigRelease(loader_config));
         }
-        ur_tear_down_params_t tear_down_params{};
-        ASSERT_SUCCESS(urTearDown(&tear_down_params));
+        ASSERT_SUCCESS(urLoaderTearDown());
     }
 
     ur_loader_config_handle_t loader_config = nullptr;
@@ -35,6 +34,7 @@ struct urAdapterTest : urTest {
 
         uint32_t adapter_count;
         ASSERT_SUCCESS(urAdapterGet(0, nullptr, &adapter_count));
+        ASSERT_GT(adapter_count, 0);
         adapters.resize(adapter_count);
         ASSERT_SUCCESS(urAdapterGet(adapter_count, adapters.data(), nullptr));
     }

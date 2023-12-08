@@ -18,8 +18,8 @@ from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
 
-default_version = "0.7"
-all_versions = ["0.6", "0.7"]
+default_version = "0.9"
+all_versions = ["0.6", "0.7", "0.8", "0.9"]
 
 """
     preprocess object
@@ -97,7 +97,7 @@ def _validate_doc(f, d, tags, line_num):
                 ordinal = None
 
             if ordinal != d['ordinal']:
-                raise Exception("'ordinal' invalid value: '%s'"%d['ordinal'])   
+                raise Exception("'ordinal' invalid value: '%s'"%d['ordinal'])
 
     def __validate_version(d, prefix="", base_version=default_version):
         if 'version' in d:
@@ -333,20 +333,29 @@ def _validate_doc(f, d, tags, line_num):
 
             if item['type'].endswith("flag_t"):
                 raise Exception(prefix+"'type' must not be '*_flag_t': %s"%item['type'])
-        
+
             if type_traits.is_pointer(item['type']) and "_handle_t" in item['type'] and "[in]" in item['desc']:
                 if not param_traits.is_range(item):
                     raise Exception(prefix+"handle type must include a range(start, end) as part of 'desc'")
+
+            if param_traits.is_bounds(item):
+                has_queue = False
+                for p in d['params']:
+                    if re.match(r"hQueue$", p['name']):
+                        has_queue = True
+
+                if not has_queue:
+                    raise Exception(prefix+"bounds must only be used on entry points which take a `hQueue` parameter")
 
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
                 raise Exception(prefix+"'version' must be increasing: %s"%item['version'])
             max_ver = ver
-    
+
     def __validate_union_tag(d):
         if d.get('tag') is None:
             raise Exception(f"{d['name']} must include a 'tag' part of the union.")
-        
+
     try:
         if 'type' not in d:
             raise Exception("every document must have 'type'")
@@ -466,7 +475,7 @@ def _filter_version(d, max_ver):
         return d
 
     flt = []
-    type = d['type']   
+    type = d['type']
     if 'enum' == type:
         for e in d['etors']:
             ver = float(e.get('version', default_version))
@@ -706,58 +715,54 @@ def _generate_returns(obj, meta):
             if val and val not in rets[idx][key]:
                 rets[idx][key].append(val)
 
+        def append_nullchecks(param, accessor: str):
+            if type_traits.is_pointer(param['type']):
+                _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`" % accessor)
+
+            elif type_traits.is_funcptr(param['type'], meta):
+                _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`" % accessor)
+
+            elif type_traits.is_handle(param['type']) and not type_traits.is_ipc_handle(item['type']):
+                _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`" % accessor)
+
+        def append_enum_checks(param, accessor: str):
+            ptypename = type_traits.base(param['type'])
+
+            prefix = "`"
+            if param_traits.is_optional(item):
+                prefix = "`NULL != %s && " % item['name']
+
+            if re.match(r"stype", param['name']):
+                _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", prefix + "%s != %s`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), accessor))
+            else:
+                if type_traits.is_flags(param['type']) and 'bit_mask' in meta['enum'][ptypename].keys():
+                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", prefix + "%s & %s`"%(ptypename.upper()[:-2]+ "_MASK", accessor))
+                else:
+                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", prefix + "%s < %s`"%(meta['enum'][ptypename]['max'], accessor))
+
         # generate results based on parameters
         for item in obj['params']:
             if param_traits.is_nocheck(item):
                 continue
 
             if not param_traits.is_optional(item):
+                append_nullchecks(item, item['name'])
+
+            if type_traits.is_enum(item['type'], meta) and not type_traits.is_pointer(item['type']):
+                append_enum_checks(item, item['name'])
+
+            if type_traits.is_descriptor(item['type']) or type_traits.is_properties(item['type']):
                 typename = type_traits.base(item['type'])
+                # walk each entry in the desc for pointers and enums
+                for i, m in enumerate(meta['struct'][typename]['members']):
+                    if param_traits.is_nocheck(m):
+                        continue
 
-                if type_traits.is_pointer(item['type']):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`"%item['name'])
+                    if not param_traits.is_optional(m):
+                        append_nullchecks(m, "%s->%s" % (item['name'], m['name']))
 
-                elif type_traits.is_funcptr(item['type'], meta):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`"%item['name'])
-
-                elif type_traits.is_handle(item['type']) and not type_traits.is_ipc_handle(item['type']):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`"%item['name'])
-
-                elif type_traits.is_enum(item['type'], meta):
-                    if type_traits.is_flags(item['type']) and 'bit_mask' in meta['enum'][typename].keys():
-                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s`"%(typename.upper()[:-2]+ "_MASK", item['name']))
-                    else:
-                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s`"%(meta['enum'][typename]['max'], item['name']))
-
-                if type_traits.is_descriptor(item['type']):
-                    # walk each entry in the desc for pointers and enums
-                    for i, m in enumerate(meta['struct'][typename]['members']):
-                        if param_traits.is_nocheck(m):
-                            continue
-                        mtypename = type_traits.base(m['type'])
-
-                        if type_traits.is_pointer(m['type']) and not param_traits.is_optional({'desc': m['desc']}):
-                            _append(rets,
-                                    "$X_RESULT_ERROR_INVALID_NULL_POINTER",
-                                    "`NULL == %s->%s`"%(item['name'], m['name']))
-
-                        elif type_traits.is_enum(m['type'], meta):
-                            if re.match(r"stype", m['name']):
-                                _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", "`%s != %s->stype`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), item['name']))
-                            else:
-                                if type_traits.is_flags(m['type']) and 'bit_mask' in meta['enum'][mtypename].keys():
-                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s->%s`"%(mtypename.upper()[:-2]+ "_MASK", item['name'], m['name']))
-                                else:
-                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s->%s`"%(meta['enum'][mtypename]['max'], item['name'], m['name']))
-
-                elif type_traits.is_properties(item['type']):
-                    # walk each entry in the properties
-                    for i, m in enumerate(meta['struct'][typename]['members']):
-                        if param_traits.is_nocheck(m):
-                            continue
-                        if type_traits.is_enum(m['type'], meta):
-                            if re.match(r"stype", m['name']):
-                                _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", "`%s != %s->stype`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), item['name']))
+                    if type_traits.is_enum(m['type'], meta) and not type_traits.is_pointer(m['type']):
+                        append_enum_checks(m, "%s->%s" % (item['name'], m['name']))
 
         # finally, append all user entries
         for item in obj.get('returns', []):
@@ -823,7 +828,7 @@ def _refresh_enum_meta(obj, meta):
     ## remove the existing meta records
     if obj.get('class'):
         meta['class'][obj['class']]['enum'].remove(obj['name'])
-        
+
     if meta['enum'].get(obj['name']):
         del meta['enum'][obj['name']]
     ## re-generate meta
@@ -851,13 +856,13 @@ def _extend_enums(enum_extensions, specs, meta):
             if not _validate_ext_enum_range(extension, matching_enum):
                 raise Exception(f"Invalid enum values.")
             matching_enum['etors'].extend(extension['etors'])
-        
+
         _refresh_enum_meta(matching_enum, meta)
 
         ## Sort the etors
         value = -1
         def sort_etors(x):
-            nonlocal value 
+            nonlocal value
             value = _get_etor_value(x.get('value'), value)
             return value
         matching_enum['etors'] = sorted(matching_enum['etors'], key=sort_etors)
@@ -872,6 +877,7 @@ def parse(section, version, tags, meta, ref):
     specs = []
 
     files = util.findFiles(path, "*.yml")
+    files.sort(key = lambda f: 0 if f.endswith('common.yml') else 1)
     registry = [f for f in files if f.endswith('registry.yml')][0]
 
     enum_extensions = []

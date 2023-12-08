@@ -13,17 +13,6 @@
 
 ur_adapter_handle_t_ Adapter{};
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urInit(ur_device_init_flags_t
-           DeviceFlags, ///< [in] device initialization flags.
-                        ///< must be 0 (default) or a combination of
-                        ///< ::ur_device_init_flag_t.
-       ur_loader_config_handle_t) {
-  std::ignore = DeviceFlags;
-
-  return UR_RESULT_SUCCESS;
-}
-
 ur_result_t adapterStateTeardown() {
   // reclaim ur_platform_handle_t objects here since we don't have
   // urPlatformRelease.
@@ -38,7 +27,7 @@ ur_result_t adapterStateTeardown() {
   // Print the balance of various create/destroy native calls.
   // The idea is to verify if the number of create(+) and destroy(-) calls are
   // matched.
-  if (ZeCallCount && (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) != 0) {
+  if (ZeCallCount && (UrL0LeaksDebug) != 0) {
     // clang-format off
     //
     // The format of this table is such that each row accounts for a
@@ -79,8 +68,7 @@ ur_result_t adapterStateTeardown() {
     //
     // clang-format on
 
-    fprintf(stderr, "ZE_DEBUG=%d: check balance of create/destroy calls\n",
-            UR_L0_DEBUG_CALL_COUNT);
+    fprintf(stderr, "Check balance of create/destroy calls\n");
     fprintf(stderr,
             "----------------------------------------------------------\n");
     for (const auto &Row : CreateDestroySet) {
@@ -119,13 +107,6 @@ ur_result_t adapterStateTeardown() {
   if (LeakFound)
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
 
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
-    void *Params ///< [in] pointer to tear down parameters
-) {
-  std::ignore = Params;
   return UR_RESULT_SUCCESS;
 }
 

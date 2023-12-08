@@ -161,8 +161,9 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_QUEUE_PROPERTIES
+    - $X_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
+        - "`pProperties != NULL && pProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH && pProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW`"
+        - "`pProperties != NULL && pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED && pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
