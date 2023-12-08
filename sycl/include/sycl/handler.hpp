@@ -1826,7 +1826,7 @@ public:
                KernelBundleImplPtr)
         .get_specialization_constant<SpecName>();
   }
-
+  std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
@@ -3375,7 +3375,6 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
 
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
