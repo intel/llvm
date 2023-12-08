@@ -11,7 +11,6 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/common.hpp>
-#include <sycl/ext/intel/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/operators.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
@@ -102,10 +101,10 @@ __esimd_abs_common_internal(simd<TArg, SZ> src0) {
 }
 
 template <typename TRes, typename TArg>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
-                                      detail::is_esimd_scalar<TArg>::value,
-                                  TRes>
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
+                         detail::is_esimd_scalar<TArg>::value,
+                     TRes>
     __esimd_abs_common_internal(TArg src0) {
   simd<TArg, 1> Src0 = src0;
   simd<TArg, 1> Result = __esimd_abs_common_internal<TArg>(Src0);
@@ -642,8 +641,8 @@ __ESIMD_API RT trunc(float src0, Sat sat = {}) {
 /// @param src0 The input mask.
 /// @return The packed mask as an <code>unsgined int</code> 32-bit value.
 template <int N>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
     pack_mask(simd_mask<N> src0) {
   return __esimd_pack_mask<N>(src0.data());
 }
@@ -656,8 +655,8 @@ ESIMD_NODEBUG
 /// @param src0 The input packed mask.
 /// @return The unpacked mask as a simd_mask object.
 template <int N>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
     unpack_mask(uint src0) {
   return __esimd_unpack_mask<N>(src0);
 }
@@ -699,9 +698,10 @@ ballot(simd<T, N> mask) {
 /// @return a vector of \c uint32_t, where each element is set to bit count of
 ///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
-    std::is_integral<T>::value && (sizeof(T) <= 4), simd<uint32_t, N>>
-cbit(simd<T, N> src) {
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<std::is_integral<T>::value && (sizeof(T) <= 4),
+                     simd<uint32_t, N>>
+    cbit(simd<T, N> src) {
   return __esimd_cbit<T, N>(src.data());
 }
 
@@ -859,12 +859,11 @@ __ESIMD_API std::enable_if_t<
         detail::is_dword_type<T3>::value && detail::is_dword_type<T4>::value,
     simd<T1, N>>
 dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2, Sat sat = {}) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  simd<T1, N> Result;
   simd<T2, N> Src0 = src0;
   simd<T3, N> Src1 = src1;
   simd<T4, N> Src2 = src2;
-  simd<T1, N> Result;
-
-#if defined(__SYCL_DEVICE_ONLY__)
   if constexpr (std::is_same_v<Sat, saturation_off_tag>) {
     if constexpr (std::is_unsigned<T1>::value) {
       if constexpr (std::is_unsigned<T2>::value) {
@@ -902,17 +901,10 @@ dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2, Sat sat = {}) {
       }
     }
   }
-#else
-  simd<T2, N> tmp =
-      __esimd_dp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(), Src2.data());
-
-  if (std::is_same_v<Sat, saturation_on_tag>)
-    Result = esimd::saturate<T1>(tmp);
-  else
-    Result = convert<T1>(tmp);
-#endif // __SYCL_DEVICE_ONLY__
-
   return Result;
+#else
+  __ESIMD_UNSUPPORTED_ON_HOST;
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 // reduction functions
