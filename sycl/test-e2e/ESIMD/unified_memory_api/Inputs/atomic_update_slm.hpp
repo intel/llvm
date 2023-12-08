@@ -564,7 +564,7 @@ bool test_int_types(queue q) {
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
 
-    // uint64_t not supported on DG2
+    // int64_t not supported on DG2
     if constexpr (Features == TestFeatures::PVC) {
       passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
     }
