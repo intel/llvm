@@ -1540,7 +1540,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
   UR_ASSERT(pMem && size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   void *HIPDevicePtr = const_cast<void *>(pMem);
-  ur_device_handle_t Device = hQueue->getContext()->getDevice();
+  ur_device_handle_t Device = hQueue->getDevice();
 
 #if HIP_VERSION_MAJOR >= 5
   // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while this
