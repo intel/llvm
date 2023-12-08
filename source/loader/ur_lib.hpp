@@ -105,5 +105,10 @@ urLoaderConfigSetCodeLocationCallback(ur_loader_config_handle_t hLoaderConfig,
                                       ur_code_location_callback_t pfnCodeloc,
                                       void *pUserData);
 
+ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
+                                ur_device_type_t DeviceType,
+                                uint32_t NumEntries,
+                                ur_device_handle_t *phDevices,
+                                uint32_t *pNumDevices);
 } // namespace ur_lib
 #endif /* UR_LOADER_LIB_H */

@@ -574,6 +574,9 @@ etors:
 - name: COMMAND_BUFFER_COMMAND_GET_INFO_EXP
   desc: Enumerator for $xCommandBufferCommandGetInfoExp
   value: '219'
+- name: DEVICE_GET_SELECTED
+  desc: Enumerator for $xDeviceGetSelected
+  value: '220'
 ---
 type: enum
 desc: Defines structure types
