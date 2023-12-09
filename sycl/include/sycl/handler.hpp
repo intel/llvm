@@ -561,17 +561,17 @@ private:
     const std::string KernelName = getKernelName();
     return LambdaName == KernelName;
   }
-template <class KernelNameType>
-struct KernelNameHash {
-  static std::size_t get() {
-    static std::unique_ptr<std::size_t> Value;
-    if (!Value) {
-      Value.reset(new std::size_t());
-      *Value = std::hash<KernelNameType>{}(KernelNameType{}); // compute the hash here
+  template <class KernelNameType> struct KernelNameHash {
+    static std::size_t get() {
+      static std::unique_ptr<std::size_t> Value;
+      if (!Value) {
+        Value.reset(new std::size_t());
+        *Value = std::hash<KernelNameType>{}(
+            KernelNameType{}); // compute the hash here
+      }
+      return *Value;
     }
-    return *Value;
-  }
-};
+  };
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
