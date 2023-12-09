@@ -562,12 +562,12 @@ private:
     return LambdaName == KernelName;
   }
   template <class KernelNameType> struct KernelNameHash {
-public:
+  public:
     static std::size_t get(std::string KernelName) {
       static std::unique_ptr<std::size_t> Value;
       if (!Value) {
         Value.reset(new std::size_t());
-	std::hash<std::string> StringHasher;
+        std::hash<std::string> StringHasher;
         *Value = StringHasher(KernelName); // compute the hash here
       }
       return *Value;
