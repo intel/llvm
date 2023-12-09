@@ -231,8 +231,8 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                 DeviceSanitizerFormat(AH->ErrorType),
                 DeviceSanitizerFormat(AH->MemoryType));
         fprintf(stderr,
-                "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-                "%lu, %lu)\n",
+                "%s of size %u at kernel <%s> LID(%llu, %llu, %llu) GID(%llu, "
+                "%llu, %llu)\n",
                 AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
                 AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
         fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
