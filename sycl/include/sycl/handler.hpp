@@ -562,12 +562,13 @@ private:
     return LambdaName == KernelName;
   }
   template <class KernelNameType> struct KernelNameHash {
-    static std::size_t get() {
+public:
+    static std::size_t get(std::string KernelName) {
       static std::unique_ptr<std::size_t> Value;
       if (!Value) {
         Value.reset(new std::size_t());
-        *Value = std::hash<KernelNameType>{}(
-            KernelNameType{}); // compute the hash here
+	std::hash<std::string> StringHasher;
+        *Value = StringHasher(KernelName); // compute the hash here
       }
       return *Value;
     }
@@ -2125,7 +2126,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
-      MKenelNameStringHash = KernelNameHash<NameT>::get();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
@@ -2162,7 +2163,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
-      MKenelNameStringHash = KernelNameHash<NameT>::get();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2202,7 +2203,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
-      MKenelNameStringHash = KernelNameHash<NameT>::get();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2241,7 +2242,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
-      MKenelNameStringHash = KernelNameHash<NameT>::get();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
