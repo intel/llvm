@@ -3761,6 +3761,12 @@ def fdebug_macro : Flag<["-"], "fdebug-macro">, Group<f_Group>,
 def fno_debug_macro : Flag<["-"], "fno-debug-macro">, Group<f_Group>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Do not emit macro debug information">;
+def fsystem_debug : Flag<["-"], "fsystem-debug">, Group<f_Group>,
+  Visibility<[ClangOption, CLOption, DXCOption]>,
+  HelpText<"Emit debug information for declarations in system headers">;
+def fno_system_debug : Flag<["-"], "fno-system-debug">, Group<f_Group>,
+  Visibility<[ClangOption, CLOption, DXCOption]>,
+  HelpText<"Do not emit debug information for declarations in system headers">;
 def fstrict_aliasing : Flag<["-"], "fstrict-aliasing">, Group<f_Group>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Enable optimizations based on strict aliasing rules">;
@@ -7016,6 +7022,9 @@ let Visibility = [CC1Option, CC1AsOption] in {
 def debug_info_macro : Flag<["-"], "debug-info-macro">,
   HelpText<"Emit macro debug information">,
   MarshallingInfoFlag<CodeGenOpts<"MacroDebugInfo">>;
+def no_system_debug : Flag<["-"], "no-system-debug">,
+  HelpText<"Do not emit debug information for declarations in system headers">,
+  MarshallingInfoFlag<CodeGenOpts<"NoSystemDebug">>;
 def default_function_attr : Separate<["-"], "default-function-attr">,
   HelpText<"Apply given attribute to all functions">,
   MarshallingInfoStringVector<CodeGenOpts<"DefaultFunctionAttrs">>;
