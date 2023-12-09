@@ -149,7 +149,7 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName);
+                    const std::string &KernelName, std::size_t KenelNameStringHash);
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
@@ -282,7 +282,7 @@ public:
                            const property_list &PropList);
 
   std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
-  getOrCreateKernel(const context &Context, const std::string &KernelName,
+  getOrCreateKernel(const context &Context, const std::string &KernelName,std::size_t KenelNameStringHash,
                     const property_list &PropList,
                     sycl::detail::pi::PiProgram Program);
 

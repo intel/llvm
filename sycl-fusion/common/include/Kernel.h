@@ -236,7 +236,7 @@ private:
 struct SYCLKernelInfo {
 
   std::string Name;
-
+  std::size_t KenelNameStringHash;
   SYCLArgumentDescriptor Args;
 
   AttributeList Attributes;
@@ -248,10 +248,10 @@ struct SYCLKernelInfo {
   //// Explicit constructor for compatibility with LLVM YAML I/O.
   SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
-  SYCLKernelInfo(const std::string &KernelName,
+  SYCLKernelInfo(const std::string &KernelName, std::size_t &KenelNameStringHash,
                  const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
                  const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
+      : Name{KernelName}, KenelNameStringHash{KenelNameStringHash} , Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
                                                                      BinInfo} {}
 
   explicit SYCLKernelInfo(const std::string &KernelName)
