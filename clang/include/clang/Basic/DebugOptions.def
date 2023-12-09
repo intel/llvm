@@ -109,7 +109,7 @@ ENUM_DEBUGOPT(DebugInfo, llvm::codegenoptions::DebugInfoKind, 4,
 DEBUGOPT(MacroDebugInfo, 1, 0)
 
 /// Whether to not generate debug info for system headers.
-CODEGENOPT(NoSystemDebug, 1, 0)
+DEBUGOPT(NoSystemDebug, 1, 0)
 
 /// Tune the debug info for this debugger.
 ENUM_DEBUGOPT(DebuggerTuning, llvm::DebuggerKind, 3,
