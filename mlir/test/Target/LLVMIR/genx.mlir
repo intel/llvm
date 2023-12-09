@@ -127,7 +127,7 @@ llvm.func @genx.dpas.i8(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<32xi
 
 llvm.func @genx.2Dblockload(%ptr : !llvm.ptr, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
   // CHECK: [[PTR:%.*]] = ptrtoint ptr %0 to i64
-  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.LSC2DBlockRead.v8f32(i64 [[PTR]], i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 32, i32 8, i32 8, i32 1, i1 false, i1 false)
+  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.LSC2DBlockRead.v8f32(i64 [[PTR]], i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 32, i32 8, i32 8, i32 1, i1 false, i1 false, i32 0)
   %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=8:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr, i32, i32, i32, i32, i32) -> vector<8xf32>
   llvm.return
 }
@@ -136,7 +136,7 @@ llvm.func @genx.2Dblockload(%ptr : !llvm.ptr, %base_width : i32, %base_height : 
 
 llvm.func @genx.2Dblockstore(%ptr : !llvm.ptr, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<8xf32>) {
   // CHECK: [[PTR:%.*]] = ptrtoint ptr %0 to i64
-  // CHECK-NEXT: call void @llvm.genx.GenISA.LSC2DBlockWrite.v8f32(i64 [[PTR]], i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 32, i32 8, i32 8, i32 1, i1 false, i1 false, <8 x float> %6)
+  // CHECK-NEXT: call void @llvm.genx.GenISA.LSC2DBlockWrite.v8f32(i64 [[PTR]], i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 32, i32 8, i32 8, i32 1, i1 false, i1 false, i32 0, <8 x float> %6)
   genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=8:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr, i32, i32, i32, i32, i32, vector<8xf32>)
   llvm.return
 }

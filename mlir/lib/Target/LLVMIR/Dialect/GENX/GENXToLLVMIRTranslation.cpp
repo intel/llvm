@@ -201,6 +201,8 @@ createGenISA2DBlockRead(GENX::Matrix2DBlockLoadOp op,
   args.push_back(llvm::ConstantInt::get(int32Ty, op.getVBlocks()));
   args.push_back(llvm::ConstantInt::get(int1Ty, op.getTranspose()));
   args.push_back(llvm::ConstantInt::get(int1Ty, op.getVnniTransform()));
+  // FIXME: Add argument to control cache.
+  args.push_back(llvm::ConstantInt::get(int32Ty, 0));
 
   return builder.CreateCall(fn, args);
 }
@@ -233,6 +235,8 @@ createGenISA2DBlockWrite(GENX::Matrix2DBlockStoreOp op,
   args.push_back(llvm::ConstantInt::get(int32Ty, op.getVBlocks()));
   args.push_back(llvm::ConstantInt::get(int1Ty, op.getTranspose()));
   args.push_back(llvm::ConstantInt::get(int1Ty, op.getVnniTransform()));
+  // FIXME: Add argument to control cache.
+  args.push_back(llvm::ConstantInt::get(int32Ty, 0));
   args.push_back(lastOperand);
 
   return builder.CreateCall(fn, args);
