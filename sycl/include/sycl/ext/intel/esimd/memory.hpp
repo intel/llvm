@@ -5662,10 +5662,10 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
 /// @brief No-argument variant of the atomic update operation.
 ///
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (acc-au0-1)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (acc-au0-2)
 /// simd<T, N>
 /// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
@@ -5674,10 +5674,11 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
 /// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (acc-au0-4)
 ///
+
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 ///
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (acc-au0-1)
 ///
 /// Atomically updates \c N memory locations represented by an accessor and
@@ -5702,7 +5703,7 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -5711,8 +5712,8 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
-              simd_mask<N> mask, PropertyListT props = {}) {
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
+              PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
                                  byte_offset, mask, props);
@@ -5727,7 +5728,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
-  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 !detail::isPowerOf2(N, 32)) {
@@ -5747,7 +5748,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
       }
     } else {
       detail::check_atomic<Op, T, N, 0>();
-      static_assert(sizeof(OffsetObjT) == 4, "Only 32 bit offset is supported");
+      static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
 
       static_assert(sizeof(T) == 4, "Only 32 bit data is supported");
       const auto si = get_surface_index(acc);
@@ -5779,7 +5780,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -5788,7 +5789,7 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, mask, props);
@@ -5884,14 +5885,14 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API
     std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
                          __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
                      simd<T, N>>
-    atomic_update(AccessorTy acc, OffsetObjT byte_offset, simd_mask<N> mask) {
-  return atomic_update<Op, T, N>(acc, simd<OffsetObjT, N>(byte_offset), mask);
+    atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
+  return atomic_update<Op, T, N>(acc, simd<Toffset, N>(byte_offset), mask);
 }
 
 /// A variation of \c atomic_update API with \p byte_offset represented as
@@ -5925,10 +5926,10 @@ __ESIMD_API
 /// @brief Single-argument variant of the atomic update operation.
 ///
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd_mask<N> mask, props = {});//(acc-au1-1)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, props = {});                  // (acc-au1-2)
 ///
 /// simd<T, N>
@@ -5944,7 +5945,7 @@ __ESIMD_API
 ///
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd_mask<N> mask, props = {});//(acc-au1-1)
 ///
 /// Atomically updates \c N memory locations represented by an accessor and
@@ -5975,7 +5976,7 @@ __ESIMD_API
 ///   update.
 ///
 
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -5984,7 +5985,7 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd_mask<N> mask, PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
@@ -6001,8 +6002,8 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
-  static_assert(sizeof(OffsetObjT) == 4, "Only 32 bit offset is supported");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   // Auto-convert FP atomics to LSC version.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 Op == atomic_op::fmin || Op == atomic_op::fmax ||
@@ -6034,7 +6035,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, props = {});                  // (acc-au1-2)
 ///
 /// A variation of \c atomic_update API with no mask operand.
@@ -6064,7 +6065,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -6073,7 +6074,7 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, src0, mask, props);
@@ -6191,15 +6192,15 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename OffsetObjT,
+template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
-atomic_update(AccessorTy acc, OffsetObjT offset, simd<Tx, N> src0,
+atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<OffsetObjT, N>(offset), src0, mask);
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -6235,12 +6236,12 @@ atomic_update(AccessorTy acc, uint32_t offset, simd<Tx, N> src0,
 /// @brief Two-argument variant of the atomic update operation.
 ///
 /// simd<T, N>
-/// atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 //                simd_mask<N> mask,props = {});                 // (acc-au2-1)
 ///
 /// simd<T, N>
-/// atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                   // (acc-au2-2)
 /// simd<T, N>
@@ -6255,7 +6256,7 @@ atomic_update(AccessorTy acc, uint32_t offset, simd<Tx, N> src0,
 ///
 
 /// simd<T, N>
-/// atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 //                simd_mask<N> mask,props = {});                 // (acc-au2-1)
 ///
@@ -6284,16 +6285,16 @@ atomic_update(AccessorTy acc, uint32_t offset, simd<Tx, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<OffsetObjT> &&
+    __ESIMD_DNS::get_num_args<Op>() == 2 && std::is_integral_v<Toffset> &&
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
@@ -6310,8 +6311,8 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  static_assert(std::is_integral_v<OffsetObjT>, "Unsupported offset type");
-  static_assert(sizeof(OffsetObjT) == 4, "Only 32 bit offset is supported");
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   // Use LSC atomic when cache hints are present, FP atomics is used,
   // non-power of two length is used, or operation width greater than 32.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
@@ -6336,7 +6337,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset,
+/// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {});                                   // (acc-au2-2)
 ///
@@ -6356,7 +6357,7 @@ atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename OffsetObjT,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -6365,7 +6366,7 @@ __ESIMD_API std::enable_if_t<
         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd<OffsetObjT, N> byte_offset, simd<T, N> src0,
+atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset, src0, src1, mask, props);
@@ -6467,13 +6468,13 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename OffsetObjT,
+template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
                              simd<Tx, N>>
-atomic_update(AccessorTy acc, OffsetObjT offset, simd<Tx, N> src0,
+atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<OffsetObjT, N>(offset), src0, src1,
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
 
