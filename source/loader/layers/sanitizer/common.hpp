@@ -81,4 +81,10 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
             return Result;                                                     \
     }
 
+#ifndef NDEBUG
+#define UR_ASSERT_EQ(Call, Result) assert(Call == Result)
+#else
+#define UR_ASSERT_EQ(Call, Result) (void)Call
+#endif
+
 } // namespace ur_sanitizer_layer
