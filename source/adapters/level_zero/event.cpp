@@ -165,10 +165,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         // event signal because it is already guaranteed that previous commands
         // in this queue are completed when the signal is started.
         //
+        // Only consideration here is that when profiling is used, signalEvent
+        // cannot be used if EventWaitList.Lenght == 0. In those cases, we need
+        // to fallback directly to barrier to have correct timestamps. See here:
+        // https://spec.oneapi.io/level-zero/latest/core/api.html?highlight=appendsignalevent#_CPPv430zeCommandListAppendSignalEvent24ze_command_list_handle_t17ze_event_handle_t
+        //
         // TODO: this and other special handling of in-order queues to be
         // updated when/if Level Zero adds native support for in-order queues.
         //
-        if (Queue->isInOrderQueue() && InOrderBarrierBySignal) {
+        if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
+            !Queue->isProfilingEnabled()) {
           if (EventWaitList.Length) {
             ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                        (CmdList->first, EventWaitList.Length,
@@ -181,6 +187,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                      (CmdList->first, Event->ZeEvent, EventWaitList.Length,
                       EventWaitList.ZeEventList));
         }
+
         return UR_RESULT_SUCCESS;
       };
 
@@ -964,8 +971,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool HostVisible, ur_event_handle_t *RetEvent) {
 
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
 
   if (auto CachedEvent =
           Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
