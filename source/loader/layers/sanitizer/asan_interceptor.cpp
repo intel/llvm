@@ -57,7 +57,7 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
 
 ur_context_handle_t getContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context;
-    auto Result = context.urDdiTable.Queue.pfnGetInfo(
+    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS);
@@ -66,7 +66,7 @@ ur_context_handle_t getContext(ur_queue_handle_t Queue) {
 
 ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
     ur_device_handle_t Device;
-    auto Result = context.urDdiTable.Queue.pfnGetInfo(
+    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS);
@@ -75,7 +75,7 @@ ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
 
 ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program;
-    auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS);
@@ -92,6 +92,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     assert(Alignment == 0 || IsPowerOfTwo(Alignment));
 
     auto ContextInfo = getContextInfo(Context);
+    // Device is nullptr if Type == USMMemoryType::HOST
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
     if (Alignment == 0) {
@@ -121,7 +122,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     // Copy from LLVM compiler-rt/lib/asan
     uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
-    uptr AllocEnd = AllocBegin + NeededSize;
+    [[maybe_unused]] uptr AllocEnd = AllocBegin + NeededSize;
     uptr UserBegin = AllocBegin + RZSize;
     if (!IsAligned(UserBegin, Alignment)) {
         UserBegin = RoundUpTo(UserBegin, Alignment);
@@ -246,7 +247,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 
 std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
     size_t KernelNameSize = 0;
-    auto Res = context.urDdiTable.Kernel.pfnGetInfo(
+    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
     assert(Res == UR_RESULT_SUCCESS);
 
@@ -263,8 +264,7 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
 ur_result_t SanitizerInterceptor::allocShadowMemory(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
     if (DeviceInfo->Type == DeviceType::CPU) {
-        DeviceInfo->ShadowOffset = 0x00007fff7fffULL;
-        DeviceInfo->ShadowOffsetEnd = 0x10007fff7fffULL;
+        die("Unsupport device type");
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
@@ -569,7 +569,7 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
     std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
     ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
-    do {
+    {
         // Set global variable to program
         auto EnqueueWriteGlobal = [&](const char *Name, const void *Value) {
             ur_event_handle_t NewEvent{};
@@ -594,7 +594,7 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                            &DeviceInfo->ShadowOffset);
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
                            &DeviceInfo->ShadowOffsetEnd);
-    } while (false);
+    }
 
     QueueInfo->LastEvent = LastEvent;
 }
