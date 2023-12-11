@@ -9016,7 +9016,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     }
   }
 
-  if (T->isRVVType())
+  if (T->isRVVSizelessBuiltinType())
     checkRVVTypeSupport(T, NewVD->getLocation(), cast<Decl>(CurContext));
 }
 
@@ -16334,7 +16334,9 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
         ActivePolicy = &WP;
       }
 
-      if (!IsInstantiation && FD && FD->isConstexpr() && !FD->isInvalidDecl() &&
+      if (!IsInstantiation && FD &&
+          (FD->isConstexpr() || FD->hasAttr<MSConstexprAttr>()) &&
+          !FD->isInvalidDecl() &&
           !CheckConstexprFunctionDefinition(FD, CheckConstexprKind::Diagnose))
         FD->setInvalidDecl();
 

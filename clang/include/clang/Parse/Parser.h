@@ -3545,6 +3545,7 @@ private:
   void ParseOpenACCCacheVarList();
   /// Parses a single variable in a variable list for the 'cache' construct.
   bool ParseOpenACCCacheVar();
+  bool ParseOpenACCWaitArgument();
 
 private:
   //===--------------------------------------------------------------------===//
