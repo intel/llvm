@@ -616,7 +616,7 @@ int main(int Argc, char *Argv[]) {
         "Failed to " + CmdToCmdInfoMap[OptCommand].first + ": ";
     // will print CompilerBuildLogMessage when build failed in case verbose is
     // false, in order to provide a friendlier compile error for users.
-    if (false == verbose)
+    if (!verbose)
       std::cerr << CompilerBuildLogMessage;
     std::cerr << formatCLError(ErrMsg, CLErr) << '\n';
     return CLErr;
