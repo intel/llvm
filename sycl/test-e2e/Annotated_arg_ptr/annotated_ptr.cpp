@@ -70,9 +70,9 @@ template <typename T> struct MyThirdStruct {
 template <typename T> struct MyFourthStruct {
   T p;
 
-  template <tyename T2> myFourthStruct(T2 &p_) : p(p_) {}
+  template <typename T2> myFourthStruct(T2 &p_) : p(p_) {}
 
-  template <tyename T2> void operator=(T2 &p_) {}
+  template <typename T2> void operator=(T2 &p_) {}
 
   int operator+(int &rhs) const { return 0; }
   int operator+=(int &rhs) const { return 0; }
