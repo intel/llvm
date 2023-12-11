@@ -126,9 +126,6 @@ if config.cuda_be == "ON":
 if config.hip_be == "ON":
     config.available_features.add('hip_be')
 
-if config.esimd_emulator_be == "ON":
-    config.available_features.add('esimd_emulator_be')
-
 if config.opencl_be == "ON":
     config.available_features.add('opencl_be')
 

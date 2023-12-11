@@ -2,12 +2,14 @@
 
 // RUN: %{build} -ftarget-register-alloc-mode=pvc:auto -o %t_with.out
 // RUN: %{build} -o %t_without.out
+// RUN: %{build} -ftarget-register-alloc-mode=pvc:default -o %t_default.out
 
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t_with.out 2>&1 | FileCheck --check-prefix=CHECK-WITH %s
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t_without.out 2>&1 | FileCheck --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t_with.out 2>&1 | FileCheck --check-prefix=CHECK-OPT %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t_without.out 2>&1 | FileCheck %if system-windows %{ --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %} %else %{ --check-prefix=CHECK-OPT %} %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t_default.out 2>&1 | FileCheck --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %s
 
-// CHECK-WITH: ---> piProgramBuild(
-// CHECK-WITH: -ze-intel-enable-auto-large-GRF-mode
+// CHECK-OPT: ---> piProgramBuild(
+// CHECK-OPT: -ze-intel-enable-auto-large-GRF-mode
 
 #include <sycl/sycl.hpp>
 

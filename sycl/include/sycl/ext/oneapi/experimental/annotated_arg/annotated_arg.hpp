@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -65,52 +66,27 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-#ifdef __SYCL_DEVICE_ONLY__
-  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
-#else
-  using global_pointer_t = T *;
-#endif
-
-  global_pointer_t obj;
+  T *obj;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t _obj) {
+      detail::PropertyMetaInfo<Props>::value...)]]
+              typename decorated_global_ptr<T>::pointer _obj) {
     obj = _obj;
   }
 #endif
 
 public:
-  static constexpr bool is_valid_property_list =
-      is_property_list<property_list_t>::value;
-  static_assert(is_valid_property_list, "Property list is invalid.");
-  static constexpr bool contains_valid_properties =
-      check_property_list<T *, Props...>::value;
-  static_assert(contains_valid_properties,
-                "The property list contains invalid property.");
-  // check the set if FPGA specificed properties are used
-  static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<Props...>::value;
-  static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
-                "can only be set with BufferLocation together.");
-  // check if conduit and register_map properties are specified together
-  static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<Props...>::value;
-  static_assert(hasConduitAndRegisterMapProperties,
-                "The properties conduit and register_map cannot be "
-                "specified at the same time.");
-
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
   annotated_arg &operator=(annotated_arg &) = default;
 
   annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj(global_pointer_t(_ptr)) {
+      : obj(_ptr) {
     (void)PropList;
   }
 
@@ -119,8 +95,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
-      : obj(global_pointer_t(_ptr)) {
+  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept : obj(_ptr) {
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,
@@ -191,6 +166,34 @@ public:
   template <typename PropertyT> static constexpr auto get_property() {
     return property_list_t::template get_property<PropertyT>();
   }
+
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T *, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
+                "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 };
 
 // Partial specialization for non-pointer type
@@ -212,28 +215,6 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static constexpr bool is_device_copyable = is_device_copyable_v<T>;
-  static_assert(is_device_copyable, "Type T must be device copyable.");
-  static constexpr bool is_valid_property_list =
-      is_property_list<property_list_t>::value;
-  static_assert(is_valid_property_list, "Property list is invalid.");
-  static constexpr bool contains_valid_properties =
-      check_property_list<T, Props...>::value;
-  static_assert(contains_valid_properties,
-                "The property list contains invalid property.");
-  // check the set if FPGA specificed properties are used
-  static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<Props...>::value;
-  static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
-                "can only be set with BufferLocation together.");
-  // check if conduit and register_map properties are specified together
-  static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<Props...>::value;
-  static_assert(hasConduitAndRegisterMapProperties,
-                "The properties conduit and register_map cannot be "
-                "specified at the same time.");
-
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
   annotated_arg &operator=(annotated_arg &) = default;
@@ -383,6 +364,82 @@ public:
   R operator<<(const annotated_arg<T2, PropertyList2> &other) const {
     return obj << other.obj;
   }
+
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
+  static constexpr bool is_device_copyable = is_device_copyable_v<T>;
+  static_assert(is_device_copyable, "Type T must be device copyable.");
+
+  // check if invalid properties are specified for non pointer type
+  static constexpr bool has_buffer_location =
+      has_property<buffer_location_key>();
+  static_assert(!has_buffer_location,
+                "Property buffer_location cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_awidth = has_property<awidth_key>();
+  static_assert(!has_awidth, "Property awidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_dwidth = has_property<dwidth_key>();
+  static_assert(!has_dwidth, "Property dwidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_latency = has_property<latency_key>();
+  static_assert(!has_latency, "Property latency cannot be specified for "
+                              "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_read_write_mode =
+      has_property<read_write_mode_key>();
+  static_assert(!has_read_write_mode,
+                "Property read_write_mode cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_maxburst = has_property<maxburst_key>();
+  static_assert(!has_maxburst,
+                "Property maxburst cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_wait_request = has_property<wait_request_key>();
+  static_assert(!has_wait_request,
+                "Property wait_request cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_alignment = has_property<alignment_key>();
+  static_assert(!has_alignment,
+                "Property alignment cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool has_usm_kind = has_property<usm_kind_key>();
+  static_assert(!has_usm_kind,
+                "Property usm_kind cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
+                "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 };
 
 template <typename T, typename PropertyList, typename T2,

@@ -2403,8 +2403,9 @@ pi_int32 enqueueImpCommandBufferKernel(
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
+  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
@@ -2416,8 +2417,6 @@ pi_int32 enqueueImpCommandBufferKernel(
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    std::shared_ptr<kernel_impl> SyclKernelImpl;
-    std::shared_ptr<device_image_impl> DeviceImageImpl;
     auto KernelName = CommandGroup.MKernelName;
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
@@ -2427,25 +2426,24 @@ pi_int32 enqueueImpCommandBufferKernel(
     PiKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     PiProgram = DeviceImageImpl->get_program_ref();
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, PiProgram);
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
+    auto SyclProg = Kernel->getProgramImpl();
+    PiProgram = SyclProg->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
-  auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
-                     sycl::detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(
-        Plugin, PiKernel,
-        nullptr /* TODO: Handle spec constants and pass device image here */
-        ,
-        getMemAllocationFunc, Ctx, false, Arg, NextTrueIndex);
+  auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
+                  &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
+                                         size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(Plugin, PiKernel, DeviceImageImpl,
+                                    getMemAllocationFunc, Ctx, false, Arg,
+                                    NextTrueIndex);
   };
   // Copy args for modification
   auto Args = CommandGroup.MArgs;
@@ -2483,6 +2481,11 @@ pi_int32 enqueueImpCommandBufferKernel(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
       SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
+
+  if (!SyclKernelImpl && !Kernel) {
+    Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<PiApiKind::piProgramRelease>(PiProgram);
+  }
 
   if (Res != pi_result::PI_SUCCESS) {
     throw sycl::exception(errc::invalid,
@@ -2531,10 +2534,8 @@ pi_int32 enqueueImpKernel(
 
     Program = DeviceImageImpl->get_program_ref();
 
-    std::tie(Kernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, Program);
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
@@ -2575,8 +2576,11 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    assert(KernelMutex);
-    std::lock_guard<std::mutex> Lock(*KernelMutex);
+    // When KernelMutex is null, this means that in-memory caching is
+    // disabled, which means that kernel object is not shared, so no locking
+    // is necessary.
+    using LockT = std::unique_lock<std::mutex>;
+    auto Lock = KernelMutex ? LockT(*KernelMutex) : LockT();
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
@@ -2591,6 +2595,12 @@ pi_int32 enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
                                      EliminatedArgMask, getMemAllocationFunc);
+
+    const PluginPtr &Plugin = Queue->getPlugin();
+    if (!SyclKernelImpl && !MSyclKernel) {
+      Plugin->call<PiApiKind::piKernelRelease>(Kernel);
+      Plugin->call<PiApiKind::piProgramRelease>(Program);
+    }
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

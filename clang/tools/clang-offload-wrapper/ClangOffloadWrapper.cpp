@@ -216,16 +216,25 @@ static cl::opt<std::string> DescriptorName(
         "and makes it globally visible"),
     cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
 
-/// batch mode - all input files are grouped in file table files
+// clang-format off
+/// batch mode - All input files are treated as a table file.  One table file per target.
+///            - Table files consist of a table of filenames that provide
+///            - Code, Symbols, Properties, etc.
 static cl::opt<bool> BatchMode(
     "batch", cl::NotHidden, cl::init(false), cl::Optional,
-    cl::desc("All input files are provided as cells in a file table file,\n"
-             "other command-line input files are not allowed.\n"
-             "Example input file table in batch mode:\n"
-             "[Code|Symbols|Properties|Manifest]\n"
-             "a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
-             "a_1.bin|||"),
+    cl::desc("All input files are treated as a table file.  One table file per target.\n"
+             "Table files consist of a table of filenames that provide\n"
+             "Code, Symbols, Properties, etc.\n"
+             "Example input table file in batch mode:\n"
+             "  [Code|Symbols|Properties|Manifest]\n"
+             "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "  a_1.bin|||\n"
+             "Example usage:\n"
+             "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
+             "    -kind=openmp -target=spir64_gen table1.txt\n"
+             "    -kind=openmp -target=spir64     table2.txt"),
     cl::cat(ClangOffloadWrapperCategory));
+// clang-format on
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
@@ -357,7 +366,7 @@ private:
   std::unique_ptr<SymPropReader> MySymPropReader;
 
   IntegerType *getSizeTTy() {
-    switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
+    switch (M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(C))) {
     case 4u:
       return Type::getInt32Ty(C);
     case 8u:
@@ -406,8 +415,8 @@ private:
   // };
   StructType *getEntryTy() {
     if (!EntryTy)
-      EntryTy = StructType::create("__tgt_offload_entry", Type::getInt8PtrTy(C),
-                                   Type::getInt8PtrTy(C), getSizeTTy(),
+      EntryTy = StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
+                                   PointerType::getUnqual(C), getSizeTTy(),
                                    Type::getInt32Ty(C), Type::getInt32Ty(C));
     return EntryTy;
   }
@@ -422,8 +431,8 @@ private:
   // };
   StructType *getDeviceImageTy() {
     if (!ImageTy)
-      ImageTy = StructType::create("__tgt_device_image", Type::getInt8PtrTy(C),
-                                   Type::getInt8PtrTy(C), getEntryPtrTy(),
+      ImageTy = StructType::create("__tgt_device_image", PointerType::getUnqual(C),
+                                   PointerType::getUnqual(C), getEntryPtrTy(),
                                    getEntryPtrTy());
     return ImageTy;
   }
@@ -470,8 +479,8 @@ private:
     if (!SyclPropTy) {
       SyclPropTy = StructType::create(
           {
-              Type::getInt8PtrTy(C), // Name
-              Type::getInt8PtrTy(C), // ValAddr
+              PointerType::getUnqual(C), // Name
+              PointerType::getUnqual(C), // ValAddr
               Type::getInt32Ty(C),   // Type
               Type::getInt64Ty(C)    // ValSize
           },
@@ -494,7 +503,7 @@ private:
     if (!SyclPropSetTy) {
       SyclPropSetTy = StructType::create(
           {
-              Type::getInt8PtrTy(C), // Name
+              PointerType::getUnqual(C), // Name
               getSyclPropPtrTy(),    // PropertiesBegin
               getSyclPropPtrTy()     // PropertiesEnd
           },
@@ -549,13 +558,13 @@ private:
               Type::getInt16Ty(C),   // Version
               Type::getInt8Ty(C),    // OffloadKind
               Type::getInt8Ty(C),    // Format
-              Type::getInt8PtrTy(C), // DeviceTargetSpec
-              Type::getInt8PtrTy(C), // CompileOptions
-              Type::getInt8PtrTy(C), // LinkOptions
-              Type::getInt8PtrTy(C), // ManifestStart
-              Type::getInt8PtrTy(C), // ManifestEnd
-              Type::getInt8PtrTy(C), // ImageStart
-              Type::getInt8PtrTy(C), // ImageEnd
+              PointerType::getUnqual(C), // DeviceTargetSpec
+              PointerType::getUnqual(C), // CompileOptions
+              PointerType::getUnqual(C), // LinkOptions
+              PointerType::getUnqual(C), // ManifestStart
+              PointerType::getUnqual(C), // ManifestEnd
+              PointerType::getUnqual(C), // ImageStart
+              PointerType::getUnqual(C), // ImageEnd
               getEntryPtrTy(),       // EntriesBegin
               getEntryPtrTy(),       // EntriesEnd
               getSyclPropSetPtrTy(), // PropertySetBegin
@@ -761,7 +770,7 @@ private:
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
@@ -816,7 +825,7 @@ private:
       switch (Prop.second.getType()) {
       case llvm::util::PropertyValue::UINT32: {
         // for known scalar types ValAddr is null, ValSize keeps the value
-        PropValAddr = Constant::getNullValue(Type::getInt8PtrTy(C));
+        PropValAddr = Constant::getNullValue(PointerType::getUnqual(C));
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
         break;
@@ -1007,7 +1016,7 @@ private:
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     Constant *ZeroZero[] = {Zero, Zero};
 
     // Create initializer for the images array.
@@ -1728,12 +1737,6 @@ int main(int argc, const char **argv) {
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
-  if (BatchMode && Inputs.size() != 1) {
-    reportError(
-        createStringError(errc::invalid_argument,
-                          "batch job table file must be the only input file"));
-    return 1;
-  }
   if (Target.empty()) {
     Target = sys::getProcessTriple();
     if (Verbose)

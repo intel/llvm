@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp> // for properties_t
 #include <sycl/usm/usm_enums.hpp>
 
@@ -61,6 +62,24 @@ struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
   static constexpr sycl::usm::alloc value = Kind;
 };
+
+template <typename PropertyListT> struct IsUsmKindDevice : std::false_type {};
+template <typename... Props>
+struct IsUsmKindDevice<detail::properties_t<Props...>>
+    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_device)>,
+                               std::tuple<Props...>> {};
+
+template <typename PropertyListT> struct IsUsmKindHost : std::false_type {};
+template <typename... Props>
+struct IsUsmKindHost<detail::properties_t<Props...>>
+    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_host)>,
+                               std::tuple<Props...>> {};
+
+template <typename PropertyListT> struct IsUsmKindShared : std::false_type {};
+template <typename... Props>
+struct IsUsmKindShared<detail::properties_t<Props...>>
+    : detail::ContainsProperty<std::remove_const_t<decltype(usm_kind_shared)>,
+                               std::tuple<Props...>> {};
 
 } // namespace detail
 

@@ -94,12 +94,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-
+                           
     # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
     # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
     # Seems to be no way to suppress it except use -Wno-psabi
     target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-    
+
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -191,6 +191,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/jit_compiler.cpp"
     "detail/jit_device_binaries.cpp"
+    "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"

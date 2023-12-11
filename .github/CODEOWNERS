@@ -59,6 +59,8 @@ xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
+clang/lib/CodeGen/BackendUtil.cpp @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
+clang/include/clang/CodeGen/BackendUtil.h @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
 
 # OpenCL CPU RT
 opencl-cpu/ @intel/ocl-cpu-rt-write

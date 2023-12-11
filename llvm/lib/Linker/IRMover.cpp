@@ -988,8 +988,7 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
   // Replace any uses of the two global variables with uses of the new
   // global.
   if (DstGV) {
-    RAUWWorklist.push_back(
-        std::make_pair(DstGV, ConstantExpr::getBitCast(NG, DstGV->getType())));
+    RAUWWorklist.push_back(std::make_pair(DstGV, NG));
   }
 
   return Ret;
@@ -1134,6 +1133,7 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
     Dst.setPrologueData(Src.getPrologueData());
   if (Src.hasPersonalityFn())
     Dst.setPersonalityFn(Src.getPersonalityFn());
+  assert(Src.IsNewDbgInfoFormat == Dst.IsNewDbgInfoFormat);
 
   // Copy over the metadata attachments without remapping.
   Dst.copyMetadata(&Src, 0);
@@ -1543,6 +1543,8 @@ Error IRLinker::run() {
   if (SrcM->getMaterializer())
     if (Error Err = SrcM->getMaterializer()->materializeMetadata())
       return Err;
+
+  DstM.IsNewDbgInfoFormat = SrcM->IsNewDbgInfoFormat;
 
   // Inherit the target data from the source module if the destination module
   // doesn't have one already.

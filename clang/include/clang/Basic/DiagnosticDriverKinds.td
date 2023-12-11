@@ -20,6 +20,8 @@ def err_drv_unsupported_opt_for_language_mode : Error<
   "unsupported option '%0' for language mode '%1'">;
 def err_drv_unsupported_option_argument : Error<
   "unsupported argument '%1' to option '%0'">;
+def err_drv_unsupported_option_argument_for_target : Error<
+  "unsupported argument '%1' to option '%0' for target '%2'">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<
@@ -63,10 +65,10 @@ def err_drv_no_cuda_libdevice : Error<
   "via '--cuda-path', or pass '-nocudalib' to build without linking with "
   "libdevice">;
 
-def warn_function_fp_accuracy_already_set : Warning <
-  "floating point accuracy value of '%0' has already been assigned to "
-  "function '%1'">,
-  InGroup<DiagGroup<"fp-accuracy-already-set">>;
+def warn_drv_fp_accuracy_override : Warning <
+  "'-ffp-accuracy=%0' overrides '-ffp-accuracy=%1' for the function '%2'">,
+  InGroup<FPAccOverride>;
+
 def err_drv_no_rocm_device_lib : Error<
   "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
@@ -397,6 +399,9 @@ def err_drv_fsycl_wrong_optimization_options : Error<
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
   "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
   InGroup<SyclTarget>;
+def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
+  "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
+  InGroup<Deprecated>;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<
@@ -831,6 +836,12 @@ def warn_drv_loongarch_conflicting_implied_val : Warning<
   InGroup<OptionIgnored>;
 def err_drv_loongarch_invalid_mfpu_EQ : Error<
   "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
+def err_drv_loongarch_wrong_fpu_width_for_lsx : Error<
+  "wrong fpu width; LSX depends on 64-bit FPU.">;
+def err_drv_loongarch_wrong_fpu_width_for_lasx : Error<
+  "wrong fpu width; LASX depends on 64-bit FPU.">;
+def err_drv_loongarch_invalid_simd_option_combination : Error<
+  "invalid option combination; LASX depends on LSX.">;
 
 def err_drv_expand_response_file : Error<
   "failed to expand response file: %0">;

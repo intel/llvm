@@ -189,7 +189,7 @@ static inline bool isCFStringType(QualType T, ASTContext &Ctx) {
     return false;
 
   const RecordDecl *RD = RT->getDecl();
-  if (RD->getTagKind() != TTK_Struct)
+  if (RD->getTagKind() != TagTypeKind::Struct)
     return false;
 
   return RD->getIdentifier() == &Ctx.Idents.get("__CFString");
@@ -3744,6 +3744,19 @@ static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
                                      AL.getArgAsExpr(1), AL.getArgAsExpr(2));
 }
 
+// Handles min_work_groups_per_cu attribute.
+static void handleSYCLIntelMinWorkGroupsPerComputeUnit(Sema &S, Decl *D,
+                                                       const ParsedAttr &AL) {
+  S.AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, AL, AL.getArgAsExpr(0));
+}
+
+// Handles max_work_groups_per_mp attribute.
+static void
+handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Sema &S, Decl *D,
+                                              const ParsedAttr &AL) {
+  S.AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, AL, AL.getArgAsExpr(0));
+}
+
 // Handles reqd_work_group_size.
 // If the 'reqd_work_group_size' attribute is specified on a declaration along
 // with 'num_simd_work_items' attribute, the required work group size specified
@@ -4007,9 +4020,25 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*positive*/ 0;
       return;
     }
-    if (Context.getTargetInfo().getTriple().isNVPTX() && ArgVal != 32) {
-      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_cuda_n_32)
-          << ArgVal.getSExtValue();
+    auto &TI = Context.getTargetInfo();
+    if (TI.getTriple().isNVPTX() && ArgVal != 32)
+      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+          << ArgVal.getSExtValue() << TI.getTriple().getArchName() << 32;
+    if (TI.getTriple().isAMDGPU()) {
+      const auto HasWaveFrontSize64 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize64"];
+      const auto HasWaveFrontSize32 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize32"];
+
+      // CDNA supports only 64 wave front size, for those GPUs allow subgroup
+      // size of 64. Some GPUs support both 32 and 64, for those (and the rest)
+      // only allow 32. Warn on incompatible sizes.
+      const auto SupportedWaveFrontSize =
+          HasWaveFrontSize64 && !HasWaveFrontSize32 ? 64 : 32;
+      if (ArgVal != SupportedWaveFrontSize)
+        Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+            << ArgVal.getSExtValue() << TI.getTriple().getArchName()
+            << SupportedWaveFrontSize;
     }
 
     // Check to see if there's a duplicate attribute with different values
@@ -4434,6 +4463,127 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
+// Check that the value is a non-negative integer constant that can fit in
+// 32-bits. Issue correct error message and return false on failure.
+bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
+                          const AttributeCommonInfo &CI) {
+  if (!I.isIntN(32)) {
+    S.Diag(E->getExprLoc(), diag::err_ice_too_large)
+        << llvm::toString(I, 10, false) << 32 << /* Unsigned */ 1;
+    return false;
+  }
+
+  if (I.isSigned() && I.isNegative()) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+        << CI << /* Non-negative */ 1;
+    return false;
+  }
+
+  return true;
+}
+
+void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+    Decl *D, const AttributeCommonInfo &CI, Expr *E) {
+  if (Context.getLangOpts().SYCLIsDevice &&
+      !Context.getTargetInfo().getTriple().isNVPTX()) {
+    Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+        << CI << E->getSourceRange();
+    return;
+  }
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
+    E = Res.get();
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelMinWorkGroupsPerComputeUnitAttr(Context, CI, E));
+}
+
+// Helper to get CudaArch.
+static CudaArch getCudaArch(const TargetInfo &TI) {
+  if (!TI.getTriple().isNVPTX())
+    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
+  auto &TO = TI.getTargetOpts();
+  return StringToCudaArch(TO.CPU);
+}
+
+void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+    Decl *D, const AttributeCommonInfo &CI, Expr *E) {
+  auto &TI = Context.getTargetInfo();
+  if (Context.getLangOpts().SYCLIsDevice) {
+    if (!TI.getTriple().isNVPTX()) {
+      Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+          << CI << E->getSourceRange();
+      return;
+    }
+
+    // Feature '.maxclusterrank' requires .target sm_90 or higher.
+    auto SM = getCudaArch(TI);
+    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+      Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
+          << CudaArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+  }
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
+    E = Res.get();
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Context, CI, E));
+}
+
 SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
     Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
   // Check to see if there's a duplicate attribute with different values
@@ -4471,6 +4621,52 @@ static void handleSYCLIntelMaxGlobalWorkDimAttr(Sema &S, Decl *D,
                                                 const ParsedAttr &AL) {
   Expr *E = AL.getArgAsExpr(0);
   S.AddSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
+}
+
+SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+Sema::MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+    Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+
+  return ::new (Context)
+      SYCLIntelMinWorkGroupsPerComputeUnitAttr(Context, A, A.getValue());
+}
+
+SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+Sema::MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+    Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+
+  return ::new (Context)
+      SYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Context, A, A.getValue());
 }
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
@@ -4757,6 +4953,11 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
       !Context.getTargetInfo().isValidCPUName(ParsedAttrs.Tune))
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
            << Unknown << Tune << ParsedAttrs.Tune << Target;
+
+  if (Context.getTargetInfo().getTriple().isRISCV() &&
+      ParsedAttrs.Duplicate != "")
+    return Diag(LiteralLoc, diag::err_duplicate_target_attribute)
+           << Duplicate << None << ParsedAttrs.Duplicate << Target;
 
   if (ParsedAttrs.Duplicate != "")
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
@@ -6170,7 +6371,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   QualType NewTy = NewElemTy;
   if (VectorSize.getBoolValue()) {
     NewTy = Context.getVectorType(NewTy, VectorSize.getZExtValue(),
-                                  VectorType::GenericVector);
+                                  VectorKind::Generic);
   } else if (const auto *OldVT = OldTy->getAs<VectorType>()) {
     // Complex machine mode does not support base vector types.
     if (ComplexMode) {
@@ -7043,14 +7244,6 @@ bool Sema::CheckRegparmAttr(const ParsedAttr &AL, unsigned &numParams) {
   }
 
   return false;
-}
-
-// Helper to get CudaArch.
-static CudaArch getCudaArch(const TargetInfo &TI) {
-  if (!TI.getTriple().isNVPTX())
-    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
-  auto &TO = TI.getTargetOpts();
-  return StringToCudaArch(TO.CPU);
 }
 
 // Checks whether an argument of launch_bounds attribute is
@@ -8519,28 +8712,6 @@ static void handlePreferredTypeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.RequireCompleteType(ParmTSI->getTypeLoc().getBeginLoc(), QT,
                         diag::err_incomplete_type);
 
-  if (QT->isEnumeralType()) {
-    auto IsCorrespondingType = [&](QualType LHS, QualType RHS) {
-      assert(LHS != RHS);
-      if (LHS->isSignedIntegerType())
-        return LHS == S.getASTContext().getCorrespondingSignedType(RHS);
-      return LHS == S.getASTContext().getCorrespondingUnsignedType(RHS);
-    };
-    QualType BitfieldType =
-        cast<FieldDecl>(D)->getType()->getCanonicalTypeUnqualified();
-    QualType EnumUnderlyingType = QT->getAs<EnumType>()
-                                      ->getDecl()
-                                      ->getIntegerType()
-                                      ->getCanonicalTypeUnqualified();
-    if (EnumUnderlyingType != BitfieldType &&
-        !IsCorrespondingType(EnumUnderlyingType, BitfieldType)) {
-      S.Diag(ParmTSI->getTypeLoc().getBeginLoc(),
-             diag::warn_attribute_underlying_type_mismatch)
-          << EnumUnderlyingType << QT << BitfieldType;
-      return;
-    }
-  }
-
   D->addAttr(::new (S.Context) PreferredTypeAttr(S.Context, AL, ParmTSI));
 }
 
@@ -9919,6 +10090,36 @@ static void handleHLSLResourceBindingAttr(Sema &S, Decl *D,
     D->addAttr(NewAttr);
 }
 
+static void handleHLSLParamModifierAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  HLSLParamModifierAttr *NewAttr = S.mergeHLSLParamModifierAttr(
+      D, AL,
+      static_cast<HLSLParamModifierAttr::Spelling>(AL.getSemanticSpelling()));
+  if (NewAttr)
+    D->addAttr(NewAttr);
+}
+
+HLSLParamModifierAttr *
+Sema::mergeHLSLParamModifierAttr(Decl *D, const AttributeCommonInfo &AL,
+                                 HLSLParamModifierAttr::Spelling Spelling) {
+  // We can only merge an `in` attribute with an `out` attribute. All other
+  // combinations of duplicated attributes are ill-formed.
+  if (HLSLParamModifierAttr *PA = D->getAttr<HLSLParamModifierAttr>()) {
+    if ((PA->isIn() && Spelling == HLSLParamModifierAttr::Keyword_out) ||
+        (PA->isOut() && Spelling == HLSLParamModifierAttr::Keyword_in)) {
+      D->dropAttr<HLSLParamModifierAttr>();
+      SourceRange AdjustedRange = {PA->getLocation(), AL.getRange().getEnd()};
+      return HLSLParamModifierAttr::Create(
+          Context, /*MergedSpelling=*/true, AdjustedRange,
+          HLSLParamModifierAttr::Keyword_inout);
+    }
+    Diag(AL.getLoc(), diag::err_hlsl_duplicate_parameter_modifier) << AL;
+    Diag(PA->getLocation(), diag::note_conflicting_attribute);
+    return nullptr;
+  }
+  return HLSLParamModifierAttr::Create(Context, AL);
+}
+
 static void handleMSInheritanceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.LangOpts.CPlusPlus) {
     S.Diag(AL.getLoc(), diag::err_attribute_not_supported_in_lang)
@@ -11043,7 +11244,7 @@ bool Sema::CheckCountedByAttr(Scope *S, const FieldDecl *FD) {
   }
 
   LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
-      Context.getLangOpts().getStrictFlexArraysLevel();
+      LangOptions::StrictFlexArraysLevelKind::IncompleteOnly;
 
   if (!Decl::isFlexibleArrayMemberLike(Context, FD, FD->getType(),
                                        StrictFlexArraysLevel, true)) {
@@ -11762,6 +11963,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_BPFPreserveAccessIndex:
     handleBPFPreserveAccessIndexAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_BPFPreserveStaticOffset:
+    handleSimpleAttribute<BPFPreserveStaticOffsetAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_BTFDeclTag:
     handleBTFDeclTagAttr(S, D, AL);
     break;
@@ -12047,6 +12251,12 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
     handleSYCLIntelMaxWorkGroupSize(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelMinWorkGroupsPerComputeUnit:
+    handleSYCLIntelMinWorkGroupsPerComputeUnit(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelMaxWorkGroupsPerMultiprocessor:
+    handleSYCLIntelMaxWorkGroupsPerMultiprocessor(S, D, AL);
+    break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
     break;
@@ -12270,6 +12480,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_HLSLResourceBinding:
     handleHLSLResourceBindingAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLParamModifier:
+    handleHLSLParamModifierAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AbiTag:
@@ -12576,6 +12789,14 @@ void Sema::ProcessDeclAttributeList(
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {

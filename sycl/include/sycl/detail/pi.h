@@ -2717,6 +2717,13 @@ __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
+typedef enum {
+  _PI_SANITIZE_TYPE_NONE = 0x0,
+  _PI_SANITIZE_TYPE_ADDRESS = 0x1,
+  _PI_SANITIZE_TYPE_MEMORY = 0x2,
+  _PI_SANITIZE_TYPE_THREAD = 0x3
+} _pi_sanitize_type;
+
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
@@ -2733,6 +2740,8 @@ struct _pi_plugin {
 #define _PI_API(api) decltype(::api) *api;
 #include <sycl/detail/pi.def>
   } PiFunctionTable;
+
+  _pi_sanitize_type SanitizeType;
 };
 
 #ifdef __cplusplus

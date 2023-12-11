@@ -44,6 +44,8 @@
 // CHECK:      PI Call Begin : piextKernelSetArgPointer
 // CHECK-NEXT: PI Call Begin : piKernelGetGroupInfo
 // CHECK-NEXT: PI Call Begin : piEnqueueKernelLaunch
+// CHECK-NEXT: PI Call Begin : piKernelRelease
+// CHECK-NEXT: PI Call Begin : piProgramRelease
 // CHECK-NEXT: Signal
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
