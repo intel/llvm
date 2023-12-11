@@ -221,8 +221,8 @@ void iota(float start, float *ptr) {
 }
 ```
 
-A function decorated with one of these macros can still be called from host
-code.
+A function decorated with one of these macros can still be called as a normal
+function in either host or device code.
 The macro has no effect in such cases.
 
 === New kernel bundle member functions
