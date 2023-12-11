@@ -2,14 +2,15 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
-// Test private internalization with "LocalSize" == 3 on two specially-prepared
-// buffers:
-// - `tmp` uses a struct for which the frontend generates `i8`-typed GEPs to
-//   access the elements in the sycl::vec. These GEPs shall _not_ be remapped
-//   during internalization.
+// Test private internalization with "LocalSize" == 3 on buffers that trigger
+// special cases in the GEP analyis during remapping.
+// - `tmp`:
+//   - On SPIR-V targets, the IR contains `i8`-typed GEPs to access the elements
+//     in the sycl::vec. These GEPs shall _not_ be remapped.
+//   - On CUDA/HIP, the IR contains GEP instructions that add a pointer offset
+//     (hence must be remapped) _and_ address into the aggregate element.
 // - `tmp2` is an `i8` buffer. The corresponding `i8`-typed GEPs must be
-// remapped during
-//   internalization.
+//   remapped during internalization.
 
 #include <sycl/sycl.hpp>
 
