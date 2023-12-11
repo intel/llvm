@@ -120,7 +120,7 @@ public:
 
   template <class O, class P>
   T operator=(const annotated_ref<O, P> &Ref) const {
-    O t2 = Ref.operator T();
+    O t2 = Ref.operator O();
     return *this = t2;
   }
 
