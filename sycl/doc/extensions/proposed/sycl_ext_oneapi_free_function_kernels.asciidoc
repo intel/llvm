@@ -494,6 +494,81 @@ As with standard SYCL kernels, these properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
 descriptor or the `info::kernel_device_specific` information descriptors.
 
+=== Restrictions for integration header implementations
+
+[_Note:_ The {dpcpp} implementation of this extension currently has the
+restrictions listed in this section.
+In the future, restrictions tied to the integration header approach might be
+formalized in the core SYCL specification and tied to a macro, similar to the
+feature set macros that exist already.
+_{endnote}_]
+
+Implementations of SYCL that use the integration header technique have
+additional restrictions for functions that are declared as free function
+kernels.
+These implementations automatically insert forward declarations of the free
+function kernels at the top of the translation unit.
+This has ramifications on how the application may declare the free function
+kernels, on the types that may be used in those declarations, and on the way
+the application may reference these kernel identifiers.
+The following example illustrates the forward declarations that the
+implementation inserts:
+
+```
+// Forward declarations of types used by the kernel functions.
+struct mystruct;
+enum myenum : int;
+
+// Each kernel is forward declared in the same namespace in which the
+// application declares it.
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1) void kernel1(int *);
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1) void kernel2(mystruct, myenum);
+
+template<typename T>
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1) void kernel3(T *);
+
+namespace ns {
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1) void kernel4(int *);
+}
+```
+
+As a result, these implementations impose additional restrictions for functions
+that are declared as free function kernels:
+
+* The function must be declared at namespace scope.
+
+* Any type used in the declaration of a parameter must be one of the allowed
+  types listed below.
+
+* If the function is instantiated from a template, any type used to instantiate
+  the template must be one of the allowed types listed below.
+
+* Uses of function identifiers in the application must assume that the free
+  function kernels are forward declared at the top of the translation unit.
+  Note that this can also affect references to functions that are not declared
+  as free functions kernels as illustrated below.
++
+```
+void foo(int) {/*...*/}
+
+void caller() {
+  auto *pf = foo;  // This is ambiguous because foo(float) is forward declared
+                   // in the integration header
+}
+
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+void foo(float) {/*...*/}
+```
+
+The allowed types are:
+
+* A {cpp} fundamental type.
+* A class or struct that is defined at namespace scope.
+* A scoped enumeration that is defined at namespace scope.
+* An unscoped enumeration that has an explicit underlying type, where the
+  enumeration is defined at namespace scope.
+* A type alias to one of the above types.
+
 
 == Example
 
