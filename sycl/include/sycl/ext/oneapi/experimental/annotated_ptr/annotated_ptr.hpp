@@ -190,7 +190,7 @@ public:
 #define PROPAGATE_OP(op)                                                       \
   template <typename O = T>                                                    \
   auto operator op() const->decltype(op std::declval<O>()) {                   \
-    return op O(*this);                                                        \
+    return op this->operator O();                                              \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
