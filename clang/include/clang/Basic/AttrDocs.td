@@ -2252,6 +2252,43 @@ preserving struct or union member access debuginfo indices of this
 struct or union, similar to clang ``__builtin_preserve_access_index()``.
   }];
 }
+
+def BPFPreserveStaticOffsetDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``__attribute__((preserve_static_offset))``
+attribute for the BPF target. This attribute may be attached to a
+struct or union declaration. Reading or writing fields of types having
+such annotation is guaranteed to generate LDX/ST/STX instruction with
+offset corresponding to the field.
+
+For example:
+
+.. code-block:: c
+
+  struct foo {
+    int a;
+    int b;
+  };
+
+  struct bar {
+    int a;
+    struct foo b;
+  } __attribute__((preserve_static_offset));
+
+  void buz(struct bar *g) {
+    g->b.a = 42;
+  }
+
+The assignment to ``g``'s field would produce an ST instruction with
+offset 8: ``*(u32)(r1 + 8) = 42;``.
+
+Without this attribute generated instructions might be different,
+depending on optimizations behavior. E.g. the example above could be
+rewritten as ``r1 += 8; *(u32)(r1 + 0) = 42;``.
+  }];
+}
+
 def BTFDeclTagDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -4127,6 +4164,13 @@ example, the following will emit 4 versions of the function:
     __attribute__((target_clones("arch=atom,avx2","arch=ivybridge","default")))
     void foo() {}
 
+For targets that support the GNU indirect function (IFUNC) feature, dispatch
+is performed by emitting an indirect function that is resolved to the appropriate
+target clone at load time. The indirect function is given the name the
+multiversioned function would have if it had been declared without the attribute.
+For backward compatibility with earlier Clang releases, a function alias with an
+``.ifunc`` suffix is also emitted. The  ``.ifunc`` suffixed symbol is a deprecated
+feature and support for it may be removed in the future.
 }];
 }
 
@@ -8765,6 +8809,26 @@ The full documentation is available here: https://learn.microsoft.com/en-us/wind
   }];
 }
 
+def HLSLParamQualifierDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "HLSL Parameter Modifiers";
+  let Content = [{
+HLSL function parameters are passed by value. Parameter declarations support
+three qualifiers to denote parameter passing behavior. The three qualifiers are
+`in`, `out` and `inout`.
+
+Parameters annotated with `in` or with no annotation are passed by value from
+the caller to the callee.
+
+Parameters annotated with `out` are written to the argument after the callee
+returns (Note: arguments values passed into `out` parameters *are not* copied
+into the callee).
+
+Parameters annotated with `inout` are copied into the callee via a temporary,
+and copied back to the argument after the callee returns.
+  }];
+}
+
 def AnnotateTypeDocs : Documentation {
   let Category = DocCatType;
   let Heading = "annotate_type";
@@ -8999,7 +9063,7 @@ this usage is debugger-dependent.
 }
 
 def CleanupDocs : Documentation {
-  let Category = DocCatType;
+  let Category = DocCatVariable;
   let Content = [{
 This attribute allows a function to be run when a local variable goes out of
 scope. The attribute takes the identifier of a function with a parameter type
@@ -9187,7 +9251,6 @@ generation of the other destruction cases, optimizing the above `foo.destroy` to
   }];
 }
 
-
 def CoroReturnTypeAndWrapperDoc : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -9232,7 +9295,7 @@ For example,
   Task<int> foo() { return increment(1); } // Error. foo is not a coroutine.
 
   // Fine for a coroutine wrapper to return a CRT.
-  Task<int> [[clang::coro_wrapper]] foo() { return increment(1); }
+  [[clang::coro_wrapper]] Task<int> foo() { return increment(1); }
 
   void bar() {
     // Invalid. This intantiates a function which returns a CRT but is not marked as
@@ -9284,4 +9347,63 @@ alignment boundary. Its value must be a power of 2, between 1 and 4096
   }
 
   }];
+}
+
+def CoroLifetimeBoundDoc : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``[[clang::coro_lifetimebound]]`` is a class attribute which can be applied
+to a coroutine return type (`CRT`_) (i.e.
+it should also be annotated with ``[[clang::coro_return_type]]``).
+
+All parameters of a function are considered to be lifetime bound. See `documentation`_
+of ``[[clang::lifetimebound]]`` for more details.
+if the function returns a coroutine return type (CRT) annotated with ``[[clang::coro_lifetimebound]]``.
+
+Reference parameters of a coroutine are susceptible to capturing references to temporaries or local variables.
+
+For example,
+
+.. code-block:: c++
+
+  task<int> coro(const int& a) { co_return a + 1; }
+  task<int> dangling_refs(int a) {
+    // `coro` captures reference to a temporary. `foo` would now contain a dangling reference to `a`.
+    auto foo = coro(1);
+    // `coro` captures reference to local variable `a` which is destroyed after the return.
+    return coro(a);
+  }
+
+Lifetime bound static analysis can be used to detect such instances when coroutines capture references
+which may die earlier than the coroutine frame itself. In the above example, if the CRT `task` is annotated with
+``[[clang::coro_lifetimebound]]``, then lifetime bound analysis would detect capturing reference to
+temporaries or return address of a local variable.
+
+Both coroutines and coroutine wrappers are part of this analysis.
+
+.. code-block:: c++
+
+  template <typename T> struct [[clang::coro_return_type, clang::coro_lifetimebound]] Task {
+    using promise_type = some_promise_type;
+  };
+
+  Task<int> coro(const int& a) { co_return a + 1; }
+  Task<int> [[clang::coro_wrapper]] coro_wrapper(const int& a, const int& b) {
+    return a > b ? coro(a) : coro(b);
+  }
+  Task<int> temporary_reference() {
+    auto foo = coro(1); // warning: capturing reference to a temporary which would die after the expression.
+
+    int a = 1;
+    auto bar = coro_wrapper(a, 0); // warning: `b` captures reference to a temporary.
+
+    co_return co_await coro(1); // fine.
+  }
+  [[clang::coro_wrapper]] Task<int> stack_reference(int a) {
+    return coro(a); // warning: returning address of stack variable `a`.
+  }
+
+.. _`documentation`: https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
+.. _`CRT`: https://clang.llvm.org/docs/AttributeReference.html#coro-return-type
+}];
 }

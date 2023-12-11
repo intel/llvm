@@ -399,6 +399,9 @@ def err_drv_fsycl_wrong_optimization_options : Error<
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
   "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
   InGroup<SyclTarget>;
+def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
+  "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
+  InGroup<Deprecated>;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<

@@ -397,8 +397,8 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
     if (!InAggregate)
       remap(GEPI, LocalSize);
     auto *ValTy = cast<PointerType>(Val->getType());
-    GEPI->mutateType(PointerType::getWithSamePointeeType(
-        cast<PointerType>(GEPI->getType()), ValTy->getAddressSpace()));
+    GEPI->mutateType(PointerType::get(GEPI->getType()->getContext(),
+                                      ValTy->getAddressSpace()));
     // Recurse to promote to all users of the GEP. We are either already in
     // `InAggregate` mode, or inspect the current instruction. Recall that a
     // GEP's first index is used to step through the base pointer, whereas any
@@ -449,7 +449,7 @@ getPromotedFunctionType(FunctionType *OrigTypes,
     Type *&Ty = Types[Arg.index()];
     // TODO: Catch this case earlier
     if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
-      Ty = PointerType::getWithSamePointeeType(PtrTy, AS);
+      Ty = PointerType::get(PtrTy->getContext(), AS);
     }
   }
   return FunctionType::get(OrigTypes->getReturnType(), Types,
@@ -530,10 +530,8 @@ Value *replaceByNewAlloca(Argument *Arg, unsigned AS, std::size_t LocalSize) {
   auto *Ptr = Builder.CreateInBoundsGEP(
       ArrTy, Alloca, {Builder.getInt64(0), Builder.getInt64(0)});
   Arg->replaceAllUsesWith(Ptr);
-  Alloca->mutateType(PointerType::getWithSamePointeeType(
-      cast<PointerType>(Alloca->getType()), AS));
-  Ptr->mutateType(PointerType::getWithSamePointeeType(
-      cast<PointerType>(Ptr->getType()), AS));
+  Alloca->mutateType(PointerType::get(Alloca->getType()->getContext(), AS));
+  Ptr->mutateType(PointerType::get(Ptr->getType()->getContext(), AS));
   return Ptr;
 }
 

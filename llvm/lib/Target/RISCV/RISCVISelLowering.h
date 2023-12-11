@@ -25,7 +25,9 @@ namespace llvm {
 class InstructionCost;
 class RISCVSubtarget;
 struct RISCVRegisterInfo;
+
 namespace RISCVISD {
+// clang-format off
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
   RET_GLUE,
@@ -119,7 +121,7 @@ enum NodeType : unsigned {
   // inserter.
   FROUND,
 
-  FPCLASS,
+  FCLASS,
 
   // Floating point fmax and fmin matching the RISC-V instruction semantics.
   FMAX, FMIN,
@@ -421,6 +423,7 @@ enum NodeType : unsigned {
   TH_SWD,
   TH_SDD,
 };
+// clang-format on
 } // namespace RISCVISD
 
 class RISCVTargetLowering : public TargetLowering {
@@ -962,6 +965,8 @@ private:
 
   bool shouldFoldSelectWithSingleBitTest(EVT VT,
                                          const APInt &AndMask) const override;
+
+  unsigned getMinimumJumpTableEntries() const override;
 };
 
 namespace RISCV {
@@ -981,6 +986,9 @@ bool CC_RISCV_FastCC(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
 bool CC_RISCV_GHC(unsigned ValNo, MVT ValVT, MVT LocVT,
                   CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
                   CCState &State);
+
+ArrayRef<MCPhysReg> getArgGPRs();
+
 } // end namespace RISCV
 
 namespace RISCVVIntrinsicsTable {

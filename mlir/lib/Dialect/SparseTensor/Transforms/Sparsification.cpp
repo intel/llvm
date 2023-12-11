@@ -34,6 +34,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TensorEncoding.h"
 #include "llvm/ADT/SmallBitVector.h"
+
 #include <optional>
 
 using namespace mlir;
@@ -43,11 +44,6 @@ using namespace mlir::sparse_tensor;
 // Sparsifier analysis methods.
 //===----------------------------------------------------------------------===//
 
-// TODO: the "idx"-vs-"ldx" naming convention is not self-explanatory,
-// and those letters are too easy to confuse visually.  We should switch
-// to a more self-explanatory naming convention like "curLoop"-vs-"prevLoop"
-// (assuming that's the actual meaning behind the "idx"-vs-"ldx" convention).
-
 /// Determines if affine expression is invariant.
 static bool isInvariantAffine(AffineExpr a, unsigned loopDepth, LoopId ldx,
                               bool &isAtLoop) {
@@ -56,11 +52,9 @@ static bool isInvariantAffine(AffineExpr a, unsigned loopDepth, LoopId ldx,
     const LoopId i = cast<AffineDimExpr>(a).getPosition();
     if (i == ldx) {
       isAtLoop = true;
-      // Must be invariant if we are at the given loop.
-      return true;
+      return true; // invariant at given loop
     }
-    // The DimExpr is invariant the loop has already been generated.
-    return i < loopDepth;
+    return i < loopDepth; // invariant when already generated
   }
   case AffineExprKind::Add:
   case AffineExprKind::Mul: {
@@ -79,28 +73,27 @@ static bool isInvariantAffine(AffineExpr a, unsigned loopDepth, LoopId ldx,
 /// same index is used more than once. Also rejects compound affine
 /// expressions in sparse dimensions.
 static bool findAffine(Merger &merger, TensorId tid, Level lvl, AffineExpr a,
-                       DimLevelType dlt, bool setLvlFormat = true) {
+                       LevelType lt, bool setLvlFormat = true) {
   switch (a.getKind()) {
   case AffineExprKind::DimId: {
     const LoopId idx = merger.makeLoopId(cast<AffineDimExpr>(a).getPosition());
-    if (!isUndefDLT(merger.getLvlType(tid, idx)))
+    if (!isUndefLT(merger.getLvlType(tid, idx)))
       return false; // used more than once
-
     if (setLvlFormat)
-      merger.setLevelAndType(tid, idx, lvl, dlt);
+      merger.setLevelAndType(tid, idx, lvl, lt);
     return true;
   }
   case AffineExprKind::Add:
   case AffineExprKind::Mul:
   case AffineExprKind::Constant: {
-    assert(isDenseDLT(dlt));
+    assert(isDenseLT(lt));
     if (auto binOp = dyn_cast<AffineBinaryOpExpr>(a)) {
       // We do not set dim level format for affine expression like d0 + d1 on
       // either loop index at d0 or d1.
       // We continue the recursion merely to check whether current affine is
       // admissible or not.
-      return findAffine(merger, tid, lvl, binOp.getLHS(), dlt, false) &&
-             findAffine(merger, tid, lvl, binOp.getRHS(), dlt, false);
+      return findAffine(merger, tid, lvl, binOp.getLHS(), lt, false) &&
+             findAffine(merger, tid, lvl, binOp.getRHS(), lt, false);
     }
     // Falls through when it is a constant Affine
     return true;
@@ -125,7 +118,7 @@ static bool findAffine(Merger &merger, TensorId tid, Level lvl, AffineExpr a,
 ///
 /// TODO: constant should be easy to handle.
 static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
-                          AffineExpr a, DimLevelType dlt, bool isSubExp = false,
+                          AffineExpr a, LevelType lt, bool isSubExp = false,
                           int64_t coefficient = 1) {
   switch (a.getKind()) {
   case AffineExprKind::DimId: {
@@ -134,7 +127,7 @@ static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
       return false;
 
     const LoopId ldx = merger.makeLoopId(cast<AffineDimExpr>(a).getPosition());
-    if (!isUndefDLT(merger.getLvlType(tensor, ldx)))
+    if (!isUndefLT(merger.getLvlType(tensor, ldx)))
       return false; // used more than once, e.g., A[i][i]
 
     // TODO: Generalizes the following two cases. A[i] (with trivial index
@@ -142,7 +135,7 @@ static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
     // not necessarily need to differentiate them.
     if (!isSubExp) {
       assert(coefficient == 1);
-      merger.setLevelAndType(tensor, ldx, lvl, dlt);
+      merger.setLevelAndType(tensor, ldx, lvl, lt);
     }
 
     if (isSubExp) {
@@ -161,7 +154,7 @@ static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
         // else increase min(d0_1, d0_2).
         return false;
       }
-      merger.setLoopDependentTensorLevel(ldx, tensor, lvl, dlt, coefficient);
+      merger.setLoopDependentTensorLevel(ldx, tensor, lvl, lt, coefficient);
     }
     return true;
   }
@@ -183,19 +176,19 @@ static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
     // Must be in form of `constant * d`.
     assert(isa<AffineConstantExpr>(lhs) && isa<AffineDimExpr>(rhs));
     int64_t coefficient = cast<AffineConstantExpr>(lhs).getValue();
-    return findDepIdxSet(merger, tensor, lvl, rhs, dlt, isSubExp, coefficient);
+    return findDepIdxSet(merger, tensor, lvl, rhs, lt, isSubExp, coefficient);
   }
   case AffineExprKind::Add: {
     auto binOp = cast<AffineBinaryOpExpr>(a);
-    return findDepIdxSet(merger, tensor, lvl, binOp.getLHS(), dlt, true) &&
-           findDepIdxSet(merger, tensor, lvl, binOp.getRHS(), dlt, true);
+    return findDepIdxSet(merger, tensor, lvl, binOp.getLHS(), lt, true) &&
+           findDepIdxSet(merger, tensor, lvl, binOp.getRHS(), lt, true);
   }
   default:
     return false;
   }
 }
 
-/// Get the total number of compound affine expressions in the
+/// Gets the total number of compound affine expressions in the
 /// `getMatchingIndexingMap` for the given tensor.  For the following inputs:
 ///
 /// map = (d0, d1, d2) => (d0 + d1 : compressed, d2 : compressed)
@@ -225,7 +218,7 @@ static unsigned getNumNonTrivialIdxExpOnSparseLvls(AffineMap map,
   return num;
 }
 
-/// Get the total number of sparse levels with compound affine
+/// Gets the total number of sparse levels with compound affine
 /// expressions, summed over all operands of the `GenericOp`.
 static unsigned getNumNonTrivialIdxExpOnSparseLvls(linalg::GenericOp op) {
   unsigned num = 0;
@@ -235,6 +228,7 @@ static unsigned getNumNonTrivialIdxExpOnSparseLvls(linalg::GenericOp op) {
   return num;
 }
 
+// Returns true iff output has nontrivial affine indices.
 static bool hasNonTrivialAffineOnSparseOut(linalg::GenericOp op) {
   OpOperand *out = op.getDpsInitOperand(0);
   if (getSparseTensorType(out->get()).isAllDense())
@@ -260,11 +254,9 @@ static bool findSparseAnnotations(CodegenEnv &env, bool idxReducBased) {
     const auto enc = getSparseTensorEncoding(t.get().getType());
     if (enc)
       annotated = true;
-
     const Level lvlRank = map.getNumResults();
     assert(!enc || lvlRank == enc.getLvlRank());
     assert(static_cast<Level>(env.op().getRank(&t)) == lvlRank);
-
     // We only need to do index reduction if there is at least one non-trivial
     // index expression on sparse levels.
     // If all non-trivial index expression is on dense levels, we can
@@ -275,12 +267,12 @@ static bool findSparseAnnotations(CodegenEnv &env, bool idxReducBased) {
     // to be sliced.
     for (Level l = 0; l < lvlRank; l++) {
       const AffineExpr a = map.getResult(l);
-      const DimLevelType dlt = enc.getLvlType(l);
+      const LevelType lt = enc.getLvlType(l);
       if (idxReducBased && needIdxReduc) {
-        if (!findDepIdxSet(env.merger(), tid, l, a, dlt))
+        if (!findDepIdxSet(env.merger(), tid, l, a, lt))
           return false; // inadmissible affine expression
       } else {
-        if (!findAffine(env.merger(), tid, l, a, dlt))
+        if (!findAffine(env.merger(), tid, l, a, lt))
           return false; // inadmissible affine expression
       }
     }
@@ -343,9 +335,6 @@ static void genBuffers(CodegenEnv &env, OpBuilder &builder) {
 }
 
 /// Generates index for load/store on sparse tensor.
-// FIXME: It's not entirely clear what "index" means here (i.e., is it
-// a "coordinate", or "Ldx", or what).  So the function should be renamed
-// and/or the documentation expanded in order to clarify.
 static Value genIndex(CodegenEnv &env, OpOperand *t) {
   const auto map = env.op().getMatchingIndexingMap(t);
   const auto stt = getSparseTensorType(t->get());
@@ -495,7 +484,6 @@ static Value genTensorLoad(CodegenEnv &env, OpBuilder &builder, ExprId exp) {
   Value val = env.exp(exp).val;
   if (val)
     return val;
-
   // Load during insertion.
   linalg::GenericOp op = env.op();
   OpOperand *t = &op->getOpOperand(env.exp(exp).tensor);
@@ -574,7 +562,7 @@ inline static Value genInvariantValue(CodegenEnv &env, ExprId exp) {
 /// exception of index computations, which need to be relinked to actual
 /// inlined cloned code.
 static Value relinkBranch(CodegenEnv &env, RewriterBase &rewriter, Block *block,
-                          Value e, LoopId ldx) {
+                          Value e) {
   if (auto arg = dyn_cast<BlockArgument>(e)) {
     // Direct arguments of the original linalg op must be converted
     // into dense tensor loads. Note that we should not encounter
@@ -598,7 +586,7 @@ static Value relinkBranch(CodegenEnv &env, RewriterBase &rewriter, Block *block,
       for (unsigned i = 0, n = def->getNumOperands(); i < n; i++) {
         rewriter.updateRootInPlace(def, [&]() {
           def->setOperand(
-              i, relinkBranch(env, rewriter, block, def->getOperand(i), ldx));
+              i, relinkBranch(env, rewriter, block, def->getOperand(i)));
         });
       }
     }
@@ -607,8 +595,7 @@ static Value relinkBranch(CodegenEnv &env, RewriterBase &rewriter, Block *block,
 }
 
 /// Recursively generates tensor expression.
-static Value genExp(CodegenEnv &env, RewriterBase &rewriter, ExprId e,
-                    LoopId ldx) {
+static Value genExp(CodegenEnv &env, RewriterBase &rewriter, ExprId e) {
   if (e == ::mlir::sparse_tensor::detail::kInvalidId)
     return Value();
 
@@ -631,15 +618,15 @@ static Value genExp(CodegenEnv &env, RewriterBase &rewriter, ExprId e,
   // based on the type of the other operand.
   if (exp.children.e0 != ::mlir::sparse_tensor::detail::kInvalidId &&
       env.exp(exp.children.e0).kind == TensorExp::Kind::kSynZero) {
-    v1 = genExp(env, rewriter, exp.children.e1, ldx);
+    v1 = genExp(env, rewriter, exp.children.e1);
     v0 = constantZero(rewriter, loc, v1.getType());
   } else if (exp.children.e1 != ::mlir::sparse_tensor::detail::kInvalidId &&
              env.exp(exp.children.e1).kind == TensorExp::Kind::kSynZero) {
-    v0 = genExp(env, rewriter, exp.children.e0, ldx);
+    v0 = genExp(env, rewriter, exp.children.e0);
     v1 = constantZero(rewriter, loc, v0.getType());
   } else {
-    v0 = genExp(env, rewriter, exp.children.e0, ldx);
-    v1 = genExp(env, rewriter, exp.children.e1, ldx);
+    v0 = genExp(env, rewriter, exp.children.e0);
+    v1 = genExp(env, rewriter, exp.children.e1);
   }
 
   Value ee;
@@ -653,7 +640,7 @@ static Value genExp(CodegenEnv &env, RewriterBase &rewriter, ExprId e,
          kind == TensorExp::Kind::kReduce ||
          kind == TensorExp::Kind::kSelect)) {
       OpBuilder::InsertionGuard guard(rewriter);
-      ee = relinkBranch(env, rewriter, ee.getParentBlock(), ee, ldx);
+      ee = relinkBranch(env, rewriter, ee.getParentBlock(), ee);
     }
   }
 
@@ -800,13 +787,12 @@ static bool shouldTryParallize(CodegenEnv &env, LoopId ldx, bool isOuter,
   linalg::GenericOp op = env.op();
   auto iteratorTypes = op.getIteratorTypesArray();
   bool isSparse = llvm::any_of(tidLvls, [ldx, &env](TensorLevel tidLvl) {
-    // Queries the DLT based on the tensor id and loop idx, as requested by
-    // `CodegenEnv::dlt(TensorId, LoopIdx)`. The returned DLT from CodegenEnv
-    // should be consistent with the DLT indexed by <TensorId, Level>.
-    const auto dlt = env.dlt(env.unpackTensorLevel(tidLvl).first, ldx);
-    return isCompressedDLT(dlt) || isSingletonDLT(dlt);
+    // Queries the LT based on the tensor id and loop idx, as requested by
+    // `CodegenEnv::lt(TensorId, LoopIdx)`. The returned LT from CodegenEnv
+    // should be consistent with the LT indexed by <TensorId, Level>.
+    const auto lt = env.lt(env.unpackTensorLevel(tidLvl).first, ldx);
+    return isCompressedLT(lt) || isSingletonLT(lt);
   });
-
   return isParallelFor(env, isOuter, isSparse);
 }
 
@@ -883,28 +869,28 @@ static scf::IfOp genIf(CodegenEnv &env, OpBuilder &builder, LoopId ldx,
   Value cond;
   env.merger().foreachTensorLoopId(
       p, /*simple=*/true,
-      [&](TensorLoopId b, TensorId tid, std::optional<Level> lvl,
-          DimLevelType dlt, bool isIdxRed) {
+      [&](TensorLoopId b, TensorId tid, std::optional<Level> lvl, LevelType lt,
+          bool isIdxRed) {
         if (isIdxRed) {
           // Since there is no 1:1 mapping from loop to level (multiple loops
           // are required to resolve one level with non-trivial index
           // expression), we need to reconstruct the tensor level types if this
           // loop requires index reduction condition.
-          assert(lvl.has_value() && isUndefDLT(dlt));
+          assert(lvl.has_value() && isUndefLT(lt));
           auto stt = getSparseTensorType(env.op().getInputs()[tid]);
-          dlt = stt.getLvlType(*lvl);
+          lt = stt.getLvlType(*lvl);
         }
         assert(ldx == env.merger().loop(b));
         Value clause;
-        if (isCompressedDLT(dlt) || isSingletonDLT(dlt) ||
-            isLooseCompressedDLT(dlt) || is2OutOf4DLT(dlt)) {
+        if (isCompressedLT(lt) || isSingletonLT(lt) ||
+            isLooseCompressedLT(lt) || is2OutOf4LT(lt)) {
           assert(lvl.has_value());
           const Value crd = env.emitter().getCoords()[tid][*lvl];
           const Value lvar = env.getLoopVar(ldx);
           clause = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                  crd, lvar);
         } else {
-          assert(isDenseDLT(dlt) || isUndefDLT(dlt));
+          assert(isDenseLT(lt) || isUndefLT(lt));
           clause = constantI1(builder, loc, true);
         }
         cond = cond ? builder.create<arith::AndIOp>(loc, cond, clause) : clause;
@@ -970,9 +956,9 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
   SmallVector<TensorLevel> tidLvls;
   env.merger().foreachTensorLoopId(l0, [&](TensorLoopId b, TensorId tid,
                                            std::optional<Level> lvl,
-                                           DimLevelType dlt, bool isIdxReduc) {
+                                           LevelType lt, bool isIdxReduc) {
     assert(env.merger().loop(b) == idx);
-    if (isDenseDLT(dlt) || isUndefDLT(dlt)) {
+    if (isDenseLT(lt) || isUndefLT(lt)) {
       if (tid == env.merger().getSynTensorID()) {
         // Needs loop emitter to set up loop bounds for synthetic tensor too if
         // there is a loop condition imposed on the synthetic tensor.
@@ -981,10 +967,10 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
       }
       needsUniv = true;
     }
-    if (isCompressedDLT(dlt) || isSingletonDLT(dlt) ||
-        isLooseCompressedDLT(dlt) || is2OutOf4DLT(dlt) || isIdxReduc) {
-      // Only when this is a index reduction loop, can the dlt be undefined.
-      assert(!isUndefDLT(dlt) || isIdxReduc);
+    if (isCompressedLT(lt) || isSingletonLT(lt) || isLooseCompressedLT(lt) ||
+        is2OutOf4LT(lt) || isIdxReduc) {
+      // Only when this is a index reduction loop, can the lt be undefined.
+      assert(!isUndefLT(lt) || isIdxReduc);
       // sparse/singleton levels, or a dense/sparse index reduction loop.
       tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
     }
@@ -1048,91 +1034,78 @@ static bool translateBitsToTidLvlPairs(
 
   unsigned numloopCond = 0;
   bool hasNonUnique = false;
-  env.merger().foreachTensorLoopId(
-      li, [&, ldx](TensorLoopId b, TensorId tid, std::optional<Level> lvl,
-                   DimLevelType dlt, bool isIdxReduc) {
-        if (simple[b]) {
-          if (isIdxReduc) {
-            tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
-            numloopCond++;
-            return;
-          }
-          if (isUndefDLT(dlt)) {
-            // An undefined dlt in the lattices, we probably mean to
-            // iterate based on the level of output tensor.  E.g., this
-            // could be a synthetic tensor (for invariants and sparse
-            // output tensor).
-            auto itType = env.op().getIteratorTypesArray()[ldx];
-            if (linalg::isReductionIterator(itType) &&
-                env.merger().getSynTensorID() == tid) {
-              // Coiterating with an invariant, and this is a reduction loop
-              // e.g., out = prod(in[i][j] op invariant);
-              // In this case, we can not infer the loop bound from output
-              // (whose level is reduced). Instead we use the synthetic tensor
-              // to infer the bound.
-              // The level of the synthetic tensor is the current loop depth;
-              // the rank of the synthetic tensor equals to number of loops.
-              lvl = env.emitter().getCurrentDepth();
-            } else {
-              // or a broadcast
-              // out[i][j] = in[i] (j is undef for input)
-              tid = outTid;
-              lvl = outLvl;
-              // Skips invalid lvl (e.g., when this is a zero ranked tensor).
-              if (!lvl)
-                return;
-            }
-          }
-          hasNonUnique = !isUniqueDLT(dlt) || hasNonUnique;
-          tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
-          numloopCond++;
-        } else if (isDenseDLT(dlt) || isIdxReduc) {
-          tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
-        } else {
-          assert(isUndefDLT(dlt));
-          linalg::GenericOp op = env.op();
-          if (tid >= op.getNumDpsInputs())
-            // We only handle affine expression on input tensors (for now).
-            return;
-          OpOperand *operand = &op->getOpOperand(tid);
-          const auto stt = getSparseTensorType(operand->get());
-          // Non-annotated dense tensors requires no special handling.
-          if (!stt.hasEncoding())
-            return;
+  env.merger().foreachTensorLoopId(li, [&, ldx](TensorLoopId b, TensorId tid,
+                                                std::optional<Level> lvl,
+                                                LevelType lt, bool isIdxReduc) {
+    if (simple[b]) {
+      if (isIdxReduc) {
+        tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+        numloopCond++;
+        return;
+      }
+      if (isUndefLT(lt)) {
+        // An undefined lt in the lattices, we probably mean to
+        // generate a dense loop according to the synthetic tensor (for
+        // invariants and sparse output tensor).
+        if (env.merger().getSynTensorID() == tid) {
+          // Coiterating with an invariant
+          // e.g., out = prod(in[i][j] op invariant);
+          // or a broadcast
+          // e.g., out[i][j] = in[i] (j is undef for input)
+          //
+          // The level of the synthetic tensor is the current loop depth;
+          // the rank of the synthetic tensor equals to number of loops.
+          lvl = env.emitter().getCurrentDepth();
+        } else if (!lvl) {
+          // Skips invalid lvl (e.g., when this is a zero ranked tensor).
+          return;
+        }
+      }
+      hasNonUnique = !isUniqueLT(lt) || hasNonUnique;
+      tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+      numloopCond++;
+    } else if (isDenseLT(lt) || isIdxReduc) {
+      tidLvls.push_back(env.makeTensorLevel(tid, *lvl));
+    } else {
+      assert(isUndefLT(lt));
+      linalg::GenericOp op = env.op();
+      if (tid >= op.getNumDpsInputs())
+        // We only handle affine expression on input tensors (for now).
+        return;
+      OpOperand *operand = &op->getOpOperand(tid);
+      const auto stt = getSparseTensorType(operand->get());
+      // Non-annotated dense tensors requires no special handling.
+      if (!stt.hasEncoding())
+        return;
 
-          ArrayRef<AffineExpr> affines =
-              op.getMatchingIndexingMap(operand).getResults();
-          const Level lvlRank = stt.getLvlRank();
-          assert(affines.size() == static_cast<size_t>(lvlRank));
-          for (Level l = 0; l < lvlRank; l++) {
-            AffineExpr exp = affines[l];
-            // Skip simple affine expression and non-dense levels (which
-            // have their own filter loop).
-            if (isa<AffineDimExpr>(exp) || !stt.isDenseLvl(l))
-              continue;
+      ArrayRef<AffineExpr> affines =
+          op.getMatchingIndexingMap(operand).getResults();
+      const Level lvlRank = stt.getLvlRank();
+      assert(affines.size() == static_cast<size_t>(lvlRank));
+      for (Level l = 0; l < lvlRank; l++) {
+        AffineExpr exp = affines[l];
+        // Skip simple affine expression and non-dense levels (which
+        // have their own filter loop).
+        if (isa<AffineDimExpr>(exp) || !stt.isDenseLvl(l))
+          continue;
 
-            // Constant affine expression are handled in genLoop
-            if (!isa<AffineConstantExpr>(exp)) {
-              bool isAtLoop = false;
-              if (isInvariantAffine(exp, env.getLoopDepth(), ldx, isAtLoop) &&
-                  isAtLoop) {
-                // If the compound affine is invariant and we are right at the
-                // level. We need to generate the address according to the
-                // affine expression. This is also the best place we can do it
-                // to avoid putting it inside inner loops.
-                // NOTE: It assumes that the levels of the input tensor are
-                // initialized in order (and it is also currently guaranteed by
-                // computeIterationGraph), another more admissible approach
-                // might be accepting out-of-order access between consecutive
-                // dense levels.
-                affineTidLvls.emplace_back(env.makeTensorLevel(tid, l), exp);
-              }
-            }
+        // Constant affine expression are handled in genLoop
+        if (!isa<AffineConstantExpr>(exp)) {
+          bool isAtLoop = false;
+          if (isInvariantAffine(exp, env.getLoopDepth(), ldx, isAtLoop) &&
+              isAtLoop) {
+            // If the compound affine is invariant and we are right at the
+            // level. We need to generate the address according to the
+            // affine expression. This is also the best place we can do it
+            // to avoid putting it inside inner loops.
+            affineTidLvls.emplace_back(env.makeTensorLevel(tid, l), exp);
           }
         }
-      });
+      }
+    }
+  });
 
-  if (isDenseDLT(env.dlt(outTid, ldx))) {
+  if (isDenseLT(env.lt(outTid, ldx))) {
     // Note that we generate dense indices of the output tensor
     // unconditionally, since they may not appear in the lattice, but may be
     // needed for linearized env.
@@ -1229,7 +1202,7 @@ static void genStmt(CodegenEnv &env, RewriterBase &rewriter, ExprId exp,
                     LoopOrd at) {
   // At each leaf, assign remaining tensor (sub)expression to output tensor.
   if (at == env.getLoopNum()) {
-    Value rhs = genExp(env, rewriter, exp, at - 1);
+    Value rhs = genExp(env, rewriter, exp);
     genTensorStore(env, rewriter, exp, rhs);
     return;
   }
@@ -1243,8 +1216,7 @@ static void genStmt(CodegenEnv &env, RewriterBase &rewriter, ExprId exp,
   bool needsUniv = startLoopSeq(env, rewriter, exp, at, ldx, lts);
 
   // Emit a loop for every lattice point L0 >= Li in this loop sequence.
-  //
-  // NOTE: We cannot change this to `for (const LatPointId li : env.set(lts))`
+  // We cannot change this to `for (const LatPointId li : env.set(lts))`
   // because the loop body causes data-movement which invalidates
   // the iterator.
   const unsigned lsize = env.set(lts).size();
@@ -1259,7 +1231,7 @@ static void genStmt(CodegenEnv &env, RewriterBase &rewriter, ExprId exp,
     Value cntInput = env.getExpandCount();
     Value insInput = env.getInsertionChain();
     Value validIns = env.getValidLexInsert();
-    // NOTE: We cannot change this to `for (const LatPointId lj : env.set(lts))`
+    // We cannot change this to `for (const LatPointId lj : env.set(lts))`
     // because the loop body causes data-movement which invalidates the
     // iterator.
     for (unsigned j = 0; j < lsize; j++) {
@@ -1331,6 +1303,7 @@ public:
     if (hasNonTrivialAffineOnSparseOut(op))
       return failure();
 
+    // Only accept scheduled loops.
     if (!op->hasAttr("sorted")) {
       return rewriter.notifyMatchFailure(
           op, "Loops not yet scheduled, try run --sparse-reinterpret-map "
@@ -1356,9 +1329,9 @@ public:
       }
     }
 
-    CodegenEnv env(op, options, numTensors, numLoops, maxLvlRank);
     // Detects sparse annotations and translates the per-level sparsity
     // information for all tensors to loop indices in the kernel.
+    CodegenEnv env(op, options, numTensors, numLoops, maxLvlRank);
     if (!findSparseAnnotations(env, needIdxRed))
       return failure();
 

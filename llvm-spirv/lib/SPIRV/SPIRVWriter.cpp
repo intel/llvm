@@ -2109,6 +2109,13 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   }
 
   if (CmpInst *Cmp = dyn_cast<CmpInst>(V)) {
+    if (Cmp->getPredicate() == CmpInst::Predicate::FCMP_FALSE) {
+      auto *CmpTy = Cmp->getType();
+      SPIRVValue *FalseValue = CmpTy->isVectorTy()
+                                   ? BM->addNullConstant(transType(CmpTy))
+                                   : BM->addConstant(BM->addBoolType(), 0);
+      return mapValue(V, FalseValue);
+    }
     SPIRVInstruction *BI = transCmpInst(Cmp, BB);
     return mapValue(V, BI);
   }
@@ -2662,7 +2669,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
           Target, Name->getString().str(), TypeKind));
       break;
     }
-    case spv::internal::DecorationHostAccessINTEL: {
+
+    case spv::internal::DecorationHostAccessINTEL:
+    case DecorationHostAccessINTEL: {
       checkIsGlobalVar(Target, DecoKind);
 
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
@@ -2673,16 +2682,25 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(
           AccessMode, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires first extra operand to be an int");
+
+      HostAccessQualifier Q =
+          static_cast<HostAccessQualifier>(AccessMode->getZExtValue());
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
       ErrLog.checkError(
           Name, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires second extra operand to be a string");
 
-      Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
-          Target, AccessMode->getZExtValue(), Name->getString().str()));
+      if (DecoKind == DecorationHostAccessINTEL)
+        Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
+            Target, Q, Name->getString().str()));
+      else
+        Target->addDecorate(new SPIRVDecorateHostAccessINTELLegacy(
+            Target, Q, Name->getString().str()));
       break;
     }
-    case spv::internal::DecorationInitModeINTEL: {
+
+    case spv::internal::DecorationInitModeINTEL:
+    case DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
       ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
                         SPIRVEC_InvalidLlvmModule,
@@ -2692,12 +2710,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Trigger, SPIRVEC_InvalidLlvmModule,
-          "InitModeINTEL requires extra operand to be an integer");
+      ErrLog.checkError(Trigger, SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL requires extra operand to be an int");
 
-      Target->addDecorate(
-          new SPIRVDecorateInitModeINTEL(Target, Trigger->getZExtValue()));
+      InitializationModeQualifier Q =
+          static_cast<InitializationModeQualifier>(Trigger->getZExtValue());
+
+      if (DecoKind == DecorationInitModeINTEL)
+        Target->addDecorate(new SPIRVDecorateInitModeINTEL(Target, Q));
+      else
+        Target->addDecorate(new SPIRVDecorateInitModeINTELLegacy(Target, Q));
+
       break;
     }
     case spv::internal::DecorationImplementInCSRINTEL: {
@@ -2713,6 +2736,22 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
           new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
       break;
     }
+    case DecorationImplementInRegisterMapINTEL: {
+      checkIsGlobalVar(Target, DecoKind);
+      ErrLog.checkError(
+          NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+          "ImplementInRegisterMapINTEL requires exactly 1 extra operand");
+      auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Value, SPIRVEC_InvalidLlvmModule,
+                        "ImplementInRegisterMapINTEL requires extra operand to "
+                        "be an integer");
+
+      Target->addDecorate(new SPIRVDecorateImplementInRegisterMapINTEL(
+          Target, Value->getZExtValue()));
+
+      break;
+    }
+
     case spv::internal::DecorationCacheControlLoadINTEL: {
       ErrLog.checkError(
           NumOperands == 3, SPIRVEC_InvalidLlvmModule,
@@ -3185,6 +3224,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
+    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: "
+                       << Name.str() << "\n");
 
     unsigned DecorationKind = 0;
     if (!Name.getAsInteger(10, DecorationKind)) {
@@ -3208,6 +3249,28 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                        internal::DecorationCacheControlLoadINTEL) {
           Decorates.CacheControlVec.emplace_back(
               static_cast<Decoration>(DecorationKind), std::move(DecValues));
+        } else if (DecorationKind == DecorationMemoryINTEL) {
+          // SPIRV doesn't allow the same Decoration to be applied multiple
+          // times on a single SPIRVEntry, unless explicitly allowed by the
+          // language spec. Filter out the less specific MemoryINTEL
+          // decorations, if applied multiple times
+          auto CanFilterOut = [](auto &Val) {
+            if (!Val.second.empty())
+              return (Val.second[0] == "DEFAULT");
+            return false;
+          };
+          auto It = std::find_if(DecorationsVec.begin(), DecorationsVec.end(),
+                                 CanFilterOut);
+
+          if (It != DecorationsVec.end()) {
+            // replace the less specific decoration
+            *It = {static_cast<Decoration>(DecorationKind),
+                   std::move(DecValues)};
+          } else {
+            // add new decoration
+            DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
+                                        std::move(DecValues));
+          }
         } else {
           DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
                                       std::move(DecValues));
@@ -4335,19 +4398,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // i8* <ptr> is a pointer on a GV, which can carry optinal variadic
   // clang::annotation attribute expression arguments.
   case Intrinsic::ptr_annotation: {
-    // Strip all bitcast and addrspace casts from the pointer argument:
-    //   llvm annotation intrinsic only takes i8*, so the original pointer
-    //   probably had to loose its addrspace and its original type.
-    Value *AnnotSubj = II->getArgOperand(0);
-    while (isa<BitCastInst>(AnnotSubj) || isa<AddrSpaceCastInst>(AnnotSubj)) {
-      AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
+    Value *AnnotSubj = nullptr;
+    if (auto *BI = dyn_cast<BitCastInst>(II->getArgOperand(0))) {
+      AnnotSubj = BI->getOperand(0);
+    } else {
+      AnnotSubj = II->getOperand(0);
     }
 
     std::string AnnotationString;
     processAnnotationString(II, AnnotationString);
     AnnotationDecorations Decorations =
         tryParseAnnotationString(BM, AnnotationString);
-
     // Translate FPGARegIntel annotations to OpFPGARegINTEL.
     if (AnnotationString == kOCLBuiltinName::FPGARegIntel) {
       auto *Ty = transScavengedType(II);
@@ -4357,76 +4418,26 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return transValue(BI, BB);
     }
 
-    // If the pointer is a GEP on a struct, then we have to emit a member
-    // decoration for the GEP-accessed struct, or a memory access decoration
-    // for the GEP itself. There may not be a GEP in this case if the access is
-    // to the first member of the struct; if so, attempt to get a struct type
-    // from an alloca instead.
-    SPIRVType *StructTy = nullptr;
-    [[maybe_unused]] SPIRVValue *ResPtr = nullptr;
-    [[maybe_unused]] SPIRVWord MemberNumber = 0;
-    if (auto *const GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(GI->getSourceElementType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(GI, BB);
-        MemberNumber = dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
-      }
-    } else if (auto *const AI = dyn_cast<AllocaInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(AI->getAllocatedType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(AI, BB);
-        MemberNumber = 0;
-      }
-    }
-    if (StructTy) {
-
-      // If we didn't find any IntelFPGA-specific decorations, let's add the
-      // whole annotation string as UserSemantic Decoration
-      if (Decorations.empty()) {
-        // TODO: Is there a way to detect that the annotation belongs solely
-        // to struct member memory atributes or struct member memory access
-        // controls? This would allow emitting just the necessary decoration.
-        StructTy->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            StructTy, MemberNumber, AnnotationString.c_str()));
-        ResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            ResPtr, AnnotationString.c_str()));
-      } else {
-        addAnnotationDecorationsForStructMember(
-            StructTy, MemberNumber, Decorations.MemoryAttributesVec);
-        // Apply the LSU parameter decoration to the pointer result of a GEP
-        // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-        // Decorating the member itself with a MemberDecoration is not feasible,
-        // because multiple accesses to the struct-held memory can require
-        // different LSU parameters.
-        addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
-          addAnnotationDecorations(ResPtr, Decorations.LatencyControlVec);
-        }
-      }
-      II->replaceAllUsesWith(II->getOperand(0));
+    SPIRVValue *DecSubj = transValue(AnnotSubj, BB);
+    if (Decorations.empty()) {
+      DecSubj->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(DecSubj, AnnotationString.c_str()));
     } else {
-      // Memory accesses to a standalone pointer variable
-      auto *DecSubj = transValue(II->getArgOperand(0), BB);
-      if (Decorations.empty())
-        DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            DecSubj, AnnotationString.c_str()));
-      else {
-        // Apply the LSU parameter decoration to the pointer result of an
-        // instruction. Note it's the address to the accessed memory that's
-        // loaded from the original pointer variable, and not the value
-        // accessed by the latter.
-        addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
-          addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
-        }
-
-        addAnnotationDecorations(DecSubj, Decorations.CacheControlVec);
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAttributesVec);
+      // Apply the LSU parameter decoration to the pointer result of a GEP
+      // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
+      // Decorating the member itself with a MemberDecoration is not feasible,
+      // because multiple accesses to the struct-held memory can require
+      // different LSU parameters.
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
+      addAnnotationDecorations(DecSubj, Decorations.CacheControlVec);
+      if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
+        addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+        addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
       }
-      II->replaceAllUsesWith(II->getOperand(0));
     }
-    return nullptr;
+    II->replaceAllUsesWith(II->getOperand(0));
+    return DecSubj;
   }
   case Intrinsic::stacksave: {
     if (BM->isAllowedToUseExtension(

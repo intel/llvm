@@ -1403,7 +1403,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
     // GLOBALVAR: [strtab offset, strtab size, type, isconst, initid,
     //             linkage, alignment, section, visibility, threadlocal,
     //             unnamed_addr, externally_initialized, dllstorageclass,
-    //             comdat, attributes, DSO_Local, GlobalSanitizer]
+    //             comdat, attributes, DSO_Local, GlobalSanitizer, code_model]
     Vals.push_back(addToStrtab(GV.getName()));
     Vals.push_back(GV.getName().size());
     Vals.push_back(VE.getTypeID(GV.getValueType()));
@@ -1420,7 +1420,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
         GV.isExternallyInitialized() ||
         GV.getDLLStorageClass() != GlobalValue::DefaultStorageClass ||
         GV.hasComdat() || GV.hasAttributes() || GV.isDSOLocal() ||
-        GV.hasPartition() || GV.hasSanitizerMetadata()) {
+        GV.hasPartition() || GV.hasSanitizerMetadata() || GV.getCodeModel()) {
       Vals.push_back(getEncodedVisibility(GV));
       Vals.push_back(getEncodedThreadLocalMode(GV));
       Vals.push_back(getEncodedUnnamedAddr(GV));
@@ -1438,6 +1438,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
       Vals.push_back((GV.hasSanitizerMetadata() ? serializeSanitizerMetadata(
                                                       GV.getSanitizerMetadata())
                                                 : 0));
+      Vals.push_back(GV.getCodeModelRaw());
     } else {
       AbbrevToUse = SimpleGVarAbbrev;
     }
@@ -1540,6 +1541,9 @@ static uint64_t getOptimizationFlags(const Value *V) {
   } else if (const auto *PEO = dyn_cast<PossiblyExactOperator>(V)) {
     if (PEO->isExact())
       Flags |= 1 << bitc::PEO_EXACT;
+  } else if (const auto *PDI = dyn_cast<PossiblyDisjointInst>(V)) {
+    if (PDI->isDisjoint())
+      Flags |= 1 << bitc::PDI_DISJOINT;
   } else if (const auto *FPMO = dyn_cast<FPMathOperator>(V)) {
     if (FPMO->hasAllowReassoc())
       Flags |= bitc::AllowReassoc;
