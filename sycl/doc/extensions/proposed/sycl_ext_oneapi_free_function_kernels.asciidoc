@@ -225,6 +225,115 @@ A function decorated with one of these macros can still be called as a normal
 function in either host or device code.
 The macro has no effect in such cases.
 
+=== New traits for kernel functions
+
+This extension defines the following traits that can be used to tell whether a
+function is declared as a free function kernel.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, int Dims>
+struct is_range_kernel;
+
+template<auto *Func, int Dims>
+inline constexpr bool is_range_kernel_v = is_range_kernel<Func, Dims>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with the
+`SYCL_EXT_ONEAPI_RANGE_KERNEL(Dims)` macro, the `is_range_kernel` trait
+provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_range_kernel_v` provides the value of `value`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, int Dims>
+struct is_nd_range_kernel;
+
+template<auto *Func, int Dims>
+inline constexpr bool is_nd_range_kernel_v = is_nd_range_kernel<Func, Dims>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with the
+`SYCL_EXT_ONEAPI_ND_RANGE_KERNEL(Dims)` macro, the `is_nd_range_kernel` trait
+provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_nd_range_kernel_v` provides the value of `value`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func>
+struct is_single_task_kernel;
+
+template<auto *Func>
+inline constexpr bool is_single_task_kernel_v = is_single_task_kernel<Func>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with the
+`SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL` macro, the `is_single_task_kernel` trait
+provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_single_task_kernel_v` provides the value of `value`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func>
+struct is_kernel;
+
+template<auto *Func>
+inline constexpr bool is_kernel_v = is_kernel<Func>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with any
+of the macros `SYCL_EXT_ONEAPI_RANGE_KERNEL`,
+`SYCL_EXT_ONEAPI_ND_RANGE_KERNEL`, or `SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL`; the
+`is_kernel` trait provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_kernel_v` provides the value of `value`.
+|====
+
+
 === New kernel bundle member functions
 
 This extension adds the following new functions which add kernel bundle support
@@ -246,8 +355,7 @@ kernel_id get_kernel_id();
 ----
 !====
 
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 
 [_Note:_ The function `Func` need not be defined in the same translation unit
 as the call to `get_kernel_id`.
@@ -272,8 +380,7 @@ kernel_bundle<State> get_kernel_bundle(const context& ctxt,
 ----
 !====
 
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 
 _Returns: (1)_ The same value as
 `get_kernel_bundle<State>(ctxt, ctxt.get_devices(), {get_kernel_id<Func>()})`.
@@ -297,8 +404,7 @@ bool has_kernel_bundle(const context& ctxt, const std::vector<device>& devs);
 ----
 !====
 
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 
 _Returns: (1)_ The same value as
 `has_kernel_bundle<State>(ctxt, {get_kernel_id<Func>()})`.
@@ -318,8 +424,7 @@ template <auto *Func> bool is_compatible(const device& dev);
 ----
 !====
 
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 
 _Returns:_ The same value as
 `is_compatible<State>({get_kernel_id<Func>()}, dev)`.
@@ -364,8 +469,7 @@ bool ext_oneapi_has_kernel(const device &dev)
 ----
 !====
 
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
 
 _Returns: (1)_: The value `true` only if the kernel bundle contains the free
 function kernel whose address is `Func`.
@@ -383,11 +487,8 @@ kernel ext_oneapi_get_kernel()
 ----
 !====
 
-_Constraints:_ This function is available only when `State` is
-`bundle_state::executable`.
-
-_Preconditions_: The address `Func` must be the address of some free function
-kernel that is defined in the calling application.
+_Constraints:_ Available only if `State` is `bundle_state::executable` and if
+`is_kernel_v<Func>` is `true`.
 
 _Returns:_ If the kernel whose address is `Func` resides in this kernel bundle,
 returns the `kernel` object representing that kernel.
@@ -695,18 +796,6 @@ int main() {
 ```
 +
 Where `kfp` would have some nicer name.
-
-* Can the front-end define a trait like this, which returns true only if the
-  address is a free function kernel:
-+
-```
-template <auto *Func>
-bool is_kernel_function_v;
-```
-+
-If the front-end can provide this, we can provide a nice diagnostic when the
-user passes an invalid address to the kernel bundle functions like
-`template<auto *Func> kernel_id get_kernel_id()`.
 
 * We need to investigate whether there will be problems passing kernel
   arguments that are "decomposed" by the front-end.
