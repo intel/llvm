@@ -2,6 +2,11 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
 ; RUN: -passes=sycl-internalization --sycl-info-path %S/../kernel-fusion/kernel-info.yaml -S %s | FileCheck %s
 
+; This test is the IR version of
+; sycl/test-e2e/KernelFusion/internalize_non_unit_localsize.cpp for HIP.
+; In contrast to the SPIR-V and CUDA versions, the sycl::vec in the test data
+; structure is addressed via a multi-index GEP with a non-zero first index.
+
 target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-p7:160:256:256:32-p8:128:128-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1-ni:7:8"
 target triple = "amdgcn-amd-amdhsa"
 
