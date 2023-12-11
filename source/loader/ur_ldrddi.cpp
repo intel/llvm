@@ -352,14 +352,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativePlatform = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativePlatform, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -673,14 +665,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeDevice = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeDevice, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -699,16 +683,12 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
     // extract platform's function pointer table
     auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeDevice)->dditable;
+        reinterpret_cast<ur_platform_object_t *>(hPlatform)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Device.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeDevice =
-        reinterpret_cast<ur_native_object_t *>(hNativeDevice)->handle;
 
     // convert loader handle to platform handle
     hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
@@ -916,14 +896,6 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeContext = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeContext, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -944,16 +916,12 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     // extract platform's function pointer table
     auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeContext)->dditable;
+        reinterpret_cast<ur_device_object_t *>(*phDevices)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeContext =
-        reinterpret_cast<ur_native_object_t *>(hNativeContext)->handle;
 
     // convert loader handles to platform handles
     auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
@@ -1207,14 +1175,6 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -1232,16 +1192,12 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeMem)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnBufferCreateWithNativeHandle =
         dditable->ur.Mem.pfnBufferCreateWithNativeHandle;
     if (nullptr == pfnBufferCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeMem = reinterpret_cast<ur_native_object_t *>(hNativeMem)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -1282,16 +1238,12 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeMem)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnImageCreateWithNativeHandle =
         dditable->ur.Mem.pfnImageCreateWithNativeHandle;
     if (nullptr == pfnImageCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeMem = reinterpret_cast<ur_native_object_t *>(hNativeMem)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -1528,14 +1480,6 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeSampler = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeSampler, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -1553,17 +1497,12 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeSampler)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Sampler.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeSampler =
-        reinterpret_cast<ur_native_object_t *>(hNativeSampler)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -2604,14 +2543,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeProgram = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeProgram, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -2629,17 +2560,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeProgram)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Program.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeProgram =
-        reinterpret_cast<ur_native_object_t *>(hNativeProgram)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -3088,14 +3014,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeKernel = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeKernel, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -3115,17 +3033,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeKernel)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Kernel.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeKernel =
-        reinterpret_cast<ur_native_object_t *>(hNativeKernel)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -3300,14 +3213,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeQueue, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -3326,16 +3231,12 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeQueue)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Queue.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeQueue = reinterpret_cast<ur_native_object_t *>(hNativeQueue)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
@@ -3573,14 +3474,6 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
         return result;
     }
 
-    try {
-        // convert platform handle to loader handle
-        *phNativeEvent = reinterpret_cast<ur_native_handle_t>(
-            ur_native_factory.getInstance(*phNativeEvent, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
     return result;
 }
 
@@ -3598,16 +3491,12 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_native_object_t *>(hNativeEvent)->dditable;
+    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Event.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hNativeEvent = reinterpret_cast<ur_native_object_t *>(hNativeEvent)->handle;
 
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
