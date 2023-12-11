@@ -71,18 +71,6 @@ int main() {
     CGH.parallel_for(sycl::nd_range{sycl::range{1, 1, 1}, sycl::range{1, 1, 1}},
                      [=](ConvertibleFromItem<3>) {});
   });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
-  });
 
   Q.submit([&](sycl::handler &CGH) {
     // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}

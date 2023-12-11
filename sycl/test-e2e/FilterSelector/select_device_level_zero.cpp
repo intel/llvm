@@ -18,7 +18,6 @@ int main() {
   const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
   if (envVal) {
-    cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
     forcedPIs = envVal;
   }
 
@@ -27,15 +26,12 @@ int main() {
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
-    cout << "Level-Zero GPU Device is found: " << boolalpha << d.is_gpu()
-         << std::endl;
   }
   {
     gpu_selector gs;
     device d = gs.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
-    cout << name << " is found: " << boolalpha << d.is_gpu() << std::endl;
   }
   {
     cpu_selector cs;
@@ -44,7 +40,6 @@ int main() {
       cerr << "CPU device is found in error: " << d.is_cpu() << std::endl;
       return -1;
     } catch (...) {
-      cout << "Expectedly, cpu device is not found." << std::endl;
     }
   }
   {
@@ -54,7 +49,6 @@ int main() {
       cerr << "ACC device is found in error: " << d.is_accelerator()
            << std::endl;
     } catch (...) {
-      cout << "Expectedly, ACC device is not found." << std::endl;
     }
   }
 

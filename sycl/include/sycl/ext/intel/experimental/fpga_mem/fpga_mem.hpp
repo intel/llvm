@@ -20,11 +20,30 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
-namespace detail {
 
-// Hide the base implementation in details so that manipulation
-// of properties parameter pack can be modularized away from main logic
-template <typename T, typename... Props> class fpga_mem_base {
+// Primary template should never be deduced. Needed to establish which
+// parameters fpga_mem can be templated on
+template <typename T, typename PropertyListT =
+                          ext::oneapi::experimental::empty_properties_t>
+class fpga_mem {
+
+  static_assert(
+      ext::oneapi::experimental::is_property_list<PropertyListT>::value,
+      "Property list is invalid.");
+};
+
+// Template specialization that all calls should use. Separates Props from
+// properties_t which allows the class to apply Props as attributes.
+template <typename T, typename... Props>
+class
+#ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::add_ir_attributes_global_variable(
+        "sycl-resource",
+        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+        "DEFAULT",
+        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+    fpga_mem<T, ext::oneapi::experimental::detail::properties_t<Props...>> {
 
 protected:
   T val
@@ -47,14 +66,14 @@ public:
   // All the initialization
   // constexpr is used as a hint to the compiler to try and evaluate the
   // constructor at compile-time
-  template <typename... S> constexpr fpga_mem_base(S... args) : val{args...} {}
+  template <typename... S> constexpr fpga_mem(S... args) : val{args...} {}
 
-  fpga_mem_base() = default;
+  fpga_mem() = default;
 
-  fpga_mem_base(const fpga_mem_base &) = default;
-  fpga_mem_base(fpga_mem_base &&) = default;
-  fpga_mem_base &operator=(const fpga_mem_base &) = default;
-  fpga_mem_base &operator=(fpga_mem_base &&) = default;
+  fpga_mem(const fpga_mem &) = default;
+  fpga_mem(fpga_mem &&) = default;
+  fpga_mem &operator=(const fpga_mem &) = default;
+  fpga_mem &operator=(fpga_mem &&) = default;
 
   T &get() noexcept { return val; }
 
@@ -66,75 +85,24 @@ public:
   // Allows for implicit conversion from this to T
   constexpr operator const T &() const noexcept { return get(); }
 
-  fpga_mem_base &operator=(const T &newValue) noexcept {
+  fpga_mem &operator=(const T &newValue) noexcept {
     val = newValue;
     return *this;
   }
 
-  // Note that there is no need for "fpga_mem_base" to define member functions
+  // Note that there is no need for "fpga_mem" to define member functions
   // for operators like "++", "[]", "->", comparison, etc. Instead, the type
   // "T" need only define these operators as non-member functions. Because
-  // there is an implicit conversion from "fpga_mem_base" to "T&".
-};
-} // namespace detail
+  // there is an implicit conversion from "fpga_mem" to "T&".
 
-// alias for proper namespace
-template <typename... Props>
-using properties_t = ext::oneapi::experimental::detail::properties_t<Props...>;
-
-// Empty property list specialization
-template <typename T, typename PropertyListT =
-                          ext::oneapi::experimental::empty_properties_t>
-class
-#ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::add_ir_attributes_global_variable("sycl-resource",
-                                                         "DEFAULT")]]
-#endif
-    fpga_mem : public detail::fpga_mem_base<T> {
-
-  using property_list_t = ext::oneapi::experimental::empty_properties_t;
-
-  // Inherits the base class' constructors
-  using detail::fpga_mem_base<T>::fpga_mem_base;
-
-public:
   template <typename propertyT> static constexpr bool has_property() {
-    return property_list_t::template has_property<propertyT>();
+    return ext::oneapi::experimental::detail::properties_t<
+        Props...>::template has_property<propertyT>();
   }
 
   template <typename propertyT> static constexpr auto get_property() {
-    return property_list_t::template get_property<propertyT>();
-  }
-};
-
-template <typename T, typename... Props>
-class
-#ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::add_ir_attributes_global_variable(
-        "sycl-resource",
-        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-        "DEFAULT",
-        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-    fpga_mem<T, properties_t<Props...>>
-    : public detail::fpga_mem_base<T, Props...> {
-
-  using property_list_t = properties_t<Props...>;
-
-  // Inherits the base class' constructors
-  using detail::fpga_mem_base<T, Props...>::fpga_mem_base;
-
-public:
-  static_assert(
-      ext::oneapi::experimental::is_property_list<property_list_t>::value,
-      "Property list is invalid.");
-
-  template <typename propertyT> static constexpr bool has_property() {
-    return property_list_t::template has_property<propertyT>();
-  }
-
-  template <typename propertyT> static constexpr auto get_property() {
-    return property_list_t::template get_property<propertyT>();
+    return ext::oneapi::experimental::detail::properties_t<
+        Props...>::template get_property<propertyT>();
   }
 };
 
