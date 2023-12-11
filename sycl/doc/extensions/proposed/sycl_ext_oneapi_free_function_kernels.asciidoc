@@ -835,12 +835,16 @@ Where `kfp` would have some nicer name.
   `single_task`.
   Should we go a step further and require an exception to be thrown in these
   cases?
-  I'm pretty sure we can implement this in {dpcpp}, but I'm not sure about a
-  library-only implementation.
-  However, I'm not sure _any_ of this can be implemented without compiler
-  support.
+  I'm a little hesitant to require an error check here because this is on the
+  critical path for enqueuing a kernel.
+  However, {dpcpp} is still allowed to throw an exception in this case if the
+  overhead is not too high (I'd suggest `errc::invalid`).
+  I think we should decide during implementation whether the overhead is
+  minimal enough that we can mandate an error in the spec.
 
 * We currently say it is UB if a free function kernel is enqueued without
   setting a value for each of its arguments.
-  Should we go a step further and require an exception in this case?
-  This seems easier to implement, even for library-only.
+  Should we go a step further and require an exception in this case (again
+  probably `errc::invalid`).
+  Again, I think we should decide during implementation whether the overhead is
+  minimal enough that we can mandate an error in the spec.
