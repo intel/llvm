@@ -3887,7 +3887,6 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) BuiltinBitCastExpr(Empty);
       break;
 
-<<<<<<< HEAD
     case EXPR_SYCL_BUILTIN_NUM_FIELDS:
       S = new (Context) SYCLBuiltinNumFieldsExpr(Empty);
       break;
