@@ -100,10 +100,10 @@ struct Wrapper {
   //   uint64_t ValSize;
   // };
   StructType *getSyclPropTy() {
-    return StructType::create(
-        {PointerType::getUnqual(C), PointerType::getUnqual(C),
-         PointerType::getUnqual(C), PointerType::getUnqual(C)},
-        "_pi_device_binary_property_struct");
+    return StructType::create({PointerType::getUnqual(C),
+                               PointerType::getUnqual(C), Type::getInt32Ty(C),
+                               Type::getInt64Ty(C)},
+                              "_pi_device_binary_property_struct");
   }
 
   // struct _pi_device_binary_property_set_struct {
