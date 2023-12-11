@@ -129,6 +129,9 @@ following rules must be observed:
 * Each of the function's arguments must have a type that is an allowed kernel
   parameter type as specified in section 4.12.4 "Rules for parameter passing to
   kernels" of the core SYCL specification.
+  The function must not be declared with parameters of type `reducer` or
+  `kernel_handler`.
+  These special kernel arguments cannot be passed to a free function kernel.
 
 * All declarations of the function must provide no default parameter values.
 
