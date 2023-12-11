@@ -258,6 +258,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,      ///< ::ur_kernel_exec_info_properties_t
     UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,      ///< ::ur_kernel_arg_value_properties_t
     UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,      ///< ::ur_kernel_arg_local_properties_t
+    UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,          ///< ::ur_usm_alloc_location_desc_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,      ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,   ///< ::ur_exp_sampler_mip_properties_t
     UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,         ///< ::ur_exp_interop_mem_desc_t
@@ -3288,6 +3289,25 @@ typedef struct ur_usm_device_desc_t {
 } ur_usm_device_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief USM allocation location desc
+///
+/// @details
+///     - Specify these properties in ::urUSMHostAlloc, ::urUSMDeviceAlloc and
+///       ::urUSMSharedAlloc via ::ur_usm_desc_t as part of a `pNext` chain.
+///
+/// @remarks
+///   _Analogues_
+///     - cl_intel_mem_alloc_buffer_location
+typedef struct ur_usm_alloc_location_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    uint32_t location;         ///< [in] Identifies the ID of global memory partition to which the memory
+                               ///< should be allocated.
+
+} ur_usm_alloc_location_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool descriptor type
 typedef struct ur_usm_pool_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
@@ -3324,6 +3344,7 @@ typedef struct ur_usm_pool_limits_desc_t {
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3369,6 +3390,7 @@ urUSMHostAlloc(
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3417,6 +3439,7 @@ urUSMDeviceAlloc(
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
