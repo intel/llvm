@@ -53,7 +53,6 @@
 // Macros for internal use
 #define __ESIMD_NS sycl::ext::intel::esimd
 #define __ESIMD_DNS sycl::ext::intel::esimd::detail
-#define __ESIMD_EMU_DNS sycl::ext::intel::esimd::emu::detail
 #define __ESIMD_ENS sycl::ext::intel::experimental::esimd
 #define __ESIMD_EDNS sycl::ext::intel::experimental::esimd::detail
 #define __ESIMD_XMX_NS sycl::ext::intel::esimd::xmx
