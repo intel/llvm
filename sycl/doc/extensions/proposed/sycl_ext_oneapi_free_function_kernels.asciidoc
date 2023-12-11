@@ -119,7 +119,7 @@ declaration is decorated with one of the following macros:
 When a function declaration is decorated with one of these macros, the
 following rules must be observed:
 
-* The function must be declared at either namespace scope are in class scope as
+* The function must be declared at either namespace scope or at class scope as
   a static member function.
 
 * The position of the macro decoration must be the same as the position allowed
