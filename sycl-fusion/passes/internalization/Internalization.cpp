@@ -280,49 +280,41 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
   return Error::success();
 }
 
-static Expected<bool> addressesIntoAggregate(GetElementPtrInst *GEPI,
-                                             const PromotionInfo &PromInfo) {
-  // A GEP's first index is used to step through the base pointer, whereas any
-  // additional indices represent addressing into an aggregrate type.
-  if (GEPI->getNumIndices() >= 2) {
-    // If the first index is 0, the base pointer is used as-is and we do not
-    // need to perform remapping. This is the common case.
-    if (match(GEPI->idx_begin()->get(), m_ZeroInt()))
-      return true;
+enum GEPKind { INVALID = 0, NEEDS_REMAPPING, ADDRESSES_INTO_AGGREGATE };
 
-    // TODO: Support non-zero pointer offset, too. If the pointer operand is
-    //       a GEP as well, we must check if the source element types match.
-    return createStringError(
-        inconvertibleErrorCode(),
-        "Cannot remap addressing into aggregate with base pointer offset");
-  }
+static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
+  assert(GEPI->getNumIndices() >= 1 && "No-op GEP encountered");
 
   // Inspect the GEP's source element type.
   auto &DL = GEPI->getModule()->getDataLayout();
   auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+
+  // `GEPI`'s first index is selecting elements. Unless it is constant zero, we
+  // have to remap. If there are more indices, we start to address into an
+  // aggregate type.
   if (SrcElemTySz == PromInfo.ElemSize) {
-    // This is fine. We're selecting elements, and this GEP will be remapped.
-    return false;
+    int Kind = INVALID;
+    if (!match(GEPI->idx_begin()->get(), m_ZeroInt()))
+      Kind |= NEEDS_REMAPPING;
+    if (GEPI->getNumIndices() >= 2)
+      Kind |= ADDRESSES_INTO_AGGREGATE;
+    assert(Kind != INVALID && "No-op GEP encountered");
+    return Kind;
   }
 
-  if (SrcElemTySz < PromInfo.ElemSize) {
-    MapVector<Value *, APInt> VariableOffsets;
-    APInt ConstantOffset = APInt::getZero(64);
-    if (GEPI->collectOffset(DL, 64, VariableOffsets, ConstantOffset) &&
-        VariableOffsets.empty() &&
-        ConstantOffset.getZExtValue() < PromInfo.ElemSize) {
-      // Also fine. We're addressing into the same element as this GEP's base
-      // pointer, no remapping should be done.
-      return true;
-    }
+  // Check whether `GEPI` adds a constant offset, e.g. a byte offset to address
+  // into a padded structure, smaller than the accessor's element size.
+  MapVector<Value *, APInt> VariableOffsets;
+  auto PW = DL.getPointerSizeInBits(GEPI->getPointerAddressSpace());
+  APInt ConstantOffset = APInt::getZero(PW);
+  if (GEPI->collectOffset(DL, PW, VariableOffsets, ConstantOffset) &&
+      VariableOffsets.empty() &&
+      ConstantOffset.getZExtValue() < PromInfo.ElemSize) {
+    return ADDRESSES_INTO_AGGREGATE;
   }
 
-  // Bail out if
-  // (1) the source element type is larger than expected, or
-  // (2) it's smaller, but the index is variable hence we do not know whether
-  //     the resulting address would remain confined to a single element.
-  return createStringError(inconvertibleErrorCode(),
-                           "Unsupported pointer arithmetic encountered");
+  // We don't know what `GEPI` addresses; bail out.
+  return INVALID;
 }
 
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
@@ -336,13 +328,15 @@ Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
   }
 
   // Inspect the current instruction.
-  auto IsAIAOrError = addressesIntoAggregate(GEPI, PromInfo);
-  if (auto Err = IsAIAOrError.takeError()) {
-    return Err;
+  auto Kind = getGEPKind(GEPI, PromInfo);
+  if (Kind == INVALID) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Unsupported pointer arithmetic");
   }
 
   // Recurse to check all users of the GEP.
-  return canPromoteValue(GEPI, PromInfo, InAggregate || *IsAIAOrError);
+  return canPromoteValue(GEPI, PromInfo,
+                         InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
 }
 
 Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
@@ -461,18 +455,17 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
                                        bool InAggregate) const {
   // Not PointerType is unreachable. Other case is caught in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
-    if (!InAggregate) {
-      auto IsAIAOrError = addressesIntoAggregate(GEPI, PromInfo);
-      assert(!IsAIAOrError.takeError());
-      InAggregate |= *IsAIAOrError;
-    }
+    auto Kind = getGEPKind(GEPI, PromInfo);
+    assert(Kind != INVALID);
 
-    if (!InAggregate)
+    if (!InAggregate && (Kind & NEEDS_REMAPPING)) {
       remap(GEPI, PromInfo);
+    }
     GEPI->mutateType(PointerType::get(GEPI->getContext(), AS));
 
     // Recurse to promote to all users of the GEP.
-    return promoteValue(GEPI, PromInfo, InAggregate);
+    return promoteValue(GEPI, PromInfo,
+                        InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
   }
 }
 
