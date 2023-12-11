@@ -155,7 +155,7 @@ template <class T> using marray_element_t = typename T::value_type;
 // get_elem_type
 // Get the element type of T. If T is a scalar, the element type is considered
 // the type of the scalar.
-template <typename T> struct get_elem_type {
+template <typename T, typename = void> struct get_elem_type {
   using type = T;
 };
 template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
@@ -170,6 +170,29 @@ struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
 };
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct get_elem_type<multi_ptr<ElementType, Space, DecorateAddress>> {
+  using type = ElementType;
+};
+
+template <typename T, typename = void>
+struct is_ext_vector : std::false_type {};
+
+template <typename T>
+struct is_ext_vector<
+    T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
+
+template <typename T>
+struct get_elem_type<T, std::enable_if_t<is_ext_vector_v<T>>> {
+  using type = decltype(__builtin_reduce_max(std::declval<T>()));
+};
+
 template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 
 // change_base_type_t
@@ -297,6 +320,9 @@ struct is_arithmetic
 template <typename T>
 struct is_scalar_arithmetic
     : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+
+template <typename T>
+inline constexpr bool is_scalar_arithmetic_v = is_scalar_arithmetic<T>::value;
 
 template <typename T>
 struct is_vector_arithmetic
@@ -484,6 +510,28 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
   using args_type = std::tuple<Args...>;
 };
 
+// No first_type_t due to
+// https://open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1430.
+template <typename T, typename... Ts> struct first_type {
+  using type = T;
+};
+
+template <typename T0, typename... Ts>
+inline constexpr bool all_same_v = (... && std::is_same_v<T0, Ts>);
+
+// Example usage:
+//   using mapped = map_type<type_to_map, from0, /*->*/ to0,
+//                                        from1, /*->*/ to1,
+//                                        ...>
+template <typename...> struct map_type {
+  using type = void;
+};
+
+template <typename T, typename From, typename To, typename... Rest>
+struct map_type<T, From, To, Rest...> {
+  using type = std::conditional_t<std::is_same_v<From, T>, To,
+                                  typename map_type<T, Rest...>::type>;
+};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

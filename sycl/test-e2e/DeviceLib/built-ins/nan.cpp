@@ -51,11 +51,15 @@ int main() {
   test_nan_call<unsigned short, s::half>();
   test_nan_call<unsigned int, float>();
   test_nan_call<unsigned long, double>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   test_nan_call<unsigned long long, double>();
+#endif
   test_nan_call<s::ushort2, s::half2>();
   test_nan_call<s::uint2, s::float2>();
   test_nan_call<s::ulong2, s::double2>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   test_nan_call<s::vec<unsigned long long, 2>, s::double2>();
+#endif
 
   s::queue Queue([](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
@@ -78,9 +82,13 @@ int main() {
   check_vec_nan<uint32_t, float>(Queue);
   if (Queue.get_device().has(sycl::aspect::fp64)) {
     check_scalar_nan<unsigned long, double>(Queue);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     check_scalar_nan<unsigned long long, double>(Queue);
+#endif
     check_vec_nan<uint64_t, double>(Queue);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     check_vec_nan<unsigned long long, double>(Queue);
+#endif
   }
   return 0;
 }

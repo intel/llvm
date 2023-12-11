@@ -57,13 +57,9 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 
 #ifndef __SYCL_DEVICE_ONLY__
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
-#else                                   // __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/builtins_legacy_scalar.hpp> // for ceil, floor, rint, trunc
-#endif                                     // __INTEL_PREVIEW_BREAKING_CHANGES
-
+#endif
 #include <cfenv> // for fesetround, fegetround
 #endif
 
@@ -74,6 +70,19 @@ namespace sycl {
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __SYCL_DEVICE_ONLY__
+// TODO: Refactor includes so we can just "#include".
+inline float ceil(float);
+inline double ceil(double);
+inline float floor(float);
+inline double floor(double);
+inline float rint(float);
+inline double rint(double);
+inline float trunc(float);
+inline double trunc(double);
+#endif
+#endif
 namespace detail {
 
 template <typename T, typename R>

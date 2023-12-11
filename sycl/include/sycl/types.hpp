@@ -1646,7 +1646,7 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getNumElements(); }
+  static constexpr size_t size() noexcept { return getNumElements(); }
 
   template <int Num = getNumElements()>
   __SYCL2020_DEPRECATED(
