@@ -763,6 +763,45 @@ int main() {
 ```
 
 
+== Implementation notes
+
+=== Integration header
+
+My expectation is that {dpcpp} will use the integration header to implement the
+traits and the queries like `get_kernel_id<Func>()`.
+The integration header will probably start with forward declarations of types
+used for the parameters to the free function kernels.
+Following this, the header can contain forward declarations of the free
+function kernels themselves.
+In order to avoid problems where functions with the same name in different
+namespaces "shadow" each other, the structure can look like this:
+
+```
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+void same_name(int arg1);
+static constexpr auto __sycl_shim1() {return (void(*)(int))same_name;}
+
+inline namespace {
+  SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+  void same_name(int arg1);
+  static constexpr auto __sycl_shim2() {return (void(*)(int))same_name;}
+}
+
+namespace sycl {
+  template<> struct is_range_kernel<__sycl_shim1()> : std::true_type {};
+  template<> struct is_range_kernel<__sycl_shim2()> : std::true_type {};
+}
+```
+
+The helper functions `+__sycl_shim1+`, etc. avoid the shadowing problem because
+they are defined in the same namespace as the user's kernel function.
+Thus, the {cpp} unqualified name lookup algorithm, finds the correct function
+definition.
+However, each helper function has a unique name, so it can be uniquely
+identified from the `sycl` namespace, where it is called to specialize the
+`is_range_kernel` trait.
+
+
 == Issues
 
 * We're pretty sure that we want to define some syntax that allows a free
