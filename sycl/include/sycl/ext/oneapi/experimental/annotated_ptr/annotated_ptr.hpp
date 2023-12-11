@@ -158,12 +158,12 @@ public:
   template <class O>                                                           \
   friend auto operator op(O &&a, const annotated_ref &b)                       \
       ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
-    return std::forward<O>(a) op T(b);                                         \
+    return std::forward<O>(a) op b.operator T();                               \
   }                                                                            \
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
   friend auto operator op(const annotated_ref &a, O &&b)                       \
       ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
-    return T(a) op std::forward<O>(b);                                         \
+    return a.operator T() op std::forward<O>(b);                               \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
