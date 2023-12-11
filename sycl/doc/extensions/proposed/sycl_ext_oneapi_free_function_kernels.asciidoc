@@ -337,7 +337,12 @@ The helper trait `is_kernel_v` provides the value of `value`.
 === New kernel bundle member functions
 
 This extension adds the following new functions which add kernel bundle support
-for free function kernels:
+for free function kernels.
+
+[_Note:_ Many of the functions in this section have a template parameter
+`Func`, which identifies a free function kernel.
+This kernel function may be defined in any translation unit in the application.
+_{endnote}_]
 
 |====
 a|
@@ -356,10 +361,6 @@ kernel_id get_kernel_id();
 !====
 
 _Constraints_: Available only if `is_kernel_v<Func>` is `true`.
-
-[_Note:_ The function `Func` need not be defined in the same translation unit
-as the call to `get_kernel_id`.
-_{endnote}_]
 
 _Returns:_ The kernel identifier that is associated with that kernel.
 
