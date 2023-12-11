@@ -5,11 +5,8 @@
 //
 // CHECK-NOT: LEAK
 
-// Temporarily disabled for CUDA.
-// XFAIL: cuda
-
-// Note: failing negative test with HIP in the original test
-// TODO: disable hip when HIP backend will be supported by Graph
+// Note: failing negative test with CUDA & HIP in the original test
+// UNSUPPORTED: cuda, hip
 
 #define GRAPH_E2E_RECORD_REPLAY
 
