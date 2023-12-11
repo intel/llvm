@@ -122,6 +122,16 @@ following rules must be observed:
 * The function must be declared at either namespace scope or at class scope as
   a static member function.
 
+* The function's return type must be `void`.
+
+* The function must not accept variadic arguments.
+
+* Each of the function's arguments must have a type that is an allowed kernel
+  parameter type as specified in section 4.12.4 "Rules for parameter passing to
+  kernels" of the core SYCL specification.
+
+* All declarations of the function must provide no default parameter values.
+
 * The position of the macro decoration must be the same as the position allowed
   for C++ attribute decorations on the function declaration.
   For example:
@@ -135,7 +145,7 @@ void iota(float start, float *ptr);
   in the translation unit.
   Redeclarations of the function may optionally be decorated with the same
   macro if the macro arguments are the same.
-  The effect is the same regardless of whether redeclaration are so decorated.
+  The effect is the same regardless of whether redeclarations are so decorated.
 
 * The same function may be decorated with at most one of these macros.
   However, the same function may be decorated multiple times with the same
@@ -145,8 +155,8 @@ void iota(float start, float *ptr);
   formed.
 
 * If a function is decorated with one of these macros in one translation unit,
-  that function must also be decorated with the same macro (with the same
-  arguments) in all other translation units.
+  any other translation unit that declares the same function must also decorate
+  the function with the same macro (with the same arguments).
 
 The following table provides additional details about these macros:
 
@@ -196,10 +206,7 @@ Indicates that the function is a free function kernel that is invoked via
 |====
 
 When a function is defined as a free function kernel, each parameter to the
-function is a kernel argument, which must abide by the rules for allowable
-kernel parameter types specified in section 4.12.4 "Rules for parameter passing
-to kernels" of the core SYCL specification.
-The function's return type must be `void`.
+function is a kernel argument.
 
 The following example demonstrates how a free function kernel using a
 3-dimensional nd-range iteration space can be defined:
@@ -729,19 +736,6 @@ user passes an invalid address to the kernel bundle functions like
   The `handler::set_arg` function would also need to account for this when
   interpreting the argument index of arguments that follow an optimized-away
   argument.
-
-* What happens if the user defines the kernel function with a default parameter
-  value?
-  Ideally, the caller could omit the call to `handler::set_arg` in this case,
-  but that seems hard to implement and would cost extra cycles whenever setting
-  a kernel argument.
-  Another option is to have the front-end diagnose an error in this case, but
-  that requires some special logic in the front-end.
-  FWIW, nvcc seems to allow default parameter values for kernels, and the
-  call site can omit the corresponding argument value when using the triple
-  chevron syntax.
-  However, the argument value cannot be omitted when invoking the kernel via
-  `cuLaunchKernel`.
 
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
