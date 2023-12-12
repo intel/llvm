@@ -609,8 +609,8 @@ StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
 /// and must be preserved.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
-    return F->isDeclaration() || F->getName().startswith("__asan_") ||
-           F->getName().startswith("__sanitizer_") ||
+    return F->isDeclaration() || F->getName().starts_with("__asan_") ||
+           F->getName().starts_with("__sanitizer_") ||
            AMDGPU::isEntryFunctionCC(F->getCallingConv()) ||
            F->hasFnAttribute("sycl-module-id");
 
