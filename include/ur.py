@@ -256,8 +256,7 @@ class ur_structure_type_v(IntEnum):
     EXP_INTEROP_SEMAPHORE_DESC = 0x2002             ## ::ur_exp_interop_semaphore_desc_t
     EXP_FILE_DESCRIPTOR = 0x2003                    ## ::ur_exp_file_descriptor_t
     EXP_WIN32_HANDLE = 0x2004                       ## ::ur_exp_win32_handle_t
-    EXP_LAYERED_IMAGE_PROPERTIES = 0x2005           ## ::ur_exp_layered_image_properties_t
-    EXP_SAMPLER_ADDR_MODES = 0x2006                 ## ::ur_exp_sampler_addr_modes_t
+    EXP_SAMPLER_ADDR_MODES = 0x2005                 ## ::ur_exp_sampler_addr_modes_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -2292,21 +2291,6 @@ class ur_exp_interop_semaphore_desc_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
                                                                         ## ::UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
         ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
-    ]
-
-###############################################################################
-## @brief Describes layered image properties
-## 
-## @details
-##     - Specify these properties in ::urBindlessImagesUnsampledImageCreateExp
-##       or ::urBindlessImagesSampledImageCreateExp via ::ur_image_desc_t as
-##       part of a `pNext` chain.
-class ur_exp_layered_image_properties_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
-                                                                        ## ::UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES
-        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
-        ("numLayers", c_ulong)                                          ## [in] number of layers the image should have
     ]
 
 ###############################################################################
