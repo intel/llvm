@@ -409,7 +409,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     };
 
     auto getDeviceId =
-        [DeviceIdTypeALL](const std::string &input) -> DeviceIdType {
+        [&](const std::string &input) -> DeviceIdType {
         if (input.find_first_not_of("0123456789") == std::string::npos) {
             return std::stoul(input);
         }
