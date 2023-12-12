@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //==----------------------------------------------------------==//
+// TODO: Enable after driver bug is fixed
+// UNSUPPORTED: gpu-intel-dg2
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -19,18 +22,18 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  constexpr bool TestPVCFeatures = true;
+  constexpr auto TestFeatures = TestFeatures::Generic;
   bool Passed = true;
 
-  Passed &= test_block_store_local_acc_slm<int8_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_local_acc_slm<int16_t, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_local_acc_slm<int8_t, TestFeatures>(Q);
+  Passed &= test_block_store_local_acc_slm<int16_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= test_block_store_local_acc_slm<sycl::half, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_local_acc_slm<uint32_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_local_acc_slm<float, !TestPVCFeatures>(Q);
-  Passed &= test_block_store_local_acc_slm<int64_t, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_local_acc_slm<sycl::half, TestFeatures>(Q);
+  Passed &= test_block_store_local_acc_slm<uint32_t, TestFeatures>(Q);
+  Passed &= test_block_store_local_acc_slm<float, TestFeatures>(Q);
+  Passed &= test_block_store_local_acc_slm<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= test_block_store_local_acc_slm<double, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_local_acc_slm<double, TestFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

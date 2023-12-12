@@ -70,13 +70,8 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
-    Event.wait();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 
