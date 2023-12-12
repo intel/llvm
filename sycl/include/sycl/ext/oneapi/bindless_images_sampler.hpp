@@ -33,10 +33,13 @@ struct bindless_image_sampler {
         max_mipmap_level_clamp(maxMipmapLevelClamp),
         max_anisotropy(maxAnisotropy) {}
 
-  sycl::addressing_mode addressing;
-  sycl::coordinate_normalization_mode coordinate;
-  sycl::filtering_mode filtering;
-  sycl::filtering_mode mipmap_filtering;
+  bindless_image_sampler() = default;
+
+  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  sycl::coordinate_normalization_mode coordinate =
+      sycl::coordinate_normalization_mode::unnormalized;
+  sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
+  sycl::filtering_mode mipmap_filtering = sycl::filtering_mode::nearest;
   float min_mipmap_level_clamp = 0.f;
   float max_mipmap_level_clamp = 0.f;
   float max_anisotropy = 0.f;

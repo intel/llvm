@@ -199,7 +199,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
-      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
+      SaveTemps(SaveTempsNone), DumpDeviceCode(false), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
       ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
@@ -1704,6 +1704,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Case("obj", SaveTempsObj)
                     .Default(SaveTempsCwd);
   }
+
+  if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
+    DumpDeviceCode = true;
 
   if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
                                      options::OPT_offload_device_only,
@@ -3451,24 +3454,8 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
 
 static bool hasOffloadSections(Compilation &C, const StringRef &File,
                                DerivedArgList &Args) {
-  // Do not do the check if the file doesn't exist
-  if (!llvm::sys::fs::exists(File))
-    return false;
-
-  bool IsArchive = isStaticArchiveFile(File);
-  if (!(IsArchive || isObjectFile(File.str())))
-    return false;
-
-  llvm::Triple TT(C.getDefaultToolChain().getTriple());
-  // Checking uses -check-section option with the input file, no output
-  // file and the target triple being looked for.
-  // TODO - Improve checking to check for explicit offload target instead
-  // of the generic host availability.
-  const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
-  const char *Inputs = Args.MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
-                                           Targets, Inputs, "-check-section"};
-  return runBundler(BundlerArgs, C);
+  SmallVector<std::string, 4> Sections(getOffloadSections(C, File));
+  return !Sections.empty();
 }
 
 // Simple helper function for Linker options, where the option is valid if
@@ -4836,6 +4823,10 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
+    /// List of AOCR based archives that contain BC members to use for
+    /// providing symbols and properties.
+    ActionList FPGAAOCArchives;
+
     // SYCLInstallation is needed in order to link SYCLDeviceLibs
     SYCLInstallationDetector SYCLInstallation;
 
@@ -5281,6 +5272,9 @@ class OffloadingActionBuilder final {
 
       // List of device objects that go through the device link step.
       ActionList LinkObjects;
+
+      // List of FPGA AOC specific device objects/archives.
+      ActionList FPGAAOCDevices;
       auto TargetTriple = TC->getTriple();
       auto IsNVPTX = TargetTriple.isNVPTX();
       auto IsAMDGCN = TargetTriple.isAMDGCN();
@@ -5301,27 +5295,16 @@ class OffloadingActionBuilder final {
           }
           // FPGA aocr/aocx does not go through the link and is passed
           // directly to the backend compilation step (aocr) or wrapper (aocx)
-          Action *FPGAAOTAction;
-          if (Input->getType() == types::TY_FPGA_AOCR ||
-              Input->getType() == types::TY_FPGA_AOCR_EMU)
-            // Generate AOCX/AOCR
-            FPGAAOTAction =
-                C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
-          else if (Input->getType() == types::TY_FPGA_AOCX)
-            FPGAAOTAction = Input;
-          else
-            llvm_unreachable("Unexpected FPGA input type.");
-          // Rename the column within the table.  The list of files that is
-          // produced from the AOT offline complation step is just a list of
-          // files.  Rename with the [Code] designator to be processed by
-          // the offload-wrapper in -batch mode.
-          auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
-              FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
-          RenameAction->addRenameColumnTform(FileTableTformJobAction::COL_ZERO,
-                                             FileTableTformJobAction::COL_CODE);
-          auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-              RenameAction, types::TY_Object);
-          addDeps(DeviceWrappingAction, TC, BoundArch);
+          if (Args.hasArg(options::OPT_fintelfpga)) {
+            if (Input->getType() == types::TY_FPGA_AOCR ||
+                Input->getType() == types::TY_FPGA_AOCR_EMU ||
+                Input->getType() == types::TY_FPGA_AOCX)
+              // Save the AOCR device items.  These will be processed along
+              // with the FPGAAOCArchives.
+              FPGAAOCDevices.push_back(Input);
+            else
+              llvm_unreachable("Unexpected FPGA input type.");
+          }
           continue;
         } else if (!types::isFPGA(Input->getType())) {
           // No need for any conversion if we are coming in from the
@@ -5340,6 +5323,73 @@ class OffloadingActionBuilder final {
                          ? types::TY_Tempfilelist
                          : types::TY_LLVM_BC);
           LinkObjects.push_back(ConvertSPIRVAction);
+        }
+      }
+      // Process AOCR/AOCR_EMU
+      if (FPGAAOCDevices.size()) {
+        assert(FPGAAOCDevices.size() == FPGAAOCArchives.size() &&
+               "Unexpected number of AOC binaries");
+        // Generate AOCX/AOCR
+        // Input is the unbundled device binary.  Perform an additional
+        // unbundle against the input file associated to grab the wrapped
+        // device binary.
+        for (auto AOCRItem : llvm::zip(FPGAAOCArchives, FPGAAOCDevices)) {
+          Action *Archive = std::get<0>(AOCRItem);
+          Action *Device = std::get<1>(AOCRItem);
+
+          auto *UnbundleAction = C.MakeAction<OffloadUnbundlingJobAction>(
+              Archive, types::TY_Tempfilelist);
+          UnbundleAction->registerDependentActionInfo(TC, /*BoundArch=*/"",
+                                                      Action::OFK_SYCL);
+          auto *RenameUnbundle = C.MakeAction<FileTableTformJobAction>(
+              UnbundleAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
+          RenameUnbundle->addRenameColumnTform(
+              FileTableTformJobAction::COL_ZERO,
+              FileTableTformJobAction::COL_SYM_AND_PROPS);
+
+          // Wrap the unbundled device binary along with the additional
+          // .bc file that contains the Symbols and Properties
+          if (Device->getType() == types::TY_FPGA_AOCX) {
+            auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+                Device, types::TY_Tempfilelist, types::TY_Tempfilelist);
+            RenameAction->addRenameColumnTform(
+                FileTableTformJobAction::COL_ZERO,
+                FileTableTformJobAction::COL_CODE);
+            ActionList WrapperItems({RenameAction, RenameUnbundle});
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                WrapperItems, types::TY_Object);
+            addDeps(DeviceWrappingAction, TC, BoundArch);
+          } else {
+            auto *FPGAAOTAction =
+                C.MakeAction<BackendCompileJobAction>(Device, FPGAOutType);
+            auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+                FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
+            RenameAction->addRenameColumnTform(
+                FileTableTformJobAction::COL_ZERO,
+                FileTableTformJobAction::COL_CODE);
+            ActionList WrapperItems({RenameAction, RenameUnbundle});
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                WrapperItems, types::TY_Object);
+
+            Action *DeviceAction = DeviceWrappingAction;
+            if (Args.hasArg(options::OPT_fsycl_link_EQ)) {
+              if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                OWA->setCompileStep(false);
+              ActionList BundlingActions;
+              BundlingActions.push_back(DeviceWrappingAction);
+              DeviceAction =
+                  C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
+              // We created a bundled section for the wrapped images that
+              // are not compiled.  Create another image set that are
+              // compiled.  This set would be extracted for feeding into
+              // the offline compilation step when consumed.
+              Action *CompiledDeviceAction =
+                  C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
+                                                        types::TY_Object);
+              addDeps(CompiledDeviceAction, TC, nullptr);
+            }
+            addDeps(DeviceAction, TC, nullptr);
+          }
         }
       }
       for (const auto &A : SYCLFinalDeviceList) {
@@ -5689,14 +5739,39 @@ class OffloadingActionBuilder final {
           }
 
           // After the Link, wrap the files before the final host link
+          // Add the unbundled wrapped AOC device binary to the wrapper
+          // call.
           auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
               WrapperInputs, types::TY_Object);
 
           if (IsSpirvAOT) {
-            bool AddBA =
-                (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-                 BoundArch != nullptr);
-            addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
+            // For FPGA with -fsycl-link, we need to bundle the output.
+            if (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+              Action *DeviceAction = DeviceWrappingAction;
+              if (Args.hasArg(options::OPT_fsycl_link_EQ)) {
+                // We do not want to compile the wrapped binary before the link.
+                if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                  OWA->setCompileStep(false);
+                ActionList BundlingActions;
+                BundlingActions.push_back(DeviceWrappingAction);
+                DeviceAction =
+                    C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
+                // We created a bundled section for the wrapped images that
+                // are not compiled.  Create another image set that are
+                // compiled.  This set would be extracted for feeding into
+                // the offline compilation step when consumed.
+                Action *CompiledDeviceAction =
+                    C.MakeAction<OffloadWrapperJobAction>(WrapperInputs,
+                                                          types::TY_Object);
+                addDeps(CompiledDeviceAction, TC, nullptr);
+              }
+              addDeps(DeviceAction, TC, nullptr);
+            } else {
+              bool AddBA =
+                  (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                   BoundArch != nullptr);
+              addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
+            }
           } else {
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
               addDeps(DeviceWrappingAction, TC, BoundArch);
@@ -5867,8 +5942,6 @@ class OffloadingActionBuilder final {
       }
       return NumOfDeviceLibLinked != 0;
     }
-
-    Action *appendLinkHostActions(ActionList &AL) override { return AL.back(); }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
       // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
@@ -6072,6 +6145,27 @@ class OffloadingActionBuilder final {
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
           continue;
+        // If any section found is an 'image' based object that was created
+        // with the intention of not requiring the matching SYCL target, do
+        // not emit the diagnostic.
+        if (SyclTarget.TC->getTriple().isSPIR()) {
+          bool SectionFound = false;
+          for (auto Section : UniqueSections) {
+            if (SectionFound)
+              break;
+            SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_fpga",
+                                                    "spir64_x86_64"};
+            for (auto ArchStr : ArchList) {
+              std::string Arch(ArchStr + "_image");
+              if (Section.find(Arch) != std::string::npos) {
+                SectionFound = true;
+                break;
+              }
+            }
+          }
+          if (SectionFound)
+            continue;
+        }
         // Didn't find any matches, return the full list for the diagnostic.
         SmallString<128> ArchListStr;
         int Cnt = 0;
@@ -6346,13 +6440,22 @@ class OffloadingActionBuilder final {
         Action *Current = C.MakeAction<InputAction>(*InputArg, Type);
         return Current;
       };
-      // Populate FPGA static archives that could contain dep files to be
-      // incorporated into the aoc compilation
+      // Populate FPGA archives that could contain dep files to be
+      // incorporated into the aoc compilation.  Consider AOCR type archives
+      // as well for tracking symbols and properties information.
       if (SYCLfpgaTriple && Args.hasArg(options::OPT_fintelfpga)) {
         SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
         for (StringRef LA : LinkArgs) {
-          if (isStaticArchiveFile(LA) && hasOffloadSections(C, LA, Args))
+          if (isStaticArchiveFile(LA) && hasOffloadSections(C, LA, Args)) {
             FPGAArchiveInputs.push_back(makeInputAction(LA, types::TY_Archive));
+            for (types::ID Type : {types::TY_FPGA_AOCR, types::TY_FPGA_AOCR_EMU,
+                                   types::TY_FPGA_AOCX}) {
+              if (hasFPGABinary(C, LA.str(), Type)) {
+                FPGAAOCArchives.push_back(makeInputAction(LA, Type));
+                break;
+              }
+            }
+          }
         }
       }
       // Discover any objects and archives that contain final device binaries.
@@ -6604,7 +6707,6 @@ public:
     // An FPGA AOCX input does not have a host dependence to the unbundler
     if (HostAction->getType() == types::TY_FPGA_AOCX)
       return false;
-
     recordHostAction(HostAction, InputArg);
 
     // If we are supporting bundling/unbundling and the current action is an
@@ -8862,9 +8964,13 @@ InputInfoList Driver::BuildJobsForActionNoCache(
             Ext = "txt";
           }
           if (JA->getType() == types::TY_FPGA_AOCR ||
-              JA->getType() == types::TY_FPGA_AOCR_EMU)
+              JA->getType() == types::TY_FPGA_AOCX ||
+              JA->getType() == types::TY_FPGA_AOCR_EMU) {
+            if (IsFPGAObjLink)
+              continue;
             // AOCR files are always unbundled into a list file.
             TI = types::TY_Tempfilelist;
+          }
         } else {
           if (UI.DependentOffloadKind == Action::OFK_SYCL)
             // Do not add the current info for device with FPGA device.  The

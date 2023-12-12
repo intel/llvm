@@ -604,8 +604,8 @@ description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
 
 The architecture enumerations `intel_cpu_spr` and `intel_cpu_gnr` do
-not currently work with any of the APIs described in this
-extension. They cannot be used with the `if_architecture_is` function,
+not currently work with any of the APIs described in this extension.
+They cannot be used with the `if_architecture_is` function,
 the `device::ext_oneapi_architecture_is` function, or the
 `info::device::architecture` query descriptor. They currently exist
 only for use with the

@@ -16,21 +16,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// Get the element type of T. If T is a scalar, the element type is considered
-// the type of the scalar.
-template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
-  using type = T;
-};
-template <typename T, int N> struct get_elem_type<vec<T, N>> {
-  using type = T;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
-  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
-};
-
 template <typename> struct is_swizzle : std::false_type {};
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
