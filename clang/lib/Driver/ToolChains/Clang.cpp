@@ -9706,6 +9706,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // default is "none" which means runtime must try to determine it
     // automatically.
     StringRef Kind = Action::GetOffloadKindName(OffloadingKind);
+    Action::OffloadKind OK = WrapperJob.getOffloadKind();
+    if (OK != Action::OFK_None)
+      Kind = Action::GetOffloadKindName(OK);
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
