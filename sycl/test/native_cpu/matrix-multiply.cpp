@@ -1,92 +1,21 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t 128 sycl
-/***************************************************************************
- *
- *  Copyright (C) 2016 Codeplay Software Limited
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  For your convenience, a copy of the License has been included in this
- *  repository.
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  Codeplay's ComputeCpp SDK
- *
- *  matrix-multiply.cpp
- *
- *  Description:
- *    Example of matrix multiplication in SYCL.
- *
- **************************************************************************/
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t 128 
 
-/*  This example compares an OpenMP blocked matrix multiplication
- *  implementation with a SYCL blocked matrix multiplication example.
- *  The purpose is not to compare performance, but to show the similarities
- *  and differences between them.
- *  See block_host for the OpenMP implementation. */
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -g %s -o %t_debug
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t_debug 128 
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <chrono>
 #include <cmath>
 #include <ctime>
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class mxm_kernel;
 
-void display_matrix(float *m, int matSize) {
-  if (matSize > 16) {
-    return;
-  }
-
-  std::cout << "=======" << std::endl;
-  for (int i = 0; i < matSize; i++) {
-    for (int j = 0; j < matSize; j++) {
-      std::cout << m[i * matSize + j] << " ";
-    }
-    std::cout << std::endl;
-  }
-  std::cout << "=======" << std::endl;
-  ;
-}
-
-/* Implements a host C++ version of the matrix multiplication.
- * If compiler supports OpenMP, code is parallelized. Scheduling
- * uses static chunks of block_size. */
-void block_host(float *MA, float *MB, float *MC, int matSize) {
-  /* We set the block size to 32 for simplicity, though the optimal
-   * value will depend on the platform this is run on. */
-  int block_size = 32;
-  int numBlocks = block_size / matSize;
-  int extraBlockLength = block_size % matSize;
-  numBlocks = extraBlockLength ? (numBlocks + 1) : (numBlocks);
-
-#pragma omp parallel for collapse(2)
-  for (int bIndexI = 0; bIndexI < matSize; bIndexI += block_size)
-    for (int bIndexJ = 0; bIndexJ < matSize; bIndexJ += block_size)
-      for (int bIndexK = 0; bIndexK < matSize; bIndexK += block_size) {
-        int i = bIndexI;
-        int j = bIndexJ;
-        int k = bIndexK;
-        for (int bi = i; bi < std::min(i + block_size, matSize); bi++)
-          for (int bj = j; bj < std::min(j + block_size, matSize); bj++)
-            for (int bk = k; bk < std::min(k + block_size, matSize); bk++) {
-              MC[bi * matSize + bj] +=
-                  MA[bi * matSize + bk] * MB[bk * matSize + bj];
-            }
-      }
-}
 
 /* Obtains the previous power of two from the given integer.
  * It works by masking out all ones after the first one bit,
@@ -122,7 +51,7 @@ inline bool isPowerOfTwo(int x) { return (x & (x - 1)) == 0; }
  * Note that this example only works for powers of two.
  * */
 template <typename T>
-bool local_mxm(cl::sycl::queue &q, T *MA, T *MB, T *MC, int matSize) {
+bool local_mxm(queue &q, T *MA, T *MB, T *MC, int matSize) {
   // Make sure it is power of two before running
   if (!isPowerOfTwo(matSize)) {
     std::cout << " This example only works with power of two sizes "
@@ -132,7 +61,7 @@ bool local_mxm(cl::sycl::queue &q, T *MA, T *MB, T *MC, int matSize) {
 
   auto device = q.get_device();
   auto maxBlockSize =
-      device.get_info<cl::sycl::info::device::max_work_group_size>();
+      device.get_info<info::device::max_work_group_size>();
   auto blockSize = prevPowerOfTwo(std::sqrt(maxBlockSize));
   std::cout << " The Device Max Work Group Size is : " << maxBlockSize
             << std::endl;
@@ -219,11 +148,9 @@ bool local_mxm(cl::sycl::queue &q, T *MA, T *MB, T *MC, int matSize) {
 void usage(std::string programName) {
   std::cout << " Incorrect number of parameters " << std::endl;
   std::cout << " Usage: " << std::endl;
-  std::cout << programName << " [matrix size] [omp|sycl]" << std::endl;
+  std::cout << programName << " [matrix size] " << std::endl;
   std::cout << "[matrix size] : Size of the matrix to multiply (minimum 32)"
             << std::endl;
-  std::cout << "[omp|sycl]    : Run the OpenMP or the SYCL variant. "
-            << " Default is to use both " << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -231,7 +158,6 @@ int main(int argc, char *argv[]) {
   float *MB;
   float *MC;
   bool sycl = true;
-  bool omp = true;
   bool error = false;
 
   if (argc != 2 && argc != 3) {
@@ -252,18 +178,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (argc == 3) {
-    if (std::string(argv[2]) == "omp") {
-      omp = true;
-      sycl = false;
-    } else if (std::string(argv[2]) == "sycl") {
-      omp = false;
-      sycl = true;
-    } else {
-      usage(argv[0]);
-    }
-  }
-
   MA = new float[matSize * matSize];
   MB = new float[matSize * matSize];
   MC = new float[matSize * matSize];
@@ -280,48 +194,6 @@ int main(int argc, char *argv[]) {
       MC[i * matSize + j] = 0.0f; // i * matSize + j;
     }
 
-  std::cout << " Input matrix " << std::endl;
-  display_matrix(MA, matSize);
-  display_matrix(MB, matSize);
-  display_matrix(MC, matSize);
-
-  if (omp) {
-#if defined(_OPENMP)
-    std::cout << "OpenMP: ";
-#else
-    std::cout << "C++: ";
-#endif
-
-    {
-      auto start = std::chrono::steady_clock::now();
-      block_host(MA, MB, MC, matSize);
-      auto end = std::chrono::steady_clock::now();
-      auto time =
-          std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-              .count();
-      std::cout << "Time: " << time << std::endl;
-      float flops =
-          (2.0f * matSize * matSize * matSize / (time / 1000.0f)) * 1.0e-9f;
-      std::cout << "GFLOPs: " << flops << std::endl;
-
-      bool error = false;
-      // Testing
-      for (int i = 0; i < matSize; i++)
-        for (int j = 0; j < matSize; j++) {
-          if (std::fabs(MC[i * matSize + j] - MB[i * matSize + j]) > 1e-8) {
-            std::cout << " Position " << i << ", " << j
-                      << " differs: " << MC[i * matSize + j]
-                      << " != " << MB[i * matSize + j] << std::endl;
-            error = true;
-          }
-        }
-      if (!error) {
-        std::cout << "Success" << std::endl;
-      } else {
-        std::cout << " Error in the computation " << std::endl;
-      }
-    }
-  }
 
   if (sycl) {
     std::cout << " ***** SYCL " << std::endl;
@@ -344,7 +216,7 @@ int main(int argc, char *argv[]) {
             for (auto &e : eL) {
               std::rethrow_exception(e);
             }
-          } catch (cl::sycl::exception e) {
+          } catch (sycl::exception e) {
             std::cout << " An exception has been thrown: " << e.what()
                       << std::endl;
           }
@@ -366,7 +238,6 @@ int main(int argc, char *argv[]) {
       }
 
       if (!error) {
-        display_matrix(MC, matSize);
         error = false;
         // Testing
         for (int i = 0; i < matSize; i++)
