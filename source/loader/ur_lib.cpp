@@ -219,7 +219,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t *pNumDevices) {
 
     if (!hPlatform) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
     }
     // NumEntries is max number of devices wanted by the caller (max usable length of phDevices)
     if (NumEntries < 0) {
@@ -230,9 +230,22 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     }
     // pNumDevices is the actual number of device handles added to phDevices by this function
     if (NumEntries == 0 && !pNumDevices) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        return UR_RESULT_ERROR_INVALID_SIZE;
     }
 
+    switch (DeviceType) {
+    case UR_DEVICE_TYPE_ALL:
+    case UR_DEVICE_TYPE_GPU:
+    case UR_DEVICE_TYPE_DEFAULT:
+    case UR_DEVICE_TYPE_CPU:
+    case UR_DEVICE_TYPE_FPGA:
+    case UR_DEVICE_TYPE_MCA:
+        break;
+    default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        //urPrint("Unknown device type");
+        break;
+    }
     // plan:
     // 0. basic validation of argument values (see code above)
     // 1. conversion of argument values into useful data items
@@ -267,42 +280,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     // however
     // discard "2,*" == "*,2"
 
-    ur_platform_backend_t platformBackend;
-    if (UR_RESULT_SUCCESS !=
-        urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                          sizeof(ur_platform_backend_t), &platformBackend, 0)) {
-        return UR_RESULT_ERROR_INVALID_PLATFORM;
-    }
-    const std::string platformBackendName = // hPlatform->get_backend_name();
-        [&platformBackend]() constexpr {
-            switch (platformBackend) {
-            case UR_PLATFORM_BACKEND_UNKNOWN:
-                return "*"; // the only ODS string that matches
-                break;
-            case UR_PLATFORM_BACKEND_LEVEL_ZERO:
-                return "level_zero";
-                break;
-            case UR_PLATFORM_BACKEND_OPENCL:
-                return "opencl";
-                break;
-            case UR_PLATFORM_BACKEND_CUDA:
-                return "cuda";
-                break;
-            case UR_PLATFORM_BACKEND_HIP:
-                return "hip";
-                break;
-            case UR_PLATFORM_BACKEND_NATIVE_CPU:
-                return "*"; // the only ODS string that matches
-                break;
-            case UR_PLATFORM_BACKEND_FORCE_UINT32:
-                return ""; // no ODS string matches this
-                break;
-            default:
-                return ""; // no ODS string matches this
-                break;
-            }
-        }();
-
     // The std::map is sorted by its key, so this method of parsing the ODS env var
     // alters the ordering of the terms, which makes it impossible to check whether
     // all discard terms appear after all accept terms and to preserve the ordering
@@ -314,7 +291,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     // discard term, for that backend.
     // (If we wished to preserve the ordering of terms, we could replace `std::map`
     // with `std::queue<std::pair<key_type_t, value_type_t>>` or something similar.)
-    auto &maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", true);
+    auto maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", true);
 
     // if the ODS env var is not set at all, then pretend it was set to the default
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
@@ -360,6 +337,42 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         "\\*\\.\\*\\.\\*" // C++ and regex escapes, literal '*.*.*'
         ")$",
         std::regex_constants::icase);
+
+    ur_platform_backend_t platformBackend;
+    if (UR_RESULT_SUCCESS !=
+        urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
+                            sizeof(ur_platform_backend_t), &platformBackend, 0)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+    }
+    const std::string platformBackendName = // hPlatform->get_backend_name();
+        [&platformBackend]() constexpr {
+            switch (platformBackend) {
+            case UR_PLATFORM_BACKEND_UNKNOWN:
+                return "*"; // the only ODS string that matches
+                break;
+            case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+                return "level_zero";
+                break;
+            case UR_PLATFORM_BACKEND_OPENCL:
+                return "opencl";
+                break;
+            case UR_PLATFORM_BACKEND_CUDA:
+                return "cuda";
+                break;
+            case UR_PLATFORM_BACKEND_HIP:
+                return "hip";
+                break;
+            case UR_PLATFORM_BACKEND_NATIVE_CPU:
+                return "*"; // the only ODS string that matches
+                break;
+            case UR_PLATFORM_BACKEND_FORCE_UINT32:
+                return ""; // no ODS string matches this
+                break;
+            default:
+                return ""; // no ODS string matches this
+                break;
+            }
+        }();
 
     using DeviceHardwareType = ur_device_type_t;
 
@@ -772,10 +785,14 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     if (NumEntries == 0) {
         *pNumDevices = static_cast<uint32_t>(selectedDevices.size());
     } else if (NumEntries > 0) {
-        *pNumDevices = static_cast<uint32_t>(
-            std::min((size_t)NumEntries, selectedDevices.size()));
-        std::copy_n(selectedDevices.cbegin(), *pNumDevices, phDevices);
+        size_t numToCopy = std::min((size_t)NumEntries, selectedDevices.size());
+        std::copy_n(selectedDevices.cbegin(), numToCopy, phDevices);
+        if (pNumDevices != nullptr) {
+            *pNumDevices = static_cast<uint32_t>(numToCopy);
+            return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+        }
     }
+
 
     return UR_RESULT_SUCCESS;
 }
