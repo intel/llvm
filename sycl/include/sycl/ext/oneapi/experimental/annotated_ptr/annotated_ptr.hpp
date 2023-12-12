@@ -1,3 +1,4 @@
+//
 //==----------- annotated_ptr.hpp - SYCL annotated_ptr extension -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -31,9 +32,6 @@ namespace oneapi {
 namespace experimental {
 
 namespace {
-#define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
-
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
   return std::string_view(Str1) == Str2;
@@ -61,6 +59,7 @@ struct PropertiesFilter {
       std::tuple<>>::type...>;
 };
 } // namespace
+
 template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -69,17 +68,33 @@ class annotated_ref {
   static_assert(is_valid_property_list, "Property list is invalid.");
 };
 
+namespace detail {
+template <class T> struct is_ann_ref_impl : std::false_type {};
+template <class T, class P>
+struct is_ann_ref_impl<annotated_ref<T, P>> : std::true_type {};
+template <class T, class P>
+struct is_ann_ref_impl<const annotated_ref<T, P>> : std::true_type {};
+template <class T>
+constexpr bool is_ann_ref_v =
+    is_ann_ref_impl<std::remove_reference_t<T>>::value;
+} // namespace detail
+
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
+  static_assert(
+      std::is_trivially_copyable_v<T>,
+      "annotated_ref can only encapsulate a trivially-copyable type!");
+
 private:
   T *m_Ptr;
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
+  explicit annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
   annotated_ref(const annotated_ref &) = delete;
 
+  // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return *__builtin_intel_sycl_ptr_annotation(
@@ -90,50 +105,132 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  // assignment operator with annotaion
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
+  T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    *__builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = Obj;
+    return *__builtin_intel_sycl_ptr_annotation(
+               m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+               detail::PropertyMetaInfo<Props>::value...) =
+               std::forward<O>(Obj);
 #else
-    *m_Ptr = Obj;
+    return *m_Ptr = std::forward<O>(Obj);
 #endif
-    return Obj;
   }
 
-  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
+  template <class O, class P>
+  T operator=(const annotated_ref<O, P> &Ref) const {
+    O t2 = Ref;
+    return *this = t2;
+  }
 
+  // propagate compound operators
+#define PROPAGATE_OP(op)                                                       \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  T operator op(O &&rhs) const {                                               \
+    T t = *this;                                                               \
+    t op std::forward<O>(rhs);                                                 \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }                                                                            \
+  template <class O, class P>                                                  \
+  T operator op(const annotated_ref<O, P> &rhs) const {                        \
+    T t = *this;                                                               \
+    O t2 = rhs;                                                                \
+    t op t2;                                                                   \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }
+  PROPAGATE_OP(+=)
+  PROPAGATE_OP(-=)
+  PROPAGATE_OP(*=)
+  PROPAGATE_OP(/=)
+  PROPAGATE_OP(%=)
+  PROPAGATE_OP(^=)
+  PROPAGATE_OP(&=)
+  PROPAGATE_OP(|=)
+  PROPAGATE_OP(<<=)
+  PROPAGATE_OP(>>=)
+#undef PROPAGATE_OP
+
+  // propagate binary operators
+#define PROPAGATE_OP(op)                                                       \
+  template <class O>                                                           \
+  friend auto operator op(O &&a, const annotated_ref &b)                       \
+      ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
+    return std::forward<O>(a) op T(b);                                         \
+  }                                                                            \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  friend auto operator op(const annotated_ref &a, O &&b)                       \
+      ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
+    return T(a) op std::forward<O>(b);                                         \
+  }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
   PROPAGATE_OP(*)
   PROPAGATE_OP(/)
   PROPAGATE_OP(%)
-  PROPAGATE_OP(^)
-  PROPAGATE_OP(&)
   PROPAGATE_OP(|)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(^)
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
+  PROPAGATE_OP(<)
+  PROPAGATE_OP(<=)
+  PROPAGATE_OP(>)
+  PROPAGATE_OP(>=)
+  PROPAGATE_OP(==)
+  PROPAGATE_OP(!=)
+  PROPAGATE_OP(&&)
+  PROPAGATE_OP(||)
+#undef PROPAGATE_OP
 
-  T operator++() { return *this += 1; }
+// Propagate unary operators
+// by setting a default template we get SFINAE to kick in
+#define PROPAGATE_OP(op)                                                       \
+  template <typename O = T>                                                    \
+  auto operator op() const->decltype(op std::declval<O>()) {                   \
+    return op O(*this);                                                        \
+  }
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(!)
+  PROPAGATE_OP(~)
+#undef PROPAGATE_OP
 
-  T operator++(int) {
-    const T t = *this;
-    *this = (t + 1);
+  // Propagate inc/dec operators
+  T operator++() const {
+    T t = *this;
+    ++t;
+    *this = t;
     return t;
   }
 
-  T operator--() { return *this -= 1; }
+  T operator++(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2++;
+    *this = t2;
+    return t1;
+  }
 
-  T operator--(int) {
-    const T t = *this;
-    *this = (t - 1);
+  T operator--() const {
+    T t = *this;
+    --t;
+    *this = t;
     return t;
+  }
+
+  T operator--(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2--;
+    *this = t2;
+    return t1;
   }
 
   template <class T2, class P2> friend class annotated_ptr;
 };
-
-#undef PROPAGATE_OP
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
@@ -158,6 +255,11 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+
+  static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
+                "annotated_ptr can only encapsulate either "
+                "a trivially-copyable type "
+                "or void!");
 
   // buffer_location and alignment are allowed for annotated_ref
   // Cache controls are allowed for annotated_ptr
@@ -230,6 +332,7 @@ public:
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(Ptr) {
+
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,

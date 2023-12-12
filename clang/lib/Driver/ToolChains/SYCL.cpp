@@ -269,6 +269,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-user-wrappers", "internal"},
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
+#if !defined(_WIN32)
+  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
+      {"libsycl-sanitizer", "internal"}};
+#endif
 
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
@@ -298,6 +302,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+#if !defined(_WIN32)
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        addLibraries(SYCLDeviceSanitizerLibs);
+    }
+  }
+#endif
   return LibraryList;
 }
 
@@ -578,8 +593,9 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   // Add any implied arguments before user defined arguments.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
   llvm::Triple CPUTriple("spir64_x86_64");
-  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs, JA);
+  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs, JA, *HostTC);
   // Add the target args passed in
   TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
@@ -736,7 +752,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
         Twine("-output-report-folder=") + ReportOptArg));
 
   // Add any implied arguments before user defined arguments.
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
 
   // Add -Xsycl-target* options.
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
@@ -763,12 +781,15 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+static llvm::StringMap<StringRef> GRFModeFlagMap{
+    {"auto", "-ze-intel-enable-auto-large-GRF-mode"},
+    {"small", "-ze-intel-128-GRF-per-thread"},
+    {"large", "-ze-opt-large-register-file"}};
+
 StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
-  return llvm::StringSwitch<StringRef>(GRFMode)
-      .Case("auto", "-ze-intel-enable-auto-large-GRF-mode")
-      .Case("small", "-ze-intel-128-GRF-per-thread")
-      .Case("large", "-ze-opt-large-register-file")
-      .Default("");
+  if (!GRFModeFlagMap.contains(GRFMode))
+    return "";
+  return GRFModeFlagMap[GRFMode];
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -797,7 +818,9 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs,
                                 Device);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
@@ -966,8 +989,9 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
+                          *HostTC);
   TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
@@ -984,6 +1008,35 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+// Unsupported options for device compilation
+//  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
+//  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
+//  -fcs-profile-generate -forder-file-instrumentation
+static std::vector<OptSpecifier> getUnsupportedOpts(void) {
+  std::vector<OptSpecifier> UnsupportedOpts = {
+      options::OPT_fsanitize_EQ,
+      options::OPT_fcf_protection_EQ,
+      options::OPT_fprofile_generate,
+      options::OPT_fprofile_generate_EQ,
+      options::OPT_fno_profile_generate,
+      options::OPT_ftest_coverage,
+      options::OPT_fno_test_coverage,
+      options::OPT_fcoverage_mapping,
+      options::OPT_fno_coverage_mapping,
+      options::OPT_fprofile_instr_generate,
+      options::OPT_fprofile_instr_generate_EQ,
+      options::OPT_fprofile_arcs,
+      options::OPT_fno_profile_arcs,
+      options::OPT_fno_profile_instr_generate,
+      options::OPT_fcreate_profile,
+      options::OPT_fprofile_instr_use,
+      options::OPT_fprofile_instr_use_EQ,
+      options::OPT_forder_file_instrumentation,
+      options::OPT_fcs_profile_generate,
+      options::OPT_fcs_profile_generate_EQ};
+  return UnsupportedOpts;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -993,11 +1046,20 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
-  // All sanitizer options are not currently supported.
-  for (auto A :
-       Args.filtered(options::OPT_fsanitize_EQ, options::OPT_fcf_protection_EQ))
-    D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
-        << A->getAsString(Args) << getTriple().str();
+  for (OptSpecifier Opt : getUnsupportedOpts()) {
+    if (const Arg *A = Args.getLastArg(Opt)) {
+      // All sanitizer options are not currently supported, except
+      // AddressSanitizer
+      if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
+          A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        if (SanitizeVal == "address")
+          continue;
+      }
+      D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
+          << A->getAsString(Args) << getTriple().str();
+    }
+  }
 }
 
 void SYCLToolChain::addClangTargetOptions(
@@ -1022,18 +1084,28 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   for (Arg *A : Args) {
     // Filter out any options we do not want to pass along to the device
     // compilation.
-    auto Opt(A->getOption().getID());
-    switch (Opt) {
-    case options::OPT_fsanitize_EQ:
-    case options::OPT_fcf_protection_EQ:
-      if (!IsNewDAL)
-        DAL->eraseArg(Opt);
-      break;
-    default:
-      if (IsNewDAL)
-        DAL->append(A);
-      break;
+    auto Opt(A->getOption());
+    bool Unsupported = false;
+    for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
+      if (Opt.matches(UnsupportedOpt)) {
+        if (Opt.getID() == options::OPT_fsanitize_EQ &&
+            A->getValues().size() == 1) {
+          std::string SanitizeVal = A->getValue();
+          if (SanitizeVal == "address") {
+            if (IsNewDAL)
+              DAL->append(A);
+            continue;
+          }
+        }
+        if (!IsNewDAL)
+          DAL->eraseArg(Opt.getID());
+        Unsupported = true;
+      }
     }
+    if (Unsupported)
+      continue;
+    if (IsNewDAL)
+      DAL->append(A);
   }
   // Strip out -O0 for FPGA Hardware device compilation.
   if (getDriver().IsFPGAHWMode() &&
@@ -1079,6 +1151,26 @@ void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
   }
 }
 
+static void WarnForDeprecatedBackendOpts(const Driver &D,
+                                         const llvm::Triple &Triple,
+                                         StringRef Device, StringRef ArgString,
+                                         const llvm::opt::Arg *A) {
+  // Suggest users passing GRF backend opts on PVC to use
+  // -ftarget-register-alloc-mode and
+
+  if (!ArgString.contains("-device pvc") && !Device.contains("pvc"))
+    return;
+  // Make sure to only warn for once for gen targets as the translate
+  // options tree is called twice but only the second time has the
+  // device set.
+  if (Triple.isSPIR() && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+      !A->isClaimed())
+    return;
+  for (const auto &[Mode, Flag] : GRFModeFlagMap)
+    if (ArgString.contains(Flag))
+      D.Diag(diag::warn_drv_ftarget_register_alloc_mode_pvc) << Flag << Mode;
+}
+
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
 // extract the arguments.
 void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
@@ -1122,7 +1214,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     } else
       // Triple found, add the next argument in line.
       ArgString = A->getValue(1);
-
+    WarnForDeprecatedBackendOpts(getDriver(), getTriple(), Device, ArgString,
+                                 A);
     parseTargetOpts(ArgString, Args, CmdArgs);
     A->claim();
   }
@@ -1131,7 +1224,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
 void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          const llvm::opt::ArgList &Args,
                                          llvm::opt::ArgStringList &CmdArgs,
-                                         const JobAction &JA) const {
+                                         const JobAction &JA,
+                                         const ToolChain &HostTC) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // FPGA:  -g -cl-opt-disable
@@ -1153,6 +1247,11 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
       if (A->getOption().matches(options::OPT_O0))
         BeArgs.push_back("-cl-opt-disable");
+  // In precise floating-point mode we pass the OpenCL flag forcing division to
+  // be correctly rounded.
+  if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ))
+    if (StringRef{A->getValue()}.equals("precise"))
+      BeArgs.push_back("-cl-fp32-correctly-rounded-divide-sqrt");
   StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
   if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
     StringRef RegAllocModeVal = A->getValue(0);
@@ -1186,6 +1285,19 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     RegAllocModeVal.split(RegAllocModeArgs, ',');
     for (StringRef Elem : RegAllocModeArgs)
       ProcessElement(Elem);
+  } else if (!HostTC.getTriple().isWindowsMSVCEnvironment()) {
+    // If -ftarget-register-alloc-mode is not specified, the default is
+    // pvc:default on Windows and and pvc:auto otherwise.
+    StringRef DeviceName = "pvc";
+    StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
+    if (IsGen)
+      PerDeviceArgs.push_back(
+          {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+    else if (Triple.isSPIR() &&
+             Triple.getSubArch() == llvm::Triple::NoSubArch) {
+      BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
+                                          ":" + BackendOptName));
+    }
   }
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
@@ -1278,12 +1390,15 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     if (A->getOption().matches(options::OPT_Xs)) {
       // Take the arg and create an option out of it.
       CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
+      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, A->getValue(),
+                                   A);
       A->claim();
       continue;
     }
     if (A->getOption().matches(options::OPT_Xs_separate)) {
       StringRef ArgString(A->getValue());
       parseTargetOpts(ArgString, Args, CmdArgs);
+      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, ArgString, A);
       A->claim();
       continue;
     }
@@ -1365,4 +1480,8 @@ void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
                                                  ArgStringList &CC1Args) const {
   HostTC.AddClangCXXStdlibIncludeArgs(Args, CC1Args);
+}
+
+SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+  return SanitizerKind::Address;
 }

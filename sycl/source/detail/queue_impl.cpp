@@ -85,6 +85,12 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "The memset feature is not yet available "
+                          "for use with the SYCL Graph extension.");
+  }
+
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -348,6 +354,11 @@ event queue_impl::memcpyFromDeviceGlobal(
   if (MEmulateOOO)
     addSharedEvent(ResEvent);
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
+event queue_impl::getLastEvent() const {
+  std::lock_guard<std::mutex> Lock{MLastEventMtx};
+  return MDiscardEvents ? createDiscardedEvent() : MLastEvent;
 }
 
 void queue_impl::addEvent(const event &Event) {
