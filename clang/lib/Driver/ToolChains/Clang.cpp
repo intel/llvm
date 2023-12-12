@@ -10643,7 +10643,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
-    // --sycl-device-libraries=<comma separated list> contains all of the SYCL
+    // -sycl-device-libraries=<comma separated list> contains all of the SYCL
     // device specific libraries that are needed.  This provides the list of
     // files file only.
     // TODO: This generic list will be populated with only device binaries
@@ -10671,14 +10671,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         LibList += ",";
       LibList += AddLib;
     }
-    // --sycl-device-libraries=<libs> provides a comma separate list of
+    // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
     // SYCL device libraries can be found.
     if (LibList.size())
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("--sycl-device-libraries=") + LibList));
+          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
 
-    // --sycl-device-library-location=<dir> provides the location in which the
+    // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
     llvm::sys::path::append(DeviceLibDir, "..", "lib");
@@ -10700,7 +10700,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--sycl-device-library-location=") + DeviceLibDir));
+        Twine("-sycl-device-library-location=") + DeviceLibDir));
   }
 
   auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
