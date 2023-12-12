@@ -59,8 +59,8 @@ int main() {
             BufSize, [=](sycl::id<1> Id) { Buf1Acc[Id] = Buf2Acc[Id]; });
       });
 
-      auto Buf1HostAcc = Buf1.get_access<sycl_access_mode::read>();
-      auto Buf2HostAcc = Buf2.get_access<sycl_access_mode::read>();
+      auto Buf1HostAcc = Buf1.get_host_access();
+      auto Buf2HostAcc = Buf2.get_host_access();
     });
 
   } catch (...) {

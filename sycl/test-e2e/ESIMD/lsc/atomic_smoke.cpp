@@ -110,7 +110,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "smin";
   case DWORDAtomicOp::smax:
     return "smax";
-#ifndef USE_DWORD_ATOMICS
   case DWORDAtomicOp::fmax:
     return "fmax";
   case DWORDAtomicOp::fmin:
@@ -119,7 +118,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "fadd";
   case DWORDAtomicOp::fsub:
     return "fsub";
-#endif // !USE_DWORD_ATOMICS
   case DWORDAtomicOp::fcmpxchg:
     return "fcmpxchg";
   case DWORDAtomicOp::load:

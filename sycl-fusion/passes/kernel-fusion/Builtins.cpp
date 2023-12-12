@@ -36,10 +36,9 @@ static raw_ostream &operator<<(raw_ostream &Os, const NDRange &ND) {
             << ND.getLocalSize();
 }
 
-/// Will generate a unique function name so that it can be reused in further
-/// stages.
-static std::string getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
-                                   const NDRange &FusedNDRange) {
+std::string Remapper::getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
+                                      const NDRange &FusedNDRange,
+                                      uint32_t Idx) {
   std::string Res;
   raw_string_ostream S{Res};
   S << "__" <<
@@ -63,6 +62,8 @@ static std::string getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
         llvm_unreachable("Unhandled kind");
       }()
     << "_remapper_" << SrcNDRange << "_" << FusedNDRange;
+  if (Idx != (uint32_t)-1)
+    S << "_" << static_cast<char>('x' + Idx);
   return S.str();
 }
 
@@ -339,13 +340,8 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
         // If the builtin should not be remapped, return the original function.
         return F;
 
-      // Remap given builtin.
-      const auto Name = getFunctionName(K, SrcNDRange, FusedNDRange);
-      auto *M = F->getParent();
-      assert(!M->getFunction(Name) && "Function name should be unique");
-
       return Cached = TargetInfo.createRemapperFunction(
-                 *this, K, F->getName(), Name, M, SrcNDRange, FusedNDRange);
+                 *this, K, F, F->getParent(), SrcNDRange, FusedNDRange);
     }
     if (TargetInfo.isSafeToNotRemapBuiltin(F)) {
       // No need to remap.
@@ -375,20 +371,9 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
 
   // Set Cached to support recursive functions.
   Cached = Clone;
-  for (auto &I : instructions(Clone)) {
-    if (auto *Call = dyn_cast<CallBase>(&I)) {
-      // Recursive call
-      auto *OldF = Call->getCalledFunction();
-      auto ErrOrNewF = remapBuiltins(OldF, SrcNDRange, FusedNDRange);
-      if (auto Err = ErrOrNewF.takeError()) {
-        return std::move(Err);
-      }
-      // Override called function.
-      auto *NewF = *ErrOrNewF;
-      Call->setCalledFunction(NewF);
-      Call->setCallingConv(NewF->getCallingConv());
-      Call->setAttributes(NewF->getAttributes());
-    }
+  if (auto Err = TargetInfo.scanForBuiltinsToRemap(Clone, *this, SrcNDRange,
+                                                   FusedNDRange)) {
+    return Err;
   }
   return Clone;
 }

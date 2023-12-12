@@ -8,7 +8,7 @@
 // UNSUPPORTED: O0
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // This test verifies that ownership is working correctly.
 // If ownership is ::transfer then the ~image destructor will end up calling

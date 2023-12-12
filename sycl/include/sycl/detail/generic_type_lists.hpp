@@ -566,25 +566,12 @@ using nan_list = tl_append<gtl::unsigned_short_list, gtl::unsigned_int_list,
 } // namespace gtl
 namespace gvl {
 // address spaces
-using all_address_space_list = address_space_list<
+using nonconst_address_space_list = address_space_list<
     access::address_space::local_space, access::address_space::global_space,
-    access::address_space::private_space, access::address_space::constant_space,
+    access::address_space::private_space, access::address_space::generic_space,
     access::address_space::ext_intel_global_device_space,
     access::address_space::ext_intel_global_host_space>;
 
-using nonconst_address_space_list =
-    address_space_list<access::address_space::local_space,
-                       access::address_space::global_space,
-                       access::address_space::private_space,
-                       access::address_space::ext_intel_global_device_space,
-                       access::address_space::ext_intel_global_host_space>;
-
-using nonlocal_address_space_list =
-    address_space_list<access::address_space::global_space,
-                       access::address_space::private_space,
-                       access::address_space::constant_space,
-                       access::address_space::ext_intel_global_device_space,
-                       access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
 } // namespace _V1

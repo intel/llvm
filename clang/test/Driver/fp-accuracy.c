@@ -38,7 +38,11 @@
 
 // RUN: not %clang -fno-math-errno -ffp-accuracy=low:[sin,cos] \
 // RUN: -ffp-accuracy=high %s 2>&1  \
-// RUN: | FileCheck %s --check-prefix=WARN
+// RUN: | FileCheck %s --check-prefix=WARN1
+
+// RUN: not %clang -fno-math-errno -ffp-accuracy=low:[sin,cos] \
+// RUN: -ffp-accuracy=high:[cos,tan] %s 2>&1  \
+// RUN: | FileCheck %s --check-prefix=WARN2
 
 // RUN: not %clang -Xclang -verify -ffp-accuracy=low:[sin,cos] \
 // RUN: -ffp-accuracy=high -fmath-errno %s 2>&1  \
@@ -58,7 +62,9 @@
 // ERR: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
 // ERR-1: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
 // ERR-2: (frontend): unsupported argument 'high=[sin]' to option '-ffp-accuracy'
-// WARN: floating point accuracy value of 'low' has already been assigned to function 'cos'
-// WARN: floating point accuracy value of 'low' has already been assigned to function 'sin'
+// WARN1: '-ffp-accuracy=high' overrides '-ffp-accuracy=low:[sin,cos]' for the function 'cos'
+// WARN1: '-ffp-accuracy=high' overrides '-ffp-accuracy=low:[sin,cos]' for the function 'sin'
+// WARN2: '-ffp-accuracy=high:[cos,tan]' overrides '-ffp-accuracy=low:[sin,cos]' for the function 'cos'
+
 
 // ERR-3: (frontend): floating point accuracy requirements cannot be guaranteed when '-fmath-errno' is enabled; use '-fno-math-errno' to enable floating point accuracy control

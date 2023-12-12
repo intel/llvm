@@ -87,8 +87,9 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes or "
-        "different global sizes in dimensions [2, N) and non-zero offsets"};
+        "Cannot fuse kernels with different offsets or local sizes, or "
+        "different global sizes in dimensions [2, N) and non-zero offsets, "
+        "or those whose fusion would yield non-uniform work-groups sizes"};
   }
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
@@ -98,12 +99,6 @@ FusionResult KernelFusion::fuseKernels(
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
         "Fusion output target format not supported by this build");
-  }
-
-  if (TargetFormat != BinaryFormat::SPIRV &&
-      TargetFormat != BinaryFormat::PTX && IsHeterogeneousList) {
-    return FusionResult{
-        "Heterogeneous ND ranges not supported for this target"};
   }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();

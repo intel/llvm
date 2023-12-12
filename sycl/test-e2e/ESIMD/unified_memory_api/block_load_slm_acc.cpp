@@ -20,21 +20,20 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  constexpr bool TestPVCFeatures = true;
+  constexpr auto TestFeatures = TestFeatures::Generic;
   bool Passed = true;
 
-  Passed &= testSLMAcc<int8_t, !TestPVCFeatures>(Q);
-  Passed &= testSLMAcc<int16_t, !TestPVCFeatures>(Q);
+  Passed &= testSLMAcc<int8_t, TestFeatures>(Q);
+  Passed &= testSLMAcc<int16_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= testSLMAcc<sycl::half, !TestPVCFeatures>(Q);
-  Passed &= testSLMAcc<uint32_t, !TestPVCFeatures>(Q);
-  Passed &= testSLMAcc<float, !TestPVCFeatures>(Q);
+    Passed &= testSLMAcc<sycl::half, TestFeatures>(Q);
+  Passed &= testSLMAcc<uint32_t, TestFeatures>(Q);
+  Passed &= testSLMAcc<float, TestFeatures>(Q);
   Passed &=
-      testSLMAcc<ext::intel::experimental::esimd::tfloat32, !TestPVCFeatures>(
-          Q);
-  Passed &= testSLMAcc<int64_t, !TestPVCFeatures>(Q);
+      testSLMAcc<ext::intel::experimental::esimd::tfloat32, TestFeatures>(Q);
+  Passed &= testSLMAcc<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= testSLMAcc<double, !TestPVCFeatures>(Q);
+    Passed &= testSLMAcc<double, TestFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

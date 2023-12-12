@@ -61,17 +61,11 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask)
+                         const KernelArgMask *ArgMask, std::mutex *CacheMutex)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask} {
-
-  // kernel_impl shared ownership of kernel handle
-  if (!is_host()) {
-    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
-  }
-
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 

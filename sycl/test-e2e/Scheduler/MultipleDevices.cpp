@@ -62,7 +62,7 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
     });
   });
 
-  auto FinalD = BufD.get_access<access::mode::read>();
+  auto FinalD = BufD.get_host_access();
   std::cout << "Result:" << std::endl;
   for (size_t i = 0; i < N; i++) {
 

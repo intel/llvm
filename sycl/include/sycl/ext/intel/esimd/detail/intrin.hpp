@@ -113,8 +113,7 @@ __esimd_rdindirect(__ESIMD_DNS::vector_type_t<T, N> Input,
 // for (int i = 0; i < NumRows; ++i) {
 //   for (int j = 0; j < Width; ++j) {
 //       if (Mask[Index])
-//           Result[i * VStride +  j * Stride + EltOffset] =
-//           NewVal[Index];
+//           Result[i * VStride +  j * Stride + EltOffset] = NewVal[Index];
 //       ++Index;
 //   }
 // }
@@ -143,9 +142,9 @@ template <class T> using __st = __raw_t<T>;
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>
-__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>, RTy::length>
-    ESIMD_INLINE readRegion(
-        const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
+__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>,
+                           RTy::length> ESIMD_INLINE
+readRegion(const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
   using ElemTy = __st<typename RTy::element_type>;
   auto Base1 = bitcast<ElemTy, __st<BT>, BN>(Base);
   constexpr int Bytes = BN * sizeof(BT);

@@ -1,6 +1,5 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %if ext_oneapi_level_zero || ext_oneapi_cuda %{ %{run} %t.out 2>&1 | FileCheck %s %} %else %{ %{run} %t.out %}
 //
 // CHECK: complete
 //

@@ -3,7 +3,7 @@
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
 
 // Test interoperability buffer for the Level Zer backend
 

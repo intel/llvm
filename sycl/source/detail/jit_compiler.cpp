@@ -151,6 +151,7 @@ struct PromotionInformation {
   Requirement *Definition;
   NDRDescT NDRange;
   size_t LocalSize;
+  size_t ElemSize;
   std::vector<bool> UsedParams;
 };
 
@@ -366,11 +367,11 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       ThisLocalSize = 0;
     }
     assert(ThisLocalSize.has_value());
-    Promotions.emplace(Req->MSYCLMemObj,
-                       PromotionInformation{ThisPromotionTarget, KernelIndex,
-                                            ArgFunctionIndex, Req, NDRange,
-                                            ThisLocalSize.value(),
-                                            std::vector<bool>()});
+    Promotions.emplace(
+        Req->MSYCLMemObj,
+        PromotionInformation{ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                             Req, NDRange, ThisLocalSize.value(),
+                             Req->MElemSize, std::vector<bool>()});
   }
 }
 
@@ -508,7 +509,7 @@ static ParamIterator preProcessArguments(
             (PromotionTarget == Promotion::Private)
                 ? ::jit_compiler::Internalization::Private
                 : ::jit_compiler::Internalization::Local,
-            Internalization.LocalSize);
+            Internalization.LocalSize, Internalization.ElemSize);
         // If an accessor will be promoted, i.e., if it has the promotion
         // property attached to it, the next three arguments, that are
         // associated with the accessor (access range, memory range, offset),
@@ -630,6 +631,11 @@ std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
                           const property_list &PropList) {
+  if (InputKernels.empty()) {
+    printPerformanceWarning("Fusion list is empty");
+    return nullptr;
+  }
+
   // Retrieve the device binary from each of the input
   // kernels to hand them over to the JIT compiler.
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;

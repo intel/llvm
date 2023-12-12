@@ -1893,9 +1893,7 @@ llvm::GlobalVariable *MicrosoftCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
 
   llvm::Comdat *C = nullptr;
   if (!VFTableComesFromAnotherTU &&
-      (llvm::GlobalValue::isWeakForLinker(VFTableLinkage) ||
-       (llvm::GlobalValue::isLocalLinkage(VFTableLinkage) &&
-        VTableAliasIsRequred)))
+      llvm::GlobalValue::isWeakForLinker(VFTableLinkage))
     C = CGM.getModule().getOrInsertComdat(VFTableName.str());
 
   // Only insert a pointer into the VFTable for RTTI data if we are not
@@ -2269,7 +2267,6 @@ MicrosoftCXXABI::performReturnAdjustment(CodeGenFunction &CGF, Address Ret,
   if (RA.isEmpty())
     return Ret.getPointer();
 
-  auto OrigTy = Ret.getType();
   Ret = Ret.withElementType(CGF.Int8Ty);
 
   llvm::Value *V = Ret.getPointer();
@@ -2286,8 +2283,7 @@ MicrosoftCXXABI::performReturnAdjustment(CodeGenFunction &CGF, Address Ret,
   if (RA.NonVirtual)
     V = CGF.Builder.CreateConstInBoundsGEP1_32(CGF.Int8Ty, V, RA.NonVirtual);
 
-  // Cast back to the original type.
-  return CGF.Builder.CreateBitCast(V, OrigTy);
+  return V;
 }
 
 bool MicrosoftCXXABI::requiresArrayCookie(const CXXDeleteExpr *expr,

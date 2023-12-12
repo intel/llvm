@@ -78,15 +78,17 @@ struct ParameterInternalization {
   Parameter Param;
   Internalization Intern;
   std::size_t LocalSize;
+  std::size_t ElemSize;
   ParameterInternalization() = default;
   ParameterInternalization(const Parameter &Param, Internalization Intern,
-                           std::size_t LocalSize)
-      : Param{Param}, Intern{Intern}, LocalSize{LocalSize} {}
+                           std::size_t LocalSize, std::size_t ElemSize)
+      : Param{Param}, Intern{Intern}, LocalSize{LocalSize}, ElemSize(ElemSize) {
+  }
 
   friend bool operator==(const ParameterInternalization &LHS,
                          const ParameterInternalization &RHS) noexcept {
-    return LHS.LocalSize == RHS.LocalSize && LHS.Intern == RHS.Intern &&
-           LHS.Param == RHS.Param;
+    return LHS.LocalSize == RHS.LocalSize && LHS.ElemSize == RHS.ElemSize &&
+           LHS.Intern == RHS.Intern && LHS.Param == RHS.Param;
   }
 
   friend bool operator!=(const ParameterInternalization &LHS,

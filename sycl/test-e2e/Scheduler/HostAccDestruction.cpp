@@ -21,7 +21,7 @@ int main() {
   sycl::buffer<int, 1> buf(size);
   {
     sycl::queue q;
-    auto host_acc = buf.get_access<sycl::access::mode::read_write>();
+    auto host_acc = buf.get_host_access();
     q.submit([&](sycl::handler &cgh) {
       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class SingleTask>(

@@ -29,8 +29,7 @@ template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
 
 template <size_t PartitionSize, typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(
-    sycl::aspect::ext_oneapi_non_uniform_groups)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_fixed_size_group)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,

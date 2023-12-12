@@ -36,6 +36,10 @@ int main() {
   queue Queue{ExceptionHandler,
               {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   unsigned Errors = 0;
   if (!test_default_values(Queue)) {
     std::cout << "Test for default values of specialization constants failed!"

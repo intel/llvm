@@ -38,6 +38,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/Assert
    design/SharedLibraries
    design/OptionalDeviceFeatures
+   design/ParallelForRangeRounding
    design/SYCLInstrumentationUsingXPTI
    design/ITTAnnotations
    design/DeviceGlobal

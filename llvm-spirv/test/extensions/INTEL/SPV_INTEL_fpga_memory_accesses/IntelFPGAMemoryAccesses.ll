@@ -204,9 +204,9 @@ entry:
   %15 = bitcast double addrspace(4)** %t to i8*
   call void @llvm.lifetime.start.p0i8(i64 8, i8* %15) #5
 ; CHECK-LLVM: %[[FLOAT_FUNC_PARAM_LOAD:[[:alnum:].]+]] = load ptr addrspace(4), ptr %[[FLOAT_FUNC_PARAM]]
-; CHECK-LLVM: %[[BITCAST_FLOAT_TO_DOUBLE:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[FLOAT_FUNC_PARAM_LOAD]] to ptr addrspace(4)
-; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %[[BITCAST_FLOAT_TO_DOUBLE]], ptr [[PARAM_3_CACHE_0]]
-; CHECK-LLVM: store ptr addrspace(4) %[[INTRINSIC_CALL]], ptr %[[DOUBLE_VAR]]
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %[[FLOAT_FUNC_PARAM_LOAD]], ptr [[PARAM_3_CACHE_0]]
+; CHECK-LLVM: %[[BITCAST_FLOAT_TO_DOUBLE:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
+; CHECK-LLVM: store ptr addrspace(4) %[[BITCAST_FLOAT_TO_DOUBLE]], ptr %[[DOUBLE_VAR]]
   %16 = load float addrspace(4)*, float addrspace(4)** %A.addr, align 8, !tbaa !5
   %17 = bitcast float addrspace(4)* %16 to double addrspace(4)*
   %18 = call double addrspace(4)* @llvm.ptr.annotation.p4f64(double addrspace(4)* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0, i8* null) #6

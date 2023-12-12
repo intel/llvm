@@ -604,9 +604,13 @@ int main(int Argc, char *Argv[]) {
   }
 
   if (!CompilerBuildLog.empty()) {
-    logs() << "\n"
-           << CmdToCmdInfoMap[OptCommand].first << " log:\n"
-           << CompilerBuildLog << '\n';
+    std::string CompilerBuildLogMessage = "\n" +
+                                          CmdToCmdInfoMap[OptCommand].first +
+                                          " log:\n" + CompilerBuildLog + '\n';
+    if (!ErrorMessage.empty())
+      std::cerr << CompilerBuildLogMessage;
+    else
+      logs() << CompilerBuildLogMessage;
   }
 
   if (clFailed(CLErr)) {

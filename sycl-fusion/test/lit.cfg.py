@@ -23,3 +23,8 @@ llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 # Location and file-ending of shared libraries for the passes
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 config.substitutions.append(("%shlibdir", config.llvm_shlib_dir))
+
+if "NVPTX" in config.llvm_targets_to_build:
+    config.available_features.add('cuda')
+if "AMDGPU" in config.llvm_targets_to_build:
+    config.available_features.add('hip_amd')

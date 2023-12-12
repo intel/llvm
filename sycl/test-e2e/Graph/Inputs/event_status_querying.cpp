@@ -36,6 +36,10 @@ std::string event_status_name(sycl::info::event_command_status status) {
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   const T ModValue = 7;

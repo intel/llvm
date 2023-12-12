@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = unsigned short;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
@@ -46,7 +50,7 @@ int main() {
       CGH.copy(AccA, DataB2D.data());
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) { /* empty node */ });
+    add_empty_node(Graph, Queue);
 
     Graph.print_graph("graph.dot");
 

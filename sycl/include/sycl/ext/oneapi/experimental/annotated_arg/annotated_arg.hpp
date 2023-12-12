@@ -66,20 +66,15 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-#ifdef __SYCL_DEVICE_ONLY__
-  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
-#else
-  using global_pointer_t = T *;
-#endif
-
-  global_pointer_t obj;
+  T *obj;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t _obj) {
+      detail::PropertyMetaInfo<Props>::value...)]]
+              typename decorated_global_ptr<T>::pointer _obj) {
     obj = _obj;
   }
 #endif
@@ -91,7 +86,7 @@ public:
 
   annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj(global_pointer_t(_ptr)) {
+      : obj(_ptr) {
     (void)PropList;
   }
 
@@ -100,8 +95,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
-      : obj(global_pointer_t(_ptr)) {
+  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept : obj(_ptr) {
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,

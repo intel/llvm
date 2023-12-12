@@ -23,17 +23,17 @@ define dso_local noundef i32 @main() {
 
 declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr)
 
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "testmem"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 42
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 41
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 3
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 DoublepumpINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 SinglepumpINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 2
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MergeINTEL "str1" "str2"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 1 3 2
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 24
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} RegisterINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "testmem"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankwidthINTEL 42
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 41
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 3
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} DoublepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} SinglepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxReplicatesINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MergeINTEL "str1" "str2"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 1 3 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 24
 
 ; CHECK-LLVM: @{{.*}} = private unnamed_addr constant [163 x i8] c"
 ; CHECK-LLVM-DAG: {register:1}

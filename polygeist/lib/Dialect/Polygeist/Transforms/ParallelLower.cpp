@@ -144,7 +144,7 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   /// Handle the given inlined terminator by replacing it with a new operation
   /// as necessary.
   void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
+                        ValueRange valuesToRepl) const final {
     // Only "std.return" needs to be handled here.
     auto returnOp = cast<func::ReturnOp>(op);
 

@@ -82,7 +82,7 @@ existing interfaces is not feasible.
 The `sycl::ext::oneapi::this_kernel` namespace contains functionality related
 to the currently executing kernel.
 
-It is the user's responsibility to ensure that that these functions are called
+It is the user's responsibility to ensure that these functions are called
 in a manner that is compatible with the kernel's launch parameters, as detailed
 in the definition of each function. Calling these functions from an incompatible
 kernel results in undefined behavior.

@@ -192,6 +192,38 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
+/// Prevents any commands submitted afterward to this queue from executing
+/// until all commands previously submitted to this queue have entered the
+/// complete state.
+///
+/// \param CodeLoc is the code location of the submit call (default argument)
+/// \return a SYCL event object, which corresponds to the queue the command
+/// group is being enqueued on.
+event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
+  if (is_in_order())
+    return impl->getLastEvent();
+
+  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+}
+
+/// Prevents any commands submitted afterward to this queue from executing
+/// until all events in WaitList have entered the complete state. If WaitList
+/// is empty, then ext_oneapi_submit_barrier has no effect.
+///
+/// \param WaitList is a vector of valid SYCL events that need to complete
+/// before barrier command can be executed.
+/// \param CodeLoc is the code location of the submit call (default argument)
+/// \return a SYCL event object, which corresponds to the queue the command
+/// group is being enqueued on.
+event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
+                                       const detail::code_location &CodeLoc) {
+  if (is_in_order() && WaitList.empty())
+    return impl->getLastEvent();
+
+  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
+                CodeLoc);
+}
+
 template <typename Param>
 typename detail::is_queue_info_desc<Param>::return_type
 queue::get_info() const {

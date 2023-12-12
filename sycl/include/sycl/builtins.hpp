@@ -10,10 +10,19 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+
 // Include the generated builtins.
 #include <sycl/builtins_marray_gen.hpp>
 #include <sycl/builtins_scalar_gen.hpp>
 #include <sycl/builtins_vector_gen.hpp>
+
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#include <sycl/builtins_legacy_marray_vec.hpp>
+#include <sycl/builtins_legacy_scalar.hpp>
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
