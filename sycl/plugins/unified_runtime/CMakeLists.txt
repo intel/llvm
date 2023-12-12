@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 67e7da33596c597ef79d940223d372583a78bb2b
-  # Merge: 9b1fb4e9 f0e0be24
+  # commit 69a56ea6d1369a6bde5fce97c85fc7dbda49252f
+  # Merge: b25bb64d b78f541d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Dec 5 10:46:45 2023 +0000
-  #     Merge pull request #999 from hdelan/hip-adapter-multi-dev-ctx
-  #     [HIP] Hip adapter multi dev ctx
-  set(UNIFIED_RUNTIME_TAG 67e7da33596c597ef79d940223d372583a78bb2b)
+  # Date:   Mon Dec 11 12:30:24 2023 +0000
+  #     Merge pull request #1123 from aarongreig/aaron/usmLocationProps
+  #     [OpenCL] Add ur_usm_alloc_location_desc struct and handle it in the CL adapter.
+  set(UNIFIED_RUNTIME_TAG 69a56ea6d1369a6bde5fce97c85fc7dbda49252f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
