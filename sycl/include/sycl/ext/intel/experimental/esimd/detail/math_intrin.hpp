@@ -769,6 +769,19 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 }
 #endif // !__SYCL_DEVICE_ONLY__
 
+template <int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<sycl::half, N>
+__esimd_srnd(__ESIMD_DNS::vector_type_t<float, N> src1,
+             __ESIMD_DNS::vector_type_t<float, N> src2)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+  return __ESIMD_DNS::vector_type_t<sycl::half, N>();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 
