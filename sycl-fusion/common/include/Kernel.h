@@ -68,19 +68,14 @@ enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 /// be used in persistent caches.
 using DeviceArchitecture = unsigned;
 
-/// ID common to every SPIR-V target.
-///
-/// As an exception, SPIR-V targets have a single common ID, as fused
-/// kernels will be reused across SPIR-V devices.
-static constexpr inline DeviceArchitecture SPIRVTarget = -1;
-
 class TargetInfo {
 public:
   static constexpr TargetInfo get(BinaryFormat Format,
                                   DeviceArchitecture Arch) {
     if (Format == BinaryFormat::SPIRV) {
-      // We do not distinguish different architectures for SPIR-V targets
-      return {Format, SPIRVTarget};
+      /// As an exception, SPIR-V targets have a single common ID (-1), as fused
+      /// kernels will be reused across SPIR-V devices.
+      return {Format, DeviceArchitecture(-1)};
     }
     return {Format, Arch};
   }
