@@ -12,6 +12,7 @@
 #include "ur_level_zero.hpp"
 #include <algorithm>
 #include <climits>
+#include <optional>
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
@@ -353,8 +354,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE));
   case UR_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
-    if (pSize && !Device->isSubDevice()) {
-      *pSize = 0;
+    if (Device->SubDeviceCreationProperty == std::nullopt ||
+        !Device->isSubDevice()) {
+      if (pSize)
+        *pSize = 0;
       return UR_RESULT_SUCCESS;
     }
 
@@ -365,7 +368,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       return ReturnValue(cslice);
     }
 
-    return ReturnValue(Device->SubDeviceCreationProperty);
+    return ReturnValue(*Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
@@ -1218,16 +1221,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     UR_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
   for (uint32_t I = 0; I < NumDevices; I++) {
-    Device->SubDevices[I]->SubDeviceCreationProperty =
-        Properties->pProperties[0];
-    if (Properties->pProperties[0].type ==
-        UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    auto prop = Properties->pProperties[0];
+    if (prop.type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
       // In case the value is NEXT_PARTITIONABLE, we need to change it to the
       // chosen domain. This will always be NUMA since that's the only domain
       // supported by level zero.
-      Device->SubDevices[I]->SubDeviceCreationProperty.value.affinity_domain =
-          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+      prop.value.affinity_domain = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
     }
+    Device->SubDevices[I]->SubDeviceCreationProperty = prop;
 
     OutDevices[I] = Device->SubDevices[I];
     // reusing the same pi_device needs to increment the reference count
