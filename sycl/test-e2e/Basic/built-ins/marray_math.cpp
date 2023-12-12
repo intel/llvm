@@ -8,6 +8,8 @@
 #include <cmath>
 #include <sycl/sycl.hpp>
 
+// Reference
+// https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-2020/util/accuracy.h
 template <typename T> T get_ulp_sycl(T x) {
   const T inf = std::numeric_limits<T>::infinity();
   const T negative = sycl::fabs(sycl::nextafter(x, -inf) - x);
@@ -15,15 +17,22 @@ template <typename T> T get_ulp_sycl(T x) {
   return sycl::fmin(negative, positive);
 }
 
-template <> inline sycl::half get_ulp_sycl<sycl::half>(sycl::half x) {
+// Case 1: According to the SYCL 2020 specification, the sycl::half_precision
+// math functions all take float or either an marray, vec, or swizzled vec of
+// float. Additionally, the ULP expectation of all of these should be 8192
+// according to the spec.
+//
+// Case 2: The allowed error in ULP is less than 8192 for half precision
+// floating-point (sycl::half)
+template <typename T> T get_8192ulp_sycl(T x) {
   const auto ulp = get_ulp_sycl<float>(x);
   const float multiplier = 8192.0f;
-  return static_cast<sycl::half>(ulp * multiplier);
+  return static_cast<T>(ulp * multiplier);
 }
 
-template <typename T> bool compare_floats(T actual, T expected) {
+template <typename T> bool compare_floats_8192ulp(T actual, T expected) {
   const T difference = static_cast<T>(std::fabs(actual - expected));
-  const T difference_expected = get_ulp_sycl(expected);
+  const T difference_expected = get_8192ulp_sycl(expected);
   return difference <= difference_expected;
 }
 
@@ -112,7 +121,7 @@ template <typename T> bool compare_floats(T actual, T expected) {
         });                                                                    \
       }                                                                        \
       for (int i = 0; i < DIM; i++)                                            \
-        assert(compare_floats(result[i], EXPECTED[i]));                        \
+        assert(compare_floats_8192ulp(result[i], EXPECTED[i]));                \
     }                                                                          \
   }
 
@@ -158,34 +167,31 @@ int main() {
   if (deviceQueue.get_device().has(sycl::aspect::fp64))
     TEST3(sycl::nan, double, 3, ma8);
 
-  TEST4(sycl::half_precision::sin, sycl::half, 3,
-        EXPECTED(sycl::half, 0.98545f, -0.871576f, -0.832267f), ma6);
-  TEST4(sycl::half_precision::cos, sycl::half, 3,
-        EXPECTED(sycl::half, 0.169967f, -0.490261f, 0.554375f), ma6);
-  TEST4(sycl::half_precision::tan, sycl::half, 3,
-        EXPECTED(sycl::half, 5.797f, 1.777f, -1.501f), ma6);
-  TEST4(sycl::half_precision::divide, sycl::half, 2,
-        EXPECTED(sycl::half, 3.0f, 1.0f), ma2, ma1);
-  TEST4(sycl::half_precision::log, sycl::half, 2,
-        EXPECTED(sycl::half, 0.0f, 0.693f), ma1);
-  TEST4(sycl::half_precision::log2, sycl::half, 2,
-        EXPECTED(sycl::half, 0.0f, 1.f), ma1);
-  TEST4(sycl::half_precision::log10, sycl::half, 2,
-        EXPECTED(sycl::half, 0.0f, 0.301f), ma1);
-  TEST4(sycl::half_precision::powr, sycl::half, 2,
-        EXPECTED(sycl::half, 3.0f, 4.0f), ma2, ma1);
-  TEST4(sycl::half_precision::recip, sycl::half, 2,
-        EXPECTED(sycl::half, 0.333f, 0.5f), ma2);
-  TEST4(sycl::half_precision::sqrt, sycl::half, 2,
-        EXPECTED(sycl::half, 1.0f, 1.414f), ma1);
-  TEST4(sycl::half_precision::rsqrt, sycl::half, 2,
-        EXPECTED(sycl::half, 1.0f, 0.707f), ma1);
-  TEST4(sycl::half_precision::exp, sycl::half, 2,
-        EXPECTED(sycl::half, 2.718f, 7.389f), ma1);
-  TEST4(sycl::half_precision::exp2, sycl::half, 2, EXPECTED(sycl::half, 2, 4),
+  TEST4(sycl::half_precision::sin, float, 3,
+        EXPECTED(float, 0.98545f, -0.871576f, -0.832267f), ma6);
+  TEST4(sycl::half_precision::cos, float, 3,
+        EXPECTED(float, 0.169967f, -0.490261f, 0.554375f), ma6);
+  TEST4(sycl::half_precision::tan, float, 3,
+        EXPECTED(float, 5.797f, 1.777f, -1.501f), ma6);
+  TEST4(sycl::half_precision::divide, float, 2, EXPECTED(float, 3.0f, 1.0f),
+        ma2, ma1);
+  TEST4(sycl::half_precision::log, float, 2, EXPECTED(float, 0.0f, 0.693f),
         ma1);
-  TEST4(sycl::half_precision::exp10, sycl::half, 2,
-        EXPECTED(sycl::half, 10, 100), ma1);
+  TEST4(sycl::half_precision::log2, float, 2, EXPECTED(float, 0.0f, 1.f), ma1);
+  TEST4(sycl::half_precision::log10, float, 2, EXPECTED(float, 0.0f, 0.301f),
+        ma1);
+  TEST4(sycl::half_precision::powr, float, 2, EXPECTED(float, 3.0f, 4.0f), ma2,
+        ma1);
+  TEST4(sycl::half_precision::recip, float, 2, EXPECTED(float, 0.333333f, 0.5f),
+        ma2);
+  TEST4(sycl::half_precision::sqrt, float, 2, EXPECTED(float, 1.0f, 1.414f),
+        ma1);
+  TEST4(sycl::half_precision::rsqrt, float, 2, EXPECTED(float, 1.0f, 0.707f),
+        ma1);
+  TEST4(sycl::half_precision::exp, float, 2, EXPECTED(float, 2.718f, 7.389f),
+        ma1);
+  TEST4(sycl::half_precision::exp2, float, 2, EXPECTED(float, 2, 4), ma1);
+  TEST4(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), ma1);
 
   return 0;
 }
