@@ -4353,7 +4353,6 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
       FlagsForDef, SPFlagsForDef, TParamsArray.get(), Decl, nullptr,
       Annotations);
   Fn->setSubprogram(SP);
-
   // We might get here with a VarDecl in the case we're generating
   // code for the initialization of globals. Do not record these decls
   // as they will overwrite the actual VarDecl Decl in the cache.
