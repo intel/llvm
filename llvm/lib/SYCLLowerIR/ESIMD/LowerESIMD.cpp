@@ -318,6 +318,7 @@ public:
   // TODO - fix all __esimd* intrinsics and table entries according to the rule
   // above.
   ESIMDIntrinDescTable() {
+    // clang-format off
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
         // source
@@ -660,6 +661,7 @@ public:
         {"subb", {"subb", {l(0)}}},
         {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
   }
+  // clang-format on
 
   const IntrinTable &getTable() { return Table; }
 };
@@ -1972,7 +1974,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // Translate all uses of the load instruction from SPIRV builtin global.
       // Replaces the original global load and it is uses and stores the old
-      // instructions to ESIMDToErases.
+      // instructions to ToErase.
       translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
                                ToErase);
     }

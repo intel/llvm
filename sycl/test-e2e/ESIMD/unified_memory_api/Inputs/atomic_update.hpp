@@ -259,93 +259,128 @@ bool test_acc(queue q, const Config &cfg) {
   if constexpr (!UseProperties && DataSizeRequiresLSC) {
     return true;
   } else {
-    // Remove once 1 and 2 are supported
-    if constexpr (n_args == 2) {
-      return true;
-    } else {
+    std::cout << "Accessor Testing " << "op=" << to_string(op)
+              << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
+              << " N=" << N << " UseMask=" << (UseMask ? "true" : "false")
+              << " UseProperties=" << (UseProperties ? "true" : "false")
+              << "\n\t" << cfg << "...";
 
-      std::cout << "Accessor Testing " << "op=" << to_string(op)
-                << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
-                << " N=" << N << " UseMask=" << (UseMask ? "true" : "false")
-                << " UseProperties=" << (UseProperties ? "true" : "false")
-                << "\n\t" << cfg << "...";
+    size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
+    T *arr = malloc_shared<T>(size, q);
+    int n_threads = cfg.threads_per_group * cfg.n_groups;
 
-      size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
-      T *arr = malloc_shared<T>(size, q);
-      int n_threads = cfg.threads_per_group * cfg.n_groups;
+    for (int i = 0; i < size; ++i) {
+      arr[i] = ImplF<T, N>::init(i, cfg);
+    }
 
-      for (int i = 0; i < size; ++i) {
-        arr[i] = ImplF<T, N>::init(i, cfg);
-      }
+    range<1> glob_rng(n_threads);
+    range<1> loc_rng(cfg.threads_per_group);
+    nd_range<1> rng(glob_rng, loc_rng);
 
-      range<1> glob_rng(n_threads);
-      range<1> loc_rng(cfg.threads_per_group);
-      nd_range<1> rng(glob_rng, loc_rng);
+    properties props{cache_hint_L1<cache_hint::uncached>,
+                     cache_hint_L2<cache_hint::write_back>};
 
-      properties props{cache_hint_L1<cache_hint::uncached>,
-                       cache_hint_L2<cache_hint::write_back>};
+    try {
+      buffer<T, 1> arr_buf(arr, range<1>(size));
+      auto e = q.submit([&](handler &cgh) {
+        auto arr_acc =
+            arr_buf.template get_access<access::mode::read_write>(cgh);
+        cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
+          int i = ii;
+          simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
+                                   cfg.stride * sizeof(T));
+          simd_mask<N> m = 1;
+          if constexpr (UseMask) {
+            if (cfg.masked_lane < N)
+              m[cfg.masked_lane] = 0;
+          }
+          // barrier to achieve better contention:
+          // Intra-work group barrier.
+          barrier();
 
-      try {
-        buffer<T, 1> arr_buf(arr, range<1>(size));
-        auto e = q.submit([&](handler &cgh) {
-          auto arr_acc =
-              arr_buf.template get_access<access::mode::read_write>(cgh);
-          cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
-            simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
-                                     cfg.stride * sizeof(T));
-            simd_mask<N> m = 1;
-            if constexpr (UseMask) {
-              if (cfg.masked_lane < N)
-                m[cfg.masked_lane] = 0;
-            }
-            // barrier to achieve better contention:
-            // Intra-work group barrier.
-            barrier();
+          // the atomic operation itself applied in a loop:
+          for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
+            if constexpr (n_args == 0) {
+              if constexpr (UseMask) {
+                if constexpr (UseProperties)
+                  atomic_update<op, T>(arr_acc, offsets, m, props);
+                else
+                  atomic_update<op, T>(arr_acc, offsets, m);
+              } else {
+                if constexpr (UseProperties)
+                  atomic_update<op, T>(arr_acc, offsets, props);
+                else
+                  atomic_update<op, T>(arr_acc, offsets);
+              }
+            } else if constexpr (n_args == 1) {
+              simd<T, N> v0 = ImplF<T, N>::arg0(i);
+              if constexpr (UseMask) {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, m, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0, m);
+              } else {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0);
+              }
+            } else if constexpr (n_args == 2) {
+              simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+              simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+              // do compare-and-swap in a loop until we get expected value;
+              // arg0 and arg1 must provide values which guarantee the loop
+              // is not endless:
+              if constexpr (UseMask) {
+                if constexpr (UseProperties) {
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, m, props);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, m, props))
+                    ;
 
-            // the atomic operation itself applied in a loop:
-            for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
-              if constexpr (n_args == 0) {
-                if constexpr (UseMask) {
-                  if constexpr (UseProperties)
-                    atomic_update<op, T>(arr_acc, offsets, m, props);
-                  else
-                    atomic_update<op, T>(arr_acc, offsets, m);
                 } else {
-                  if constexpr (UseProperties)
-                    atomic_update<op, T>(arr_acc, offsets, props);
-                  else
-                    atomic_update<op, T>(arr_acc, offsets);
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, m);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, m))
+                    ;
                 }
-              } else if constexpr (n_args == 1) {
-                simd<T, N> v0 = ImplF<T, N>::arg0(i);
-                if constexpr (UseMask) {
-                  if constexpr (UseProperties)
-                    atomic_update<op>(arr_acc, offsets, v0, m, props);
-                  else
-                    atomic_update<op>(arr_acc, offsets, v0, m);
+              } else {
+                if constexpr (UseProperties) {
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, props);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, props))
+                    ;
+
                 } else {
-                  if constexpr (UseProperties)
-                    atomic_update<op>(arr_acc, offsets, v0, props);
-                  else
-                    atomic_update<op>(arr_acc, offsets, v0);
+                  for (simd<T, N> old_val = atomic_update<op>(arr_acc, offsets,
+                                                              new_val, exp_val);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val))
+                    ;
                 }
               }
             }
-          });
+          }
         });
-        e.wait();
-      } catch (sycl::exception const &e) {
-        std::cout << "SYCL exception caught: " << e.what() << '\n';
-        free(arr, q);
-        return false;
-      }
-
-      bool passed = verify<T, N, ImplF>(arr, cfg, size);
-
+      });
+      e.wait();
+    } catch (sycl::exception const &e) {
+      std::cout << "SYCL exception caught: " << e.what() << '\n';
       free(arr, q);
-      return passed;
+      return false;
     }
+
+    bool passed = verify<T, N, ImplF>(arr, cfg, size);
+
+    free(arr, q);
+    return passed;
   }
 }
 
