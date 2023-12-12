@@ -438,7 +438,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       if (I->getFunction()->hasMetadata("dbg")) {
         if (!I->getMetadata("dbg")) {
           I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
-                                       I->getFunction()->getSubprogram()));
+                                         I->getFunction()->getSubprogram()));
         }
         NewI->setDebugLoc(I->getDebugLoc());
       }

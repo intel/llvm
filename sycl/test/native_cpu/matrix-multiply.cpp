@@ -1,9 +1,9 @@
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t 128 
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t 128
 
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -g %s -o %t_debug
-// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t_debug 128 
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t_debug 128
 
 #include <sycl/sycl.hpp>
 
@@ -15,7 +15,6 @@
 using namespace sycl;
 
 class mxm_kernel;
-
 
 /* Obtains the previous power of two from the given integer.
  * It works by masking out all ones after the first one bit,
@@ -60,8 +59,7 @@ bool local_mxm(queue &q, T *MA, T *MB, T *MC, int matSize) {
   }
 
   auto device = q.get_device();
-  auto maxBlockSize =
-      device.get_info<info::device::max_work_group_size>();
+  auto maxBlockSize = device.get_info<info::device::max_work_group_size>();
   auto blockSize = prevPowerOfTwo(std::sqrt(maxBlockSize));
   std::cout << " The Device Max Work Group Size is : " << maxBlockSize
             << std::endl;
@@ -193,7 +191,6 @@ int main(int argc, char *argv[]) {
       MB[i * matSize + j] = 2.0f;
       MC[i * matSize + j] = 0.0f; // i * matSize + j;
     }
-
 
   if (sycl) {
     std::cout << " ***** SYCL " << std::endl;
