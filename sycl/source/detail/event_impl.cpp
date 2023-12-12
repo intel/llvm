@@ -412,6 +412,31 @@ pi_native_handle event_impl::getNative() {
   return Handle;
 }
 
+std::vector<pi_native_handle> event_impl::getNativeVector() {
+  if (!is_host())
+    return {getNative()};
+
+  ensureContextInitialized();
+
+  auto Plugin = getPlugin();
+  if (!MIsInitialized) {
+    MIsInitialized = true;
+    auto TempContext = MContext.get()->getHandleRef();
+    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+  }
+  if (MContext->getBackend() == backend::opencl)
+    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
+  std::vector<pi_native_handle> HandleVec;
+  // Return native events sumbitted via host task interop
+  for (auto &HostTaskPiEvent : HostTaskPiEvents) {
+    pi_native_handle Handle;
+    Plugin->call<PiApiKind::piextEventGetNativeHandle>(HostTaskPiEvent,
+                                                       &Handle);
+    HandleVec.push_back(Handle);
+  }
+  return HandleVec;
+}
+
 std::vector<EventImplPtr> event_impl::getWaitList() {
   if (MState == HES_Discarded)
     throw sycl::exception(

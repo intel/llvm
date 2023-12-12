@@ -135,7 +135,8 @@ public:
 
   // \return the Plugin associated with this platform.
   const PluginPtr &getPlugin() const {
-    assert(!MHostPlatform && "Plugin is not available for Host.");
+    assert((!MHostPlatform || MBackendSet) &&
+           "Plugin is not available for Host.");
     return MPlugin;
   }
 
@@ -144,9 +145,9 @@ public:
   /// \param PluginPtr is a pointer to a plugin instance
   /// \param Backend is the backend that we want this platform to use
   void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = PluginPtr;
     MBackend = Backend;
+    MBackendSet = true;
   }
 
   /// Gets the native handle of the SYCL platform.
@@ -235,6 +236,7 @@ private:
   bool MHostPlatform = false;
   sycl::detail::pi::PiPlatform MPlatform = 0;
   backend MBackend;
+  bool MBackendSet = !MHostPlatform;
 
   PluginPtr MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;

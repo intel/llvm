@@ -52,5 +52,22 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
+void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
+  auto Plugin = MQueue->getPlugin();
+
+  if (!MEvent->backendSet()) {
+    MEvent->setPlugin(Plugin, detail::getImplBackend(MQueue));
+  }
+
+  // Make a std::vector of PiEvents from the native events
+  for (auto i = 0; i < NativeEvents.size(); ++i) {
+    detail::pi::PiEvent Ev;
+    Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
+        (pi_native_handle)NativeEvents[i], MContext->getHandleRef(),
+        /*OwnNativeHandle*/ true, &Ev);
+    MEvent->addHostTaskPiEvent(Ev);
+  }
+}
+
 } // namespace _V1
 } // namespace sycl
