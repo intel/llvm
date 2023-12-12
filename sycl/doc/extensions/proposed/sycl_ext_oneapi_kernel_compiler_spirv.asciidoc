@@ -177,13 +177,21 @@ backend's SPIR-V client API specification.
 |Corresponding SYCL type
 
 |*OpTypeInt*
-|A C++ integral type with the same width.
+|A C++ type that is device copyable, which has same width and data
+ representation.
 
-|*OpTypeFloat* of width 32
-|`float`
+[_Note:_ Applications typically use a fixed-width integer type where the width
+matches the width of the *OpTypeInt*.
+_{endnote}_]
 
-|*OpTypeFloat* of width 64
-|`double`
+|*OpTypeFloat*
+|A C++ type that is device copyable, which has same width and data
+ representation.
+
+[_Note:_ Applications typically use `float` when the *OpTypeFloat* has a width
+of 4, `double` when the *OpTypeFloat* has a width of 8, and `sycl::half` when
+the *OpTypeFloat* has a width of 2.
+_{endnote}_]
 
 |*OpTypePointer* with storage class *CrossWorkgroup*
 |Either a pointer to USM memory or an `accessor` whose target is
@@ -192,9 +200,8 @@ backend's SPIR-V client API specification.
 |*OpTypePointer* with storage class *Workgroup*
 |A `local_accessor`.
 
-|*OpTypeStruct* whose member types are limited to *OpTypeInt*, *OpTypeFloat*
- (of width 32 or 64), and *OpTypePointer* (with storage class
- *CrossWorkgroup*).
+|*OpTypeStruct* whose member types are limited to *OpTypeInt*, *OpTypeFloat*,
+ and *OpTypePointer* (with storage class *CrossWorkgroup*).
  The *OpTypeStruct* may contain members which are also *OpTypeStruct* so long
  as its members are limited to the same types.
 |A C++ struct or class that is device copyable.
