@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 69a56ea6d1369a6bde5fce97c85fc7dbda49252f
-  # Merge: b25bb64d b78f541d
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Dec 11 12:30:24 2023 +0000
-  #     Merge pull request #1123 from aarongreig/aaron/usmLocationProps
-  #     [OpenCL] Add ur_usm_alloc_location_desc struct and handle it in the CL adapter.
-  set(UNIFIED_RUNTIME_TAG 69a56ea6d1369a6bde5fce97c85fc7dbda49252f)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 421043382cdff957fc72cc144e249c31cfe16741)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
