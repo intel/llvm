@@ -51,10 +51,10 @@
 // class vector<int> is explicitly instantiated.
 // vector::pop_back and vector::insert are BOTH in user source
 //
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG         %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG          %s                
