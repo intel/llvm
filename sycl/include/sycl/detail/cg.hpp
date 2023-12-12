@@ -201,7 +201,6 @@ public:
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
   std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
-
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
