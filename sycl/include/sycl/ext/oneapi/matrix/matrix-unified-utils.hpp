@@ -7,6 +7,9 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
+#include <optional>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
