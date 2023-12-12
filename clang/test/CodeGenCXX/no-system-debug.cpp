@@ -10,10 +10,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // only vector::insert is in the user source
 //
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-INSERT-ONLY-DEBUG %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG          %s
@@ -23,10 +23,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // vector::pop_back and vector::insert are both in user source
 //
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT -DPOP_BACK
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT -DPOP_BACK
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT -DPOP_BACK
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG         %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG          %s
@@ -37,10 +37,10 @@
 // class vector<int> is explicitly instantiated.
 // vector::pop_back and vector::insert are NOT in user source
 //
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
-// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
+// RUN: %clangxx --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG         %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG          %s                
