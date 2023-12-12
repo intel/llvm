@@ -2,10 +2,10 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // only vector::insert is in the user source
-// RUN: %clang -emit-llvm -S -g %s -o  %t.default
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug
-// RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types
+// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.default
+// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug
+// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug
+// RUN: %clang --target=x86_64-unknown-linux -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-DEFAULT                         %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-SYSTEM-DEBUG                 %s                
