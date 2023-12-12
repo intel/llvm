@@ -456,8 +456,15 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 
   } else {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
-                                    Cmds.begin(), Cmds.end());
+    // Full cleanup for fusion placeholder commands is handled by the entry
+    // points for fusion (start_fusion, ...). To avoid double free or access to
+    // objects after their lifetime, fusion commands should therefore never be
+    // added to the deferred command list.
+    std::copy_if(Cmds.begin(), Cmds.end(),
+                 std::back_inserter(MDeferredCleanupCommands),
+                 [](const Command *Cmd) {
+                   return Cmd->getType() != Command::CommandType::FUSION;
+                 });
   }
 }
 

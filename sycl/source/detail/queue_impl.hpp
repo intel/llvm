@@ -202,6 +202,8 @@ public:
 #endif
   }
 
+  event getLastEvent() const;
+
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&

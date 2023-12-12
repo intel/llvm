@@ -199,7 +199,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
-      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
+      SaveTemps(SaveTempsNone), DumpDeviceCode(false), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
       ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
@@ -1704,6 +1704,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Case("obj", SaveTempsObj)
                     .Default(SaveTempsCwd);
   }
+
+  if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
+    DumpDeviceCode = true;
 
   if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
                                      options::OPT_offload_device_only,
@@ -6142,6 +6145,27 @@ class OffloadingActionBuilder final {
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
           continue;
+        // If any section found is an 'image' based object that was created
+        // with the intention of not requiring the matching SYCL target, do
+        // not emit the diagnostic.
+        if (SyclTarget.TC->getTriple().isSPIR()) {
+          bool SectionFound = false;
+          for (auto Section : UniqueSections) {
+            if (SectionFound)
+              break;
+            SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_fpga",
+                                                    "spir64_x86_64"};
+            for (auto ArchStr : ArchList) {
+              std::string Arch(ArchStr + "_image");
+              if (Section.find(Arch) != std::string::npos) {
+                SectionFound = true;
+                break;
+              }
+            }
+          }
+          if (SectionFound)
+            continue;
+        }
         // Didn't find any matches, return the full list for the diagnostic.
         SmallString<128> ArchListStr;
         int Cnt = 0;

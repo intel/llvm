@@ -54,6 +54,7 @@ int main() {
       float r2 = Buf[0].y();
       float i1 = Buf[1].x();
       float i2 = Buf[1].y();
+      s::free(Buf, myQueue.get_context());
 
       assert(r1 == 0.5f);
       assert(r2 == 0.5f);

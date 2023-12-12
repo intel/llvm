@@ -87,6 +87,16 @@ bool jit_compiler::isHeterogeneousList(ArrayRef<NDRange> NDRanges) {
   return any_of(NDRanges, [&ND](const auto &Other) { return ND != Other; });
 }
 
+static bool wouldYieldUniformWorkGroupSize(const Indices &LocalSize,
+                                           llvm::ArrayRef<NDRange> NDRanges) {
+  const auto GlobalSize = getMaximalGlobalSize(NDRanges);
+  return llvm::all_of(llvm::zip_equal(GlobalSize, LocalSize),
+                      [](const std::tuple<std::size_t, std::size_t> &P) {
+                        const auto &[GlobalSize, LocalSize] = P;
+                        return GlobalSize % LocalSize == 0;
+                      });
+}
+
 bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
   if (NDRanges.empty()) {
     return false;
@@ -95,9 +105,14 @@ bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
   const auto &ND = FirstSpecifiedLocalSize == NDRanges.end()
                        ? NDRanges.front()
                        : *FirstSpecifiedLocalSize;
-  return llvm::all_of(NDRanges, [&ND](const auto &Other) {
-    return compatibleRanges(ND, Other);
-  });
+  return llvm::all_of(NDRanges,
+                      [&ND](const auto &Other) {
+                        return compatibleRanges(ND, Other);
+                      }) &&
+         // Either no local size is specified or the maximal global size is
+         // compatible with the specified local size.
+         (FirstSpecifiedLocalSize == NDRanges.end() ||
+          wouldYieldUniformWorkGroupSize(ND.getLocalSize(), NDRanges));
 }
 
 bool jit_compiler::requireIDRemapping(const NDRange &LHS, const NDRange &RHS) {
