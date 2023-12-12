@@ -320,6 +320,10 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
+  EventImplPtr MEvent; // If we want to add native events within the host task
+                       // using the interop_handle then we need to have a ptr
+                       // to the event impl of the sycl event returned at
+                       // CGSubmit
 
   pi_result waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
@@ -365,8 +369,9 @@ class DispatchHostTask {
 
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
+                   std::vector<interop_handle::ReqToMem> ReqToMem,
+                   EventImplPtr MEvent)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)), MEvent(MEvent) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
@@ -402,7 +407,7 @@ public:
       if (HostTask.MHostTask->isInteropTask()) {
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
-                          HostTask.MQueue->getContextImplPtr()};
+                          HostTask.MQueue->getContextImplPtr(), MEvent};
 
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
       } else
@@ -3163,7 +3168,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem)));
+        DispatchHostTask(this, std::move(ReqToMem), MEvent));
 
     MShouldCompleteEventIfPossible = false;
 

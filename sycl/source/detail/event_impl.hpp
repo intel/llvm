@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/context_impl.hpp> // For context_impl::setPlugin
 #include <detail/plugin.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -179,6 +180,15 @@ public:
   /// @param Command is a generic pointer to Command object instance.
   void setCommand(void *Command) { MCommand = Command; }
 
+  /// Sets the platform implementation to use another plugin, or a plugin
+  /// if no plugin is being used, ie for a host task.
+  ///
+  /// \param PluginPtr is a pointer to a plugin instance
+  /// \param Backend is the backend that we want this platform to use
+  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
+    return MContext->setPlugin(PluginPtr, Backend);
+  }
+
   /// Returns host profiling information.
   ///
   /// @return a pointer to HostProfilingInfo instance.
@@ -188,6 +198,11 @@ public:
   ///
   /// \return a native handle.
   pi_native_handle getNative();
+
+  /// Gets the vector of native handles associated with the SYCL event.
+  ///
+  /// \return a native handle.
+  std::vector<pi_native_handle> getNativeVector();
 
   /// Returns vector of event dependencies.
   ///
@@ -320,6 +335,11 @@ public:
   bool isEventFromSubmittedExecCommandBuffer() const {
     return MEventFromSubmittedExecCommandBuffer;
   }
+  void addHostTaskPiEvent(detail::pi::PiEvent Event) {
+    HostTaskPiEvents.push_back(Event);
+  }
+
+  bool backendSet() const { return HostTaskPiEvents.size() > 0; }
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
@@ -372,6 +392,10 @@ protected:
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
+
+  // Used to hold pi_events for native events that are stored with
+  // interop_handle::add_native_events
+  std::vector<sycl::detail::pi::PiEvent> HostTaskPiEvents;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;

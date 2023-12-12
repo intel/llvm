@@ -214,6 +214,22 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
       Obj.getNative());
 }
 
+template <>
+inline backend_return_t<backend::ext_oneapi_cuda, event>
+get_native<backend::ext_oneapi_cuda, event>(const event &Event) {
+  if (Event.get_backend() != backend::ext_oneapi_cuda) {
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
+  }
+  backend_return_t<backend::ext_oneapi_cuda, event> ReturnValue;
+  for (auto const &element : Event.getNativeVector()) {
+    ReturnValue.push_back(
+        reinterpret_cast<typename detail::interop<backend::ext_oneapi_cuda,
+                                                  event>::value_type>(element));
+  }
+  return ReturnValue;
+}
+
 #ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 template <>
 __SYCL_DEPRECATED(
@@ -246,6 +262,22 @@ inline backend_return_t<backend::ext_oneapi_hip, context> get_native<
   }
   return reinterpret_cast<backend_return_t<backend::ext_oneapi_hip, context>>(
       Obj.getNative());
+}
+
+template <>
+inline backend_return_t<backend::ext_oneapi_hip, event>
+get_native<backend::ext_oneapi_hip, event>(const event &Event) {
+  if (Event.get_backend() != backend::ext_oneapi_hip) {
+    throw sycl::exception(make_error_code(errc::backend_mismatch),
+                          "Backends mismatch");
+  }
+  backend_return_t<backend::ext_oneapi_hip, event> ReturnValue;
+  for (auto const &element : Event.getNativeVector()) {
+    ReturnValue.push_back(
+        reinterpret_cast<typename detail::interop<backend::ext_oneapi_hip,
+                                                  event>::value_type>(element));
+  }
+  return ReturnValue;
 }
 
 #endif // SYCL_EXT_ONEAPI_BACKEND_HIP

@@ -182,6 +182,31 @@ public:
 #endif
   }
 
+  // Adds events from the native API so that the SYCL runtime can integrate the
+  // async calls in a native API, with other async operations in the SYCL DAG.
+  // Using this function removes the requirement that a host task callable must
+  // synchronize with any asynchronous operations from within the callable.
+  template <backend Backend = backend::opencl>
+  void add_native_events(backend_return_t<Backend, event> NativeEvents) {
+#ifndef __SYCL_DEVICE_ONLY__
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_ERROR_INVALID_MEM_OBJECT);
+    // All native events can be cast to void*, we use this as a generic entry
+    // point to source library
+    std::vector<void *> NativeEventHolders(NativeEvents.size());
+    for (auto i = 0; i < NativeEvents.size(); ++i)
+      NativeEventHolders[i] = reinterpret_cast<void *>(NativeEvents[i]);
+    return addNativeEvents(NativeEventHolders);
+#else
+    // we believe this won't be ever called on device side
+    return;
+#endif
+  }
+
 private:
   friend class detail::ExecCGCommand;
   friend class detail::DispatchHostTask;
@@ -190,8 +215,9 @@ private:
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
-                 const std::shared_ptr<detail::context_impl> &Context)
-      : MQueue(Queue), MDevice(Device), MContext(Context),
+                 const std::shared_ptr<detail::context_impl> &Context,
+                 const std::shared_ptr<detail::event_impl> &Event)
+      : MQueue(Queue), MDevice(Device), MContext(Context), MEvent(Event),
         MMemObjs(std::move(MemObjs)) {}
 
   template <backend Backend, typename DataT, int Dims>
@@ -215,10 +241,12 @@ private:
   getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
+  __SYCL_EXPORT void addNativeEvents(std::vector<void *> &);
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
   std::shared_ptr<detail::context_impl> MContext;
+  std::shared_ptr<detail::event_impl> MEvent;
 
   std::vector<ReqToMem> MMemObjs;
 };

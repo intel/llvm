@@ -44,7 +44,8 @@ template <> struct interop<backend::ext_oneapi_hip, device> {
 };
 
 template <> struct interop<backend::ext_oneapi_hip, event> {
-  using type = HIPevent;
+  using type = std::vector<HIPevent>;
+  using value_type = HIPevent;
 };
 
 template <> struct interop<backend::ext_oneapi_hip, queue> {
@@ -80,11 +81,13 @@ template <> struct BackendReturn<backend::ext_oneapi_hip, device> {
 };
 
 template <> struct BackendInput<backend::ext_oneapi_hip, event> {
-  using type = HIPevent;
+  using type = std::vector<HIPevent>;
+  using value_type = HIPevent;
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_hip, event> {
-  using type = HIPevent;
+  using type = std::vector<HIPevent>;
+  using value_type = HIPevent;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
