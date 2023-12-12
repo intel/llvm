@@ -6034,9 +6034,13 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
 
     // Declaration is not referenced and debug level < FullDebugInfo
     // (i.e. neither -fstandalone-debug nor -fno-eliminate-unused-debug-types
-    // are used). Do not generate debug info.
-    if (!D->isReferenced() && CGM.getCodeGenOpts().getDebugInfo() <
-                                  llvm::codegenoptions::FullDebugInfo)
+    // are used) and function is not from an explicit instantiation.
+    if (!D->isReferenced() &&
+        CGM.getCodeGenOpts().getDebugInfo() <
+            llvm::codegenoptions::FullDebugInfo &&
+        !(isa<FunctionDecl>(D) &&
+          (cast<FunctionDecl>(D))->getTemplateSpecializationKind() ==
+              TSK_ExplicitInstantiationDefinition))
       return true;
   }
 
