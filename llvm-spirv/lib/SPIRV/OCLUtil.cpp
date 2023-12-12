@@ -145,6 +145,14 @@ template <> void SPIRVMap<OCLScopeKind, Scope>::init() {
   add(OCLMS_sub_group, ScopeSubgroup);
 }
 
+template <> void SPIRVMap<std::string, Scope>::init() {
+  add("work_item", ScopeInvocation);
+  add("workgroup", ScopeWorkgroup);
+  add("device", ScopeDevice);
+  add("all_svm_devices", ScopeCrossDevice);
+  add("subgroup", ScopeSubgroup);
+}
+
 template <> void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);

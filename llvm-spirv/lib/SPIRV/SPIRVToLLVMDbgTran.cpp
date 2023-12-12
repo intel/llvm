@@ -702,14 +702,19 @@ SPIRVToLLVMDbgTran::transTypeMemberOpenCL(const SPIRVExtInst *DebugInst) {
   }
   if (SPIRVFlags & SPIRVDebug::FlagIsStaticMember)
     Flags |= DINode::FlagStaticMember;
-  if (Flags & DINode::FlagStaticMember && Ops.size() > MinOperandCount) {
-    SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
-    assert(isConstantOpCode(ConstVal->getOpCode()) &&
-           "Static member must be a constant");
-    llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+  if (Flags & DINode::FlagStaticMember) {
+    llvm::Value *Val = nullptr;
+    if (Ops.size() > MinOperandCount) {
+      SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
+      assert(isConstantOpCode(ConstVal->getOpCode()) &&
+             "Static member must be a constant");
+      Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+    }
+    auto Tag = M->getDwarfVersion() >= 5 ? llvm::dwarf::DW_TAG_variable
+                                         : llvm::dwarf::DW_TAG_member;
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
-        llvm::dwarf::DW_TAG_member);
+        Scope, Name, File, LineNo, BaseType, Flags,
+        cast_or_null<llvm::Constant>(Val), Tag);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -753,14 +758,19 @@ SPIRVToLLVMDbgTran::transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
   if (SPIRVFlags & SPIRVDebug::FlagBitField)
     Flags |= DINode::FlagBitField;
 
-  if (Flags & DINode::FlagStaticMember && Ops.size() > MinOperandCount) {
-    SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
-    assert(isConstantOpCode(ConstVal->getOpCode()) &&
-           "Static member must be a constant");
-    llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+  if (Flags & DINode::FlagStaticMember) {
+    llvm::Value *Val = nullptr;
+    if (Ops.size() > MinOperandCount) {
+      SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
+      assert(isConstantOpCode(ConstVal->getOpCode()) &&
+             "Static member must be a constant");
+      Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+    }
+    auto Tag = M->getDwarfVersion() >= 5 ? llvm::dwarf::DW_TAG_variable
+                                         : llvm::dwarf::DW_TAG_member;
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
-        llvm::dwarf::DW_TAG_member);
+        Scope, Name, File, LineNo, BaseType, Flags,
+        cast_or_null<llvm::Constant>(Val), Tag);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;

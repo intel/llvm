@@ -259,10 +259,6 @@ bool test_acc(queue q, const Config &cfg) {
   if constexpr (!UseProperties && DataSizeRequiresLSC) {
     return true;
   } else {
-    // Remove once 1 and 2 are supported
-    if constexpr (n_args != 0)
-      return true;
-
     std::cout << "Accessor Testing " << "op=" << to_string(op)
               << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
               << " N=" << N << " UseMask=" << (UseMask ? "true" : "false")
@@ -315,6 +311,60 @@ bool test_acc(queue q, const Config &cfg) {
                   atomic_update<op, T>(arr_acc, offsets, props);
                 else
                   atomic_update<op, T>(arr_acc, offsets);
+              }
+            } else if constexpr (n_args == 1) {
+              simd<T, N> v0 = ImplF<T, N>::arg0(i);
+              if constexpr (UseMask) {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, m, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0, m);
+              } else {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0);
+              }
+            } else if constexpr (n_args == 2) {
+              simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+              simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+              // do compare-and-swap in a loop until we get expected value;
+              // arg0 and arg1 must provide values which guarantee the loop
+              // is not endless:
+              if constexpr (UseMask) {
+                if constexpr (UseProperties) {
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, m, props);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, m, props))
+                    ;
+
+                } else {
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, m);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, m))
+                    ;
+                }
+              } else {
+                if constexpr (UseProperties) {
+                  for (simd<T, N> old_val = atomic_update<op>(
+                           arr_acc, offsets, new_val, exp_val, props);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val, props))
+                    ;
+
+                } else {
+                  for (simd<T, N> old_val = atomic_update<op>(arr_acc, offsets,
+                                                              new_val, exp_val);
+                       any(old_val < exp_val, !m);
+                       old_val = atomic_update<op>(arr_acc, offsets, new_val,
+                                                   exp_val))
+                    ;
+                }
               }
             }
           }

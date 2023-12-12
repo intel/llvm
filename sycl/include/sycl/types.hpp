@@ -1179,10 +1179,22 @@ public:
     return Ret;
   }
 
+  template <typename T>
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  using OpNotRet = detail::rel_t<T>;
+#else
+  using OpNotRet = T;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // operator!
   template <typename T = DataT, int N = NumElements>
-  EnableIfNotUsingArray<vec<T, N>> operator!() const {
-    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
+  EnableIfNotUsingArray<vec<OpNotRet<T>, N>> operator!() const {
+    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data}
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+        .template as<vec<OpNotRet<T>, N>>();
+#else
+    ;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   // std::byte neither supports ! unary op or casting, so special handling is
@@ -1191,32 +1203,44 @@ public:
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
     }
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<!std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #else
   template <typename T = DataT, int N = NumElements>
-  EnableIfUsingArray<vec<T, N>> operator!() const {
+  EnableIfUsingArray<vec<OpNotRet<T>, N>> operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #endif
 
@@ -1520,8 +1544,37 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
-  using CommonDataT = std::common_type_t<typename OperationLeftT::DataT,
-                                         typename OperationRightT::DataT>;
+  // Certain operators return a vector with a different element type. Also, the
+  // left and right operand types may differ. CommonDataT selects a result type
+  // based on these types to ensure that the result value can be represented.
+  //
+  // Example 1:
+  //   sycl::vec<unsigned char, 4> vec{...};
+  //   auto result = 300u + vec.x();
+  //
+  // CommonDataT is std::common_type_t<OperationLeftT, OperationRightT> since
+  // it's larger than unsigned char.
+  //
+  // Example 2:
+  //   sycl::vec<bool, 1> vec{...};
+  //   auto result = vec.template swizzle<sycl::elem::s0>() && vec;
+  //
+  // CommonDataT is DataT since operator&& returns a vector with element type
+  // int8_t, which is larger than bool.
+  //
+  // Example 3:
+  //   sycl::vec<std::byte, 4> vec{...}; auto swlo = vec.lo();
+  //   auto result = swlo == swlo;
+  //
+  // CommonDataT is DataT since operator== returns a vector with element type
+  // int8_t, which is the same size as std::byte. std::common_type_t<DataT, ...>
+  // can't be used here since there's no type that int8_t and std::byte can both
+  // be implicitly converted to.
+  using OpLeftDataT = typename OperationLeftT::DataT;
+  using OpRightDataT = typename OperationRightT::DataT;
+  using CommonDataT = std::conditional_t<
+      sizeof(DataT) >= sizeof(std::common_type_t<OpLeftDataT, OpRightDataT>),
+      DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
