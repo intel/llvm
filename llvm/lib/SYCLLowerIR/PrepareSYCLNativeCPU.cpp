@@ -304,6 +304,7 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
     Builder.CreateRetVoid();
     Res = F;
   }
+  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   return Res;
 }
 
@@ -387,6 +388,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
+    // The OCK creates a wrapper function around the original kernel with
+    // the WorkItemLoopsPass.
+    // At runtime, we want to run the wrapper function, therefore we
+    // make it so the wrapper steals the original kernel name.
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
     if (Name != OldF->getName()) {
       auto RealKernel = M.getFunction(Name);
@@ -431,10 +436,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       // CallInstructions in it have debug info, otherwise we end up with
       // invalid IR after inlining.
       if (I->getFunction()->hasMetadata("dbg")) {
-        I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
+        if (!I->getMetadata("dbg")) {
+          I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
                                        I->getFunction()->getSubprogram()));
-        if (I->getMetadata("dbg"))
-          NewI->setDebugLoc(I->getDebugLoc());
+        }
+        NewI->setDebugLoc(I->getDebugLoc());
       }
       ToRemove.push_back(std::make_pair(I, NewI));
     }
@@ -467,7 +473,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // function will not be executed (since it has been inlined) and so we can
   // just define __mux_work_group_barrier as a no-op to avoid linker errors.
   // Todo: currently we can't remove the function here even if it has no uses,
-  // because we may still emit a declaration for in the offload-wrapper.
+  // because we may still emit a declaration for it in the offload-wrapper.
   auto BarrierF =
       M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
   if (BarrierF && BarrierF->isDeclaration()) {
