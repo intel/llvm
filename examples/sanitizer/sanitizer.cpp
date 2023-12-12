@@ -25,7 +25,7 @@ constexpr unsigned PAGE_SIZE = 4096;
 
 void ur_check(const ur_result_t r) {
     if (r != UR_RESULT_SUCCESS) {
-        urTearDown(nullptr);
+        urLoaderTearDown();
         throw std::runtime_error("Unified runtime error: " + std::to_string(r));
     }
 }
@@ -96,7 +96,7 @@ template <typename T, size_t N> struct alignas(PAGE_SIZE) AlignedArray {
 
 int main() {
     ur_loader_config_handle_t loader_config = nullptr;
-    ur_check(urInit(UR_DEVICE_INIT_FLAG_GPU, loader_config));
+    ur_check(urLoaderInit(UR_DEVICE_INIT_FLAG_GPU, loader_config));
 
     auto adapters = get_adapters();
     auto supported_adapters = get_supported_adapters(adapters);
@@ -141,5 +141,5 @@ int main() {
 
     ur_check(urQueueFinish(queue));
 
-    return urTearDown(nullptr) == UR_RESULT_SUCCESS;
+    return urLoaderTearDown() == UR_RESULT_SUCCESS;
 }
