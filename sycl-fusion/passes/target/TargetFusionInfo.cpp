@@ -76,7 +76,7 @@ public:
 
   virtual void
   updateAddressSpaceMetadata([[maybe_unused]] Function *KernelFunc,
-                             [[maybe_unused]] ArrayRef<size_t> LocalSize,
+                             [[maybe_unused]] ArrayRef<bool> ArgIsPromoted,
                              [[maybe_unused]] unsigned AddressSpace) const {}
 
   virtual std::optional<BuiltinKind> getBuiltinKind(Function *F) const = 0;
@@ -250,7 +250,7 @@ public:
   unsigned getLocalAddressSpace() const override { return 3; }
 
   void updateAddressSpaceMetadata(Function *KernelFunc,
-                                  ArrayRef<size_t> LocalSize,
+                                  ArrayRef<bool> ArgIsPromoted,
                                   unsigned AddressSpace) const override {
     static constexpr unsigned AddressSpaceBitWidth{32};
     static constexpr StringLiteral KernelArgAddrSpaceMD{
@@ -265,8 +265,8 @@ public:
       // we should update it in the new one.
       SmallVector<Metadata *> NewInfo{AddrspaceMD->op_begin(),
                                       AddrspaceMD->op_end()};
-      for (auto I : enumerate(LocalSize)) {
-        if (I.value() == 0) {
+      for (auto I : enumerate(ArgIsPromoted)) {
+        if (!I.value()) {
           continue;
         }
         const auto Index = I.index();
@@ -1149,9 +1149,9 @@ unsigned TargetFusionInfo::getLocalAddressSpace() const {
 }
 
 void TargetFusionInfo::updateAddressSpaceMetadata(Function *KernelFunc,
-                                                  ArrayRef<size_t> LocalSize,
+                                                  ArrayRef<bool> ArgIsPromoted,
                                                   unsigned AddressSpace) const {
-  Impl->updateAddressSpaceMetadata(KernelFunc, LocalSize, AddressSpace);
+  Impl->updateAddressSpaceMetadata(KernelFunc, ArgIsPromoted, AddressSpace);
 }
 
 llvm::ArrayRef<llvm::StringRef>
