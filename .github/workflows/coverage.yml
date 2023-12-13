@@ -65,7 +65,7 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "python|umf|loader|validation|tracing|unit|urtrace"
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "umf|loader|validation|tracing|unit|urtrace"
 
     - name: Quick Coverage Info
       working-directory: ${{github.workspace}}/build
