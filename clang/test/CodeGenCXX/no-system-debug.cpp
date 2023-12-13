@@ -76,16 +76,16 @@
 // CHECK-ALL-DEBUG:                                      _ZNSt6vectorIiSaIiEE6insertEN9__gnu_cxx17__normal_iteratorIPKiS1_EEOi
 
 // vector::pop_back and vector::insert must both not be found
-// CHECK-WIN-NO-DEBUG-NOT:                               ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
 // CHECK-WIN-NO-DEBUG-NOT:                               ?pop_back@?$vector@HV?$allocator@H@std@@@std@@QEAAXXZ
+// CHECK-WIN-NO-DEBUG-NOT:                               ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
 
 // only vector::insert must be found
-// CHECK-WIN-INSERT-ONLY-DEBUG-NOT:                      ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
-// CHECK-WIN-INSERT-ONLY-DEBUG:                          ?pop_back@?$vector@HV?$allocator@H@std@@@std@@QEAAXXZ
+// CHECK-WIN-INSERT-ONLY-DEBUG-NOT:                      ?pop_back@?$vector@HV?$allocator@H@std@@@std@@QEAAXXZ
+// CHECK-WIN-INSERT-ONLY-DEBUG:                          ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
 
 // vector::pop_back and vector::insert must both be found
-// CHECK-WIN-ALL-DEBUG:                                  ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
 // CHECK-WIN-ALL-DEBUG:                                  ?pop_back@?$vector@HV?$allocator@H@std@@@std@@QEAAXXZ
+// CHECK-WIN-ALL-DEBUG:                                  ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
 
 #include <vector>
 
