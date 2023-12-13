@@ -109,13 +109,13 @@ namespace intel {
 namespace experimental {
 
 struct ready_latency_key {
-  template <unsigned Latency>
+  template <uint32_t Latency>
   using value_t = oneapi::experimental::property_value<
       ready_latency_key, std::integral_constant<int, Latency>>;
 };
 
 struct bits_per_symbol_key {
-  template <unsigned Bits>
+  template <uint32_t Bits>
   using value_t =
       oneapi::experimental::property_value<bits_per_symbol_key,
                                            std::integral_constant<int, Bits>>;
@@ -154,10 +154,10 @@ struct protocol_key {
       protocol_key, std::integral_constant<protocol_name, Protocol>>;
 };
 
-template <unsigned Latency>
+template <uint32_t Latency>
 inline constexpr ready_latency_key::value_t<Latency> ready_latency;
 
-template <unsigned Bits>
+template <uint32_t Bits>
 inline constexpr bits_per_symbol_key::value_t<Bits> bits_per_symbol;
 
 template <bool Valid>
@@ -178,9 +178,6 @@ namespace avalon-st {
   using sycl::ext::intel::experimental::bits_per_symbol_key;
   using sycl::ext::intel::experimental::first_symbol_in_high_order_bits;
   using sycl::ext::intel::experimental::first_symbol_in_high_order_bits_key;
-  using sycl::ext::intel::experimental::protocol;
-  using sycl::ext::intel::experimental::protocol_key;
-  using sycl::ext::intel::experimental::protocol_name;
   using sycl::ext::intel::experimental::ready_latency;
   using sycl::ext::intel::experimental::ready_latency_key;
   using sycl::ext::intel::experimental::uses_ready;
@@ -188,12 +185,6 @@ namespace avalon-st {
   using sycl::ext::intel::experimental::uses_valid;
   using sycl::ext::intel::experimental::uses_valid_key;
 } // namespace avalon-st
-
-namespace axi-st {
-  using sycl::ext::intel::experimental::protocol;
-  using sycl::ext::intel::experimental::protocol_key;
-  using sycl::ext::intel::experimental::protocol_name;
-} // namespace axi-st
 
 } // namespace experimental
 } // namespace intel
@@ -215,8 +206,7 @@ Default value: 0
 The number of cycles between when the ready signal is deasserted and when the
 pipe can no longer accept new inputs.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. 
+This property only applies to the externally visible end of the pipe.
 
 This property is only valid when the `protocol` property is *avalon_streaming*.
 
@@ -230,10 +220,9 @@ Describes how the data is broken into symbols on the data bus.
 Data is broken down according to how you set the `first_symbol_in_high_order_bits`
 property. By default, data is broken down in little endian order.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. 
+This property only applies to the externally visible end of the pipe. 
 
-This property will only have an effect when the `protocol` property is *avalon_streaming*.
+This property is only valid when the `protocol` property is *avalon_streaming*.
 
 |`uses_valid`
 | Valid values: `true` or `false`
@@ -246,10 +235,10 @@ upstream source must provide valid data on every cycle that ready is asserted.
 This is equivalent to changing the pipe read calls to a non-blocking call and assuming that
 success is always true.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. 
+This property only applies to the externally visible end of the pipe, and only valid when
+the valid signal is driven externally from the kernel, i.e., on a host-to-kernel or IO-to-kernel pipe.
 
-This property will only have an effect when the `protocol` property is *avalon_streaming*
+This property is only valid when the `protocol` property is *avalon_streaming*
 or *avalon_mm*.
 
 |`uses_ready`
@@ -263,10 +252,10 @@ downstream sink cannot backpressure the pipe.
 This is equivalent to changing the pipe write calls to a non-blocking call and assuming that
 success is always true.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. 
+This property only applies to the externally visible end of the pipe, and only valid when
+the ready signal is driven externally from the kernel, i.e., on a kernel-to-host or IO-to-host pipe.
 
-This property will only have an effect when the `protocol` property is *avalon_streaming*.
+This property is only valid when the `protocol` property is *avalon_streaming*.
 
 |`first_symbol_in_high_order_bits`
 | Valid values: true or false
@@ -276,10 +265,9 @@ Default value: false
 Specifies whether the data symbols in the pipe are in big-endian
 order.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. 
+This property only applies to the externally visible end of the pipe.
 
-This property will only have an effect when the `protocol` property is *avalon_streaming*
+This property is only valid when the `protocol` property is *avalon_streaming*
 or *avalon_mm*.
 
 |`protocol`
@@ -296,7 +284,7 @@ Provide an Avalon memory mapped interface as described in https://www.intel.com/
 
 *axi_streaming*
 
-Provide an AXI4-Stream interface as described in https://documentation-service.arm.com/static/642583d7314e245d086bc8c9[AMBA 4 AXI4-Stream Protocol Speccification].
+Provide an AXI4-Stream interface as described in https://documentation-service.arm.com/static/642583d7314e245d086bc8c9[AMBA 4 AXI4-Stream Protocol Specification].
 
 The default protocol is *avalon_streaming*
 |====
