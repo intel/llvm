@@ -17,7 +17,7 @@ inline namespace _V1 {
 namespace half_precision {
 #define BUILTIN_HALF_CUSTOM(NUM_ARGS, NAME, IMPL)                              \
   HOST_IMPL(NAME, IMPL)                                                        \
-  EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, float)
+  EXPORT_SCALAR_AND_VEC_1_16_NS(NUM_ARGS, NAME, half_precision, float)
 
 #define BUILTIN_HALF(NUM_ARGS, NAME)                                           \
   BUILTIN_HALF_CUSTOM(NUM_ARGS, NAME, std::NAME)
