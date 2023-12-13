@@ -71,26 +71,6 @@ def _mako_ddi_h(path, namespace, tags, version, revision, specs, meta):
         meta=meta)
 
 """
-    generates python files from the specification documents
-"""
-def _mako_api_py(path, namespace, tags, version, revision, specs, meta):
-    template = "api.py.mako"
-    fin = os.path.join("templates", template)
-
-    filename = "%s.py"%(namespace)
-    fout = os.path.join(path, filename)
-
-    print("Generating %s..."%fout)
-    return util.makoWrite(
-        fin, fout,
-        ver=version,
-        rev=revision,
-        namespace=namespace,
-        tags=tags,
-        specs=specs,
-        meta=meta)
-
-"""
     generates c/c++ files from the specification documents
 """
 def _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, specs, meta):
@@ -99,13 +79,6 @@ def _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, spec
     loc += _mako_ddi_h(incpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_print_hpp(incpath, namespace, tags, version, revision, specs, meta)
 
-    return loc
-
-"""
-    generates python files from the specification documents
-"""
-def _generate_api_py(incpath, namespace, tags, version, revision, specs, meta):
-    loc = _mako_api_py(incpath, namespace, tags, version, revision, specs, meta)
     return loc
 
 """
@@ -118,7 +91,6 @@ def generate_api(incpath, srcpath, namespace, tags, version, revision, specs, me
 
     loc = 0
     loc += _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, specs, meta)
-    loc += _generate_api_py(incpath, namespace, tags, version, revision, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
 templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates")
