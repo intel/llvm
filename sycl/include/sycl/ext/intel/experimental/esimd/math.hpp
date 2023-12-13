@@ -1675,7 +1675,8 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<sycl::half, N>
 srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
-  return __esimd_srnd<N>(src0.data(), (src1.template bit_cast_view<float>()).data());
+  __ESIMD_NS::simd<float, N> random = src1.template bit_cast_view<uint16_t>();
+  return __esimd_srnd<N>(src0.data(), random.data());
 }
 
 /// @} sycl_esimd_math
