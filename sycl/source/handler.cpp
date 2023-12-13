@@ -272,10 +272,10 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
-                                      KernelBundleImpPtr, MKernel, MKernelName,
-                                      MKernelNameStringHash, RawEvents, NewEvent,
-                                      nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                MKernelName, MKernelNameStringHash, RawEvents, NewEvent,
+                nullptr, MImpl->MKernelCacheConfig);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION

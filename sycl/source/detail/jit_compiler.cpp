@@ -749,8 +749,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName, KernelNameStringHash, ArgDescriptor,
-                                 JITCompilerNDR, BinInfo);
+    InputKernelInfo.emplace_back(KernelName, KernelNameStringHash,
+                                 ArgDescriptor, JITCompilerNDR, BinInfo);
     InputKernelNames.push_back(KernelName);
 
     // Collect information for the fused kernel
