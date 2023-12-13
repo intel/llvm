@@ -30,6 +30,7 @@
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <queue>
@@ -145,8 +146,9 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @brief Apply masks to basic blocks in the function, to prevent
   /// side-effects for inactive instances.
   ///
-  /// @return true if masks were applied successfully, false otherwise.
-  bool applyMasks();
+  /// @return llvm::Error::success if masks were applied successfully, an error
+  /// message explaining the failure otherwise.
+  Error applyMasks();
 
   /// @brief Apply a mask to the given basic block, to prevent side-effects for
   /// inactive instances.
@@ -154,8 +156,9 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @param[in] BB Basic block to apply masks to.
   /// @param[in] mask Mask to apply.
   ///
-  /// @return true if masks were applied successfully, false otherwise.
-  bool applyMask(BasicBlock &BB, Value *mask);
+  /// @return llvm::Error::success if masks were applied successfully, an error
+  /// message explaining the failure otherwise.
+  Error applyMask(BasicBlock &BB, Value *mask);
 
   /// @brief Emit a call instructions to the masked version of the called
   /// function.
@@ -378,6 +381,14 @@ Instruction *copyExitMask(Value *mask, StringRef base, BasicBlock &BB) {
   VECZ_ERROR_IF(!mask, "Trying to copy exit mask with invalid arguments");
   return copyMask(mask, base + ".exit_mask", BB.getTerminator());
 }
+
+/// Wrap a string into an llvm::StringError, pointing to an instruction.
+static inline Error makeStringError(const Twine &message, Instruction &I) {
+  std::string helper_str = message.str();
+  raw_string_ostream helper_stream(helper_str);
+  helper_stream << " " << I;
+  return make_error<StringError>(helper_stream.str(), inconvertibleErrorCode());
+}
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -538,8 +549,9 @@ bool ControlFlowConversionState::Impl::convertToDataFlow() {
                          "Could not generate masks for");
     return false;
   }
-  if (!applyMasks()) {
-    emitVeczRemarkMissed(&F, VU.scalarFunction(), "Could not apply masks for");
+  if (auto err = applyMasks()) {
+    emitVeczRemarkMissed(&F, VU.scalarFunction(), "Could not apply masks for",
+                         llvm::toString(std::move(err)));
     return false;
   }
 
@@ -1075,19 +1087,21 @@ bool ControlFlowConversionState::Impl::createCombinedLoopExitMask(
   return true;
 }
 
-bool ControlFlowConversionState::Impl::applyMasks() {
+Error ControlFlowConversionState::Impl::applyMasks() {
   for (auto &BB : F) {
     // Use masks with instructions that have side-effects.
     if (!DR->isUniform(BB) && !DR->isByAll(BB)) {
       auto *const entryMask = MaskInfos[&BB].entryMask;
       VECZ_ERROR_IF(!entryMask, "BasicBlock should have an entry mask");
-      VECZ_FAIL_IF(!applyMask(BB, entryMask));
+      if (auto err = applyMask(BB, entryMask)) {
+        return err;
+      }
     }
   }
-  return true;
+  return Error::success();
 }
 
-bool ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
+Error ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
   // Packetization hasn't happened yet so this better be a scalar 1 bit int.
   assert(mask->getType()->isIntegerTy(1) && "CFG mask type should be int1");
   // Map the unmasked instruction with the masked one.
@@ -1102,17 +1116,17 @@ bool ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
     // Turn loads and stores into masked loads and stores.
     if (memOp && (memOp->isLoad() || memOp->isStore())) {
       if (!tryApplyMaskToMemOp(*memOp, mask, toDelete)) {
-        return false;
+        return makeStringError("Could not apply mask to MemOp", I);
       }
     } else if (auto *CI = dyn_cast<CallInst>(&I)) {
       // Turn calls into masked calls if possible.
       if (!applyMaskToCall(CI, mask, toDelete)) {
-        return false;
+        return makeStringError("Could not apply mask to call instruction", I);
       }
     } else if (I.isAtomic() && !isa<FenceInst>(&I)) {
       // We need to apply masks to atomic functions, but it is currently not
       // implemented. See CA-3294.
-      return false;
+      return makeStringError("Could not apply mask to atomic instruction", I);
     } else if (auto *branch = dyn_cast<BranchInst>(&I)) {
       // We have to be careful with infinite loops, because if they exist on a
       // divergent code path, they will always be entered and will hang the
@@ -1138,7 +1152,8 @@ bool ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
     updateMaps(unmasked, masked);
     IRCleanup::deleteInstructionNow(unmasked);
   }
-  return true;
+
+  return Error::success();
 }
 
 CallInst *ControlFlowConversionState::Impl::emitMaskedVersion(CallInst *CI,

@@ -26,31 +26,39 @@ namespace vecz {
 ///
 /// @param[in] V The value (can be `nullptr`) to be included in the remark
 /// @param[in] Msg The main remark message
+/// @param[in] Note An optional additional note to provide more context/info.
 /// @return The remark message as it is to be printed
-static std::string createRemarkMessage(const Value *V, StringRef Msg) {
+static std::string createRemarkMessage(const Value *V, StringRef Msg,
+                                       StringRef Note = "") {
   std::string helper_str("Vecz: ");
   raw_string_ostream helper_stream(helper_str);
   helper_stream << Msg;
   if (V) {
     if (isa<Instruction>(V)) {
       // Instructions are already prefixed by two spaces when printed
-      V->print(helper_stream, true);
+      V->print(helper_stream, /*IsForDebug=*/true);
     } else if (const Function *F = dyn_cast<Function>(V)) {
-      // Printing a functions leads to it's whole body being printed
+      // Printing a functions leads to its whole body being printed
       helper_stream << " function \"" << F->getName() << "\"";
     } else {
       helper_stream << " ";
-      V->print(helper_stream, true);
+      V->print(helper_stream, /*IsForDebug=*/true);
     }
   }
   helper_stream << '\n';
 
+  // Provide extra context, if supplied
+  if (!Note.empty()) {
+    helper_stream << "  note: " << Note << '\n';
+  }
+
   return helper_stream.str();
 }
 
-void emitVeczRemarkMissed(const Function *F, const Value *V, StringRef Msg) {
+void emitVeczRemarkMissed(const Function *F, const Value *V, StringRef Msg,
+                          StringRef Note) {
   const Instruction *I = V ? dyn_cast<Instruction>(V) : nullptr;
-  auto RemarkMsg = createRemarkMessage(V, Msg);
+  auto RemarkMsg = createRemarkMessage(V, Msg, Note);
   OptimizationRemarkEmitter ORE(F);
   if (I) {
     ORE.emit(OptimizationRemarkMissed("vecz", "vecz", I) << RemarkMsg);
@@ -61,8 +69,8 @@ void emitVeczRemarkMissed(const Function *F, const Value *V, StringRef Msg) {
   }
 }
 
-void emitVeczRemarkMissed(const Function *F, StringRef Msg) {
-  emitVeczRemarkMissed(F, nullptr, Msg);
+void emitVeczRemarkMissed(const Function *F, StringRef Msg, StringRef Note) {
+  emitVeczRemarkMissed(F, nullptr, Msg, Note);
 }
 
 void emitVeczRemark(const Function *F, const Value *V, StringRef Msg) {
