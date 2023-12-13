@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Check if needed, I assume this is specific to MSVC's STL.
 // Define _USE_MATH_DEFINES to enforce math defines of macros like M_PI in
 // <cmath>. _USE_MATH_DEFINES is defined here before includes of SYCL header
 // files to avoid include of <cmath> via those SYCL headers with unset
@@ -130,7 +129,6 @@ BUILTIN_GENF_CUSTOM(TWO_ARGS, nextafter, [](auto x, auto y) {
     // sycl::half. That said, should be covered by
     // sycl/test/regression/host_half_nextafter.cpp
 
-    // TODO: We might be able to use sycl::isnan here.
     if (std::isnan(static_cast<float>(x)))
       return x;
     if (std::isnan(static_cast<float>(y)) || x == y)
