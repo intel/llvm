@@ -241,13 +241,13 @@ struct Wrapper {
   }
 
   std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::optional<ArrayRef<char>> Entries) {
+  addDeclarationsForNativeCPU(std::optional<std::string> Entries) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (!Entries)
       return {NullPtr, NullPtr}; // TODO: test this line.
 
-    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(
-        StringRef(Entries->begin(), Entries->size()));
+    std::unique_ptr<MemoryBuffer> MB =
+        MemoryBuffer::getMemBuffer(StringRef(*Entries));
     // the Native CPU PI Plug-in expects the BinaryStart field to point to an
     // array of struct nativecpu_entry {
     //   char *kernelname;
@@ -381,7 +381,7 @@ struct Wrapper {
   // Creates a global variable that is initiazed with the given @Entries.
   // Function returns a pair of Constants that point at entries content.
   std::pair<Constant *, Constant *>
-  addOffloadEntriesToModule(std::optional<ArrayRef<char>> Entries) {
+  addOffloadEntriesToModule(std::optional<std::string> Entries) {
     if (!Entries || Entries->empty()) {
       auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
@@ -392,8 +392,8 @@ struct Wrapper {
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
-    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(
-        StringRef(Entries->begin(), Entries->size()));
+    std::unique_ptr<MemoryBuffer> MB =
+        MemoryBuffer::getMemBuffer(StringRef(*Entries));
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
       EntriesInits.push_back(ConstantStruct::get(
           EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),

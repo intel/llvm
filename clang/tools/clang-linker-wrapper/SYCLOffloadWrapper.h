@@ -16,6 +16,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 // SYCL binary image formats supported.
 enum class SYCLBinaryImageFormat {
@@ -32,7 +33,7 @@ struct SYCLImage {
   std::optional<llvm::util::PropertySetRegistry> PropertyRegistry;
 
   // Note: Must be null-terminated.
-  std::optional<std::vector<char>> Entries;
+  std::optional<std::string> Entries;
 
   // Offload target triple. TODO: check is not performed yet.
   std::string Target;

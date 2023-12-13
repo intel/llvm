@@ -634,8 +634,9 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File);
+Expected<std::vector<char>> readBinaryFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
+                                       /*RequiresNullTerminator */ false);
   if (!MBOrErr)
     return createFileError(File, MBOrErr.getError());
 
@@ -643,9 +644,19 @@ Expected<std::vector<char>> readFile(StringRef File) {
   return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
 }
 
+Expected<std::string> readTextFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
+                                       /*RequiresNullTerminator */ true);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
+
+  auto &MB = *MBOrErr;
+  return std::string(MB->getBufferStart(), MB->getBufferEnd());
+}
+
 Expected<std::unique_ptr<util::PropertySetRegistry>>
 readPropertyRegistryFromFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File);
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true);
   if (!MBOrErr)
     return createFileError(File, MBOrErr.getError());
 
@@ -687,7 +698,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
       return createStringError(inconvertibleErrorCode(),
                                "invalid SYCL Table file.");
 
-    auto ImageOrErr = readFile(Elems[0]);
+    auto ImageOrErr = readBinaryFile(Elems[0]);
     if (!ImageOrErr)
       return ImageOrErr.takeError();
 
@@ -695,7 +706,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
     if (!PropertiesOrErr)
       return PropertiesOrErr.takeError();
 
-    auto SymbolsOrErr = readFile(Elems[2]);
+    auto SymbolsOrErr = readTextFile(Elems[2]);
     if (!SymbolsOrErr)
       return SymbolsOrErr.takeError();
 
