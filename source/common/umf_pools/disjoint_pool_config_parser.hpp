@@ -23,7 +23,7 @@ class DisjointPoolAllConfigs {
     size_t EnableBuffers = 1;
     DisjointPoolConfig Configs[DisjointPoolMemType::All];
 
-    DisjointPoolAllConfigs();
+    DisjointPoolAllConfigs(int trace = 0);
 };
 
 // Parse optional config parameters of this form:

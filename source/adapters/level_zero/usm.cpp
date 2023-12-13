@@ -49,14 +49,6 @@ ur_result_t umf2urResult(umf_result_t umfResult) {
 }
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
-  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
-  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
-  const char *PoolConfigVal =
-      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
-  if (PoolConfigVal == nullptr) {
-    return usm::DisjointPoolAllConfigs();
-  }
-
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
   const char *PoolPiTraceVal =
       std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
@@ -67,6 +59,14 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
   int PoolTrace = 0;
   if (PoolTraceVal != nullptr) {
     PoolTrace = std::atoi(PoolTraceVal);
+  }
+
+  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  const char *PoolConfigVal =
+      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
+  if (PoolConfigVal == nullptr) {
+    return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 
   return usm::parseDisjointPoolConfig(PoolConfigVal, PoolTrace);
