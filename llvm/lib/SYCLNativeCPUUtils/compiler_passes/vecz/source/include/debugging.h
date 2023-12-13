@@ -28,6 +28,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Value.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <cstdlib>
@@ -63,6 +64,12 @@ struct VeczFailResult {
   template <typename T>
   operator std::optional<T>() const {
     return std::nullopt;
+  }
+
+  /// @brief For functions that return an llvm::Error
+  operator llvm::Error() const {
+    return llvm::make_error<llvm::StringError>("Unknown VeczFailResult",
+                                               llvm::inconvertibleErrorCode());
   }
 };
 
@@ -175,13 +182,16 @@ struct AnalysisFailResult : public internal::VeczFailResult {
 /// @param[in] F The function in which we are currently working
 /// @param[in] V The value (can be `nullptr`) to be included in the message
 /// @param[in] Msg The main remark message text
+/// @param[in] Note An optional additional note to provide more context/info.
 void emitVeczRemarkMissed(const llvm::Function *F, const llvm::Value *V,
-                          llvm::StringRef Msg);
+                          llvm::StringRef Msg, llvm::StringRef Note = "");
 /// @brief Emit a RemarkMissed message
 ///
 /// @param[in] F The function in which we are currently working
 /// @param[in] Msg The main remark message text
-void emitVeczRemarkMissed(const llvm::Function *F, llvm::StringRef Msg);
+/// @param[in] Note An optional additional note to provide more context/info.
+void emitVeczRemarkMissed(const llvm::Function *F, llvm::StringRef Msg,
+                          llvm::StringRef Note = "");
 /// @brief Emit a Remark message
 ///
 /// @param[in] F The function in which we are currently working
