@@ -42,10 +42,9 @@ public:
 
   bool isStarted() const noexcept { return IsStarted; }
 
-  bool isCompleted() const noexcept;
+  bool isCompleted() const;
 
-  uint32_t getExecutionStatus() const noexcept {
-
+  uint32_t getExecutionStatus() const {
     if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
     }
