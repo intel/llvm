@@ -156,17 +156,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
-    [[maybe_unused]] ur_adapter_handle_t
-        AdapterHandle,    ///< [in] handle of the platform instance
+    ur_adapter_handle_t,  ///< [in] handle of the platform instance
     const char **Message, ///< [out] pointer to a C string where the adapter
                           ///< specific error message will be stored.
-    [[maybe_unused]] int32_t
-        *Error ///< [out] pointer to an integer where the adapter specific
-               ///< error code will be stored.
+    int32_t *Error ///< [out] pointer to an integer where the adapter specific
+                   ///< error code will be stored.
 ) {
-  AdapterHandle = &Adapter;
   *Message = ErrorMessage;
-  Error = &ErrorAdapterNativeCode;
+  *Error = ErrorAdapterNativeCode;
 
   return ErrorMessageCode;
 }
