@@ -43,6 +43,11 @@ inline void error(const char *format, Args &&...args) {
     get_logger().log(logger::Level::ERR, format, std::forward<Args>(args)...);
 }
 
+template <typename... Args>
+inline void always(const char *format, Args &&...args) {
+    get_logger().always(format, std::forward<Args>(args)...);
+}
+
 inline void setLevel(logger::Level level) { get_logger().setLevel(level); }
 
 inline void setFlushLevel(logger::Level level) {

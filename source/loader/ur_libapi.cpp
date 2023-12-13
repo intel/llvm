@@ -2121,6 +2121,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2177,6 +2178,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2236,6 +2238,7 @@ ur_result_t UR_APICALL urUSMDeviceAlloc(
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
