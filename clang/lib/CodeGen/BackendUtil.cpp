@@ -734,9 +734,9 @@ static void addSanitizers(const Triple &TargetTriple,
       }
     };
     // AddressSanitizer can be enabled in offloading scenario to detect bugs in
-    // both host and device code bugs. Sometimes, users may care device or host,
-    // they can use '-fsanitizer-targets' flag to control, the default behavior
-    // is we will enable AddressSanitizer in both host and device compilation.
+    // both host and device code.  Users may use '-fsanitizer-targets' flag to enable
+    // this only on the host or only on the device.  The default behavior
+    // is to enable AddressSanitizer in both host and device compilation.
     bool IgnoreAsanPass = false;
     if (LangOpts.isSYCL()) {
       auto AsanTarget = CodeGenOpts.getSanitizeTargetsToEnable();
