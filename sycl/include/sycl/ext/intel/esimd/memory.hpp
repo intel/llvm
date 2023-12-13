@@ -6197,7 +6197,7 @@ template <atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
-    simd<Tx, N>>
+    simd<T, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
               simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, simd<Toffset, N>(offset), src0, mask);
