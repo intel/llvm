@@ -107,12 +107,9 @@ etors:
     - name: EXP_WIN32_HANDLE
       desc: $x_exp_win32_handle_t
       value: "0x2004"
-    - name: EXP_LAYERED_IMAGE_PROPERTIES
-      desc: $x_exp_layered_image_properties_t
-      value: "0x2005"
     - name: EXP_SAMPLER_ADDR_MODES
       desc: $x_exp_sampler_addr_modes_t
-      value: "0x2006"
+      value: "0x2005"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -204,20 +201,6 @@ class: $xBindlessImages
 name: $x_exp_interop_semaphore_desc_t
 base: $x_base_desc_t
 members: []
---- #--------------------------------------------------------------------------
-type: struct
-desc: "Describes layered image properties"
-details:
-    - Specify these properties in $xBindlessImagesUnsampledImageCreateExp or 
-      $xBindlessImagesSampledImageCreateExp via $x_image_desc_t as part of a 
-      `pNext` chain.
-class: $xBindlessImages
-name: $x_exp_layered_image_properties_t
-base: $x_base_properties_t
-members:
-    - type: uint32_t
-      name: numLayers
-      desc: "[in] number of layers the image should have"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"

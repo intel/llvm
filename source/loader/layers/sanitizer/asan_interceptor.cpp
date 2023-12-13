@@ -84,6 +84,13 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
 
 } // namespace
 
+/// The memory chunk allocated from the underlying allocator looks like this:
+/// L L L L L L U U U U U U R R
+///   L -- left redzone words (0 or more bytes)
+///   U -- user memory.
+///   R -- right redzone (0 or more bytes)
+///
+/// ref: "compiler-rt/lib/asan/asan_allocator.cpp" Allocator::Allocate
 ur_result_t SanitizerInterceptor::allocateMemory(
     ur_context_handle_t Context, ur_device_handle_t Device,
     const ur_usm_desc_t *Properties, ur_usm_pool_handle_t Pool, size_t Size,
@@ -229,16 +236,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
-        fprintf(stderr, "\n====ERROR: DeviceSanitizer: %s on %s\n\n",
-                DeviceSanitizerFormat(AH->ErrorType),
-                DeviceSanitizerFormat(AH->MemoryType));
-        fprintf(stderr,
-                "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-                "%lu, %lu)\n",
-                AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
-                AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
-        fflush(stderr);
+        context.logger.always("\n====ERROR: DeviceSanitizer: %s on %s\n\n",
+                              DeviceSanitizerFormat(AH->ErrorType),
+                              DeviceSanitizerFormat(AH->MemoryType));
+        context.logger.always(
+            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
+            "%lu, %lu)\n",
+            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
+            AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
+        context.logger.always("  #0 %s %s:%d\n", Func, File, AH->Line);
         if (!AH->IsRecover) {
             abort();
         }
@@ -385,6 +391,13 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
     return UR_RESULT_SUCCESS;
 }
 
+/// Each 8 bytes of application memory are mapped into one byte of shadow memory
+/// The meaning of that byte:
+///  - Negative: All bytes are not accessible (poisoned)
+///  - 0: All bytes are accessible
+///  - 1 <= k <= 7: Only the first k bytes is accessible
+///
+/// ref: https://github.com/google/sanitizers/wiki/AddressSanitizerAlgorithm#mapping
 ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ur_queue_handle_t Queue, std::shared_ptr<USMAllocInfo> &AllocInfo,
