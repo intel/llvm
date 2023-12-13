@@ -71,31 +71,36 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
 context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
                            async_handler AsyncHandler, const PluginPtr &Plugin,
+                           const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
-    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler), MDevices(),
-      MContext(PiContext), MPlatform(), MHostContext(false),
-      MSupportBufferLocationByDevices(NotChecked) {
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
+      MDevices(DeviceList), MContext(PiContext), MPlatform(),
+      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+  if (!MDevices.empty()) {
+    MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
+  } else {
+    std::vector<sycl::detail::pi::PiDevice> DeviceIds;
+    uint32_t DevicesNum = 0;
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call<PiApiKind::piContextGetInfo>(
+        MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+        nullptr);
+    DeviceIds.resize(DevicesNum);
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call<PiApiKind::piContextGetInfo>(
+        MContext, PI_CONTEXT_INFO_DEVICES,
+        sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0],
+        nullptr);
 
-  std::vector<sycl::detail::pi::PiDevice> DeviceIds;
-  uint32_t DevicesNum = 0;
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piContextGetInfo>(
-      MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
-      nullptr);
-  DeviceIds.resize(DevicesNum);
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piContextGetInfo>(
-      MContext, PI_CONTEXT_INFO_DEVICES,
-      sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0], nullptr);
-
-  if (!DeviceIds.empty()) {
-    std::shared_ptr<detail::platform_impl> Platform =
-        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
-    for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
-      MDevices.emplace_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+    if (!DeviceIds.empty()) {
+      std::shared_ptr<detail::platform_impl> Platform =
+          platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+      for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
+        MDevices.emplace_back(createSyclObjFromImpl<device>(
+            Platform->getOrMakeDeviceImpl(Dev, Platform)));
+      }
+      MPlatform = Platform;
     }
-    MPlatform = Platform;
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken

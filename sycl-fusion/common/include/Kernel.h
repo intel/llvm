@@ -61,6 +61,38 @@ enum class ParameterKind : uint32_t {
 /// Different binary formats supported as input to the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
+/// Unique ID for each supported architecture in the SYCL implementation.
+///
+/// Values of this type will only be used in the kernel fusion non-persistent
+/// JIT. There is no guarantee for backwards compatibility, so this should not
+/// be used in persistent caches.
+using DeviceArchitecture = unsigned;
+
+class TargetInfo {
+public:
+  static constexpr TargetInfo get(BinaryFormat Format,
+                                  DeviceArchitecture Arch) {
+    if (Format == BinaryFormat::SPIRV) {
+      /// As an exception, SPIR-V targets have a single common ID (-1), as fused
+      /// kernels will be reused across SPIR-V devices.
+      return {Format, DeviceArchitecture(-1)};
+    }
+    return {Format, Arch};
+  }
+
+  TargetInfo() = default;
+
+  constexpr BinaryFormat getFormat() const { return Format; }
+  constexpr DeviceArchitecture getArch() const { return Arch; }
+
+private:
+  constexpr TargetInfo(BinaryFormat Format, DeviceArchitecture Arch)
+      : Format(Format), Arch(Arch) {}
+
+  BinaryFormat Format;
+  DeviceArchitecture Arch;
+};
+
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
 struct SYCLKernelBinaryInfo {

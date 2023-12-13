@@ -1,4 +1,4 @@
-//==------------- private_memory_pvc.cpp  - DPC++ ESIMD on-device test -----==//
+//= bfloat16_half_vector_plus_eq_scalar_pvc.cpp - Test for bfloat16 operators=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The test verifies that basic ESIMD API works properly with
-// private memory allocated on stack.
-
-#define TEST_TFLOAT32
-#include "private_memory.cpp"
+#define USE_BF16
+#define USE_TF32
+#include "bfloat16_half_vector_plus_eq_scalar.cpp"

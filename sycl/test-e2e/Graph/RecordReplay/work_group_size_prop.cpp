@@ -7,7 +7,6 @@
 
 // Temporarily disabled for CUDA.
 // XFAIL: cuda
-
 // Note: failing negative test with HIP in the original test
 // TODO: disable hip when HIP backend will be supported by Graph
 
