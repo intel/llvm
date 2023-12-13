@@ -908,7 +908,7 @@ private:
                                    KI::isESIMD());
       MKernelName = KI::getName();
       using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+          typename detail::get_kernel_name_t<KernelName, KernelType>::name;
       MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else {
       // In case w/o the integration header it is necessary to process
