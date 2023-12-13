@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e69ed21468e04ed6e832accf162422ed11736446
-  # Merge: 20fa0b5f 7fd9dafd
+  # commit 69a56ea6d1369a6bde5fce97c85fc7dbda49252f
+  # Merge: b25bb64d b78f541d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Dec 8 12:18:51 2023 +0000
-  #     Merge pull request #962 from jandres742/fixwaitbarrierwithevent
-  #     [UR][L0] Correctly wait on barrier on urEnqueueEventsWaitWithBarrier
-  set(UNIFIED_RUNTIME_TAG e69ed21468e04ed6e832accf162422ed11736446)
+  # Date:   Mon Dec 11 12:30:24 2023 +0000
+  #     Merge pull request #1123 from aarongreig/aaron/usmLocationProps
+  #     [OpenCL] Add ur_usm_alloc_location_desc struct and handle it in the CL adapter.
+  set(UNIFIED_RUNTIME_TAG 69a56ea6d1369a6bde5fce97c85fc7dbda49252f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

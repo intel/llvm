@@ -257,11 +257,13 @@ public:
   std::string
   get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
 
+  /// Get device architecture
+  ext::oneapi::experimental::architecture getDeviceArch() const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice,
                        sycl::detail::pi::PiDevice Device,
                        PlatformImplPtr Platform, const PluginPtr &Plugin);
-  ext::oneapi::experimental::architecture getDeviceArch() const;
   sycl::detail::pi::PiDevice MDevice = 0;
   sycl::detail::pi::PiDeviceType MType;
   sycl::detail::pi::PiDevice MRootDevice = nullptr;
