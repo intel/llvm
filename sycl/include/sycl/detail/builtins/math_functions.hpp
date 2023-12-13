@@ -412,7 +412,6 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
         [](auto... xs) { return sincos_impl(xs...); }, y, x);
   } else {
     using detail::builtins::convert_arg;
-    // TODO: T0 or simplify_if_swizzle_t<T0>?
     if constexpr (use_fast_math_v<T0>) {
       // This is a performance optimization to ensure that sincos isn't slower
       // than a pair of sin/cos executed separately. Theoretically, calling
