@@ -1,6 +1,6 @@
 // UNSUPPORTED: system-windows
 
-// RUN: %clangxx -fsycl -fsanitize=address -fsanitize-target=both %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsanitize=address %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN-DEFAULT %s
 // SYCL-ASAN-DEFAULT:  "{{.*}}/ld"
 // SYCL-ASAN-DEFAULT-SAME: "{{.*}}/libclang_rt.asan{{.*}}.a"
