@@ -58,6 +58,8 @@ namespace ur_loader
         {
             for( auto& platform : context->platforms )
             {
+                if(platform.initStatus != ${X}_RESULT_SUCCESS)
+                    continue;
                 platform.dditable.${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( 1, &${obj['params'][1]['name']}[adapterIndex], nullptr );
                 try
                 {
