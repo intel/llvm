@@ -133,22 +133,22 @@ public:
   }
 
   bfloat16 &operator+=(const bfloat16 &rhs) {
-    *this = operator float() + to_float(rhs);
+    value = from_float(to_float(value) + to_float(rhs.value));
     return *this;
   }
 
   bfloat16 &operator-=(const bfloat16 &rhs) {
-    *this = operator float() - to_float(rhs);
+    value = from_float(to_float(value) - to_float(rhs.value));
     return *this;
   }
 
   bfloat16 &operator*=(const bfloat16 &rhs) {
-    *this = operator float() * to_float(rhs);
+    value = from_float(to_float(value) * to_float(rhs.value));
     return *this;
   }
 
   bfloat16 &operator/=(const bfloat16 &rhs) {
-    *this = operator float() / to_float(rhs);
+    value = from_float(to_float(value) / to_float(rhs.value));
     return *this;
   }
 
