@@ -47,6 +47,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
@@ -673,50 +674,45 @@ readPropertyRegistryFromFile(StringRef File) {
 // .bin extension might be a bc, spv or other native extension.
 Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
                                                          const ArgList &Args) {
-  auto MBOrErr = MemoryBuffer::getFile(TableFile);
-  if (!MBOrErr)
-    return createFileError(TableFile, MBOrErr.getError());
 
-  line_iterator LI(**MBOrErr);
-  // check the header.
-  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+  auto TableOrErr = util::SimpleTable::read(TableFile);
+  if (!TableOrErr)
+    return TableOrErr.takeError();
+
+  std::unique_ptr<util::SimpleTable> Table = std::move(*TableOrErr);
+  int CodeIndex = Table->getColumnId("Code");
+  int PropertiesIndex = Table->getColumnId("Properties");
+  int SymbolsIndex = Table->getColumnId("Symbols");
+  if (CodeIndex == -1 || PropertiesIndex == -1 || SymbolsIndex == -1)
     return createStringError(inconvertibleErrorCode(),
-                             "invalid SYCL Table file.");
+                             "expected columns in the table: Code, Properties and Symbols);
 
   StringRef CompileOptions =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
   StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
 
-  ++LI;
   SmallVector<SYCLImage> Images;
-  for (; !LI.is_at_eof(); ++LI) {
-    StringRef Line = *LI;
-    SmallVector<StringRef, 3> Elems;
-    Line.split(Elems, '|'); // expected elems are Code, Properties and Symbols.
+  for (const util::SimpleTable::Row &row : Table->rows()) {
+      auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+      if (!ImageOrErr)
+        return ImageOrErr.takeError();
 
-    if (Elems.size() != 3)
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL Table file.");
+      auto PropertiesOrErr =
+          readPropertyRegistryFromFile(row.getCell("Properties"));
+      if (!PropertiesOrErr)
+        return PropertiesOrErr.takeError();
 
-    auto ImageOrErr = readBinaryFile(Elems[0]);
-    if (!ImageOrErr)
-      return ImageOrErr.takeError();
+      auto SymbolsOrErr = readTextFile(row.getCell("Symbols"));
+      if (!SymbolsOrErr)
+        return SymbolsOrErr.takeError();
 
-    auto PropertiesOrErr = readPropertyRegistryFromFile(Elems[1]);
-    if (!PropertiesOrErr)
-      return PropertiesOrErr.takeError();
-
-    auto SymbolsOrErr = readTextFile(Elems[2]);
-    if (!SymbolsOrErr)
-      return SymbolsOrErr.takeError();
-
-    SYCLImage Image;
-    Image.Image = std::move(*ImageOrErr);
-    Image.PropertyRegistry = std::move(**PropertiesOrErr);
-    Image.Entries = std::move(*SymbolsOrErr);
-    Image.CompileOptions = CompileOptions;
-    Image.LinkOptions = LinkOptions;
-    Images.push_back(std::move(Image));
+      SYCLImage Image;
+      Image.Image = std::move(*ImageOrErr);
+      Image.PropertyRegistry = std::move(**PropertiesOrErr);
+      Image.Entries = std::move(*SymbolsOrErr);
+      Image.CompileOptions = CompileOptions;
+      Image.LinkOptions = LinkOptions;
+      Images.push_back(std::move(Image));
   }
 
   return Images;
@@ -751,7 +747,7 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   Module M(ModuleName, C);
   M.setTargetTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  if (auto E = wrapSYCLBinaries(M, Images))
+  if (Error E = wrapSYCLBinaries(M, Images))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))

@@ -147,6 +147,7 @@ struct Wrapper {
                               Type::getInt32Ty(C), Type::getInt32Ty(C));
   }
 
+  // TODO: Drop Manifest fields.
   // SYCL specific image descriptor type.
   // struct __tgt_device_image {
   //   /// version of this structure - for backward compatibility;
@@ -358,7 +359,7 @@ struct Wrapper {
   // If @ArrayData is empty then a returned pair contains nullptrs.
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
-    if (ArrayData.size() == 0) {
+    if (ArrayData.empty()) {
       auto *PtrTy = ElemTy->getPointerTo();
       auto *NullPtr = Constant::getNullValue(PtrTy);
       return std::make_pair(NullPtr, NullPtr);
@@ -388,7 +389,7 @@ struct Wrapper {
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0);
-    auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0);
+    auto *I32Zero = ConstantInt::get(Type::getInt32Ty(C), 0);
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
@@ -397,7 +398,7 @@ struct Wrapper {
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
       EntriesInits.push_back(ConstantStruct::get(
           EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),
-          Zero, i32Zero, i32Zero));
+          Zero, I32Zero, I32Zero));
 
     auto *Arr = ConstantArray::get(ArrayType::get(EntryTy, EntriesInits.size()),
                                    EntriesInits);
@@ -513,7 +514,7 @@ struct Wrapper {
   // and puts it into a .tgtimg section. This section can be used for
   // finding and extracting all device images from the fat binary after
   // linking.
-  void emitRegistrationFunctions(Constant *Address, size_t Size, size_t ImageID,
+  void emitRegistrationFunctions(Constant *Address, size_t Size, Twine ImageID,
                                  StringRef OffloadKindTag) {
     Type *IntPtrTy = M.getDataLayout().getIntPtrType(C);
     auto *ImgInfoArr =
@@ -522,7 +523,7 @@ struct Wrapper {
                             ConstantInt::get(IntPtrTy, Size)});
     auto *ImgInfoVar = new GlobalVariable(
         M, ImgInfoArr->getType(), true, GlobalVariable::InternalLinkage,
-        ImgInfoArr, Twine(OffloadKindTag) + Twine(ImageID) + Twine(".info"));
+        ImgInfoArr, Twine(OffloadKindTag) + ImageID + ".info");
     ImgInfoVar->setAlignment(
         MaybeAlign(M.getDataLayout().getTypeStoreSize(IntPtrTy) * 2u));
     ImgInfoVar->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
@@ -533,7 +534,7 @@ struct Wrapper {
     appendToUsed(M, ImgInfoVar);
   }
 
-  Constant *wrapImage(const SYCLImage &Image, size_t ImageID,
+  Constant *wrapImage(const SYCLImage &Image, Twine ImageID,
                       StringRef OffloadKindTag) {
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     // DeviceImageStructVersion change log:
@@ -543,18 +544,15 @@ struct Wrapper {
     auto *Version =
         ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
     auto *Kind = ConstantInt::get(Type::getInt8Ty(C), SYCLOffloadKind);
-    auto *Format = ConstantInt::get(
-        Type::getInt8Ty(C),
-        static_cast<int8_t>(binaryImageFormatToInt8(Image.Format)));
-    auto *Target =
-        addStringToModule(Image.Target, Twine(OffloadKindTag) +
-                                            Twine("target.") + Twine(ImageID));
-    auto *CompileOptions = addStringToModule(
-        Image.CompileOptions,
-        Twine(OffloadKindTag) + Twine("opts.compile.") + Twine(ImageID));
+    auto *Format = ConstantInt::get(Type::getInt8Ty(C),
+                                    binaryImageFormatToInt8(Image.Format));
+    auto *Target = addStringToModule(Image.Target, Twine(OffloadKindTag) +
+                                                       "target." + ImageID);
+    auto *CompileOptions =
+        addStringToModule(Image.CompileOptions,
+                          Twine(OffloadKindTag) + "opts.compile." + ImageID);
     auto *LinkOptions = addStringToModule(
-        Image.LinkOptions,
-        Twine(OffloadKindTag) + Twine("opts.link.") + Twine(ImageID));
+        Image.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
     std::pair<Constant *, Constant *> PropSets =
         addPropertySetRegistry(Image.PropertyRegistry);
@@ -564,8 +562,7 @@ struct Wrapper {
       Binary = addDeclarationsForNativeCPU(Image.Entries);
     else {
       Binary = addDeviceImageToModule(
-          Image.Image, Twine(OffloadKindTag) + Twine(ImageID) + Twine(".data"),
-          Image.Target);
+          Image.Image, Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
     // Note: Manifests are deprecated but corresponding nullptr fields should
@@ -616,7 +613,7 @@ struct Wrapper {
 
     return new GlobalVariable(M, DescInit->getType(), /*isConstant*/ true,
                               GlobalValue::InternalLinkage, DescInit,
-                              Twine(OffloadKindTag) + Twine("descriptor"));
+                              Twine(OffloadKindTag) + "descriptor");
   }
 
   /// Creates binary descriptor for the given device images. Binary descriptor
@@ -650,17 +647,18 @@ struct Wrapper {
   ///     Version,                      /*Version*/
   ///     OffloadKind,                  // Kind of offload model.
   ///     Format,                       // format of the image - SPIRV, LLVMIR
-  ///     bc, etc NULL,                         /*DeviceTargetSpec*/
+  ///                                   // bc, etc
+  //      NULL,                         /*DeviceTargetSpec*/
   ///     CompileOptions0,              /*CompileOptions0*/
   ///     LinkOptions0,                 /*LinkOptions0*/
   ///     NULL,                         /*ManifestStart*/
   ///     NULL,                         /*ManifestEnd*/
   ///     Image0,                       /*ImageStart*/
   ///     Image0 + sizeof(Image0),      /*ImageEnd*/
-  ///     __start_offloading_entries,   /*EntriesBegin*/
-  ///     __stop_offloading_entries,    /*EntriesEnd*/
+  ///     __start_offloading_entries0,  /*EntriesBegin*/
+  ///     __stop_offloading_entries0,   /*EntriesEnd*/
   ///     PropertySetBegin0,            /*EntriesEnd*/
-  //      PropertySetEnd0               /*EntriesEnd*/
+  ///     PropertySetEnd0               /*EntriesEnd*/
   ///   },
   ///   ...
   /// };
@@ -676,11 +674,11 @@ struct Wrapper {
   /// Global variable that represents FatbinDesc is returned.
   GlobalVariable *createFatbinDesc(SmallVector<SYCLImage> &Images) {
     const std::string OffloadKindTag =
-        (Twine(".") + "sycl" + Twine("_offloading.")).str();
+        (Twine(".") + "sycl" + "_offloading.").str();
     SmallVector<Constant *> WrappedImages;
     WrappedImages.reserve(Images.size());
     for (size_t i = 0; i != Images.size(); ++i) {
-      WrappedImages.push_back(wrapImage(Images[i], i, OffloadKindTag));
+      WrappedImages.push_back(wrapImage(Images[i], Twine(i), OffloadKindTag));
       Images[i].Image.clear(); // This is just for economy of RAM.
     }
 
@@ -730,7 +728,7 @@ struct Wrapper {
     // Add this function to global destructors.
     appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
-}; // end of Helper
+}; // end of Wrapper
 
 } // anonymous namespace
 
