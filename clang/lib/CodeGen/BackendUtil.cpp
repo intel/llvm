@@ -739,7 +739,7 @@ static void addSanitizers(const Triple &TargetTriple,
     // is to enable AddressSanitizer in both host and device compilation.
     bool IgnoreAsanPass = false;
     if (LangOpts.isSYCL()) {
-      auto AsanTarget = CodeGenOpts.getSanitizeTargetsToEnable();
+      llvm::AsanTargetsToEnable AsanTarget = CodeGenOpts.getSanitizeTargetsToEnable();
       if ((AsanTarget == llvm::AsanTargetsToEnable::Device) &&
           LangOpts.SYCLIsHost)
         IgnoreAsanPass = true;
