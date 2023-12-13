@@ -149,7 +149,8 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 template <int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
     __esimd_srnd(__ESIMD_DNS::vector_type_t<float, N> src1,
-                 __ESIMD_DNS::vector_type_t<float, N> src2) __ESIMD_INTRIN_END;
+                 __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
+        __ESIMD_INTRIN_END;
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
