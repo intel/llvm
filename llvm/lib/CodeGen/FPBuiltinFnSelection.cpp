@@ -63,11 +63,43 @@ static bool replaceWithAltMathFunction(FPBuiltinIntrinsic &BuiltinCall,
   return true;
 }
 
+static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall,
+                              const StringRef IRName) {
+  Function *OldFunc = BuiltinCall.getCalledFunction();
+
+  // Replace the call to the fpbuiltin intrinsic with a call
+  // to the corresponding function from the alternate math library.
+  IRBuilder<> IRBuilder(&BuiltinCall);
+  SmallVector<Value *> Args(BuiltinCall.args());
+  // Preserve the operand bundles.
+  SmallVector<OperandBundleDef, 1> OpBundles;
+  BuiltinCall.getOperandBundlesAsDefs(OpBundles);
+  Value *Replacement = nullptr;
+  if (IRName == "fadd")
+    Replacement = IRBuilder.CreateFAdd(Args[0], Args[1]);
+  else if (IRName == "fsub")
+    Replacement = IRBuilder.CreateFSub(Args[0], Args[1]);
+  else if (IRName == "fmul")
+    Replacement = IRBuilder.CreateFMul(Args[0], Args[1]);
+  else if (IRName == "fdiv")
+    Replacement = IRBuilder.CreateFDiv(Args[0], Args[1]);
+  else if (IRName == "frem")
+    Replacement = IRBuilder.CreateFRem(Args[0], Args[1]);
+  assert(Replacement && "Unexpected fpbuiltin requiring 0.5 max error.");
+  BuiltinCall.replaceAllUsesWith(Replacement);
+  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
+                    << OldFunc->getName() << "` with LLVM IR: `" << IRName
+                    << "`.\n");
+  return true;
+}
+
 static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
                                       FPBuiltinIntrinsic &BuiltinCall) {
+  StringRef OldFuncName = BuiltinCall.getCalledFunction()->getName();
   LLVM_DEBUG({
-    dbgs() << "Selecting an implementation for "
-           << BuiltinCall.getCalledFunction()->getName() << " with accuracy = ";
+    dbgs() << "Selecting an implementation for " << OldFuncName
+           << " with accuracy = ";
     if (BuiltinCall.getRequiredAccuracy() == std::nullopt)
       dbgs() << "(none)\n";
     else
@@ -77,10 +109,46 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   StringSet<> RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
   if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
     report_fatal_error(
-        Twine(BuiltinCall.getCalledFunction()->getName()) +
+        Twine(OldFuncName) +
             Twine(" was called with unrecognized floating-point attributes.\n"),
         false);
     return false;
+  }
+
+  Triple T(BuiltinCall.getModule()->getTargetTriple());
+  llvm::Triple::ArchType Arch = T.getArch();
+  // Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
+  // which means correctly rounded results. For now x86 host AltMathLibrary
+  // doesn't have such ability. For such accuracy level, the fpbuiltins
+  // should be replaced by equivalent IR operation or llvmbuiltins.
+  if ((Arch == Triple::x86 || Arch == Triple::x86_64) &&
+      BuiltinCall.getRequiredAccuracy().value() == 0.5) {
+    if (OldFuncName.contains("fadd")) {
+      return replaceWithLLVMIR(BuiltinCall, "fadd");
+    } else if (OldFuncName.contains("fsub")) {
+      return replaceWithLLVMIR(BuiltinCall, "fsub");
+    } else if (OldFuncName.contains("fmul")) {
+      return replaceWithLLVMIR(BuiltinCall, "fmul");
+    } else if (OldFuncName.contains("fdiv")) {
+      return replaceWithLLVMIR(BuiltinCall, "fdiv");
+    } else if (OldFuncName.contains("frem")) {
+      return replaceWithLLVMIR(BuiltinCall, "frem");
+    } else if (OldFuncName.contains("sqrt")) {
+      OldFuncName.consume_front("llvm.fpbuiltin");
+      std::string LLVMIntrinsicName = "llvm" + OldFuncName.str();
+      return replaceWithAltMathFunction(BuiltinCall, LLVMIntrinsicName);
+    } else if (OldFuncName.contains("ldexp")) {
+      OldFuncName.consume_front("llvm.fpbuiltin");
+      std::string LLVMIntrinsicName = "llvm" + OldFuncName.str();
+      // FIXME: Remove below handling after FE can emit .**i32 in signature.
+      if (auto *Type1 =
+              dyn_cast<FixedVectorType>(BuiltinCall.getOperand(1)->getType()))
+        LLVMIntrinsicName = LLVMIntrinsicName + ".v" +
+                            Twine(Type1->getNumElements()).str() + "i32";
+      else
+        LLVMIntrinsicName += ".i32";
+      return replaceWithAltMathFunction(BuiltinCall, LLVMIntrinsicName);
+    }
   }
 
   /// Call TLI to select a function implementation to call
