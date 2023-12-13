@@ -55,7 +55,7 @@
 #define EXPORT_VEC_3_4(NUM_ARGS, NAME, ...)                                    \
   FOR_EACH2(EXPORT_VEC_3_4_IMPL, NUM_ARGS, NAME, __VA_ARGS__)
 
-#define HOST_IMPL(NUM_ARGS, NAME, ...)                                         \
+#define HOST_IMPL(NAME, ...)                                                   \
   template <typename... Ts> static auto NAME##_host_impl(Ts... xs) {           \
     using namespace detail;                                                    \
     if constexpr ((... || is_vec_v<Ts>)) {                                     \

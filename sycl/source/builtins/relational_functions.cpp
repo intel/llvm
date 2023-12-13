@@ -59,7 +59,7 @@ REL_BUILTIN(ONE_ARG, signbit)
 #pragma GCC pop_options
 #endif
 
-HOST_IMPL(THREE_ARGS, bitselect, [](auto x, auto y, auto z) {
+HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
   using T0 = decltype(x);
   using T1 = decltype(y);
   using T2 = decltype(z);

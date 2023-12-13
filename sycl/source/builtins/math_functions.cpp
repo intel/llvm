@@ -22,7 +22,7 @@
 namespace sycl {
 inline namespace _V1 {
 #define BUILTIN_GENF_CUSTOM(NUM_ARGS, NAME, IMPL)                              \
-  HOST_IMPL(NUM_ARGS, NAME, IMPL)                                              \
+  HOST_IMPL(NAME, IMPL)                                                        \
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, FP_TYPES)
 
 // NOTE: "-> decltype(x)" here and below is need for the half version, what
@@ -175,7 +175,7 @@ __SYCL_EXPORT half lgamma_r_impl(half x, int *p) {
 }
 } // namespace detail
 
-HOST_IMPL(ONE_ARG, ilogb, std::ilogb)
+HOST_IMPL(ilogb, std::ilogb)
 EXPORT_SCALAR_AND_VEC_1_16(ONE_ARG, ilogb, FP_TYPES)
 
 namespace detail {
@@ -212,7 +212,7 @@ __SYCL_EXPORT half sincos_impl(half x, half *p) { return __sincos(x, p); }
   __SYCL_EXPORT float __##NAME##_impl(float x, int y) { return IMPL(x, y); }   \
   __SYCL_EXPORT double __##NAME##_impl(double x, int y) { return IMPL(x, y); } \
   __SYCL_EXPORT half __##NAME##_impl(half x, int y) { return IMPL(x, y); }     \
-  HOST_IMPL(TWO_ARGS, NAME, pown /* delegate to scalar */)                     \
+  HOST_IMPL(NAME, pown /* delegate to scalar */)                               \
   FOR_EACH1(EXPORT_VEC_LAST_INT_1_16, NAME, FP_TYPES)
 
 BUILTIN_MATH_LAST_INT(pown, std::pow)

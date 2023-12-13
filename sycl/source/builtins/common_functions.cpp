@@ -24,7 +24,7 @@
 namespace sycl {
 inline namespace _V1 {
 #define BUILTIN_COMMON(NUM_ARGS, NAME, IMPL)                                   \
-  HOST_IMPL(NUM_ARGS, NAME, IMPL)                                              \
+  HOST_IMPL(NAME, IMPL)                                                        \
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, FP_TYPES)
 
 BUILTIN_COMMON(ONE_ARG, degrees,
@@ -66,7 +66,7 @@ BUILTIN_COMMON(TWO_ARGS, min,
 
 // clamp is implemented for INTEGER_TYPES as well, so expand/inline
 // BUILTIN_COMMON manually.
-HOST_IMPL(THREE_ARGS, clamp, [](auto x, auto y, auto z) -> decltype(x) {
+HOST_IMPL(clamp, [](auto x, auto y, auto z) -> decltype(x) {
   using ElemTy = detail::get_elem_type_t<decltype(x)>;
   if constexpr (std::is_integral_v<ElemTy>) {
     return std::min(std::max(x, y), z);

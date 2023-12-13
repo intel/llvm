@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace native {
 #define BUILTIN_NATIVE_CUSTOM(NUM_ARGS, NAME, IMPL)                            \
-  HOST_IMPL(NUM_ARGS, NAME, IMPL)                                              \
+  HOST_IMPL(NAME, IMPL)                                                        \
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, float)
 
 #define BUILTIN_NATIVE(NUM_ARGS, NAME)                                         \
