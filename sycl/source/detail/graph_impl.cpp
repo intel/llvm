@@ -876,7 +876,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           auto OutEvent = CreateNewEvent();
           pi_int32 Res = sycl::detail::enqueueImpKernel(
               Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
-              CG->MSyclKernel, CG->MKernelName, CG->MKenelNameStringHash,
+              CG->MSyclKernel, CG->MKernelName, CG->MKernelNameStringHash,
               RawEvents, OutEvent,
               // TODO: Pass accessor mem allocations
               nullptr,

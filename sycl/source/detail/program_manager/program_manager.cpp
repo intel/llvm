@@ -650,7 +650,7 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
-                                  std::size_t KenelNameStringHash) {
+                                  std::size_t KernelNameStringHash) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -670,7 +670,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice, KernelName);
   KernelProgramCache::CachedKernelKey k(key);
-  k.setPrecomputedHash(KenelNameStringHash);
+  k.setPrecomputedHash(KernelNameStringHash);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(k);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
@@ -689,7 +689,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   sycl::detail::pi::PiProgram Program =
       getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
 
-  auto BuildF = [this, &Program, &KernelName, KenelNameStringHash,
+  auto BuildF = [this, &Program, &KernelName, KernelNameStringHash,
                  &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
 
@@ -2353,7 +2353,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,
-                                  std::size_t KenelNameStringHash,
+                                  std::size_t KernelNameStringHash,
                                   const property_list &PropList,
                                   sycl::detail::pi::PiProgram Program) {
 

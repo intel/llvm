@@ -169,7 +169,7 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
-  std::size_t MKenelNameStringHash;
+  std::size_t MKernelNameStringHash;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
@@ -178,7 +178,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName, std::size_t KenelNameStringHash,
+               std::string KernelName, std::size_t KernelNameStringHash,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
@@ -189,7 +189,7 @@ public:
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
-        MKenelNameStringHash(std::move(KenelNameStringHash)),
+        MKernelNameStringHash(std::move(KernelNameStringHash)),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
@@ -200,7 +200,7 @@ public:
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
-  std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
+  std::size_t getKernelNameStringHash() { return MKernelNameStringHash; }
 
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;

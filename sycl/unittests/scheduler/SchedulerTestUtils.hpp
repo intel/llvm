@@ -306,7 +306,7 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), getKenelNameStringHash(), getStreamStorage(),
+          getKernelName(), getKernelNameStringHash(), getStreamStorage(),
           MImpl->MAuxiliaryResources, getCGType(), {}, getCodeLoc()));
       break;
     }

@@ -32,7 +32,7 @@ public:
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
-          getArgs(), getKernelName(), getKenelNameStringHash(),
+          getArgs(), getKernelName(), getKernelNameStringHash(),
           getStreamStorage(), std::move(MImpl->MAuxiliaryResources),
           getCGType(), {}, getCodeLoc()));
       break;

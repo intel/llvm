@@ -274,7 +274,7 @@ event handler::finalize() {
           } else {
             Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
                                       KernelBundleImpPtr, MKernel, MKernelName,
-                                      MKenelNameStringHash, RawEvents, NewEvent,
+                                      MKernelNameStringHash, RawEvents, NewEvent,
                                       nullptr, MImpl->MKernelCacheConfig);
           }
         }
@@ -325,7 +325,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-        MKernelName, MKenelNameStringHash, std::move(MStreamStorage),
+        MKernelName, MKernelNameStringHash, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
