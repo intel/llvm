@@ -204,7 +204,6 @@ struct rel_enable_select_marray_helper {
   static constexpr bool check_T0 =
       is_marray_v<T0> && is_rel_generic_scalar_v<get_elem_type_t<T0>>;
   static constexpr bool check_T1 = std::is_same_v<T0, T1>;
-  // TODO: Ensure num_elements<T>::value is available for default case.
   static constexpr bool check_T2 =
       is_marray_v<T2> && std::is_same_v<get_elem_type_t<T2>, bool> &&
       num_elements<T0>::value == num_elements<T2>::value;
