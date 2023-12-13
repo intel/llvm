@@ -236,7 +236,7 @@ private:
 struct SYCLKernelInfo {
 
   std::string Name;
-
+  std::size_t KenelNameStringHash;
   SYCLArgumentDescriptor Args;
 
   AttributeList Attributes;
@@ -249,10 +249,11 @@ struct SYCLKernelInfo {
   SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
   SYCLKernelInfo(const std::string &KernelName,
+                 std::size_t &KenelNameStringHash,
                  const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
                  const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+      : Name{KernelName}, KenelNameStringHash{KenelNameStringHash},
+        Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{BinInfo} {}
 
   explicit SYCLKernelInfo(const std::string &KernelName)
       : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}

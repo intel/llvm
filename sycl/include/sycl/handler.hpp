@@ -561,6 +561,18 @@ private:
     const std::string KernelName = getKernelName();
     return LambdaName == KernelName;
   }
+  template <class KernelNameType> struct KernelNameHash {
+  public:
+    static std::size_t get(std::string KernelName) {
+      static std::unique_ptr<std::size_t> Value;
+      if (!Value) {
+        Value.reset(new std::size_t());
+        std::hash<std::string> StringHasher;
+        *Value = StringHasher(KernelName); // compute the hash here
+      }
+      return *Value;
+    }
+  };
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
@@ -895,6 +907,9 @@ private:
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
       MKernelName = KI::getName();
+      using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -1815,7 +1830,7 @@ public:
                KernelBundleImplPtr)
         .get_specialization_constant<SpecName>();
   }
-
+  std::size_t getKenelNameStringHash() { return MKenelNameStringHash; }
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
@@ -2114,6 +2129,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
@@ -2150,6 +2166,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2189,6 +2206,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2227,6 +2245,7 @@ public:
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
+      MKenelNameStringHash = KernelNameHash<NameT>::get(MKernelName);
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -3295,6 +3314,7 @@ private:
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
+  std::size_t MKenelNameStringHash;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
@@ -3349,6 +3369,7 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
+
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,

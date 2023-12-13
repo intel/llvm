@@ -531,7 +531,7 @@ public:
 
     auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            MContext, KernelID.get_name(), /*PropList=*/{},
+            MContext, KernelID.get_name(), 0, /*PropList=*/{},
             SelectedImage->get_program_ref());
 
     std::shared_ptr<kernel_impl> KernelImpl =
