@@ -5933,13 +5933,13 @@ __ESIMD_API
 ///               simd<T, N> src0, props = {});                  // (acc-au1-2)
 ///
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<OffsetObjT, OffsetRegionTy>
-/// byte_offset,
+/// atomic_update(AccessorT acc,
+////              simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (acc-au1-3)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<OffsetObjT, OffsetRegionTy>
-/// byte_offset,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (acc-au1-4)
 ///
@@ -6192,19 +6192,19 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
-atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
               simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
+  return atomic_update<Op, T, N>(acc, simd<Toffset, N>(offset), src0, mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
-/// scalar object amd uses \c local_accessor.
+/// scalar object and uses \c local_accessor.
 ///
 /// @tparam Op The atomic operation - can be one of the following:
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
