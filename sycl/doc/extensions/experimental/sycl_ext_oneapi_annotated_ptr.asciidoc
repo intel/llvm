@@ -617,8 +617,8 @@ T operator=(const annotated_ref& other) const;
 a|
 Equivalent to:
 ```c++
-T tmp = other;   // Reads from memory
-                 // with annotations
+T tmp = other.operator T();   // Reads from memory
+                              // with annotations
 *this = tmp;     // Writes to memory
                  // with annotations
 return T;
@@ -642,8 +642,8 @@ Return result by value.
 Available only if the corresponding assignment operator OP is available for `T` taking a type of `O`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
 tmp OP std::forward<O>(a);
 *this = tmp;       // Writes to memory
                    // with annotations
@@ -665,8 +665,8 @@ Return result by value.
 Available only if the corresponding assignment operator OP is available for `T`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
 T tmp2 = b;        // Reads from memory
                    // with annotations
 tmp OP b;
