@@ -303,7 +303,7 @@ static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
   }
 
   // Check whether `GEPI` adds a constant offset, e.g. a byte offset to address
-  // into a padded structure, smaller than the accessor's element size.
+  // into a padded structure, smaller than the element size.
   MapVector<Value *, APInt> VariableOffsets;
   auto PW = DL.getPointerSizeInBits(GEPI->getPointerAddressSpace());
   APInt ConstantOffset = APInt::getZero(PW);
