@@ -63,7 +63,8 @@ auto builtin_delegate_rel_impl(FuncTy F, const Ts &...x) {
   } else {
     // marray.
     marray<bool, T::size()> Res;
-    // TODO: Can we optimize this?
+    // TODO: Can we optimize this? Note that using vector version isn't
+    // straightforward as it doesn't return booleans.
     detail::loop<T::size()>([&](auto idx) { Res[idx] = F(x[idx]...); });
     return Res;
   }
