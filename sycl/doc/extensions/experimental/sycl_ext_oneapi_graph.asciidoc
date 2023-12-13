@@ -313,6 +313,19 @@ enum class graph_support_level {
   emulated
 };
 
+enum class node_type {
+  empty,
+  subgraph,
+  kernel,
+  memcpy,
+  memset,
+  memfill,
+  prefetch,
+  memadvise,
+  ext_oneapi_barrier,
+  host_task,
+};
+
 namespace property {
 
 namespace graph {
@@ -353,7 +366,18 @@ struct graphs_support;
 } // namespace device
 } // namespace info
 
-class node {};
+class node {
+public:
+  node() = delete;
+
+  node_type get_type() const;
+
+  std::vector<node> get_dependencies() const;
+
+  std::vector<node> get_dependent_nodes() const;
+
+  static node get_node_from_event(event nodeEvent);
+};
 
 // State of a graph
 enum class graph_state {
@@ -389,6 +413,9 @@ public:
   void make_edge(node& src, node& dest);
 
   void print_graph(std::string path, bool verbose = false) const;
+
+  std::vector<node> get_nodes() const;
+  std::vector<node> get_root_nodes() const;
 };
 
 template<>
@@ -459,12 +486,56 @@ edges.
 
 The `node` class provides the {crs}[common reference semantics].
 
+==== Node Member Functions
+
+Table {counter: tableNumber}. Member functions of the `node` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental {
-  class node {};
-}
+node_type get_type() const;
 ----
+|Returns a value representing the type of command this node represents.
+
+|
+[source,c++]
+----
+std::vector<node> get_dependencies() const;
+----
+|Returns a list of the predecessor nodes which this node depends on.
+
+|
+[source,c++]
+----
+std::vector<node> get_dependent_nodes() const;
+----
+|Returns a list of the successor nodes which depend on this node.
+
+|
+[source,c++]
+----
+static node get_node_from_event(event nodeEvent);
+----
+|Finds the node associated with an event created from a submission to a queue
+ in the recording state.
+
+Parameters:
+
+* `nodeEvent` - Event returned from a submission to a queue in the recording
+  state.
+
+Returns: Graph node that was created when the command that returned
+`nodeEvent` was submitted.
+
+Exceptions:
+
+* Throws with error code `invalid` if `nodeEvent` is not associated with a
+  graph node.
+
+|===
 
 ==== Depends-On Property
 
@@ -774,6 +845,22 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if the path is invalid or
 the file extension is not supported or if the write operation failed.
+
+|
+[source,c++]
+----
+std::vector<node> get_nodes() const;
+----
+|Returns a list of all the nodes present in the graph in the order that they
+were added.
+
+|
+[source,c++]
+----
+std::vector<node> get_root_nodes() const;
+----
+|Returns a list of all nodes in the graph which have no dependencies in the
+order they were added to the graph.
 
 |===
 
