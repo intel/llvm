@@ -17,6 +17,8 @@ template <typename... Ts> struct last_int_rest_same {
   static constexpr bool value = []() constexpr {
     constexpr auto N = sizeof...(Ts);
     using first_type = typename first_type<Ts...>::type;
+    if (!builtin_same_shape_v<first_type>)
+      return false;
     int i = 0;
     using int_type =
         std::conditional_t<is_vec_or_swizzle_v<first_type>, int32_t, int>;
@@ -26,7 +28,6 @@ template <typename... Ts> struct last_int_rest_same {
               ? /* last */ builtin_same_shape_v<Ts> // filter out "bad" types,
                                                     // e.g. multi-ptr
                     && std::is_same_v<get_elem_type_t<Ts>, int_type>
-              // FIXME: basic check
               : /* not last  */ builtin_same_or_swizzle_v<first_type, Ts>)));
   }();
 };
@@ -34,6 +35,8 @@ template <typename... Ts> struct last_intptr_rest_same {
   static constexpr bool value = []() constexpr {
     constexpr auto N = sizeof...(Ts);
     using first_type = typename first_type<Ts...>::type;
+    if (!builtin_same_shape_v<first_type>)
+      return false;
     int i = 0;
     using int_type =
         std::conditional_t<is_vec_or_swizzle_v<first_type>, int32_t, int>;
@@ -46,7 +49,6 @@ template <typename... Ts> struct last_intptr_rest_same {
                     !is_swizzle_v<get_elem_type_t<Ts>> &&
                     std::is_same_v<get_elem_type_t<get_elem_type_t<Ts>>,
                                    int_type>
-              // FIXME: basic check
               : /* not last  */ builtin_same_or_swizzle_v<first_type, Ts>)));
   }();
 };
