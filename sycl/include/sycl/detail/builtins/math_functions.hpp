@@ -302,9 +302,8 @@ using builtin_last_raw_intptr_t =
   FOR_EACH2(LAST_INT_PTR_DECLARE_SCALAR, NUM_ARGS, NAME, FP_TYPES)             \
   template <SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TYPENAME_TYPE), typename PtrTy>   \
   auto NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE_ARG_REF),    \
-                   PtrTy &&p) {                                                \
-    /* TODO: Do we really need std::remove_reference_t here? */                \
-    if constexpr (is_multi_ptr_v<std::remove_reference_t<PtrTy>>) {            \
+                   PtrTy p) {                                                  \
+    if constexpr (is_multi_ptr_v<PtrTy>) {                                     \
       /* TODO: Can't really create multi_ptr on host... */                     \
       return NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p.get_raw());  \
     } else {                                                                   \
