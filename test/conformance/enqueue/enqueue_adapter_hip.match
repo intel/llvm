@@ -1,4 +1,4 @@
-{{OPT}}Segmentation Fault
+{{OPT}}{{Segmentation fault|Aborted}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
