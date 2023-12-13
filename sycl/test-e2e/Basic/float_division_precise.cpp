@@ -1,4 +1,6 @@
-// RUN: %{build} -ffp-model=precise -o %t.out
+// DEFINE: %{preciseflag} = %if cl_options %{/fp:precise%} %else %{-ffp-model=precise%}
+
+// RUN: %{build} %{preciseflag} -o %t.out
 // RUN: %{run} %t.out
 
 // Tests that -ffp-model=precise causes floating point division to be the same

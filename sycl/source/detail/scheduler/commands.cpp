@@ -2488,8 +2488,9 @@ pi_int32 enqueueImpCommandBufferKernel(
   }
 
   if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid,
-                          "Failed to add kernel to PI command-buffer");
+    const device_impl &DeviceImplem = *(DeviceImpl);
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
+                                                        PiKernel, NDRDesc);
   }
 
   return Res;

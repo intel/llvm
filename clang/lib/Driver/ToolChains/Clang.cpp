@@ -9706,6 +9706,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // default is "none" which means runtime must try to determine it
     // automatically.
     StringRef Kind = Action::GetOffloadKindName(OffloadingKind);
+    Action::OffloadKind OK = WrapperJob.getOffloadKind();
+    if (OK != Action::OFK_None)
+      Kind = Action::GetOffloadKindName(OK);
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
@@ -10212,10 +10215,13 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
 
-  // On FPGA target we don't need non-kernel functions as entry points, because
-  // it only increases amount of code for device compiler to handle, without any
-  // actual benefits.
-  if (T.getArchName() == "spir64_fpga")
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
+                      options::OPT_fsycl_remove_unused_external_funcs, false) &&
+      !T.isNVPTX() && !T.isAMDGPU())
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
@@ -10573,7 +10579,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
-    // --sycl-device-libraries=<comma separated list> contains all of the SYCL
+    // -sycl-device-libraries=<comma separated list> contains all of the SYCL
     // device specific libraries that are needed.  This provides the list of
     // files file only.
     // TODO: This generic list will be populated with only device binaries
@@ -10601,14 +10607,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         LibList += ",";
       LibList += AddLib;
     }
-    // --sycl-device-libraries=<libs> provides a comma separate list of
+    // -sycl-device-libraries=<libs> provides a comma separate list of
     // libraries to add to the device linking step.
     // SYCL device libraries can be found.
     if (LibList.size())
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("--sycl-device-libraries=") + LibList));
+          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
 
-    // --sycl-device-library-location=<dir> provides the location in which the
+    // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
     SmallString<128> DeviceLibDir(D.Dir);
     llvm::sys::path::append(DeviceLibDir, "..", "lib");
@@ -10630,7 +10636,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--sycl-device-library-location=") + DeviceLibDir));
+        Twine("-sycl-device-library-location=") + DeviceLibDir));
   }
 
   auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
