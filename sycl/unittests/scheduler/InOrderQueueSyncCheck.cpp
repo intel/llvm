@@ -22,6 +22,8 @@ class LimitedHandler {
 public:
   virtual ~LimitedHandler() {}
   virtual void depends_on(sycl::event) {}
+  virtual void depends_on(const sycl::detail::EventImplPtr&) {}
+  virtual void depends_on(const std::vector<sycl::detail::EventImplPtr>&) {}
 
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
@@ -35,6 +37,8 @@ public:
 class LimitedHandlerSimulation : public LimitedHandler {
 public:
   MOCK_METHOD1(depends_on, void(sycl::event));
+  MOCK_METHOD1(depends_on, void(const sycl::detail::EventImplPtr&));
+  MOCK_METHOD1(depends_on, void(const std::vector<sycl::detail::EventImplPtr>&));
 };
 
 class MockQueueImpl : public sycl::detail::queue_impl {

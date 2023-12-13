@@ -151,7 +151,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -170,7 +170,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+          MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -248,7 +248,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -267,7 +267,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -294,7 +294,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -314,7 +314,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       }
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -342,7 +342,7 @@ event queue_impl::memcpyToDeviceGlobal(
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -362,7 +362,7 @@ event queue_impl::memcpyToDeviceGlobal(
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -390,7 +390,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -410,7 +410,7 @@ event queue_impl::memcpyFromDeviceGlobal(
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -653,8 +653,8 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MLastEventPtr ||
-           MLastEventPtr->get_info<info::event::command_execution_status>() ==
+    return !MDefaultGraphDeps.LastEventPtr ||
+           MDefaultGraphDeps.LastEventPtr->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
 

@@ -699,7 +699,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MGraphLastEventPtr = nullptr;
+    MExtGraphDeps = {};
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -714,23 +714,44 @@ public:
   {
     if (MIsInorder)
       return;
+    auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems& Deps){
+      if (Deps.LastBarrier == EnqueuedBarrierEvent)
+      {
+        Deps.LastBarrier = nullptr;
+        Deps.NotEnqueuedCmdEvents.clear();
+      }
+    };
     std::lock_guard<std::mutex> Lock{MMutex};
-    if (MLastBarrier == EnqueuedBarrierEvent)
-    {
-      MLastBarrier = nullptr;
-      MNotEnqueuedCmdEvents.clear();
+    // Barrier enqueue could be significantly postponed due to host task dependency if any.
+    // No guarantee that it will happen while same graph deps are still recording.
+    if (auto Graph = EnqueuedBarrierEvent->getCommandGraph())
+    { 
+      if (Graph == getCommandGraph())
+        tryToCleanup(MExtGraphDeps);
     }
+    else
+      tryToCleanup(MDefaultGraphDeps);
   }
+
   // Called on host task completion that could block some kernels from enqueue. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not neede for in order ones.
   void revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask)
   {
     if (MIsInorder)
       return;
-    std::lock_guard<std::mutex> Lock{MMutex};
-    if (MNotEnqueuedCmdEvents.empty())
+    auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems& Deps){
+      if (Deps.NotEnqueuedCmdEvents.empty())
       return;
-    MNotEnqueuedCmdEvents.erase(std::remove_if(MNotEnqueuedCmdEvents.begin(), MNotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->producesPiEvent() && CommandEvent->enqueued()); }), MNotEnqueuedCmdEvents.end());
-  }
+    Deps.NotEnqueuedCmdEvents.erase(std::remove_if(Deps.NotEnqueuedCmdEvents.begin(), Deps.NotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->producesPiEvent() && CommandEvent->getHandleRef()); }), Deps.NotEnqueuedCmdEvents.end());
+    };
+    std::lock_guard<std::mutex> Lock{MMutex};
+    if (auto Graph = CompletedHostTask->getCommandGraph())
+    { 
+      if (Graph == getCommandGraph())
+        return tryToCleanup(MExtGraphDeps);
+    }
+    else
+      tryToCleanup(MDefaultGraphDeps);
+    }
 
 protected:
   event discard_or_return(const event &Event);
@@ -753,7 +774,7 @@ protected:
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
       auto &EventToBuildDeps =
-          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+          MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(
             createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
@@ -762,23 +783,26 @@ protected:
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
     {
-      //HOW to Support Graph
-
       // The following code supports barrier synchronization if host task is involve to the scenario.
       // Native barriers could not handle host task dependency so in case if some commands was not enqueued - blocked we track them to prevent barrier to be enqueued earlier.
       std::lock_guard<std::mutex> Lock{MMutex};
-      if (Type == CG::Barrier && !MNotEnqueuedCmdEvents.empty())
+      auto &Deps =
+          MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.NotEnqueuedCmdEvents.empty())
       {
-        Handler.depends_on(MNotEnqueuedCmdEvents);
+        Handler.depends_on(Deps.NotEnqueuedCmdEvents);
       }
-      if (MLastBarrier->enqueued())
-        Handler.depends_on(MLastBarrier);
+      if (Deps.LastBarrier)
+        Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
-      if (!EventRet->enqueued() || Type == CG::CodeplayHostTask)
-        MNotEnqueuedCmdEvents.push_back(EventRet);
+      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      if ((EventRetImpl->producesPiEvent() && !EventRetImpl->getHandleRef()) || Type == CG::CodeplayHostTask)
+        Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
       if (Type == CG::Barrier || Type == CG::BarrierWaitlist)
-        MLastBarrier = EventRet;
-        MNotEnqueuedCmdEvents.clear();
+      {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.NotEnqueuedCmdEvents.clear();
+      }
     }
   }
 
@@ -897,17 +921,19 @@ protected:
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
-
-  // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MMutex
-  EventImplPtr MLastEventPtr;
-  // Same as above but for graph begin-end recording cycle.
-  // Track deps within graph commands separately.
-  // Protected by common queue object mutex MMutex.
-  EventImplPtr MGraphLastEventPtr;
   
   std::vector<EventImplPtr> MNotEnqueuedCmdEvents;
   EventImplPtr MLastBarrier;
+
+  // Access should be guarded with MMutex
+  struct DependencyTrackingItems
+  {
+    // This event is employed for enhanced dependency tracking with in-order queue
+    EventImplPtr LastEventPtr;
+    // The following two items is employed for proper out of order enqueue ordering
+    std::vector<EventImplPtr> NotEnqueuedCmdEvents;
+    EventImplPtr LastBarrier;
+  } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
 

@@ -288,6 +288,8 @@ public:
 
     return nullptr;
   }
+
+  friend class sycl::detail::queue_impl;
 };
 
 class MockHandlerCustomFinalize : public MockHandler {

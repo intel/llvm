@@ -2962,7 +2962,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::Barrier:
+  case CG::CGTYPE::Barrier: {
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
       MQueue->tryToResetEnqueuedBarrierDep(MEvent);
@@ -2978,6 +2978,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
+  }
   case CG::CGTYPE::BarrierWaitlist: {
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
