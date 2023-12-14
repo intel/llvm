@@ -247,7 +247,7 @@ partitioning when the parent and child represent exactly the same hardware.
 The second reason is practical.  The {dpcpp} implementation will associate
 each composite device with a single Level Zero native device handle, which
 represents the entire card.  There is no way to get a Level Zero handle that
-represents a subset of the tiles.  Therefore, we do not expose a component
+represents a subset of the tiles.  Therefore, we do not expose a composite
 device unless it represents all of the tiles on a card.
 
 The algorithm also imposes a sensible order on the composite devices, which
