@@ -93,10 +93,10 @@ elseif(SYCL_PI_UR_SOURCE_DIR)
 else()
   # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
-  if(NOT ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified
-      Runtime source directory has be proivided, either:
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
 
       * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
