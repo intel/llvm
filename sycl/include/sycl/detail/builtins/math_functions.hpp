@@ -59,10 +59,10 @@ BUILTIN_CREATE_ENABLER(builtin_enable_math_allow_scalar, default_ret_type,
                        fp_elem_type, any_shape, same_elem_type)
 BUILTIN_CREATE_ENABLER(builtin_enable_last_int, default_ret_type, fp_elem_type,
                        non_scalar_only, last_int_rest_same)
-// FIXME: this allows frexp<float, multi>() instead of only providing scalar
-// overload.
-BUILTIN_CREATE_ENABLER(builtin_enable_last_intptr, default_ret_type,
-                       fp_elem_type, any_shape, last_intptr_rest_same)
+BUILTIN_CREATE_ENABLER(builtin_enable_last_intptr_scalar, default_ret_type,
+                       fp_elem_type, scalar_only, last_intptr_rest_same)
+BUILTIN_CREATE_ENABLER(builtin_enable_last_intptr_non_scalar, default_ret_type,
+                       fp_elem_type, non_scalar_only, last_intptr_rest_same)
 
 namespace detail {
 // FIXME: get rid of these.
@@ -236,22 +236,24 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
 }
 } // namespace detail
 
-#define LAST_PTR_SCALAR(NUM_ARGS, NAME, ENABLER, TYPE)                         \
+#define LAST_PTR_SCALAR(NUM_ARGS, NAME, SCALAR_ENABLER, TYPE)                  \
   template <typename PtrTy>                                                    \
-  detail::ENABLER<TYPE, PtrTy> NAME(                                           \
+  detail::SCALAR_ENABLER<TYPE, PtrTy> NAME(                                    \
       SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TYPE_ARG)(TYPE), PtrTy p) {             \
     return detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p);      \
   }
-#define BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, ENABLER)                       \
-  FOR_EACH3(LAST_PTR_SCALAR, NUM_ARGS, NAME, ENABLER, FP_TYPES)                \
+#define BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, SCALAR_ENABLER,                \
+                                NON_SCALAR_ENABLER)                            \
+  FOR_EACH3(LAST_PTR_SCALAR, NUM_ARGS, NAME, SCALAR_ENABLER, FP_TYPES)         \
   template <SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TYPENAME_TYPE), typename PtrTy>   \
-  detail::ENABLER<SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE), PtrTy>      \
+  detail::NON_SCALAR_ENABLER<SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE),  \
+                             PtrTy>                                            \
   NAME(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE_ARG), PtrTy p) {         \
     return detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p);      \
   }
 
 #if __SYCL_DEVICE_ONLY__
-#define BUILTIN_LAST_PTR(NUM_ARGS, NAME, ENABLER)                              \
+#define BUILTIN_LAST_PTR(NUM_ARGS, NAME, SCALAR_ENABLER, NON_SCALAR_ENABLER)   \
   namespace detail {                                                           \
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
   auto NAME##_impl(NUM_ARGS##_TEMPLATE_TYPE_ARG_REF) {                         \
@@ -264,10 +266,10 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
     }                                                                          \
   }                                                                            \
   } /* namespace detail */                                                     \
-  BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, ENABLER)
+  BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, SCALAR_ENABLER, NON_SCALAR_ENABLER)
 #else
-#define BUILTIN_LAST_PTR(NUM_ARGS, NAME, ENABLER)                              \
-  BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, ENABLER)
+#define BUILTIN_LAST_PTR(NUM_ARGS, NAME, SCALAR_ENABLER, NON_SCALAR_ENABLER)   \
+  BUILTIN_LAST_PTR_COMMON(NUM_ARGS, NAME, SCALAR_ENABLER, NON_SCALAR_ENABLER)
 #endif
 
 namespace detail {
@@ -291,7 +293,8 @@ using builtin_last_raw_intptr_t =
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define BUILTIN_LAST_INTPTR(NUM_ARGS, NAME)                                    \
-  BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_t)               \
+  BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_scalar_t,        \
+                   builtin_enable_last_intptr_non_scalar_t)                    \
   BUILTIN_LAST_RAW_INTPTR(NUM_ARGS, NAME)
 #else
 #define LAST_INT_PTR_DECLARE_SCALAR(NUM_ARGS, NAME, TYPE)                      \
@@ -313,7 +316,8 @@ using builtin_last_raw_intptr_t =
     }                                                                          \
   }                                                                            \
   } /* namespace detail */                                                     \
-  BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_t)               \
+  BUILTIN_LAST_PTR(NUM_ARGS, NAME, builtin_enable_last_intptr_scalar_t,        \
+                   builtin_enable_last_intptr_non_scalar_t)                    \
   BUILTIN_LAST_RAW_INTPTR(NUM_ARGS, NAME)
 #endif
 
@@ -334,7 +338,7 @@ template <typename T0, typename T1> auto fract_impl(T0 &x, T1 &y) {
 }
 } // namespace detail
 #endif
-BUILTIN_LAST_PTR(TWO_ARGS, fract, builtin_enable_ptr_t)
+BUILTIN_LAST_PTR(TWO_ARGS, fract, builtin_enable_ptr_t, builtin_enable_ptr_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
@@ -361,7 +365,7 @@ template <typename T0, typename T1> auto modf_impl(T0 &x, T1 &&y) {
 }
 } // namespace detail
 #endif
-BUILTIN_LAST_PTR(TWO_ARGS, modf, builtin_enable_ptr_t)
+BUILTIN_LAST_PTR(TWO_ARGS, modf, builtin_enable_ptr_t, builtin_enable_ptr_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
@@ -445,7 +449,9 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
 }
 #endif
 } // namespace detail
-BUILTIN_LAST_PTR_COMMON(TWO_ARGS, sincos, builtin_enable_ptr_t)
+  // FIXME: non-scalar
+BUILTIN_LAST_PTR_COMMON(TWO_ARGS, sincos, builtin_enable_ptr_t,
+                        builtin_enable_ptr_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
