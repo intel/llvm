@@ -6038,8 +6038,8 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
         !(isa<FunctionDecl>(D) &&
           (cast<FunctionDecl>(D))->getTemplateSpecializationKind() ==
               TSK_ExplicitInstantiationDefinition) &&
-        // Declaration is not referenced and not used
-        !(D->isReferenced() || D->isUsed()) &&
+        // Declaration is not referenced
+        !D->isReferenced() &&
         // debug level < FullDebugInfo
         // (i.e. neither -fstandalone-debug nor
         // -fno-eliminate-unused-debug-types are used)
