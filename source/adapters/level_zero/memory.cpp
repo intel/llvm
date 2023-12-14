@@ -2078,9 +2078,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
   auto &Allocation = Allocations[Device];
 
   // Sub-buffers don't maintain own allocations but rely on parent buffer.
-  if (isSubBuffer()) {
-    UR_CALL(SubBuffer.Parent->getZeHandle(ZeHandle, AccessMode, Device));
-    ZeHandle += SubBuffer.Origin;
+  if (SubBuffer) {
+    UR_CALL(SubBuffer->Parent->getZeHandle(ZeHandle, AccessMode, Device));
+    ZeHandle += SubBuffer->Origin;
     // Still store the allocation info in the PI sub-buffer for
     // getZeHandlePtr to work. At least zeKernelSetArgumentValue needs to
     // be given a pointer to the allocation handle rather than its value.
@@ -2312,7 +2312,7 @@ ur_result_t _ur_buffer::free() {
 // Buffer constructor
 _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
                        bool ImportedHostPtr = false)
-    : ur_mem_handle_t_(Context), Size(Size), SubBuffer{nullptr, 0} {
+    : ur_mem_handle_t_(Context), Size(Size) {
 
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -2347,7 +2347,7 @@ _ur_buffer::_ur_buffer(ur_context_handle_t Context, ur_device_handle_t Device,
 _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size,
                        ur_device_handle_t Device, char *ZeMemHandle,
                        bool OwnZeMemHandle)
-    : ur_mem_handle_t_(Context, Device), Size(Size), SubBuffer{nullptr, 0} {
+    : ur_mem_handle_t_(Context, Device), Size(Size) {
 
   // Device == nullptr means host allocation
   Allocations[Device].ZeHandle = ZeMemHandle;

@@ -12,6 +12,7 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <optional>
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
@@ -116,7 +117,7 @@ struct ur_device_handle_t_ : _ur_object {
 
   // If this device is a subdevice, this variable contains the properties that
   // were used during its creation.
-  ur_device_partition_property_t SubDeviceCreationProperty;
+  std::optional<ur_device_partition_property_t> SubDeviceCreationProperty;
 
   // PI platform to which this device belongs.
   // This field is only set at _ur_device_handle_t creation time, and cannot
