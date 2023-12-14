@@ -187,9 +187,9 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
     ZeDesc.pNext = &RelaxedDesc;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size,
-                                       Alignment, Device->ZeDevice, ResultPtr));
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
+                         Device->ZeDevice, ResultPtr));
   if (ZeResult != ZE_RESULT_SUCCESS) {
     if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
@@ -234,8 +234,8 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
   }
 
   ze_result_t ZeResult = ZE_CALL_NOCHECK(
-      zeMemAllocShared(Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
-                       Alignment, Device->ZeDevice, ResultPtr));
+      zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
+                         Alignment, Device->ZeDevice, ResultPtr));
   if (ZeResult != ZE_RESULT_SUCCESS) {
     if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
@@ -268,8 +268,9 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;
-  ze_result_t ZeResult = ZE_CALL_NOCHECK(zeMemAllocHost(
-      Context->ZeContext, &ZeHostDesc, Size, Alignment, ResultPtr));
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeMemAllocHost, (Context->ZeContext, &ZeHostDesc, Size,
+                                       Alignment, ResultPtr));
   if (ZeResult != ZE_RESULT_SUCCESS) {
     if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
