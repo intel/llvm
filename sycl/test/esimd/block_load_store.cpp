@@ -63,17 +63,17 @@ kernel7(accessor<int, 1, access::mode::read_write, access::target::device> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   auto vals_view = v1.select<8, 1>(0);
-  block_store(buf, 0, vals_view);
+  block_store<int, 8>(buf, 0, vals_view);
 }
 
 SYCL_EXTERNAL void kernel8(local_accessor<int, 1> &buf) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   auto vals_view = v1.select<8, 1>(0);
-  block_store(buf, 0, vals_view);
+  block_store<int, 8>(buf, 0, vals_view);
 }
 
 SYCL_EXTERNAL void kernel9(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   auto vals_view = v1.select<8, 1>(0);
-  block_store(ptr, vals_view);
+  block_store<int, 8>(ptr, vals_view);
 }
