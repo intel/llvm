@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
-#define SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
+#ifndef SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H
+#define SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H
 
 #include <memory>
 #include <mutex>
@@ -61,9 +61,10 @@ private:
 class JITContext {
 
 public:
-  JITContext();
-
-  ~JITContext();
+  static JITContext &getInstance() {
+    static JITContext Instance{};
+    return Instance;
+  }
 
   llvm::LLVMContext *getLLVMContext();
 
@@ -77,6 +78,13 @@ public:
   void addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel);
 
 private:
+  JITContext();
+  ~JITContext() = default;
+  JITContext(const JITContext &) = delete;
+  JITContext(JITContext &&) = delete;
+  JITContext &operator=(const JITContext &) = delete;
+  JITContext &operator=(const JITContext &&) = delete;
+
   // FIXME: Change this to std::shared_mutex after switching to C++17.
   using MutexT = std::shared_timed_mutex;
 
@@ -96,4 +104,4 @@ private:
 };
 } // namespace jit_compiler
 
-#endif // SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
+#endif // SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H
