@@ -635,7 +635,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
     // and piGetDeviceAndHostTimer calls may take significant amount of time,
-    // for example on the first call to getPlugin plugins may beed to be
+    // for example on the first call to getPlugin plugins may need to be
     // initialized. If we use timestamp from the beginning of the function then
     // the difference between host timestamps of the current
     // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect
