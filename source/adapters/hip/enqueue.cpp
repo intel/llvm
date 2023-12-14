@@ -1663,8 +1663,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
+    // There is an issue with hipMemcpy2D* when hipMemcpyDefault is used, which
+    // makes the HIP runtime not correctly derive the copy kind (direction) for
+    // the copies since ROCm 5.6.0+. See: https://github.com/ROCm/clr/issues/40
+#if HIP_VERSION >= 50600000
+    hipPointerAttribute_t srcAttribs{};
+    hipPointerAttribute_t dstAttribs{};
+
+    bool srcIsSystemAlloc{false};
+    bool dstIsSystemAlloc{false};
+
+    hipError_t hipRes{};
+    // hipErrorInvalidValue returned from hipPointerGetAttributes for a non-null
+    // pointer refers to an OS-allocation, hence pageable host memory. However,
+    // this means we cannot rely on the attributes result, hence we mark system
+    // pageable memory allocation manually as host memory. The HIP runtime can
+    // handle the registering/unregistering of the memory as long as the right
+    // copy-kind (direction) is provided to hipMemcpy2DAsync for this case.
+    hipRes = hipPointerGetAttributes(&srcAttribs, (const void *)pSrc);
+    if (hipRes == hipErrorInvalidValue && pSrc)
+      srcIsSystemAlloc = true;
+    hipRes = hipPointerGetAttributes(&dstAttribs, (const void *)pDst);
+    if (hipRes == hipErrorInvalidValue && pDst)
+      dstIsSystemAlloc = true;
+
+    const unsigned int srcMemType{srcAttribs.memoryType};
+    const unsigned int dstMemType{dstAttribs.memoryType};
+
+    const bool srcIsHost{(srcMemType == hipMemoryTypeHost) || srcIsSystemAlloc};
+    const bool srcIsDevice{srcMemType == hipMemoryTypeDevice};
+    const bool dstIsHost{(dstMemType == hipMemoryTypeHost) || dstIsSystemAlloc};
+    const bool dstIsDevice{dstMemType == hipMemoryTypeDevice};
+
+    unsigned int cpyKind{};
+    if (srcIsHost && dstIsHost)
+      cpyKind = hipMemcpyHostToHost;
+    else if (srcIsHost && dstIsDevice)
+      cpyKind = hipMemcpyHostToDevice;
+    else if (srcIsDevice && dstIsHost)
+      cpyKind = hipMemcpyDeviceToHost;
+    else if (srcIsDevice && dstIsDevice)
+      cpyKind = hipMemcpyDeviceToDevice;
+    else
+      cpyKind = hipMemcpyDefault;
+
+    UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
+                                    height, (hipMemcpyKind)cpyKind, HIPStream));
+#else
     UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
                                     height, hipMemcpyDefault, HIPStream));
+#endif
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
