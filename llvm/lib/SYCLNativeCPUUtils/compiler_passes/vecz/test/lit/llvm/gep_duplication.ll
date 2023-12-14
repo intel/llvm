@@ -14,13 +14,20 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: veczc -S < %s | FileCheck %s
+; RUN: veczc -S -vecz-passes="function(mem2reg,instcombine),cfg-convert,gvn,packetizer" < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 %struct.testStruct = type { [2 x i32] }
 
+
+; Check that we de-duplicate the GEPs used across this kernel (using a
+; combination of instcombine and GVN).
+; CHECK: spir_kernel void @__vecz_v{{[0-9]+}}_gep_duplication
+; CHECK: entry:
+; CHECK: getelementptr inbounds [2 x i32], ptr %myStruct, i{{32|64}} 0, i{{32|64}} 1
+; CHECK-NOT: getelementptr {{.*}}%myStruct
 define spir_kernel void @gep_duplication(ptr addrspace(1) align 4 %out) {
 entry:
   %out.addr = alloca ptr addrspace(1), align 8
@@ -68,8 +75,3 @@ if.end:                                           ; preds = %if.else, %if.then
 }
 
 declare i64 @__mux_get_global_id(i32)
-
-; CHECK: spir_kernel void @__vecz_v{{[0-9]+}}_gep_duplication
-; CHECK: entry:
-; CHECK: getelementptr inbounds [2 x i32], ptr %myStruct, i{{32|64}} 0, i{{32|64}} 1
-; CHECK-NOT: getelementptr {{.*}}%myStruct

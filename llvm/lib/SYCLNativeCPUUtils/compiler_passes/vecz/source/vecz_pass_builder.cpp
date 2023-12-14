@@ -41,6 +41,7 @@
 #include <llvm/Transforms/Scalar/FlattenCFG.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/IndVarSimplify.h>
+#include <llvm/Transforms/Scalar/SROA.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
 #include <llvm/Transforms/Scalar/Sink.h>
 #include <llvm/Transforms/Utils/BreakCriticalEdges.h>
@@ -181,7 +182,17 @@ bool vecz::buildPassPipeline(ModulePassManager &PM) {
   PM.addPass(createModuleToFunctionPassAdaptor(LowerSwitchPass()));
   PM.addPass(createModuleToFunctionPassAdaptor(FixIrreduciblePass()));
 
-  // We have to run LLVM's Mem2Reg pass in case the front end didn't
+  // It's helpful to run SROA in case it opens up more opportunities to
+  // eliminate aggregates in (particularly SYCL) kernels. This is especially
+  // true after inlining - which we've (usually) just performed in the
+  // BuiltinInliningPass - because otherwise SROA is unable to analyze the
+  // lifetime of allocas due to them being "escaped" by the function callee.
+  PM.addPass(
+      createModuleToFunctionPassAdaptor(SROAPass(SROAOptions::ModifyCFG)));
+  // We have to run LLVM's Mem2Reg pass in case the front end didn't. Note that
+  // SROA usually runs Mem2Reg internally (unless disabled via a command-line
+  // option) though using its own heuristic. We run it unconditionally
+  // regardless, just for good measure.
   PM.addPass(createModuleToFunctionPassAdaptor(PromotePass()));
   // LLVM's own Mem2Reg pass doesn't always get everything
   PM.addPass(createModuleToFunctionPassAdaptor(BasicMem2RegPass()));

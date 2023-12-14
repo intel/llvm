@@ -18,7 +18,7 @@
 ; intrinsics across all lanes even when scalarization masks disable some
 ; of the lanes. This occurs when we scalarize insertelement instructions.
 
-; RUN: veczc -k unaligned_load -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s
+; RUN: veczc -k unaligned_load -vecz-passes="function(instcombine,adce),scalarize,packetizer,instcombine" -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -49,7 +49,7 @@ entry:
 ; FIXME: This llvm.dbg.value marks a 'kill location' and denotes the
 ; termination of the previous value assigned to %tmp - we could probably do
 ; better here by manifesting a vectorized value?
-; CHECK: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata !{{[0-9]+}},
+; CHECK: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata [[VAR:![0-9]+]],
 ; CHECK-SAME:   metadata !DIExpression({{.*}})), !dbg !{{[0-9]+}}
   %1 = load i32, i32* %tid, align 4, !dbg !32
   %mul = mul nsw i32 3, %1, !dbg !32
@@ -104,6 +104,9 @@ attributes #3 = { nobuiltin }
 !opencl.kernels = !{!21}
 !llvm.module.flags = !{!27}
 !llvm.ident = !{!28}
+
+; Now check we're actually looking at the right variable.
+; CHECK: [[VAR]] = !DILocalVariable(name: "tmp",
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 3.8.1 ", isOptimized: true, runtimeVersion: 0, emissionKind: 1, enums: !2, retainedTypes: !3)
 !1 = !DIFile(filename: "kernel.opencl", directory: "/home/Aorta/vecz_build")
