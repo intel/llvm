@@ -6,7 +6,7 @@ permissions:
 jobs:
   code_formatter:
     runs-on: ubuntu-latest
-    if: github.repository == 'llvm/llvm-project'
+    if: github.repository == 'llvm/llvm-project' || github.repository == 'intel/llvm'
     steps:
       - name: Fetch LLVM sources
         uses: actions/checkout@v4
