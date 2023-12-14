@@ -55,6 +55,7 @@
 #include "memory_operations.h"
 #include "transform/instantiation_pass.h"
 #include "transform/packetization_helpers.h"
+#include "vectorization_context.h"
 #include "vectorization_unit.h"
 #include "vecz/vecz_choices.h"
 #include "vecz/vecz_target_info.h"
@@ -301,6 +302,14 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeMemOp(MemOp &Op);
+  /// @brief Packetize a masked atomic RMW operation.
+  ///
+  /// @param[in] CI Masked atomic RMW builtin call to packetize.
+  /// @param[in] AtomicInfo Information about the masked atomic RMW.
+  ///
+  /// @return Packetized instruction.
+  ValuePacket packetizeMaskedAtomicRMW(
+      CallInst &CI, VectorizationContext::MaskedAtomicRMW AtomicInfo);
   /// @brief Packetize a GEP instruction.
   ///
   /// @param[in] GEP Instruction to packetize.
@@ -2093,6 +2102,9 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
         return packetizeMemOp(*MaskedOp);
       }
     }
+    if (auto AtomicInfo = Ctx.isMaskedAtomicRMWFunction(*Callee)) {
+      return packetizeMaskedAtomicRMW(*CI, *AtomicInfo);
+    }
   }
 
   auto const Builtin = Ctx.builtins().analyzeBuiltin(*Callee);
@@ -2763,6 +2775,66 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
       }
     }
   }
+  return results;
+}
+
+ValuePacket Packetizer::Impl::packetizeMaskedAtomicRMW(
+    CallInst &CI, VectorizationContext::MaskedAtomicRMW AtomicInfo) {
+  ValuePacket results;
+
+  Value *const ptr = CI.getArgOperand(0);
+  Value *const val = CI.getArgOperand(1);
+  Value *const mask = CI.getArgOperand(2);
+
+  assert(AtomicInfo.ValTy == val->getType() && "AtomicInfo mismatch");
+  auto const packetWidth = getPacketWidthForType(val->getType());
+
+  if (VL && packetWidth != 1) {
+    emitVeczRemarkMissed(&F, &CI,
+                         "Can not vector-predicate packets larger than 1");
+    return {};
+  }
+
+  ValuePacket valPacket;
+  Result valResult = packetize(val);
+  PACK_FAIL_IF(!valResult);
+  valResult.getPacketValues(packetWidth, valPacket);
+  PACK_FAIL_IF(valPacket.empty());
+
+  ValuePacket ptrPacket;
+  Result ptrResult = packetize(ptr);
+  PACK_FAIL_IF(!ptrResult);
+  ptrResult.getPacketValues(packetWidth, ptrPacket);
+  PACK_FAIL_IF(ptrPacket.empty());
+
+  ValuePacket maskPacket;
+  Result maskResult = packetize(mask);
+  PACK_FAIL_IF(!maskResult);
+  maskResult.getPacketValues(packetWidth, maskPacket);
+  PACK_FAIL_IF(maskPacket.empty());
+
+  IRBuilder<> B(&CI);
+  IC.deleteInstructionLater(&CI);
+
+  for (unsigned i = 0; i != packetWidth; ++i) {
+    auto *const ptrI = ptrPacket[i];
+    auto *const valI = valPacket[i];
+
+    AtomicInfo.ValTy = valI->getType();
+    AtomicInfo.PointerTy = ptrI->getType();
+    auto *maskedAtomicF =
+        Ctx.getOrCreateMaskedAtomicRMWFunction(AtomicInfo, Choices, SimdWidth);
+    PACK_FAIL_IF(!maskedAtomicF);
+
+    SmallVector<Value *, 4> args = {ptrI, valI, maskPacket[i]};
+    if (AtomicInfo.IsVectorPredicated) {
+      assert(VL && "Missing vector length");
+      args.push_back(VL);
+    }
+
+    results.push_back(B.CreateCall(maskedAtomicF, args));
+  }
+
   return results;
 }
 

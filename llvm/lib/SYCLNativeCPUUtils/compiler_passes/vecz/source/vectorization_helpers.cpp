@@ -22,7 +22,10 @@
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/TypeSize.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+
+#include <optional>
 
 #include "debugging.h"
 #include "vectorization_context.h"
@@ -146,12 +149,47 @@ SmallVector<Instruction *, 2> createArgumentPlaceholders(
 
 namespace vecz {
 std::string getVectorizedFunctionName(StringRef ScalarName, ElementCount VF,
-                                      VectorizationChoices Choices) {
+                                      VectorizationChoices Choices,
+                                      bool IsBuiltin) {
   Twine Prefix = Twine(VF.isScalable() ? "nxv" : "v");
   Twine IsVP = Twine(Choices.vectorPredication() ? "_vp_" : "_");
-  return (Twine("__vecz_") + Prefix + Twine(VF.getKnownMinValue()) + IsVP +
-          ScalarName)
+  return ((IsBuiltin ? VectorizationContext::InternalBuiltinPrefix
+                     : Twine("__vecz_")) +
+          Prefix + Twine(VF.getKnownMinValue()) + IsVP + ScalarName)
       .str();
+}
+
+std::optional<std::tuple<std::string, ElementCount, VectorizationChoices>>
+decodeVectorizedFunctionName(StringRef Name) {
+  if (!Name.consume_front(VectorizationContext::InternalBuiltinPrefix)) {
+    if (!Name.consume_front("__vecz_")) {
+      return std::nullopt;
+    }
+  }
+
+  ElementCount VF;
+  bool Scalable = false;
+  if (Name.consume_front("nxv")) {
+    Scalable = true;
+  } else if (!Name.consume_front("v")) {
+    return std::nullopt;
+  }
+
+  unsigned KnownMin = 0;
+  if (Name.consumeInteger(10, KnownMin)) {
+    return std::nullopt;
+  }
+
+  VF = ElementCount::get(KnownMin, Scalable);
+
+  VectorizationChoices Choices;
+  if (Name.consume_front("_vp_")) {
+    Choices.enableVectorPredication();
+  } else if (!Name.consume_front("_")) {
+    return std::nullopt;
+  }
+
+  return std::make_tuple(Name.str(), VF, Choices);
 }
 
 Function *cloneFunctionToVector(VectorizationUnit const &VU) {

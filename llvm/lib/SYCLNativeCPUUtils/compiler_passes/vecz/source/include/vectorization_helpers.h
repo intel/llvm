@@ -36,11 +36,25 @@ class VectorizationChoices;
 /// @param[in] ScalarName Name of the original function.
 /// @param[in] VF vectorization factor of the vectorized function.
 /// @param[in] Choices choices used for vectorization
+/// @param[in] IsBuiltin True if this is an internal builtin.
 ///
 /// @return Name for the vectorized function.
 std::string getVectorizedFunctionName(llvm::StringRef ScalarName,
                                       llvm::ElementCount VF,
-                                      VectorizationChoices Choices);
+                                      VectorizationChoices Choices,
+                                      bool IsBuiltin = false);
+
+/// @brief Parses a name generated for a vectorized function
+///
+/// @see getVectorizedFunctionName.
+///
+/// @param[in] Name Name of the vectorized function.
+///
+/// @return A tuple containing the original name of the function, and the
+/// element count and choices it was encoded with. Returns std::nullopt on
+/// failure.
+std::optional<std::tuple<std::string, llvm::ElementCount, VectorizationChoices>>
+decodeVectorizedFunctionName(llvm::StringRef Name);
 
 /// @brief Clone the scalar function's body into the function to vectorize,
 /// vectorizing function argument types where required.
