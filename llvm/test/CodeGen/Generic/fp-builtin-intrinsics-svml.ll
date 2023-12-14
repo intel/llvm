@@ -75,12 +75,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.sin.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.sin.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.sin.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.sin.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.sin.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.sin.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.sin.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.sin.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.sin.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.sin.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.sin.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.sin.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.sin.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.sin.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.sin.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.sin.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.sin.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.sin.v16f16(<16 x half> %v16h) #4
@@ -99,8 +99,8 @@ declare <2 x double> @llvm.fpbuiltin.sin.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.sin.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.sin.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.sin.f16(half)
-declare <4 x half> @llvm.fpbuiltin.sin.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.sin.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.sin.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.sin.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.sin.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.sin.v32f16(<32 x half>)
 
@@ -175,12 +175,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.sinh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.sinh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.sinh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.sinh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.sinh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.sinh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.sinh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.sinh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.sinh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.sinh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.sinh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.sinh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.sinh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.sinh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.sinh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.sinh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.sinh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.sinh.v16f16(<16 x half> %v16h) #4
@@ -199,8 +199,8 @@ declare <2 x double> @llvm.fpbuiltin.sinh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.sinh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.sinh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.sinh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.sinh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.sinh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.sinh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.sinh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.sinh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.sinh.v32f16(<32 x half>)
 
@@ -275,12 +275,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.cos.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.cos.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.cos.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.cos.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.cos.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.cos.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.cos.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.cos.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.cos.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.cos.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.cos.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.cos.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.cos.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.cos.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.cos.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.cos.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.cos.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.cos.v16f16(<16 x half> %v16h) #4
@@ -299,8 +299,8 @@ declare <2 x double> @llvm.fpbuiltin.cos.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.cos.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.cos.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.cos.f16(half)
-declare <4 x half> @llvm.fpbuiltin.cos.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.cos.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.cos.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.cos.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.cos.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.cos.v32f16(<32 x half>)
 
@@ -375,12 +375,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.cosh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.cosh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.cosh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.cosh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.cosh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.cosh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.cosh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.cosh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.cosh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.cosh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.cosh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.cosh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.cosh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.cosh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.cosh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.cosh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.cosh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.cosh.v16f16(<16 x half> %v16h) #4
@@ -399,8 +399,8 @@ declare <2 x double> @llvm.fpbuiltin.cosh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.cosh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.cosh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.cosh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.cosh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.cosh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.cosh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.cosh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.cosh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.cosh.v32f16(<32 x half>)
 
@@ -475,12 +475,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.tan.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.tan.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.tan.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.tan.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.tan.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.tan.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.tan.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.tan.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.tan.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.tan.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.tan.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.tan.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.tan.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.tan.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.tan.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.tan.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.tan.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.tan.v16f16(<16 x half> %v16h) #4
@@ -499,8 +499,8 @@ declare <2 x double> @llvm.fpbuiltin.tan.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.tan.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.tan.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.tan.f16(half)
-declare <4 x half> @llvm.fpbuiltin.tan.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.tan.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.tan.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.tan.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.tan.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.tan.v32f16(<32 x half>)
 
@@ -575,12 +575,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.tanh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.tanh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.tanh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.tanh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.tanh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.tanh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.tanh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.tanh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.tanh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.tanh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.tanh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.tanh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.tanh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.tanh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.tanh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.tanh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.tanh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.tanh.v16f16(<16 x half> %v16h) #4
@@ -599,8 +599,8 @@ declare <2 x double> @llvm.fpbuiltin.tanh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.tanh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.tanh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.tanh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.tanh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.tanh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.tanh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.tanh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.tanh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.tanh.v32f16(<32 x half>)
 
@@ -675,12 +675,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.acos.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.acos.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.acos.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.acos.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.acos.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.acos.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.acos.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.acos.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.acos.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.acos.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.acos.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.acos.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.acos.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.acos.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.acos.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.acos.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.acos.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.acos.v16f16(<16 x half> %v16h) #4
@@ -699,8 +699,8 @@ declare <2 x double> @llvm.fpbuiltin.acos.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.acos.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.acos.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.acos.f16(half)
-declare <4 x half> @llvm.fpbuiltin.acos.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.acos.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.acos.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.acos.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.acos.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.acos.v32f16(<32 x half>)
 
@@ -775,12 +775,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.acosh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.acosh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.acosh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.acosh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.acosh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.acosh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.acosh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.acosh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.acosh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.acosh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.acosh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.acosh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.acosh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.acosh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.acosh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.acosh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.acosh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.acosh.v16f16(<16 x half> %v16h) #4
@@ -799,8 +799,8 @@ declare <2 x double> @llvm.fpbuiltin.acosh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.acosh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.acosh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.acosh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.acosh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.acosh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.acosh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.acosh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.acosh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.acosh.v32f16(<32 x half>)
 
@@ -875,12 +875,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.asin.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.asin.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.asin.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.asin.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.asin.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.asin.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.asin.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.asin.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.asin.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.asin.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.asin.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.asin.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.asin.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.asin.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.asin.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.asin.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.asin.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.asin.v16f16(<16 x half> %v16h) #4
@@ -899,8 +899,8 @@ declare <2 x double> @llvm.fpbuiltin.asin.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.asin.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.asin.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.asin.f16(half)
-declare <4 x half> @llvm.fpbuiltin.asin.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.asin.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.asin.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.asin.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.asin.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.asin.v32f16(<32 x half>)
 
@@ -975,12 +975,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.asinh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.asinh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.asinh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.asinh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.asinh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.asinh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.asinh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.asinh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.asinh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.asinh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.asinh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.asinh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.asinh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.asinh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.asinh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.asinh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.asinh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.asinh.v16f16(<16 x half> %v16h) #4
@@ -999,8 +999,8 @@ declare <2 x double> @llvm.fpbuiltin.asinh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.asinh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.asinh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.asinh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.asinh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.asinh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.asinh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.asinh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.asinh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.asinh.v32f16(<32 x half>)
 
@@ -1075,12 +1075,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.atan.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.atan.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.atan.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.atan.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.atan.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.atan.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.atan.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.atan.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.atan.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.atan.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.atan.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.atan.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.atan.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.atan.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.atan.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.atan.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.atan.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.atan.v16f16(<16 x half> %v16h) #4
@@ -1099,8 +1099,8 @@ declare <2 x double> @llvm.fpbuiltin.atan.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.atan.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.atan.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.atan.f16(half)
-declare <4 x half> @llvm.fpbuiltin.atan.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.atan.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.atan.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.atan.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.atan.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.atan.v32f16(<32 x half>)
 
@@ -1175,12 +1175,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.atanh.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.atanh.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.atanh.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.atanh.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.atanh.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.atanh.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.atanh.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.atanh.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.atanh.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.atanh.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.atanh.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.atanh.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.atanh.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.atanh.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.atanh.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.atanh.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.atanh.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.atanh.v16f16(<16 x half> %v16h) #4
@@ -1199,8 +1199,8 @@ declare <2 x double> @llvm.fpbuiltin.atanh.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.atanh.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.atanh.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.atanh.f16(half)
-declare <4 x half> @llvm.fpbuiltin.atanh.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.atanh.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.atanh.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.atanh.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.atanh.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.atanh.v32f16(<32 x half>)
 
@@ -1278,12 +1278,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.atan2.f16(half %h1, half %h2) #0
   %t8_1 = call half @llvm.fpbuiltin.atan2.f16(half %h1, half %h2) #1
   %t8_2 = call half @llvm.fpbuiltin.atan2.f16(half %h1, half %h2) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.atan2.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.atan2.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.atan2.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.atan2.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.atan2.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.atan2.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.atan2.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.atan2.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.atan2.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.atan2.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.atan2.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.atan2.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.atan2.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.atan2.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.atan2.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #4
@@ -1302,8 +1302,8 @@ declare <2 x double> @llvm.fpbuiltin.atan2.v2f64(<2 x double>, <2 x double>)
 declare <4 x double> @llvm.fpbuiltin.atan2.v4f64(<4 x double>, <4 x double>)
 declare <8 x double> @llvm.fpbuiltin.atan2.v8f64(<8 x double>, <8 x double>)
 declare half @llvm.fpbuiltin.atan2.f16(half, half)
-declare <4 x half> @llvm.fpbuiltin.atan2.v2f16(<4 x half>, <4 x half>)
-declare <8 x half> @llvm.fpbuiltin.atan2.v4f16(<8 x half>, <8 x half>)
+declare <4 x half> @llvm.fpbuiltin.atan2.v4f16(<4 x half>, <4 x half>)
+declare <8 x half> @llvm.fpbuiltin.atan2.v8f16(<8 x half>, <8 x half>)
 declare <16 x half> @llvm.fpbuiltin.atan2.v16f16(<16 x half>, <16 x half>)
 declare <32 x half> @llvm.fpbuiltin.atan2.v32f16(<32 x half>, <32 x half>)
 
@@ -1379,12 +1379,12 @@ entry:
   call void @llvm.fpbuiltin.sincos.f16(half %h, ptr %sin, ptr %cos) #0
   call void @llvm.fpbuiltin.sincos.f16(half %h, ptr %sin, ptr %cos) #1
   call void @llvm.fpbuiltin.sincos.f16(half %h, ptr %sin, ptr %cos) #4
-  call void @llvm.fpbuiltin.sincos.v2f16(<4 x half> %v4h, ptr %sin, ptr %cos) #0
-  call void @llvm.fpbuiltin.sincos.v2f16(<4 x half> %v4h, ptr %sin, ptr %cos) #1
-  call void @llvm.fpbuiltin.sincos.v2f16(<4 x half> %v4h, ptr %sin, ptr %cos) #4
-  call void @llvm.fpbuiltin.sincos.v4f16(<8 x half> %v8h, ptr %sin, ptr %cos) #0
-  call void @llvm.fpbuiltin.sincos.v4f16(<8 x half> %v8h, ptr %sin, ptr %cos) #1
-  call void @llvm.fpbuiltin.sincos.v4f16(<8 x half> %v8h, ptr %sin, ptr %cos) #4
+  call void @llvm.fpbuiltin.sincos.v4f16(<4 x half> %v4h, ptr %sin, ptr %cos) #0
+  call void @llvm.fpbuiltin.sincos.v4f16(<4 x half> %v4h, ptr %sin, ptr %cos) #1
+  call void @llvm.fpbuiltin.sincos.v4f16(<4 x half> %v4h, ptr %sin, ptr %cos) #4
+  call void @llvm.fpbuiltin.sincos.v8f16(<8 x half> %v8h, ptr %sin, ptr %cos) #0
+  call void @llvm.fpbuiltin.sincos.v8f16(<8 x half> %v8h, ptr %sin, ptr %cos) #1
+  call void @llvm.fpbuiltin.sincos.v8f16(<8 x half> %v8h, ptr %sin, ptr %cos) #4
   call void @llvm.fpbuiltin.sincos.v16f16(<16 x half> %v16h, ptr %sin, ptr %cos) #0
   call void @llvm.fpbuiltin.sincos.v16f16(<16 x half> %v16h, ptr %sin, ptr %cos) #1
   call void @llvm.fpbuiltin.sincos.v16f16(<16 x half> %v16h, ptr %sin, ptr %cos) #4
@@ -1403,8 +1403,8 @@ declare void @llvm.fpbuiltin.sincos.v2f64(<2 x double>, ptr, ptr)
 declare void @llvm.fpbuiltin.sincos.v4f64(<4 x double>, ptr, ptr)
 declare void @llvm.fpbuiltin.sincos.v8f64(<8 x double>, ptr, ptr)
 declare void @llvm.fpbuiltin.sincos.f16(half, ptr, ptr)
-declare void @llvm.fpbuiltin.sincos.v2f16(<4 x half>, ptr, ptr)
-declare void @llvm.fpbuiltin.sincos.v4f16(<8 x half>, ptr, ptr)
+declare void @llvm.fpbuiltin.sincos.v4f16(<4 x half>, ptr, ptr)
+declare void @llvm.fpbuiltin.sincos.v8f16(<8 x half>, ptr, ptr)
 declare void @llvm.fpbuiltin.sincos.v16f16(<16 x half>, ptr, ptr)
 declare void @llvm.fpbuiltin.sincos.v32f16(<32 x half>, ptr, ptr)
 
@@ -1479,12 +1479,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.erf.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.erf.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.erf.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.erf.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.erf.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.erf.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.erf.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.erf.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.erf.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.erf.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.erf.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.erf.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.erf.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.erf.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.erf.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.erf.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.erf.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.erf.v16f16(<16 x half> %v16h) #4
@@ -1503,8 +1503,8 @@ declare <2 x double> @llvm.fpbuiltin.erf.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.erf.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.erf.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.erf.f16(half)
-declare <4 x half> @llvm.fpbuiltin.erf.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.erf.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.erf.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.erf.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.erf.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.erf.v32f16(<32 x half>)
 
@@ -1579,12 +1579,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.erfc.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.erfc.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.erfc.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.erfc.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.erfc.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.erfc.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.erfc.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.erfc.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.erfc.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.erfc.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.erfc.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.erfc.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.erfc.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.erfc.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.erfc.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.erfc.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.erfc.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.erfc.v16f16(<16 x half> %v16h) #4
@@ -1603,8 +1603,8 @@ declare <2 x double> @llvm.fpbuiltin.erfc.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.erfc.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.erfc.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.erfc.f16(half)
-declare <4 x half> @llvm.fpbuiltin.erfc.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.erfc.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.erfc.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.erfc.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.erfc.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.erfc.v32f16(<32 x half>)
 
@@ -1679,12 +1679,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.exp.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.exp.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.exp.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.exp.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.exp.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.exp.v16f16(<16 x half> %v16h) #4
@@ -1703,8 +1703,8 @@ declare <2 x double> @llvm.fpbuiltin.exp.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.exp.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.exp.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.exp.f16(half)
-declare <4 x half> @llvm.fpbuiltin.exp.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.exp.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.exp.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.exp.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.exp.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.exp.v32f16(<32 x half>)
 
@@ -1779,12 +1779,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.exp2.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.exp2.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.exp2.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp2.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp2.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp2.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp2.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp2.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp2.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp2.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp2.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp2.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp2.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp2.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp2.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.exp2.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.exp2.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.exp2.v16f16(<16 x half> %v16h) #4
@@ -1803,8 +1803,8 @@ declare <2 x double> @llvm.fpbuiltin.exp2.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.exp2.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.exp2.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.exp2.f16(half)
-declare <4 x half> @llvm.fpbuiltin.exp2.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.exp2.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.exp2.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.exp2.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.exp2.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.exp2.v32f16(<32 x half>)
 
@@ -1879,12 +1879,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.exp10.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.exp10.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.exp10.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp10.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp10.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp10.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp10.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp10.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp10.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.exp10.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.exp10.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.exp10.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.exp10.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.exp10.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.exp10.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.exp10.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.exp10.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.exp10.v16f16(<16 x half> %v16h) #4
@@ -1903,8 +1903,8 @@ declare <2 x double> @llvm.fpbuiltin.exp10.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.exp10.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.exp10.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.exp10.f16(half)
-declare <4 x half> @llvm.fpbuiltin.exp10.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.exp10.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.exp10.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.exp10.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.exp10.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.exp10.v32f16(<32 x half>)
 
@@ -1979,12 +1979,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.expm1.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.expm1.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.expm1.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.expm1.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.expm1.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.expm1.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.expm1.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.expm1.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.expm1.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.expm1.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.expm1.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.expm1.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.expm1.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.expm1.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.expm1.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.expm1.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.expm1.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.expm1.v16f16(<16 x half> %v16h) #4
@@ -2003,8 +2003,8 @@ declare <2 x double> @llvm.fpbuiltin.expm1.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.expm1.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.expm1.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.expm1.f16(half)
-declare <4 x half> @llvm.fpbuiltin.expm1.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.expm1.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.expm1.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.expm1.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.expm1.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.expm1.v32f16(<32 x half>)
 
@@ -2082,12 +2082,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.hypot.f16(half %h1, half %h2) #0
   %t8_1 = call half @llvm.fpbuiltin.hypot.f16(half %h1, half %h2) #1
   %t8_2 = call half @llvm.fpbuiltin.hypot.f16(half %h1, half %h2) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.hypot.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.hypot.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.hypot.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.hypot.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.hypot.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.hypot.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.hypot.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.hypot.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.hypot.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.hypot.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.hypot.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.hypot.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.hypot.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.hypot.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.hypot.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #4
@@ -2106,8 +2106,8 @@ declare <2 x double> @llvm.fpbuiltin.hypot.v2f64(<2 x double>, <2 x double>)
 declare <4 x double> @llvm.fpbuiltin.hypot.v4f64(<4 x double>, <4 x double>)
 declare <8 x double> @llvm.fpbuiltin.hypot.v8f64(<8 x double>, <8 x double>)
 declare half @llvm.fpbuiltin.hypot.f16(half, half)
-declare <4 x half> @llvm.fpbuiltin.hypot.v2f16(<4 x half>, <4 x half>)
-declare <8 x half> @llvm.fpbuiltin.hypot.v4f16(<8 x half>, <8 x half>)
+declare <4 x half> @llvm.fpbuiltin.hypot.v4f16(<4 x half>, <4 x half>)
+declare <8 x half> @llvm.fpbuiltin.hypot.v8f16(<8 x half>, <8 x half>)
 declare <16 x half> @llvm.fpbuiltin.hypot.v16f16(<16 x half>, <16 x half>)
 declare <32 x half> @llvm.fpbuiltin.hypot.v32f16(<32 x half>, <32 x half>)
 
@@ -2216,12 +2216,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.log.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.log.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.log.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.log.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.log.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.log.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.log.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.log.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.log.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.log.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.log.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.log.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.log.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.log.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.log.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.log.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.log.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.log.v16f16(<16 x half> %v16h) #4
@@ -2240,8 +2240,8 @@ declare <2 x double> @llvm.fpbuiltin.log.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.log.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.log.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.log.f16(half)
-declare <4 x half> @llvm.fpbuiltin.log.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.log.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.log.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.log.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.log.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.log.v32f16(<32 x half>)
 
@@ -2316,12 +2316,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.log10.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.log10.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.log10.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.log10.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.log10.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.log10.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.log10.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.log10.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.log10.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.log10.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.log10.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.log10.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.log10.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.log10.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.log10.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.log10.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.log10.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.log10.v16f16(<16 x half> %v16h) #4
@@ -2340,8 +2340,8 @@ declare <2 x double> @llvm.fpbuiltin.log10.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.log10.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.log10.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.log10.f16(half)
-declare <4 x half> @llvm.fpbuiltin.log10.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.log10.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.log10.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.log10.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.log10.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.log10.v32f16(<32 x half>)
 
@@ -2416,12 +2416,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.log1p.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.log1p.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.log1p.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.log1p.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.log1p.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.log1p.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.log1p.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.log1p.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.log1p.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.log1p.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.log1p.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.log1p.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.log1p.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.log1p.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.log1p.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.log1p.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.log1p.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.log1p.v16f16(<16 x half> %v16h) #4
@@ -2440,8 +2440,8 @@ declare <2 x double> @llvm.fpbuiltin.log1p.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.log1p.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.log1p.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.log1p.f16(half)
-declare <4 x half> @llvm.fpbuiltin.log1p.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.log1p.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.log1p.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.log1p.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.log1p.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.log1p.v32f16(<32 x half>)
 
@@ -2516,12 +2516,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.log2.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.log2.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.log2.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.log2.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.log2.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.log2.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.log2.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.log2.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.log2.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.log2.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.log2.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.log2.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.log2.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.log2.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.log2.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.log2.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.log2.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.log2.v16f16(<16 x half> %v16h) #4
@@ -2540,8 +2540,8 @@ declare <2 x double> @llvm.fpbuiltin.log2.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.log2.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.log2.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.log2.f16(half)
-declare <4 x half> @llvm.fpbuiltin.log2.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.log2.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.log2.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.log2.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.log2.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.log2.v32f16(<32 x half>)
 
@@ -2621,12 +2621,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.pow.f16(half %h1, half %h2) #0
   %t8_1 = call half @llvm.fpbuiltin.pow.f16(half %h1, half %h2) #1
   %t8_2 = call half @llvm.fpbuiltin.pow.f16(half %h1, half %h2) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.pow.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.pow.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.pow.v2f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.pow.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.pow.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.pow.v4f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.pow.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.pow.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.pow.v4f16(<4 x half> %v4h1, <4 x half> %v4h2) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.pow.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.pow.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.pow.v8f16(<8 x half> %v8h1, <8 x half> %v8h2) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.pow.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.pow.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.pow.v16f16(<16 x half> %v16h1, <16 x half> %v16h2) #4
@@ -2645,8 +2645,8 @@ declare <2 x double> @llvm.fpbuiltin.pow.v2f64(<2 x double>, <2 x double>)
 declare <4 x double> @llvm.fpbuiltin.pow.v4f64(<4 x double>, <4 x double>)
 declare <8 x double> @llvm.fpbuiltin.pow.v8f64(<8 x double>, <8 x double>)
 declare half @llvm.fpbuiltin.pow.f16(half, half)
-declare <4 x half> @llvm.fpbuiltin.pow.v2f16(<4 x half>, <4 x half>)
-declare <8 x half> @llvm.fpbuiltin.pow.v4f16(<8 x half>, <8 x half>)
+declare <4 x half> @llvm.fpbuiltin.pow.v4f16(<4 x half>, <4 x half>)
+declare <8 x half> @llvm.fpbuiltin.pow.v8f16(<8 x half>, <8 x half>)
 declare <16 x half> @llvm.fpbuiltin.pow.v16f16(<16 x half>, <16 x half>)
 declare <32 x half> @llvm.fpbuiltin.pow.v32f16(<32 x half>, <32 x half>)
 
@@ -2721,12 +2721,12 @@ entry:
   %t8_0 = call half @llvm.fpbuiltin.sqrt.f16(half %h) #0
   %t8_1 = call half @llvm.fpbuiltin.sqrt.f16(half %h) #1
   %t8_2 = call half @llvm.fpbuiltin.sqrt.f16(half %h) #4
-  %t9_0 = call <4 x half> @llvm.fpbuiltin.sqrt.v2f16(<4 x half> %v4h) #0
-  %t9_1 = call <4 x half> @llvm.fpbuiltin.sqrt.v2f16(<4 x half> %v4h) #1
-  %t9_2 = call <4 x half> @llvm.fpbuiltin.sqrt.v2f16(<4 x half> %v4h) #4
-  %t10_0 = call <8 x half> @llvm.fpbuiltin.sqrt.v4f16(<8 x half> %v8h) #0
-  %t10_1 = call <8 x half> @llvm.fpbuiltin.sqrt.v4f16(<8 x half> %v8h) #1
-  %t10_2 = call <8 x half> @llvm.fpbuiltin.sqrt.v4f16(<8 x half> %v8h) #4
+  %t9_0 = call <4 x half> @llvm.fpbuiltin.sqrt.v4f16(<4 x half> %v4h) #0
+  %t9_1 = call <4 x half> @llvm.fpbuiltin.sqrt.v4f16(<4 x half> %v4h) #1
+  %t9_2 = call <4 x half> @llvm.fpbuiltin.sqrt.v4f16(<4 x half> %v4h) #4
+  %t10_0 = call <8 x half> @llvm.fpbuiltin.sqrt.v8f16(<8 x half> %v8h) #0
+  %t10_1 = call <8 x half> @llvm.fpbuiltin.sqrt.v8f16(<8 x half> %v8h) #1
+  %t10_2 = call <8 x half> @llvm.fpbuiltin.sqrt.v8f16(<8 x half> %v8h) #4
   %t11_0 = call <16 x half> @llvm.fpbuiltin.sqrt.v16f16(<16 x half> %v16h) #0
   %t11_1 = call <16 x half> @llvm.fpbuiltin.sqrt.v16f16(<16 x half> %v16h) #1
   %t11_2 = call <16 x half> @llvm.fpbuiltin.sqrt.v16f16(<16 x half> %v16h) #4
@@ -2745,8 +2745,8 @@ declare <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double>)
 declare <4 x double> @llvm.fpbuiltin.sqrt.v4f64(<4 x double>)
 declare <8 x double> @llvm.fpbuiltin.sqrt.v8f64(<8 x double>)
 declare half @llvm.fpbuiltin.sqrt.f16(half)
-declare <4 x half> @llvm.fpbuiltin.sqrt.v2f16(<4 x half>)
-declare <8 x half> @llvm.fpbuiltin.sqrt.v4f16(<8 x half>)
+declare <4 x half> @llvm.fpbuiltin.sqrt.v4f16(<4 x half>)
+declare <8 x half> @llvm.fpbuiltin.sqrt.v8f16(<8 x half>)
 declare <16 x half> @llvm.fpbuiltin.sqrt.v16f16(<16 x half>)
 declare <32 x half> @llvm.fpbuiltin.sqrt.v32f16(<32 x half>)
 
