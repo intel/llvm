@@ -28,6 +28,7 @@
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Config/llvm-config.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/PassManagerImpl.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -41,6 +42,7 @@
 #include <llvm/Transforms/Scalar/FlattenCFG.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/IndVarSimplify.h>
+#include <llvm/Transforms/Scalar/LoopPassManager.h>
 #include <llvm/Transforms/Scalar/SROA.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
 #include <llvm/Transforms/Scalar/Sink.h>
@@ -178,104 +180,115 @@ void VeczPassMachinery::registerPassCallbacks() {
 bool vecz::buildPassPipeline(ModulePassManager &PM) {
   // Preparation passes
   PM.addPass(BuiltinInliningPass());
-  // Lower switches after builtin inlining, incase the builtins had switches.
-  PM.addPass(createModuleToFunctionPassAdaptor(LowerSwitchPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(FixIrreduciblePass()));
+  {
+    FunctionPassManager FPM;
+    // Lower switches after builtin inlining, in case the builtins had switches.
+    FPM.addPass(LowerSwitchPass());
+    FPM.addPass(FixIrreduciblePass());
 
-  // It's helpful to run SROA in case it opens up more opportunities to
-  // eliminate aggregates in (particularly SYCL) kernels. This is especially
-  // true after inlining - which we've (usually) just performed in the
-  // BuiltinInliningPass - because otherwise SROA is unable to analyze the
-  // lifetime of allocas due to them being "escaped" by the function callee.
-  PM.addPass(
-      createModuleToFunctionPassAdaptor(SROAPass(SROAOptions::ModifyCFG)));
-  // We have to run LLVM's Mem2Reg pass in case the front end didn't. Note that
-  // SROA usually runs Mem2Reg internally (unless disabled via a command-line
-  // option) though using its own heuristic. We run it unconditionally
-  // regardless, just for good measure.
-  PM.addPass(createModuleToFunctionPassAdaptor(PromotePass()));
-  // LLVM's own Mem2Reg pass doesn't always get everything
-  PM.addPass(createModuleToFunctionPassAdaptor(BasicMem2RegPass()));
+    // It's helpful to run SROA in case it opens up more opportunities to
+    // eliminate aggregates in (particularly SYCL) kernels. This is especially
+    // true after inlining - which we've (usually) just performed in the
+    // BuiltinInliningPass - because otherwise SROA is unable to analyze the
+    // lifetime of allocas due to them being "escaped" by the function callee.
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    // We have to run LLVM's Mem2Reg pass in case the front end didn't. Note
+    // that SROA usually runs Mem2Reg internally (unless disabled via a
+    // command-line option) though using its own heuristic. We run it
+    // unconditionally regardless, just for good measure.
+    FPM.addPass(PromotePass());
+    // LLVM's own Mem2Reg pass doesn't always get everything
+    FPM.addPass(BasicMem2RegPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(InstCombinePass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(AggressiveInstCombinePass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(DCEPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(PreLinearizePass()));
-  // If pre-linearization created any unnecessary Hoist Guards,
-  // Instruction Combining Pass will handily clean them up.
-  PM.addPass(createModuleToFunctionPassAdaptor(InstCombinePass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SimplifyCFGPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(DCEPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(UnifyFunctionExitNodesPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(LoopSimplifyPass()));
-  // Lower switches again because CFG simplifcation can create them.
-  PM.addPass(createModuleToFunctionPassAdaptor(LowerSwitchPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(
-      createFunctionToLoopPassAdaptor(VeczLoopRotatePass())));
-  // IndVarSimplify can create a lot of duplicate instructions when there
-  // are unrolled loops. EarlyCSE is there to clear them up. However,
-  // this can destroy LCSSA form, so we need to restore it.
-  PM.addPass(createModuleToFunctionPassAdaptor(
-      createFunctionToLoopPassAdaptor(IndVarSimplifyPass())));
+    FPM.addPass(InstCombinePass());
+    FPM.addPass(AggressiveInstCombinePass());
+    FPM.addPass(DCEPass());
+    FPM.addPass(PreLinearizePass());
+    // If pre-linearization created any unnecessary Hoist Guards,
+    // Instruction Combining Pass will handily clean them up.
+    FPM.addPass(InstCombinePass());
+    FPM.addPass(SimplifyCFGPass());
+    FPM.addPass(DCEPass());
+    FPM.addPass(UnifyFunctionExitNodesPass());
+    FPM.addPass(LoopSimplifyPass());
+    // Lower switches again because CFG simplifcation can create them.
+    FPM.addPass(LowerSwitchPass());
+    {
+      LoopPassManager LPM;
+      LPM.addPass(VeczLoopRotatePass());
+      // IndVarSimplify can create a lot of duplicate instructions when there
+      // are unrolled loops. EarlyCSE is there to clear them up. However,
+      // this can destroy LCSSA form, so we need to restore it.
+      LPM.addPass(IndVarSimplifyPass());
+      FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM)));
+    }
 
-  PM.addPass(createModuleToFunctionPassAdaptor(EarlyCSEPass()));
-  // We run this last because EarlyCSE can actually create infinite loops
-  // (with a "conditional" branch on true)
-  PM.addPass(createModuleToFunctionPassAdaptor(
-      createFunctionToLoopPassAdaptor(SimplifyInfiniteLoopPass())));
+    FPM.addPass(EarlyCSEPass());
+    // We run this last because EarlyCSE can actually create infinite loops
+    // (with a "conditional" branch on true)
+    FPM.addPass(createFunctionToLoopPassAdaptor(SimplifyInfiniteLoopPass()));
 
-  // Verify that the preparation passes cleaned up after themselves.
+    FPM.addPass(RemoveIntPtrPass());
+    FPM.addPass(SquashSmallVectorsPass());
+    FPM.addPass(UniformReassociationPass());
+    FPM.addPass(TernaryTransformPass());
+
+    FPM.addPass(BreakCriticalEdgesPass());
+    FPM.addPass(LCSSAPass());
+    FPM.addPass(ControlFlowConversionPass());
+
+    PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+
+  // Verify that the preparation passes (particularly control-flow conversion)
+  // have left the module in a correct state.
   PM.addPass(VerifierPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(RemoveIntPtrPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SquashSmallVectorsPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(UniformReassociationPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(TernaryTransformPass()));
+  {
+    FunctionPassManager FPM;
 
-  PM.addPass(createModuleToFunctionPassAdaptor(BreakCriticalEdgesPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(LCSSAPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(ControlFlowConversionPass()));
-  PM.addPass(VerifierPass());
-  PM.addPass(createModuleToFunctionPassAdaptor(DivergenceCleanupPass()));
+    FPM.addPass(DivergenceCleanupPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(CommonGEPEliminationPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(ScalarizationPass()));
+    FPM.addPass(CommonGEPEliminationPass());
+    FPM.addPass(ScalarizationPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(AggressiveInstCombinePass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(ADCEPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SimplifyCFGPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SimplifyMaskedMemOpsPass()));
+    FPM.addPass(AggressiveInstCombinePass());
+    FPM.addPass(ADCEPass());
+    FPM.addPass(SimplifyCFGPass());
+    FPM.addPass(SimplifyMaskedMemOpsPass());
 
-  // Having multiple GEP instructions that perform the same operation
-  // greatly amplifies the code generated by the packetizer as it duplicates
-  // the amount of extractelement instructions, so we want to remove what
-  // is unnecessary.
-  PM.addPass(createModuleToFunctionPassAdaptor(CommonGEPEliminationPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(PacketizationPass()));
+    // Having multiple GEP instructions that perform the same operation
+    // greatly amplifies the code generated by the packetizer as it duplicates
+    // the amount of extractelement instructions, so we want to remove what
+    // is unnecessary.
+    FPM.addPass(CommonGEPEliminationPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(InlinePostVectorizationPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(FlattenCFGPass()));
-  PM.addPass(
-      createModuleToFunctionPassAdaptor(GVNPass(GVNOptions().setMemDep(true))));
-  PM.addPass(createModuleToFunctionPassAdaptor(AggressiveInstCombinePass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(ADCEPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SinkingPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SimplifyCFGPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(AggressiveInstCombinePass()));
+    // The packetizer - the 'main' bit of the vectorization process.
+    FPM.addPass(PacketizationPass());
 
-  PM.addPass(createModuleToFunctionPassAdaptor(
-      InterleavedGroupCombinePass(eInterleavedStore)));
-  PM.addPass(createModuleToFunctionPassAdaptor(
-      InterleavedGroupCombinePass(eInterleavedLoad)));
-  PM.addPass(createModuleToFunctionPassAdaptor(InstCombinePass()));
+    FPM.addPass(InlinePostVectorizationPass());
+    FPM.addPass(FlattenCFGPass());
+    FPM.addPass(GVNPass(GVNOptions().setMemDep(true)));
+    FPM.addPass(AggressiveInstCombinePass());
+    FPM.addPass(ADCEPass());
+    FPM.addPass(SinkingPass());
+    FPM.addPass(SimplifyCFGPass());
+    FPM.addPass(AggressiveInstCombinePass());
+
+    FPM.addPass(InterleavedGroupCombinePass(eInterleavedStore));
+    FPM.addPass(InterleavedGroupCombinePass(eInterleavedLoad));
+    FPM.addPass(InstCombinePass());
 #if LLVM_VERSION_GREATER_EQUAL(18, 0)
-  // LLVM 18 split this pass out of InstCombine
-  PM.addPass(createModuleToFunctionPassAdaptor(InferAlignmentPass()));
+    // LLVM 18 split this pass out of InstCombine
+    FPM.addPass(InferAlignmentPass());
 #endif
-  PM.addPass(createModuleToFunctionPassAdaptor(DCEPass()));
-  PM.addPass(createModuleToFunctionPassAdaptor(SimplifyMaskedMemOpsPass()));
-  PM.addPass(DefineInternalBuiltinsPass());
+    FPM.addPass(DCEPass());
+    FPM.addPass(SimplifyMaskedMemOpsPass());
 
+    PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+
+  PM.addPass(DefineInternalBuiltinsPass());
   PM.addPass(VerifierPass());
 
   return true;
