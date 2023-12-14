@@ -6081,8 +6081,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<OffsetObjT, OffsetRegionTy>
-/// byte_offset,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (acc-au1-3)
 ///
@@ -6127,8 +6127,8 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<OffsetObjT, OffsetRegionTy>
-/// byte_offset,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
 ///               props = {});                                   // (acc-au1-4)
 ///
