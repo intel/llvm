@@ -3862,10 +3862,9 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd_mask<N> mask = 1) {
 /// and returns a vector of old values found at the memory locations before
 /// update.
 template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
 atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
               simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
@@ -3954,10 +3953,9 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
 atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
               simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
@@ -4025,10 +4023,9 @@ slm_atomic_update(simd<uint32_t, N> byte_offset, simd<T, N> src0,
 ///               simd<T, N> src1,
 ///               simd_mask<1> pred = 1);                      // (lacc-au2-1)
 template <atomic_op Op, typename T, int N, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 __ESIMD_DNS::is_rw_local_accessor_v<AccessorT>,
+                             simd<T, N>>
 atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask = 1) {
   byte_offset += detail::localAccessorToOffset(lacc);
@@ -4198,15 +4195,12 @@ template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<
-    get_num_args<Op>() == 0 &&
-        __ESIMD_DNS::is_device_accessor_with_v<
-            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
-        __ESIMD_DNS::is_device_accessor_with_v<
-            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
-    simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
-                   simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<get_num_args<Op>() == 0 &&
+                         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
+                     simd<T, N>>
+    atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
+                       simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
                                                     byte_offsets, pred);
@@ -4253,15 +4247,12 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
 ///   update.
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
           cache_hint L2H, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<
-    get_num_args<Op>() == 1 &&
-        __ESIMD_DNS::is_device_accessor_with_v<
-            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
-        __ESIMD_DNS::is_device_accessor_with_v<
-            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
-    simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
-                   simd<T, N> src0, simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<get_num_args<Op>() == 1 &&
+                         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
+                     simd<T, N>>
+    atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
+                       simd<T, N> src0, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
                                                     byte_offset, src0, pred);
@@ -4310,13 +4301,12 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///   update.
 template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
           cache_hint L2H, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<
-    get_num_args<Op>() == 2 &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
-                   simd<T, N> src0, simd<T, N> src1, simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<get_num_args<Op>() == 2 &&
+                         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
+                     simd<T, N>>
+    atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
+                       simd<T, N> src0, simd<T, N> src1, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), byte_offset, src0, src1, pred);
@@ -5678,12 +5668,13 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
 /// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (acc-au0-2)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (acc-au0-3)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (acc-au0-4)
 ///
+
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 ///
 /// simd<T, N>
@@ -5716,10 +5707,9 @@ template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 0 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
@@ -5771,7 +5761,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<OffsetObjT, N> byte_offset,
 ///               props = {});                                  /// (acc-au0-2)
 /// A variation of \c atomic_update API without mask operand
 ///
@@ -5794,10 +5784,9 @@ template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<Op>() == 0 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
@@ -5807,7 +5796,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (acc-au0-3)
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object.
@@ -5830,22 +5819,22 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename AccessorTy, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 && !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 0 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
               simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (acc-au0-4)
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object and no mask operand.
@@ -5863,16 +5852,16 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename AccessorTy, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 0 && !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 0 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset.read(), mask, props);
@@ -5898,12 +5887,39 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 ///
 template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
-                                 std::is_integral_v<Toffset> &&
-                                 !std::is_pointer_v<AccessorTy>,
-                             simd<T, N>>
-atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
+                         __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
+                     simd<T, N>>
+    atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
   return atomic_update<Op, T, N>(acc, simd<Toffset, N>(byte_offset), mask);
+}
+
+/// A variation of \c atomic_update API with \p byte_offset represented as
+/// scalar using \c local_accessor.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
+/// @tparam T The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param byte_offset The scalar 32-bit or 64-bit offset in bytes. 64-bit
+/// offset are supported only when stateless memory accesses are enforced,
+/// i.e. accessor based accesses are automatically converted to stateless
+/// accesses.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename T, int N, typename AccessorTy>
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0 &&
+                         __ESIMD_DNS::is_rw_local_accessor_v<AccessorTy>,
+                     simd<T, N>>
+    atomic_update(AccessorTy acc, uint32_t byte_offset, simd_mask<N> mask) {
+  return atomic_update<Op, T, N>(acc, simd<uint32_t, N>(byte_offset), mask);
 }
 
 /// @anchor accessor_atomic_update1
@@ -5917,32 +5933,17 @@ atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
 ///               simd<T, N> src0, props = {});                  // (acc-au1-2)
 ///
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(AccessorT acc,
+////              simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (acc-au1-3)
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               props = {});                                   // (acc-au1-4)
 ///
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (acc-au1-5)
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               props = {});                                   // (acc-au1-6)
-///
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (acc-au1-7)
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (acc-au1-8)
-///
+
 /// simd<T, N>
 /// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd_mask<N> mask, props = {});//(acc-au1-1)
@@ -5974,14 +5975,14 @@ atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
+
 template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
@@ -6069,9 +6070,8 @@ template <atomic_op Op, typename T, int N, typename Toffset,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
@@ -6081,109 +6081,10 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (acc-au1-3)
-///
-/// A variation of \c atomic_update API with \c src0 represented as
-/// \c simd_view object.
-///
-/// Atomically updates \c N memory locations represented by an accessor and
-/// a vector of offsets, and returns a vector of old values found at the
-/// memory locations before update. The update operation has 1 additional
-/// argument.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
-/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
-/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
-/// atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @tparam AccessorTy type of the SYCL accessor.
-/// @param acc The SYCL accessor.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
-/// offsets are supported only when stateless memory accesses are enforced, i.e.
-/// accessor based accesses are automatically converted to stateless accesses.
-/// @param src0 The additional argument.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>, typename AccessorTy,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
-              simd_view<T, RegionTy> src0, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (acc-au1-4)
-///
-/// A variation of \c atomic_update API with \c src0 represented as
-/// \c simd_view object and no mask operand.
-///
-/// Atomically updates \c N memory locations represented by an accessor and
-/// a vector of offsets, and returns a vector of old values found at the
-/// memory locations before update. The update operation has 1 additional
-/// argument.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
-/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
-/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
-/// atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @tparam AccessorTy type of the SYCL accessor.
-/// @param acc The SYCL accessor.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
-/// offsets are supported only when stateless memory accesses are enforced, i.e.
-/// accessor based accesses are automatically converted to stateless accesses.
-/// @param src0 The additional argument.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>, typename AccessorTy,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
-              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(acc, byte_offset, src0.read(), mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (acc-au1-5)
+///               simd_mask<N> mask, props = {});                // (acc-au1-3)
 ///
 /// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object.
@@ -6211,24 +6112,25 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename AccessorTy, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
               simd<T, N> src0, simd_mask<N> mask, PropertyListT props = {}) {
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
+/// atomic_update(AccessorT acc,
+///               simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///               simd<T, N> src0,
-///               props = {});                                   // (acc-au1-6)
+///               props = {});                                   // (acc-au1-4)
 ///
 /// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object and no mask operand.
@@ -6254,113 +6156,19 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename AccessorTy, typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::get_num_args<Op>() == 1 &&
+        __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> byte_offset,
               simd<T, N> src0, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(acc, byte_offset.read(), src0, mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (acc-au1-7)
-///
-/// A variation of \c atomic_update API with \c byte_offset and \c src0
-/// represented as \c simd_view objects.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @tparam AccessorTy type of the SYCL accessor.
-/// @param acc The SYCL accessor.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// 64-bit offsets are supported only when stateless memory accesses are
-/// enforced, i.e. accessor based accesses are automatically converted to
-/// stateless accesses.
-/// @param src0 The additional argument.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(AccessorT acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (acc-au1-8)
-///
-/// A variation of \c atomic_update API with \c byte_offset and \c src0
-/// represented as \c simd_view objects and no mask operand.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @tparam AccessorTy type of the SYCL accessor.
-/// @param acc The SYCL accessor.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// 64-bit offsets are supported only when stateless memory accesses are
-/// enforced, i.e. accessor based accesses are automatically converted to
-/// stateless accesses.
-/// @param src0 The additional argument.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename AccessorTy,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 && !std::is_pointer_v<AccessorTy> &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(acc, byte_offset.read(), src0.read(), mask,
-                                 props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -6384,15 +6192,44 @@ atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset,
+template <atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy> &&
+    __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy> &&
+        ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
+    simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
+              simd_mask<N> mask) {
+  return atomic_update<Op, T, N>(acc, simd<Toffset, N>(offset), src0, mask);
+}
+
+/// A variation of \c atomic_update API with \c offset represented as
+/// scalar object and uses \c local_accessor.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin \c atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The scalar 32-bit offset in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_rw_local_accessor_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
-atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
+atomic_update(AccessorTy acc, uint32_t offset, simd<Tx, N> src0,
               simd_mask<N> mask) {
-  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
+  return atomic_update<Op, Tx, N>(acc, simd<uint32_t, N>(offset), src0, mask);
 }
 
 /// @anchor accessor_atomic_update2
@@ -6417,6 +6254,7 @@ atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
 ///               simd_view<OffsetObjT, OffsetRegionTy>, byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1, props = {}); // (acc-au2-4)
 ///
+
 /// simd<T, N>
 /// atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd<T, N> src0, simd<T, N> src1,
@@ -6632,11 +6470,37 @@ atomic_update(AccessorTy acc, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
+                             simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
+                                  mask);
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// scalar and \c local_accessor is used.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The scalar 32-bit offset in bytes.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_rw_local_accessor_v<AccessorTy>,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, uint32_t offset, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, simd<uint32_t, N>(offset), src0, src1,
                                   mask);
 }
 
