@@ -116,7 +116,8 @@ class SanitizerInterceptor {
                                  ur_event_handle_t &LastEvent);
 
     /// Initialize Global Variables & Kernel Name at first Launch
-    void prepareLaunch(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel);
+    ur_result_t prepareLaunch(ur_queue_handle_t Queue,
+                              ur_kernel_handle_t Kernel);
 
     std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t allocShadowMemory(ur_context_handle_t Context,

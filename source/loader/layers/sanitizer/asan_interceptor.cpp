@@ -29,6 +29,8 @@ const int kUnkownRedzoneMagic = (char)0x8F;
 
 const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
 const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
+const auto kSPIR_AsanShadowMemoryLocalStart = "__AsanShadowMemoryLocalStart";
+const auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
@@ -80,6 +82,24 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
         nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Program;
+}
+
+size_t getWorkgoupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device) {
+    size_t MaxWorkGroupSize;
+    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetGroupInfo(
+        Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+        sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+    return MaxWorkGroupSize;
+}
+
+size_t getLocalMemorySize(ur_device_handle_t Device) {
+    size_t LocalMemorySize;
+    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
+        &LocalMemorySize, nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+    return LocalMemorySize;
 }
 
 } // namespace
@@ -196,7 +216,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                            ur_queue_handle_t Queue,
                                            ur_event_handle_t &Event) {
-    prepareLaunch(Queue, Kernel);
+    UR_CALL(prepareLaunch(Queue, Kernel));
 
     UR_CALL(updateShadowMemory(Queue));
 
@@ -292,7 +312,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         die("Unsupport device type");
     }
 
-    context.logger.info("Shadow memory ({} - {})",
+    context.logger.info("Shadow memory (Global, {} - {})",
                         (void *)DeviceInfo->ShadowOffset,
                         (void *)DeviceInfo->ShadowOffsetEnd);
 
@@ -569,8 +589,8 @@ ur_result_t SanitizerInterceptor::removeQueue(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
-void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
-                                         ur_kernel_handle_t Kernel) {
+ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
+                                                ur_kernel_handle_t Kernel) {
     auto Context = getContext(Queue);
     auto Device = getDevice(Queue);
     auto Program = getProgram(Kernel);
@@ -591,7 +611,7 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                 LastEvent ? &LastEvent : nullptr;
             auto Result =
                 context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-                    Queue, Program, Name, false, sizeof(uptr), 0, Value,
+                    Queue, Program, Name, true, sizeof(uptr), 0, Value,
                     NumEvents, EventsList, &NewEvent);
             if (Result != UR_RESULT_SUCCESS) {
                 context.logger.warning("Device Global[{}] Write Failed: {}",
@@ -602,14 +622,37 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
             return true;
         };
 
-        // Device shadow memory offset
+        // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
                            &DeviceInfo->ShadowOffset);
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
                            &DeviceInfo->ShadowOffsetEnd);
+
+        // Write shadow memory offset for local memory
+        auto MaxWorkGroupSize = getWorkgoupSize(Kernel, Device);
+        auto LocalMemorySize = getLocalMemorySize(Device);
+        auto LocalShadowMemorySize =
+            (MaxWorkGroupSize * LocalMemorySize) >> ASAN_SHADOW_SCALE;
+        void *LocalShadowOffset = nullptr;
+        ur_usm_desc_t Desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr, 0, 0};
+        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, &Desc, nullptr, LocalShadowMemorySize,
+            &LocalShadowOffset));
+        uptr LocalShadowOffsetEnd = reinterpret_cast<uptr>(LocalShadowOffset) +
+                                    LocalShadowMemorySize - 1;
+
+        EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalStart,
+                           &LocalShadowOffset);
+        EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalEnd,
+                           &LocalShadowOffsetEnd);
+
+        context.logger.info("Shadow memory (Local, {} - {})",
+                            (void *)LocalShadowOffset,
+                            (void *)LocalShadowOffsetEnd);
     }
 
     QueueInfo->LastEvent = LastEvent;
+    return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur_sanitizer_layer
