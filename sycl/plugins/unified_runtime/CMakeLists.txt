@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/jandres742/unified-runtime.git")
-  # commit 71957e849435169b43e51a42025afeeb63d7508b
-  # Merge: ce152a64 e001b98d
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f
+  # Merge: 95f90926 815a2869
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 21 16:41:08 2023 +0000
-  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
-  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
-  set(UNIFIED_RUNTIME_TAG 815a28691ccf25b7db09d2fd01a9fff6271097ad)
+  # Date:   Thu Dec 14 12:03:01 2023 +0000
+  #     Merge pull request #1105 from jandres742/fixtestusm
+  #     [UR][L0] Add several fixes to L0 adapter for test-usm
+  set(UNIFIED_RUNTIME_TAG 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
