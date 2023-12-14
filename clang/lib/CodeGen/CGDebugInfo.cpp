@@ -604,7 +604,7 @@ void CGDebugInfo::CreateCompileUnit() {
             .isPreprocessed()) {
       MainFileName = CGM.getModule().getName().str();
     } else {
-      CSKind = computeChecksum(SM.getMainFileID(), Checksum);
+      CSKind = computeChecksum(MainFileID, Checksum);
     }
   }
 
