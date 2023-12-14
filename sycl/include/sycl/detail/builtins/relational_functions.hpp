@@ -219,7 +219,6 @@ struct rel_enable_select_vec_helper {
   using T0_elem_type = get_elem_type_t<T0>;
   using T2_elem_type = get_elem_type_t<T2>;
 
-  // FIXME: Should be vector element types instead of generic scalar.
   static constexpr bool check_T0 =
       is_vec_or_swizzle_v<T0> && is_rel_vector_elem_type_v<get_elem_type_t<T0>>;
   static constexpr bool check_T1 = std::is_same_v<T0_simplified, T1_simplified>;
