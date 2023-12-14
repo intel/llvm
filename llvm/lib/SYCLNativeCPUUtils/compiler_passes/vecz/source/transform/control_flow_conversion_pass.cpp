@@ -27,10 +27,13 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/CFG.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Error.h>
+#include <llvm/Support/TypeSize.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <queue>
@@ -210,6 +213,16 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @param[out] toDelete mapping of deleted unmasked operations
   /// @return true if it is valid to mask this call, false otherwise
   bool applyMaskToCall(CallInst *CI, Value *mask, DeletionMap &toDelete);
+
+  /// @brief Attempt to apply a mask to an AtomicRMW instruction via a builtin
+  /// call.
+  ///
+  /// @param[in] atomicI The atomic instruction to apply the mask to
+  /// @param[in] mask The mask to apply to the masked atomic
+  /// @param[out] toDelete mapping of deleted unmasked operations
+  /// @return true if it is valid to mask this atomic, false otherwise
+  bool applyMaskToAtomicRMW(AtomicRMWInst &atomicI, Value *mask,
+                            DeletionMap &toDelete);
 
   /// @brief Linearize a CFG.
   /// @return true if no problem occurred, false otherwise.
@@ -1124,9 +1137,12 @@ Error ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
         return makeStringError("Could not apply mask to call instruction", I);
       }
     } else if (I.isAtomic() && !isa<FenceInst>(&I)) {
-      // We need to apply masks to atomic functions, but it is currently not
-      // implemented. See CA-3294.
-      return makeStringError("Could not apply mask to atomic instruction", I);
+      // Turn atomics into calls to masked builtins if possible.
+      // FIXME: We don't yet support masked cmpxchg instructions.
+      if (auto *atomicI = dyn_cast<AtomicRMWInst>(&I);
+          !atomicI || !applyMaskToAtomicRMW(*atomicI, mask, toDelete)) {
+        return makeStringError("Could not apply mask to atomic instruction", I);
+      }
     } else if (auto *branch = dyn_cast<BranchInst>(&I)) {
       // We have to be careful with infinite loops, because if they exist on a
       // divergent code path, they will always be entered and will hang the
@@ -1351,6 +1367,45 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
   toDelete.emplace_back(CI, newCI);
 
   LLVM_DEBUG(dbgs() << "vecz-cf: Replaced " << *CI << "\n");
+  LLVM_DEBUG(dbgs() << "          with " << *newCI << "\n");
+
+  return true;
+}
+
+bool ControlFlowConversionState::Impl::applyMaskToAtomicRMW(
+    AtomicRMWInst &atomicI, Value *mask, DeletionMap &toDelete) {
+  LLVM_DEBUG(dbgs() << "vecz-cf: Now at AtomicRMWInst " << atomicI << "\n");
+
+  VectorizationContext::MaskedAtomicRMW MA;
+  MA.Align = atomicI.getAlign();
+  MA.BinOp = atomicI.getOperation();
+  MA.IsVectorPredicated = VU.choices().vectorPredication();
+  MA.IsVolatile = atomicI.isVolatile();
+  MA.Ordering = atomicI.getOrdering();
+  MA.SyncScope = atomicI.getSyncScopeID();
+  MA.VF = ElementCount::getFixed(1);
+  MA.ValTy = atomicI.getType();
+  MA.PointerTy = atomicI.getPointerOperand()->getType();
+  // Create the new function and replace the old one with it
+  // Get the masked function
+  Function *newFunction = Ctx.getOrCreateMaskedAtomicRMWFunction(
+      MA, VU.choices(), ElementCount::getFixed(1));
+  VECZ_FAIL_IF(!newFunction);
+  SmallVector<Value *, 8> fnArgs = {atomicI.getPointerOperand(),
+                                    atomicI.getValOperand(), mask};
+  // We don't have a vector length just yet - pass in one as a dummy.
+  if (MA.IsVectorPredicated) {
+    fnArgs.push_back(
+        ConstantInt::get(IntegerType::getInt32Ty(atomicI.getContext()), 1));
+  }
+
+  CallInst *newCI = CallInst::Create(newFunction, fnArgs, "", &atomicI);
+  VECZ_FAIL_IF(!newCI);
+
+  atomicI.replaceAllUsesWith(newCI);
+  toDelete.emplace_back(&atomicI, newCI);
+
+  LLVM_DEBUG(dbgs() << "vecz-cf: Replaced " << atomicI << "\n");
   LLVM_DEBUG(dbgs() << "          with " << *newCI << "\n");
 
   return true;

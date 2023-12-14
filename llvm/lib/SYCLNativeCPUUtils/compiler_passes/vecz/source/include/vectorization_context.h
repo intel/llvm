@@ -23,8 +23,11 @@
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/Analysis/IVDescriptors.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/ValueHandle.h>
+#include <llvm/Support/AtomicOrdering.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 #include <multi_llvm/multi_llvm.h>
@@ -150,6 +153,38 @@ class VectorizationContext {
   /// @return The masked version of the function
   llvm::Function *getOrCreateMaskedFunction(llvm::CallInst *CI);
 
+  struct MaskedAtomicRMW {
+    llvm::Type *PointerTy;
+    llvm::Type *ValTy;
+    llvm::AtomicRMWInst::BinOp BinOp;
+    llvm::Align Align;
+    bool IsVolatile = false;
+    llvm::SyncScope::ID SyncScope;
+    llvm::AtomicOrdering Ordering;
+    // Vectorization info
+    llvm::ElementCount VF;
+    bool IsVectorPredicated = false;
+  };
+
+  /// @brief Check if the given function is a masked version of an atomic RMW
+  /// operation.
+  ///
+  /// @param[in] F The function to check
+  /// @return A MaskedAtomicRMW instance detailing the atomic operation if the
+  /// function is a masked atomic RMW, or std::nullopt otherwise
+  std::optional<MaskedAtomicRMW> isMaskedAtomicRMWFunction(
+      const llvm::Function &F) const;
+  /// @brief Get (if it exists already) or create the function representing the
+  /// masked version of an atomic RMW operation.
+  ///
+  /// @param[in] I Atomic to be masked
+  /// @param[in] Choices Choices to mangle into the function name
+  /// @param[in] VF The vectorization factor of the atomic operation
+  /// @return The masked version of the function
+  llvm::Function *getOrCreateMaskedAtomicRMWFunction(
+      MaskedAtomicRMW &I, const VectorizationChoices &Choices,
+      llvm::ElementCount VF);
+
   /// @brief Create a VectorizationUnit to use to vectorize the given scalar
   /// function.
   ///
@@ -157,7 +192,7 @@ class VectorizationContext {
   /// VectorizationContext.
   ///
   /// @param[in] F Function to vectorize.
-  /// @param[in] Width VF vectorization factor to use.
+  /// @param[in] VF vectorization factor to use.
   /// @param[in] Dimension SIMD dimension to use (0 => x, 1 => y, 2 => z).
   /// @param[in] Ch Vectorization Choices for the vectorization.
   VectorizationUnit *createVectorizationUnit(llvm::Function &F,
@@ -257,6 +292,14 @@ class VectorizationContext {
   /// @returns true on success, false otherwise
   bool emitSubgroupScanBody(llvm::Function &F, bool IsInclusive,
                             llvm::RecurKind OpKind, bool IsVP) const;
+
+  /// @brief Emit the body for a masked atomic builtin
+  ///
+  /// @param[in] F The empty (declaration only) function to emit the body in
+  /// @param[in] MA The MaskedAtomicRMW information
+  /// @returns true on success, false otherwise
+  bool emitMaskedAtomicRMWBody(llvm::Function &F,
+                               const MaskedAtomicRMW &MA) const;
 
   /// @brief Helper for non-vectorization tasks.
   TargetInfo &VTI;

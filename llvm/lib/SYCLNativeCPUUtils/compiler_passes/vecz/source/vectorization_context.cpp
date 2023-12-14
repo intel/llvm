@@ -22,11 +22,17 @@
 #include <compiler/utils/pass_functions.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/IR/Attributes.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/AtomicOrdering.h>
 #include <llvm/Target/TargetMachine.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <algorithm>
 #include <cassert>
+#include <optional>
 
 #include "analysis/vectorization_unit_analysis.h"
 #include "debugging.h"
@@ -368,6 +374,227 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   return newFunction;
 }
 
+std::optional<VectorizationContext::MaskedAtomicRMW>
+VectorizationContext::isMaskedAtomicRMWFunction(const Function &F) const {
+  auto VFInfo = decodeVectorizedFunctionName(F.getName());
+  if (!VFInfo) {
+    return std::nullopt;
+  }
+  auto [FnNameStr, VF, Choices] = *VFInfo;
+
+  llvm::StringRef FnName = FnNameStr;
+  if (!FnName.consume_front("masked_atomicrmw_")) {
+    return std::nullopt;
+  }
+  VectorizationContext::MaskedAtomicRMW AtomicInfo;
+
+  AtomicInfo.VF = VF;
+  AtomicInfo.IsVectorPredicated = Choices.vectorPredication();
+
+  AtomicInfo.IsVolatile = FnName.consume_front("volatile_");
+
+  if (FnName.consume_front("xchg")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Xchg;
+  } else if (FnName.consume_front("add")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Add;
+  } else if (FnName.consume_front("sub")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Sub;
+  } else if (FnName.consume_front("and")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::And;
+  } else if (FnName.consume_front("nand")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Nand;
+  } else if (FnName.consume_front("or")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Or;
+  } else if (FnName.consume_front("xor")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Xor;
+  } else if (FnName.consume_front("max")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Max;
+  } else if (FnName.consume_front("min")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::Min;
+  } else if (FnName.consume_front("umax")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::UMax;
+  } else if (FnName.consume_front("umin")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::UMin;
+  } else if (FnName.consume_front("fadd")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::FAdd;
+  } else if (FnName.consume_front("fsub")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::FSub;
+  } else if (FnName.consume_front("fmax")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::FMax;
+  } else if (FnName.consume_front("fmin")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::FMin;
+  } else if (FnName.consume_front("uincwrap")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::UIncWrap;
+  } else if (FnName.consume_front("udecwrap")) {
+    AtomicInfo.BinOp = AtomicRMWInst::BinOp::UDecWrap;
+  } else {
+    return std::nullopt;
+  }
+
+  if (!FnName.consume_front("_align")) {
+    return std::nullopt;
+  }
+
+  uint64_t Alignment = 0;
+  if (FnName.consumeInteger(/*Radix=*/10, Alignment)) {
+    return std::nullopt;
+  }
+
+  AtomicInfo.Align = Align(Alignment);
+
+  if (!FnName.consume_front("_")) {
+    return std::nullopt;
+  }
+
+  if (FnName.consume_front("acquire")) {
+    AtomicInfo.Ordering = AtomicOrdering::Acquire;
+  } else if (FnName.consume_front("acqrel")) {
+    AtomicInfo.Ordering = AtomicOrdering::AcquireRelease;
+  } else if (FnName.consume_front("monotonic")) {
+    AtomicInfo.Ordering = AtomicOrdering::Monotonic;
+  } else if (FnName.consume_front("notatomic")) {
+    AtomicInfo.Ordering = AtomicOrdering::NotAtomic;
+  } else if (FnName.consume_front("release")) {
+    AtomicInfo.Ordering = AtomicOrdering::Release;
+  } else if (FnName.consume_front("seqcst")) {
+    AtomicInfo.Ordering = AtomicOrdering::SequentiallyConsistent;
+  } else if (FnName.consume_front("unordered")) {
+    AtomicInfo.Ordering = AtomicOrdering::Unordered;
+  } else {
+    return std::nullopt;
+  }
+
+  if (!FnName.consume_front("_")) {
+    return std::nullopt;
+  }
+
+  unsigned SyncScopeID = 0;
+  if (FnName.consumeInteger(/*Radix=*/10, SyncScopeID)) {
+    return std::nullopt;
+  }
+
+  AtomicInfo.SyncScope = static_cast<SyncScope::ID>(SyncScopeID);
+
+  if (!FnName.consume_front("_")) {
+    return std::nullopt;
+  }
+
+  // Note - we just assume the rest of the builtin name is okay, here. It
+  // should be mangled types, but vecz builtins use a strange mangling system,
+  // purely for uniqueness and not to infer types. Types are always assumed to
+  // be inferrable from the function parameters.
+  AtomicInfo.PointerTy = F.getFunctionType()->getParamType(0);
+  AtomicInfo.ValTy = F.getFunctionType()->getParamType(1);
+
+  return AtomicInfo;
+}
+
+Function *VectorizationContext::getOrCreateMaskedAtomicRMWFunction(
+    MaskedAtomicRMW &I, const VectorizationChoices &Choices, ElementCount VF) {
+  LLVMContext &ctx = I.ValTy->getContext();
+
+  SmallVector<Type *, 8> argTys;
+
+  argTys.push_back(I.PointerTy);
+  argTys.push_back(I.ValTy);
+  // Add one extra argument for the mask, which is always the same length
+  // (scalar or vector) as the value type.
+  auto *i1Ty = Type::getInt1Ty(ctx);
+  argTys.push_back(
+      !I.ValTy->isVectorTy()
+          ? dyn_cast<Type>(i1Ty)
+          : VectorType::get(i1Ty,
+                            cast<VectorType>(I.ValTy)->getElementCount()));
+  if (Choices.vectorPredication()) {
+    argTys.push_back(Type::getInt32Ty(ctx));
+  }
+
+  std::string maskedFnName;
+  raw_string_ostream O(maskedFnName);
+  O << "masked_atomicrmw_";
+
+  if (I.IsVolatile) {
+    O << "volatile_";
+  }
+
+#define BINOP_CASE(BINOP, STR) \
+  case AtomicRMWInst::BINOP:   \
+    O << (STR);                \
+    break
+
+  switch (I.BinOp) {
+    BINOP_CASE(Xchg, "xchg");
+    BINOP_CASE(Add, "add");
+    BINOP_CASE(Sub, "sub");
+    BINOP_CASE(And, "and");
+    BINOP_CASE(Nand, "nand");
+    BINOP_CASE(Or, "or");
+    BINOP_CASE(Xor, "xor");
+    BINOP_CASE(Max, "max");
+    BINOP_CASE(Min, "min");
+    BINOP_CASE(UMax, "umax");
+    BINOP_CASE(UMin, "umin");
+    BINOP_CASE(FAdd, "fadd");
+    BINOP_CASE(FSub, "fsub");
+    BINOP_CASE(FMax, "fmax");
+    BINOP_CASE(FMin, "fmin");
+    BINOP_CASE(UIncWrap, "uincwrap");
+    BINOP_CASE(UDecWrap, "udecwrap");
+    case llvm::AtomicRMWInst::BAD_BINOP:
+      return nullptr;
+  }
+
+#undef BINOP_CASE
+
+  O << "_align" << I.Align.value() << "_";
+  // Mangle ordering
+  switch (I.Ordering) {
+    default:
+      O << static_cast<unsigned>(I.Ordering);
+      break;
+    case AtomicOrdering::Acquire:
+      O << "acquire";
+      break;
+    case AtomicOrdering::AcquireRelease:
+      O << "acqrel";
+      break;
+    case AtomicOrdering::Monotonic:
+      O << "monotonic";
+      break;
+    case AtomicOrdering::NotAtomic:
+      O << "notatomic";
+      break;
+    case AtomicOrdering::Release:
+      O << "release";
+      break;
+    case AtomicOrdering::SequentiallyConsistent:
+      O << "seqcst";
+      break;
+    case AtomicOrdering::Unordered:
+      O << "unordered";
+      break;
+  }
+  // Syncscope
+  O << "_" << static_cast<unsigned>(I.SyncScope) << "_";
+
+  // Mangle types
+  compiler::utils::NameMangler mangler(&ctx);
+  for (auto *ty : argTys) {
+    VECZ_FAIL_IF(!mangler.mangleType(
+        O, ty,
+        compiler::utils::TypeQualifiers(compiler::utils::eTypeQualNone)));
+  }
+
+  maskedFnName =
+      getVectorizedFunctionName(maskedFnName, VF, Choices, /*IsBuiltin=*/true);
+
+  // Create the function type
+  FunctionType *maskedFnTy =
+      FunctionType::get(I.ValTy, argTys, /*isVarArg=*/false);
+
+  return getOrCreateInternalBuiltin(maskedFnName, maskedFnTy);
+}
+
 namespace {
 std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
     StringRef fnName, Type *const ty) {
@@ -458,6 +685,10 @@ bool VectorizationContext::defineInternalBuiltin(Function *F) {
     RecurKind opKind = std::get<1>(*scanInfo);
     bool isVP = std::get<2>(*scanInfo);
     return emitSubgroupScanBody(*F, isInclusive, opKind, isVP);
+  }
+
+  if (auto AtomicInfo = isMaskedAtomicRMWFunction(*F)) {
+    return emitMaskedAtomicRMWBody(*F, *AtomicInfo);
   }
 
   return false;
@@ -774,6 +1005,106 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
   }
 
   B.CreateRet(Result);
+  return true;
+}
+
+bool VectorizationContext::emitMaskedAtomicRMWBody(
+    Function &F, const VectorizationContext::MaskedAtomicRMW &MA) const {
+  LLVMContext &Ctx = F.getContext();
+
+  auto *const EntryBB = BasicBlock::Create(Ctx, "entry", &F);
+
+  auto *const ExitBB = BasicBlock::Create(Ctx, "exit", &F);
+
+  auto *const PtrArg = F.getArg(0);
+  auto *const ValArg = F.getArg(1);
+  Value *MaskArg = F.getArg(2);
+
+  const bool IsVector = ValArg->getType()->isVectorTy();
+
+  IRBuilder<> B(EntryBB);
+  Value *const IdxStart = B.getInt32(0);
+  ConstantInt *const KnownMin = B.getInt32(MA.VF.getKnownMinValue());
+  Value *IdxEnd = !MA.VF.isScalable() ? KnownMin : B.CreateVScale(KnownMin);
+
+  // For vector-predicated masked atomics, we have to merge the incoming mask
+  // with a mask corresponding to the number of elements left active by the
+  // runtime vector length.
+  if (MA.IsVectorPredicated) {
+    auto *const VL = F.getArg(3);
+    auto *const IndexTy = VectorType::get(VL->getType(), MA.VF);
+    auto *const step = B.CreateStepVector(IndexTy);
+    auto *const VLMask = B.CreateICmpULT(step, B.CreateVectorSplat(MA.VF, VL));
+    MaskArg = B.CreateAnd(MaskArg, VLMask);
+  }
+
+  Value *RetVal = nullptr;
+
+  auto CreateLoopBody = [&MA, &F, &ExitBB, PtrArg, ValArg, MaskArg, &RetVal,
+                         IsVector](
+                            BasicBlock *BB, Value *Idx, ArrayRef<Value *> IVs,
+                            MutableArrayRef<Value *> IVsNext) -> BasicBlock * {
+    IRBuilder<> IRB(BB);
+
+    Value *MaskElt = MaskArg;
+    if (IsVector) {
+      MaskElt = IRB.CreateExtractElement(MaskArg, Idx, "mask");
+    }
+    auto *const MaskCmp =
+        IRB.CreateICmpNE(MaskElt, IRB.getInt1(false), "mask.cmp");
+
+    auto *const IfBB = BasicBlock::Create(F.getContext(), "if.then", &F);
+    auto *const ElseBB = BasicBlock::Create(F.getContext(), "if.else", &F);
+
+    IRB.CreateCondBr(MaskCmp, IfBB, ElseBB);
+
+    {
+      IRB.SetInsertPoint(IfBB);
+      Value *Ptr = PtrArg;
+      Value *Val = ValArg;
+      if (IsVector) {
+        Ptr = IRB.CreateExtractElement(PtrArg, Idx, "ptr");
+        Val = IRB.CreateExtractElement(ValArg, Idx, "val");
+      }
+      auto *const AtomicRMW = IRB.CreateAtomicRMW(MA.BinOp, Ptr, Val, MA.Align,
+                                                  MA.Ordering, MA.SyncScope);
+      AtomicRMW->setVolatile(MA.IsVolatile);
+
+      if (IsVector) {
+        RetVal = IRB.CreateInsertElement(IVs[0], AtomicRMW, Idx, "retvec");
+      } else {
+        RetVal = AtomicRMW;
+      }
+
+      IRB.CreateBr(ElseBB);
+    }
+
+    {
+      IRB.SetInsertPoint(ElseBB);
+
+      auto *MergePhi = IRB.CreatePHI(RetVal->getType(), 2, "merge");
+      MergePhi->addIncoming(IVs[0], BB);
+      MergePhi->addIncoming(RetVal, IfBB);
+      RetVal = MergePhi;
+    }
+    IVsNext[0] = RetVal;
+
+    // Move the exit block right to the end of the function.
+    ExitBB->moveAfter(ElseBB);
+
+    return ElseBB;
+  };
+
+  compiler::utils::CreateLoopOpts Opts;
+  {
+    Opts.IVs.push_back(PoisonValue::get(MA.ValTy));
+    Opts.loopIVNames.push_back("retvec.prev");
+  }
+  compiler::utils::createLoop(EntryBB, ExitBB, IdxStart, IdxEnd, Opts,
+                              CreateLoopBody);
+
+  B.SetInsertPoint(ExitBB);
+  B.CreateRet(RetVal);
   return true;
 }
 

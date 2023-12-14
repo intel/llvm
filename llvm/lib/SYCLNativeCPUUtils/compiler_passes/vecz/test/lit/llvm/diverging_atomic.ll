@@ -22,7 +22,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 ; CHECK: Vecz: Could not apply masks for function "kernel"
 ; CHECK-NEXT: note: Could not apply mask to atomic instruction
-; CHECK-SAME:  %atomic = atomicrmw add ptr %arrayidx.in, i32 2 monotonic, align 4
+; CHECK-SAME:  atomic_success = cmpxchg ptr %arrayidx.in, i32 2, i32 4 acq_rel monotonic, align 4
 
 define spir_kernel void @kernel(ptr %in, ptr %out) {
 entry:
@@ -32,7 +32,8 @@ entry:
 
 if.then:
   %arrayidx.in = getelementptr inbounds i32, ptr %in, i64 %gid
-  %atomic = atomicrmw add ptr %arrayidx.in, i32 2 monotonic, align 4
+  %atomic_success = cmpxchg ptr %arrayidx.in, i32 2, i32 4 acq_rel monotonic, align 4
+  %atomic = extractvalue { i32, i1 } %atomic_success, 0
   br label %end
 
 end:
