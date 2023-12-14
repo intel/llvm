@@ -54,7 +54,7 @@ decltype(auto) SYCL_EXTERNAL test(sycl::marray<float, 2> x,
 // CHECK-NEXT:   %{{.*}} = icmp eq i64 %{{.*}}, 8
 // CHECK-NEXT:   br i1 %{{.*}}, label %{{.*}}, label %{{.*}}
 // CHECK-EMPTY:
-// CHECK-NEXT: _ZN4sycl3_V15fractINS0_6marrayIfLm2EEENS0_9multi_ptrIS3_LNS0_6access13address_spaceE1ELNS5_9decoratedE2EEEEENS0_6detail18builtin_enable_ptrIT_T0_E4typeESB_SC_.exit:
+// CHECK-NEXT: _ZN4sycl3_V15fractINS0_6marrayIfLm2EEENS0_9multi_ptrIS3_LNS0_6access13address_spaceE1ELNS5_9decoratedE2EEEEENSt9enable_ifIXaa20builtin_enable_ptr_vIT_T0_Ent22is_scalar_arithmetic_vISA_EENS0_6detail19simplify_if_swizzleISA_E4typeEE4typeESA_SB_.exit:
 // CHECK-NEXT:   %{{.*}} = inttoptr i64 %{{.*}} to ptr addrspace(1)
 // CHECK-NEXT:   %{{.*}} = lshr i64 %{{.*}}, 32
 // CHECK-NEXT:   %{{.*}} = trunc i64 %{{.*}} to i32

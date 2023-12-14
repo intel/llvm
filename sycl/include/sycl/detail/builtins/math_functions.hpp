@@ -203,11 +203,15 @@ inline constexpr bool builtin_enable_ptr_v =
     builtin_enable_math_allow_scalar_v<T0> && builtin_ptr_check_v<T0, T1>;
 
 template <typename T0, typename T1>
-struct builtin_enable_ptr
-    : std::enable_if<builtin_enable_ptr_v<T0, T1>, simplify_if_swizzle_t<T0>> {
-};
+using builtin_enable_ptr_scalar_t =
+    std::enable_if_t<builtin_enable_ptr_v<T0, T1> && is_scalar_arithmetic_v<T0>,
+                     T0>;
+
 template <typename T0, typename T1>
-using builtin_enable_ptr_t = typename builtin_enable_ptr<T0, T1>::type;
+using builtin_enable_ptr_non_scalar_t =
+    std::enable_if_t<builtin_enable_ptr_v<T0, T1> &&
+                         !is_scalar_arithmetic_v<T0>,
+                     simplify_if_swizzle_t<T0>>;
 
 template <typename FuncTy, typename PtrTy, typename... Ts>
 auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
@@ -338,7 +342,8 @@ template <typename T0, typename T1> auto fract_impl(T0 &x, T1 &y) {
 }
 } // namespace detail
 #endif
-BUILTIN_LAST_PTR(TWO_ARGS, fract, builtin_enable_ptr_t, builtin_enable_ptr_t)
+BUILTIN_LAST_PTR(TWO_ARGS, fract, builtin_enable_ptr_scalar_t,
+                 builtin_enable_ptr_non_scalar_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
@@ -365,7 +370,8 @@ template <typename T0, typename T1> auto modf_impl(T0 &x, T1 &&y) {
 }
 } // namespace detail
 #endif
-BUILTIN_LAST_PTR(TWO_ARGS, modf, builtin_enable_ptr_t, builtin_enable_ptr_t)
+BUILTIN_LAST_PTR(TWO_ARGS, modf, builtin_enable_ptr_scalar_t,
+                 builtin_enable_ptr_non_scalar_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
@@ -449,9 +455,8 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
 }
 #endif
 } // namespace detail
-  // FIXME: non-scalar
-BUILTIN_LAST_PTR_COMMON(TWO_ARGS, sincos, builtin_enable_ptr_t,
-                        builtin_enable_ptr_t)
+BUILTIN_LAST_PTR_COMMON(TWO_ARGS, sincos, builtin_enable_ptr_scalar_t,
+                        builtin_enable_ptr_non_scalar_t)
 template <typename T0>
 __SYCL_DEPRECATED("SYCL builtin functions with raw pointer arguments have been "
                   "deprecated. Please use multi_ptr.")
