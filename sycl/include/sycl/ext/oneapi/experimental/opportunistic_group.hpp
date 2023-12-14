@@ -29,10 +29,9 @@ class opportunistic_group;
 namespace this_kernel {
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(
-    sycl::aspect::ext_oneapi_non_uniform_groups)]]
+    sycl::aspect::ext_oneapi_opportunistic_group)]]
 #endif
-inline opportunistic_group
-get_opportunistic_group();
+inline opportunistic_group get_opportunistic_group();
 } // namespace this_kernel
 
 class opportunistic_group {

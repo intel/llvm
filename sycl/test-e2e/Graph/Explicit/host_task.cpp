@@ -5,9 +5,6 @@
 //
 // CHECK-NOT: LEAK
 
-// Skip as host tasks aren't implemented yet.
-// REQUIRES: NOT_YET_IMPLEMENTED
-
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/host_task.cpp"

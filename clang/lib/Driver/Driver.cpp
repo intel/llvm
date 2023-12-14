@@ -3698,6 +3698,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
       // FPGA binaries with AOCX or AOCR sections are not considered fat
       // static archives.
       return !(hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCR) ||
+               hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCR_EMU) ||
                hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCX));
     }
   return false;
@@ -5377,12 +5378,14 @@ class OffloadingActionBuilder final {
                 OWA->setCompileStep(false);
               ActionList BundlingActions;
               BundlingActions.push_back(DeviceWrappingAction);
-              DeviceAction =
-                  C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
-              // We created a bundled section for the wrapped images that
-              // are not compiled.  Create another image set that are
-              // compiled.  This set would be extracted for feeding into
-              // the offline compilation step when consumed.
+
+              // Wrap and compile the wrapped device device binary.  This will
+              // be used later when consumed as the input .bc file to retain
+              // the symbols and properties associated.
+              DeviceAction = C.MakeAction<OffloadWrapperJobAction>(
+                  BundlingActions, types::TY_Object);
+              if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                OWA->setOffloadKind(Action::OFK_Host);
               Action *CompiledDeviceAction =
                   C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
                                                         types::TY_Object);
@@ -5754,12 +5757,14 @@ class OffloadingActionBuilder final {
                   OWA->setCompileStep(false);
                 ActionList BundlingActions;
                 BundlingActions.push_back(DeviceWrappingAction);
-                DeviceAction =
-                    C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
-                // We created a bundled section for the wrapped images that
-                // are not compiled.  Create another image set that are
-                // compiled.  This set would be extracted for feeding into
-                // the offline compilation step when consumed.
+
+                // Wrap and compile the wrapped device device binary.  This will
+                // be used later when consumed as the input .bc file to retain
+                // the symbols and properties associated.
+                DeviceAction = C.MakeAction<OffloadWrapperJobAction>(
+                    BundlingActions, types::TY_Object);
+                if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                  OWA->setOffloadKind(Action::OFK_Host);
                 Action *CompiledDeviceAction =
                     C.MakeAction<OffloadWrapperJobAction>(WrapperInputs,
                                                           types::TY_Object);
@@ -6145,6 +6150,27 @@ class OffloadingActionBuilder final {
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
           continue;
+        // If any section found is an 'image' based object that was created
+        // with the intention of not requiring the matching SYCL target, do
+        // not emit the diagnostic.
+        if (SyclTarget.TC->getTriple().isSPIR()) {
+          bool SectionFound = false;
+          for (auto Section : UniqueSections) {
+            if (SectionFound)
+              break;
+            SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_fpga",
+                                                    "spir64_x86_64"};
+            for (auto ArchStr : ArchList) {
+              std::string Arch(ArchStr + "_image");
+              if (Section.find(Arch) != std::string::npos) {
+                SectionFound = true;
+                break;
+              }
+            }
+          }
+          if (SectionFound)
+            continue;
+        }
         // Didn't find any matches, return the full list for the diagnostic.
         SmallString<128> ArchListStr;
         int Cnt = 0;

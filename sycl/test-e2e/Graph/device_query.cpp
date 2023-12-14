@@ -1,4 +1,3 @@
-// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -23,6 +22,11 @@ int main() {
   if ((Backend == backend::ext_oneapi_level_zero) ||
       (Backend == backend::ext_oneapi_cuda)) {
     assert(SupportsGraphs == exp_ext::graph_support_level::native);
+  } else if (Backend == backend::opencl) {
+    // OpenCL backend support is conditional on the cl_khr_command_buffer
+    // extension being available
+    assert(SupportsGraphs == exp_ext::graph_support_level::native ||
+           SupportsGraphs == exp_ext::graph_support_level::unsupported);
   } else {
     assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);
   }

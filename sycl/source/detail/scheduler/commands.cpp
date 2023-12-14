@@ -2488,8 +2488,9 @@ pi_int32 enqueueImpCommandBufferKernel(
   }
 
   if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid,
-                          "Failed to add kernel to PI command-buffer");
+    const device_impl &DeviceImplem = *(DeviceImpl);
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
+                                                        PiKernel, NDRDesc);
   }
 
   return Res;
@@ -2535,18 +2536,7 @@ pi_int32 enqueueImpKernel(
     Program = DeviceImageImpl->get_program_ref();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    // When caching is enabled, kernel objects can be shared,
-    // so we need to retrieve the mutex associated to it via
-    // getOrCreateKernel
-    if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-      auto [CachedKernel, CachedKernelMutex, CachedEliminatedArgMask] =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              KernelBundleImplPtr->get_context(), KernelName,
-              /*PropList=*/{}, Program);
-      assert(CachedKernel == Kernel);
-      assert(CachedEliminatedArgMask == EliminatedArgMask);
-      KernelMutex = CachedKernelMutex;
-    }
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());

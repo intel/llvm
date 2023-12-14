@@ -4,6 +4,9 @@
 // RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
+//
+// USM copy command not supported for OpenCL
+// UNSUPPORTED: opencl
 
 // Tests memcpy operation using device USM and an in-order queue.
 

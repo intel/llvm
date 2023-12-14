@@ -218,6 +218,12 @@ template <class T> struct make_signed<const T> {
 template <class T, int N> struct make_signed<vec<T, N>> {
   using type = vec<make_signed_t<T>, N>;
 };
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct make_signed<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                             OperationCurrentT, Indexes...>> {
+  using type = make_signed_t<std::remove_cv_t<VecT>>;
+};
 template <class T, std::size_t N> struct make_signed<marray<T, N>> {
   using type = marray<make_signed_t<T>, N>;
 };
@@ -232,6 +238,12 @@ template <class T> struct make_unsigned<const T> {
 };
 template <class T, int N> struct make_unsigned<vec<T, N>> {
   using type = vec<make_unsigned_t<T>, N>;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct make_unsigned<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = make_unsigned_t<std::remove_cv_t<VecT>>;
 };
 template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
   using type = marray<make_unsigned_t<T>, N>;
