@@ -4566,7 +4566,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
 
   // -fno-system-debug turns off debug info generation for system headers
   if (Args.hasArg(options::OPT_fno_system_debug))
-    CmdArgs.push_back("-no-system-debug");
+    CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
   const auto *PubnamesArg =
