@@ -115,6 +115,9 @@ struct ur_context_handle_t_ : _ur_object {
       SharedReadOnlyMemProxyPools;
   umf::pool_unique_handle_t HostMemProxyPool;
 
+  // Map associating pools created with urUsmPoolCreate and internal pools
+  std::list<ur_usm_pool_handle_t> UsmPoolHandles{};
+
   // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to
   // reference all existing memory allocations at the time when they are
