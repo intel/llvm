@@ -83,7 +83,8 @@ public:
   static ur_event_handle_t
   makeNative(ur_command_t Type, ur_queue_handle_t Queue, CUstream Stream,
              uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
-    bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
+    const bool ProfilingEnabled =
+        Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
     native_type EvEnd = nullptr, EvQueued = nullptr, EvStart = nullptr;
     UR_CHECK_ERROR(cuEventCreate(
         &EvEnd, ProfilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
