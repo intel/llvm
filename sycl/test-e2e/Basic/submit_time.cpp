@@ -1,6 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// There is an issue with reported device time for the L0 backend, works only on pvc for now.
+// No such problems for opencl backend.
+// REQUIRES: !ext_oneapi_level_zero || gpu-intel-pvc
+
 // Check that submission time is calculated properly.
 
 #include <sycl/sycl.hpp>
