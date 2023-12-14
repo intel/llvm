@@ -1830,7 +1830,7 @@ public:
                KernelBundleImplPtr)
         .get_specialization_constant<SpecName>();
   }
-  std::size_t getKenelNameStringHash() { return MKernelNameStringHash; }
+  std::size_t getKernelNameStringHash() { return MKernelNameStringHash; }
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
