@@ -236,7 +236,8 @@ inline constexpr bool rel_enable_select_v =
     detail::rel_enable_select_vec_helper<T0, T1, T2>::value;
 } // namespace detail
 
-// FIXME: Delegate to SPIR-V on device.
+// __spirv_ocl_select doesn't behave as required by SYCL/OpenCL spec for vector
+// data types (MSB-related stuff).
 template <typename T>
 std::enable_if_t<detail::is_rel_generic_scalar_v<T>, T> select(T a, T b,
                                                                bool c) {
