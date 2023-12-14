@@ -143,6 +143,7 @@ CudaInstallationDetector::CudaInstallationDetector(
 
   // In decreasing order so we prefer newer versions to older versions.
   std::initializer_list<const char *> Versions = {
+      "12.3", "12.2", "12.1", "12.0", "11.8", "11.7", "11.6", "11.5",
       "11.4", "11.3", "11.2", "11.1", "10.2", "10.1", "10.0",
       "9.2",  "9.1",  "9.0",  "8.0",  "7.5",  "7.0"};
   auto &FS = D.getVFS();
