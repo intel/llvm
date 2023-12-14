@@ -7520,9 +7520,24 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
 
 /// Handle the [[intel::fpga_memory]] attribute.
 /// This is incompatible with the [[intel::fpga_register]] attribute.
+SYCLIntelMemoryAttr *
+Sema::MergeSYCLIntelMemoryAttr(Decl *D, const AttributeCommonInfo &AL,
+                               SYCLIntelMemoryAttr::MemoryKind Kind) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelMemoryAttr>()) {
+    if (DeclAttr->getKind() != Kind) {
+      Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
+      Diag(DeclAttr->getLocation(), diag::note_previous_attribute);
+    }
+    // If there is no mismatch, drop any duplicate attributes.
+    return nullptr;
+  }
+  return SYCLIntelMemoryAttr::Create(Context, Kind, AL);
+}
+
 static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
                                   const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMemoryAttr>(S, D, AL);
   if (checkAttrMutualExclusion<SYCLIntelRegisterAttr>(S, D, AL))
     return;
 
@@ -7548,7 +7563,9 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
     if (MA->isImplicit())
       D->dropAttr<SYCLIntelMemoryAttr>();
 
-  D->addAttr(::new (S.Context) SYCLIntelMemoryAttr(S.Context, AL, Kind));
+  SYCLIntelMemoryAttr *NewAttr = S.MergeSYCLIntelMemoryAttr(D, AL, Kind);
+  if (NewAttr)
+    D->addAttr(NewAttr);
 }
 
 /// Check for and diagnose attributes incompatible with register.

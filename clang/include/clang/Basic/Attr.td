@@ -2664,7 +2664,7 @@ def SYCLIntelSinglePump : Attr {
   let Documentation = [SYCLIntelSinglePumpAttrDocs];
 }
 
-def SYCLIntelMemory : Attr {
+def SYCLIntelMemory : InheritableAttr {
   let Spellings = [CXX11<"intel", "fpga_memory">];
   let Args = [EnumArgument<"Kind", "MemoryKind",
                            ["MLAB", "BLOCK_RAM", ""],

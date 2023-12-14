@@ -3064,6 +3064,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
         S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
   else if (const auto *SA = dyn_cast<HLSLShaderAttr>(Attr))
     NewAttr = S.mergeHLSLShaderAttr(D, *SA, SA->getType());
+  else if (const auto *A = dyn_cast<SYCLIntelMemoryAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMemoryAttr(D, *A, A->getKind());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
