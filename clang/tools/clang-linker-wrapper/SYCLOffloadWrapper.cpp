@@ -148,6 +148,7 @@ struct Wrapper {
                               Type::getInt32Ty(C), Type::getInt32Ty(C));
   }
 
+  // TODO: Drop Verion in favor of the Version in Binary Descriptor.
   // TODO: Drop Manifest fields.
   /// Creates a structure corresponding to:
   /// SYCL specific image descriptor type.
@@ -251,8 +252,7 @@ struct Wrapper {
     if (Entries.empty())
       return {NullPtr, NullPtr}; // TODO: test this line.
 
-    std::unique_ptr<MemoryBuffer> MB =
-        MemoryBuffer::getMemBuffer(StringRef(*Entries));
+    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
     // the Native CPU PI Plug-in expects the BinaryStart field to point to an
     // array of struct nativecpu_entry {
     //   char *kernelname;
