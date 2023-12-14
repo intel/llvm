@@ -485,11 +485,12 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
     Mutator.mapArg(1, [=](IRBuilder<> &Builder, Value *V) {
       return Builder.CreateLoad(MemTy, V, "exp");
     });
-    Mutator.changeReturnType(MemTy, [&](IRBuilder<> &Builder, CallInst *NCI) {
-      NewCI = NCI;
-      Builder.CreateStore(NCI, Expected);
-      return Builder.CreateICmpEQ(NCI, NCI->getArgOperand(1));
-    });
+    Mutator.changeReturnType(
+        MemTy, [Expected, &NewCI](IRBuilder<> &Builder, CallInst *NCI) {
+          NewCI = NCI;
+          Builder.CreateStore(NCI, Expected);
+          return Builder.CreateICmpEQ(NCI, NCI->getArgOperand(1));
+        });
   }
   return NewCI;
 }
