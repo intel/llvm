@@ -42,6 +42,9 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
 
+// For the default case we would prefer that no debug info is generated for pop_back/insert (i.e. use CHECK-NO-DEBUG instead of CHECK-ALL-DEBUG)
+// but decls with "explicit_instantiation_definition" are processed for debug info generation before isReferenced is calculated.  Thus,
+// we must assume that these decls are referenced and generate debug info for them.
 // RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %}         %else %{ --check-prefix=CHECK-NO-DEBUG  %}         %s
 // RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
