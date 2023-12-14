@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/jandres742/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 9fc2c2ebd60b97f1b8f4a5c3a6ac51eed5a5c460)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit dcec3feb7912be6e6fb1a8ef268b2d61afe759c5
+  # Merge: 4424195c 9fc2c2eb
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Dec 14 17:54:55 2023 +0000
+  #     Merge pull request #1061 from jandres742/updateL0loader
+  #     [UR][L0] Upgrade L0 loader to v1.15.1
+  set(UNIFIED_RUNTIME_TAG dcec3feb7912be6e6fb1a8ef268b2d61afe759c5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
