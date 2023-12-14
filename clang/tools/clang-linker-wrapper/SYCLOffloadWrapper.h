@@ -26,14 +26,11 @@ enum class SYCLBinaryImageFormat {
   BIF_LLVMBC  // LLVM bitcode
 };
 
-SYCLBinaryImageFormat getBinaryImageFormatFromString(llvm::StringRef S);
-
 struct SYCLImage {
   std::vector<char> Image;
-  std::optional<llvm::util::PropertySetRegistry> PropertyRegistry;
+  llvm::util::PropertySetRegistry PropertyRegistry;
 
-  // Note: Must be null-terminated.
-  std::optional<std::string> Entries;
+  std::string Entries;
 
   // Offload target triple. TODO: check is not performed yet.
   std::string Target;
@@ -41,19 +38,19 @@ struct SYCLImage {
   SYCLBinaryImageFormat Format =
       SYCLBinaryImageFormat::BIF_None; // TODO: is not used in Clang Driver.
                                        // legacy
-  // target/compiler specific options what are suggested to use to "compile"
-  // program at runtime.
-  //  Allowed to be empty.
-  std::string CompileOptions;
-  // Target/Compiler specific options that are suggested to use to "link"
-  // program at runtime. Allowed to be empty.
-  std::string LinkOptions;
 };
 
 SYCLImage getSYCLImage();
 
 struct SYCLWrappingOptions {
   bool EmitRegistrationFunctions = true;
+
+  // target/compiler specific options what are suggested to use to "compile"
+  // program at runtime.
+  std::string CompileOptions;
+  // Target/Compiler specific options that are suggested to use to "link"
+  // program at runtime.
+  std::string LinkOptions;
 };
 
 llvm::Error

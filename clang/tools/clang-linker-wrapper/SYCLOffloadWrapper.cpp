@@ -40,18 +40,10 @@
 using namespace llvm;
 using namespace llvm::util;
 
-SYCLBinaryImageFormat getBinaryImageFormatFromString(StringRef S) {
-  return StringSwitch<SYCLBinaryImageFormat>(S)
-      .Case("native", SYCLBinaryImageFormat::BIF_Native)
-      .Case("spirv", SYCLBinaryImageFormat::BIF_SPIRV)
-      .Case("llvmbc", SYCLBinaryImageFormat::BIF_LLVMBC)
-      .Default(SYCLBinaryImageFormat::BIF_None);
-}
-
 namespace {
 
-// Note: Returned values are a part of ABI. If you want to change them
-// then coordinate it with SYCL Runtime.
+/// Note: Returned values are a part of ABI. If you want to change them
+/// then coordinate it with SYCL Runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   switch (Format) {
   case SYCLBinaryImageFormat::BIF_None:
@@ -67,11 +59,11 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   }
 }
 
-// Wrapper helper class that creates all LLVM IRs wrapping given images.
-// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
-// in this implementation are aligned with "sycl/include/sycl/detail/pi.h". If
-// you want to change anything then you MUST coordinate changes with SYCL
-// Runtime ABI.
+/// Wrapper helper class that creates all LLVM IRs wrapping given images.
+/// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
+/// in this implementation are aligned with "sycl/include/sycl/detail/pi.h".
+/// If you want to change anything then you MUST coordinate changes with SYCL
+/// Runtime ABI.
 struct Wrapper {
   Module &M;
   LLVMContext &C;
@@ -93,12 +85,15 @@ struct Wrapper {
     SyclBinDescTy = getSyclBinDescTy();
   }
 
-  // struct _pi_device_binary_property_struct {
-  //   char *Name;
-  //   void *ValAddr;
-  //   uint32_t Type;
-  //   uint64_t ValSize;
-  // };
+  /// Creates structure corresponding to:
+  /// \code
+  ///  struct _pi_device_binary_property_struct {
+  ///    char *Name;
+  ///    void *ValAddr;
+  ///    uint32_t Type;
+  ///    uint64_t ValSize;
+  ///  };
+  /// \endcode
   StructType *getSyclPropTy() {
     return StructType::create({PointerType::getUnqual(C),
                                PointerType::getUnqual(C), Type::getInt32Ty(C),
@@ -106,11 +101,14 @@ struct Wrapper {
                               "_pi_device_binary_property_struct");
   }
 
-  // struct _pi_device_binary_property_set_struct {
-  //   char *Name;
-  //   _pi_device_binary_property_struct* PropertiesBegin;
-  //   _pi_device_binary_property_struct* PropertiesEnd;
-  // };
+  /// Creates a structure corresponding to:
+  /// \code
+  ///  struct _pi_device_binary_property_set_struct {
+  ///    char *Name;
+  ///    _pi_device_binary_property_struct* PropertiesBegin;
+  ///    _pi_device_binary_property_struct* PropertiesEnd;
+  ///  };
+  /// \endcode
   StructType *getSyclPropSetTy() {
     return StructType::create({PointerType::getUnqual(C),
                                PointerType::getUnqual(C),
@@ -134,13 +132,16 @@ struct Wrapper {
                                       ConstantInt::get(SizeTTy, Second)};
   }
 
-  // struct __tgt_offload_entry {
-  //   void *addr;
-  //   char *name;
-  //   size_t size;
-  //   int32_t flags;
-  //   int32_t reserved;
-  // };
+  /// Creates a structure corresponding to:
+  /// \code
+  ///  struct __tgt_offload_entry {
+  ///    void *addr;
+  ///    char *name;
+  ///    size_t size;
+  ///    int32_t flags;
+  ///    int32_t reserved;
+  ///  };
+  /// \endcode
   StructType *getEntryTy() {
     return StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
                               PointerType::getUnqual(C), getSizeTTy(),
@@ -148,40 +149,42 @@ struct Wrapper {
   }
 
   // TODO: Drop Manifest fields.
-  // SYCL specific image descriptor type.
-  // struct __tgt_device_image {
-  //   /// version of this structure - for backward compatibility;
-  //   /// all modifications which change order/type/offsets of existing fields
-  //   /// should increment the version.
-  //   uint16_t Version;
-  //   /// the kind of offload model the image employs.
-  //   uint8_t OffloadKind;
-  //   /// format of the image data - SPIRV, LLVMIR bitcode, etc
-  //   uint8_t Format;
-  //   /// null-terminated string representation of the device's target
-  //   /// architecture
-  //   const char *DeviceTargetSpec;
-  //   /// a null-terminated string; target- and compiler-specific options
-  //   /// which are suggested to use to "compile" program at runtime
-  //   const char *CompileOptions;
-  //   /// a null-terminated string; target- and compiler-specific options
-  //   /// which are suggested to use to "link" program at runtime
-  //   const char *LinkOptions;
-  //   /// Pointer to the manifest data start
-  //   const unsigned char *ManifestStart;
-  //   /// Pointer to the manifest data end
-  //   const unsigned char *ManifestEnd;
-  //   /// Pointer to the device binary image start
-  //   void *ImageStart;
-  //   /// Pointer to the device binary image end
-  //   void *ImageEnd;
-  //   /// the entry table
-  //   __tgt_offload_entry *EntriesBegin;
-  //   __tgt_offload_entry *EntriesEnd;
-  //   _pi_device_binary_property_set_struct PropertySetBegin;
-  //   _pi_device_binary_property_set_struct PropertySetEnd;
-  // };
-  //
+  /// Creates a structure corresponding to:
+  /// SYCL specific image descriptor type.
+  /// \code
+  /// struct __tgt_device_image {
+  ///   // version of this structure - for backward compatibility;
+  ///   // all modifications which change order/type/offsets of existing fields
+  ///   // should increment the version.
+  ///   uint16_t Version;
+  ///   // the kind of offload model the image employs.
+  ///   uint8_t OffloadKind;
+  ///   // format of the image data - SPIRV, LLVMIR bitcode, etc
+  ///   uint8_t Format;
+  ///   // null-terminated string representation of the device's target
+  ///   // architecture
+  ///   const char *DeviceTargetSpec;
+  ///   // a null-terminated string; target- and compiler-specific options
+  ///   // which are suggested to use to "compile" program at runtime
+  ///   const char *CompileOptions;
+  ///   // a null-terminated string; target- and compiler-specific options
+  ///   // which are suggested to use to "link" program at runtime
+  ///   const char *LinkOptions;
+  ///   // Pointer to the manifest data start
+  ///   const unsigned char *ManifestStart;
+  ///   // Pointer to the manifest data end
+  ///   const unsigned char *ManifestEnd;
+  ///   // Pointer to the device binary image start
+  ///   void *ImageStart;
+  ///   // Pointer to the device binary image end
+  ///   void *ImageEnd;
+  ///   // the entry table
+  ///   __tgt_offload_entry *EntriesBegin;
+  ///   __tgt_offload_entry *EntriesEnd;
+  ///   _pi_device_binary_property_set_struct *PropertySetBegin;
+  ///   _pi_device_binary_property_set_struct *PropertySetEnd;
+  /// };
+  /// \endcode
   StructType *getSyclDeviceImageTy() {
     return StructType::create(
         {
@@ -203,18 +206,19 @@ struct Wrapper {
         "__tgt_device_image");
   }
 
-  // SYCL specific binary descriptor type.
-  // struct __tgt_bin_desc {
-  //   /// version of this structure - for backward compatibility;
-  //   /// all modifications which change order/type/offsets of existing fields
-  //   /// should increment the version.
-  //   uint16_t Version;
-  //   uint16_t NumDeviceImages;
-  //   __tgt_device_image *DeviceImages;
-  //   /// the offload entry table
-  //   __tgt_offload_entry *HostEntriesBegin;
-  //   __tgt_offload_entry *HostEntriesEnd;
-  // };
+  /// Creates a structure for SYCL specific binary descriptor type. Corresponds
+  /// to: \code struct __tgt_bin_desc {
+  ///    // version of this structure - for backward compatibility;
+  ///    // all modifications which change order/type/offsets of existing fields
+  ///    // should increment the version.
+  ///    uint16_t Version;
+  ///    uint16_t NumDeviceImages;
+  ///    __tgt_device_image *DeviceImages;
+  ///    // the offload entry table
+  ///    __tgt_offload_entry *HostEntriesBegin;
+  ///    __tgt_offload_entry *HostEntriesEnd;
+  ///  };
+  /// \endcode
   StructType *getSyclBinDescTy() {
     return StructType::create(
         {Type::getInt16Ty(C), Type::getInt16Ty(C), PointerType::getUnqual(C),
@@ -242,9 +246,9 @@ struct Wrapper {
   }
 
   std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::optional<std::string> Entries) {
+  addDeclarationsForNativeCPU(std::string Entries) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
-    if (!Entries)
+    if (Entries.empty())
       return {NullPtr, NullPtr}; // TODO: test this line.
 
     std::unique_ptr<MemoryBuffer> MB =
@@ -286,8 +290,8 @@ struct Wrapper {
     return std::make_pair(Begin, End);
   }
 
-  // Adds a global readonly variable that is initialized by given data to the
-  // module.
+  /// Adds a global readonly variable that is initialized by given
+  /// \p Initializer to the module.
   GlobalVariable *addGlobalArrayVariable(const Twine &Name,
                                          ArrayRef<char> Initializer,
                                          const Twine &Section = "") {
@@ -303,8 +307,9 @@ struct Wrapper {
     return Var;
   }
 
-  // Adds given buffer as a global variable into the module and returns a pair
-  // of pointers that point to the beginning and the end of the variable.
+  /// Adds given \p Buf as a global variable into the module.
+  /// \returns Pair of pointers that point at the beginning and the end of the
+  /// variable.
   std::pair<Constant *, Constant *>
   addArrayToModule(ArrayRef<char> Buf, const Twine &Name,
                    const Twine &Section = "") {
@@ -316,8 +321,9 @@ struct Wrapper {
     return std::make_pair(ImageB, ImageE);
   }
 
-  // Adds given data buffer as constant byte array and returns a constant
-  // pointer to it. The pointer type does not carry size information.
+  /// Adds given \p Data as constant byte array in the module.
+  /// \returns Constant pointer to the added data. The pointer type does not
+  /// carry size information.
   Constant *addRawDataToModule(ArrayRef<char> Data, const Twine &Name) {
     auto *Var = addGlobalArrayVariable(Name, Data);
     auto *DataPtr = ConstantExpr::getGetElementPtr(Var->getValueType(), Var,
@@ -325,9 +331,12 @@ struct Wrapper {
     return DataPtr;
   }
 
-  // Creates all necessary data objects for the given image and returns a pair
-  // of pointers that point to the beginning and end of the global variable that
-  // contains the image data.
+  /// Creates necessary data objects for the given image and returns a pair
+  /// of pointers that point to the beginning and end of the global variable
+  /// that contains the image data.
+  ///
+  /// \returns Pair of pointers that point at the
+  /// beginning and at end of the global variable that contains the image data.
   std::pair<Constant *, Constant *>
   addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
                          StringRef TargetTriple) {
@@ -339,10 +348,11 @@ struct Wrapper {
                              : "__CLANG_OFFLOAD_BUNDLE__sycl-" + TargetTriple);
   }
 
-  // Creates a global variable of const char* type and creates an
-  // initializer that initializes it with given string (with added null
-  // terminator). Returns a link-time constant pointer (constant expr) to that
-  // variable.
+  /// Creates a global variable of const char* type and creates an
+  /// initializer that initializes it with \p Str.
+  ///
+  /// \returns Link-time constant pointer (constant expr) to that
+  /// variable.
   Constant *addStringToModule(StringRef Str, const Twine &Name) {
     auto *Arr = ConstantDataArray::getString(C, Str);
     auto *Var = new GlobalVariable(M, Arr->getType(), /*isConstant*/ true,
@@ -353,10 +363,11 @@ struct Wrapper {
     return ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
   }
 
-  // Creates a global variable of array of structs and initializes
-  // it with the given values in @ArrayData.
-  // Function returns a pair of Constants that point at array content.
-  // If @ArrayData is empty then a returned pair contains nullptrs.
+  /// Creates a global variable of array of structs and initializes
+  /// it with the given values in \p ArrayData.
+  ///
+  /// \returns Pair of Constants that point at array content.
+  /// If \p ArrayData is empty then a returned pair contains nullptrs.
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
     if (ArrayData.empty()) {
@@ -379,11 +390,12 @@ struct Wrapper {
     return std::pair<Constant *, Constant *>(ArrB, ArrE);
   }
 
-  // Creates a global variable that is initiazed with the given @Entries.
-  // Function returns a pair of Constants that point at entries content.
+  /// Creates a global variable that is initiazed with the given \p Entries.
+  ///
+  /// \returns Pair of Constants that point at entries content.
   std::pair<Constant *, Constant *>
-  addOffloadEntriesToModule(std::optional<std::string> Entries) {
-    if (!Entries || Entries->empty()) {
+  addOffloadEntriesToModule(StringRef Entries) {
+    if (Entries.empty()) {
       auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
@@ -393,8 +405,7 @@ struct Wrapper {
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
-    std::unique_ptr<MemoryBuffer> MB =
-        MemoryBuffer::getMemBuffer(StringRef(*Entries));
+    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
       EntriesInits.push_back(ConstantStruct::get(
           EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),
@@ -414,8 +425,9 @@ struct Wrapper {
     return std::pair<Constant *, Constant *>(EntriesB, EntriesE);
   }
 
-  // Creates a global variable that is initialized with the given @PropSet.
-  // Function returns a pair of Constants that point at properties content.
+  /// Creates a global variable that is initialized with the \p PropSet.
+  ///
+  /// \returns Pair of Constants that point at properties content.
   std::pair<Constant *, Constant *>
   addPropertySetToModule(const PropertySet &PropSet) {
     SmallVector<Constant *> PropInits;
@@ -451,52 +463,50 @@ struct Wrapper {
     return addStructArrayToModule(PropInits, SyclPropTy);
   }
 
-  // Given in-memory representation of a set of property sets, inserts it into
-  // the wrapper object file. In-object representation is given below.
-  //
-  // column is a contiguous area of the wrapper object file;
-  // relative location of columns can be arbitrary
-  //
-  //                             _pi_device_binary_property_struct
-  // _pi_device_binary_property_set_struct   |
-  //                     |                   |
-  //                     v                   v
-  // ...             # ...                # ...
-  // PropSetsBegin--># Name0        +----># Name_00
-  // PropSetsEnd--+  # PropsBegin0--+     # ValAddr_00
-  // ...          |  # PropseEnd0------+  # Type_00
-  //              |  # Name1           |  # ValSize_00
-  //              |  # PropsBegin1---+ |  # ...
-  //              |  # PropseEnd1--+ | |  # Name_0n
-  //              +-># ...         | | |  # ValAddr_0n
-  //                 #             | | |  # Type_0n
-  //                 #             | | |  # ValSize_0n
-  //                 #             | | +-># ...
-  //                 #             | |    # ...
-  //                 #             | +---># Name_10
-  //                 #             |      # ValAddr_10
-  //                 #             |      # Type_10
-  //                 #             |      # ValSize_10
-  //                 #             |      # ...
-  //                 #             |      # Name_1m
-  //                 #             |      # ValAddr_1m
-  //                 #             |      # Type_1m
-  //                 #             |      # ValSize_1m
-  //                 #             +-----># ...
-  //                 #                    #
-  // Returns a pair of pointers to the beginning and end of the property set
-  // array, or a pair of nullptrs in case the properties file wasn't specified.
-  std::pair<Constant *, Constant *> addPropertySetRegistry(
-      const std::optional<PropertySetRegistry> &PropRegistry) {
-    if (!PropRegistry) {
-      auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
-      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
-    }
-
+  /// Creates a global variable that holds encoded given \p PropRegistry.
+  /// In-object representation is demonstated below.
+  ///
+  /// column is a contiguous area of the wrapper object file;
+  /// relative location of columns can be arbitrary
+  ///
+  /// \code
+  ///                             _pi_device_binary_property_struct
+  /// _pi_device_binary_property_set_struct   |
+  ///                     |                   |
+  ///                     v                   v
+  /// ...             # ...                # ...
+  /// PropSetsBegin--># Name0        +----># Name_00
+  /// PropSetsEnd--+  # PropsBegin0--+     # ValAddr_00
+  /// ...          |  # PropseEnd0------+  # Type_00
+  ///              |  # Name1           |  # ValSize_00
+  ///              |  # PropsBegin1---+ |  # ...
+  ///              |  # PropseEnd1--+ | |  # Name_0n
+  ///              +-># ...         | | |  # ValAddr_0n
+  ///                 #             | | |  # Type_0n
+  ///                 #             | | |  # ValSize_0n
+  ///                 #             | | +-># ...
+  ///                 #             | |    # ...
+  ///                 #             | +---># Name_10
+  ///                 #             |      # ValAddr_10
+  ///                 #             |      # Type_10
+  ///                 #             |      # ValSize_10
+  ///                 #             |      # ...
+  ///                 #             |      # Name_1m
+  ///                 #             |      # ValAddr_1m
+  ///                 #             |      # Type_1m
+  ///                 #             |      # ValSize_1m
+  ///                 #             +-----># ...
+  ///                 #                    #
+  /// \endcode
+  ///
+  /// \returns Pair of pointers to the beginning and end of the property set
+  /// array, or a pair of nullptrs in case the properties file wasn't specified.
+  std::pair<Constant *, Constant *>
+  addPropertySetRegistry(const PropertySetRegistry &PropRegistry) {
     // transform all property sets to IR and get the middle column image into
     // the PropSetsInits
     SmallVector<Constant *> PropSetsInits;
-    for (const auto &PropSet : *PropRegistry) {
+    for (const auto &PropSet : PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
       std::pair<Constant *, Constant *> Props =
           addPropertySetToModule(PropSet.second);
@@ -510,10 +520,8 @@ struct Wrapper {
     return addStructArrayToModule(PropSetsInits, SyclPropSetTy);
   }
 
-  // Emits an object that holds <address, size> pair for the device image
-  // and puts it into a .tgtimg section. This section can be used for
-  // finding and extracting all device images from the fat binary after
-  // linking.
+  /// Emits a global array that contains \p Address and \P Size. Also add
+  /// it into llvm.used to force it to be emitted in the object file.
   void emitRegistrationFunctions(Constant *Address, size_t Size, Twine ImageID,
                                  StringRef OffloadKindTag) {
     Type *IntPtrTy = M.getDataLayout().getIntPtrType(C);
@@ -549,10 +557,10 @@ struct Wrapper {
     auto *Target = addStringToModule(Image.Target, Twine(OffloadKindTag) +
                                                        "target." + ImageID);
     auto *CompileOptions =
-        addStringToModule(Image.CompileOptions,
+        addStringToModule(Options.CompileOptions,
                           Twine(OffloadKindTag) + "opts.compile." + ImageID);
     auto *LinkOptions = addStringToModule(
-        Image.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
+        Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
     std::pair<Constant *, Constant *> PropSets =
         addPropertySetRegistry(Image.PropertyRegistry);
@@ -565,6 +573,7 @@ struct Wrapper {
           Image.Image, Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
+    // TODO: Manifests are going to be removed.
     // Note: Manifests are deprecated but corresponding nullptr fields should
     // remain to comply ABI.
     std::pair<Constant *, Constant *> Manifests = {NullPtr, NullPtr};
@@ -619,9 +628,9 @@ struct Wrapper {
   /// Creates binary descriptor for the given device images. Binary descriptor
   /// is an object that is passed to the offloading runtime at program startup
   /// and it describes all device images available in the executable or shared
-  /// library. It is defined as follows
+  /// library. It is defined as follows:
   ///
-  ///
+  /// \code
   /// __attribute__((visibility("hidden")))
   /// extern __tgt_offload_entry *__start_offloading_entries0;
   /// __attribute__((visibility("hidden")))
@@ -670,8 +679,9 @@ struct Wrapper {
   ///   __start_offloading_entries,      /*HostEntriesBegin*/
   ///   __stop_offloading_entries        /*HostEntriesEnd*/
   /// };
+  /// \endcode
   ///
-  /// Global variable that represents FatbinDesc is returned.
+  /// \returns Global variable that represents FatbinDesc.
   GlobalVariable *createFatbinDesc(SmallVector<SYCLImage> &Images) {
     const std::string OffloadKindTag =
         (Twine(".") + "sycl" + "_offloading.").str();

@@ -674,7 +674,6 @@ readPropertyRegistryFromFile(StringRef File) {
 // .bin extension might be a bc, spv or other native extension.
 Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
                                                          const ArgList &Args) {
-
   auto TableOrErr = util::SimpleTable::read(TableFile);
   if (!TableOrErr)
     return TableOrErr.takeError();
@@ -684,35 +683,30 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
   int PropertiesIndex = Table->getColumnId("Properties");
   int SymbolsIndex = Table->getColumnId("Symbols");
   if (CodeIndex == -1 || PropertiesIndex == -1 || SymbolsIndex == -1)
-    return createStringError(inconvertibleErrorCode(),
-                             "expected columns in the table: Code, Properties and Symbols);
-
-  StringRef CompileOptions =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
-  StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
+    return createStringError(
+        inconvertibleErrorCode(),
+        "expected columns in the table: Code, Properties and Symbols");
 
   SmallVector<SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-      auto ImageOrErr = readBinaryFile(row.getCell("Code"));
-      if (!ImageOrErr)
-        return ImageOrErr.takeError();
+    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    if (!ImageOrErr)
+      return ImageOrErr.takeError();
 
-      auto PropertiesOrErr =
-          readPropertyRegistryFromFile(row.getCell("Properties"));
-      if (!PropertiesOrErr)
-        return PropertiesOrErr.takeError();
+    auto PropertiesOrErr =
+        readPropertyRegistryFromFile(row.getCell("Properties"));
+    if (!PropertiesOrErr)
+      return PropertiesOrErr.takeError();
 
-      auto SymbolsOrErr = readTextFile(row.getCell("Symbols"));
-      if (!SymbolsOrErr)
-        return SymbolsOrErr.takeError();
+    auto SymbolsOrErr = readTextFile(row.getCell("Symbols"));
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
 
-      SYCLImage Image;
-      Image.Image = std::move(*ImageOrErr);
-      Image.PropertyRegistry = std::move(**PropertiesOrErr);
-      Image.Entries = std::move(*SymbolsOrErr);
-      Image.CompileOptions = CompileOptions;
-      Image.LinkOptions = LinkOptions;
-      Images.push_back(std::move(Image));
+    SYCLImage Image;
+    Image.Image = std::move(*ImageOrErr);
+    Image.PropertyRegistry = std::move(**PropertiesOrErr);
+    Image.Entries = std::move(*SymbolsOrErr);
+    Images.push_back(std::move(Image));
   }
 
   return Images;
@@ -747,7 +741,14 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   Module M(ModuleName, C);
   M.setTargetTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  if (Error E = wrapSYCLBinaries(M, Images))
+
+  StringRef CompileOptions =
+      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
+  StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
+  SYCLWrappingOptions WrappingOptions;
+  WrappingOptions.CompileOptions = CompileOptions;
+  WrappingOptions.LinkOptions = LinkOptions;
+  if (Error E = wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
