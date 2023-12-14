@@ -1665,6 +1665,19 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
   return retv;
 }
 
+/// srnd - perform stochastic rounding.
+/// Supported conversions:
+///   float -> half
+/// Available on PVC_XT+
+/// \param src0 the operand to be rounded
+/// \param src1 random number used for rounding
+/// \return the converted value
+template <int N>
+ESIMD_INLINE __ESIMD_NS::simd<sycl::half, N>
+srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
+  return __esimd_srnd<N>(src0.data(), src1.data());
+}
+
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_logical
