@@ -24,6 +24,10 @@
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<float, 4>)                        \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<float, 4>)
 
+#define FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, float)                                      \
+  NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)
+
 #define NONSCALAR_GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                          \
   NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                   \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                   \
@@ -224,9 +228,15 @@ void check() {
   GENFLOAT_CHECK(TWO_ARGS, distance)
   GENFLOAT_CHECK(ONE_ARG, length)
   GENFLOAT_CHECK(ONE_ARG, normalize)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   GENFLOAT_CHECK(TWO_ARGS, fast_distance)
   GENFLOAT_CHECK(ONE_ARG, fast_length)
   GENFLOAT_CHECK(ONE_ARG, fast_normalize)
+#else
+  FLOAT_CHECK(TWO_ARGS, fast_distance)
+  FLOAT_CHECK(ONE_ARG, fast_length)
+  FLOAT_CHECK(ONE_ARG, fast_normalize)
+#endif
 
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isequal)
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isnotequal)
