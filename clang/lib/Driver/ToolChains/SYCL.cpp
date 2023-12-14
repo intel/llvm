@@ -1247,11 +1247,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
       if (A->getOption().matches(options::OPT_O0))
         BeArgs.push_back("-cl-opt-disable");
-  // In precise floating-point mode we pass the OpenCL flag forcing division to
-  // be correctly rounded.
-  if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ))
-    if (StringRef{A->getValue()}.equals("precise"))
-      BeArgs.push_back("-cl-fp32-correctly-rounded-divide-sqrt");
   StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
   if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
     StringRef RegAllocModeVal = A->getValue(0);
