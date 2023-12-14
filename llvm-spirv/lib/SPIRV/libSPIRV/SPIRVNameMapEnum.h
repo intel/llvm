@@ -633,7 +633,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityGroupNonUniformRotateKHR, "GroupNonUniformRotateKHR");
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
   add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
-  add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
+  add(CapabilityLongCompositesINTEL, "LongCompositesINTEL");
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
