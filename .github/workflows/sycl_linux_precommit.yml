@@ -8,6 +8,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'

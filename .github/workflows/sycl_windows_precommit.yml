@@ -6,6 +6,8 @@ on:
     - sycl
     - sycl-devops-pr/**
     - llvmspirv_pulldown
+    - sycl-rel-**
+
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'

@@ -5,11 +5,14 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
 
   pull_request:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
+
     paths:
     - .github/workflows/sycl_post_commit.yml
     - .github/workflows/sycl_linux_build.yml

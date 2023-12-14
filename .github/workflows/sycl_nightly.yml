@@ -122,10 +122,10 @@ jobs:
         files: |
           sycl_linux.tar.gz
           sycl_windows.tar.gz
-        tag_name: nightly-${{ steps.tag.outputs.TAG }}
-        name: DPC++ daily ${{ steps.tag.outputs.TAG }}
+        tag_name: nightly-rel-${{ steps.tag.outputs.TAG }}
+        name: DPC++ rel daily ${{ steps.tag.outputs.TAG }}
         prerelease: true
-        body: "Daily build ${{ steps.tag.outputs.TAG }}"
+        body: "Daily rel build ${{ steps.tag.outputs.TAG }}"
         target_commitish: ${{ github.sha }}
 
   ubuntu2204_docker_build_push:
