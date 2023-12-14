@@ -149,7 +149,7 @@ public:
     CachedKernelKey(const KernelFastCacheKeyT &key)
         : originalKey(key), precomputedHash(0) {}
 
-    bool operator==(const CachedKernelKey &other) const { return true; }
+    bool operator==(const CachedKernelKey &other) const { return originalKey == other.originalKey; }
     // Setter function to update precomputedHash
     void setPrecomputedHash(std::size_t hash) { precomputedHash = hash; }
   };
