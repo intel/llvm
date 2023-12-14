@@ -912,16 +912,16 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Info.UniqName = getSPIRVFuncName(BVKind);
   } else
     return;
-  auto Mutator = mutateCallInst(CI, Info.UniqName + Info.Postfix);
+  BuiltinCallMutator Mutator = mutateCallInst(CI, Info.UniqName + Info.Postfix);
   Info.PostProc(Mutator);
   if (Info.RetTy) {
     Type *OldRetTy = CI->getType();
     Mutator.changeReturnType(
-        Info.RetTy, [&](IRBuilder<> &Builder, CallInst *NewCI) {
-          if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy())
+        Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
+          if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
             return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
-          else
-            return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
+          }
+          return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });
   }
 }
