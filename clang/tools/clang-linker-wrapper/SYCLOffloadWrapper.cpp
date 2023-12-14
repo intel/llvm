@@ -20,6 +20,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -80,7 +81,7 @@ struct Wrapper {
 
     SyclPropTy = getSyclPropTy();
     SyclPropSetTy = getSyclPropSetTy();
-    EntryTy = getEntryTy();
+    EntryTy = offloading::getEntryTy(M);
     SyclDeviceImageTy = getSyclDeviceImageTy();
     SyclBinDescTy = getSyclBinDescTy();
   }
@@ -132,28 +133,12 @@ struct Wrapper {
                                       ConstantInt::get(SizeTTy, Second)};
   }
 
-  /// Creates a structure corresponding to:
-  /// \code
-  ///  struct __tgt_offload_entry {
-  ///    void *addr;
-  ///    char *name;
-  ///    size_t size;
-  ///    int32_t flags;
-  ///    int32_t reserved;
-  ///  };
-  /// \endcode
-  StructType *getEntryTy() {
-    return StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
-                              PointerType::getUnqual(C), getSizeTTy(),
-                              Type::getInt32Ty(C), Type::getInt32Ty(C));
-  }
-
-  // TODO: Drop Verion in favor of the Version in Binary Descriptor.
+  // TODO: Drop Version in favor of the Version in Binary Descriptor.
   // TODO: Drop Manifest fields.
   /// Creates a structure corresponding to:
   /// SYCL specific image descriptor type.
   /// \code
-  /// struct __tgt_device_image {
+  /// struct __sycl.tgt_device_image {
   ///   // version of this structure - for backward compatibility;
   ///   // all modifications which change order/type/offsets of existing fields
   ///   // should increment the version.
@@ -204,17 +189,20 @@ struct Wrapper {
             PointerType::getUnqual(C), // PropertySetBegin
             PointerType::getUnqual(C)  // PropertySetEnd
         },
-        "__tgt_device_image");
+        "__sycl.tgt_device_image");
   }
 
   /// Creates a structure for SYCL specific binary descriptor type. Corresponds
-  /// to: \code struct __tgt_bin_desc {
+  /// to:
+  ///
+  /// \code
+  ///  struct __sycl.tgt_bin_desc {
   ///    // version of this structure - for backward compatibility;
   ///    // all modifications which change order/type/offsets of existing fields
   ///    // should increment the version.
   ///    uint16_t Version;
   ///    uint16_t NumDeviceImages;
-  ///    __tgt_device_image *DeviceImages;
+  ///    __sycl.tgt_device_image *DeviceImages;
   ///    // the offload entry table
   ///    __tgt_offload_entry *HostEntriesBegin;
   ///    __tgt_offload_entry *HostEntriesEnd;
@@ -224,7 +212,7 @@ struct Wrapper {
     return StructType::create(
         {Type::getInt16Ty(C), Type::getInt16Ty(C), PointerType::getUnqual(C),
          PointerType::getUnqual(C), PointerType::getUnqual(C)},
-        "__tgt_bin_desc");
+        "__sycl.tgt_bin_desc");
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
@@ -250,7 +238,7 @@ struct Wrapper {
   addDeclarationsForNativeCPU(std::string Entries) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (Entries.empty())
-      return {NullPtr, NullPtr}; // TODO: test this line.
+      return {NullPtr, NullPtr};
 
     std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
     // the Native CPU PI Plug-in expects the BinaryStart field to point to an
@@ -651,7 +639,7 @@ struct Wrapper {
   /// static constexpr uint16_t Version = 2;
   /// static constexpr uint16_t OffloadKind = 4; // SYCL
   ///
-  /// static const __tgt_device_image Images[] = {
+  /// static const __sycl.tgt_device_image Images[] = {
   ///   {
   ///     Version,                      /*Version*/
   ///     OffloadKind,                  // Kind of offload model.
@@ -672,7 +660,7 @@ struct Wrapper {
   ///   ...
   /// };
   ///
-  /// static const __tgt_bin_desc FatbinDesc = {
+  /// static const __sycl.tgt_bin_desc FatbinDesc = {
   ///   Version,                             /*Version*/
   ///   sizeof(Images) / sizeof(Images[0]),  /*NumDeviceImages*/
   ///   Images,                              /*DeviceImages*/
@@ -683,8 +671,7 @@ struct Wrapper {
   ///
   /// \returns Global variable that represents FatbinDesc.
   GlobalVariable *createFatbinDesc(SmallVector<SYCLImage> &Images) {
-    const std::string OffloadKindTag =
-        (Twine(".") + "sycl" + "_offloading.").str();
+    const char *OffloadKindTag = ".sycl_offloading.";
     SmallVector<Constant *> WrappedImages;
     WrappedImages.reserve(Images.size());
     for (size_t i = 0; i != Images.size(); ++i) {

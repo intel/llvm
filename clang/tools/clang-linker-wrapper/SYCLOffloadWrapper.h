@@ -34,10 +34,10 @@ struct SYCLImage {
 
   // Offload target triple. TODO: check is not performed yet.
   std::string Target;
-  // format of the image data - SPIRV, LLVMIR bitcode, etc
-  SYCLBinaryImageFormat Format =
-      SYCLBinaryImageFormat::BIF_None; // TODO: is not used in Clang Driver.
-                                       // legacy
+
+  // TODO: remove it as not used.
+  // Format of the image data - SPIRV, LLVMIR bitcode, etc
+  SYCLBinaryImageFormat Format = SYCLBinaryImageFormat::BIF_None;
 };
 
 SYCLImage getSYCLImage();

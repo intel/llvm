@@ -734,11 +734,10 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
     return ImagesOrErr.takeError();
 
   auto &Images = *ImagesOrErr;
-
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+
   LLVMContext C;
-  const StringRef ModuleName = "offload.wrapper.object";
-  Module M(ModuleName, C);
+  Module M("offload.wrapper.object", C);
   M.setTargetTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
 
