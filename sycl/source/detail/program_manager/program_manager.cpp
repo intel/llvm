@@ -2807,7 +2807,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
       Dims++;
     }
 
-    if (NDRDesc.Dims != 0 && NDRDesc.Dims != Dims)
+    if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
       return sycl::exception(
           sycl::errc::invalid,
           "The local size dimension of submitted nd_range doesn't match the "
