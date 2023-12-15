@@ -1110,6 +1110,7 @@
 ?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVqueue@45@@Z
 ?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVqueue@45@@Z
+?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?free_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?free_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVqueue@45@@Z
 ?free_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
