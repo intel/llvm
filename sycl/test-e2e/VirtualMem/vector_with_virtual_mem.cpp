@@ -168,7 +168,7 @@ int main() {
 
     // Copy back the values and verify.
     int *CopyBack = sycl::malloc_shared<int>(NewVecSize, Q);
-    
+
     // TODO: Level-zero does not currently allow copy across virtual memory
     //       ranges, even if they are consequtive.
     if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero) {
