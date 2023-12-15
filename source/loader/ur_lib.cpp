@@ -342,7 +342,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     ur_platform_backend_t platformBackend;
     if (UR_RESULT_SUCCESS !=
         urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                            sizeof(ur_platform_backend_t), &platformBackend, 0)) {
+                          sizeof(ur_platform_backend_t), &platformBackend, 0)) {
         return UR_RESULT_ERROR_INVALID_PLATFORM;
     }
     const std::string platformBackendName = // hPlatform->get_backend_name();
@@ -409,8 +409,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         return ::UR_DEVICE_TYPE_ALL;
     };
 
-    auto getDeviceId =
-        [&](const std::string &input) -> DeviceIdType {
+    auto getDeviceId = [&](const std::string &input) -> DeviceIdType {
         if (input.find_first_not_of("0123456789") == std::string::npos) {
             return std::stoul(input);
         }
@@ -793,7 +792,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
             return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
         }
     }
-
 
     return UR_RESULT_SUCCESS;
 }

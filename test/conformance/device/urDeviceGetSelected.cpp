@@ -43,9 +43,9 @@ TEST_F(urDeviceGetSelectedTest, SuccessSubsetOfDevices) {
 
 TEST_F(urDeviceGetSelectedTest, InvalidNullHandlePlatform) {
     uint32_t count = 0;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urDeviceGetSelected(nullptr, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urDeviceGetSelected(nullptr, UR_DEVICE_TYPE_ALL,
+                                         0, nullptr, &count));
 }
 
 TEST_F(urDeviceGetSelectedTest, InvalidEnumerationDevicesType) {
