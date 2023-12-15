@@ -57,13 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 67e4d1bcf0057eef7910851bfb5020df9e5befd6
+  # commit aaa4661f5c32e6dcb43248ed7575de6971852cc3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Dec 15 10:09:02 2023 +0000
-  #     Merge pull request #1185 from aarongreig/aaron/fixCoverityCudaCL
-  #     Fix coverity issues in OpenCL, cuda and hip adapters.[L0] Add several fixes to L0 adapter
-  #     for test-usm
-  set(UNIFIED_RUNTIME_TAG 67e4d1bcf0057eef7910851bfb5020df9e5befd6)
+  # Date:   Fri Dec 15 16:05:36 2023 +0000
+  #     Set version to v0.8.2
+  set(UNIFIED_RUNTIME_TAG aaa4661f5c32e6dcb43248ed7575de6971852cc3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
