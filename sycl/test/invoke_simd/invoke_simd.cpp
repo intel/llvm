@@ -45,6 +45,7 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 class ESIMDSelector : public device_selector {
   // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
   virtual int operator()(const device &device) const {
@@ -64,6 +65,26 @@ class ESIMDSelector : public device_selector {
     return device.is_gpu() ? 1000 : -1;
   }
 };
+#else
+class ESIMDSelector : public device_selector {
+  // Require GPU device
+  virtual int operator()(const device &device) const {
+    if (const char *dev_selector = getenv("ONEAPI_DEVICE_SELECTOR")) {
+      std::string selector_string(dev_selector);
+      if (selector_string.find("gpu") != std::string::npos)
+        return device.is_gpu() ? 1000 : -1;
+      if (selector_string.find("host") != std::string::npos)
+        return device.is_host() ? 1000 : -1;
+      std::cerr
+          << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values are 'gpu', "
+          << selector_string << "' does not contain such substrings.\n";
+      return -1;
+    }
+    // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
+    return device.is_gpu() ? 1000 : -1;
+  }
+};
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
@@ -218,7 +239,6 @@ SYCL_EXTERNAL void foo(sub_group sg, float a, float b, float *ptr) {
 
   // the target is "F" SIMD_FUNCTOR::() overload:
   invoke_simd(sg, ftor, uniform{simd<float, 3>{1}});
-
 }
 
 // Lambda-based tests, repeat functor test cases above.
@@ -281,7 +301,7 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     const auto ftor = [=] [[gnu::regcall]] (float *, simd<float, 3>,
                                             simd<int, 5>) {};
     invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
-                         uniform{simd<int, 5>{2}});
+                uniform{simd<int, 5>{2}});
   }
   {
     const auto ftor = [=] [[gnu::regcall]] (simd<float, 3>, simd<int, 8>) {};
@@ -297,7 +317,7 @@ SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
 }
 
 SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch,
-                        __regcall void(f)(simd<float, 16>, float)) {
+                             __regcall void(f)(simd<float, 16>, float)) {
   invoke_simd(sg, f, 1.f, uniform{a});
 }
 

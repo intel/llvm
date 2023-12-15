@@ -231,14 +231,18 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
 const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
+const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+#else
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
 const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -265,9 +269,9 @@ public:
   }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
-
 template <>
 class __SYCL2020_DEPRECATED("Use SYCLConfig<ONEAPI_DEVICE_SELECTOR> instead")
     SYCLConfig<SYCL_DEVICE_FILTER> {
@@ -306,6 +310,7 @@ public:
     return FilterList;
   }
 };
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;

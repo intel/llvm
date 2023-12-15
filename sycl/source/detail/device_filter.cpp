@@ -267,6 +267,16 @@ ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+bool ods_target_list::backendCompatible(backend Backend) {
+
+  return std::any_of(
+      TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
+        backend TargetBackend = Target.Backend.value_or(backend::all);
+        return (TargetBackend == Backend) || (TargetBackend == backend::all);
+      });
+}
+#else
 // Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
@@ -405,6 +415,7 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
         return (!Filter.DeviceNum) || (Filter.DeviceNum.value() == DeviceNum);
       });
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace detail
 } // namespace _V1
