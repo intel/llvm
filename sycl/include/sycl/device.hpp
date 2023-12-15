@@ -19,6 +19,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
 #include <sycl/info/info_desc.hpp>                              // for part...
 #include <sycl/platform.hpp>                                    // for plat...
+#include <sycl/string.hpp>                                      // for c++11 abi compatibility
 
 #include <cstddef>     // for size_t
 #include <memory>      // for shar...
@@ -26,6 +27,7 @@
 #include <type_traits> // for add_...
 #include <variant>     // for hash
 #include <vector>      // for vector
+#include <typeinfo>
 
 namespace sycl {
 inline namespace _V1 {
@@ -215,7 +217,23 @@ public:
   ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type get_info() const;
+  typename detail::is_device_info_desc<Param>::return_type get_info() const {
+    // For C++11_ABI compatibility, we handle these string Param types separately.
+    if constexpr (std::is_same_v<Param, info::device::name> ||
+                  std::is_same_v<Param, info::device::vendor> ||
+                  std::is_same_v<Param, info::device::driver_version> ||
+                  std::is_same_v<Param, info::device::version> ||
+                  std::is_same_v<Param, info::device::profile>) {
+
+      string Info = typeid(Param).name();
+      Info.allocate(100);
+      get_device_info(Info);
+      std::string DeviceInfo = Info.marshall();
+      Info.deallocate();
+      return DeviceInfo;
+    }
+    return get_info_internal<Param>();
+  }
 
   /// Check SYCL extension support by device
   ///
@@ -291,6 +309,11 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <typename Param>
+  typename detail::is_device_info_desc<Param>::return_type get_info_internal() const;
+  // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
+  void get_device_info(string& Type) const;
 };
 
 } // namespace _V1

@@ -16,6 +16,7 @@
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
+#include <typeinfo>
 
 namespace sycl {
 inline namespace _V1 {
@@ -133,13 +134,32 @@ bool device::has_extension(const std::string &extension_name) const {
 
 template <typename Param>
 typename detail::is_device_info_desc<Param>::return_type
-device::get_info() const {
+device::get_info_internal() const {
   return impl->template get_info<Param>();
+}
+
+void device::get_device_info(string& Type) const {
+  std::string Info;
+  if (Type == typeid(info::device::name).name()) {
+    Info = impl->template get_info<info::device::name>();
+  } else if (Type == typeid(info::device::vendor).name()) {
+    Info = impl->template get_info<info::device::vendor>();
+  } else if (Type == typeid(info::device::driver_version).name()) {
+    Info = impl->template get_info<info::device::driver_version>();
+  } else if (Type == typeid(info::device::version).name()) {
+    Info = impl->template get_info<info::device::version>();
+  } else if (Type == typeid(info::device::profile).name()) {
+    Info = impl->template get_info<info::device::profile>();
+  } else {
+    throw sycl::invalid_parameter_error("unsupported device info requested",
+                                        PI_ERROR_INVALID_OPERATION);
+  }
+  Type.unmarshall(Info);
 }
 
 // Explicit override. Not fulfilled by #include device_traits.def below.
 template <>
-__SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
+__SYCL_EXPORT device device::get_info_internal<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
@@ -154,7 +174,7 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 
 template <>
 __SYCL_EXPORT std::vector<sycl::aspect>
-device::get_info<info::device::aspects>() const {
+device::get_info_internal<info::device::aspects>() const {
   std::vector<sycl::aspect> DeviceAspects{
 #define __SYCL_ASPECT(ASPECT, ID) aspect::ASPECT,
 #include <sycl/info/aspects.def>
@@ -178,14 +198,14 @@ device::get_info<info::device::aspects>() const {
 }
 
 template <>
-__SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
+__SYCL_EXPORT bool device::get_info_internal<info::device::image_support>() const {
   // Explicit specialization is needed due to the class of info handle. The
   // implementation is done in get_device_info_impl.
   return impl->template get_info<info::device::image_support>();
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
+  template __SYCL_EXPORT ReturnT device::get_info_internal<info::device::Desc>() const;
 
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
 
@@ -195,7 +215,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
   template __SYCL_EXPORT ReturnT                                               \
-  device::get_info<Namespace::info::DescType::Desc>() const;
+  device::get_info_internal<Namespace::info::DescType::Desc>() const;
 
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>

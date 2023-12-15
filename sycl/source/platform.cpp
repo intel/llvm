@@ -58,9 +58,27 @@ backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type
-platform::get_info() const {
+platform::get_info_internal() const {
   return impl->get_info<Param>();
 }
+
+void platform::get_platform_info(string& Type) const {
+  std::string Info;
+  if (Type == typeid(info::platform::name).name()) {
+    Info = impl->get_info<info::platform::name>();
+  } else if (Type == typeid(info::platform::vendor).name()) {
+    Info = impl->get_info<info::platform::vendor>();
+  } else if (Type == typeid(info::platform::version).name()) {
+    Info = impl->get_info<info::platform::version>();
+  } else if (Type == typeid(info::platform::profile).name()) {
+    Info = impl->get_info<info::platform::profile>();
+  } else {
+    throw sycl::invalid_parameter_error("unsupported device info requested",
+                                        PI_ERROR_INVALID_OPERATION);
+  }
+  Type.unmarshall(Info);
+}
+
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 

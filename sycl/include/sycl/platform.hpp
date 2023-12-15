@@ -18,6 +18,7 @@
 #include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
 #include <sycl/info/info_desc.hpp>            // for device_type
+#include <sycl/string.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -145,7 +146,22 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const {
+    // For C++11_ABI compatibility, we handle these string Param types separately.
+    if constexpr (std::is_same_v<Param, info::platform::name> ||
+                  std::is_same_v<Param, info::platform::vendor> ||
+                  std::is_same_v<Param, info::platform::version> ||
+                  std::is_same_v<Param, info::platform::profile>) {
+
+      string Info = typeid(Param).name();
+      Info.allocate(100);
+      get_platform_info(Info);
+      std::string PlatformInfo = Info.marshall();
+      Info.deallocate();
+      return PlatformInfo;
+    }
+    return get_info_internal<Param>();
+  }
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -204,6 +220,11 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <typename Param>
+  typename detail::is_platform_info_desc<Param>::return_type get_info_internal() const;
+  // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
+  void get_platform_info(string& Type) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

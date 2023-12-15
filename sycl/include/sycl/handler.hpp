@@ -51,6 +51,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/string.hpp>
 #include <sycl/types.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
@@ -547,7 +548,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
-  std::string getKernelName();
+  string getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -557,8 +558,8 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
-    const std::string KernelName = getKernelName();
-    return LambdaName == KernelName;
+    string KernelName = getKernelName();
+    return LambdaName == KernelName.marshall();
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -841,7 +842,11 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  void verifyUsedKernelBundle(const std::string &KernelName);
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    string Name = string(KernelName);
+    verifyUsedKernelBundleInternal(Name);
+  }
+  void verifyUsedKernelBundleInternal(string& KernelName);
 
   /// Stores lambda to the template-free object
   ///
@@ -3298,7 +3303,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  std::string MKernelName;
+  string MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
@@ -3401,6 +3406,10 @@ private:
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
+                                bool Block = false) {
+    ext_intel_read_host_pipe(string(Name), Ptr, Size, Block);
+  }
+  void ext_intel_read_host_pipe(string Name, void *Ptr, size_t Size,
                                 bool Block = false);
 
   /// Write to host pipes given a host address and
@@ -3410,6 +3419,10 @@ private:
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false) {
+    ext_intel_write_host_pipe(string(Name), Ptr, Size, Block);
+  }
+  void ext_intel_write_host_pipe(string Name, void *Ptr,
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
 
