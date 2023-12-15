@@ -3403,8 +3403,7 @@ bool SPIRVToLLVM::translate() {
     auto *BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
-    else
-      transGlobalCtorDtors(BV);
+    transGlobalCtorDtors(BV);
   }
 
   // Then translate all debug instructions.
