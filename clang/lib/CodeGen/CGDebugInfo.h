@@ -901,7 +901,8 @@ public:
   ~ApplyInlineDebugLocation();
 };
 
-bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM, bool IsReferencedValid=true);
+bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM,
+                       bool IsReferencedValid = true);
 
 } // namespace CodeGen
 } // namespace clang
