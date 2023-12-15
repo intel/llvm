@@ -242,7 +242,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+          StreamID, MKernel, MCodeLoc, MKernelName.getPtr(), MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
