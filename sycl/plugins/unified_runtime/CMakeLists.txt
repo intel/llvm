@@ -141,7 +141,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
