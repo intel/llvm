@@ -9,6 +9,11 @@ struct urProgramCreateWithBinaryTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+        size_t binary_sizes_len = 0;
+        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
+                                        0, nullptr, &binary_sizes_len));
+        // We're expecting one binary
+        ASSERT_EQ(binary_sizes_len / sizeof(size_t), 1);
         size_t binary_size = 0;
         ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
                                         sizeof(binary_size), &binary_size,
