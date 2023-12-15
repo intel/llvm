@@ -147,7 +147,8 @@ public:
   /// The return type depends on information being queried.
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    // For C++11_ABI compatibility, we handle these string Param types separately.
+    // For C++11_ABI compatibility, we handle these string Param types
+    // separately.
     if constexpr (std::is_same_v<Param, info::platform::name> ||
                   std::is_same_v<Param, info::platform::vendor> ||
                   std::is_same_v<Param, info::platform::version> ||
@@ -222,9 +223,10 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info_internal() const;
+  typename detail::is_platform_info_desc<Param>::return_type
+  get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_platform_info(string& Type) const;
+  void get_platform_info(string &Type) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

@@ -62,7 +62,7 @@ platform::get_info_internal() const {
   return impl->get_info<Param>();
 }
 
-void platform::get_platform_info(string& Type) const {
+void platform::get_platform_info(string &Type) const {
   std::string Info;
   if (Type == typeid(info::platform::name).name()) {
     Info = impl->get_info<info::platform::name>();
@@ -78,7 +78,6 @@ void platform::get_platform_info(string& Type) const {
   }
   Type.unmarshall(Info);
 }
-
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 

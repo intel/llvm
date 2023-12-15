@@ -19,15 +19,15 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
 #include <sycl/info/info_desc.hpp>                              // for part...
 #include <sycl/platform.hpp>                                    // for plat...
-#include <sycl/string.hpp>                                      // for c++11 abi compatibility
+#include <sycl/string.hpp> // for c++11 abi compatibility
 
 #include <cstddef>     // for size_t
 #include <memory>      // for shar...
 #include <string>      // for string
 #include <type_traits> // for add_...
-#include <variant>     // for hash
-#include <vector>      // for vector
 #include <typeinfo>
+#include <variant> // for hash
+#include <vector>  // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -218,7 +218,8 @@ public:
   /// \return device info of type described in Table 4.20.
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
-    // For C++11_ABI compatibility, we handle these string Param types separately.
+    // For C++11_ABI compatibility, we handle these string Param types
+    // separately.
     if constexpr (std::is_same_v<Param, info::device::name> ||
                   std::is_same_v<Param, info::device::vendor> ||
                   std::is_same_v<Param, info::device::driver_version> ||
@@ -311,9 +312,10 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type get_info_internal() const;
+  typename detail::is_device_info_desc<Param>::return_type
+  get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_device_info(string& Type) const;
+  void get_device_info(string &Type) const;
 };
 
 } // namespace _V1

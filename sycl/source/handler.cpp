@@ -180,7 +180,8 @@ event handler::finalize() {
       if (!KernelBundleImpPtr->isInterop() &&
           !MImpl->isStateExplicitKernelBundle()) {
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName.getPtr());
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                MKernelName.getPtr());
         bool KernelInserted =
             KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
         // If kernel was not inserted and the bundle is in input mode we try
@@ -260,22 +261,24 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName.getPtr(), RawEvents, NewEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+                                 MKernel, MKernelName.getPtr(), RawEvents,
+                                 NewEvent, nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
       };
 
-      emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName.getPtr(), MQueue,
-                                    MNDRDesc, KernelBundleImpPtr, MArgs);
+      emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName.getPtr(),
+                                    MQueue, MNDRDesc, KernelBundleImpPtr,
+                                    MArgs);
 
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName.getPtr());
+            detail::ProgramManager::getInstance().kernelUsesAssert(
+                MKernelName.getPtr());
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -805,7 +808,7 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-//std::string handler::getKernelName() {
+// std::string handler::getKernelName() {
 string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
@@ -1262,8 +1265,8 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-void handler::ext_intel_read_host_pipe(string Name, void *Ptr,
-                                       size_t Size, bool Block) {
+void handler::ext_intel_read_host_pipe(string Name, void *Ptr, size_t Size,
+                                       bool Block) {
   MImpl->HostPipeName = Name.getPtr();
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
@@ -1272,8 +1275,8 @@ void handler::ext_intel_read_host_pipe(string Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-void handler::ext_intel_write_host_pipe(string Name, void *Ptr,
-                                        size_t Size, bool Block) {
+void handler::ext_intel_write_host_pipe(string Name, void *Ptr, size_t Size,
+                                        bool Block) {
   MImpl->HostPipeName = Name.getPtr();
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;

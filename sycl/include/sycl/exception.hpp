@@ -129,9 +129,9 @@ protected:
   // &what_arg);
   exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
             const std::string &what_arg)
-        : exception(ec, SharedPtrCtx, what_arg.c_str()) {}
+      : exception(ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
-                     const char* WhatArg);
+            const char *WhatArg);
 };
 
 class __SYCL2020_DEPRECATED(

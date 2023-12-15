@@ -846,7 +846,7 @@ private:
     string Name = string(KernelName);
     verifyUsedKernelBundleInternal(Name);
   }
-  void verifyUsedKernelBundleInternal(string& KernelName);
+  void verifyUsedKernelBundleInternal(string &KernelName);
 
   /// Stores lambda to the template-free object
   ///
@@ -3422,8 +3422,8 @@ private:
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(string(Name), Ptr, Size, Block);
   }
-  void ext_intel_write_host_pipe(string Name, void *Ptr,
-                                 size_t Size, bool Block = false);
+  void ext_intel_write_host_pipe(string Name, void *Ptr, size_t Size,
+                                 bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
 
   bool DisableRangeRounding();

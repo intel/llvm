@@ -13,46 +13,29 @@ namespace sycl {
 inline namespace _V1 {
 
 class string {
-    const char* str;   // used to send existing std::string to libsycl
-    char *ret_str;     // set from libsycl
+  const char *str; // used to send existing std::string to libsycl
+  char *ret_str;   // set from libsycl
 
 public:
+  string() : str(nullptr), ret_str(nullptr) {}
+  string(const char *ptr) : str(ptr) {}
+  string(std::string strn) : str(strn.c_str()) {}
 
-    string() : str(nullptr), ret_str(nullptr) {}
-    string(const char* ptr) : str(ptr) {}
-    string(std::string strn) : str(strn.c_str()) {}
+  bool operator==(const char *st) { return strcmp(str, st) == 0; }
 
-    bool operator==(const char* st) {
-        return strcmp(str, st) == 0;
-    }
+  std::string marshall() { return std::string(ret_str); }
 
-    std::string marshall() {
-        return std::string(ret_str);
-    }
+  std::string marshall() const { return std::string(ret_str); }
 
-    std::string marshall() const {
-        return std::string(ret_str);
-    }
+  void unmarshall(std::string &strn) { strcpy(ret_str, strn.c_str()); }
 
-    void unmarshall(std::string& strn) {
-        strcpy(ret_str, strn.c_str());
-    }
+  void allocate(int size) { ret_str = new char[size]; }
 
-    void allocate(int size) {
-        ret_str = new char[size];
-    }
+  void deallocate() { delete[] ret_str; }
 
-    void deallocate() {
-        delete[] ret_str;
-    }
+  const char *getPtr() { return str; }
 
-    const char* getPtr() {
-        return str;
-    }
-
-    char* getRetPtr() {
-        return ret_str;
-    }
+  char *getRetPtr() { return ret_str; }
 };
 
 } // namespace _V1

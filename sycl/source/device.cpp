@@ -138,7 +138,7 @@ device::get_info_internal() const {
   return impl->template get_info<Param>();
 }
 
-void device::get_device_info(string& Type) const {
+void device::get_device_info(string &Type) const {
   std::string Info;
   if (Type == typeid(info::device::name).name()) {
     Info = impl->template get_info<info::device::name>();
@@ -159,7 +159,8 @@ void device::get_device_info(string& Type) const {
 
 // Explicit override. Not fulfilled by #include device_traits.def below.
 template <>
-__SYCL_EXPORT device device::get_info_internal<info::device::parent_device>() const {
+__SYCL_EXPORT device
+device::get_info_internal<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
@@ -198,14 +199,16 @@ device::get_info_internal<info::device::aspects>() const {
 }
 
 template <>
-__SYCL_EXPORT bool device::get_info_internal<info::device::image_support>() const {
+__SYCL_EXPORT bool
+device::get_info_internal<info::device::image_support>() const {
   // Explicit specialization is needed due to the class of info handle. The
   // implementation is done in get_device_info_impl.
   return impl->template get_info<info::device::image_support>();
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT device::get_info_internal<info::device::Desc>() const;
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info_internal<info::device::Desc>() const;
 
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
 
