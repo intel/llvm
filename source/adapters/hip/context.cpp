@@ -40,15 +40,13 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
     const ur_context_properties_t *, ur_context_handle_t *phContext) {
-  std::ignore = DeviceCount;
-  assert(DeviceCount == 1);
   ur_result_t RetErr = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
     // Create a scoped context.
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
-        new ur_context_handle_t_{*phDevices});
+        new ur_context_handle_t_{phDevices, DeviceCount});
 
     static std::once_flag InitFlag;
     std::call_once(
@@ -78,9 +76,9 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
   switch (uint32_t{propName}) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(1);
+    return ReturnValue(static_cast<uint32_t>(hContext->Devices.size()));
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->getDevice());
+    return ReturnValue(hContext->getDevices());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
@@ -124,8 +122,10 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
+  // FIXME: this entry point has been deprecated in the SYCL RT and should be
+  // changed to unsupported once the deprecation period has elapsed
   *phNativeContext = reinterpret_cast<ur_native_handle_t>(
-      hContext->getDevice()->getNativeContext());
+      hContext->getDevices()[0]->getNativeContext());
   return UR_RESULT_SUCCESS;
 }
 

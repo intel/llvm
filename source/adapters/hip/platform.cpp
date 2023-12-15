@@ -47,9 +47,6 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
 /// There is only one HIP platform, and contains all devices on the system.
 /// Triggers the HIP Driver initialization (hipInit) the first time, so this
 /// must be the first UR API called.
-///
-/// However because multiple devices in a context is not currently supported,
-/// place each device in a separate platform.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
@@ -57,7 +54,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
-    static std::vector<ur_platform_handle_t_> PlatformIds;
+    static ur_platform_handle_t_ Platform;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
     UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_VALUE);
@@ -79,22 +76,18 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             return;
           }
           try {
-            // make one platform per device
-            NumPlatforms = NumDevices;
-            PlatformIds.resize(NumDevices);
-
-            for (int i = 0; i < NumDevices; ++i) {
+            for (auto i = 0u; i < static_cast<uint32_t>(NumDevices); ++i) {
               hipDevice_t Device;
               UR_CHECK_ERROR(hipDeviceGet(&Device, i));
               hipCtx_t Context;
               UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
-              PlatformIds[i].Devices.emplace_back(
-                  new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
+              Platform.Devices.emplace_back(
+                  new ur_device_handle_t_{Device, Context, &Platform, i});
             }
 
             // Setup EvBase
             {
-              ScopedContext Active(PlatformIds.front().Devices.front().get());
+              ScopedContext Active(Platform.Devices.front().get());
               hipEvent_t EvBase;
               UR_CHECK_ERROR(hipEventCreate(&EvBase));
               UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
@@ -103,17 +96,11 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            for (int i = 0; i < NumDevices; ++i) {
-              PlatformIds[i].Devices.clear();
-            }
-            PlatformIds.clear();
+            Platform.Devices.clear();
             Err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (ur_result_t CatchErr) {
             // Clear and rethrow to allow retry
-            for (int i = 0; i < NumDevices; ++i) {
-              PlatformIds[i].Devices.clear();
-            }
-            PlatformIds.clear();
+            Platform.Devices.clear();
             Err = CatchErr;
             throw CatchErr;
           } catch (...) {
@@ -128,9 +115,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     }
 
     if (phPlatforms != nullptr) {
-      for (unsigned i = 0; i < std::min(NumEntries, NumPlatforms); ++i) {
-        phPlatforms[i] = &PlatformIds[i];
-      }
+      *phPlatforms = &Platform;
     }
 
     return Result;

@@ -5,8 +5,10 @@
 
 #include <uur/fixtures.h>
 
-struct urKernelSetArgSamplerTest : uur::urKernelTest {
+struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     void SetUp() {
+        program_name = "image_copy";
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
         // Images and samplers are not available on AMD
         ur_platform_backend_t backend;
         ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -14,9 +16,7 @@ struct urKernelSetArgSamplerTest : uur::urKernelTest {
         if (backend == UR_PLATFORM_BACKEND_HIP) {
             GTEST_SKIP() << "Sampler are not supported on hip.";
         }
-
-        program_name = "image_copy";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+        Build();
         ur_sampler_desc_t sampler_desc = {
             UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */
             nullptr,                          /* pNext */
@@ -31,7 +31,7 @@ struct urKernelSetArgSamplerTest : uur::urKernelTest {
         if (sampler) {
             ASSERT_SUCCESS(urSamplerRelease(sampler));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::TearDown());
     }
 
     ur_sampler_handle_t sampler = nullptr;

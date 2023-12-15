@@ -616,13 +616,18 @@ class ur_name_t(Structure):
       - `out` is used for params that are write-only; if the param is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for params that are both read and write; typically this is used for pointers to other data structures that contain both read and write params
       - `nocheck` is used to specify that no additional validation checks will be generated.
-    + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[release]"`, `"[typename(typeVarName)]"`}
+    + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[release]"`, `"[typename(typeVarName)]"`, `"[bounds(offset,size)]"`}
       - `optional` is used for params that are handles or pointers where it is legal for the value to be `nullptr`
       - `range` is used for params that are array pointers to specify the valid range that the is valid to read
         + `start` and `end` must be an ISO-C standard identifier or literal
         + `start` is inclusive and `end` is exclusive
       - `release` is used for params that are handles or pointers to handles where the function will destroy any backing memory associated with the handle(s)
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
+      - `bounds` is used for params that are memory objects or USM allocations. It specifies the range within the memory allocation represented by the param that will be accessed by the operation.
+        + `offset` and `size` must be an ISO-C standard identifier or literal
+        + The sum of `offset` and `size` will be compared against the size of the memory allocation represented by the param.
+        + If `offset` and `size` are not both integers they must be of the types `$x_rect_offset` and `$x_rect_region` respectively.
+        + If `bounds` is used the operation must also take a parameter of type `$x_queue_handle_t`
     + `type` must be an ISO-C standard identifier
     + `name` must be a unique ISO-C standard identifier
   - A param may take the following optional scalar field: {`init`, `version`}

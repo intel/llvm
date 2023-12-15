@@ -30,7 +30,6 @@ jobs:
     - name: Checkout UR
       uses: actions/checkout@v4
       with:
-        ref: adapters
         path: ur-repo
 
     - name: Checkout SYCL

@@ -549,6 +549,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       SupportedExtensions += "cl_khr_fp64 ";
     }
 
+    SupportedExtensions += "cl_khr_fp16 ";
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
