@@ -549,6 +549,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
         hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+
+    setErrorMessage("Prefetch hint ignored and replaced with empty node as "
+                    "prefetch is not supported by CUDA Graph backend",
+                    UR_RESULT_SUCCESS);
+    Result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -579,6 +584,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
         hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+
+    setErrorMessage("Memory advice ignored and replaced with empty node as "
+                    "memory advice is not supported by CUDA Graph backend",
+                    UR_RESULT_SUCCESS);
+    Result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   } catch (ur_result_t Err) {
     Result = Err;
   }
