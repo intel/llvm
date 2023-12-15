@@ -1583,7 +1583,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // Since HIP requires a the global variable to be referenced by name, we use
+  // Since HIP requires the global variable to be referenced by name, we use
   // metadata to find the correct name to access it by.
   auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
   if (DeviceGlobalNameIt == hProgram->GlobalIDMD.end())
