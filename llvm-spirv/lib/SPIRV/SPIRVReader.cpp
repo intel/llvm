@@ -2235,9 +2235,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *CC = static_cast<SPIRVCompositeConstruct *>(BV);
     auto Constituents = transValue(CC->getOperands(), F, BB);
     std::vector<Constant *> CV;
+    bool HasRtValues = false;
     for (const auto &I : Constituents) {
-      CV.push_back(dyn_cast<Constant>(I));
+      auto *C = dyn_cast<Constant>(I);
+      CV.push_back(C);
+      if (!HasRtValues && C == nullptr)
+        HasRtValues = true;
     }
+
     switch (static_cast<size_t>(BV->getType()->getOpCode())) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
@@ -2247,7 +2252,22 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
     case OpTypeStruct: {
       auto *ST = cast<StructType>(transType(CC->getType()));
-      return mapValue(BV, ConstantStruct::get(ST, CV));
+      if (!HasRtValues)
+        return mapValue(BV, ConstantStruct::get(ST, CV));
+
+      AllocaInst *Alloca = new AllocaInst(ST, SPIRAS_Private, "", BB);
+
+      // get pointer to the element of structure
+      // store the result of argument
+      for (size_t I = 0; I < Constituents.size(); I++) {
+        auto *GEP = GetElementPtrInst::Create(
+            Constituents[I]->getType(), Alloca, {getInt32(M, I)}, "gep", BB);
+        GEP->setIsInBounds(true);
+        new StoreInst(Constituents[I], GEP, false, BB);
+      }
+
+      auto *Load = new LoadInst(ST, Alloca, "load", false, BB);
+      return mapValue(BV, Load);
     }
     case internal::OpTypeJointMatrixINTEL:
     case OpTypeCooperativeMatrixKHR:
