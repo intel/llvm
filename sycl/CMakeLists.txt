@@ -435,6 +435,8 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-bundler
      clang-offload-deps
      clang-offload-extract
+     clang-offload-packager
+     clang-linker-wrapper
      file-table-tform
      llc
      llvm-ar

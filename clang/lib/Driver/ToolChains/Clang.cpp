@@ -10699,6 +10699,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
+
+    if (tools::SYCL::shouldDoPerObjectFileLinking(C))
+      CmdArgs.push_back("-no-sycl-rdc");
   }
 
   auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
@@ -10706,23 +10709,23 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OptString += " ";
     OptString += AddOpt.str();
   };
-  // --sycl-post-link-options="options" provides a string of options to be
+  // -sycl-post-link-options="options" provides a string of options to be
   // passed along to the sycl-post-link tool during device link.
   if (Args.hasArg(options::OPT_Xdevice_post_link)) {
     SmallString<128> OptString;
     for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
       appendOption(OptString, A);
     CmdArgs.push_back(
-        Args.MakeArgString("--sycl-post-link-options=" + OptString));
+        Args.MakeArgString("-sycl-post-link-options=" + OptString));
   }
 
-  // --llvm-spirv-options="options" provides a string of options to be passed
+  // -llvm-spirv-options="options" provides a string of options to be passed
   // along to the llvm-spirv (translation) step during device link.
   if (Args.hasArg(options::OPT_Xspirv_translator)) {
     SmallString<128> OptString;
     for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
       appendOption(OptString, A);
-    CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+    CmdArgs.push_back(Args.MakeArgString("-llvm-spirv-options=" + OptString));
   }
 
   // Construct the link job so we can wrap around it.

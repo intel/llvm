@@ -210,15 +210,15 @@ off to the `llvm-spirv` tool, which translates the LLVM-IR to SPIR-V.
 
 |            Option                    |   Expected Behavior   |
 |--------------------------------------|-----------------------|
-| `--sycl-post-link-options=<arg>`     | Options that will control sycl-post-link step |
-| `--llvm-spirv-options=<arg>`         | Options that will control llvm-spirv step |
+| `-sycl-post-link-options=<arg>`     | Options that will control sycl-post-link step |
+| `-llvm-spirv-options=<arg>`         | Options that will control llvm-spirv step |
 
 *Table: Options to pass sycl-post-link and llvm-spirv options to the clang-linker-wrapper*
 
 Options that will be used by clang-linker-wrapper when invoking the `sycl-post-link`
-tool are provided by the driver via the `--sycl-post-link-options=<arg>` option.
+tool are provided by the driver via the `-sycl-post-link-options=<arg>` option.
 Options that will be used by clang-linker-wrapper when invoking the `llvm-spirv`
-tool are provided by the driver via the `--llvm-spirv-options=<arg>` option.
+tool are provided by the driver via the `-llvm-spirv-options=<arg>` option.
 
 ### Ahead Of Time Compilation
 

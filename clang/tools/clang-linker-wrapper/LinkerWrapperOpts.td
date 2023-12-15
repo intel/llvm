@@ -149,3 +149,5 @@ def sycl_post_link_options_EQ : Joined<["-"], "sycl-post-link-options=">,
 def llvm_spirv_options_EQ : Joined<["-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+def no_sycl_rdc: Flag<["--", "-"], "no-sycl-rdc">, Flags<[WrapperOnlyOption, HelpHidden]>;

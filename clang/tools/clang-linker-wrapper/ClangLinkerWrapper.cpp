@@ -782,36 +782,51 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
-static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                                      const ArgList &Args) {
+static SmallVector<StringRef, 16> linkDevice(ArrayRef<StringRef> InputFiles,
+                                             const ArgList &Args) {
+  bool IsNoRDC = Args.hasArg(OPT_no_sycl_rdc);
+  SmallVector<StringRef, 16> LinkedDeviceFiles;
   SmallVector<StringRef, 16> InputFilesVec;
   for (StringRef InputFile : InputFiles)
     InputFilesVec.emplace_back(InputFile);
-  // First llvm-link step.
-  auto LinkedFile = sycl::linkDeviceInputFiles(InputFilesVec, Args);
-  if (!LinkedFile)
-    reportError(LinkedFile.takeError());
 
-  InputFilesVec.clear();
-  InputFilesVec.emplace_back(*LinkedFile);
+  // In -fno-sycl-rdc mode, we don't link all device inputs
+  // together and instead run the entire device linking process
+  // once per file. This requires each device input not rely
+  // on external symbols defined in other device inputs.
+  size_t NumDeviceLinks = IsNoRDC ? InputFiles.size() : 1;
+  for (size_t LinkNum = 0; LinkNum < NumDeviceLinks; LinkNum++) {
+    if (!IsNoRDC) {
+      // First llvm-link step, only done when we are not in -fno-sycl-rdc mode.
+      auto LinkedFile = sycl::linkDeviceInputFiles(InputFilesVec, Args);
+      if (!LinkedFile)
+        reportError(LinkedFile.takeError());
 
-  // Get SYCL device library files
-  // Gathering device library files
-  SmallVector<std::string, 16> DeviceLibFiles;
-  if (Error Err = sycl::getSYCLDeviceLibs(DeviceLibFiles, Args))
-    reportError(std::move(Err));
-  SmallVector<std::string, 16> UnbundledDeviceLibFiles;
-  if (Error Err = sycl::unbundleSYCLDeviceLibs(DeviceLibFiles,
-                                               UnbundledDeviceLibFiles, Args))
-    reportError(std::move(Err));
-  for (auto &File : UnbundledDeviceLibFiles)
-    InputFilesVec.emplace_back(File);
-  // second llvm-link step
-  auto DeviceLinkedFile = sycl::linkDeviceLibFiles(InputFilesVec, Args);
-  if (!DeviceLinkedFile)
-    reportError(DeviceLinkedFile.takeError());
+      InputFilesVec.clear();
+      InputFilesVec.emplace_back(*LinkedFile);
+    } else {
+      InputFilesVec.clear();
+      InputFilesVec.emplace_back(InputFiles[LinkNum]);
+    }
 
-  return *DeviceLinkedFile;
+    // Get SYCL device library files
+    // Gathering device library files
+    SmallVector<std::string, 16> DeviceLibFiles;
+    if (Error Err = sycl::getSYCLDeviceLibs(DeviceLibFiles, Args))
+      reportError(std::move(Err));
+    SmallVector<std::string, 16> UnbundledDeviceLibFiles;
+    if (Error Err = sycl::unbundleSYCLDeviceLibs(DeviceLibFiles,
+                                                 UnbundledDeviceLibFiles, Args))
+      reportError(std::move(Err));
+    for (auto &File : UnbundledDeviceLibFiles)
+      InputFilesVec.emplace_back(File);
+    // second llvm-link step
+    auto DeviceLinkedFile = sycl::linkDeviceLibFiles(InputFilesVec, Args);
+    if (!DeviceLinkedFile)
+      reportError(DeviceLinkedFile.takeError());
+    LinkedDeviceFiles.push_back(*DeviceLinkedFile);
+  }
+  return LinkedDeviceFiles;
 }
 
 } // namespace sycl
@@ -1585,25 +1600,27 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
     if (HasSYCLOffloadKind) {
       // Link the remaining device files using the device linker for SYCL
       // offload.
-      auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
-      if (!TmpOutputOrErr)
-        return TmpOutputOrErr.takeError();
-      SmallVector<StringRef> InputFilesSYCL;
-      InputFilesSYCL.emplace_back(*TmpOutputOrErr);
+      auto TmpOutputs = sycl::linkDevice(InputFiles, LinkerArgs);
+      // Run the entire device link backend once per output of linkDevice,
+      // there will be more than one when we are in -fno-sycl-rdc mode.
+      for (auto &LinkedDeviceFile : TmpOutputs) {
+        SmallVector<StringRef> InputFilesSYCL;
+        InputFilesSYCL.emplace_back(LinkedDeviceFile);
 
-      auto SYCLOutputOrErr =
-          Args.hasArg(OPT_embed_bitcode)
-              ? InputFilesSYCL.front()
-              : linkDevice(InputFilesSYCL, LinkerArgs, true /* IsSYCLKind */);
-      if (!SYCLOutputOrErr)
-        return SYCLOutputOrErr.takeError();
+        auto SYCLOutputOrErr =
+            Args.hasArg(OPT_embed_bitcode)
+                ? InputFilesSYCL.front()
+                : linkDevice(InputFilesSYCL, LinkerArgs, true /* IsSYCLKind */);
+        if (!SYCLOutputOrErr)
+          return SYCLOutputOrErr.takeError();
 
-      // SYCL offload kind images are all ready to be sent to host linker.
-      // TODO: Currently, device code wrapping for SYCL offload happens in a
-      // separate path inside 'linkDevice' call seen above.
-      // This will eventually be refactored to use the 'common' wrapping logic
-      // that is used for other offload kinds.
-      WrappedOutput.push_back(*SYCLOutputOrErr);
+        // SYCL offload kind images are all ready to be sent to host linker.
+        // TODO: Currently, device code wrapping for SYCL offload happens in a
+        // separate path inside 'linkDevice' call seen above.
+        // This will eventually be refactored to use the 'common' wrapping logic
+        // that is used for other offload kinds.
+        WrappedOutput.push_back(*SYCLOutputOrErr);
+      }
     }
 
     // Link the remaining device files using the device linker.
