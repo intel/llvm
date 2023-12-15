@@ -564,7 +564,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
-    Group sg, joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
+    Group, joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
     const T2 &v, size_t Stride, size_t Height, size_t Width) {
 #if defined(__SYCL_DEVICE_ONLY__)
   using storage_element_type =
@@ -576,7 +576,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
       spv_matrix_layout_traits<Layout>::value>(
       static_cast<storage_element_type>(v), Stride, Height, Width);
 #else
-  std::ignore = sg;
   std::ignore = res;
   std::ignore = v;
   throw runtime_error("joint matrix is not supported on host device.",
@@ -598,6 +597,7 @@ joint_matrix_load_checked(Group sg,
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   switch (Layout) {
@@ -654,6 +654,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
@@ -682,6 +683,7 @@ joint_matrix_store_checked(Group sg,
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
   switch (Layout) {
@@ -734,6 +736,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
   __spirv_JointMatrixStoreCheckedINTEL<DecorT, Tp, NumRows, NumCols,
@@ -763,6 +766,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
     size_t stride, layout Layout, size_t Height, size_t Width) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  std::ignore = sg;
   T *Ptr = src.get();
   switch (Layout) {
   default:
@@ -812,6 +816,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
     size_t stride, size_t Height, size_t Width) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  std::ignore = sg;
   T *Ptr = src.get();
   res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
@@ -837,6 +842,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dst,
     size_t stride, layout Layout, size_t Height, size_t Width) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  std::ignore = sg;
   T *Ptr = dst.get();
   switch (Layout) {
   default:
@@ -882,6 +888,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dst,
     size_t stride, size_t Height, size_t Width) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  std::ignore = sg;
   T *Ptr = dst.get();
   __spirv_JointMatrixStoreCheckedINTEL<T, Tp, NumRows, NumCols,
                                        spv_matrix_use_traits<Use>::value,
