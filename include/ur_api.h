@@ -1530,6 +1530,10 @@ typedef enum ur_device_info_t {
                                                                     ///< version than older devices.
     UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                    ///< [::ur_bool_t] return true if the device supports virtual memory.
     UR_DEVICE_INFO_ESIMD_SUPPORT = 115,                             ///< [::ur_bool_t] return true if the device supports ESIMD.
+    UR_DEVICE_INFO_COMPONENT_DEVICES = 116,                         ///< [::ur_device_handle_t[]] The set of component devices contained by
+                                                                    ///< this composite device.
+    UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                          ///< [::ur_device_handle_t] The composite device containing this component
+                                                                    ///< device.
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                     ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of
@@ -1562,10 +1566,6 @@ typedef enum ur_device_info_t {
                                                                     ///< semaphore resources
     UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,   ///< [::ur_bool_t] returns true if the device supports exporting internal
                                                                     ///< event resources
-    UR_DEVICE_INFO_COMPONENT_DEVICES = 0x2010,                      ///< [::ur_device_handle_t[]] returns the set of component devices contained
-                                                                    ///< by a composite device
-    UR_DEVICE_INFO_COMPOSITE_DEVICE = 0x2011,                       ///< [::ur_device_handle_t] returns the composite device which contains this
-                                                                    ///< component device
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
