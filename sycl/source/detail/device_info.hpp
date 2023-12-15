@@ -1064,7 +1064,7 @@ struct get_device_info_impl<
   }
 };
 
-// Specialization for composite devices extension
+// Specialization for composite devices extension.
 template <>
 struct get_device_info_impl<
     std::vector<sycl::device>,
@@ -1073,7 +1073,7 @@ struct get_device_info_impl<
     if (Dev->getBackend() != backend::ext_oneapi_level_zero)
       return {};
     size_t ResultSize = 0;
-    // First call to get DevCount
+    // First call to get DevCount.
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<

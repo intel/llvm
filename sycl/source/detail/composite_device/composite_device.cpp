@@ -18,20 +18,22 @@ std::vector<device> get_composite_devices() {
   for (const auto &D : Devs) {
     if (D.has(sycl::aspect::ext_oneapi_is_component)) {
       auto Composite = D.get_info<info::device::composite_device>();
-      Composites.push_back(Composite);
+      // Filter out duplicates.
+      if (std::find(Composites.begin(), Composites.end(), Composite) ==
+          Composites.end())
+        Composites.push_back(Composite);
     }
   }
   std::vector<device> Result;
   for (const auto &Composite : Composites) {
     auto Components = Composite.get_info<info::device::component_devices>();
-    size_t ComponentsFound = 0;
-    for (const auto &Component : Components) {
-      if (std::find(Devs.begin(), Devs.end(), Component) != Devs.end())
-        ++ComponentsFound;
-    }
-    if (ComponentsFound == Components.size() &&
-        std::find(Result.begin(), Result.end(), Composite) == Result.end())
+    // Only return composite devices if all of its component devices are
+    // available.
+    if (std::all_of(Components.begin(), Components.end(), [&](const device &d) {
+          return std::find(Devs.begin(), Devs.end(), d) != Devs.end();
+        })) {
       Result.push_back(Composite);
+    }
   }
   return Result;
 }

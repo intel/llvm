@@ -1,11 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
-// RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE %t.out
-// RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %t.out
-// FIXME: Indicates that the device is a component device of some other
-// composite device. This applies only to a root device that is a direct
-// component of some composite device. A sub-device will not have this aspect
-// even if its parent is a component device.
+// RUN: %{build} -o %t.out
+// RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %{run} %t.out
+// RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE %{run} %t.out
+// RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

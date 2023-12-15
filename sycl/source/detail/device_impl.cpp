@@ -53,7 +53,6 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     InteroperabilityConstructor = true;
   }
 
-
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
