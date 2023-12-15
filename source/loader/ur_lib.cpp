@@ -19,6 +19,7 @@
 #include "logger/ur_logger.hpp"
 #include "ur_loader.hpp"
 
+#include <cstring> // for std::memcpy
 #include <regex>
 
 namespace ur_lib {
