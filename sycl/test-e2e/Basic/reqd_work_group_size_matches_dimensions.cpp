@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple}  %s -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: hip
+
 #include "sycl/sycl.hpp"
 
 using namespace sycl;

@@ -2809,7 +2809,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 
     if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
       return sycl::exception(
-          sycl::errc::invalid,
+          sycl::errc::nd_range,
           "The local size dimension of submitted nd_range doesn't match the "
           "required work-group size dimension");
 
