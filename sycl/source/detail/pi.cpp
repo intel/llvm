@@ -348,8 +348,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
-      if (!NativeCPUFound &&
-          (Backend == backend::ext_oneapi_native_cpu || Backend == backend::all)) {
+      if (!NativeCPUFound && (Backend == backend::ext_oneapi_native_cpu ||
+                              Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
                                  backend::ext_oneapi_native_cpu);
       }
