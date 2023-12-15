@@ -13,6 +13,7 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <optional>
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
@@ -84,7 +85,8 @@ struct ur_mem_handle_t_ : _ur_object {
   virtual ~ur_mem_handle_t_() = default;
 
 protected:
-  ur_mem_handle_t_(ur_context_handle_t Context) : UrContext{Context} {}
+  ur_mem_handle_t_(ur_context_handle_t Context)
+      : UrContext{Context}, UrDevice{nullptr} {}
 
   ur_mem_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device)
       : UrContext{Context}, UrDevice(Device) {}
@@ -101,7 +103,7 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
       : ur_mem_handle_t_(Parent->UrContext),
-        Size(Size), SubBuffer{Parent, Origin} {}
+        Size(Size), SubBuffer{{Parent, Origin}} {}
 
   // Interop-buffer constructor
   _ur_buffer(ur_context_handle_t Context, size_t Size,
@@ -121,8 +123,7 @@ struct _ur_buffer final : ur_mem_handle_t_ {
                  ur_device_handle_t Device = nullptr) override;
 
   bool isImage() const override { return false; }
-
-  bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
+  bool isSubBuffer() const { return SubBuffer != std::nullopt; }
 
   // Frees all allocations made for the buffer.
   ur_result_t free();
@@ -174,10 +175,11 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   size_t Size;
   size_t getAlignment() const;
 
-  struct {
+  struct SubBuffer_t {
     _ur_buffer *Parent;
-    size_t Origin; // only valid if Parent != nullptr
-  } SubBuffer;
+    size_t Origin;
+  };
+  std::optional<SubBuffer_t> SubBuffer;
 };
 
 struct _ur_image final : ur_mem_handle_t_ {

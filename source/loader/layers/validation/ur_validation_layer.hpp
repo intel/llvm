@@ -44,6 +44,17 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
 };
 
+ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size);
+
+ur_result_t bounds(ur_mem_handle_t buffer, ur_rect_offset_t offset,
+                   ur_rect_region_t region);
+
+ur_result_t bounds(ur_queue_handle_t queue, const void *ptr, size_t offset,
+                   size_t size);
+
+ur_result_t boundsImage(ur_mem_handle_t image, ur_rect_offset_t origin,
+                        ur_rect_region_t region);
+
 extern context_t context;
 
 } // namespace ur_validation_layer

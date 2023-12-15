@@ -219,7 +219,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
             if (ImmCmdList == Queue->CommandListMap.end())
               continue;
 
-            auto EventList = ImmCmdList->second.EventList;
+            const auto &EventList = ImmCmdList->second.EventList;
             for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
               ze_result_t ZeResult =
                   ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
@@ -391,11 +391,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     // At this point only the thread creating the queue will have associated
     // command-lists. Other threads have not accessed the queue yet. So we can
     // only warmup the initial thread's command-lists.
-    auto QueueGroup = Q->ComputeQueueGroupsByTID.get();
+    const auto &QueueGroup = Q->ComputeQueueGroupsByTID.get();
     UR_CALL(warmupQueueGroup(false, QueueGroup.UpperIndex -
                                         QueueGroup.LowerIndex + 1));
     if (Q->useCopyEngine()) {
-      auto QueueGroup = Q->CopyQueueGroupsByTID.get();
+      const auto &QueueGroup = Q->CopyQueueGroupsByTID.get();
       UR_CALL(warmupQueueGroup(true, QueueGroup.UpperIndex -
                                          QueueGroup.LowerIndex + 1));
     }

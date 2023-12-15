@@ -17,9 +17,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      # with-ref part to be removed after merging 'adapters' branch with 'main'
-      with:
-        ref: adapters
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
