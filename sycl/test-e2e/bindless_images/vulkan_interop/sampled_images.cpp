@@ -75,7 +75,7 @@ handles_t create_test_handles(
 
   // Extension: interop mem handle imported from file descriptor
   syclexp::image_mem_handle inputMappedMemHandle =
-      syclexp::map_external_memory_array(inputInteropMemHandle, desc, dev,
+      syclexp::map_external_image_memory(inputInteropMemHandle, desc, dev,
                                          ctxt);
 
   // Extension: create the image and return the handle

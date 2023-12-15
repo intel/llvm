@@ -31,7 +31,7 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tb, typename Tc, uint VF = 1>
+template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1>
 void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
                          bool transpose_c = false, bool colmajor_a = false,
                          bool colmajor_b = false) {
@@ -47,7 +47,7 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
         Tb *vb = (Tb *)(B + b_ind * VF);
         Tc acc = *(C + c_ind);
 
-        for (uint i = 0; i < VF; i++) {
+        for (unsigned int i = 0; i < VF; i++) {
           if constexpr (std::is_same_v<Ta, bfloat16> &&
                         std::is_same_v<Tc, float>)
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
@@ -77,6 +77,15 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
         dest[i * cols * vnniFactor + j * vnniFactor + k] =
             src[(i * vnniFactor + k) * cols + j];
       }
+    }
+  }
+}
+
+template <typename T>
+void matrix_transpose(unsigned int rows, unsigned int cols, T *dst, T *src) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      dst[i + j * rows] = src[i * cols + j];
     }
   }
 }
@@ -128,11 +137,12 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
-template <typename T1, typename T2>
+template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr (std::is_same_v<T1, float> || std::is_same_v<T1, bfloat16>) {
+      if constexpr (!exact && (std::is_same_v<T1, float> ||
+                               std::is_same_v<T1, bfloat16>)) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cout << "Incorrect result in matrix. "
@@ -142,9 +152,10 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (std::is_same_v<T1, int32_t>) {
+      } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix. Ref: " << ref[i * cols + j]
+          std::cout << "Incorrect result in matrix." << "i: " << i
+                    << ", j: " << j << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }

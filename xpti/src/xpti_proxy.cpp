@@ -42,7 +42,7 @@ enum functions_t {
   XPTI_QUERY_PAYLOAD_BY_UID,
   XPTI_FORCE_SET_TRACE_ENABLED,
   XPTI_CHECK_TRACE_ENABLED,
-
+  XPTI_RELEASE_EVENT,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -78,7 +78,8 @@ class ProxyLoader {
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
       {XPTI_CHECK_TRACE_ENABLED, "xptiCheckTraceEnabled"},
-      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
+      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"},
+      {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -478,4 +479,13 @@ xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
     }
   }
   return nullptr;
+}
+
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_RELEASE_EVENT);
+    if (f) {
+      (*(xpti_release_event_t)f)(lookup_object);
+    }
+  }
 }

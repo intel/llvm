@@ -107,7 +107,7 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr':'const MyStructWithPtr' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow

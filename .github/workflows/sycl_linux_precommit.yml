@@ -21,12 +21,18 @@ on:
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
     runs-on: [Linux, build]
+    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
       options: -u 1001:1001
@@ -57,7 +63,7 @@ jobs:
     needs: [lint, detect_changes]
     if: |
       always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && (success() || needs.lint.result == 'skipped')
     uses: ./.github/workflows/sycl_linux_build.yml
     with:
       build_ref: ${{ github.sha }}

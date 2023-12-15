@@ -91,6 +91,36 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   llvm_unreachable("Invalid ArchType!");
 }
 
+StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
+  switch (Kind) {
+  case Triple::mips:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa32r6";
+    break;
+  case Triple::mipsel:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa32r6el";
+    break;
+  case Triple::mips64:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa64r6";
+    break;
+  case Triple::mips64el:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa64r6el";
+    break;
+  case Triple::aarch64:
+    if (SubArch == AArch64SubArch_arm64ec)
+      return "arm64ec";
+    if (SubArch == AArch64SubArch_arm64e)
+      return "arm64e";
+    break;
+  default:
+    break;
+  }
+  return getArchTypeName(Kind);
+}
+
 StringRef Triple::getArchTypePrefix(ArchType Kind) {
   switch (Kind) {
   default:
@@ -238,6 +268,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case PS5: return "ps5";
   case RTEMS: return "rtems";
   case Solaris: return "solaris";
+  case Serenity: return "serenity";
   case TvOS: return "tvos";
   case UEFI: return "uefi";
   case WASI: return "wasi";
@@ -451,7 +482,7 @@ static Triple::ArchType parseARMArch(StringRef ArchName) {
 
   // Thumb only exists in v4+
   if (ISA == ARM::ISAKind::THUMB &&
-      (ArchName.startswith("v2") || ArchName.startswith("v3")))
+      (ArchName.starts_with("v2") || ArchName.starts_with("v3")))
     return Triple::UnknownArch;
 
   // Thumb only for v6m
@@ -553,10 +584,10 @@ static Triple::ArchType parseArch(StringRef ArchName) {
   // Some architectures require special parsing logic just to compute the
   // ArchType result.
   if (AT == Triple::UnknownArch) {
-    if (ArchName.startswith("arm") || ArchName.startswith("thumb") ||
-        ArchName.startswith("aarch64"))
+    if (ArchName.starts_with("arm") || ArchName.starts_with("thumb") ||
+        ArchName.starts_with("aarch64"))
       return parseARMArch(ArchName);
-    if (ArchName.startswith("bpf"))
+    if (ArchName.starts_with("bpf"))
       return parseBPFArch(ArchName);
   }
 
@@ -622,6 +653,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("emscripten", Triple::Emscripten)
     .StartsWith("shadermodel", Triple::ShaderModel)
     .StartsWith("liteos", Triple::LiteOS)
+    .StartsWith("serenity", Triple::Serenity)
     .Default(Triple::UnknownOS);
 }
 
@@ -685,8 +717,8 @@ static Triple::ObjectFormatType parseFormat(StringRef EnvironmentName) {
 }
 
 static Triple::SubArchType parseSubArch(StringRef SubArchName) {
-  if (SubArchName.startswith("mips") &&
-      (SubArchName.endswith("r6el") || SubArchName.endswith("r6")))
+  if (SubArchName.starts_with("mips") &&
+      (SubArchName.ends_with("r6el") || SubArchName.ends_with("r6")))
     return Triple::MipsSubArch_r6;
 
   if (SubArchName.startswith("spir")) {
@@ -716,7 +748,7 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
   if (SubArchName == "arm64ec")
     return Triple::AArch64SubArch_arm64ec;
 
-  if (SubArchName.startswith("spirv"))
+  if (SubArchName.starts_with("spirv"))
     return StringSwitch<Triple::SubArchType>(SubArchName)
         .EndsWith("v1.0", Triple::SPIRVSubArch_v10)
         .EndsWith("v1.1", Triple::SPIRVSubArch_v11)
@@ -1002,8 +1034,8 @@ std::string Triple::normalize(StringRef Str) {
   OSType OS = UnknownOS;
   if (Components.size() > 2) {
     OS = parseOS(Components[2]);
-    IsCygwin = Components[2].startswith("cygwin");
-    IsMinGW32 = Components[2].startswith("mingw");
+    IsCygwin = Components[2].starts_with("cygwin");
+    IsMinGW32 = Components[2].starts_with("mingw");
   }
   EnvironmentType Environment = UnknownEnvironment;
   if (Components.size() > 3)
@@ -1047,8 +1079,8 @@ std::string Triple::normalize(StringRef Str) {
         break;
       case 2:
         OS = parseOS(Comp);
-        IsCygwin = Comp.startswith("cygwin");
-        IsMinGW32 = Comp.startswith("mingw");
+        IsCygwin = Comp.starts_with("cygwin");
+        IsMinGW32 = Comp.starts_with("mingw");
         Valid = OS != UnknownOS || IsCygwin || IsMinGW32;
         break;
       case 3:
@@ -1125,7 +1157,8 @@ std::string Triple::normalize(StringRef Str) {
   // Special case logic goes here.  At this point Arch, Vendor and OS have the
   // correct values for the computed components.
   std::string NormalizedEnvironment;
-  if (Environment == Triple::Android && Components[3].startswith("androideabi")) {
+  if (Environment == Triple::Android &&
+      Components[3].starts_with("androideabi")) {
     StringRef AndroidVersion = Components[3].drop_front(strlen("androideabi"));
     if (AndroidVersion.empty()) {
       Components[3] = "android";
@@ -1173,34 +1206,6 @@ StringRef Triple::getArchName() const {
   return StringRef(Data).split('-').first;           // Isolate first component
 }
 
-StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) const {
-  switch (Kind) {
-  case Triple::mips:
-    if (SubArch == MipsSubArch_r6)
-      return "mipsisa32r6";
-    break;
-  case Triple::mipsel:
-    if (SubArch == MipsSubArch_r6)
-      return "mipsisa32r6el";
-    break;
-  case Triple::mips64:
-    if (SubArch == MipsSubArch_r6)
-      return "mipsisa64r6";
-    break;
-  case Triple::mips64el:
-    if (SubArch == MipsSubArch_r6)
-      return "mipsisa64r6el";
-    break;
-  case Triple::aarch64:
-    if (SubArch == AArch64SubArch_arm64ec)
-      return "arm64ec";
-    break;
-  default:
-    break;
-  }
-  return getArchTypeName(Kind);
-}
-
 StringRef Triple::getVendorName() const {
   StringRef Tmp = StringRef(Data).split('-').second; // Strip first component
   return Tmp.split('-').first;                       // Isolate second component
@@ -1232,7 +1237,7 @@ static VersionTuple parseVersionFromName(StringRef Name) {
 VersionTuple Triple::getEnvironmentVersion() const {
   StringRef EnvironmentName = getEnvironmentName();
   StringRef EnvironmentTypeName = getEnvironmentTypeName(getEnvironment());
-  if (EnvironmentName.startswith(EnvironmentTypeName))
+  if (EnvironmentName.starts_with(EnvironmentTypeName))
     EnvironmentName = EnvironmentName.substr(EnvironmentTypeName.size());
 
   return parseVersionFromName(EnvironmentName);
@@ -1242,7 +1247,7 @@ VersionTuple Triple::getOSVersion() const {
   StringRef OSName = getOSName();
   // Assume that the OS portion of the triple starts with the canonical name.
   StringRef OSTypeName = getOSTypeName(getOS());
-  if (OSName.startswith(OSTypeName))
+  if (OSName.starts_with(OSTypeName))
     OSName = OSName.substr(OSTypeName.size());
   else if (getOS() == MacOSX)
     OSName.consume_front("macos");

@@ -56,15 +56,32 @@ public:
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    _T *P = Ptr;
-    if constexpr (!std::is_same_v<_propertiesT,
-                                  oneapi::experimental::empty_properties_t>) {
-      detail::AnnotatedMemberValue<_T *, _propertiesT> annotated_wrapper(Ptr);
-      P = annotated_wrapper.MValue;
+    // Get latency control properties
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        detail::defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
+    static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
+    static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
+    static constexpr latency_control_type _control_type =
+        _latency_constraint_prop::type;
+    static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
+
+    int32_t _control_type_code = 0; // latency_control_type::none is default
+    if constexpr (_control_type == latency_control_type::exact) {
+      _control_type_code = 1;
+    } else if constexpr (_control_type == latency_control_type::max) {
+      _control_type_code = 2;
+    } else if constexpr (_control_type == latency_control_type::min) {
+      _control_type_code = 3;
     }
-    return *__builtin_intel_fpga_mem(
-        P, _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
-        _cache_val);
+
+    return *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
+                                          _control_type_code, _relative_cycle);
 #else
     (void)Properties;
     return *Ptr;
@@ -84,15 +101,32 @@ public:
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    _T *P = Ptr;
-    if constexpr (!std::is_same_v<_propertiesT,
-                                  oneapi::experimental::empty_properties_t>) {
-      detail::AnnotatedMemberValue<_T *, _propertiesT> annotated_wrapper(Ptr);
-      P = annotated_wrapper.MValue;
+    // Get latency control properties
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        detail::defaultLatencyConstraintProperty>::type;
+
+    // Get latency control property values
+    static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
+    static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
+    static constexpr latency_control_type _control_type =
+        _latency_constraint_prop::type;
+    static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
+
+    int32_t _control_type_code = 0; // latency_control_type::none is default
+    if constexpr (_control_type == latency_control_type::exact) {
+      _control_type_code = 1;
+    } else if constexpr (_control_type == latency_control_type::max) {
+      _control_type_code = 2;
+    } else if constexpr (_control_type == latency_control_type::min) {
+      _control_type_code = 3;
     }
-    *__builtin_intel_fpga_mem(
-        P, _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
-        _cache_val) = Val;
+
+    *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
+                                   _control_type_code, _relative_cycle) = Val;
 #else
     (void)Properties;
     *Ptr = Val;
@@ -150,6 +184,19 @@ private:
     static_assert(_prefetch == 0,
                   "unable to implement a store LSU with a prefetcher.");
   }
+
+#if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
+  // FPGA BE will recognize this function and extract its arguments.
+  // TODO: Pass latency control params via __builtin_intel_fpga_mem when ready.
+  template <typename _T>
+  static _T *__latency_control_mem_wrapper(_T *Ptr, int32_t AnchorID,
+                                           int32_t TargetAnchor, int32_t Type,
+                                           int32_t Cycle) {
+    return __builtin_intel_fpga_mem(
+        Ptr, _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
+        _cache_val);
+  }
+#endif
 };
 
 } // namespace ext::intel::experimental

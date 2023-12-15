@@ -199,6 +199,11 @@ def int_amdgcn_wavefrontsize :
   ClangBuiltin<"__builtin_amdgcn_wavefrontsize">,
   DefaultAttrsIntrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
 
+// Represent a relocation constant.
+def int_amdgcn_reloc_constant : DefaultAttrsIntrinsic<
+  [llvm_i32_ty], [llvm_metadata_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Intrinsics
@@ -221,6 +226,45 @@ def int_amdgcn_s_sendmsg_rtn : Intrinsic <[llvm_anyint_ty], [llvm_i32_ty],
 
 def int_amdgcn_s_barrier : ClangBuiltin<"__builtin_amdgcn_s_barrier">,
   Intrinsic<[], [], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_signal : ClangBuiltin<"__builtin_amdgcn_s_barrier_signal">,
+  Intrinsic<[], [llvm_i32_ty], [ImmArg<ArgIndex<0>>, IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_signal_var : ClangBuiltin<"__builtin_amdgcn_s_barrier_signal_var">,
+  Intrinsic<[], [llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_signal_isfirst : ClangBuiltin<"__builtin_amdgcn_s_barrier_signal_isfirst">,
+  Intrinsic<[llvm_i1_ty], [llvm_i32_ty], [ImmArg<ArgIndex<0>>, IntrNoMem, IntrHasSideEffects, IntrConvergent,
+                                IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_signal_isfirst_var : ClangBuiltin<"__builtin_amdgcn_s_barrier_signal_isfirst_var">,
+  Intrinsic<[llvm_i1_ty], [llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_init : ClangBuiltin<"__builtin_amdgcn_s_barrier_init">,
+  Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent,
+                                IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_join : ClangBuiltin<"__builtin_amdgcn_s_barrier_join">,
+  Intrinsic<[], [llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_wakeup_barrier : ClangBuiltin<"__builtin_amdgcn_s_wakeup_barrier">,
+  Intrinsic<[], [llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_wait : ClangBuiltin<"__builtin_amdgcn_s_barrier_wait">,
+  Intrinsic<[], [llvm_i16_ty], [ImmArg<ArgIndex<0>>, IntrNoMem, IntrHasSideEffects, IntrConvergent,
+                                IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_barrier_leave : ClangBuiltin<"__builtin_amdgcn_s_barrier_leave">,
+  Intrinsic<[llvm_i1_ty], [], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_s_get_barrier_state : ClangBuiltin<"__builtin_amdgcn_s_get_barrier_state">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn,
+                                IntrNoCallback, IntrNoFree]>;
 
 def int_amdgcn_wave_barrier : ClangBuiltin<"__builtin_amdgcn_wave_barrier">,
   Intrinsic<[], [], [IntrNoMem, IntrHasSideEffects, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
@@ -1698,6 +1742,13 @@ def int_amdgcn_s_setprio :
   DefaultAttrsIntrinsic<[], [llvm_i16_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
                                 IntrHasSideEffects]>;
 
+def int_amdgcn_s_ttracedata :
+  DefaultAttrsIntrinsic<[], [llvm_i32_ty],
+                        [IntrNoMem, IntrHasSideEffects]>;
+def int_amdgcn_s_ttracedata_imm :
+  DefaultAttrsIntrinsic<[], [llvm_i16_ty],
+                        [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+
 // This is IntrHasSideEffects so it can be used to read cycle counters.
 def int_amdgcn_s_getreg :
   ClangBuiltin<"__builtin_amdgcn_s_getreg">,
@@ -1928,6 +1979,22 @@ def int_amdgcn_inverse_ballot :
   Intrinsic<[llvm_i1_ty], [llvm_anyint_ty],
             [IntrNoMem, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
 
+// Lowers to S_BITREPLICATE_B64_B32.
+// The argument must be uniform; otherwise, the result is undefined.
+def int_amdgcn_s_bitreplicate :
+  DefaultAttrsIntrinsic<[llvm_i64_ty], [llvm_i32_ty], [IntrNoMem, IntrConvergent]>;
+
+// Lowers to S_QUADMASK_B{32,64}
+// The argument must be uniform; otherwise, the result is undefined.
+def int_amdgcn_s_quadmask :
+  DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_anyint_ty], [IntrNoMem, IntrConvergent]>;
+
+// Lowers to S_WQM_B{32,64}
+// The argument must be uniform; otherwise, the result is undefined.
+// Does not set WQM; merely calculates the bitmask.
+def int_amdgcn_s_wqm :
+  DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_anyint_ty], [IntrNoMem, IntrConvergent]>;
+
 class AMDGPUWaveReduce<LLVMType data_ty = llvm_anyint_ty> : Intrinsic<
     [data_ty],
     [
@@ -1971,12 +2038,14 @@ def int_amdgcn_alignbyte : ClangBuiltin<"__builtin_amdgcn_alignbyte">,
   [IntrNoMem, IntrSpeculatable]
 >;
 
-def int_amdgcn_mul_i24 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+// mul24 intrinsics can return i32 or i64.
+// When returning i64, they're lowered to a mul24/mulhi24 pair.
+def int_amdgcn_mul_i24 : DefaultAttrsIntrinsic<[llvm_anyint_ty],
   [llvm_i32_ty, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable]
 >;
 
-def int_amdgcn_mul_u24 : DefaultAttrsIntrinsic<[llvm_i32_ty],
+def int_amdgcn_mul_u24 : DefaultAttrsIntrinsic<[llvm_anyint_ty],
   [llvm_i32_ty, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable]
 >;
@@ -2076,7 +2145,8 @@ def int_amdgcn_wqm_vote : Intrinsic<[llvm_i1_ty],
 def int_amdgcn_kill : Intrinsic<[], [llvm_i1_ty], [IntrNoCallback, IntrNoFree]>;
 
 def int_amdgcn_endpgm : ClangBuiltin<"__builtin_amdgcn_endpgm">,
-  Intrinsic<[], [], [IntrNoReturn, IntrCold, IntrNoMem, IntrHasSideEffects, IntrNoCallback, IntrNoFree]
+  Intrinsic<[], [], [IntrNoReturn, IntrCold, IntrNoMem, IntrHasSideEffects, IntrConvergent,
+                     IntrNoCallback, IntrNoFree]
 >;
 
 // If false, mark all active lanes as helper lanes until the end of program.
@@ -2108,6 +2178,17 @@ def int_amdgcn_strict_wqm : Intrinsic<[llvm_any_ty],
 // program ever uses WQM, then the instruction and the first source will be
 // computed in WQM.
 def int_amdgcn_set_inactive :
+  Intrinsic<[llvm_anyint_ty],
+            [LLVMMatchType<0>, // value to be copied
+             LLVMMatchType<0>], // value for the inactive lanes to take
+            [IntrNoMem, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+// Similar to int_amdgcn_set_inactive, but the value for the inactive lanes must
+// be a VGPR function argument.
+// Can only be used in functions with the `amdgpu_cs_chain` or
+// `amdgpu_cs_chain_preserve` calling conventions, and only in uniform control
+// flow.
+def int_amdgcn_set_inactive_chain_arg :
   Intrinsic<[llvm_anyint_ty],
             [LLVMMatchType<0>, // value to be copied
              LLVMMatchType<0>], // value for the inactive lanes to take
@@ -2362,8 +2443,16 @@ class AMDGPUWmmaIntrinsicIU<LLVMType AB, LLVMType CD> :
 
 def int_amdgcn_wmma_f32_16x16x16_f16   : AMDGPUWmmaIntrinsic<llvm_v16f16_ty, llvm_anyfloat_ty>;
 def int_amdgcn_wmma_f32_16x16x16_bf16  : AMDGPUWmmaIntrinsic<llvm_v16i16_ty, llvm_anyfloat_ty>;
+// The regular, untied f16/bf16 wmma intrinsics only write to one half
+// of the registers (set via the op_sel bit).
+// The content of the other 16-bit of the registers is undefined.
 def int_amdgcn_wmma_f16_16x16x16_f16   : AMDGPUWmmaIntrinsicOPSEL<llvm_v16f16_ty, llvm_anyfloat_ty>;
 def int_amdgcn_wmma_bf16_16x16x16_bf16 : AMDGPUWmmaIntrinsicOPSEL<llvm_v16i16_ty, llvm_anyint_ty>;
+// The tied versions of the f16/bf16 wmma intrinsics tie the destination matrix
+// registers to the input accumulator registers.
+// Essentially, the content of the other 16-bit is preserved from the input.
+def int_amdgcn_wmma_f16_16x16x16_f16_tied   : AMDGPUWmmaIntrinsicOPSEL<llvm_v16f16_ty, llvm_anyfloat_ty>;
+def int_amdgcn_wmma_bf16_16x16x16_bf16_tied : AMDGPUWmmaIntrinsicOPSEL<llvm_v16i16_ty, llvm_anyint_ty>;
 def int_amdgcn_wmma_i32_16x16x16_iu8   : AMDGPUWmmaIntrinsicIU<llvm_v4i32_ty, llvm_anyint_ty>;
 def int_amdgcn_wmma_i32_16x16x16_iu4   : AMDGPUWmmaIntrinsicIU<llvm_v2i32_ty, llvm_anyint_ty>;
 
@@ -2734,12 +2823,6 @@ def int_amdgcn_cvt_sr_fp8_f32 : ClangBuiltin<"__builtin_amdgcn_cvt_sr_fp8_f32">,
   DefaultAttrsIntrinsic<[llvm_i32_ty],
             [llvm_float_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<3>>]>;
-
-// Represent a relocation constant.
-def int_amdgcn_reloc_constant : DefaultAttrsIntrinsic<
-  [llvm_i32_ty], [llvm_metadata_ty],
-  [IntrNoMem, IntrSpeculatable]
->;
 
 //===----------------------------------------------------------------------===//
 // Special Intrinsics for backend internal use only. No frontend

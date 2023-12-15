@@ -44,6 +44,8 @@
 // CHECK:      PI Call Begin : piextKernelSetArgPointer
 // CHECK-NEXT: PI Call Begin : piKernelGetGroupInfo
 // CHECK-NEXT: PI Call Begin : piEnqueueKernelLaunch
+// CHECK-NEXT: PI Call Begin : piKernelRelease
+// CHECK-NEXT: PI Call Begin : piProgramRelease
 // CHECK-NEXT: Signal
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
@@ -79,7 +81,7 @@
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piEventRelease
 // CHECK-NEXT: Wait begin
-// CHECK:        sycl_device : {{.*}}
+// CHECK:        sycl_device_type : {{.*}}
 // CHECK:      PI Call Begin : piQueueFinish
 // CHECK-NEXT: Wait end
-// CHECK:        sycl_device : {{.*}}
+// CHECK:        sycl_device_type : {{.*}}

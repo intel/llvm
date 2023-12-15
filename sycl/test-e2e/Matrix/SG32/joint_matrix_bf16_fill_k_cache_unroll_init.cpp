@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix, gpu
 
-// RUN: %{build} -mllvm -inline-threshold=5000 -o %t_gpu.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=5000 -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL
 // RUN: %{run} %t_gpu.out
 
 // -mllvm -inline-threshold added as a workaround,

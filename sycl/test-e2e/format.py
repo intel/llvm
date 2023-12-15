@@ -164,18 +164,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             # so that device might still be accessible to some of the tests yet
             # we won't set the environment variable below for such scenario.
             extra_env = []
-            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ze_debug'):
-                extra_env.append('ZE_DEBUG={}'.format(test.config.ze_debug))
+            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_debug'):
+                extra_env.append('UR_L0_DEBUG={}'.format(test.config.ur_l0_debug))
+
+            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_leaks_debug'):
+                extra_env.append('UR_L0_LEAKS_DEBUG={}'.format(test.config.ur_l0_leaks_debug))
 
             if 'ext_oneapi_cuda:gpu' in sycl_devices:
                 extra_env.append('SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1')
-
-            # ESIMD_EMULATOR backend uses CM_EMU library package for
-            # multi-threaded execution on CPU, and the package emulates
-            # multiple target platforms. In case user does not specify
-            # what target platform to emulate, 'skl' is chosen by default.
-            if 'ext_intel_esimd_emulator:gpu' in sycl_devices and not "CM_RT_PLATFORM" in os.environ:
-                extra_env.append('CM_RT_PLATFORM=skl')
 
             return extra_env
 
@@ -210,9 +206,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [ cmd ]
                 conditions = {x: True for x in sycl_device.split(':')}
-                for op_sys in ['linux', 'windows']:
-                    if op_sys in test.config.available_features:
-                        conditions[op_sys] = True
+                for cond_features in ['linux', 'windows', 'preview-breaking-changes-supported']:
+                    if cond_features in test.config.available_features:
+                        conditions[cond_features] = True
 
                 tmp_script = lit.TestRunner.applySubstitutions(
                     tmp_script, [], conditions, recursion_limit=test.config.recursiveExpansionLimit)

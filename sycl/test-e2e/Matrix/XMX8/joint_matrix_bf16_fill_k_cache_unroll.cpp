@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DMANUAL_UNROLL
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,

@@ -64,6 +64,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
@@ -76,6 +77,10 @@
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/dealloc.hpp>
 #include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>

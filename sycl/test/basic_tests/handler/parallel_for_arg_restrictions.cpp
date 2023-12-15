@@ -71,28 +71,24 @@ int main() {
     CGH.parallel_for(sycl::nd_range{sycl::range{1, 1, 1}, sycl::range{1, 1, 1}},
                      [=](ConvertibleFromItem<3>) {});
   });
+
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
-    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
+    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}
+    CGH.parallel_for(sycl::range{1, 1, 1}, [=](float f, sycl::item<3> it) {});
   });
+
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
-    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
+    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}
+    CGH.parallel_for(sycl::range{1, 1},
+                     [=](kernel_handler kh, sycl::item<3> it) {});
   });
+
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
-    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
+    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
+    CGH.parallel_for(sycl::range{1}, [=](sycl::item<1> it, sycl::item<1> it,
+                                         kernel_handler kh) {});
   });
 #endif // PREVIEW_BREAKING_CHANGES
-  Q.submit([&](sycl::handler &CGH) {
-    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
-  });
 
   // Range parallel_for with nd_item.
   Q.submit([&](sycl::handler &CGH) {

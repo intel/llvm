@@ -2,8 +2,7 @@
 
 ## Context
 
-To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/tab-dpcpp-onedpl/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
-Currently, only targets able to consume SPIR-V are supported.
+To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/language/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
 
 The basic workflow is shown in the diagram below
 
@@ -284,3 +283,13 @@ flag during static compilation.
 During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
 [here](./CompilerAndRuntimeDesign.md#kernel-fusion-support).
+
+### Unsupported SYCL constructs
+
+The following SYCL API constructs are currently not officially supported for
+kernel fusion and should be considered untested/unsupported: 
+
+- Reductions
+- `sycl::stream`
+- Specialization constants and `sycl::kernel_handler`
+- Images (`sycl::unsampled_image` and `sycl::sampled_image`)

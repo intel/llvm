@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
@@ -91,9 +95,10 @@ int main() {
     return result;
   };
 
+  const int NegThree = -3;
   for (size_t i = 0; i < N; i++) {
-    assert(OutputA[i] == -3);
-    assert(OutputB[i] == refB(i));
+    assert(check_value(i, NegThree, OutputA[i], "OutputA"));
+    assert(check_value(i, refB(i), OutputB[i], "OutputB"));
   }
 
   sycl::free(X, Queue);

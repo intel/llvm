@@ -205,6 +205,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   NF->setComdat(F.getComdat());
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
   NF->takeName(&F);
+  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites
   // to pass in a smaller number of arguments into the new function.
@@ -279,7 +280,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     NF->addMetadata(KindID, *Node);
 
   // Fix up any BlockAddresses that refer to the function.
-  F.replaceAllUsesWith(ConstantExpr::getBitCast(NF, F.getType()));
+  F.replaceAllUsesWith(NF);
   // Delete the bitcast that we just created, so that NF does not
   // appear to be address-taken.
   NF->removeDeadConstantUsers();
@@ -957,6 +958,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // it again.
   F->getParent()->getFunctionList().insert(F->getIterator(), NF);
   NF->takeName(F);
+  NF->IsNewDbgInfoFormat = F->IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites to
   // pass in a smaller number of arguments into the new function.

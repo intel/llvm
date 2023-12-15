@@ -107,6 +107,10 @@ def NonBitField : SubsetSubject<Field,
                                 [{!S->isBitField()}],
                                 "non-bit-field non-static data members">;
 
+def BitField : SubsetSubject<Field,
+                             [{S->isBitField()}],
+                             "bit-field data members">;
+
 def NonStaticCXXMethod : SubsetSubject<CXXMethod,
                                        [{!S->isStatic()}],
                                        "non-static member functions">;
@@ -277,23 +281,28 @@ class DefaultUnsignedArgument<string name, int default> : UnsignedArgument<name,
   int Default = default;
 }
 
-// This argument is more complex, it includes the enumerator type name,
-// a list of strings to accept, and a list of enumerators to map them to.
+// This argument is more complex, it includes the enumerator type
+// name, whether the enum type is externally defined, a list of
+// strings to accept, and a list of enumerators to map them to.
 class EnumArgument<string name, string type, list<string> values,
-                   list<string> enums, bit opt = 0, bit fake = 0>
+                   list<string> enums, bit opt = 0, bit fake = 0,
+                   bit isExternalType = 0>
     : Argument<name, opt, fake> {
   string Type = type;
   list<string> Values = values;
   list<string> Enums = enums;
+  bit IsExternalType = isExternalType;
 }
 
 // FIXME: There should be a VariadicArgument type that takes any other type
 //        of argument and generates the appropriate type.
 class VariadicEnumArgument<string name, string type, list<string> values,
-                           list<string> enums> : Argument<name, 1>  {
+                           list<string> enums, bit isExternalType = 0>
+    : Argument<name, 1>  {
   string Type = type;
   list<string> Values = values;
   list<string> Enums = enums;
+  bit IsExternalType = isExternalType;
 }
 
 // This handles one spelling of an attribute.
@@ -1114,6 +1123,42 @@ def CFConsumed : InheritableParamAttr {
   let Documentation = [RetainBehaviorDocs];
 }
 
+
+// coro_only_destroy_when_complete indicates the coroutines whose return type
+// is marked by coro_only_destroy_when_complete can only be destroyed when the
+// coroutine completes. Then the space for the destroy functions can be saved.
+def CoroOnlyDestroyWhenComplete : InheritableAttr {
+  let Spellings = [Clang<"coro_only_destroy_when_complete">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroOnlyDestroyWhenCompleteDocs];
+  let SimpleHandler = 1;
+}
+
+def CoroReturnType : InheritableAttr {
+  let Spellings = [Clang<"coro_return_type">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroReturnTypeAndWrapperDoc];
+  let SimpleHandler = 1;
+}
+
+def CoroWrapper : InheritableAttr {
+  let Spellings = [Clang<"coro_wrapper">];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroReturnTypeAndWrapperDoc];
+  let SimpleHandler = 1;
+}
+
+def CoroLifetimeBound : InheritableAttr {
+  let Spellings = [Clang<"coro_lifetimebound">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroLifetimeBoundDoc];
+  let SimpleHandler = 1;
+}
+
 // OSObject-based attributes.
 def OSConsumed : InheritableParamAttr {
   let Spellings = [Clang<"os_consumed">];
@@ -1581,6 +1626,22 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+}
+
+def SYCLIntelMinWorkGroupsPerComputeUnit : InheritableAttr {
+  let Spellings = [CXX11<"intel", "min_work_groups_per_cu">];
+  let Args = [ExprArgument<"Value">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs];
+}
+
+def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
+  let Spellings = [CXX11<"intel", "max_work_groups_per_mp">];
+  let Args = [ExprArgument<"Value">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMaxWorkGroupsPerMultiprocessorDocs];
 }
 
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
@@ -2945,6 +3006,14 @@ def BPFPreserveAccessIndex : InheritableAttr,
   let LangOpts = [COnly];
 }
 
+def BPFPreserveStaticOffset : InheritableAttr,
+                              TargetSpecificAttr<TargetBPF>  {
+  let Spellings = [Clang<"preserve_static_offset">];
+  let Subjects = SubjectList<[Record], ErrorDiag>;
+  let Documentation = [BPFPreserveStaticOffsetDocs];
+  let LangOpts = [COnly];
+}
+
 def BTFDeclTag : InheritableAttr {
   let Spellings = [Clang<"btf_decl_tag">];
   let Args = [StringArgument<"BTFDeclTag">];
@@ -3874,7 +3943,7 @@ def Target : InheritableAttr {
 
       for (auto &Feature : AttrFeatures) {
         Feature = Feature.trim();
-        if (Feature.startswith("arch="))
+        if (Feature.starts_with("arch="))
           return Feature.drop_front(sizeof("arch=") - 1);
       }
       return "";
@@ -3892,8 +3961,8 @@ def Target : InheritableAttr {
       for (auto &Feature : AttrFeatures) {
         Feature = Feature.trim();
 
-        if (!Feature.startswith("no-") && !Feature.startswith("arch=") &&
-            !Feature.startswith("fpmath=") && !Feature.startswith("tune="))
+        if (!Feature.starts_with("no-") && !Feature.starts_with("arch=") &&
+            !Feature.starts_with("fpmath=") && !Feature.starts_with("tune="))
           Out.push_back(Feature);
       }
     }
@@ -4642,6 +4711,14 @@ def : MutualExclusions<[Owner, Pointer]>;
 
 // Microsoft-related attributes
 
+def MSConstexpr : InheritableAttr {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "constexpr">];
+  let Subjects = SubjectList<[Function, ReturnStmt], ErrorDiag,
+                             "functions and return statements">;
+  let Documentation = [MSConstexprDocs];
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;
@@ -5227,26 +5304,27 @@ def HLSLResource : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Struct]>;
   let LangOpts = [HLSL];
-  let Args = [EnumArgument<"ResourceType", "ResourceClass",
+  let Args = [EnumArgument<"ResourceClass", "llvm::hlsl::ResourceClass",
                            ["SRV", "UAV", "CBuffer", "Sampler"],
-                           ["SRV", "UAV", "CBuffer", "Sampler"]
-                           >,
-              EnumArgument<"ResourceShape", "ResourceKind",
+                           ["SRV", "UAV", "CBuffer", "Sampler"],
+                           /*opt=*/0, /*fake=*/0, /*isExternalType=*/1>,
+              EnumArgument<"ResourceKind", "llvm::hlsl::ResourceKind",
                            ["Texture1D", "Texture2D", "Texture2DMS",
                             "Texture3D", "TextureCube", "Texture1DArray",
                             "Texture2DArray", "Texture2DMSArray",
                             "TextureCubeArray", "TypedBuffer", "RawBuffer",
-                            "StructuredBuffer", "CBufferKind", "SamplerKind",
-                            "TBuffer", "RTAccelerationStructure", "FeedbackTexture2D",
-                            "FeedbackTexture2DArray"],
+                            "StructuredBuffer", "CBuffer", "Sampler",
+                            "TBuffer", "RTAccelerationStructure",
+                            "FeedbackTexture2D", "FeedbackTexture2DArray"],
                            ["Texture1D", "Texture2D", "Texture2DMS",
                             "Texture3D", "TextureCube", "Texture1DArray",
                             "Texture2DArray", "Texture2DMSArray",
                             "TextureCubeArray", "TypedBuffer", "RawBuffer",
-                            "StructuredBuffer", "CBufferKind", "SamplerKind",
-                            "TBuffer", "RTAccelerationStructure", "FeedbackTexture2D",
-                            "FeedbackTexture2DArray"]
-                            >
+                            "StructuredBuffer", "CBuffer", "Sampler",
+                            "TBuffer", "RTAccelerationStructure",
+                            "FeedbackTexture2D", "FeedbackTexture2DArray"],
+                           /*opt=*/0, /*fake=*/0, /*isExternalType=*/1>,
+              DefaultBoolArgument<"isROV", /*default=*/0>
               ];
   let Documentation = [InternalOnly];
 }
@@ -5255,6 +5333,18 @@ def HLSLGroupSharedAddressSpace : TypeAttr {
   let Spellings = [CustomKeyword<"groupshared">];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [HLSLGroupSharedAddressSpaceDocs];
+}
+
+def HLSLParamModifier : TypeAttr {
+  let Spellings = [CustomKeyword<"in">, CustomKeyword<"inout">, CustomKeyword<"out">];
+  let Accessors = [Accessor<"isIn", [CustomKeyword<"in">]>,
+                   Accessor<"isInOut", [CustomKeyword<"inout">]>,
+                   Accessor<"isOut", [CustomKeyword<"out">]>,
+                   Accessor<"isAnyOut", [CustomKeyword<"out">, CustomKeyword<"inout">]>,
+                   Accessor<"isAnyIn", [CustomKeyword<"in">, CustomKeyword<"inout">]>];
+  let Subjects = SubjectList<[ParmVar]>;
+  let Documentation = [HLSLParamQualifierDocs];
+  let Args = [DefaultBoolArgument<"MergedSpelling", /*default*/0, /*fake*/1>];
 }
 
 def RandomizeLayout : InheritableAttr {
@@ -5316,5 +5406,24 @@ def CountedBy : InheritableAttr {
     public:
       SourceRange getCountedByFieldLoc() const { return CountedByFieldLoc; }
       void setCountedByFieldLoc(SourceRange Loc) { CountedByFieldLoc = Loc; }
+  }];
+}
+
+def PreferredType: InheritableAttr {
+  let Spellings = [Clang<"preferred_type">];
+  let Subjects = SubjectList<[BitField], ErrorDiag>;
+  let Args = [TypeArgument<"Type", 1>];
+  let Documentation = [PreferredTypeDocumentation];
+}
+
+def CodeAlign: StmtAttr {
+  let Spellings = [Clang<"code_align">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                              ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Args = [ExprArgument<"Alignment">];
+  let Documentation = [CodeAlignAttrDocs];
+  let AdditionalMembers = [{
+    static constexpr int MinimumAlignment = 1;
+    static constexpr int MaximumAlignment = 4096;
   }];
 }

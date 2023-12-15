@@ -34,12 +34,14 @@ sycl/doc/design/ @intel/llvm-reviewers-runtime
 sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
-# Level Zero plugin
-sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
-sycl/test-e2e/Plugin/*level-zero* @intel/dpcpp-l0-pi-reviewers
+# Unified Runtime 
+sycl/plugins @intel/unified-runtime-reviewers
+sycl/test-e2e/Plugin/ @intel/unified-runtime-reviewers
 
-# Unified Runtime plugin
-sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
+# Win Proxy Loader
+sycl/pi_win_proxy_loader @intel/llvm-reviewers-runtime
+sycl/plugins/common_win_pi_trace @intel/llvm-reviewers-runtime
+sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 
 # CUDA and HIP plugins
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
@@ -57,6 +59,8 @@ xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
+clang/lib/CodeGen/BackendUtil.cpp @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
+clang/include/clang/CodeGen/BackendUtil.h @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
 
 # OpenCL CPU RT
 opencl-cpu/ @intel/ocl-cpu-rt-write

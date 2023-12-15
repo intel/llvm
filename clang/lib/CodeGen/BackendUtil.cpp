@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Frontend/Driver/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -68,6 +69,7 @@
 #include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -93,7 +95,6 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
-#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -113,6 +114,11 @@ extern cl::opt<bool> PrintPipelinePasses;
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
     cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
+
+// Re-link builtin bitcodes after optimization
+cl::opt<bool> ClRelinkBuiltinBitcodePostop(
+    "relink-builtin-bitcode-postop", cl::Optional,
+    cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
 
 static cl::opt<bool> SYCLNativeCPURename(
     "sycl-native-cpu-rename", cl::init(false),
@@ -279,40 +285,9 @@ static bool asanUseGlobalsGC(const Triple &T, const CodeGenOptions &CGOpts) {
 
 static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
                                          const CodeGenOptions &CodeGenOpts) {
-  TargetLibraryInfoImpl *TLII = new TargetLibraryInfoImpl(TargetTriple);
+  TargetLibraryInfoImpl *TLII =
+      llvm::driver::createTLII(TargetTriple, CodeGenOpts.getVecLib());
 
-  switch (CodeGenOpts.getVecLib()) {
-  case CodeGenOptions::Accelerate:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::Accelerate,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::LIBMVEC:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::LIBMVEC_X86,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::MASSV:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::MASSV,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::SVML:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::SVML,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::SLEEF:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::SLEEFGNUABI,
-                                             TargetTriple);
-    break;
-  case CodeGenOptions::Darwin_libsystem_m:
-    TLII->addVectorizableFunctionsFromVecLib(
-        TargetLibraryInfoImpl::DarwinLibSystemM, TargetTriple);
-    break;
-  case CodeGenOptions::ArmPL:
-    TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::ArmPL,
-                                             TargetTriple);
-    break;
-  default:
-    break;
-  }
   switch (CodeGenOpts.getAltMathLib()) {
   case CodeGenOptions::TestAltMathLibrary:
     TLII->addAltMathFunctionsFromLib(
@@ -519,6 +494,8 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
   Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
+  Options.MCOptions.PPCUseFullRegisterNames =
+      CodeGenOpts.PPCUseFullRegisterNames;
   Options.MisExpect = CodeGenOpts.MisExpect;
 
   return true;
@@ -940,6 +917,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           << PluginFN << toString(PassPlugin.takeError());
     }
   }
+  for (auto PassCallback : CodeGenOpts.PassBuilderCallbacks)
+    PassCallback(PB);
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"
@@ -1066,7 +1045,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             getInstrProfOptions(CodeGenOpts, LangOpts))
       PB.registerPipelineStartEPCallback(
           [Options](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(InstrProfiling(*Options, false));
+            MPM.addPass(InstrProfilingLoweringPass(*Options, false));
           });
 
     // TODO: Consider passing the MemoryProfileOutput to the pass builder via
@@ -1083,9 +1062,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
                                       PrepareForLTO || PrepareForThinLTO));
     } else if (CodeGenOpts.FatLTO) {
-      MPM.addPass(PB.buildFatLTODefaultPipeline(
-          Level, PrepareForThinLTO,
-          PrepareForThinLTO || shouldEmitRegularLTOSummary()));
+      assert(CodeGenOpts.UnifiedLTO && "FatLTO requires UnifiedLTO");
+      MPM.addPass(PB.buildFatLTODefaultPipeline(Level));
     } else if (PrepareForThinLTO) {
       MPM.addPass(PB.buildThinLTOPreLinkDefaultPipeline(Level));
     } else if (PrepareForLTO) {
@@ -1162,7 +1140,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     /*EmitLTOSummary=*/true));
       }
-
     } else {
       // Emit a module summary by default for Regular LTO except for ld64
       // targets
@@ -1193,7 +1170,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
-    if (CodeGenOpts.UnifiedLTO && !TheModule->getModuleFlag("UnifiedLTO"))
+    // FatLTO always means UnifiedLTO
+    if (!TheModule->getModuleFlag("UnifiedLTO"))
       TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
   }
 

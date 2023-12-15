@@ -30,9 +30,12 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -54,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cf26de283a1233e6c93feb085acc10c566888b59
-  # Merge: 3a3aae38 2fd9dea2
+  # commit 67e4d1bcf0057eef7910851bfb5020df9e5befd6
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Oct 25 10:36:48 2023 +0100
-  #     Merge pull request #940 from Naghasan/victor/kernel-fusion-amd
-  #     [UR][HIP] Enable kernel finalization using comgr
-  set(UNIFIED_RUNTIME_TAG cf26de283a1233e6c93feb085acc10c566888b59)
+  # Date:   Fri Dec 15 10:09:02 2023 +0000
+  #     Merge pull request #1185 from aarongreig/aaron/fixCoverityCudaCL
+  #     Fix coverity issues in OpenCL, cuda and hip adapters.[L0] Add several fixes to L0 adapter
+  #     for test-usm
+  set(UNIFIED_RUNTIME_TAG 67e4d1bcf0057eef7910851bfb5020df9e5befd6)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -93,10 +96,10 @@ elseif(SYCL_PI_UR_SOURCE_DIR)
 else()
   # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
-  if(NOT ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified
-      Runtime source directory has be proivided, either:
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
 
       * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
@@ -138,7 +141,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
@@ -158,52 +160,6 @@ if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
-
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      sycl
-      OpenCL-Headers
-  )
-
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
 
 if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -240,4 +196,8 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 endif()
