@@ -168,7 +168,17 @@ int main() {
 
     // Copy back the values and verify.
     int *CopyBack = sycl::malloc_shared<int>(NewVecSize, Q);
-    Q.copy(VecDataPtr, CopyBack, NewVecSize).wait_and_throw();
+    
+    // TODO: Level-zero does not currently allow copy across virtual memory
+    //       ranges, even if they are consequtive.
+    if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero) {
+      Q.parallel_for(sycl::range<1>{NewVecSize}, [=](sycl::id<1> Idx) {
+         CopyBack[Idx] = VecDataPtr[Idx];
+       }).wait_and_throw();
+    } else {
+      Q.copy(VecDataPtr, CopyBack, NewVecSize).wait_and_throw();
+    }
+
     for (size_t J = 0; J < NewVecSize; ++J) {
       int ExpectedVal =
           J % SizeIncrement + WriteValueOffset * (J / SizeIncrement + 1);
