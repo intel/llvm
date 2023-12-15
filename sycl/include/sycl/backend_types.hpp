@@ -24,7 +24,7 @@ enum class backend : char {
   ext_intel_esimd_emulator __SYCL_DEPRECATED(
       "esimd emulator is no longer supported") = 5,
   ext_oneapi_hip = 6,
-  ext_native_cpu = 7,
+  ext_oneapi_native_cpu = 7,
 };
 
 template <backend Backend> class backend_traits;
@@ -56,7 +56,7 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
     break;
-  case backend::ext_native_cpu:
+  case backend::ext_oneapi_native_cpu:
     Out << "ext_native_cpu";
     break;
   case backend::all:
