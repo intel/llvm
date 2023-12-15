@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f
-  # Merge: 95f90926 815a2869
+  # commit dcec3feb7912be6e6fb1a8ef268b2d61afe759c5
+  # Merge: 4424195c 9fc2c2eb
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Dec 14 12:03:01 2023 +0000
-  #     Merge pull request #1105 from jandres742/fixtestusm
-  #     [UR][L0] Add several fixes to L0 adapter for test-usm
-  set(UNIFIED_RUNTIME_TAG 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f)
+  # Date:   Thu Dec 14 17:54:55 2023 +0000
+  #     Merge pull request #1061 from jandres742/updateL0loader
+  #     [UR][L0] Upgrade L0 loader to v1.15.1
+  set(UNIFIED_RUNTIME_TAG dcec3feb7912be6e6fb1a8ef268b2d61afe759c5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
