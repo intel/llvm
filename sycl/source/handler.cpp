@@ -182,7 +182,8 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName.getPtr());
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                MKernelName.getPtr());
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
