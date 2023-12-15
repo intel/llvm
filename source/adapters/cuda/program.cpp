@@ -137,7 +137,8 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
 
   if (!this->BuildOptions.empty()) {
     unsigned int MaxRegs;
-    bool Valid = getMaxRegistersJitOptionValue(BuildOptions, MaxRegs);
+    const bool Valid =
+        getMaxRegistersJitOptionValue(this->BuildOptions, MaxRegs);
     if (Valid) {
       Options.push_back(CU_JIT_MAX_REGISTERS);
       OptionVals.push_back(reinterpret_cast<void *>(MaxRegs));
