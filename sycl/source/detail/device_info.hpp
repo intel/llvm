@@ -1012,8 +1012,7 @@ struct get_device_info_impl<
     if (Dev->getBackend() == backend::opencl) {
       // Exclude all non-CPU or non-GPU devices on OpenCL, in particular
       // accelerators.
-      return Dev->get_device_type() == pi::PiDeviceType::PI_DEVICE_TYPE_CPU ||
-             Dev->get_device_type() == pi::PiDeviceType::PI_DEVICE_TYPE_GPU;
+      return Dev->is_cpu() || Dev->is_gpu();
     }
 
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
