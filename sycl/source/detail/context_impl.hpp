@@ -71,6 +71,7 @@ public:
   /// transferred to runtime
   context_impl(sycl::detail::pi::PiContext PiContext,
                async_handler AsyncHandler, const PluginPtr &Plugin,
+               const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
   ~context_impl();

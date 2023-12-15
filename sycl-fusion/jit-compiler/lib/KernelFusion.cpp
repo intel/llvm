@@ -94,7 +94,9 @@ FusionResult KernelFusion::fuseKernels(
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
 
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
+  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  DeviceArchitecture TargetArch = TargetInfo.getArch();
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
@@ -102,7 +104,8 @@ FusionResult KernelFusion::fuseKernels(
   }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
-  CacheKeyT CacheKey{KernelsToFuse,
+  CacheKeyT CacheKey{TargetArch,
+                     KernelsToFuse,
                      Identities,
                      BarriersFlags,
                      Internalization,

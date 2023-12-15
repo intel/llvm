@@ -71,7 +71,7 @@ public:
     BuildState
     waitUntilTransition(BuildState From = BuildState::BS_InProgress) {
       BuildState To;
-      std::unique_lock Lock(MBuildResultMutex);
+      std::unique_lock<std::mutex> Lock(MBuildResultMutex);
       MBuildCV.wait(Lock, [&] {
         To = State;
         return State != From;

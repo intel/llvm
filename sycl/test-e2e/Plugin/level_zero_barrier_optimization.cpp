@@ -10,6 +10,8 @@
 int main() {
   sycl::queue Q1({sycl::property::queue::in_order{}});
   sycl::queue Q2({sycl::property::queue::in_order{}});
+  sycl::queue Q3({sycl::property::queue::in_order{},
+                  sycl::property::queue::enable_profiling{}});
 
   // Test case 1 - events in the barrier's waitlist are from different queues.
   std::cout << "Test1" << std::endl;
@@ -124,6 +126,31 @@ int main() {
   assert(Event10.get_info<sycl::info::event::command_execution_status>() ==
          sycl::info::event_command_status::complete);
   assert(Event11.get_info<sycl::info::event::command_execution_status>() ==
+         sycl::info::event_command_status::complete);
+
+  // Test case 6 - submit barrier after queue sync with profiling enabled, i.e.
+  // last event = nullptr.
+  std::cout << "Test3" << std::endl;
+  auto Event12 = Q3.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class kernel12>([]() {}); });
+  auto Event13 = Q3.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class kernel13>([]() {}); });
+  Q3.wait();
+
+  // CHECK: Test3
+  // CHECK: ---> piEnqueueEventsWaitWithBarrier(
+  // CHECK: ZE ---> zeEventCreate
+  // CHECK-NOT: ZE ---> zeCommandListAppendWaitOnEvents
+  // CHECK-NOT: ZE ---> zeCommandListAppendSignalEvent
+  // CHECK: ZE ---> zeCommandListAppendBarrier
+  // CHECK: ) ---> 	pi_result : PI_SUCCESS
+  auto BarrierEvent6 = Q3.ext_oneapi_submit_barrier({Event12, Event13});
+  BarrierEvent6.wait();
+
+  // Check that kernel events are completed after waiting for barrier event.
+  assert(Event12.get_info<sycl::info::event::command_execution_status>() ==
+         sycl::info::event_command_status::complete);
+  assert(Event13.get_info<sycl::info::event::command_execution_status>() ==
          sycl::info::event_command_status::complete);
 
   return 0;
