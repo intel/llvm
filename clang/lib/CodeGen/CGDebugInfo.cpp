@@ -5748,7 +5748,8 @@ llvm::DIScope *CGDebugInfo::getCurrentContextDescriptor(const Decl *D) {
 void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM))
+  if (noSystemDebugInfo(&UD, CGM,
+                        false /* cannot rely on UD's isReferenced method */))
     return;
   const NamespaceDecl *NSDecl = UD.getNominatedNamespace();
   if (!NSDecl->isAnonymousNamespace() ||
@@ -5775,7 +5776,8 @@ void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
 void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM))
+  if (noSystemDebugInfo(&UD, CGM,
+                        false /* cannot rely on UD's isReferenced method */))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingDecl containing no decls");
@@ -5802,7 +5804,8 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
 void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM))
+  if (noSystemDebugInfo(&UD, CGM,
+                        false /* cannot rely on UD's isReferenced method */))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingEnumDecl"
@@ -6023,8 +6026,8 @@ CGDebugInfo::createConstantValueExpression(const clang::ValueDecl *VD,
   return nullptr;
 }
 
-bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
-                                       const CodeGenModule &CGM) {
+bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM,
+                                       bool IsReferencedValid) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
 
@@ -6038,6 +6041,8 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
         !(isa<FunctionDecl>(D) &&
           (cast<FunctionDecl>(D))->getTemplateSpecializationKind() ==
               TSK_ExplicitInstantiationDefinition) &&
+        // Has isReferenced() been set?
+        IsReferencedValid &&
         // Declaration is not referenced
         !D->isReferenced() &&
         // debug level < FullDebugInfo
