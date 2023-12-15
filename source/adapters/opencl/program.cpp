@@ -159,8 +159,8 @@ static cl_int mapURProgramInfoToCL(ur_program_info_t URPropName) {
     return CL_PROGRAM_NUM_DEVICES;
   case UR_PROGRAM_INFO_DEVICES:
     return CL_PROGRAM_DEVICES;
-  case UR_PROGRAM_INFO_SOURCE:
-    return CL_PROGRAM_SOURCE;
+  case UR_PROGRAM_INFO_IL:
+    return CL_PROGRAM_IL;
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return CL_PROGRAM_BINARY_SIZES;
   case UR_PROGRAM_INFO_BINARIES:
