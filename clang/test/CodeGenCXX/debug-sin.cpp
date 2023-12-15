@@ -1,10 +1,21 @@
-// Ensure that declarations obtained by a using declaration are generated
-// sin() is declared through cmath with: using ::sin;
+////////////////////////////////////////////////////////////////////////////////////////
 
-// RUN: %clang -emit-llvm -S -g %s -o %t.ll
-// RUN: FileCheck %s < %t.ll
+// With default options, ensure that declarations obtained by a using declaration have
+// debug info generated.  sin() is declared through cmath with: using ::sin;
+//
+// Also ensure that no debug info for sin() is generated if -fno-system-debug is used.
 
-// CHECK: DISubprogram(name: "sin",
+// RUN: %clang                   -emit-llvm -S -g %s     -o %t.default.ll
+// RUN: %clang -fno-system-debug -emit-llvm -S -g %s     -o %t.no_system_debug.ll
+
+// RUN: FileCheck --check-prefix=CHECK-DEFAULT         %s < %t.default.ll
+// RUN: FileCheck --check-prefix=CHECK-NO-SYSTEM-DEBUG %s < %t.no_system_debug.ll
+
+// CHECK-DEFAULT:             DISubprogram(name: "sin",
+// CHECK-NO-SYSTEM-DEBUG-NOT: DISubprogram(name: "sin",
+
+////////////////////////////////////////////////////////////////////////////////////////
+
 
 #include <math.h>
 
