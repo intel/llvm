@@ -1143,17 +1143,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
-  ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
-      malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, Plat, nullptr);
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+
+  Result =
+      urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(), nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   // Iterate through platforms to find device that matches nativeHandle
-  for (uint32_t j = 0; j < NumPlatforms; ++j) {
-    auto SearchRes =
-        std::find_if(begin(Plat[j]->Devices), end(Plat[j]->Devices), IsDevice);
-    if (SearchRes != end(Plat[j]->Devices)) {
+  for (const auto Platform : Platforms) {
+    auto SearchRes = std::find_if(std::begin(Platform->Devices),
+                                  std::end(Platform->Devices), IsDevice);
+    if (SearchRes != end(Platform->Devices)) {
       *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
       return UR_RESULT_SUCCESS;
     }

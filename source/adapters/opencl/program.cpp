@@ -347,12 +347,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
                                         &Ctx, &RetSize));
 
   std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
-  cl_adapter::getDevicesFromContext(cl_adapter::cast<ur_context_handle_t>(Ctx),
-                                    DevicesInCtx);
+  UR_RETURN_ON_FAILURE(cl_adapter::getDevicesFromContext(
+      cl_adapter::cast<ur_context_handle_t>(Ctx), DevicesInCtx));
 
   cl_platform_id CurPlatform;
-  clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
-                  sizeof(cl_platform_id), &CurPlatform, nullptr);
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
+                                       sizeof(cl_platform_id), &CurPlatform,
+                                       nullptr));
 
   oclv::OpenCLVersion PlatVer;
   cl_adapter::getPlatformVersion(CurPlatform, PlatVer);
@@ -364,7 +365,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     for (cl_device_id Dev : *DevicesInCtx) {
       oclv::OpenCLVersion DevVer;
 
-      cl_adapter::getDeviceVersion(Dev, DevVer);
+      UR_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(Dev, DevVer));
 
       if (DevVer < oclv::V2_2) {
         UseExtensionLookup = true;

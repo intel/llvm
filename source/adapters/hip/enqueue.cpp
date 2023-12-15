@@ -987,8 +987,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   ur_lock MemoryMigrationLock{hImage->MemoryMigrationMutex};
   auto Device = hQueue->getDevice();
   hipStream_t HIPStream = hQueue->getNextTransferStream();
@@ -1039,13 +1037,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemImageNDCopy(HIPStream, ImgType, AdjustedRegion,
-                                         Array, hipMemoryTypeArray, SrcOffset,
-                                         pDst, hipMemoryTypeHost, nullptr);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+    UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
+        HIPStream, ImgType, AdjustedRegion, Array, hipMemoryTypeArray,
+        SrcOffset, pDst, hipMemoryTypeHost, nullptr));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -1061,7 +1055,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
-  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
@@ -1071,15 +1064,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
-      Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                                 phEventWaitList);
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                       phEventWaitList));
     }
 
     hipArray *Array =
@@ -1107,13 +1098,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemImageNDCopy(HIPStream, ImgType, AdjustedRegion,
-                                         pSrc, hipMemoryTypeHost, nullptr,
-                                         Array, hipMemoryTypeArray, DstOffset);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+    UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
+        HIPStream, ImgType, AdjustedRegion, pSrc, hipMemoryTypeHost, nullptr,
+        Array, hipMemoryTypeArray, DstOffset));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -1126,8 +1113,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   }
 
   return UR_RESULT_SUCCESS;
-
-  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
