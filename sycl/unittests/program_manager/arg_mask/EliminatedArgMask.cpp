@@ -156,7 +156,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
       << "Expect command group to contain kernel bundle";
 
   auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
-      ExecKernel->MKernelName.getPtr());
+      ExecKernel->MKernelName);
   sycl::kernel SyclKernel =
       KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
@@ -168,7 +168,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
               !ExecKernel->MSyclKernel->isCreatedFromSource());
 
   return sycl::detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-      Program, ExecKernel->MKernelName.getPtr());
+      Program, ExecKernel->MKernelName);
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info
