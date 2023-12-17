@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f
-  # Merge: 95f90926 815a2869
+  # commit 67e4d1bcf0057eef7910851bfb5020df9e5befd6
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Dec 14 12:03:01 2023 +0000
-  #     Merge pull request #1105 from jandres742/fixtestusm
-  #     [UR][L0] Add several fixes to L0 adapter for test-usm
-  set(UNIFIED_RUNTIME_TAG 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f)
+  # Date:   Fri Dec 15 10:09:02 2023 +0000
+  #     Merge pull request #1185 from aarongreig/aaron/fixCoverityCudaCL
+  #     Fix coverity issues in OpenCL, cuda and hip adapters.[L0] Add several fixes to L0 adapter
+  #     for test-usm
+  set(UNIFIED_RUNTIME_TAG 67e4d1bcf0057eef7910851bfb5020df9e5befd6)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -141,7 +141,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"

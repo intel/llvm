@@ -98,7 +98,6 @@ add_sycl_plugin(hip
   SOURCES
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     ${UR_HIP_ADAPTER_SOURCES}
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
