@@ -11515,10 +11515,6 @@ public:
   SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
                                   SYCLTypeAttr::SYCLType TypeName);
 
-  SYCLIntelMemoryAttr *
-  MergeSYCLIntelMemoryAttr(Decl *D, const AttributeCommonInfo &CI,
-                           SYCLIntelMemoryAttr::MemoryKind Kind);
-
   /// Only called on function definitions; if there is a MSVC #pragma optimize
   /// in scope, consider changing the function's attributes based on the
   /// optimization list passed to the pragma.
