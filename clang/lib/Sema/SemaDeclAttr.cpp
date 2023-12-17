@@ -7520,8 +7520,7 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
 
 /// Handle the [[intel::fpga_memory]] attribute.
 /// This is incompatible with the [[intel::fpga_register]] attribute.
-static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
-                                  const ParsedAttr &AL) {
+static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<SYCLIntelRegisterAttr>(S, D, AL))
     return;
 
