@@ -776,11 +776,10 @@ static Attr *handleCodeAlignAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 }
 
 // Diagnose non-identical duplicates as a 'conflicting' loop attributes
-// and suppress duplicate errors in cases where the two match for
-// [[clang::code_align()]] attribute.
-static void CheckForDuplicateCodeAlignAttrs(Sema &S,
-                                            ArrayRef<const Attr *> Attrs) {
-  auto FindFunc = [](const Attr *A) { return isa<const CodeAlignAttr>(A); };
+// and suppress duplicate errors in cases where the two match.
+template <typename LoopAttrT>
+static void CheckForDuplicateLoopAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
+  auto FindFunc = [](const Attr *A) { return isa<const LoopAttrT>(A); };
   const auto *FirstItr = std::find_if(Attrs.begin(), Attrs.end(), FindFunc);
 
   if (FirstItr == Attrs.end()) // no attributes found
@@ -790,7 +789,7 @@ static void CheckForDuplicateCodeAlignAttrs(Sema &S,
   std::optional<llvm::APSInt> FirstValue;
 
   const auto *CAFA =
-      dyn_cast<ConstantExpr>(cast<CodeAlignAttr>(*FirstItr)->getAlignment());
+      dyn_cast<ConstantExpr>(cast<LoopAttrT>(*FirstItr)->getAlignment());
   // Return early if first alignment expression is dependent (since we don't
   // know what the effective size will be), and skip the loop entirely.
   if (!CAFA)
@@ -798,8 +797,8 @@ static void CheckForDuplicateCodeAlignAttrs(Sema &S,
 
   while (Attrs.end() != (LastFoundItr = std::find_if(LastFoundItr + 1,
                                                      Attrs.end(), FindFunc))) {
-    const auto *CASA = dyn_cast<ConstantExpr>(
-        cast<CodeAlignAttr>(*LastFoundItr)->getAlignment());
+    const auto *CASA =
+        dyn_cast<ConstantExpr>(cast<LoopAttrT>(*LastFoundItr)->getAlignment());
     // If the value is dependent, we can not test anything.
     if (!CASA)
       return;
@@ -1165,7 +1164,7 @@ void Sema::ProcessStmtAttributes(Stmt *S, const ParsedAttributes &InAttrs,
   CheckForIncompatibleAttributes(*this, OutAttrs);
   CheckForIncompatibleSYCLLoopAttributes(*this, OutAttrs);
   CheckForIncompatibleUnrollHintAttributes(*this, OutAttrs, InAttrs.Range);
-  CheckForDuplicateCodeAlignAttrs(*this, OutAttrs);
+  CheckForDuplicateLoopAttrs<CodeAlignAttr>(*this, OutAttrs);
 }
 
 bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
@@ -1173,7 +1172,7 @@ bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
   return false;
 }
 
-bool Sema::CheckRebuiltCodeAlignStmtAttributes(ArrayRef<const Attr *> Attrs) {
-  CheckForDuplicateCodeAlignAttrs(*this, Attrs);
+bool Sema::CheckRebuiltStmtAttributes(ArrayRef<const Attr *> Attrs) {
+  CheckForDuplicateLoopAttrs<CodeAlignAttr>(*this, Attrs);
   return false;
 }
