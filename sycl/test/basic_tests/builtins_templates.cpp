@@ -228,15 +228,9 @@ void check() {
   GENFLOAT_CHECK(TWO_ARGS, distance)
   GENFLOAT_CHECK(ONE_ARG, length)
   GENFLOAT_CHECK(ONE_ARG, normalize)
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  GENFLOAT_CHECK(TWO_ARGS, fast_distance)
-  GENFLOAT_CHECK(ONE_ARG, fast_length)
-  GENFLOAT_CHECK(ONE_ARG, fast_normalize)
-#else
   FLOAT_CHECK(TWO_ARGS, fast_distance)
   FLOAT_CHECK(ONE_ARG, fast_length)
   FLOAT_CHECK(ONE_ARG, fast_normalize)
-#endif
 
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isequal)
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isnotequal)
