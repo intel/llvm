@@ -5,6 +5,9 @@
 
 // Check that submission time is calculated properly.
 
+// Test fails on hip flakily, disable temprorarily.
+// UNSUPPORTED: hip
+
 #include <sycl/sycl.hpp>
 
 int main(void) {
