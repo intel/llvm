@@ -185,7 +185,7 @@ const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"esimd_emulator", backend::ext_intel_esimd_emulator},
-       {"native_cpu", backend::ext_native_cpu},
+       {"native_cpu", backend::ext_oneapi_native_cpu},
        {"*", backend::all}}};
   return SyclBeMap;
 }

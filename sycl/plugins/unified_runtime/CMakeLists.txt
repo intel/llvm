@@ -57,13 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f
-  # Merge: 95f90926 815a2869
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Dec 14 12:03:01 2023 +0000
-  #     Merge pull request #1105 from jandres742/fixtestusm
-  #     [UR][L0] Add several fixes to L0 adapter for test-usm
-  set(UNIFIED_RUNTIME_TAG 3e4d7248b4b1c7d70fa40c08e627833279c8fd5f)
+  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date: Mon Dec 18 13:15:43 2023 +0000
+  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
+  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
+  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -141,7 +140,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
