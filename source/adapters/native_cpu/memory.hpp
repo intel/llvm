@@ -68,7 +68,7 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
   struct BB {
-    BB(_ur_buffer *b) : Parent(b) {}
+    BB(_ur_buffer *b) : Parent(b), Origin(0) {}
     BB() : BB(nullptr) {}
     _ur_buffer *const Parent;
     size_t Origin; // only valid if Parent != nullptr
