@@ -2,7 +2,7 @@
 // for a test program that includes <vector>.
 //
 // This testcase tests four option settings:
-// By default                                                                              debug info for vector::insert and vector::pop_back is only generated if they are referenced
+// By default                                                                              debug info for vector::insert and vector::pop_back is generated
 // When -fno-system-debug is used                                                          debug info for vector::insert and vector::pop_back is NOT generated
 // When -fstandalone-debug is used more debug info is generated and                        debug info for vector::insert and vector::pop_back is generated
 // When -fno-eliminate-unused-debug-types is used even more debug info is generated and    debug info for vector::insert and vector::pop_back is generated
@@ -15,10 +15,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT
 
-// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-INSERT-ONLY-DEBUG %} %else %{ --check-prefix=CHECK-INSERT-ONLY-DEBUG %} %s
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %}         %else %{ --check-prefix=CHECK-NO-DEBUG  %}         %s
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
+// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %} %else %{ --check-prefix=CHECK-NO-DEBUG  %} %s
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // vector::pop_back and vector::insert are both in user source
@@ -28,10 +28,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT -DPOP_BACK
 
-// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %}         %else %{ --check-prefix=CHECK-NO-DEBUG  %}         %s
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
+// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %} %else %{ --check-prefix=CHECK-NO-DEBUG  %} %s
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class vector<int> is explicitly instantiated.
@@ -42,13 +42,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
 
-// For the default case we would prefer that no debug info is generated for pop_back/insert (i.e. use CHECK-NO-DEBUG instead of CHECK-ALL-DEBUG)
-// but decls with "explicit_instantiation_definition" are processed for debug info generation before isReferenced is calculated.  Thus,
-// we must assume that these decls are referenced and generate debug info for them.
-// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %}         %else %{ --check-prefix=CHECK-NO-DEBUG  %}         %s
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
+// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %} %else %{ --check-prefix=CHECK-NO-DEBUG  %} %s
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class vector<int> is explicitly instantiated.
@@ -59,10 +56,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 
-// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %}         %else %{ --check-prefix=CHECK-NO-DEBUG  %}         %s
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %}         %else %{ --check-prefix=CHECK-ALL-DEBUG %}         %s
+// RUN: grep DISubprogram %t.default                         | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-NO-DEBUG  %} %else %{ --check-prefix=CHECK-NO-DEBUG  %} %s
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck %if system-windows %{ --check-prefix=CHECK-WIN-ALL-DEBUG %} %else %{ --check-prefix=CHECK-ALL-DEBUG %} %s
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
