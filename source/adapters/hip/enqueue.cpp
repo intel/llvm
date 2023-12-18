@@ -1687,8 +1687,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     if (hipRes == hipErrorInvalidValue && pDst)
       dstIsSystemAlloc = true;
 
-    const unsigned int srcMemType{srcAttribs.memoryType};
-    const unsigned int dstMemType{dstAttribs.memoryType};
+    const unsigned int srcMemType{srcAttribs.type};
+    const unsigned int dstMemType{dstAttribs.type};
 
     const bool srcIsHost{(srcMemType == hipMemoryTypeHost) || srcIsSystemAlloc};
     const bool srcIsDevice{srcMemType == hipMemoryTypeDevice};
