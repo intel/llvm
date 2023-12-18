@@ -714,7 +714,7 @@ _{endnote}_]
 . Is the name `submit_and_record` confusing?
 +
 --
-*UNRESOLVED*: An advantage with the current name is that is sets up a naming
+*UNRESOLVED*: An advantage with the current name is that it sets up a naming
 pattern with `record_event`, where functions with the word "record" in their
 name return an event.  However, the word "record" may be confused with the
 recording functionality associated with SYCL graphs.
