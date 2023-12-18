@@ -206,7 +206,7 @@ bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
         std::string(kSPIRVTypeName::PrefixAndDelim) + BaseTyName.str();
     if (FullName != N)
       N = N + kSPIRVTypeName::Delimiter;
-    if (FullName.startswith(N)) {
+    if (FullName.starts_with(N)) {
       if (Postfix)
         *Postfix = FullName.drop_front(N.size());
       return true;
@@ -222,9 +222,9 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::half")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::half")) {
       return true;
     }
   }
@@ -238,9 +238,9 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::bfloat16")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::bfloat16")) {
       return true;
     }
   }
@@ -330,7 +330,7 @@ std::string prefixSPIRVName(const std::string &S) {
 
 StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix) {
   const size_t Start = strlen(kSPIRVName::Prefix);
-  if (!R.startswith(kSPIRVName::Prefix))
+  if (!R.starts_with(kSPIRVName::Prefix))
     return R;
   R = R.drop_front(Start);
   R.split(Postfix, "_", -1, false);
@@ -373,7 +373,7 @@ SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target) {
   if (Postfix == kSPIRVPostfix::Sat)
     return new SPIRVDecorate(spv::DecorationSaturatedConversion, Target);
 
-  if (Postfix.startswith(kSPIRVPostfix::Rt))
+  if (Postfix.starts_with(kSPIRVPostfix::Rt))
     return new SPIRVDecorate(spv::DecorationFPRoundingMode, Target,
                              map<SPIRVFPRoundingModeKind>(Postfix.str()));
 
@@ -413,7 +413,7 @@ std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned,
 // Enqueue kernel, kernel query, pipe and address space cast built-ins
 // are not mangled.
 bool isNonMangledOCLBuiltin(StringRef Name) {
-  if (!Name.startswith("__"))
+  if (!Name.starts_with("__"))
     return false;
 
   return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
@@ -427,7 +427,7 @@ Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   if (!oclIsBuiltin(S, Name))
     Name = S;
   StringRef R(Name);
-  if ((!Name.startswith(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
+  if ((!Name.starts_with(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
       !getByName(dePrefixSPIRVName(R, Postfix).str(), OC)) {
     return OpNop;
   }
@@ -457,13 +457,13 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     DemangledName = Name.drop_front(2);
     return true;
   }
-  if (!Name.startswith("_Z"))
+  if (!Name.starts_with("_Z"))
     return false;
   // OpenCL C++ built-ins are declared in cl namespace.
   // TODO: consider using 'St' abbriviation for cl namespace mangling.
   // Similar to ::std:: in C++.
   if (IsCpp) {
-    if (!Name.startswith("_ZN"))
+    if (!Name.starts_with("_ZN"))
       // Attempt to demangle as C. This is useful for "extern C" functions
       // that have manually mangled names.
       return false;
@@ -578,7 +578,7 @@ bool hasArrayArg(Function *F) {
 /// Convert a struct name from the name given to it in Itanium name mangling to
 /// the name given to it as an LLVM opaque struct.
 static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
-  assert(MangledStructName.startswith("ocl_") &&
+  assert(MangledStructName.starts_with("ocl_") &&
          "Not a valid builtin OpenCL mangled name");
   // Bare structure type that starts with ocl_ is a builtin opencl type.
   // See clang/lib/CodeGen/CGOpenCLRuntime for how these map to LLVM types
@@ -597,7 +597,7 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
   if (LlvmStructName.empty()) {
     LlvmStructName = "opencl.";
     LlvmStructName += MangledStructName.substr(4); // Strip off ocl_
-    if (!MangledStructName.endswith("_t"))
+    if (!MangledStructName.ends_with("_t"))
       LlvmStructName += "_t";
   }
   return LlvmStructName;
@@ -702,7 +702,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     // pointer element types, the only relevant names are those corresponding
     // to the OpenCL special types (which all begin with "ocl_").
     StringRef Arg(stringify(Name));
-    if (Arg.startswith("ocl_")) {
+    if (Arg.starts_with("ocl_")) {
       const std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
       PointeeTy = GetStructType(StructName);
     } else if (Arg.consume_front("__spirv_")) {
@@ -751,9 +751,9 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
           StructName += NameSuffixPair.second;
         }
         PointeeTy = GetStructType(StructName);
-      } else if (MangledStructName.startswith("opencl.")) {
+      } else if (MangledStructName.starts_with("opencl.")) {
         PointeeTy = GetStructType(MangledStructName);
-      } else if (MangledStructName.startswith("ocl_")) {
+      } else if (MangledStructName.starts_with("ocl_")) {
         const std::string StructName =
             demangleBuiltinOpenCLTypeName(MangledStructName);
         PointeeTy = TypedPointerType::get(GetStructType(StructName), 0);
@@ -796,8 +796,8 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
   // If there's no mangled name, we can't do anything. Also, if there's no
   // parameters, do nothing.
   StringRef Name = F->getName();
-  if (!Name.startswith("_Z") || F->arg_empty())
-    return Name.startswith("_Z");
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return Name.starts_with("_Z");
 
   Module *M = F->getParent();
   auto GetStructType = [&](StringRef Name) {
@@ -1171,7 +1171,7 @@ ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
 }
 
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
-  if (!F->hasName() || !F->getName().startswith(kSPIRVName::Prefix))
+  if (!F->hasName() || !F->getName().starts_with(kSPIRVName::Prefix))
     return false;
   UndecoratedName = F->getName();
   return true;
@@ -1324,9 +1324,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     auto Name = Ty->getStructName();
     std::string Tmp;
 
-    if (Name.startswith(kLLVMTypeName::StructPrefix))
+    if (Name.starts_with(kLLVMTypeName::StructPrefix))
       Name = Name.drop_front(strlen(kLLVMTypeName::StructPrefix));
-    if (Name.startswith(kSPIRVTypeName::PrefixAndDelim)) {
+    if (Name.starts_with(kSPIRVTypeName::PrefixAndDelim)) {
       Name = Name.substr(sizeof(kSPIRVTypeName::PrefixAndDelim) - 1);
       Tmp = Name.str();
       auto Pos = Tmp.find(kSPIRVTypeName::Delimiter); // first dot
@@ -1381,7 +1381,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     } else if (auto *StructTy = dyn_cast<StructType>(ET)) {
       LLVM_DEBUG(dbgs() << "ptr to struct: " << *Ty << '\n');
       auto TyName = StructTy->getStructName();
-      if (TyName.startswith(kSPR2TypeName::OCLPrefix)) {
+      if (TyName.starts_with(kSPR2TypeName::OCLPrefix)) {
         auto DelimPos = TyName.find_first_of(kSPR2TypeName::Delimiter,
                                              strlen(kSPR2TypeName::OCLPrefix));
         if (DelimPos != StringRef::npos)
@@ -1618,7 +1618,7 @@ std::string getImageBaseTypeName(StringRef Name) {
   SmallVector<StringRef, 4> SubStrs;
   const char Delims[] = {kSPR2TypeName::Delimiter, 0};
   Name.split(SubStrs, Delims);
-  if (Name.startswith(kSPR2TypeName::OCLPrefix)) {
+  if (Name.starts_with(kSPR2TypeName::OCLPrefix)) {
     Name = SubStrs[1];
   } else {
     Name = SubStrs[0];
@@ -1814,7 +1814,7 @@ bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp) {
   if (!oclIsBuiltin(CI->getCalledFunction()->getName(), DemangledName))
     return false;
   StringRef S = DemangledName;
-  if (!S.startswith(kSPIRVName::Prefix))
+  if (!S.starts_with(kSPIRVName::Prefix))
     return false;
   S = S.drop_front(strlen(kSPIRVName::Prefix));
   auto Loc = S.find(kSPIRVPostfix::Divider);

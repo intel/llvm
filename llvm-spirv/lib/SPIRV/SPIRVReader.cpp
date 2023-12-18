@@ -1167,7 +1167,7 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
     auto *LD = dyn_cast<LoadInst>(Loc->second);
     auto *Placeholder = dyn_cast<GlobalVariable>(LD->getPointerOperand());
     assert(LD && Placeholder &&
-           Placeholder->getName().startswith(KPlaceholderPrefix) &&
+           Placeholder->getName().starts_with(KPlaceholderPrefix) &&
            "A value is translated twice");
     // Replaces placeholders for PHI nodes
     LD->replaceAllUsesWith(V);
@@ -2972,7 +2972,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   // assuming llvm.memset is supported by the device compiler. If this
   // assumption is not safe, we should have a command line option to control
   // this behavior.
-  if (FuncNameRef.startswith("spirv.llvm_memset_p")) {
+  if (FuncNameRef.starts_with("spirv.llvm_memset_p")) {
     // We can't guarantee that the name is correctly mangled due to opaque
     // pointers. Derive the correct name from the function type.
     FuncName =
