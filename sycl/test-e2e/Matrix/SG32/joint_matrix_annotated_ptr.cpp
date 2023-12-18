@@ -15,11 +15,6 @@
 
 #include "../common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-namespace syclintelex = sycl::ext::intel::experimental;
-namespace syclex = sycl::ext::oneapi::experimental;
-
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
