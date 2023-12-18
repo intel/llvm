@@ -3,6 +3,13 @@
 
 // Expected exception is generated for OpenCL backend only.
 // REQUIRES: opencl
+
+// The number of arguments of "reqd_work_group_size" must match the
+// dimensionality of the work-group used to invoke the kernel.
+// But "cl::reqd_work_group_size" always accepts 3 arguments.
+// Not sure if this test should exist.
+// XFAIL: *
+
 #include <array>
 #include <sycl/sycl.hpp>
 

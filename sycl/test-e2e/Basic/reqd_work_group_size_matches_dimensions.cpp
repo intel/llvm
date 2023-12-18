@@ -23,7 +23,7 @@ using namespace sycl;
     }                                                                          \
     assert(ExceptionThrown &&                                                  \
            "Invalid use of reqd_work_group_size should throw an exception.");  \
-    assert(Errc == sycl::errc::invalid);                                       \
+    assert(Errc == sycl::errc::nd_range);                                       \
   }
 
 int main() {
