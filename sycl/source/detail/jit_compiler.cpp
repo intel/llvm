@@ -56,6 +56,13 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
+::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  return ::jit_compiler::TargetInfo::get(
+      Format, static_cast<::jit_compiler::DeviceArchitecture>(
+                  Queue->getDeviceImplPtr()->getDeviceArch()));
+}
+
 std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
 retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
   auto KernelName = KernelCG->getKernelName();
@@ -824,8 +831,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
-  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,

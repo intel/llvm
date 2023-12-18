@@ -194,6 +194,8 @@ template<int... I> auto get = []() { try { } catch(...) {}; return I; }; // expe
 }
 
 namespace GH41693 {
+// No errors when a type alias defined in a class or a friend of a class
+// accesses private members of the same class.
 struct S {
 private:
   template <typename> static constexpr void Impl() {}
@@ -205,20 +207,20 @@ public:
 using X = S::U<void>;
 struct Y {
 private:
-    static constexpr int x=0;
+  static constexpr int x=0;
 
-    template <typename>
-    static constexpr int y=0;
+  template <typename>
+  static constexpr int y=0;
 
-    template <typename>
-    static constexpr int foo();
+  template <typename>
+  static constexpr int foo();
 
 public:
-    template <typename U>
-    using bar1 = decltype(foo<U>());
-    using bar2 = decltype(x);
-    template <typename U>
-    using bar3 = decltype(y<U>);
+  template <typename U>
+  using bar1 = decltype(foo<U>());
+  using bar2 = decltype(x);
+  template <typename U>
+  using bar3 = decltype(y<U>);
 };
 
 
@@ -227,8 +229,8 @@ using type2 = Y::bar2;
 using type3 = Y::bar3<float>;
 
 struct theFriend{
-    template<class T>
-    using theAlias = decltype(&T::i);
+  template<class T>
+  using theAlias = decltype(&T::i);
 };
 
 class theC{
@@ -240,5 +242,18 @@ class theC{
 int foo(){
   (void)sizeof(theFriend::theAlias<theC>);
 }
+
+// Test case that regressed with the first iteration of the fix for GH41693.
+template <typename T> class SP {
+    T* data;
+};
+
+template <typename T> class A {
+    static SP<A> foo();
+};
+
+template<typename T> using TRet = SP<A<T>>;
+
+template<typename T> TRet<T> A<T>::foo() { return TRet<T>{};};
 
 }

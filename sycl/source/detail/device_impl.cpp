@@ -599,8 +599,8 @@ ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
   return MDeviceArch;
 }
 
-// On first call this function queries for device timestamp
-// along with host synchronized timestamp and stores it in memeber varaible
+// On the first call this function queries for device timestamp
+// along with host synchronized timestamp and stores it in member variable
 // MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
 // the host timestamp, compute difference against the host timestamp in
 // MDeviceHostBaseTime and calculate the device timestamp based on the
@@ -622,14 +622,28 @@ uint64_t device_impl::getCurrentDeviceTime() {
   // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
   constexpr uint64_t TimeTillRefresh = 200e9;
+  assert(HostTime >= MDeviceHostBaseTime.second);
   uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
 
-  if (Diff > TimeTillRefresh || Diff <= 0) {
+  // If getCurrentDeviceTime is called for the first time or we have to refresh.
+  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
     const auto &Plugin = getPlugin();
     auto Result =
         Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
             MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-
+    // We have to remember base host timestamp right after PI call and it is
+    // going to be used for calculation of the device timestamp at the next
+    // getCurrentDeviceTime() call. We need to do it here because getPlugin()
+    // and piGetDeviceAndHostTimer calls may take significant amount of time,
+    // for example on the first call to getPlugin plugins may need to be
+    // initialized. If we use timestamp from the beginning of the function then
+    // the difference between host timestamps of the current
+    // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect
+    // because it will include execution time of the code before we get device
+    // timestamp from piGetDeviceAndHostTimer.
+    HostTime =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
     if (Result == PI_ERROR_INVALID_OPERATION) {
       char *p = nullptr;
       Plugin->call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
