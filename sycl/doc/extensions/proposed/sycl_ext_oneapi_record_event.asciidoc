@@ -144,19 +144,28 @@ The event's `info::event_profiling::command_submit` timestamp reflects the
 time at which `record_event` is called.
 The event's `info::event_profiling::command_end` timestamp reflects the time
 at which the event enters the "complete" state.
-The event's `info::event_profiling::command_start` timestamps is the same as
-the `info::event_profiling::command_end` timestamp.
+
+It is unspecified whether the event ever has the
+`info::event_command_status::running` status, and the meaning of the
+`info::event_profiling::command_start` timestamp is also unspecified.
+Implementations are encouraged to transition the event directly from the
+"submitted" status to the "complete" status and are encouraged to set the
+"command_start" timestamp to the same value as the "command_end" timestamp.
 
 _Throws:_ A synchronous `exception` with the `errc::invalid` error code if the
 queue was not constructed with the `property::queue::enable_profiling` property
 and if the queue's device does not have the aspect
 `ext_oneapi_queue_event_recording`.
 
-[_Note:_ In order to understand why the "start" and "end" timestamps are the
-same, think of the barrier as an empty kernel with an implicit set of
-dependencies on all previous commands in the same queue.
+[_Note:_ In order to understand why the "command_start" and "command_end"
+timestamps are encouraged to be the same, think of the barrier as an empty
+kernel with an implicit set of dependencies on all previous commands in the
+same queue.
 This theoretical kernel starts executing when the dependencies are resolved.
 Since the kernel is empty, the end time is the same as the start time.
+The "command_start" and "command_end" timestamps are not required to be the
+same, though, in order to accommodate an implementation where the barrier is
+implemented by submitting an actual kernel, which has non-zero execution time.
 _{endnote}_]
 |====
 
