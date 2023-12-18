@@ -5783,6 +5783,49 @@ class OffloadingActionBuilder final {
 
     bool addSYCLNativeCPULibs(const ToolChain *TC,
                               ActionList &DeviceLinkObjects) {
+      // Todo: we should get rid of this function and refactor addSYCLDeviceLibs to account
+      // for SYCL Native CPU
+      int NumOfDeviceLibLinked = 0;
+      SmallVector<SmallString<128>, 4> LibLocCandidates;
+      SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      SmallVector<std::string, 8> DeviceLibraries;
+      DeviceLibraries =
+          tools::SYCL::getDeviceLibraries(C, TC->getTriple(), true);
+
+      for (const auto &DeviceLib : DeviceLibraries) {
+        bool LibLocSelected = false;
+        for (const auto &LLCandidate : LibLocCandidates) {
+          if (LibLocSelected)
+            break;
+          SmallString<128> LibName(LLCandidate);
+          llvm::sys::path::append(LibName, DeviceLib);
+          if (llvm::sys::fs::exists(LibName)) {
+            ++NumOfDeviceLibLinked;
+            Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                         Args.MakeArgString(LibName));
+            auto *SYCLDeviceLibsInputAction =
+                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+            auto *SYCLDeviceLibsUnbundleAction =
+                C.MakeAction<OffloadUnbundlingJobAction>(
+                    SYCLDeviceLibsInputAction);
+
+            // We are using BoundArch="" here since the NVPTX bundles in
+            // the devicelib .o files do not contain any arch information
+            SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                TC, /*BoundArch=*/"", Action::OFK_SYCL);
+            OffloadAction::DeviceDependences Dep;
+            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                    Action::OFK_SYCL);
+            auto *SYCLDeviceLibsDependenciesAction =
+                C.MakeAction<OffloadAction>(
+                    Dep, SYCLDeviceLibsUnbundleAction->getType());
+
+            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            if (!LibLocSelected)
+              LibLocSelected = !LibLocSelected;
+          }
+        }
+      }
       std::string LibSpirvFile;
       if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
         auto ProvidedPath =
