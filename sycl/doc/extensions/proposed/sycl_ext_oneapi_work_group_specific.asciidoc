@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_work_group_local
+= sycl_ext_oneapi_work_group_specific
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -58,14 +58,17 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension defines a `sycl::ext::oneapi::experimental::work_group_local`
+This extension defines a `sycl::ext::oneapi::experimental::work_group_specific`
 class template with behavior inspired by the {cpp} `thread_local` keyword
-and the CUDA `+__shared__+` keyword.
+and the CUDA `+__shared__+` keyword. The "specific" suffix is inspired by
+`tbb::enumerable_thread_specific`, and has been chosen to avoid potential
+confusion between the concepts of "local variables" and the "local address
+space".
 
-`work_group_local` variables can be allocated at global or function scope,
+`work_group_specific` variables can be allocated at global or function scope,
 lifting many of the restrictions in the existing
 link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
-extension. Note, however, that `work_group_local` variables currently place
+extension. Note, however, that `work_group_specific` variables currently place
 additional limits on the types that can be allocated, owing to differences in
 constructor behavior.
 
@@ -76,7 +79,7 @@ constructor behavior.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_WORK_GROUP_LOCAL` to one of the values defined in the
+macro `SYCL_EXT_ONEAPI_WORK_GROUP_SPECIFIC` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
@@ -93,27 +96,27 @@ implementation supports.
 |===
 
 
-=== `work_group_local` class template
+=== `work_group_specific` class template
 
-The `work_group_local` class template acts as a view of an
-implementation-managed pointer to work-group local memory.
+The `work_group_specific` class template acts as a view of an
+implementation-managed pointer to work-group-specific memory.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
-class work_group_local {
+class work_group_specific {
 public:
 
-  work_group_local() = default;
-  work_group_local(const work_group_local&) = delete;
-  work_group_local& operator=(const work_group_local&) = delete;
+  work_group_specific() = default;
+  work_group_specific(const work_group_specific&) = delete;
+  work_group_specific& operator=(const work_group_specific&) = delete;
 
   operator T&() const noexcept;
 
   // Available only if: std::is_array_v<T> == false
-  const work_group_local& operator=(const T& value) const noexcept;
+  const work_group_specific& operator=(const T& value) const noexcept;
 
   T* operator&() const noexcept;
 
@@ -127,52 +130,52 @@ private:
 
 `T` must be trivially constructible and trivially destructible.
 
-The storage for the object is allocated in work-group local memory before
+The storage for the object is allocated in work-group-specific memory before
 calling the user's kernel lambda, and deallocated when all work-items
 in the group have completed execution of the kernel.
 
 SYCL implementations conforming to the full feature set treat
-`work_group_local` similarly to the `thread_local` keyword, and when
-a `work_group_local` object is declared at block scope it behaves
+`work_group_specific` similarly to the `thread_local` keyword, and when
+a `work_group_specific` object is declared at block scope it behaves
 as if the `static` keyword was specified implicitly. SYCL implementations
 conforming to the reduced feature set require the `static` keyword to be
 specified explicitly.
 
 [NOTE]
 ====
-If a `work_group_local` object is declared at function scope, the work-group
-local memory associated with the object will be identical for all usages of
-that function within the kernel. In cases where a function is called multiple
-times, developers must take care to avoid race conditions (e.g., by calling
-`group_barrier` before and after using the memory).
+If a `work_group_specific` object is declared at function scope, the
+work-group-specific memory associated with the object will be identical for all
+usages of that function within the kernel. In cases where a function is called
+multiple times, developers must take care to avoid race conditions (e.g., by
+calling `group_barrier` before and after using the memory).
 ====
 
 SYCL 2020 requires that all global variables accessed by a device function are
 `const` or `constexpr`. This extension lifts that restriction for
-`work_group_local` variables.
+`work_group_specific` variables.
 
 [NOTE]
 ====
-Since `work_group_local` acts as a view, wrapping an underlying pointer, a
+Since `work_group_specific` acts as a view, wrapping an underlying pointer, a
 developer may still choose to declare variables as `const`.
 ====
 
 When `T` is a class type or bounded array, the size of the allocation is known
 at compile-time, and a SYCL implementation may embed the size of the allocation
-directly within a kernel. Each instance of `work_group_local<T>` is associated
-with a unique allocation in work-group local memory.
+directly within a kernel. Each instance of `work_group_specific<T>` is associated
+with a unique allocation in work-group-specific memory.
 
 When `T` is an unbounded array, the size of the allocation is unknown at
 compile-time, and must be communicated to the SYCL implementation via the
-`work_group_local_memory_size` property. Every instance of `work_group_local`
+`work_group_specific_memory_size` property. Every instance of `work_group_specific`
 for which `T` is an unbounded array is associated with a single, shared,
-allocation in work-group local memory. For example, two instances declared as
-`work_group_local<int[]>` and `work_group_local<float[]>` will be associated
-with the same shared allocation.
+allocation in work-group-specific memory. For example, two instances declared
+as `work_group_specific<int[]>` and `work_group_specific<float[]>` will be
+associated with the same shared allocation.
 
-If the total amount of local memory requested (i.e., the sum of all memory
-requested by `local_accessor`, `group_local_memory`,
-`group_local_memory_for_overwrite` and `work_group_local`) exceeds a device's
+If the total amount of work-group-specific memory requested (i.e., the sum of
+all memory requested by `local_accessor`, `group_local_memory`,
+`group_local_memory_for_overwrite` and `work_group_specific`) exceeds a device's
 local memory capacity (as reported by `local_mem_size`) then the implementation
 must throw a synchronous `exception` with the `errc::memory_allocation` error
 code from the kernel invocation command (e.g. `parallel_for`).
@@ -181,45 +184,45 @@ code from the kernel invocation command (e.g. `parallel_for`).
 ----
 operator T&() const noexcept;
 ----
-_Returns_: A reference to the object stored in the work-group local memory
-associated with this instance of `work_group_local`.
+_Returns_: A reference to the object stored in the work-group-specific memory
+associated with this instance of `work_group_specific`.
 
 [source,c++]
 ----
-const work_group_local<T>& operator=(const T& value) const noexcept;
+const work_group_specific<T>& operator=(const T& value) const noexcept;
 ----
 _Constraints_: Available only if `std::is_array_v<T>>` is false.
 
 _Effects_: Replaces the value referenced by `*ptr` with `value`.
 
-_Returns_: A reference to this instance of `work_group_local`.
+_Returns_: A reference to this instance of `work_group_specific`.
 
 [source,c++]
 ----
 T* operator&() const noexcept;
 ----
-_Returns_: A pointer to the work-group local memory associated with this
-instance of `work_group_local` (i.e., `ptr`).
+_Returns_: A pointer to the work-group-specific memory associated with this
+instance of `work_group_specific` (i.e., `ptr`).
 
 
 ==== Kernel properties
 
-The `work_group_local_size` property must be passed to a kernel to determine
-the run-time size of the work-group local memory allocation associated with
-all `work_group_local` variables of unbounded array type.
+The `work_group_specific_size` property must be passed to a kernel to determine
+the run-time size of the work-group-specific memory allocation associated with
+all `work_group_specific` variables of unbounded array type.
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct work_group_local_size {
-  constexpr work_group_local_size(size_t bytes) : value(bytes) {}
+struct work_group_specific_size {
+  constexpr work_group_specific_size(size_t bytes) : value(bytes) {}
   size_t value;
-}; // work_group_local_size
+}; // work_group_specific_size
 
-using work_group_local_size_key = work_group_local_size;
+using work_group_specific_size_key = work_group_specific_size;
 
-template <>struct is_property_key<work_group_local_size_key> : std::true_type {};
+template <>struct is_property_key<work_group_specific_size_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -227,9 +230,9 @@ template <>struct is_property_key<work_group_local_size_key> : std::true_type {}
 |===
 |Property|Description
 
-|`work_group_local_size`
-|The `work_group_local_size` property describes the amount of dynamic
-work-group local memory required by the kernel in bytes.
+|`work_group_specific_size`
+|The `work_group_specific_size` property describes the amount of dynamic
+work-group-specific memory required by the kernel in bytes.
 
 |===
 
@@ -242,18 +245,18 @@ work-group local memory required by the kernel in bytes.
 ----
 using namespace syclex = sycl::ext::oneapi::experimental;
 
-/* optional: static const */ syclex::work_group_local<int> program_scope_scalar;
-/* optional: static const */ syclex::work_group_local<int[16]> program_scope_array;
+/* optional: static const */ syclex::work_group_specific<int> program_scope_scalar;
+/* optional: static const */ syclex::work_group_specific<int[16]> program_scope_array;
 
 void foo() {
-  /* optional: static const */ syclex::work_group_local<int> function_scope_scalar;
+  /* optional: static const */ syclex::work_group_specific<int> function_scope_scalar;
   function_scope_scalar = 1; // assignment via overloaded = operator
   function_scope_scalar += 2; // += operator via implicit conversion to int&
   int* ptr = &function_scope_scalar; // conversion to pointer via overloaded & operator
 }
 
 void bar() {
-  /* optional: static const */ sylex::work_group_local<int[64]> function_scope_array;
+  /* optional: static const */ sylex::work_group_specific<int[64]> function_scope_array;
   function_scope_array[0] = 1; // [] operator via implicit conversion to int(&)[64]
   int* ptr = function_scope_array; // conversion to pointer via implicit conversion to int(&)[64]
 }
@@ -265,12 +268,12 @@ void bar() {
 ----
 using namespace syclex = sycl::ext::oneapi::experimental;
 
-/* optional: static const */ syclex::work_group_local<int[]> dynamic_program_scope_array;
+/* optional: static const */ syclex::work_group_specific<int[]> dynamic_program_scope_array;
 
 ...
 
 q.parallel_for(sycl::nd_range<1>{N, M},
-  syclex::properties{syclex::work_group_local_size(M * sizeof(int))},
+  syclex::properties{syclex::work_group_specific_size(M * sizeof(int))},
   [=](sycl::nd_item<1> it) {
   ...
 });
@@ -297,16 +300,16 @@ the existing `__sycl_allocateLocalMemory` intrinsic:
 Note, however, that implementing the correct semantics may require some
 adjustment to the handling of this intrinsic. A simple class as written above
 would create a separate allocation for every call to an inlined function.
-Creating work-group local allocations should be handled before inlining to
+Creating work-group-specific allocations should be handled before inlining to
 prevent this.
 
 For unbounded arrays, a separate specialization of the class will be required,
 and the implementation may need to generate some additional code to
-appropriately initialize the pointer(s) wrapped by `work_group_local` objects.
+appropriately initialize the pointer(s) wrapped by `work_group_specific` objects.
 Alternatively, it may be possible to initialize the pointer to the beginning
 of the device's local memory region (if that value is known). Either way, the
 implementation must account for the existence of one or more `local_accessor`
-objects (which themselves may allocate a dynamic amount of work-group local
+objects (which themselves may allocate a dynamic amount of work-group-specific
 memory).
 
 
