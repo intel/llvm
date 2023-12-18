@@ -17,7 +17,7 @@ set(UR_HIP_HSA_INCLUDE_DIRS
   "${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include" CACHE FILEPATH
   "Custom ROCm HSA include dir")
 set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/lib" CACHE FILEPATH
-  "Custom ROCm HIP library dir" FORCE)
+  "Custom ROCm HIP library dir")
 
 # Check if HIP library path exists (AMD platform only)
 if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
