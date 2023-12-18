@@ -5748,8 +5748,7 @@ llvm::DIScope *CGDebugInfo::getCurrentContextDescriptor(const Decl *D) {
 void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM,
-                        false /* cannot rely on UD's isReferenced method */))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   const NamespaceDecl *NSDecl = UD.getNominatedNamespace();
   if (!NSDecl->isAnonymousNamespace() ||
@@ -5776,8 +5775,7 @@ void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
 void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM,
-                        false /* cannot rely on UD's isReferenced method */))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingDecl containing no decls");
@@ -5804,8 +5802,7 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
 void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     return;
-  if (noSystemDebugInfo(&UD, CGM,
-                        false /* cannot rely on UD's isReferenced method */))
+  if (noSystemDebugInfo(&UD, CGM))
     return;
   assert(UD.shadow_size() &&
          "We shouldn't be codegening an invalid UsingEnumDecl"
@@ -6026,30 +6023,12 @@ CGDebugInfo::createConstantValueExpression(const clang::ValueDecl *VD,
   return nullptr;
 }
 
-bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM,
-                                       bool IsReferencedValid) {
+bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
 
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug)
-      return true;
-
-    if ( // Decls that have explicit_instantiation_definition are
-         // processed early and will not
-         // have their isReferenced or isUsed calculated yet
-        !(isa<FunctionDecl>(D) &&
-          (cast<FunctionDecl>(D))->getTemplateSpecializationKind() ==
-              TSK_ExplicitInstantiationDefinition) &&
-        // Has isReferenced() been set?
-        IsReferencedValid &&
-        // Declaration is not referenced
-        !D->isReferenced() &&
-        // debug level < FullDebugInfo
-        // (i.e. neither -fstandalone-debug nor
-        // -fno-eliminate-unused-debug-types are used)
-        CGM.getCodeGenOpts().getDebugInfo() <
-            llvm::codegenoptions::FullDebugInfo)
       return true;
   }
 
