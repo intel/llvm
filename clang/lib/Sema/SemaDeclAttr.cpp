@@ -7546,6 +7546,8 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (MA->isImplicit())
       D->dropAttr<SYCLIntelMemoryAttr>();
 
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
   if (const auto *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
     if (MA && MA->getKind() != Kind) {
       S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
