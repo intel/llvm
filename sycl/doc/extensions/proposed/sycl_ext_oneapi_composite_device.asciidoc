@@ -144,12 +144,12 @@ and the order of those objects does not vary between calls.
 This extension adds two new device information descriptors:
 
 ```
-namespace sycl::ext::oneapi::experimental::device::info {
+namespace sycl::ext::oneapi::experimental::info::device {
 
 struct component_devices;
 struct composite_device;
 
-} // namespace sycl::ext::oneapi::experimental::device::info
+} // namespace sycl::ext::oneapi::experimental::info::device
 ```
 
 [width="100%",%header,cols="37%,19%,44%"]
