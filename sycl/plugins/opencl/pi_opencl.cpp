@@ -226,6 +226,11 @@ pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
 }
 
+pi_result piextMemGetNativeHandleExp(pi_mem Mem, pi_device Dev,
+                                     pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandleExp(Mem, Dev, NativeHandle);
+}
+
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
                                          pi_context Context,
                                          bool ownNativeHandle, pi_mem *Mem) {

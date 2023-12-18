@@ -240,6 +240,11 @@ piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
 }
 
+__SYCL_EXPORT pi_result piextMemGetNativeHandleExp(
+    pi_mem Mem, pi_device Device, pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandleExp(Mem, Device, NativeHandle);
+}
+
 __SYCL_EXPORT pi_result
 piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
@@ -1390,6 +1395,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piMemBufferPartition)
   _PI_API(piEnqueueMemImageCopy)
   _PI_API(piextMemGetNativeHandle)
+  _PI_API(piextMemGetNativeHandleExp)
   _PI_API(piextMemCreateWithNativeHandle)
   _PI_API(piMemRetain)
   _PI_API(piextUSMGetMemAllocInfo)

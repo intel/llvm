@@ -3090,6 +3090,20 @@ inline pi_result piextMemGetNativeHandle(pi_mem Mem,
   return PI_SUCCESS;
 }
 
+inline pi_result piextMemGetNativeHandleExp(pi_mem Mem, pi_device Device,
+                                            pi_native_handle *NativeHandle) {
+  PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+  ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  ur_native_handle_t NativeMem{};
+  HANDLE_ERRORS(urMemGetNativeHandleExp(UrMem, UrDevice, &NativeMem));
+
+  *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
+
+  return PI_SUCCESS;
+}
+
 inline pi_result
 piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       pi_image_offset SrcOrigin, pi_image_offset DstOrigin,

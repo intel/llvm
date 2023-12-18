@@ -34,8 +34,13 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   auto Plugin = MQueue->getPlugin();
   pi_native_handle Handle;
-  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
-                                                           &Handle);
+  if (get_backend() == backend::ext_oneapi_cuda ||
+      get_backend() == backend::ext_oneapi_hip)
+    Plugin->call<detail::PiApiKind::piextMemGetNativeHandleExp>(
+        Iter->second, MDevice->getHandleRef(), &Handle);
+  else
+    Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
+                                                             &Handle);
   return Handle;
 }
 

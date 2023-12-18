@@ -1402,6 +1402,13 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
                                                 pi_native_handle *nativeHandle);
 
+/// Gets the native handle of a PI mem object on a particular device
+///
+/// \param mem is the PI mem to get the native handle of.
+/// \param nativeHandle is the native handle of mem.
+__SYCL_EXPORT pi_result piextMemGetNativeHandleExp(
+    pi_mem mem, pi_device dev, pi_native_handle *nativeHandle);
+
 /// Creates PI mem object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
