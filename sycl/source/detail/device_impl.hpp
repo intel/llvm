@@ -274,7 +274,7 @@ private:
   mutable std::once_flag MDeviceNameFlag;
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
-  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 }; // class device_impl
 
 } // namespace detail
