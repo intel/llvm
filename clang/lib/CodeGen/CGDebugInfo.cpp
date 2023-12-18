@@ -6023,7 +6023,8 @@ CGDebugInfo::createConstantValueExpression(const clang::ValueDecl *VD,
   return nullptr;
 }
 
-bool clang::CodeGen::noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM) {
+bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
+                                       const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
 
