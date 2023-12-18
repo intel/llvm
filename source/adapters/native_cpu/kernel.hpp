@@ -13,6 +13,7 @@
 #include "common.hpp"
 #include "nativecpu_state.hpp"
 #include <ur_api.h>
+#include <utility>
 
 namespace native_cpu {
 
@@ -39,7 +40,7 @@ struct local_arg_info_t {
 struct ur_kernel_handle_t_ : RefCounted {
 
   ur_kernel_handle_t_(const char *name, nativecpu_task_t subhandler)
-      : _name{name}, _subhandler{subhandler} {}
+      : _name{name}, _subhandler{std::move(subhandler)} {}
 
   const char *_name;
   nativecpu_task_t _subhandler;
