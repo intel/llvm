@@ -57,7 +57,7 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     Out << "ext_oneapi_hip";
     break;
   case backend::ext_oneapi_native_cpu:
-    Out << "ext_native_cpu";
+    Out << "ext_oneapi_native_cpu";
     break;
   case backend::all:
     Out << "all";
