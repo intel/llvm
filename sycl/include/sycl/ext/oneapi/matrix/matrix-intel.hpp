@@ -578,6 +578,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
 #else
   std::ignore = res;
   std::ignore = v;
+  std::ignore = Stride;
+  std::ignore = Height;
+  std::ignore = Width;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -633,6 +636,8 @@ joint_matrix_load_checked(Group sg,
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -667,6 +672,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -719,6 +726,8 @@ joint_matrix_store_checked(Group sg,
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -749,6 +758,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -798,6 +809,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -828,6 +841,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -874,6 +889,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -900,6 +917,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Height;
+  std::ignore = Width;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
