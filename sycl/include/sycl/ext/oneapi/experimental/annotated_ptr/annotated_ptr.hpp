@@ -120,7 +120,7 @@ public:
 
   template <class O, class P>
   T operator=(const annotated_ref<O, P> &Ref) const {
-    O t2 = Ref;
+    O t2 = Ref.operator O();
     return *this = t2;
   }
 
@@ -128,15 +128,15 @@ public:
 #define PROPAGATE_OP(op)                                                       \
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
   T operator op(O &&rhs) const {                                               \
-    T t = *this;                                                               \
+    T t = this->operator T();                                                  \
     t op std::forward<O>(rhs);                                                 \
     *this = t;                                                                 \
     return t;                                                                  \
   }                                                                            \
   template <class O, class P>                                                  \
   T operator op(const annotated_ref<O, P> &rhs) const {                        \
-    T t = *this;                                                               \
-    O t2 = rhs;                                                                \
+    T t = this->operator T();                                                  \
+    O t2 = rhs.operator T();                                                   \
     t op t2;                                                                   \
     *this = t;                                                                 \
     return t;                                                                  \
@@ -158,12 +158,12 @@ public:
   template <class O>                                                           \
   friend auto operator op(O &&a, const annotated_ref &b)                       \
       ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
-    return std::forward<O>(a) op T(b);                                         \
+    return std::forward<O>(a) op b.operator T();                               \
   }                                                                            \
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
   friend auto operator op(const annotated_ref &a, O &&b)                       \
       ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
-    return T(a) op std::forward<O>(b);                                         \
+    return a.operator T() op std::forward<O>(b);                               \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -190,7 +190,7 @@ public:
 #define PROPAGATE_OP(op)                                                       \
   template <typename O = T>                                                    \
   auto operator op() const->decltype(op std::declval<O>()) {                   \
-    return op O(*this);                                                        \
+    return op this->operator O();                                              \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -200,14 +200,14 @@ public:
 
   // Propagate inc/dec operators
   T operator++() const {
-    T t = *this;
+    T t = this->operator T();
     ++t;
     *this = t;
     return t;
   }
 
   T operator++(int) const {
-    T t1 = *this;
+    T t1 = this->operator T();
     T t2 = t1;
     t2++;
     *this = t2;
@@ -215,14 +215,14 @@ public:
   }
 
   T operator--() const {
-    T t = *this;
+    T t = this->operator T();
     --t;
     *this = t;
     return t;
   }
 
   T operator--(int) const {
-    T t1 = *this;
+    T t1 = this->operator T();
     T t2 = t1;
     t2--;
     *this = t2;
