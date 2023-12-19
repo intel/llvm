@@ -801,6 +801,51 @@ However, each helper function has a unique name, so it can be uniquely
 identified from the `sycl` namespace, where it is called to specialize the
 `is_range_kernel` trait.
 
+=== Decomposed kernel arguments
+
+The {dpcpp} implementation currently "decomposes" certain kernel argument
+types, meaning that some argument types are actually passed as several separate
+arguments when the SYCL runtime invokes the kernel using the underlying
+backend.
+For example, `accessor` consists of several internal member variables.
+On the OpenCL backend, one of these member variables is `cl_mem`, and OpenCL
+restrictions require this variable to be passed directly as an OpenCL kernel
+argument.
+(It cannot be passed as a member embedded within a structure.)
+As a result, {dpcpp} passes each member variable as a separate OpenCL kernel
+argument.
+
+An argument like this that is decomposed is still represent as a single
+argument in SYCL source code.
+When invoking a free function kernel, the application sets the value of such an
+argument with a single call to `handler::set_arg`.
+For example, the application sets the value of an `accessor` by calling
+`set_arg(acc)`, where `acc` is a variable of type `accessor`.
+
+It is the responsibility of the implementation to translate these calls to
+`set_arg` into multiple backend argument-setting calls when necessary.
+For example, a call to `set_arg(acc)` may actually result in several OpenCL
+calls to `clSetKernelArg`, one for each of the member variables in `accessor`.
+
+=== Kernel arguments that are optimized away
+
+The {dpcpp} implementation currently has the ability to optimize away unused
+kernel arguments.
+For example, if a kernel is declared to take an argument `foo` which is never
+used by the kernel, the implementation may eliminate the argument entirely and
+avoid calling the backend argument-setting API.
+It is still possible to perform these sorts of optimizations for a free
+function kernel, but the logic inside of `handler::set_arg` needs to know when
+an argument has been optimized away.
+
+Of course, the application is still responsible for calling `set_arg` for all
+kernel arguments, even if the implementation has optimized the argument away.
+(The application has no way of knowing whether the optimization has been
+performed.)
+Therefore, `set_arg` must know whether the argument has been optimized away,
+and it must not call the underlying backend argument-setting API for such an
+argument, effectively turning the call into a no-op.
+
 
 == Issues
 
@@ -836,38 +881,6 @@ int main() {
 ```
 +
 Where `kfp` would have some nicer name.
-
-* We need to investigate whether there will be problems passing kernel
-  arguments that are "decomposed" by the front-end.
-  For example, if a kernel argument is a struct that contains an accessor as a
-  member variable, the front-end decomposes the struct, passing each member
-  variable as a separate kernel argument.
-  We could still support arguments like this if `handler::set_arg` is smart
-  enough to also do the decomposition, passing multiple arguments when the
-  argument type requires decomposition.
-  If this is too difficult to implement, we could restrict the arguments to
-  only those types that do not require decomposition, however this would be a
-  big limitation because `accessor` and `local_accessor` would both be
-  prohibited.
-  If we add this restriction, the front-end should diagnose an error if a
-  free function kernel is defined to take such an argument.
-
-* There is a similar problem with kernel arguments that have been optimized.
-  Consider a kernel that uses an `accessor`.
-  Each member variable is passed as a separate kernel argument, but any members
-  that are unused in the kernel are optimized away, thus they have no
-  corresponding kernel argument.
-  Again, we can handle this by making `handler::set_arg` smart enough to know
-  which member variables have been optimized away.
-  Alternatively, we can disable these optimizations for free function kernels.
-  We also have to consider the behavior when a free function kernel has a
-  formal parameter that is unused (or optimized away) inside the kernel.
-  Can the compiler optimize away such an argument?
-  If so, `handler::set_arg` would need to be smart enough to treat an attempt
-  to set the value of such an argument as a no-op.
-  The `handler::set_arg` function would also need to account for this when
-  interpreting the argument index of arguments that follow an optimized-away
-  argument.
 
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
