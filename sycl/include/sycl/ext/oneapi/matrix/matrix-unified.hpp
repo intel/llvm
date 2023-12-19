@@ -146,7 +146,7 @@ template <
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
         true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
-    Group &sg,
+    Group sg,
     joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
@@ -214,7 +214,7 @@ template <
                           std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group &sg,
+joint_matrix_load(Group sg,
                   joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -253,7 +253,7 @@ joint_matrix_load(Group &sg,
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
-    Group &sg,
+    Group sg,
     const joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
                        sycl::ext::oneapi::experimental::matrix::layout::dynamic>
         &src,

@@ -416,15 +416,13 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 
 std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
   std::vector<sycl::detail::EventImplPtr> Events;
-  auto EnqueueExitNodesEvents = [&](std::shared_ptr<node_impl> &Node,
-                                    std::deque<std::shared_ptr<node_impl>> &) {
+
+  for (auto Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
       Events.push_back(getEventForNode(Node));
     }
-    return false;
-  };
+  }
 
-  searchDepthFirst(EnqueueExitNodesEvents);
   return Events;
 }
 

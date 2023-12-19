@@ -81,6 +81,12 @@ public:
                    const jit_compiler::NDRange &FusedNDRange) const;
 
   ///
+  /// Scan function for instructions to remap.
+  Error scanForBuiltinsToRemap(Function *F, jit_compiler::Remapper &R,
+                               const jit_compiler::NDRange &SrcNDRange,
+                               const jit_compiler::NDRange &FusedNDRange) const;
+
+  ///
   /// Returns true if calls to \p F can be safely ignored in the remapping
   /// process.
   bool isSafeToNotRemapBuiltin(Function *F) const;
@@ -107,8 +113,7 @@ public:
   /// FusedNDRange.
   Function *
   createRemapperFunction(const jit_compiler::Remapper &R,
-                         jit_compiler::BuiltinKind K, StringRef OrigName,
-                         StringRef Name, Module *M,
+                         jit_compiler::BuiltinKind K, Function *F, Module *M,
                          const jit_compiler::NDRange &SrcNDRange,
                          const jit_compiler::NDRange &FusedNDRange) const;
 

@@ -246,8 +246,8 @@ public:
     printDotCG(Stream, Verbose);
     for (const auto &Dep : MPredecessors) {
       auto NodeDep = Dep.lock();
-      Stream << "  \"" << NodeDep->MCommandGroup.get() << "\" -> \""
-             << MCommandGroup.get() << "\"" << std::endl;
+      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
+             << std::endl;
     }
 
     for (std::weak_ptr<node_impl> Succ : MSuccessors) {
@@ -261,14 +261,12 @@ private:
   /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void printDotCG(std::ostream &Stream, bool Verbose) {
-    sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
+    Stream << "\"" << this << "\" [style=bold, label=\"";
 
-    Stream << "\"" << MCommandGroup.get() << "\" [style=bold, label=\"";
-
-    Stream << "ID = " << MCommandGroup.get() << "\\n";
+    Stream << "ID = " << this << "\\n";
     Stream << "TYPE = ";
 
-    switch (CGType) {
+    switch (MCGType) {
     case sycl::detail::CG::CGTYPE::None:
       Stream << "None \\n";
       break;
@@ -786,6 +784,24 @@ public:
   /// @return vector of events associated to exit nodes.
   std::vector<sycl::detail::EventImplPtr> getExitNodesEvents();
 
+  /// Removes all Barrier nodes from the list of extra dependencies
+  /// MExtraDependencies.
+  /// @return vector of events associated to previous barrier nodes.
+  std::vector<sycl::detail::EventImplPtr>
+  removeBarriersFromExtraDependencies() {
+    std::vector<sycl::detail::EventImplPtr> Events;
+    for (auto It = MExtraDependencies.begin();
+         It != MExtraDependencies.end();) {
+      if ((*It)->MCGType == sycl::detail::CG::Barrier) {
+        Events.push_back(getEventForNode(*It));
+        It = MExtraDependencies.erase(It);
+      } else {
+        ++It;
+      }
+    }
+    return Events;
+  }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -863,7 +879,7 @@ private:
   /// added to this graph.
   /// This list is mainly used by barrier nodes which must be considered
   /// as predecessors for all nodes subsequently added to the graph.
-  std::vector<std::shared_ptr<node_impl>> MExtraDependencies;
+  std::list<std::shared_ptr<node_impl>> MExtraDependencies;
 };
 
 /// Class representing the implementation of command_graph<executable>.

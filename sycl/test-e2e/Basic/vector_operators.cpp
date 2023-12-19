@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
 //==---------- vector_operators.cpp - SYCL vec<> operators test ------------==//

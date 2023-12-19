@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "llvm/IR/PassManager.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/IR/PassManager.h"
 
 namespace llvm {
 namespace sycl {

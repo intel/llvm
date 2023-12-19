@@ -1744,8 +1744,16 @@ static int transAtomicOrdering(llvm::AtomicOrdering Ordering) {
 
 SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
                                               SPIRVBasicBlock *BB) {
-  std::vector<Value *> Ops{ST->getPointerOperand(),
-                           getUInt32(M, spv::ScopeDevice),
+  SmallVector<StringRef> SSIDs;
+  ST->getContext().getSyncScopeNames(SSIDs);
+
+  spv::Scope S;
+  // Fill unknown syncscope value to default Device scope.
+  if (!OCLStrMemScopeMap::find(SSIDs[ST->getSyncScopeID()].str(), &S)) {
+    S = ScopeDevice;
+  }
+
+  std::vector<Value *> Ops{ST->getPointerOperand(), getUInt32(M, S),
                            getUInt32(M, transAtomicOrdering(ST->getOrdering())),
                            ST->getValueOperand()};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
@@ -1756,8 +1764,17 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
 
 SPIRVValue *LLVMToSPIRVBase::transAtomicLoad(LoadInst *LD,
                                              SPIRVBasicBlock *BB) {
+  SmallVector<StringRef> SSIDs;
+  LD->getContext().getSyncScopeNames(SSIDs);
+
+  spv::Scope S;
+  // Fill unknown syncscope value to default Device scope.
+  if (!OCLStrMemScopeMap::find(SSIDs[LD->getSyncScopeID()].str(), &S)) {
+    S = ScopeDevice;
+  }
+
   std::vector<Value *> Ops{
-      LD->getPointerOperand(), getUInt32(M, spv::ScopeDevice),
+      LD->getPointerOperand(), getUInt32(M, S),
       getUInt32(M, transAtomicOrdering(LD->getOrdering()))};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
 
@@ -2366,13 +2383,22 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
     std::vector<Value *> Operands(4);
     Operands[0] = ARMW->getPointerOperand();
-    // To get the memory scope argument we might use ARMW->getSyncScopeID(), but
+    // To get the memory scope argument we use ARMW->getSyncScopeID(), but
     // atomicrmw LLVM instruction is not aware of OpenCL(or SPIR-V) memory scope
-    // enumeration. And assuming the produced SPIR-V module will be consumed in
-    // an OpenCL environment, we can use the same memory scope as OpenCL atomic
-    // functions that don't have memory_scope argument i.e. memory_scope_device.
-    // See the OpenCL C specification p6.13.11. "Atomic Functions"
-    Operands[1] = getUInt32(M, spv::ScopeDevice);
+    // enumeration. If the scope is not set and assuming the produced SPIR-V
+    // module will be consumed in an OpenCL environment, we can use the same
+    // memory scope as OpenCL atomic functions that don't have memory_scope
+    // argument i.e. memory_scope_device. See the OpenCL C specification
+    // p6.13.11. "Atomic Functions"
+    SmallVector<StringRef> SSIDs;
+    ARMW->getContext().getSyncScopeNames(SSIDs);
+
+    spv::Scope S;
+    // Fill unknown syncscope value to default Device scope.
+    if (!OCLStrMemScopeMap::find(SSIDs[ARMW->getSyncScopeID()].str(), &S)) {
+      S = ScopeDevice;
+    }
+    Operands[1] = getUInt32(M, S);
     Operands[2] = getUInt32(M, MemSem);
     Operands[3] = ARMW->getValOperand();
     std::vector<SPIRVValue *> OpVals = transValue(Operands, BB);
@@ -2636,7 +2662,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
           Target, Name->getString().str(), TypeKind));
       break;
     }
-    case spv::internal::DecorationHostAccessINTEL: {
+
+    case spv::internal::DecorationHostAccessINTEL:
+    case DecorationHostAccessINTEL: {
       checkIsGlobalVar(Target, DecoKind);
 
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
@@ -2647,16 +2675,25 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(
           AccessMode, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires first extra operand to be an int");
+
+      HostAccessQualifier Q =
+          static_cast<HostAccessQualifier>(AccessMode->getZExtValue());
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
       ErrLog.checkError(
           Name, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires second extra operand to be a string");
 
-      Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
-          Target, AccessMode->getZExtValue(), Name->getString().str()));
+      if (DecoKind == DecorationHostAccessINTEL)
+        Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
+            Target, Q, Name->getString().str()));
+      else
+        Target->addDecorate(new SPIRVDecorateHostAccessINTELLegacy(
+            Target, Q, Name->getString().str()));
       break;
     }
-    case spv::internal::DecorationInitModeINTEL: {
+
+    case spv::internal::DecorationInitModeINTEL:
+    case DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
       ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
                         SPIRVEC_InvalidLlvmModule,
@@ -2666,12 +2703,17 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Trigger, SPIRVEC_InvalidLlvmModule,
-          "InitModeINTEL requires extra operand to be an integer");
+      ErrLog.checkError(Trigger, SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL requires extra operand to be an int");
 
-      Target->addDecorate(
-          new SPIRVDecorateInitModeINTEL(Target, Trigger->getZExtValue()));
+      InitializationModeQualifier Q =
+          static_cast<InitializationModeQualifier>(Trigger->getZExtValue());
+
+      if (DecoKind == DecorationInitModeINTEL)
+        Target->addDecorate(new SPIRVDecorateInitModeINTEL(Target, Q));
+      else
+        Target->addDecorate(new SPIRVDecorateInitModeINTELLegacy(Target, Q));
+
       break;
     }
     case spv::internal::DecorationImplementInCSRINTEL: {
@@ -2687,6 +2729,22 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
           new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
       break;
     }
+    case DecorationImplementInRegisterMapINTEL: {
+      checkIsGlobalVar(Target, DecoKind);
+      ErrLog.checkError(
+          NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+          "ImplementInRegisterMapINTEL requires exactly 1 extra operand");
+      auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Value, SPIRVEC_InvalidLlvmModule,
+                        "ImplementInRegisterMapINTEL requires extra operand to "
+                        "be an integer");
+
+      Target->addDecorate(new SPIRVDecorateImplementInRegisterMapINTEL(
+          Target, Value->getZExtValue()));
+
+      break;
+    }
+
     case spv::internal::DecorationCacheControlLoadINTEL: {
       ErrLog.checkError(
           NumOperands == 3, SPIRVEC_InvalidLlvmModule,
@@ -3159,6 +3217,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
+    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: "
+                       << Name.str() << "\n");
 
     unsigned DecorationKind = 0;
     if (!Name.getAsInteger(10, DecorationKind)) {
@@ -4077,6 +4137,122 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                              transValue(II->getArgOperand(0), BB),
                              transValue(II->getArgOperand(1), BB), BB);
   }
+  case Intrinsic::vector_reduce_add:
+  case Intrinsic::vector_reduce_mul:
+  case Intrinsic::vector_reduce_and:
+  case Intrinsic::vector_reduce_or:
+  case Intrinsic::vector_reduce_xor: {
+    Op Op;
+    if (IID == Intrinsic::vector_reduce_add) {
+      Op = OpIAdd;
+    } else if (IID == Intrinsic::vector_reduce_mul) {
+      Op = OpIMul;
+    } else if (IID == Intrinsic::vector_reduce_and) {
+      Op = OpBitwiseAnd;
+    } else if (IID == Intrinsic::vector_reduce_or) {
+      Op = OpBitwiseOr;
+    } else {
+      Op = OpBitwiseXor;
+    }
+    VectorType *VecTy = cast<VectorType>(II->getArgOperand(0)->getType());
+    SPIRVValue *VecSVal = transValue(II->getArgOperand(0), BB);
+    SPIRVTypeInt *ResultSType =
+        BM->addIntegerType(VecTy->getElementType()->getIntegerBitWidth());
+    SPIRVTypeInt *I32STy = BM->addIntegerType(32);
+    unsigned VecSize = VecTy->getElementCount().getFixedValue();
+    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+      Extracts[Idx] = BM->addVectorExtractDynamicInst(
+          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    }
+    unsigned Counter = VecSize >> 1;
+    while (Counter != 0) {
+      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+        Extracts[Idx] = BM->addBinaryInst(Op, ResultSType, Extracts[Idx << 1],
+                                          Extracts[(Idx << 1) + 1], BB);
+      }
+      Counter >>= 1;
+    }
+    if ((VecSize & 1) != 0) {
+      Extracts[0] = BM->addBinaryInst(Op, ResultSType, Extracts[0],
+                                      Extracts[VecSize - 1], BB);
+    }
+    return Extracts[0];
+  }
+  case Intrinsic::vector_reduce_fadd:
+  case Intrinsic::vector_reduce_fmul: {
+    Op Op = IID == Intrinsic::vector_reduce_fadd ? OpFAdd : OpFMul;
+    VectorType *VecTy = cast<VectorType>(II->getArgOperand(1)->getType());
+    SPIRVValue *VecSVal = transValue(II->getArgOperand(1), BB);
+    SPIRVValue *StartingSVal = transValue(II->getArgOperand(0), BB);
+    SPIRVTypeInt *I32STy = BM->addIntegerType(32);
+    unsigned VecSize = VecTy->getElementCount().getFixedValue();
+    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+      Extracts[Idx] = BM->addVectorExtractDynamicInst(
+          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    }
+    SPIRVValue *V = BM->addBinaryInst(Op, StartingSVal->getType(), StartingSVal,
+                                      Extracts[0], BB);
+    for (unsigned Idx = 1; Idx < VecSize; ++Idx) {
+      V = BM->addBinaryInst(Op, StartingSVal->getType(), V, Extracts[Idx], BB);
+    }
+    return V;
+  }
+  case Intrinsic::vector_reduce_smax:
+  case Intrinsic::vector_reduce_smin:
+  case Intrinsic::vector_reduce_umax:
+  case Intrinsic::vector_reduce_umin:
+  case Intrinsic::vector_reduce_fmax:
+  case Intrinsic::vector_reduce_fmin:
+  case Intrinsic::vector_reduce_fmaximum:
+  case Intrinsic::vector_reduce_fminimum: {
+    Op Op;
+    if (IID == Intrinsic::vector_reduce_smax) {
+      Op = OpSGreaterThan;
+    } else if (IID == Intrinsic::vector_reduce_smin) {
+      Op = OpSLessThan;
+    } else if (IID == Intrinsic::vector_reduce_umax) {
+      Op = OpUGreaterThan;
+    } else if (IID == Intrinsic::vector_reduce_umin) {
+      Op = OpULessThan;
+    } else if (IID == Intrinsic::vector_reduce_fmax) {
+      Op = OpFOrdGreaterThan;
+    } else if (IID == Intrinsic::vector_reduce_fmin) {
+      Op = OpFOrdLessThan;
+    } else if (IID == Intrinsic::vector_reduce_fmaximum) {
+      Op = OpFUnordGreaterThan;
+    } else {
+      Op = OpFUnordLessThan;
+    }
+    VectorType *VecTy = cast<VectorType>(II->getArgOperand(0)->getType());
+    SPIRVValue *VecSVal = transValue(II->getArgOperand(0), BB);
+    SPIRVType *BoolSTy = transType(Type::getInt1Ty(II->getContext()));
+    SPIRVTypeInt *I32STy = BM->addIntegerType(32);
+    unsigned VecSize = VecTy->getElementCount().getFixedValue();
+    SmallVector<SPIRVValue *, 16> Extracts(VecSize);
+    for (unsigned Idx = 0; Idx < VecSize; ++Idx) {
+      Extracts[Idx] = BM->addVectorExtractDynamicInst(
+          VecSVal, BM->addIntegerConstant(I32STy, Idx), BB);
+    }
+    unsigned Counter = VecSize >> 1;
+    while (Counter != 0) {
+      for (unsigned Idx = 0; Idx < Counter; ++Idx) {
+        SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[Idx << 1],
+                                             Extracts[(Idx << 1) + 1], BB);
+        Extracts[Idx] = BM->addSelectInst(Cond, Extracts[Idx << 1],
+                                          Extracts[(Idx << 1) + 1], BB);
+      }
+      Counter >>= 1;
+    }
+    if ((VecSize & 1) != 0) {
+      SPIRVValue *Cond = BM->addBinaryInst(Op, BoolSTy, Extracts[0],
+                                           Extracts[VecSize - 1], BB);
+      Extracts[0] =
+          BM->addSelectInst(Cond, Extracts[0], Extracts[VecSize - 1], BB);
+    }
+    return Extracts[0];
+  }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
     // out that memset is emitted by Clang for initialization in default
@@ -4193,19 +4369,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // i8* <ptr> is a pointer on a GV, which can carry optinal variadic
   // clang::annotation attribute expression arguments.
   case Intrinsic::ptr_annotation: {
-    // Strip all bitcast and addrspace casts from the pointer argument:
-    //   llvm annotation intrinsic only takes i8*, so the original pointer
-    //   probably had to loose its addrspace and its original type.
-    Value *AnnotSubj = II->getArgOperand(0);
-    while (isa<BitCastInst>(AnnotSubj) || isa<AddrSpaceCastInst>(AnnotSubj)) {
-      AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
+    Value *AnnotSubj = nullptr;
+    if (auto *BI = dyn_cast<BitCastInst>(II->getArgOperand(0))) {
+      AnnotSubj = BI->getOperand(0);
+    } else {
+      AnnotSubj = II->getOperand(0);
     }
 
     std::string AnnotationString;
     processAnnotationString(II, AnnotationString);
     AnnotationDecorations Decorations =
         tryParseAnnotationString(BM, AnnotationString);
-
     // Translate FPGARegIntel annotations to OpFPGARegINTEL.
     if (AnnotationString == kOCLBuiltinName::FPGARegIntel) {
       auto *Ty = transScavengedType(II);
@@ -4215,76 +4389,26 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return transValue(BI, BB);
     }
 
-    // If the pointer is a GEP on a struct, then we have to emit a member
-    // decoration for the GEP-accessed struct, or a memory access decoration
-    // for the GEP itself. There may not be a GEP in this case if the access is
-    // to the first member of the struct; if so, attempt to get a struct type
-    // from an alloca instead.
-    SPIRVType *StructTy = nullptr;
-    [[maybe_unused]] SPIRVValue *ResPtr = nullptr;
-    [[maybe_unused]] SPIRVWord MemberNumber = 0;
-    if (auto *const GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(GI->getSourceElementType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(GI, BB);
-        MemberNumber = dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
-      }
-    } else if (auto *const AI = dyn_cast<AllocaInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(AI->getAllocatedType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(AI, BB);
-        MemberNumber = 0;
-      }
-    }
-    if (StructTy) {
-
-      // If we didn't find any IntelFPGA-specific decorations, let's add the
-      // whole annotation string as UserSemantic Decoration
-      if (Decorations.empty()) {
-        // TODO: Is there a way to detect that the annotation belongs solely
-        // to struct member memory atributes or struct member memory access
-        // controls? This would allow emitting just the necessary decoration.
-        StructTy->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            StructTy, MemberNumber, AnnotationString.c_str()));
-        ResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            ResPtr, AnnotationString.c_str()));
-      } else {
-        addAnnotationDecorationsForStructMember(
-            StructTy, MemberNumber, Decorations.MemoryAttributesVec);
-        // Apply the LSU parameter decoration to the pointer result of a GEP
-        // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-        // Decorating the member itself with a MemberDecoration is not feasible,
-        // because multiple accesses to the struct-held memory can require
-        // different LSU parameters.
-        addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
-          addAnnotationDecorations(ResPtr, Decorations.LatencyControlVec);
-        }
-      }
-      II->replaceAllUsesWith(II->getOperand(0));
+    SPIRVValue *DecSubj = transValue(AnnotSubj, BB);
+    if (Decorations.empty()) {
+      DecSubj->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(DecSubj, AnnotationString.c_str()));
     } else {
-      // Memory accesses to a standalone pointer variable
-      auto *DecSubj = transValue(II->getArgOperand(0), BB);
-      if (Decorations.empty())
-        DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            DecSubj, AnnotationString.c_str()));
-      else {
-        // Apply the LSU parameter decoration to the pointer result of an
-        // instruction. Note it's the address to the accessed memory that's
-        // loaded from the original pointer variable, and not the value
-        // accessed by the latter.
-        addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
-          addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
-        }
-
-        addAnnotationDecorations(DecSubj, Decorations.CacheControlVec);
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAttributesVec);
+      // Apply the LSU parameter decoration to the pointer result of a GEP
+      // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
+      // Decorating the member itself with a MemberDecoration is not feasible,
+      // because multiple accesses to the struct-held memory can require
+      // different LSU parameters.
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
+      addAnnotationDecorations(DecSubj, Decorations.CacheControlVec);
+      if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
+        addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+        addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
       }
-      II->replaceAllUsesWith(II->getOperand(0));
     }
-    return nullptr;
+    II->replaceAllUsesWith(II->getOperand(0));
+    return DecSubj;
   }
   case Intrinsic::stacksave: {
     if (BM->isAllowedToUseExtension(
@@ -4765,8 +4889,15 @@ SPIRVValue *LLVMToSPIRVBase::transFenceInst(FenceInst *FI,
   }
 
   Module *M = FI->getParent()->getModule();
-  // Treat all llvm.fence instructions as having CrossDevice scope:
-  SPIRVValue *RetScope = transConstant(getUInt32(M, ScopeCrossDevice));
+  SmallVector<StringRef> SSIDs;
+  FI->getContext().getSyncScopeNames(SSIDs);
+  spv::Scope S;
+  // Treat all llvm.fence instructions as having CrossDevice scope by default
+  if (!OCLStrMemScopeMap::find(SSIDs[FI->getSyncScopeID()].str(), &S)) {
+    S = ScopeCrossDevice;
+  }
+
+  SPIRVValue *RetScope = transConstant(getUInt32(M, S));
   SPIRVValue *Val = transConstant(getUInt32(M, MemorySemantics));
   return BM->addMemoryBarrierInst(static_cast<Scope>(RetScope->getId()),
                                   Val->getId(), BB);

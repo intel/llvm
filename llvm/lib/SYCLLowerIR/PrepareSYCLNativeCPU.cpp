@@ -60,9 +60,7 @@ using namespace sycl::utils;
 
 namespace {
 
-void fixCallingConv(Function *F) {
-  F->setCallingConv(llvm::CallingConv::C);
-}
+void fixCallingConv(Function *F) { F->setCallingConv(llvm::CallingConv::C); }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
                             Type *StatePtrType, llvm::Constant *StateArgTLS) {
@@ -224,8 +222,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy =
-      FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
@@ -362,7 +359,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (!Glob)
       continue;
     for (const auto &Use : Glob->uses()) {
-      auto I = cast<CallInst>(Use.getUser());
+      auto *I = cast<CallInst>(Use.getUser());
       if (!IsNativeCPUKernel(I->getFunction())) {
         // only use the threadlocal if we have kernels calling builtins
         // indirectly
@@ -475,7 +472,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
 #ifdef NATIVECPU_USE_OCK
-  // Define __mum_mem_barrier here using the OCK
+  // Define __mux_mem_barrier here using the OCK
   compiler::utils::BuiltinInfo BI;
   for (auto &F : M) {
     if (F.getName() == compiler::utils::MuxBuiltins::mem_barrier) {

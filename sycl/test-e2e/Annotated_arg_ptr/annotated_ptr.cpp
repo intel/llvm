@@ -28,6 +28,17 @@ int main() {
 
   auto *d = malloc_shared<int>(4, Q);
   auto d_ptr = annotated_ptr{d};
+
+  auto *e1 = malloc_shared<int>(1, Q);
+  *e1 = 0;
+  volatile int *e1_vol = e1;
+  auto e1_ptr = annotated_ptr{e1_vol};
+
+  auto *e2 = malloc_shared<int>(1, Q);
+  *e2 = 5;
+  const volatile int *e2_vol = e2;
+  auto e2_ptr = annotated_ptr{e2_vol};
+
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
   Q.single_task([=]() {
@@ -60,6 +71,8 @@ int main() {
      };
 
      d_ptr[3] = func(d_ptr[0], d_ptr[1], d_ptr[2]);
+
+     e1_ptr[0] = e2_ptr[0];
    }).wait();
 
   assert(a_ptr[0] == -1 && "a_ptr[0] value does not match.");
@@ -78,11 +91,15 @@ int main() {
 
   assert(d_ptr[3] == -1 && "d_ptr[3] value does not match.");
 
+  assert(e1_ptr[0] == 5 && "e_ptr[0] value does not match.");
+
   free(a, Q);
   free(b, Q);
   free(c->b, Q);
   free(c, Q);
   free(d, Q);
+  free(e1, Q);
+  free(e2, Q);
 
   return 0;
 }

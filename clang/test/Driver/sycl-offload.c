@@ -405,14 +405,14 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
-// CHK-TOOLS-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-DFOO1 -DFOO2"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
-// CHK-TOOLS-IMPLIED-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=-g -DFOO1 -DFOO2"
+// CHK-TOOLS-IMPLIED-OPTS: clang-offload-wrapper{{.*}} "-compile-opts=-g{{.*}}-DFOO1 -DFOO2"
 
 /// Check for implied options (-O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -O0 %s 2>&1 \

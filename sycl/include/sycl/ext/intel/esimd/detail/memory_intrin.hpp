@@ -157,6 +157,39 @@ __ESIMD_INTRIN void __esimd_slm_block_st(uint32_t offset,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+/// SLM block_store/scatter.
+/// Supported platforms: DG2, PVC
+///
+/// Scatters elements located to slm.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to store per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param vals is values to store.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN void __esimd_lsc_store_slm(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // Read a block of data from SLM at the given offset.
 template <typename Ty, int N, size_t Align>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>

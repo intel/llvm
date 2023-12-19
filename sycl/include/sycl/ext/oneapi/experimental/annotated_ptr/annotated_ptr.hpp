@@ -32,7 +32,12 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
+  T operator op##=(T rhs) const {                                              \
+    T t = *this;                                                               \
+    t op## = rhs;                                                              \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -73,6 +78,10 @@ template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
+  static_assert(
+      std::is_trivially_copyable_v<T>,
+      "annotated_ref can only encapsulate a trivially-copyable type!");
+
 private:
   T *m_Ptr;
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
@@ -90,7 +99,7 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  T operator=(T Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -114,20 +123,34 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  T operator++() { return *this += 1; }
-
-  T operator++(int) {
-    const T t = *this;
-    *this = (t + 1);
+  T operator++() const {
+    T t = *this;
+    ++t;
+    *this = t;
     return t;
   }
 
-  T operator--() { return *this -= 1; }
+  T operator++(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2++;
+    *this = t2;
+    return t1;
+  }
 
-  T operator--(int) {
-    const T t = *this;
-    *this = (t - 1);
+  T operator--() const {
+    T t = *this;
+    --t;
+    *this = t;
     return t;
+  }
+
+  T operator--(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2--;
+    *this = t2;
+    return t1;
   }
 
   template <class T2, class P2> friend class annotated_ptr;
@@ -158,6 +181,11 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+
+  static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
+                "annotated_ptr can only encapsulate either "
+                "a trivially-copyable type "
+                "or void!");
 
   // buffer_location and alignment are allowed for annotated_ref
   // Cache controls are allowed for annotated_ptr
@@ -230,6 +258,7 @@ public:
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(Ptr) {
+
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,

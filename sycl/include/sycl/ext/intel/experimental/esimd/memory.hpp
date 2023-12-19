@@ -818,13 +818,13 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N * NElts>>
-lsc_gather(AccessorTy acc,
-           __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
-           __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>,
+                     __ESIMD_NS::simd<T, N * NElts>>
+    lsc_gather(AccessorTy acc,
+               __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
+               __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L3H>(
       reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
@@ -854,8 +854,8 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
     __ESIMD_NS::simd<T, N * NElts>>
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
@@ -869,11 +869,12 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N * NElts>>
-lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
-           __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_local_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>,
+                     __ESIMD_NS::simd<T, N * NElts>>
+    lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+               __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_slm_gather<T, NElts, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), pred);
 }
@@ -903,14 +904,14 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N * NElts>>
-lsc_gather(AccessorTy acc,
-           __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
-           __ESIMD_NS::simd_mask<N> pred,
-           __ESIMD_NS::simd<T, N * NElts> pass_thru) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>,
+                     __ESIMD_NS::simd<T, N * NElts>>
+    lsc_gather(AccessorTy acc,
+               __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
+               __ESIMD_NS::simd_mask<N> pred,
+               __ESIMD_NS::simd<T, N * NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L3H>(
       reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred, pass_thru);
@@ -943,8 +944,8 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
     __ESIMD_NS::simd<T, N * NElts>>
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
@@ -1130,8 +1131,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
@@ -1145,7 +1146,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_local_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset,
@@ -1185,11 +1187,27 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
-                                 __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
-                             __ESIMD_NS::simd<T, NElts>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+        __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+    __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                FlagsT flags) {
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+      acc, offset, __ESIMD_NS::simd_mask<1>(1), flags);
+}
+
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_local_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+        __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+    __ESIMD_NS::simd<T, NElts>>
+lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
       acc, offset, __ESIMD_NS::simd_mask<1>(1), flags);
 }
@@ -1231,8 +1249,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
@@ -1247,7 +1265,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_local_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
@@ -1377,9 +1396,8 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>>
 lsc_prefetch(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
              __ESIMD_NS::simd<uint64_t, N> offsets,
@@ -1414,8 +1432,8 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -1443,9 +1461,8 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>>
 lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_prefetch<T, NElts, DS, L1H, L3H>(
@@ -1516,29 +1533,18 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
-/// @tparam DS is the data size.
+/// @tparam DS is the data size (unused/obsolete).
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param vals is values to store.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API void lsc_slm_block_store(uint32_t offset,
                                      __ESIMD_NS::simd<T, NElts> vals) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-                "Transposed store is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
-                        _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), vals.data());
+  // Make sure we generate an LSC block store
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  __ESIMD_NS::simd_mask<1> pred = 1;
+  __ESIMD_NS::slm_block_store<T, NElts>(offset, vals, pred, Props);
 }
 
 /// USM pointer scatter.
@@ -1630,9 +1636,8 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>>
 lsc_scatter(AccessorTy acc,
             __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
@@ -1667,8 +1672,8 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
@@ -1682,8 +1687,8 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_local_accessor_with_v<
+    AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>>
 lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -1809,8 +1814,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_device_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write> &&
     __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                 __ESIMD_NS::simd<T, NElts> vals,
@@ -1824,7 +1829,8 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
+    __ESIMD_DNS::is_local_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write> &&
     __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals, FlagsT flags = FlagsT{}) {
@@ -1866,8 +1872,10 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
-                             __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_accessor_with_v<
+        AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write> &&
+    __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                 __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
   lsc_block_store<T, NElts, DS, L1H, L3H>(acc, offset, vals,
@@ -2930,34 +2938,8 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
-#else
-  static_assert(sizeof(T) > 1, "Unsupported data type");
-  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
-                "Unsupported offset type");
-  detail::check_lsc_vector_size<1>();
-  detail::check_lsc_data_size<T, DS>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 1>();
-  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L3H, _AddressScale, _ImmOffset,
-                                _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), Msg_data.data(), si);
-  return detail::lsc_format_ret<T>(Tmp);
-#endif
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L3H>(acc, offsets,
+                                                                 src0, pred);
 }
 
 /// Variant of \c lsc_atomic_update that uses \c local_accessor as a parameter.

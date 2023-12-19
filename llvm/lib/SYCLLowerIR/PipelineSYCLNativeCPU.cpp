@@ -18,6 +18,7 @@
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/prepare_barriers_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -26,16 +27,19 @@
 using namespace llvm;
 using namespace sycl::utils;
 
-cl::opt<bool> ForceNoTail("native-cpu-force-no-tail", cl::init(false),
-    cl::desc("Never emit the peeling loop for vectorized kernels,"
-    "even when the local size is not known to be a multiple of the vector width"));
+cl::opt<bool>
+    ForceNoTail("native-cpu-force-no-tail", cl::init(false),
+                cl::desc("Never emit the peeling loop for vectorized kernels,"
+                         "even when the local size is not known to be a "
+                         "multiple of the vector width"));
 
-cl::opt<bool> IsDebug("native-cpu-debug", cl::init(false),
+cl::opt<bool> IsDebug(
+    "native-cpu-debug", cl::init(false),
     cl::desc("Emit extra alloca instructions to preserve the value of live"
-    "vriables between barriers"));
+             "vriables between barriers"));
 
-void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
-                                   ModuleAnalysisManager &MAM) {
+void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
+    llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
   compiler::utils::WorkItemLoopsPassOptions Opts;
@@ -43,9 +47,9 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &M
   Opts.ForceNoTail = ForceNoTail;
   MAM.registerPass([&] { return compiler::utils::BuiltinInfoAnalysis(); });
   MAM.registerPass([&] { return compiler::utils::SubgroupAnalysis(); });
+  MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
   MPM.addPass(AlwaysInlinerPass());
-
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());
   MPM.addPass(RenameKernelSYCLNativeCPUPass());

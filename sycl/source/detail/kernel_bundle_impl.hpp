@@ -372,11 +372,15 @@ public:
 
     Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
+    std::vector<pi::PiDevice> DeviceVec;
+    DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-          PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
+      DeviceVec.push_back(Dev);
     }
+    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
+        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        nullptr);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
@@ -527,15 +531,14 @@ public:
                             "The kernel bundle does not contain the kernel "
                             "identified by kernelId.");
 
-    sycl::detail::pi::PiKernel Kernel = nullptr;
-    const KernelArgMask *ArgMask = nullptr;
-    std::tie(Kernel, std::ignore, ArgMask) =
+    auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask);
+    std::shared_ptr<kernel_impl> KernelImpl =
+        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
+                                      SelectedImage, Self, ArgMask, CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
