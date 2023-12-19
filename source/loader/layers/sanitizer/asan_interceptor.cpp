@@ -12,7 +12,6 @@
  */
 
 #include "asan_interceptor.hpp"
-#include "device_sanitizer_report.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -33,8 +32,6 @@ const auto kSPIR_AsanShadowMemoryLocalStart = "__AsanShadowMemoryLocalStart";
 const auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
-
-DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
 // uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
 //     return USM_SHADOW_BASE + (UPtr >> 3);
@@ -213,10 +210,11 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
                                           (void *)AllocInfo->AllocBegin);
 }
 
-bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
-                                           ur_queue_handle_t Queue,
-                                           ur_event_handle_t &Event) {
-    UR_CALL(prepareLaunch(Queue, Kernel));
+ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
+                                                  ur_queue_handle_t Queue,
+                                                  ur_event_handle_t &Event,
+                                                  LaunchInfo &LaunchInfo) {
+    UR_CALL(prepareLaunch(Queue, Kernel, LaunchInfo));
 
     UR_CALL(updateShadowMemory(Queue));
 
@@ -229,26 +227,28 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     Event = QueueInfo->LastEvent;
     QueueInfo->LastEvent = nullptr;
 
-    return true;
+    return UR_RESULT_SUCCESS;
 }
 
 void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
-                                            ur_event_handle_t *Event) {
+                                            ur_event_handle_t *Event,
+                                            LaunchInfo &LaunchInfo) {
     auto Program = getProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
     // to host, but it's okay that it isn't defined
+    // FIXME: We must use block operation here
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
-        sizeof(SPIR_DeviceSanitizerReportMem), 0,
-        &SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
+        sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
+        &LaunchInfo.SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
 
     if (Result == UR_RESULT_SUCCESS) {
         *Event = ReadEvent;
 
-        auto AH = &SPIR_DeviceSanitizerReportMem;
+        auto AH = &LaunchInfo.SPIR_DeviceSanitizerReportMem;
         if (!AH->Flag) {
             return;
         }
@@ -256,15 +256,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
-        context.logger.always("\n====ERROR: DeviceSanitizer: %s on %s\n\n",
-                              DeviceSanitizerFormat(AH->ErrorType),
-                              DeviceSanitizerFormat(AH->MemoryType));
-        context.logger.always(
-            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-            "%lu, %lu)\n",
-            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
-            AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        context.logger.always("  #0 %s %s:%d\n", Func, File, AH->Line);
+        fprintf(stderr, "\n====ERROR: DeviceSanitizer: %s on %s\n\n",
+                DeviceSanitizerFormat(AH->ErrorType),
+                DeviceSanitizerFormat(AH->MemoryType));
+        fprintf(stderr,
+                "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
+                "%lu, %lu)\n",
+                AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
+                AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
+        fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
         if (!AH->IsRecover) {
             abort();
         }
@@ -590,10 +590,13 @@ ur_result_t SanitizerInterceptor::removeQueue(ur_context_handle_t Context,
 }
 
 ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
-                                                ur_kernel_handle_t Kernel) {
+                                                ur_kernel_handle_t Kernel,
+                                                LaunchInfo &LaunchInfo) {
     auto Context = getContext(Queue);
     auto Device = getDevice(Queue);
     auto Program = getProgram(Kernel);
+
+    LaunchInfo.Context = Context;
 
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
@@ -633,26 +636,34 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         auto LocalMemorySize = getLocalMemorySize(Device);
         auto LocalShadowMemorySize =
             (MaxWorkGroupSize * LocalMemorySize) >> ASAN_SHADOW_SCALE;
-        void *LocalShadowOffset = nullptr;
+
         ur_usm_desc_t Desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr, 0, 0};
         UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, &Desc, nullptr, LocalShadowMemorySize,
-            &LocalShadowOffset));
-        uptr LocalShadowOffsetEnd = reinterpret_cast<uptr>(LocalShadowOffset) +
-                                    LocalShadowMemorySize - 1;
+            (void **)&LaunchInfo.LocalShadowOffset));
+        LaunchInfo.LocalShadowOffsetEnd =
+            LaunchInfo.LocalShadowOffset + LocalShadowMemorySize - 1;
 
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalStart,
-                           &LocalShadowOffset);
+                           &LaunchInfo.LocalShadowOffset);
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalEnd,
-                           &LocalShadowOffsetEnd);
+                           &LaunchInfo.LocalShadowOffsetEnd);
 
         context.logger.info("Shadow memory (Local, {} - {})",
-                            (void *)LocalShadowOffset,
-                            (void *)LocalShadowOffsetEnd);
+                            (void *)LaunchInfo.LocalShadowOffset,
+                            (void *)LaunchInfo.LocalShadowOffsetEnd);
     }
 
     QueueInfo->LastEvent = LastEvent;
     return UR_RESULT_SUCCESS;
+}
+
+LaunchInfo::~LaunchInfo() {
+    if (LocalShadowOffset) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.USM.pfnFree(Context, (void *)LocalShadowOffset);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
 }
 
 } // namespace ur_sanitizer_layer
