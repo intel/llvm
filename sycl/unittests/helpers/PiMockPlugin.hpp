@@ -620,6 +620,13 @@ inline pi_result mock_piextMemGetNativeHandle(pi_mem mem,
 }
 
 inline pi_result
+mock_piextMemGetNativeHandleExp(pi_mem mem, pi_device dev,
+                                pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(mem);
+  return PI_SUCCESS;
+}
+
+inline pi_result
 mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                     pi_context context, bool ownNativeHandle,
                                     pi_mem *mem) {
