@@ -1,7 +1,9 @@
-# commit 8e6ea72e44dab71e976b3daf439073c4ef9a847b
-# Merge: 1f6945ce c57c181d
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 15:54:56 2025 +0000
-#     Merge pull request #2619 from martygrant/martin/memimage-info-unswitch-redo
-#     Move urMemImageGetInfo success test from a switch to individual test
-set(UNIFIED_RUNTIME_TAG 8e6ea72e44dab71e976b3daf439073c4ef9a847b)
+set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
+# commit df6da35d6e67f2383db28dd49ab08c5c0ef541d2
+# Merge: 67590533 55bd5636
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Oct 7 12:28:07 2024 +0100
+#     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
+#     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
+#     instead of returning misleading default value
+set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
