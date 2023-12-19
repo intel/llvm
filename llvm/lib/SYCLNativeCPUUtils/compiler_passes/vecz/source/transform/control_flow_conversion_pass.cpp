@@ -214,15 +214,14 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @return true if it is valid to mask this call, false otherwise
   bool applyMaskToCall(CallInst *CI, Value *mask, DeletionMap &toDelete);
 
-  /// @brief Attempt to apply a mask to an AtomicRMW instruction via a builtin
+  /// @brief Attempt to apply a mask to an atomic instruction via a builtin
   /// call.
   ///
-  /// @param[in] atomicI The atomic instruction to apply the mask to
+  /// @param[in] I The (atomic) instruction to apply the mask to
   /// @param[in] mask The mask to apply to the masked atomic
   /// @param[out] toDelete mapping of deleted unmasked operations
   /// @return true if it is valid to mask this atomic, false otherwise
-  bool applyMaskToAtomicRMW(AtomicRMWInst &atomicI, Value *mask,
-                            DeletionMap &toDelete);
+  bool applyMaskToAtomic(Instruction &I, Value *mask, DeletionMap &toDelete);
 
   /// @brief Linearize a CFG.
   /// @return true if no problem occurred, false otherwise.
@@ -1138,9 +1137,7 @@ Error ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
       }
     } else if (I.isAtomic() && !isa<FenceInst>(&I)) {
       // Turn atomics into calls to masked builtins if possible.
-      // FIXME: We don't yet support masked cmpxchg instructions.
-      if (auto *atomicI = dyn_cast<AtomicRMWInst>(&I);
-          !atomicI || !applyMaskToAtomicRMW(*atomicI, mask, toDelete)) {
+      if (!applyMaskToAtomic(I, mask, toDelete)) {
         return makeStringError("Could not apply mask to atomic instruction", I);
       }
     } else if (auto *branch = dyn_cast<BranchInst>(&I)) {
@@ -1372,41 +1369,66 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
   return true;
 }
 
-bool ControlFlowConversionState::Impl::applyMaskToAtomicRMW(
-    AtomicRMWInst &atomicI, Value *mask, DeletionMap &toDelete) {
-  LLVM_DEBUG(dbgs() << "vecz-cf: Now at AtomicRMWInst " << atomicI << "\n");
+bool ControlFlowConversionState::Impl::applyMaskToAtomic(
+    Instruction &I, Value *mask, DeletionMap &toDelete) {
+  LLVM_DEBUG(dbgs() << "vecz-cf: Now at atomic inst " << I << "\n");
 
-  VectorizationContext::MaskedAtomicRMW MA;
-  MA.Align = atomicI.getAlign();
-  MA.BinOp = atomicI.getOperation();
-  MA.IsVectorPredicated = VU.choices().vectorPredication();
-  MA.IsVolatile = atomicI.isVolatile();
-  MA.Ordering = atomicI.getOrdering();
-  MA.SyncScope = atomicI.getSyncScopeID();
+  SmallVector<Value *, 8> maskedFnArgs;
+  VectorizationContext::MaskedAtomic MA;
   MA.VF = ElementCount::getFixed(1);
-  MA.ValTy = atomicI.getType();
-  MA.PointerTy = atomicI.getPointerOperand()->getType();
-  // Create the new function and replace the old one with it
-  // Get the masked function
-  Function *newFunction = Ctx.getOrCreateMaskedAtomicRMWFunction(
-      MA, VU.choices(), ElementCount::getFixed(1));
-  VECZ_FAIL_IF(!newFunction);
-  SmallVector<Value *, 8> fnArgs = {atomicI.getPointerOperand(),
-                                    atomicI.getValOperand(), mask};
-  // We don't have a vector length just yet - pass in one as a dummy.
-  if (MA.IsVectorPredicated) {
-    fnArgs.push_back(
-        ConstantInt::get(IntegerType::getInt32Ty(atomicI.getContext()), 1));
+  MA.IsVectorPredicated = VU.choices().vectorPredication();
+
+  if (auto *atomicI = dyn_cast<AtomicRMWInst>(&I)) {
+    MA.Align = atomicI->getAlign();
+    MA.BinOp = atomicI->getOperation();
+    MA.IsVolatile = atomicI->isVolatile();
+    MA.Ordering = atomicI->getOrdering();
+    MA.SyncScope = atomicI->getSyncScopeID();
+    MA.ValTy = atomicI->getType();
+    MA.PointerTy = atomicI->getPointerOperand()->getType();
+
+    // Set up the arguments to this function
+    maskedFnArgs = {atomicI->getPointerOperand(), atomicI->getValOperand(),
+                    mask};
+
+  } else if (auto *cmpxchgI = dyn_cast<AtomicCmpXchgInst>(&I)) {
+    MA.Align = cmpxchgI->getAlign();
+    MA.BinOp = AtomicRMWInst::BAD_BINOP;
+    MA.IsWeak = cmpxchgI->isWeak();
+    MA.IsVolatile = cmpxchgI->isVolatile();
+    MA.Ordering = cmpxchgI->getSuccessOrdering();
+    MA.CmpXchgFailureOrdering = cmpxchgI->getFailureOrdering();
+    MA.SyncScope = cmpxchgI->getSyncScopeID();
+    MA.ValTy = cmpxchgI->getCompareOperand()->getType();
+    MA.PointerTy = cmpxchgI->getPointerOperand()->getType();
+
+    // Set up the arguments to this function
+    maskedFnArgs = {cmpxchgI->getPointerOperand(),
+                    cmpxchgI->getCompareOperand(), cmpxchgI->getNewValOperand(),
+                    mask};
+  } else {
+    return false;
   }
 
-  CallInst *newCI = CallInst::Create(newFunction, fnArgs, "", &atomicI);
-  VECZ_FAIL_IF(!newCI);
+  // Create the new function and replace the old one with it
+  // Get the masked function
+  Function *maskedAtomicFn = Ctx.getOrCreateMaskedAtomicFunction(
+      MA, VU.choices(), ElementCount::getFixed(1));
+  VECZ_FAIL_IF(!maskedAtomicFn);
+  // We don't have a vector length just yet - pass in one as a dummy.
+  if (MA.IsVectorPredicated) {
+    maskedFnArgs.push_back(
+        ConstantInt::get(IntegerType::getInt32Ty(I.getContext()), 1));
+  }
 
-  atomicI.replaceAllUsesWith(newCI);
-  toDelete.emplace_back(&atomicI, newCI);
+  CallInst *maskedCI = CallInst::Create(maskedAtomicFn, maskedFnArgs, "", &I);
+  VECZ_FAIL_IF(!maskedCI);
 
-  LLVM_DEBUG(dbgs() << "vecz-cf: Replaced " << atomicI << "\n");
-  LLVM_DEBUG(dbgs() << "          with " << *newCI << "\n");
+  I.replaceAllUsesWith(maskedCI);
+  toDelete.emplace_back(&I, maskedCI);
+
+  LLVM_DEBUG(dbgs() << "vecz-cf: Replaced " << I << "\n");
+  LLVM_DEBUG(dbgs() << "          with " << *maskedCI << "\n");
 
   return true;
 }

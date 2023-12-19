@@ -153,36 +153,59 @@ class VectorizationContext {
   /// @return The masked version of the function
   llvm::Function *getOrCreateMaskedFunction(llvm::CallInst *CI);
 
-  struct MaskedAtomicRMW {
+  /// @brief Represents either an atomicrmw or cmpxchg operation.
+  ///
+  /// Most fields are shared, with the exception of CmpXchgFailureOrdering and
+  /// IsWeak, which are only to be set for cmpxchg, and BinOp, which is only to
+  /// be set to a valid value for atomicrmw.
+  struct MaskedAtomic {
     llvm::Type *PointerTy;
     llvm::Type *ValTy;
+    /// @brief Must be set to BAD_BINOP for cmpxchg instructions
     llvm::AtomicRMWInst::BinOp BinOp;
     llvm::Align Align;
     bool IsVolatile = false;
     llvm::SyncScope::ID SyncScope;
     llvm::AtomicOrdering Ordering;
+    /// @brief Must be set for cmpxchg instructions
+    std::optional<llvm::AtomicOrdering> CmpXchgFailureOrdering = std::nullopt;
+    /// @brief Must only be set for cmpxchg instructions
+    bool IsWeak = false;
     // Vectorization info
     llvm::ElementCount VF;
     bool IsVectorPredicated = false;
+
+    /// @brief Returns true if this MaskedAtomic represents a cmpxchg operation.
+    bool isCmpXchg() const {
+      if (CmpXchgFailureOrdering.has_value()) {
+        // 'binop' only applies to atomicrmw
+        assert(BinOp == llvm::AtomicRMWInst::BAD_BINOP &&
+               "Invalid MaskedAtomic state");
+        return true;
+      }
+      // 'weak' only applies to cmpxchg
+      assert(!IsWeak && "Invalid MaskedAtomic state");
+      return false;
+    }
   };
 
-  /// @brief Check if the given function is a masked version of an atomic RMW
-  /// operation.
+  /// @brief Check if the given function is a masked version of an atomicrmw or
+  /// cmpxchg operation.
   ///
   /// @param[in] F The function to check
-  /// @return A MaskedAtomicRMW instance detailing the atomic operation if the
-  /// function is a masked atomic RMW, or std::nullopt otherwise
-  std::optional<MaskedAtomicRMW> isMaskedAtomicRMWFunction(
+  /// @return A MaskedAtomic instance detailing the atomic operation if the
+  /// function is a masked atomic, or std::nullopt otherwise
+  std::optional<MaskedAtomic> isMaskedAtomicFunction(
       const llvm::Function &F) const;
   /// @brief Get (if it exists already) or create the function representing the
-  /// masked version of an atomic RMW operation.
+  /// masked version of an atomicrmw/cmpxchg operation.
   ///
   /// @param[in] I Atomic to be masked
   /// @param[in] Choices Choices to mangle into the function name
   /// @param[in] VF The vectorization factor of the atomic operation
   /// @return The masked version of the function
-  llvm::Function *getOrCreateMaskedAtomicRMWFunction(
-      MaskedAtomicRMW &I, const VectorizationChoices &Choices,
+  llvm::Function *getOrCreateMaskedAtomicFunction(
+      MaskedAtomic &I, const VectorizationChoices &Choices,
       llvm::ElementCount VF);
 
   /// @brief Create a VectorizationUnit to use to vectorize the given scalar
@@ -296,10 +319,9 @@ class VectorizationContext {
   /// @brief Emit the body for a masked atomic builtin
   ///
   /// @param[in] F The empty (declaration only) function to emit the body in
-  /// @param[in] MA The MaskedAtomicRMW information
+  /// @param[in] MA The MaskedAtomic information
   /// @returns true on success, false otherwise
-  bool emitMaskedAtomicRMWBody(llvm::Function &F,
-                               const MaskedAtomicRMW &MA) const;
+  bool emitMaskedAtomicBody(llvm::Function &F, const MaskedAtomic &MA) const;
 
   /// @brief Helper for non-vectorization tasks.
   TargetInfo &VTI;
