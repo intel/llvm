@@ -3196,13 +3196,12 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
 
 template <native::lsc::atomic_op Op, typename T, int N, typename OffsetObjT,
           typename RegionTy, typename AccessorTy>
-__ESIMD_API
-    __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
-                                     (is_rw_device_accessor_v<AccessorTy> ||
-                                      is_rw_local_accessor_v<AccessorTy>),
-                                 simd<T, N>>
-    atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> offsets,
-                  simd<T, N> src0, simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 (is_rw_device_accessor_v<AccessorTy> ||
+                                  is_rw_local_accessor_v<AccessorTy>),
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<OffsetObjT, RegionTy> offsets,
+              simd<T, N> src0, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       acc, offsets, src0, mask);
 }
