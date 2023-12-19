@@ -1,4 +1,3 @@
-// UNSUPPORTED: esimd_emulator
 //
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

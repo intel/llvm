@@ -203,6 +203,8 @@ static inline std::string getErrorLocation(const uint8_t *loc) {
   return getErrorPlace(loc).loc;
 }
 
+void processArmCmseSymbols();
+
 void writePPC32GlinkSection(uint8_t *buf, size_t numEntries);
 
 unsigned getPPCDFormOp(unsigned secondaryOp);
@@ -225,6 +227,7 @@ void writePrefixedInstruction(uint8_t *loc, uint64_t insn);
 void addPPC64SaveRestore();
 uint64_t getPPC64TocBase();
 uint64_t getAArch64Page(uint64_t expr);
+template <typename ELFT> void writeARMCmseImportLib();
 uint64_t getLoongArchPageDelta(uint64_t dest, uint64_t pc);
 void riscvFinalizeRelax(int passes);
 void mergeRISCVAttributesSections();

@@ -9,7 +9,7 @@
 /// \file sycl_trace_collector.cpp
 /// Routines to collect and print SYCL API calls.
 
-#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <sycl/detail/spinlock.hpp>
 
@@ -50,17 +50,79 @@ void TraceDiagnosticsMessage(xpti::trace_event_data_t * /*Parent*/,
   }
 }
 
+void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
+                               xpti::trace_event_data_t *Event,
+                               [[maybe_unused]] const void *UserData,
+                               uint64_t InstanceID, bool IsBegin) {
+  if (!Event)
+    return;
+
+  std::cout << "[SYCL] Task " << (IsBegin ? "begin" : "end  ")
+            << " (event=" << Event << ",instanceID=" << InstanceID << ")"
+            << std::endl;
+
+  // TODO: some metadata could be added at the "end" point (e.g. memory
+  // allocation and result ptr). To consider how to distinguish new data for the
+  // same event appeared between begin-end points.
+  if (!IsBegin || !PrintSyclVerbose)
+    return;
+
+  xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+  for (auto &Item : *Metadata) {
+    std::cout << "\t  " << xptiLookupString(Item.first) << " : "
+              << xpti::readMetadata(Item) << std::endl;
+  }
+}
+
+void TraceQueueLifetimeSignals(xpti::trace_event_data_t * /*Parent*/,
+                               xpti::trace_event_data_t *Event,
+                               [[maybe_unused]] const void *UserData,
+                               bool IsCreation) {
+  if (!Event)
+    return;
+
+  std::cout << "[SYCL] Queue " << (IsCreation ? "create" : "destroy") << ": "
+            << std::endl;
+  xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+  for (auto &Item : *Metadata) {
+    std::string_view Key{xptiLookupString(Item.first)};
+    if (IsCreation)
+      std::cout << "\t  " << Key << " : " << xpti::readMetadata(Item)
+                << std::endl;
+    else if (Key == "queue_id")
+      std::cout << "\t" << Key << " : "
+                << xpti::getMetadata<unsigned long long>(Item).second
+                << std::endl;
+  }
+}
+
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *Parent,
                                     xpti::trace_event_data_t *Event,
-                                    uint64_t /*Instance*/,
-                                    const void *UserData) {
+                                    uint64_t InstanceID, const void *UserData) {
   std::lock_guard<sycl::detail::SpinLock> Lock{GlobalLock};
-  if (TraceType == xpti::trace_diagnostics) {
+  switch (TraceType) {
+  case xpti::trace_diagnostics:
     TraceDiagnosticsMessage(Parent, Event, static_cast<const char *>(UserData));
-  } else if (PrintSyclVerbose)
-    std::cout << "Trace type is unexpected. Please update trace collector."
-              << std::endl;
+    break;
+  case xpti::trace_queue_create:
+    TraceQueueLifetimeSignals(Parent, Event, UserData, true);
+    break;
+  case xpti::trace_queue_destroy:
+    TraceQueueLifetimeSignals(Parent, Event, UserData, false);
+    break;
+  case xpti::trace_task_begin:
+    TraceTaskExecutionSignals(Parent, Event, UserData, InstanceID, true);
+    break;
+  case xpti::trace_task_end:
+    TraceTaskExecutionSignals(Parent, Event, UserData, InstanceID, false);
+    break;
+  default: {
+    if (PrintSyclVerbose)
+      std::cout << "Trace type is unexpected. Please update trace collector."
+                << std::endl;
+  } break;
+  }
 }
 
 void syclPrintersInit() {

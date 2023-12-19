@@ -9,6 +9,7 @@
 #include "SYCLDeviceRequirements.h"
 #include "ModuleSplitter.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -87,6 +88,31 @@ void llvm::getSYCLDeviceRequirements(
   // window, this can be changed back to reqd_work_group_size.
   if (ReqdWorkGroupSize)
     Requirements["reqd_work_group_size_uint64_t"] = *ReqdWorkGroupSize;
+
+  auto ExtractStringFromMDNodeOperand =
+      [=](const MDNode *N, unsigned OpNo) -> llvm::SmallString<256> {
+    MDString *S = cast<llvm::MDString>(N->getOperand(OpNo).get());
+    return S->getString();
+  };
+
+  // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
+  // https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md#create-the-sycldevice-requirements-property-set
+  // Scan the module and if the metadata is present fill the corresponing
+  // property with metadata's aspects
+  constexpr std::pair<const char *, const char *> MatrixMDs[] = {
+      {"sycl_joint_matrix", "joint_matrix"},
+      {"sycl_joint_matrix_mad", "joint_matrix_mad"}};
+
+  for (const auto &[MDName, MappedName] : MatrixMDs) {
+    llvm::SmallString<256> Val;
+    for (const Function &F : MD.getModule())
+      if (const MDNode *MDN = F.getMetadata(MDName))
+        Val = ExtractStringFromMDNodeOperand(
+            MDN, 0); // there is always only one operand
+    if (Val.empty())
+      continue;
+    Requirements[MappedName] = Val;
+  }
 
   // There should only be at most one function with
   // intel_reqd_sub_group_size metadata when considering the entry

@@ -1,53 +1,127 @@
 # PI Unified Runtime plugin library.
 #
-if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
+
+# Options to override the default behaviour of the FetchContent to include UR
+# source code.
+set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
+  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
+set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
+  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
+
+# Options to disable use of FetchContent to include Unified Runtime source code
+# to improve developer workflow.
+option(SYCL_PI_UR_USE_FETCH_CONTENT
+  "Use FetchContent to acquire the Unified Runtime source code" ON)
+set(SYCL_PI_UR_SOURCE_DIR
+  "" CACHE PATH "Path to root of Unified Runtime repository")
+
+# Override default to enable building tests from unified-runtime
+set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
+set(UMF_ENABLE_POOL_TRACKING ON)
+
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_L0 ON)
+endif()
+if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_CUDA ON)
+endif()
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_HIP ON)
+endif()
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_OPENCL ON)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
+endif()
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
+
+# Disable errors from warnings while building the UR.
+# And remember origin flags before doing that.
+set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+if(WIN32)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+  # FIXME: Unified runtime build fails with /DUNICODE
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+  set(USE_Z7 ON)
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+endif()
+
+if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  # The UR tag should be from the 'adapters' branch
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c791b8bba63af1c1880ae278e9d6df90021636dd)
+  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date: Mon Dec 18 13:15:43 2023 +0000
+  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
+  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
+  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
 
-  set(UR_BUILD_ADAPTER_L0 ON)
-  set(UMF_ENABLE_POOL_TRACKING ON)
+  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
+    set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
+  endif()
+  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG)
+    set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
+  endif()
+
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
     GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
-  # Disable errors from warnings while building the UR.
-  # And remember origin flags before doing that.
-  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  if(WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
-    # FIXME: Unified runtime build fails with /DUNICODE
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
-    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
-    set(USE_Z7 ON)
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
-  endif()
-
-  # No need to build tests from unified-runtime
-  set(UR_BUILD_TESTS "0" CACHE STRING "0")
-
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
 
-  # Restore original flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
-
-  add_library(UnifiedRuntimeLoader ALIAS ur_loader)
-  add_library(UnifiedRuntimeCommon ALIAS ur_common)
-  add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
-
   set(UNIFIED_RUNTIME_SOURCE_DIR
-    ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
-  set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+    "${unified-runtime_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+elseif(SYCL_PI_UR_SOURCE_DIR)
+  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has been set,
+  # use the external Unified Runtime source directory.
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${SYCL_PI_UR_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  add_subdirectory(
+    ${UNIFIED_RUNTIME_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/unified-runtime)
+else()
+  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
+  # set, check if the fallback local directory exists.
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+    message(FATAL_ERROR
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
+
+      * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
+      * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
+  endif()
+  # The fallback local directory for the Unified Runtime repository has been
+  # found, use it.
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR})
 endif()
+
+# Restore original flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
+
+message(STATUS
+  "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
+
+set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+
+add_library(UnifiedRuntimeLoader ALIAS ur_loader)
+add_library(UnifiedRuntimeCommon ALIAS ur_common)
+add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -58,204 +132,35 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-add_sycl_plugin(unified_runtime
+set(UNIFIED_RUNTIME_PLUGIN_ARGS
   SOURCES
     # These are short-term shared with Unified Runtime
-    # The two plugins define a few things differrently so must
+    # The two plugins define a few things differently so must
     # be built separately. This difference is spelled in
     # their "ur_bindings.hpp" files.
-    #
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
-    LIBRARIES
+  LIBRARIES
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
-
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build CUDA adapter
-  add_sycl_library("ur_adapter_cuda" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/cuda/adapter.cpp"
-      "ur/adapters/cuda/adapter.hpp"
-      "ur/adapters/cuda/command_buffer.cpp"
-      "ur/adapters/cuda/command_buffer.hpp"
-      "ur/adapters/cuda/common.cpp"
-      "ur/adapters/cuda/common.hpp"
-      "ur/adapters/cuda/context.cpp"
-      "ur/adapters/cuda/context.hpp"
-      "ur/adapters/cuda/device.cpp"
-      "ur/adapters/cuda/device.hpp"
-      "ur/adapters/cuda/enqueue.cpp"
-      "ur/adapters/cuda/event.cpp"
-      "ur/adapters/cuda/event.hpp"
-      "ur/adapters/cuda/image.cpp"
-      "ur/adapters/cuda/image.hpp"
-      "ur/adapters/cuda/kernel.cpp"
-      "ur/adapters/cuda/kernel.hpp"
-      "ur/adapters/cuda/memory.cpp"
-      "ur/adapters/cuda/memory.hpp"
-      "ur/adapters/cuda/platform.cpp"
-      "ur/adapters/cuda/platform.hpp"
-      "ur/adapters/cuda/program.cpp"
-      "ur/adapters/cuda/program.hpp"
-      "ur/adapters/cuda/queue.cpp"
-      "ur/adapters/cuda/queue.hpp"
-      "ur/adapters/cuda/sampler.cpp"
-      "ur/adapters/cuda/sampler.hpp"
-      "ur/adapters/cuda/tracing.cpp"
-      "ur/adapters/cuda/ur_interface_loader.cpp"
-      "ur/adapters/cuda/usm.cpp"
-      "ur/adapters/cuda/usm.hpp"
-      "ur/adapters/cuda/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-      Threads::Threads
-      cudadrv
-  )
-
-  set_target_properties("ur_adapter_cuda" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_cuda" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
+# We need for #include <ze_api.h> in common.h
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS LevelZeroLoader-Headers)
 endif()
 
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build HIP adapter
-  add_sycl_library("ur_adapter_hip" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/hip/adapter.cpp"
-      "ur/adapters/hip/adapter.hpp"
-      "ur/adapters/hip/command_buffer.cpp"
-      "ur/adapters/hip/command_buffer.hpp"
-      "ur/adapters/hip/common.cpp"
-      "ur/adapters/hip/common.hpp"
-      "ur/adapters/hip/context.cpp"
-      "ur/adapters/hip/context.hpp"
-      "ur/adapters/hip/device.cpp"
-      "ur/adapters/hip/device.hpp"
-      "ur/adapters/hip/enqueue.cpp"
-      "ur/adapters/hip/event.cpp"
-      "ur/adapters/hip/event.hpp"
-      "ur/adapters/hip/image.cpp"
-      "ur/adapters/hip/kernel.cpp"
-      "ur/adapters/hip/kernel.hpp"
-      "ur/adapters/hip/memory.cpp"
-      "ur/adapters/hip/memory.hpp"
-      "ur/adapters/hip/platform.cpp"
-      "ur/adapters/hip/platform.hpp"
-      "ur/adapters/hip/program.cpp"
-      "ur/adapters/hip/program.hpp"
-      "ur/adapters/hip/queue.cpp"
-      "ur/adapters/hip/queue.hpp"
-      "ur/adapters/hip/sampler.cpp"
-      "ur/adapters/hip/sampler.hpp"
-      "ur/adapters/hip/ur_interface_loader.cpp"
-      "ur/adapters/hip/usm.cpp"
-      "ur/adapters/hip/usm.hpp"
-      "ur/adapters/hip/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-      Threads::Threads
-  )
-
-  set_target_properties("ur_adapter_hip" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_hip" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
-
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
-    # Set HIP define to select AMD platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_AMD__)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    target_link_libraries(ur_adapter_hip PUBLIC cudadrv cudart)
-    # Set HIP define to select NVIDIA platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_NVIDIA__)
-  else()
-    message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
-  endif()
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS OpenCL-ICD)
 endif()
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      sycl
-      OpenCL-Headers
-  )
+add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
-
-if (TARGET UnifiedRuntimeLoader)
+if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
@@ -269,8 +174,29 @@ if (TARGET UnifiedRuntimeLoader)
 endif()
 
 # Install the UR adapters too
-install(TARGETS ur_adapter_level_zero
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-)
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+
+  # Install the UR adapters too
+  install(TARGETS ur_adapter_level_zero
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+  )
+endif()
+
+if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
+endif()
+
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_hip)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+endif()

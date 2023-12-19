@@ -17,13 +17,7 @@ using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 using namespace std;
 
-// Disable unrolling with the esmid emulator
-// due to huge stack size requirement
-#ifdef ESIMD_EMU
-#define ESIMD_UNROLL _Pragma("nounroll")
-#else
 #define ESIMD_UNROLL _Pragma("unroll")
-#endif
 
 #define LOG2_ELEMENTS 16 // 24
 
@@ -525,12 +519,6 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   // Launches the task on the GPU.
   double kernel_times = 0;
   unsigned num_iters = 10;
-
-  // Reducing number of iterations for esimd_emulator backend in order
-  // to avoid timeout failure
-  if (pQueue_->get_backend() == sycl::backend::ext_intel_esimd_emulator) {
-    num_iters = 2;
-  }
 
   // num_iters + 1, iteration#0 is for warmup
   for (int iter = 0; iter <= num_iters; ++iter) {

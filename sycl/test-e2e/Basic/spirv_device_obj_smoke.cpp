@@ -1,6 +1,6 @@
 // UNSUPPORTED: cuda || hip
-// RUN: clang++ -fsycl -fsycl-device-obj=spirv -c -o %t.o %s
-// RUN: clang++ -fsycl -o %t.out %t.o
+// RUN: %clangxx -fsycl -fsycl-device-obj=spirv -c -o %t.o %s
+// RUN: %clangxx -fsycl -o %t.out %t.o
 // RUN: %{run} %t.out
 
 // This test verifies SPIR-V based fat objects.

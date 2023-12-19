@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/BinaryFormat/MsgPack.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -49,6 +51,17 @@
 using namespace llvm;
 
 namespace {
+static const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_global_id";
+static const constexpr char NativeCPUGlobaRange[] =
+    "__dpcpp_nativecpu_global_range";
+static const constexpr char NativeCPUGlobalOffset[] =
+    "__dpcpp_nativecpu_get_global_offset";
+static const constexpr char NativeCPULocalId[] =
+    "__dpcpp_nativecpu_get_local_id";
+static const constexpr char NativeCPUNumGroups[] =
+    "__dpcpp_nativecpu_get_num_groups";
+static const constexpr char NativeCPUWGSize[] = "__dpcpp_nativecpu_get_wg_size";
+static const constexpr char NativeCPUWGId[] = "__dpcpp_nativecpu_get_wg_id";
 
 void fixCallingConv(Function *F) {
   F->setCallingConv(llvm::CallingConv::C);
@@ -68,14 +81,16 @@ void fixCallingConv(Function *F) {
 }
 
 // returns the indexes of the used arguments
-SmallVector<unsigned> getUsedIndexes(const Function *F) {
+SmallVector<unsigned> getUsedIndexes(const Function *F, bool useTLS) {
   SmallVector<unsigned> Res;
   auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
     // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
-    for (unsigned I = 0; I + 1 < F->getFunctionType()->getNumParams(); I++) {
+    const unsigned first = useTLS ? 0 : 1;
+    for (unsigned I = 0, NumP = F->getFunctionType()->getNumParams();
+         I + first < NumP; I++) {
       Res.push_back(I);
     }
     return Res;
@@ -102,7 +117,7 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
 }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
-                            Type *StatePtrType) {
+                            Type *StatePtrType, llvm::Constant *StateArgTLS) {
   LLVMContext &Ctx = F->getContext();
   Type *NativeCPUArgDescPtrType = PointerType::getUnqual(NativeCPUArgDescType);
 
@@ -113,8 +128,8 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // subhandler steals its name, we add a suffix to the subhandler later
   // on when lowering the device module
   std::string OldName = F->getName().str();
-  std::string NewName = OldName + ".NativeCPUKernel";
-  const auto SubHandlerName = OldName;
+  auto NewName = Twine(OldName) + ".NativeCPUKernel";
+  const StringRef SubHandlerName = OldName;
   F->setName(NewName);
   FunctionType *FTy = FunctionType::get(
       Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
@@ -122,7 +137,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   Function *SubhF = cast<Function>(SubhFCallee.getCallee());
 
   // Emit function body, unpack kernel args
-  auto UsedIndexes = getUsedIndexes(F);
+  auto UsedIndexes = getUsedIndexes(F, StateArgTLS);
   auto *KernelTy = F->getFunctionType();
   // assert(UsedIndexes.size() + 1 == KernelTy->getNumParams() && "mismatch
   // between number of params and used args");
@@ -152,10 +167,17 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
 
   // Call the kernel
   // Add the nativecpu state as arg
-  KernelArgs.push_back(SubhF->getArg(1));
+  if (StateArgTLS) {
+    Value *Addr = Builder.CreateThreadLocalAddress(StateArgTLS);
+    Builder.CreateStore(SubhF->getArg(1), Addr);
+  } else
+    KernelArgs.push_back(SubhF->getArg(1));
+
   Builder.CreateCall(KernelTy, F, KernelArgs);
   Builder.CreateRetVoid();
 
+  fixCallingConv(F);
+  fixCallingConv(SubhF);
   // Add sycl-module-id attribute
   // Todo: we may want to copy other attributes to the subhandler,
   // but we can't simply use setAttributes(F->getAttributes) since
@@ -168,7 +190,8 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
 
 // Clones the function and returns a new function with a new argument on type T
 // added as last argument
-Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
+Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
+                                   llvm::Constant *StateArgTLS) {
   auto *OldT = OldF->getFunctionType();
   auto *RetT = OldT->getReturnType();
 
@@ -176,7 +199,8 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
   for (auto *Arg : OldT->params()) {
     Args.push_back(Arg);
   }
-  Args.push_back(T);
+  if (StateArgTLS == nullptr)
+    Args.push_back(T);
   auto *NewT = FunctionType::get(RetT, Args, OldF->isVarArg());
   auto *NewF = Function::Create(NewT, OldF->getLinkage(), OldF->getName(),
                                 OldF->getParent());
@@ -212,21 +236,21 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
     }                                                                          \
   }
 #define GEN_xyz(b_name, len, ncpu_name)                                        \
-  GEN_p(#b_name "_x", len, #ncpu_name, 0),                                     \
-      GEN_p(#b_name "_y", len, #ncpu_name, 1),                                 \
-      GEN_p(#b_name "_z", len, #ncpu_name, 2)
+  GEN_p(#b_name "_x", len, ncpu_name, 0),                                      \
+      GEN_p(#b_name "_y", len, ncpu_name, 1),                                  \
+      GEN_p(#b_name "_z", len, ncpu_name, 2)
 
 // Todo: add support for more SPIRV builtins here
 static const std::pair<std::pair<StringRef, StringRef>,
                        std::pair<StringRef, unsigned int>>
     BuiltinNamesMap[] = {
-        GEN_xyz(__spirv_GlobalInvocationId, 28, __dpcpp_nativecpu_global_id),
-        GEN_xyz(__spirv_GlobalSize, 20, __dpcpp_nativecpu_global_range),
-        GEN_xyz(__spirv_GlobalOffset, 22, __dpcpp_nativecpu_get_global_offset),
-        GEN_xyz(__spirv_LocalInvocationId, 27, __dpcpp_nativecpu_get_local_id),
-        GEN_xyz(__spirv_NumWorkgroups, 23, __dpcpp_nativecpu_get_num_groups),
-        GEN_xyz(__spirv_WorkgroupSize, 23, __dpcpp_nativecpu_get_wg_size),
-        GEN_xyz(__spirv_WorkgroupId, 21, __dpcpp_nativecpu_get_wg_id),
+        GEN_xyz(__spirv_GlobalInvocationId, 28, NativeCPUGlobalId),
+        GEN_xyz(__spirv_GlobalSize, 20, NativeCPUGlobaRange),
+        GEN_xyz(__spirv_GlobalOffset, 22, NativeCPUGlobalOffset),
+        GEN_xyz(__spirv_LocalInvocationId, 27, NativeCPULocalId),
+        GEN_xyz(__spirv_NumWorkgroups, 23, NativeCPUNumGroups),
+        GEN_xyz(__spirv_WorkgroupSize, 23, NativeCPUWGSize),
+        GEN_xyz(__spirv_WorkgroupId, 21, NativeCPUWGId),
 };
 
 static inline bool IsForVisualStudio(StringRef triple_str) {
@@ -234,21 +258,83 @@ static inline bool IsForVisualStudio(StringRef triple_str) {
   return triple.isKnownWindowsMSVCEnvironment();
 }
 
-Function *getReplaceFunc(const Module &M, StringRef Name) {
+static constexpr unsigned int NativeCPUGlobalAS = 1;
+static constexpr char StateTypeName[] = "struct.__nativecpu_state";
+
+static Type *getStateType(Module &M) {
+  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x
+  // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
+  // __nativecpu_state type
+  auto Types = M.getIdentifiedStructTypes();
+  bool HasStateT =
+      llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
+  if (HasStateT)
+    report_fatal_error("Native CPU state unexpectedly found in the module.");
+  auto &Ctx = M.getContext();
+  auto *I64Ty = Type::getInt64Ty(Ctx);
+  auto *Array3dTy = ArrayType::get(I64Ty, 3);
+  std::array<Type *, 7> Elements;
+  Elements.fill(Array3dTy);
+  auto *StateType = StructType::create(Ctx, StateTypeName);
+  StateType->setBody(Elements);
+  return StateType;
+}
+
+static const StringMap<unsigned> OffsetMap{
+    {NativeCPUGlobalId, 0},    {NativeCPUGlobaRange, 1},
+    {NativeCPUWGSize, 2},      {NativeCPUWGId, 3},
+    {NativeCPULocalId, 4},     {NativeCPUNumGroups, 5},
+    {NativeCPUGlobalOffset, 6}};
+
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+  auto &Ctx = M.getContext();
+  Type *I64Ty = Type::getInt64Ty(Ctx);
+  Type *I32Ty = Type::getInt32Ty(Ctx);
+  Type *RetTy = I64Ty;
+  Type *DimTy = I32Ty;
+  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
+  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
+  auto FCallee = M.getOrInsertFunction(Name, FTy);
+  auto *F = cast<Function>(FCallee.getCallee());
+  IRBuilder<> Builder(Ctx);
+  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
+  Builder.SetInsertPoint(BB);
+  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
+  auto *Zero = ConstantInt::get(I64Ty, 0);
+  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
+  auto *GEP =
+      Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
+  auto *Load = Builder.CreateLoad(I64Ty, GEP);
+  Builder.CreateRet(Load);
+  F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
+  return F;
+}
+
+static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *F = M.getFunction(Name);
+  if (!F)
+    return addReplaceFunc(M, Name, StateType);
   assert(F && "Error retrieving replace function");
   return F;
 }
 
-Value *getStateArg(const Function *F) {
+static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
+  if (StateTLS) {
+    IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
+    llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
+    return BB.CreateLoad(StateTLS->getType(), V);
+  }
   auto *FT = F->getFunctionType();
   return F->getArg(FT->getNumParams() - 1);
 }
 
-static constexpr unsigned int NativeCPUGlobalAS = 1;
+static inline bool IsNativeCPUKernel(const Function *F) {
+  return F->getCallingConv() == llvm::CallingConv::SPIR_KERNEL;
+}
+static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
 } // namespace
-
+static llvm::Constant *CurrentStatePointerTLS;
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
@@ -261,51 +347,81 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
   // kernels.
-  Type *StateType =
-      StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
+  Type *StateType = getStateType(M);
+  // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
   Type *StatePtrType = PointerType::get(StateType, 1);
-  SmallVector<Function *> NewKernels;
-  for (auto &OldF : OldKernels) {
-    auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);
-    NewF->takeName(OldF);
-    OldF->eraseFromParent();
-    NewKernels.push_back(NewF);
-    ModuleChanged |= true;
-  }
 
-  StructType *NativeCPUArgDescType =
-      StructType::create({PointerType::getUnqual(M.getContext())});
-  for (auto &NewK : NewKernels) {
-    emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
-  }
-
+  CurrentStatePointerTLS = nullptr;
   const bool VisualStudioMangling = IsForVisualStudio(M.getTargetTriple());
 
-  // Then we iterate over all the supported builtins, find their uses and
-  // replace them with calls to our Native CPU functions.
+  // Then we iterate over all the supported builtins, find the used ones
+  llvm::SmallVector<
+      std::pair<llvm::Function *, const std::pair<StringRef, unsigned int> &>>
+      UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
     auto *Glob = M.getFunction(VisualStudioMangling ? Entry.first.second
                                                     : Entry.first.first);
     if (!Glob)
       continue;
-    auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
-    SmallVector<Instruction *> ToRemove;
     for (const auto &Use : Glob->uses()) {
-      auto I = dyn_cast<CallInst>(Use.getUser());
-      if (!I)
-        report_fatal_error("Unsupported Value in SYCL Native CPU\n");
-      if (I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
-        report_fatal_error(
-            "SYCL Native CPU currently doesn't support non-inlined "
-            "functions yet, try increasing the inlining threshold. Support for "
-            "non-inlined functions is planned.");
+      auto *I = cast<CallInst>(Use.getUser());
+      if (!IsNativeCPUKernel(I->getFunction())) {
+        // only use the threadlocal if we have kernels calling builtins
+        // indirectly
+        if (CurrentStatePointerTLS == nullptr)
+          CurrentStatePointerTLS = M.getOrInsertGlobal(
+              STATE_TLS_NAME, StatePtrType, [&M, StatePtrType]() {
+                GlobalVariable *p = new GlobalVariable(
+                    M, StatePtrType, false,
+                    GlobalValue::LinkageTypes::
+                        InternalLinkage /*todo: make external linkage to share
+                                           variable*/
+                    ,
+                    nullptr, STATE_TLS_NAME, nullptr,
+                    GlobalValue::ThreadLocalMode::GeneralDynamicTLSModel, 1,
+                    false);
+                p->setInitializer(Constant::getNullValue(StatePtrType));
+                return p;
+              });
+        break;
+      }
+    }
+    UsedBuiltins.push_back({Glob, Entry.second});
+  }
+
+  SmallVector<Function *> NewKernels;
+  for (auto &OldF : OldKernels) {
+    auto *NewF =
+        cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
+    NewF->takeName(OldF);
+    OldF->eraseFromParent();
+    NewKernels.push_back(NewF);
+    ModuleChanged = true;
+  }
+
+  StructType *NativeCPUArgDescType =
+      StructType::create({PointerType::getUnqual(M.getContext())});
+  for (auto &NewK : NewKernels) {
+    emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType,
+                           CurrentStatePointerTLS);
+  }
+
+  // Then we iterate over all used builtins and
+  // replace them with calls to our Native CPU functions.
+  for (const auto &Entry : UsedBuiltins) {
+    SmallVector<Instruction *> ToRemove;
+    Function *const Glob = Entry.first;
+    for (const auto &Use : Glob->uses()) {
+      auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first, StateType);
+      auto *I = cast<CallInst>(Use.getUser());
       auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()),
                                    Entry.second.second);
-      auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
-                                    {Arg, getStateArg(I->getFunction())},
-                                    "ncpu_call", I);
+      auto *NewI = CallInst::Create(
+          ReplaceFunc->getFunctionType(), ReplaceFunc,
+          {Arg, getStateArg(I->getFunction(), CurrentStatePointerTLS)},
+          "ncpu_call", I);
       if (I->getMetadata("dbg"))
         NewI->setDebugLoc(I->getDebugLoc());
       I->replaceAllUsesWith(NewI);
@@ -319,8 +435,5 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Glob->eraseFromParent();
   }
 
-  for (auto &F : M) {
-    fixCallingConv(&F);
-  }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

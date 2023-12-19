@@ -16,7 +16,6 @@ apt update && apt install -yqq \
       libffi-dev \
       libva-dev \
       libtool \
-      libdw1 \
       wget \
       sudo \
       zstd \

@@ -25,6 +25,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/properties/queue_properties.hpp>
@@ -113,12 +114,70 @@ public:
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+                                 (MHostQueue ? true : MIsInorder)),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    if (has_property<property::queue::enable_profiling>()) {
+      if (has_property<ext::oneapi::property::queue::discard_events>())
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Queue cannot be constructed with both of "
+                              "discard_events and enable_profiling.");
+      // fallback profiling support. See MFallbackProfiling
+      if (MDevice->has(aspect::queue_profiling)) {
+        // When piGetDeviceAndHostTimer is not supported, compute the
+        // profiling time OpenCL version < 2.1 case
+        if (!getDeviceImplPtr()->is_host() &&
+            !getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+          MFallbackProfiling = true;
+      } else {
+        throw sycl::exception(make_error_code(errc::feature_not_supported),
+                              "Cannot enable profiling, the associated device "
+                              "does not have the queue_profiling aspect");
+      }
+    }
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      int NumIndices =
+          createSyclObjFromImpl<device>(Device)
+              .get_info<ext::intel::info::device::max_compute_queue_indices>();
+      if (Idx < 0 || Idx >= NumIndices)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue compute index must be a non-negative number less than "
+            "device's number of available compute queue indices.");
+    }
+    if (has_property<
+            ext::codeplay::experimental::property::queue::enable_fusion>() &&
+        !MDevice->get_info<
+            ext::codeplay::experimental::info::device::supports_fusion>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot enable fusion if device does not support fusion");
+    }
+    if (!Context->isDeviceValid(Device)) {
+      if (!Context->is_host() && Context->getBackend() == backend::opencl)
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is not a member of the context (descendants of "
+            "devices from the context are not supported on OpenCL yet).",
+            PI_ERROR_INVALID_DEVICE);
+      throw sycl::invalid_object_error(
+          "Queue cannot be constructed with the given context and device "
+          "since the device is neither a member of the context nor a "
+          "descendant of its member.",
+          PI_ERROR_INVALID_DEVICE);
+    }
+    if (!MHostQueue) {
+      const QueueOrder QOrder =
+          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
+      MQueues.push_back(createQueue(QOrder));
+      // This section is the second part of the instrumentation that uses the
+      // tracepoint information and notifies
+    }
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
-    /// This section of code is relying on scoped objects, so they cannot be
-    /// encapsulated in a function
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
@@ -142,70 +201,45 @@ public:
                   MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+        xpti::addMetadata(TEvent, "queue_id", MQueueID);
+        if (!MHostQueue)
+          xpti::addMetadata(TEvent, "queue_handle",
+                            reinterpret_cast<size_t>(getHandleRef()));
       });
       PrepareNotify.notify();
     }
 #endif
-    if (has_property<property::queue::enable_profiling>()) {
-      if (has_property<ext::oneapi::property::queue::discard_events>())
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Queue cannot be constructed with both of "
-                              "discard_events and enable_profiling.");
-      // fallback profiling support. See MFallbackProfiling
-      if (MDevice->has(aspect::queue_profiling)) {
-        // When piGetDeviceAndHostTimer is not supported, compute the
-        // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
-          MFallbackProfiling = true;
-      } else {
-        throw sycl::exception(make_error_code(errc::feature_not_supported),
-                              "Cannot enable profiling, the associated device "
-                              "does not have the queue_profiling aspect");
-      }
-    }
-    if (has_property<ext::intel::property::queue::compute_index>()) {
-      int Idx = get_property<ext::intel::property::queue::compute_index>()
-                    .get_index();
-      int NumIndices =
-          createSyclObjFromImpl<device>(Device)
-              .get_info<ext::intel::info::device::max_compute_queue_indices>();
-      if (Idx < 0 || Idx >= NumIndices)
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Queue compute index must be a non-negative number less than "
-            "device's number of available compute queue indices.");
-    }
-    if (!Context->isDeviceValid(Device)) {
-      if (!Context->is_host() && Context->getBackend() == backend::opencl)
-        throw sycl::invalid_object_error(
-            "Queue cannot be constructed with the given context and device "
-            "since the device is not a member of the context (descendants of "
-            "devices from the context are not supported on OpenCL yet).",
-            PI_ERROR_INVALID_DEVICE);
-      throw sycl::invalid_object_error(
-          "Queue cannot be constructed with the given context and device "
-          "since the device is neither a member of the context nor a "
-          "descendant of its member.",
-          PI_ERROR_INVALID_DEVICE);
-    }
-    if (!MHostQueue) {
-      const QueueOrder QOrder =
-          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-      MQueues.push_back(createQueue(QOrder));
-      // This section is the second part of the instrumentation that uses the
-      // tracepoint information and notifies
-    }
   }
+
+  event getLastEvent() const;
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
+
+    MQueues.push_back(pi::cast<sycl::detail::pi::PiQueue>(PiQueue));
+
+    sycl::detail::pi::PiDevice DevicePI{};
+    const PluginPtr &Plugin = getPlugin();
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call<PiApiKind::piQueueGetInfo>(
+        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
+    MDevice = MContext->findMatchingDeviceImpl(DevicePI);
+    if (MDevice == nullptr) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Device provided by native Queue not found in Context.");
+    }
     // The following commented section provides a guideline on how to use the
     // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
     // is the prolog section and the epilog section will initiate the
     // notification.
 #if XPTI_ENABLE_INSTRUMENTATION
-    /// This section of code is relying on scoped objects, so they cannot be
-    /// encapsulated in a function
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
@@ -230,30 +264,13 @@ private:
                   MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+        xpti::addMetadata(TEvent, "queue_id", MQueueID);
+        if (!MHostQueue)
+          xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
       PrepareNotify.notify();
     }
 #endif
-    if (has_property<ext::oneapi::property::queue::discard_events>() &&
-        has_property<property::queue::enable_profiling>()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Queue cannot be constructed with both of "
-                            "discard_events and enable_profiling.");
-    }
-
-    MQueues.push_back(pi::cast<sycl::detail::pi::PiQueue>(PiQueue));
-
-    sycl::detail::pi::PiDevice DevicePI{};
-    const PluginPtr &Plugin = getPlugin();
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
-    MDevice = MContext->findMatchingDeviceImpl(DevicePI);
-    if (MDevice == nullptr) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Device provided by native Queue not found in Context.");
-    }
   }
 
 public:
@@ -272,7 +289,9 @@ public:
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+                                 (MHostQueue ? true : MIsInorder)),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
   }
 
@@ -309,6 +328,7 @@ public:
                             (xpti::trace_event_data_t *)MTraceEvent,
                             MInstanceID,
                             static_cast<const void *>("queue_destroy"));
+      xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
     }
 #endif
     throw_asynchronous();
@@ -694,6 +714,8 @@ public:
     return MGraph.lock();
   }
 
+  unsigned long long getQueueID() { return MQueueID; }
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
@@ -747,9 +769,26 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
+    // Flag used to detect nested calls to submit and report an error.
+    thread_local static bool PreventSubmit = false;
+
+    if (PreventSubmit) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Calls to sycl::queue::submit cannot be nested. Command group "
+          "function objects should use the sycl::handler API instead.");
+    }
+
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
-    CGF(Handler);
+    PreventSubmit = true;
+    try {
+      CGF(Handler);
+    } catch (...) {
+      PreventSubmit = false;
+      throw;
+    }
+    PreventSubmit = false;
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
@@ -871,6 +910,9 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
+
+  unsigned long long MQueueID;
+  static std::atomic<unsigned long long> MNextAvailableQueueID;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };

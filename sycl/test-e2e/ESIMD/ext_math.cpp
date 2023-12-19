@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 27012, win: 101.4576
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
@@ -480,13 +481,6 @@ int main(void) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   esimd_test::printTestLabel(Q);
   auto Dev = Q.get_device();
-#ifndef SKIP_NEW_GPU_DRIVER_VERSION_CHECK
-  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                 "27012", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.27012 or newer.\n";
-    return 0;
-  }
-#endif
 
   bool Pass = true;
 #ifdef TEST_IEEE_DIV_REM
@@ -500,14 +494,11 @@ int main(void) {
   Pass &= testESIMD<half, 8>(Q);
   Pass &= testESIMD<float, 16>(Q);
   Pass &= testESIMD<float, 32>(Q);
-  if (Q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    // ESIMD_EMULATOR supports only ESIMD API
 #ifndef TEST_FAST_MATH
-    // TODO: GPU Driver does not yet support ffast-math versions of tested APIs.
-    Pass &= testSYCL<float, 8>(Q);
-    Pass &= testSYCL<float, 32>(Q);
+  // TODO: GPU Driver does not yet support ffast-math versions of tested APIs.
+  Pass &= testSYCL<float, 8>(Q);
+  Pass &= testSYCL<float, 32>(Q);
 #endif
-  }
   Pass &= testESIMDPow<float, 8>(Q);
   Pass &= testESIMDPow<half, 32>(Q);
 #endif // !TEST_IEEE_DIV_REM

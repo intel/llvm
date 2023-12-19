@@ -1321,10 +1321,10 @@ hmax(const const_where_expression<_MaskType, _SimdType>&);
 
 // algorithms [simd.alg]
 template <class _Tp, class _Abi>
-simd<_Tp, _Abi> min(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
+simd<_Tp, _Abi> (min)(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
 
 template <class _Tp, class _Abi>
-simd<_Tp, _Abi> max(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
+simd<_Tp, _Abi> (max)(const simd<_Tp, _Abi>&, const simd<_Tp, _Abi>&) noexcept;
 
 template <class _Tp, class _Abi>
 std::pair<simd<_Tp, _Abi>, simd<_Tp, _Abi>>

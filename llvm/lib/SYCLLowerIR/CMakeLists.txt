@@ -13,10 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Jinsong Ji <jinsong.ji@intel.com>
-    # Date:   Thu Aug 10 14:41:52 2023 +0000
-    #    Guard removed typed pointer enum within version macro
-    set(LLVMGenXIntrinsics_GIT_TAG 17a53f4304463b8e7e639d57ef17479040a8a2ad)
+    # Author: Gregory Fine <gregory.fine@intel.com>
+    # Date:   Wed Nov 29 14:55:24 2023 PST
+
+    # Fixed build failure related to upstream changes
+    set(LLVMGenXIntrinsics_GIT_TAG b16218b8a00c5c1d4db32085dfab4d5eb9a03ad7)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -53,6 +54,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDRemoveHostCode.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
@@ -64,6 +66,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
+  SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
 
   LocalAccessorToSharedMemory.cpp

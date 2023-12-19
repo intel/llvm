@@ -330,13 +330,11 @@ public:
   ///   argument.
   /// @param acc The accessor to read from.
   /// @param offset offset in bytes of the first element.
-  template <typename AccessorT, typename Flags = element_aligned_tag,
-            typename = std::enable_if_t<
-                (sycl::detail::acc_properties::is_local_accessor_v<AccessorT> ||
-                 detail::is_sycl_accessor_with<
-                     AccessorT, accessor_mode_cap::can_read,
-                     sycl::access::target::device>::value) &&
-                is_simd_flag_type_v<Flags>>>
+  template <
+      typename AccessorT, typename Flags = element_aligned_tag,
+      typename = std::enable_if_t<
+          detail::is_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+          is_simd_flag_type_v<Flags>>>
   simd_obj_impl(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                 uint64_t offset,
@@ -652,6 +650,13 @@ protected:
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
       uint16_t Offset = Region.M_offset_x * sizeof(ElemTy);
+      static_assert(M > 0, "Malformed RHS region.");
+      static_assert(M <= BN, "Attempt to write beyond viewed area: The viewed "
+                             "object in LHS does not fit RHS.");
+      // (M > BN) condition is added below to not duplicate the above assert
+      // for big values of M. The assert below is for 'Stride'.
+      static_assert((M > BN) || (M - 1) * Stride < BN,
+                    "Malformed RHS region - too big stride.");
 
       // Merge and update.
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
@@ -687,6 +692,11 @@ protected:
         constexpr int Stride = TR::Stride_x;
         uint16_t Offset = Region.first.M_offset_x * sizeof(ElemTy);
 
+        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
+                                "viewed object in LHS does not fit RHS.");
+        static_assert(M > 0, "Malformed RHS region.");
+        static_assert((M - 1) * Stride < BN,
+                      "Malformed RHS region - too big stride.");
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
@@ -704,6 +714,12 @@ protected:
             (Region.first.M_offset_y * PaTy::Size_x + Region.first.M_offset_x) *
             sizeof(ElemTy));
 
+        static_assert(M <= BN1, "Attempt to write beyond viewed area: The "
+                                "viewed object in LHS does not fit RHS.");
+        static_assert(M > 0 && W > 0 && M % W == 0, "Malformed RHS region.");
+        static_assert(W == 0 || ((M / W) - 1) * VS + (W - 1) * HS < BN1,
+                      "Malformed RHS region - too big vertical and/or "
+                      "horizontal stride.");
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(
             Base1, Val, Offset);
@@ -744,8 +760,7 @@ public:
   template <typename AccessorT, typename Flags = element_aligned_tag,
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                                sycl::access::target::device, void>
+  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void>
   copy_from(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
             uint64_t offset,
@@ -753,6 +768,25 @@ public:
             uint32_t offset,
 #endif
             Flags = {}) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd_obj_impl
+  /// object. The amount of memory copied equals the total size of vector
+  /// elements in this object. Source memory location is represented via a
+  /// local accessor and offset.
+  /// None of the template parameters except documented ones can/should be
+  /// specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam Flags Alignment control for the copy operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from (in bytes).
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            int ChunkSize = 32,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
+      void>
+  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// None of the template parameters should be be specified by callers.
@@ -776,8 +810,7 @@ public:
   template <typename AccessorT, typename Flags = element_aligned_tag,
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                                sycl::access::target::device, void>
+  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void>
   copy_to(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
           uint64_t offset,
@@ -785,6 +818,23 @@ public:
           uint32_t offset,
 #endif
           Flags = {}) const SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a local accessor and
+  /// offset.
+  /// None of the template parameters should be be specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam Flags Alignment control for the copy operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            int ChunkSize = 32,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_write>,
+      void>
+  copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   // Unary operations.
 
@@ -915,6 +965,13 @@ public:
 private:
   // The underlying data for this vector.
   raw_vector_type M_data;
+
+  template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+  ESIMD_INLINE void copy_to_impl(AccessorT acc,
+                                 TOffset offset) const SYCL_ESIMD_FUNCTION;
+  template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+  ESIMD_INLINE void copy_from_impl(AccessorT acc,
+                                   TOffset offset) SYCL_ESIMD_FUNCTION;
 
 protected:
   // The test proxy if enabled

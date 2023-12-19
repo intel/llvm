@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
@@ -76,12 +77,14 @@ const char *to_string(DWORDAtomicOp op) {
     return "smin";
   case DWORDAtomicOp::smax:
     return "smax";
-#ifndef USE_DWORD_ATOMICS
   case DWORDAtomicOp::fmax:
     return "fmax";
   case DWORDAtomicOp::fmin:
     return "fmin";
-#endif // !USE_DWORD_ATOMICS
+  case DWORDAtomicOp::fadd:
+    return "fadd";
+  case DWORDAtomicOp::fsub:
+    return "fsub";
   case DWORDAtomicOp::fcmpxchg:
     return "fcmpxchg";
   case DWORDAtomicOp::load:
@@ -124,6 +127,10 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::fmax";
   case LSCAtomicOp::fmin:
     return "lsc::fmin";
+  case LSCAtomicOp::fadd:
+    return "lsc::fadd";
+  case LSCAtomicOp::fsub:
+    return "lsc::fsub";
   case LSCAtomicOp::fcmpxchg:
     return "lsc::fcmpxchg";
   case LSCAtomicOp::load:
@@ -623,11 +630,6 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  if (!isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
-                     "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
-    return 0;
-  }
 
   bool passed = true;
 #ifndef CMPXCHG_TEST

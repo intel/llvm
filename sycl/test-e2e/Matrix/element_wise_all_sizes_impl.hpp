@@ -49,30 +49,26 @@ void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
 
-     cgh.parallel_for(r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(
-                             SG_SZ)]] {
-       const auto global_idx = spmd_item.get_global_id(0);
-       const auto global_idy = spmd_item.get_global_id(1);
-       const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-       const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+     cgh.parallel_for(
+         r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-       sub_group sg = spmd_item.get_sub_group();
-       joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-       joint_matrix_fill(sg, sub_a, val1);
+           joint_matrix_fill(sg, sub_a, val1);
 
-       auto wi_slice_a =
-           sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-       for (int i = 0; i < wi_slice_a.length(); i++) {
-         wi_slice_a[i] = wi_slice_a[i] + val2;
-       }
+           joint_matrix_apply(sg, sub_a, [=](T &x) { x += val2; });
 
-       ext::intel::experimental::matrix::joint_matrix_store(
-           sg, sub_a,
-           accA.template get_multi_ptr<access::decorated::no>() +
-               (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
-           K);
-     }); // parallel for
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
+         }); // parallel for
    }).wait();
   assert_ops_ref<T, M, K>(bufA.get_host_access(), result);
 }

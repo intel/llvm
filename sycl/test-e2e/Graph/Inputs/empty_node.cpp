@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   auto MyProperties = property_list{exp_ext::property::graph::no_cycle_check()};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
                                MyProperties};
@@ -50,8 +54,9 @@ int main() {
   std::vector<int> HostData(N);
   Queue.memcpy(HostData.data(), Arr, N * sizeof(int)).wait();
 
-  for (int i = 0; i < N; i++)
-    assert(HostData[i] == 1);
+  const int Expected = 1;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, HostData[i], "HostData"));
 
   sycl::free(Arr, Queue);
 

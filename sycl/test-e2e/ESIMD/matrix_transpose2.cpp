@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO: investigate sporadic esimd_emulator failures
-// UNSUPPORTED: gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: gpu-intel-pvc
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -22,8 +21,6 @@
 using namespace sycl;
 using namespace std;
 using namespace sycl::ext::intel::esimd;
-
-const unsigned int ESIMD_EMULATOR_SIZE_LIMIT = 1U << 10;
 
 void initMatrix(int *M, unsigned N) {
   assert(N >= 8 && (((N - 1) & N) == 0) &&
@@ -277,16 +274,6 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
   initMatrix(M, MZ);
   cerr << "\nTranspose square matrix of size " << MZ << "\n";
   // printMatrix("Initial matrix:", M, MZ);
-
-  if ((q.get_backend() == sycl::backend::ext_intel_esimd_emulator) &&
-      (MZ > ESIMD_EMULATOR_SIZE_LIMIT)) {
-    cerr << "Matrix Size larger than " << ESIMD_EMULATOR_SIZE_LIMIT
-         << " is skipped"
-         << "\n";
-    cerr << "for esimd_emulator backend due to timeout"
-         << "\n";
-    return true;
-  }
 
   // Each C-for-Metal thread works on one or two blocks of size 8 x 8.
   int thread_width = MZ / block_size;

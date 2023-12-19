@@ -71,7 +71,7 @@ bool trace(TraceLevel level);
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
-#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
 #define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
 #else

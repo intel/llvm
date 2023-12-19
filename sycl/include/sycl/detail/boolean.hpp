@@ -73,7 +73,7 @@ template <int N> struct Boolean {
   }
 
   template <typename T> Boolean(const T rhs) {
-    static_assert(is_vgeninteger<T>::value, "Invalid constructor");
+    static_assert(is_vgeninteger_v<T>, "Invalid constructor");
     Assigner<N - 1>::template init<Boolean<N>, T, typename T::element_type>(
         *this, rhs);
   }
@@ -91,7 +91,7 @@ template <int N> struct Boolean {
 #endif
 
   template <typename T> operator T() const {
-    static_assert(is_vgeninteger<T>::value, "Invalid conversion");
+    static_assert(is_vgeninteger_v<T>, "Invalid conversion");
     T r;
     Assigner<N - 1>::assign(r, *this);
     return r;
@@ -100,32 +100,6 @@ template <int N> struct Boolean {
 private:
   template <int Num> friend struct Assigner;
   alignas(detail::vector_alignment<element_type, N>::value) DataType value;
-};
-
-template <> struct Boolean<1> {
-  Boolean() = default;
-
-  // Build from a signed interger type
-  template <typename T> Boolean(T val) : value(val) {
-    static_assert(is_sgeninteger<T>::value, "Invalid constructor");
-  }
-
-  // Cast to a signed interger type
-  template <typename T> operator T() const {
-    static_assert(std::is_same<T, bool>::value || is_sgeninteger<T>::value,
-                  "Invalid conversion");
-    return value;
-  }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  // Build from a boolean type
-  Boolean(bool f) : value(f) {}
-  // Cast to a boolean type
-  operator bool() const { return value; }
-#endif
-
-private:
-  alignas(1) bool value = false;
 };
 
 } // namespace detail

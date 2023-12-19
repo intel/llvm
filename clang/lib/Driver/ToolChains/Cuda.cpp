@@ -78,6 +78,10 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_120;
   if (raw_version < 12020)
     return CudaVersion::CUDA_121;
+  if (raw_version < 12030)
+    return CudaVersion::CUDA_122;
+  if (raw_version < 12040)
+    return CudaVersion::CUDA_123;
   return CudaVersion::NEW;
 }
 
@@ -241,7 +245,7 @@ CudaInstallationDetector::CudaInstallationDetector(
         // Process all bitcode filenames that look like
         // libdevice.compute_XX.YY.bc
         const StringRef LibDeviceName = "libdevice.";
-        if (!(FileName.startswith(LibDeviceName) && FileName.endswith(".bc")))
+        if (!(FileName.starts_with(LibDeviceName) && FileName.ends_with(".bc")))
           continue;
         StringRef GpuArch = FileName.slice(
             LibDeviceName.size(), FileName.find('.', LibDeviceName.size()));
@@ -476,11 +480,15 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     Relocatable = Args.hasFlag(options::OPT_fopenmp_relocatable_target,
                                options::OPT_fnoopenmp_relocatable_target,
                                /*Default=*/true);
-  else if (JA.isOffloading(Action::OFK_Cuda) ||
-           JA.isOffloading(Action::OFK_SYCL))
+  else if (JA.isOffloading(Action::OFK_Cuda))
     // In CUDA we generate relocatable code by default.
     Relocatable = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                                /*Default=*/false);
+  else if (JA.isOffloading(Action::OFK_SYCL))
+    // In SYCL we control [no-]rdc linking at bitcode stage with 'llvm-link'.
+    // This allows for link-time optimisations and for now we do no support a
+    // non-LTO path, which means we cannot generate relocatable device code.
+    Relocatable = false;
   else
     // Otherwise, we are compiling directly and should create linkable output.
     Relocatable = true;
@@ -755,6 +763,8 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(123, 83);
+    CASE_CUDA_VERSION(122, 82);
     CASE_CUDA_VERSION(121, 81);
     CASE_CUDA_VERSION(120, 80);
     CASE_CUDA_VERSION(118, 78);

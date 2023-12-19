@@ -1,6 +1,9 @@
-// REQUIRES: cpu
+// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
 
@@ -51,6 +54,7 @@ int main() {
       float r2 = Buf[0].y();
       float i1 = Buf[1].x();
       float i2 = Buf[1].y();
+      s::free(Buf, myQueue.get_context());
 
       assert(r1 == 0.5f);
       assert(r2 == 0.5f);

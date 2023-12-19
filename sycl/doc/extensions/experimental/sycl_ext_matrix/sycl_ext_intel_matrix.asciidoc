@@ -198,6 +198,11 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
    sum_local_rows[row] += val;
 });
 ```
+
+In the case of `ext_intel_packed` matrix memory layout, `row` and
+`col` represent the coordinates in the logical matrix before VNNI
+transformation.
+
 === New Device Information Descriptor
 Besides the query we provide in
 link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],

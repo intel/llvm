@@ -1,3 +1,4 @@
+//
 //==----------- annotated_ptr.hpp - SYCL annotated_ptr extension -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,7 +10,9 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/intel/experimental/cache_control_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -29,9 +32,6 @@ namespace oneapi {
 namespace experimental {
 
 namespace {
-#define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
-
 template <typename mp_list_props, template <class...> typename filter>
 struct PropertiesFilter {
   using tuple = sycl::detail::boost::mp11::mp_copy_if<mp_list_props, filter>;
@@ -51,24 +51,42 @@ template <typename... Props> struct containsInvalidPropWithPointerArith {
 };
 
 } // namespace
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
-  static_assert(is_property_list<PropertyListT>::value,
-                "Property list is invalid.");
+  static constexpr bool is_valid_property_list =
+      is_property_list<PropertyListT>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
 };
+
+namespace detail {
+template <class T> struct is_ann_ref_impl : std::false_type {};
+template <class T, class P>
+struct is_ann_ref_impl<annotated_ref<T, P>> : std::true_type {};
+template <class T, class P>
+struct is_ann_ref_impl<const annotated_ref<T, P>> : std::true_type {};
+template <class T>
+constexpr bool is_ann_ref_v =
+    is_ann_ref_impl<std::remove_reference_t<T>>::value;
+} // namespace detail
 
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
+  static_assert(
+      std::is_trivially_copyable_v<T>,
+      "annotated_ref can only encapsulate a trivially-copyable type!");
+
 private:
   T *m_Ptr;
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
+  explicit annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
   annotated_ref(const annotated_ref &) = delete;
 
+  // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return *__builtin_intel_sycl_ptr_annotation(
@@ -79,50 +97,132 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  // assignment operator with annotaion
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
+  T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    *__builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = Obj;
+    return *__builtin_intel_sycl_ptr_annotation(
+               m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+               detail::PropertyMetaInfo<Props>::value...) =
+               std::forward<O>(Obj);
 #else
-    *m_Ptr = Obj;
+    return *m_Ptr = std::forward<O>(Obj);
 #endif
-    return Obj;
   }
 
-  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
+  template <class O, class P>
+  T operator=(const annotated_ref<O, P> &Ref) const {
+    O t2 = Ref.operator O();
+    return *this = t2;
+  }
 
+  // propagate compound operators
+#define PROPAGATE_OP(op)                                                       \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  T operator op(O &&rhs) const {                                               \
+    T t = this->operator T();                                                  \
+    t op std::forward<O>(rhs);                                                 \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }                                                                            \
+  template <class O, class P>                                                  \
+  T operator op(const annotated_ref<O, P> &rhs) const {                        \
+    T t = this->operator T();                                                  \
+    O t2 = rhs.operator T();                                                   \
+    t op t2;                                                                   \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }
+  PROPAGATE_OP(+=)
+  PROPAGATE_OP(-=)
+  PROPAGATE_OP(*=)
+  PROPAGATE_OP(/=)
+  PROPAGATE_OP(%=)
+  PROPAGATE_OP(^=)
+  PROPAGATE_OP(&=)
+  PROPAGATE_OP(|=)
+  PROPAGATE_OP(<<=)
+  PROPAGATE_OP(>>=)
+#undef PROPAGATE_OP
+
+  // propagate binary operators
+#define PROPAGATE_OP(op)                                                       \
+  template <class O>                                                           \
+  friend auto operator op(O &&a, const annotated_ref &b)                       \
+      ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
+    return std::forward<O>(a) op b.operator T();                               \
+  }                                                                            \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>    \
+  friend auto operator op(const annotated_ref &a, O &&b)                       \
+      ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
+    return a.operator T() op std::forward<O>(b);                               \
+  }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
   PROPAGATE_OP(*)
   PROPAGATE_OP(/)
   PROPAGATE_OP(%)
-  PROPAGATE_OP(^)
-  PROPAGATE_OP(&)
   PROPAGATE_OP(|)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(^)
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
+  PROPAGATE_OP(<)
+  PROPAGATE_OP(<=)
+  PROPAGATE_OP(>)
+  PROPAGATE_OP(>=)
+  PROPAGATE_OP(==)
+  PROPAGATE_OP(!=)
+  PROPAGATE_OP(&&)
+  PROPAGATE_OP(||)
+#undef PROPAGATE_OP
 
-  T operator++() { return *this += 1; }
+// Propagate unary operators
+// by setting a default template we get SFINAE to kick in
+#define PROPAGATE_OP(op)                                                       \
+  template <typename O = T>                                                    \
+  auto operator op() const->decltype(op std::declval<O>()) {                   \
+    return op this->operator O();                                              \
+  }
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(!)
+  PROPAGATE_OP(~)
+#undef PROPAGATE_OP
 
-  T operator++(int) {
-    const T t = *this;
-    *this = (t + 1);
+  // Propagate inc/dec operators
+  T operator++() const {
+    T t = this->operator T();
+    ++t;
+    *this = t;
     return t;
   }
 
-  T operator--() { return *this -= 1; }
+  T operator++(int) const {
+    T t1 = this->operator T();
+    T t2 = t1;
+    t2++;
+    *this = t2;
+    return t1;
+  }
 
-  T operator--(int) {
-    const T t = *this;
-    *this = (t - 1);
+  T operator--() const {
+    T t = this->operator T();
+    --t;
+    *this = t;
     return t;
+  }
+
+  T operator--(int) const {
+    T t1 = this->operator T();
+    T t2 = t1;
+    t2--;
+    *this = t2;
+    return t1;
   }
 
   template <class T2, class P2> friend class annotated_ptr;
 };
-
-#undef PROPAGATE_OP
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
@@ -135,16 +235,23 @@ annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   // This should always fail when instantiating the unspecialized version.
-  static_assert(is_property_list<PropertyListT>::value,
-                "Property list is invalid.");
+  static constexpr bool is_valid_property_list =
+      is_property_list<PropertyListT>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
 };
 
 template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
+
+  static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
+                "annotated_ptr can only encapsulate either "
+                "a trivially-copyable type "
+                "or void!");
+
   using property_list_t = detail::properties_t<Props...>;
 
   using mp_list_props = sycl::detail::boost::mp11::mp_list<Props...>;
@@ -182,13 +289,19 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using reference_with_offset = sycl::ext::oneapi::experimental::annotated_ref<
       T, typename unpack<ref_pointer_arith_properties>::type>;
 
-#ifdef __SYCL_DEVICE_ONLY__
-  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
+#ifdef __ENABLE_USM_ADDR_SPACE__
+  using global_pointer_t = std::conditional_t<
+      detail::IsUsmKindDevice<property_list_t>::value,
+      typename sycl::ext::intel::decorated_device_ptr<T>::pointer,
+      std::conditional_t<
+          detail::IsUsmKindHost<property_list_t>::value,
+          typename sycl::ext::intel::decorated_host_ptr<T>::pointer,
+          typename decorated_global_ptr<T>::pointer>>;
 #else
-  using global_pointer_t = T *;
-#endif
+  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
+#endif // __ENABLE_USM_ADDR_SPACE__
 
-  global_pointer_t m_Ptr;
+  T *m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 
@@ -201,22 +314,13 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
-  static_assert(check_property_list<T *, Props...>::value,
-                "The property list contains invalid property.");
-  // check the set if FPGA specificed properties are used
-  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
-                "can only be set with BufferLocation together.");
-
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {}
+      : m_Ptr(Ptr) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -224,12 +328,14 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {
+      : m_Ptr(Ptr) {
+
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value,
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -241,18 +347,20 @@ public:
   template <typename T2, typename PropertyList2>
   explicit annotated_ptr(const annotated_ptr<T2, PropertyList2> &other) noexcept
       : m_Ptr(other.m_Ptr) {
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2 *, T *>::value;
     static_assert(
-        std::is_convertible<T2 *, T *>::value,
+        is_input_convertible,
         "The underlying pointer type of the input annotated_ptr is not "
         "convertible to the target pointer type");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
+        has_same_properties,
         "The constructed annotated_ptr type must contain all the properties "
-        "of "
-        "the input annotated_ptr");
+        "of the input annotated_ptr");
   }
 
   // Constructs an annotated_ptr object from another annotated_ptr object and
@@ -263,17 +371,20 @@ public:
   explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &other,
                          const PropertyListV &) noexcept
       : m_Ptr(other.m_Ptr) {
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2 *, T *>::value;
     static_assert(
-        std::is_convertible<T2 *, T *>::value,
+        is_input_convertible,
         "The underlying pointer type of the input annotated_ptr is not "
         "convertible to the target pointer type");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
     static_assert(
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value,
+        has_same_properties,
         "The property list of constructed annotated_ptr type must be the "
-        "union "
-        "of the input property lists");
+        "union of the input property lists");
   }
 
   reference operator*() const noexcept { return reference(m_Ptr); }
@@ -351,6 +462,34 @@ public:
   template <typename PropertyT> static constexpr auto get_property() {
     return property_list_t::template get_property<PropertyT>();
   }
+
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T *, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
+                "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 };
 
 } // namespace experimental

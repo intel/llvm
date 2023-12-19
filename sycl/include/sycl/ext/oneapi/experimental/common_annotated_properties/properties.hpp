@@ -50,7 +50,9 @@ template <typename T, typename Prop, typename... Props>
 struct check_property_list<T, Prop, Props...>
     : std::conditional_t<is_valid_property<T, Prop>::value,
                          check_property_list<T, Props...>, std::false_type> {
-  static_assert(is_valid_property<T, Prop>::value,
+  static constexpr bool is_valid_property_for_given_type =
+      is_valid_property<T, Prop>::value;
+  static_assert(is_valid_property_for_given_type,
                 "Property is invalid for the given type.");
 };
 

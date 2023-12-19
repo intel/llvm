@@ -376,6 +376,22 @@ static void checkOptions() {
   if (config->emachine == EM_MIPS && config->gnuHash)
     error("the .gnu.hash section is not compatible with the MIPS target");
 
+  if (config->emachine == EM_ARM) {
+    if (!config->cmseImplib) {
+      if (!config->cmseInputLib.empty())
+        error("--in-implib may not be used without --cmse-implib");
+      if (!config->cmseOutputLib.empty())
+        error("--out-implib may not be used without --cmse-implib");
+    }
+  } else {
+    if (config->cmseImplib)
+      error("--cmse-implib is only supported on ARM targets");
+    if (!config->cmseInputLib.empty())
+      error("--in-implib is only supported on ARM targets");
+    if (!config->cmseOutputLib.empty())
+      error("--out-implib is only supported on ARM targets");
+  }
+
   if (config->fixCortexA53Errata843419 && config->emachine != EM_AARCH64)
     error("--fix-cortex-a53-843419 is only supported on AArch64 targets");
 
@@ -1079,7 +1095,7 @@ static void ltoValidateAllVtablesHaveTypeInfos(opt::InputArgList &args) {
 }
 
 static CGProfileSortKind getCGProfileSortKind(opt::InputArgList &args) {
-  StringRef s = args.getLastArgValue(OPT_call_graph_profile_sort, "hfsort");
+  StringRef s = args.getLastArgValue(OPT_call_graph_profile_sort, "cdsort");
   if (s == "hfsort")
     return CGProfileSortKind::Hfsort;
   if (s == "cdsort")
@@ -1261,6 +1277,9 @@ static void readConfigs(opt::InputArgList &args) {
   config->fini = args.getLastArgValue(OPT_fini, "_fini");
   config->fixCortexA53Errata843419 = args.hasArg(OPT_fix_cortex_a53_843419) &&
                                      !args.hasArg(OPT_relocatable);
+  config->cmseImplib = args.hasArg(OPT_cmse_implib);
+  config->cmseInputLib = args.getLastArgValue(OPT_in_implib);
+  config->cmseOutputLib = args.getLastArgValue(OPT_out_implib);
   config->fixCortexA8 =
       args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
   config->fortranCommon =
@@ -1852,6 +1871,12 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
         files.back()->justSymbols = true;
       }
       break;
+    case OPT_in_implib:
+      if (armCmseImpLib)
+        error("multiple CMSE import libraries not supported");
+      else if (std::optional<MemoryBufferRef> mb = readFile(arg->getValue()))
+        armCmseImpLib = createObjFile(*mb);
+      break;
     case OPT_start_group:
       if (InputFile::isInGroup)
         error("nested --start-group");
@@ -2223,24 +2248,6 @@ static void replaceCommonSymbols() {
   }
 }
 
-// If all references to a DSO happen to be weak, the DSO is not added to
-// DT_NEEDED. If that happens, replace ShardSymbol with Undefined to avoid
-// dangling references to an unneeded DSO. Use a weak binding to avoid
-// --no-allow-shlib-undefined diagnostics. Similarly, demote lazy symbols.
-static void demoteSharedAndLazySymbols() {
-  llvm::TimeTraceScope timeScope("Demote shared and lazy symbols");
-  for (Symbol *sym : symtab.getSymbols()) {
-    auto *s = dyn_cast<SharedSymbol>(sym);
-    if (!(s && !cast<SharedFile>(s->file)->isNeeded) && !sym->isLazy())
-      continue;
-
-    uint8_t binding = sym->isLazy() ? sym->binding : uint8_t(STB_WEAK);
-    Undefined(nullptr, sym->getName(), binding, sym->stOther, sym->type)
-        .overwrite(*sym);
-    sym->versionId = VER_NDX_GLOBAL;
-  }
-}
-
 // The section referred to by `s` is considered address-significant. Set the
 // keepUnique flag on the section if appropriate.
 static void markAddrsig(Symbol *s) {
@@ -2289,7 +2296,7 @@ static void findKeepUniqueSections(opt::InputArgList &args) {
       const uint8_t *cur = contents.begin();
       while (cur != contents.end()) {
         unsigned size;
-        const char *err;
+        const char *err = nullptr;
         uint64_t symIndex = decodeULEB128(cur, &size, contents.end(), &err);
         if (err)
           fatal(toString(f) + ": could not decode addrsig section: " + err);
@@ -2731,6 +2738,8 @@ void LinkerDriver::link(opt::InputArgList &args) {
       llvm::TimeTraceScope timeScope("Parse input files", files[i]->getName());
       parseFile(files[i]);
     }
+    if (armCmseImpLib)
+      parseArmCMSEImportLib(*armCmseImpLib);
   }
 
   // Now that we have every file, we can decide if we will need a
@@ -2899,6 +2908,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
   if (args.hasArg(OPT_exclude_libs))
     excludeLibs(args);
 
+  // Record [__acle_se_<sym>, <sym>] pairs for later processing.
+  processArmCmseSymbols();
+
   // Apply symbol renames for --wrap and combine foo@v1 and foo@@v1.
   redirectSymbols(wrapped);
 
@@ -2993,14 +3005,12 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // Garbage collection and removal of shared symbols from unused shared objects.
   invokeELFT(markLive,);
-  demoteSharedAndLazySymbols();
 
   // Make copies of any input sections that need to be copied into each
   // partition.
   copySectionsIntoPartitions();
 
-  if (config->emachine == EM_AARCH64 &&
-      config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+  if (canHaveMemtagGlobals()) {
     llvm::TimeTraceScope timeScope("Process memory tagged symbols");
     createTaggedSymbols(ctx.objectFiles);
   }

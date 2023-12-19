@@ -1,6 +1,8 @@
 // Test not intended to run on PVC
 // UNSUPPORTED: gpu-intel-pvc
 //
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+//
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -25,11 +27,6 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!isGPUDriverGE(q, GPUDriverOS::LinuxAndWindows, "26690", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
-    return 0;
-  }
 
   bool passed = true;
 

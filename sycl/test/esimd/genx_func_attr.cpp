@@ -24,7 +24,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL ESIMD_NOINLINE void callee(int x) {
 // inherits SLMSize and NBarrierCount from callee
 void caller_abc(int x) {
   kernel<class kernel_abc>([=]() SYCL_ESIMD_KERNEL { callee(x); });
-  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_abciE10kernel_abc() local_unnamed_addr #2
+  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_abciE10kernel_abc() local_unnamed_addr #[[ATTR:[0-9]+]]
 }
 
 // inherits only NBarrierCount from callee
@@ -33,7 +33,7 @@ void caller_xyz(int x) {
     slm_init(1235); // also works in non-O0
     callee(x);
   });
-  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz() local_unnamed_addr #2
+  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz() local_unnamed_addr #[[ATTR]]
 }
 
-// CHECK: attributes #2 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="2469"
+// CHECK: attributes #[[ATTR]] = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="2469"

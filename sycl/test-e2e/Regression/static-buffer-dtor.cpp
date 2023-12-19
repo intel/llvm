@@ -31,5 +31,6 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
     cgh.copy(h_A, bufs[1].get_access<sycl::access::mode::write>(cgh));
   });
+  free(h_A);
   return 0;
 }

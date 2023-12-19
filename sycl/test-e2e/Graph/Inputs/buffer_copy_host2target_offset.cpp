@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   std::vector<T> DataA(Size + Offset), DataB(Size);
@@ -42,7 +46,7 @@ int main() {
   host_accessor HostAccA(BufferA);
 
   for (size_t i = 0; i < Size + Offset; i++) {
-    assert(ReferenceA[i] == HostAccA[i]);
+    assert(check_value(i, ReferenceA[i], HostAccA[i], "HostAccA"));
   }
 
   return 0;

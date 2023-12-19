@@ -94,12 +94,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-
+                           
     # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
     # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
     # Seems to be no way to suppress it except use -Wno-psabi
     target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-    
+
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -191,6 +191,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/jit_compiler.cpp"
     "detail/jit_device_binaries.cpp"
+    "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
@@ -203,6 +204,7 @@ set(SYCL_SOURCES
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
+    "detail/preview_marker.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
@@ -255,11 +257,20 @@ if (MSVC)
   set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    endif()
   else()
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    endif()
   endif()
   unset(WIN_DUPE)
   add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_library(sycl-previewd ALIAS sycl${SYCL_MAJOR_VERSION}-previewd)
+  endif()
 
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
@@ -278,12 +289,21 @@ endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+  endif()
 else()
   add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+  endif()
 endif()
 
 if (WIN32)
   add_library(sycl ALIAS ${LIB_NAME})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_library(sycl-preview ALIAS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

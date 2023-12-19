@@ -71,3 +71,34 @@ public:
 
   ~TestQueue() { wait_and_throw(); }
 };
+
+namespace emu {
+
+// std::exclusive_scan/inclusive_scan are not supported GCC 7.4,
+// so use our own implementations
+template <typename InputIterator, typename OutputIterator,
+          class BinaryOperation, typename T>
+OutputIterator exclusive_scan(InputIterator first, InputIterator last,
+                              OutputIterator result, T init,
+                              BinaryOperation binary_op) {
+  T partial = init;
+  for (InputIterator it = first; it != last; ++it) {
+    *(result++) = partial;
+    partial = binary_op(partial, *it);
+  }
+  return result;
+}
+
+template <typename InputIterator, typename OutputIterator,
+          class BinaryOperation, typename T>
+OutputIterator inclusive_scan(InputIterator first, InputIterator last,
+                              OutputIterator result, BinaryOperation binary_op,
+                              T init) {
+  T partial = init;
+  for (InputIterator it = first; it != last; ++it) {
+    partial = binary_op(partial, *it);
+    *(result++) = partial;
+  }
+  return result;
+}
+} // namespace emu

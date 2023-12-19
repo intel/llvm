@@ -37,7 +37,8 @@ namespace detail {
 
 template <typename T>
 using IsValidCoordType = typename is_contained<
-    T, type_list<opencl::cl_int, opencl::cl_float, std::int32_t, float>>::type;
+    T, boost::mp11::mp_unique<type_list<opencl::cl_int, opencl::cl_float,
+                                        std::int32_t, float>>>::type;
 
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]

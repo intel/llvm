@@ -10,10 +10,19 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+
 // Include the generated builtins.
 #include <sycl/builtins_marray_gen.hpp>
 #include <sycl/builtins_scalar_gen.hpp>
 #include <sycl/builtins_vector_gen.hpp>
+
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#include <sycl/builtins_legacy_marray_vec.hpp>
+#include <sycl/builtins_legacy_scalar.hpp>
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
@@ -91,6 +100,26 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log2f(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log10f(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_powf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_fdividef(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fdiv_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fdiv_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rd(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rn(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_ru(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rz(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);
@@ -304,6 +333,26 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_inv(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fmax(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fmin(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL double __imf_copysign(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_ddiv_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_ddiv_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rd(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rn(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_ru(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rz(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_ru(double x);

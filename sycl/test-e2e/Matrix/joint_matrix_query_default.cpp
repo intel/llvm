@@ -9,7 +9,7 @@
 // REQUIRES: cpu
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
@@ -79,9 +79,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            sycl::sub_group sg = spmd_item.get_sub_group();
 
            myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
-           myparams2::joint_matrix_b<
-               sub_group, ext::intel::experimental::matrix::layout::packed>
-               sub_b;
+           myparams2::joint_matrix_b<sub_group, layout::ext_intel_packed> sub_b;
            myparams2::joint_matrix_c<sub_group> sub_c;
 
            joint_matrix_load(
@@ -101,7 +99,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

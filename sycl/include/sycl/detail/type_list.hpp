@@ -12,53 +12,29 @@
 
 #include <type_traits> // for bool_constant, conditional_t, fals...
 
+#include <sycl/detail/boost/mp11/algorithm.hpp>
+#include <sycl/detail/boost/mp11/set.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-template <typename T> using head_t = typename T::head;
-
-template <typename T> using tail_t = typename T::tail;
-
-// type_list
-template <typename... T> struct type_list;
+template <class... T> using type_list = boost::mp11::mp_list<T...>;
 
 using empty_type_list = type_list<>;
 
 template <typename T>
-struct is_empty_type_list
-    : std::conditional_t<std::is_same_v<T, empty_type_list>, std::true_type,
-                         std::false_type> {};
-
-template <> struct type_list<> {};
-
-template <typename Head, typename... Tail> struct type_list<Head, Tail...> {
-  using head = Head;
-  using tail = type_list<Tail...>;
-};
-
-template <typename Head, typename... Tail, typename... Tail2>
-struct type_list<type_list<Head, Tail...>, Tail2...> {
-private:
-  using remainder = tail_t<type_list<Head>>;
-  static constexpr bool has_remainder = !is_empty_type_list<remainder>::value;
-  using without_remainder = type_list<Tail..., Tail2...>;
-  using with_remainder = type_list<remainder, Tail..., Tail2...>;
-
-public:
-  using head = head_t<type_list<Head>>;
-  using tail =
-      std::conditional_t<has_remainder, with_remainder, without_remainder>;
-};
+using is_empty_type_list = std::is_same<T, empty_type_list>;
 
 // is_contained
 template <typename T, typename TypeList>
-struct is_contained
-    : std::conditional_t<std::is_same_v<std::remove_cv_t<T>, head_t<TypeList>>,
-                         std::true_type, is_contained<T, tail_t<TypeList>>> {};
+using is_contained =
+    boost::mp11::mp_set_contains<TypeList, std::remove_cv_t<T>>;
+template <typename T, typename TypeList>
+inline constexpr bool is_contained_v = is_contained<T, TypeList>::value;
 
-template <typename T>
-struct is_contained<T, empty_type_list> : std::false_type {};
+// type list append
+template <class... L> using tl_append = boost::mp11::mp_append<L...>;
 
 // value_list
 template <typename T, T... Values> struct value_list;
@@ -69,6 +45,8 @@ template <typename T, T Head, T... Tail> struct value_list<T, Head, Tail...> {
 };
 
 template <typename T> struct value_list<T> {};
+
+template <typename T> using tail_t = typename T::tail;
 
 // is_contained_value
 template <typename T, T Value, typename ValueList>
@@ -99,14 +77,10 @@ struct is_type_size_double_of
 template <typename TypeList, template <typename, typename> class Comp,
           typename T>
 struct find_type {
-  using head = head_t<TypeList>;
-  using tail = typename find_type<tail_t<TypeList>, Comp, T>::type;
-  using type = std::conditional_t<Comp<head, T>::value, head, tail>;
-};
-
-template <template <typename, typename> class Comp, typename T>
-struct find_type<empty_type_list, Comp, T> {
-  using type = void;
+  template <class T2> using C = Comp<T2, T>; // bind back
+  using l = boost::mp11::mp_copy_if<TypeList, C>;
+  using type = boost::mp11::mp_eval_if<is_empty_type_list<l>, void,
+                                       boost::mp11::mp_front, l>;
 };
 
 template <typename TypeList, template <typename, typename> class Comp,

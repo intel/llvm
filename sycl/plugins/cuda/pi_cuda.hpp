@@ -25,16 +25,16 @@
 #define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
-#include <ur/adapters/cuda/command_buffer.hpp>
-#include <ur/adapters/cuda/context.hpp>
-#include <ur/adapters/cuda/device.hpp>
-#include <ur/adapters/cuda/event.hpp>
-#include <ur/adapters/cuda/kernel.hpp>
-#include <ur/adapters/cuda/memory.hpp>
-#include <ur/adapters/cuda/platform.hpp>
-#include <ur/adapters/cuda/program.hpp>
-#include <ur/adapters/cuda/queue.hpp>
-#include <ur/adapters/cuda/sampler.hpp>
+#include <adapters/cuda/command_buffer.hpp>
+#include <adapters/cuda/context.hpp>
+#include <adapters/cuda/device.hpp>
+#include <adapters/cuda/event.hpp>
+#include <adapters/cuda/kernel.hpp>
+#include <adapters/cuda/memory.hpp>
+#include <adapters/cuda/platform.hpp>
+#include <adapters/cuda/program.hpp>
+#include <adapters/cuda/queue.hpp>
+#include <adapters/cuda/sampler.hpp>
 
 // Share code between the PI Plugin and UR Adapter
 #include <pi2ur.hpp>

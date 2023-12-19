@@ -517,9 +517,11 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
   if (Opts.FakeAddressSpaceMap)
     AddrSpaceMap = &FakeAddrSpaceMap;
 
-  if (Opts.SYCLIsDevice && Opts.SYCLIsNativeCPU) {
+  if ((Opts.SYCLIsDevice || Opts.OpenCL) && Opts.SYCLIsNativeCPU) {
     // For SYCL Native CPU we use the NVPTXAddrSpaceMap because
-    // we need builtins to be mangled with AS information
+    // we need builtins to be mangled with AS information.
+    // This is also enabled in OpenCL mode so that mangling
+    // matches when building libclc.
 
     static const unsigned SYCLNativeCPUASMap[] = {
         0,  // Default
@@ -583,26 +585,26 @@ ParsedTargetAttr TargetInfo::parseTargetAttr(StringRef Features) const {
     // TODO: Support the fpmath option. It will require checking
     // overall feature validity for the function with the rest of the
     // attributes on the function.
-    if (Feature.startswith("fpmath="))
+    if (Feature.starts_with("fpmath="))
       continue;
 
-    if (Feature.startswith("branch-protection=")) {
+    if (Feature.starts_with("branch-protection=")) {
       Ret.BranchProtection = Feature.split('=').second.trim();
       continue;
     }
 
     // While we're here iterating check for a different target cpu.
-    if (Feature.startswith("arch=")) {
+    if (Feature.starts_with("arch=")) {
       if (!Ret.CPU.empty())
         Ret.Duplicate = "arch=";
       else
         Ret.CPU = Feature.split("=").second.trim();
-    } else if (Feature.startswith("tune=")) {
+    } else if (Feature.starts_with("tune=")) {
       if (!Ret.Tune.empty())
         Ret.Duplicate = "tune=";
       else
         Ret.Tune = Feature.split("=").second.trim();
-    } else if (Feature.startswith("no-"))
+    } else if (Feature.starts_with("no-"))
       Ret.Features.push_back("-" + Feature.split("-").second.str());
     else
       Ret.Features.push_back("+" + Feature.str());

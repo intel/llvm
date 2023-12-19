@@ -29,50 +29,6 @@ namespace experimental {
 namespace detail {
 
 namespace {
-
-/// Recursively check if a given node is an exit node, and add the new nodes as
-/// successors if so.
-/// @param[in] CurrentNode Node to check as exit node.
-/// @param[in] NewInputs Noes to add as successors.
-void connectToExitNodes(
-    std::shared_ptr<node_impl> CurrentNode,
-    const std::vector<std::shared_ptr<node_impl>> &NewInputs) {
-  if (CurrentNode->MSuccessors.size() > 0) {
-    for (auto &Successor : CurrentNode->MSuccessors) {
-      connectToExitNodes(Successor, NewInputs);
-    }
-
-  } else {
-    for (auto &Input : NewInputs) {
-      CurrentNode->registerSuccessor(Input, CurrentNode);
-    }
-  }
-}
-
-/// Recursive check if a graph node or its successors contains a given
-/// requirement.
-/// @param[in] Req The requirement to check for.
-/// @param[in] CurrentNode The current graph node being checked.
-/// @param[in,out] Deps The unique list of dependencies which have been
-/// identified for this requirement.
-/// @return True if a dependency was added in this node or any of its
-/// successors.
-bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
-                         const std::shared_ptr<node_impl> &CurrentNode,
-                         std::set<std::shared_ptr<node_impl>> &Deps) {
-  bool SuccessorAddedDep = false;
-  for (auto &Successor : CurrentNode->MSuccessors) {
-    SuccessorAddedDep |= checkForRequirement(Req, Successor, Deps);
-  }
-
-  if (!CurrentNode->isEmpty() && Deps.find(CurrentNode) == Deps.end() &&
-      CurrentNode->hasRequirement(Req) && !SuccessorAddedDep) {
-    Deps.insert(CurrentNode);
-    return true;
-  }
-  return SuccessorAddedDep;
-}
-
 /// Visits a node on the graph and it's successors recursively in a depth-first
 /// approach.
 /// @param[in] Node The current node being visited.
@@ -99,7 +55,8 @@ bool visitNodeDepthFirst(
   Node->MVisited = true;
   VisitedNodes.emplace(Node);
   for (auto &Successor : Node->MSuccessors) {
-    if (visitNodeDepthFirst(Successor, VisitedNodes, NodeStack, NodeFunc)) {
+    if (visitNodeDepthFirst(Successor.lock(), VisitedNodes, NodeStack,
+                            NodeFunc)) {
       return true;
     }
   }
@@ -117,13 +74,198 @@ void duplicateNode(const std::shared_ptr<node_impl> Node,
   }
 }
 
+/// Recursively add nodes to execution stack.
+/// @param NodeImpl Node to schedule.
+/// @param Schedule Execution ordering to add node to.
+/// @param PartitionBounded If set to true, the topological sort is stopped at
+/// partition borders. Hence, nodes belonging to a partition different from the
+/// NodeImpl partition are not processed.
+void sortTopological(std::shared_ptr<node_impl> NodeImpl,
+                     std::list<std::shared_ptr<node_impl>> &Schedule,
+                     bool PartitionBounded = false) {
+  for (auto &Succ : NodeImpl->MSuccessors) {
+    auto NextNode = Succ.lock();
+    if (PartitionBounded &&
+        (NextNode->MPartitionNum != NodeImpl->MPartitionNum)) {
+      continue;
+    }
+    // Check if we've already scheduled this node
+    if (std::find(Schedule.begin(), Schedule.end(), NextNode) ==
+        Schedule.end()) {
+      sortTopological(NextNode, Schedule, PartitionBounded);
+    }
+  }
+
+  Schedule.push_front(NodeImpl);
+}
+
+/// Propagates the partition number `PartitionNum` to predecessors.
+/// Propagation stops when a host task is encountered or when no predecessors
+/// remain or when we encounter a node that has already been processed and has a
+/// partition number lower that the one propagated here. Indeed,
+/// partition numbers reflect the execution order. Hence, the partition number
+/// of a node can be decreased but not increased. Moreover, as predecessors of a
+/// node are either in the same partition or a partition with a smaller number,
+/// we do not need to continue propagating the partition number if we encounter
+/// a node with a smaller partition number.
+/// @param Node Node to assign to the partition.
+/// @param PartitionNum Number to propagate.
+void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
+  if (((Node->MPartitionNum != -1) && (Node->MPartitionNum <= PartitionNum)) ||
+      (Node->MCGType == sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
+    return;
+  }
+  Node->MPartitionNum = PartitionNum;
+  for (auto &Predecessor : Node->MPredecessors) {
+    propagatePartitionUp(Predecessor.lock(), PartitionNum);
+  }
+}
+
+/// Propagates the partition number `PartitionNum` to successors.
+/// Propagation stops when an host task is encountered or when no successors
+/// remain.
+/// @param Node Node to assign to the partition.
+/// @param PartitionNum Number to propagate.
+/// @param HostTaskList List of host tasks that have already been processed and
+/// are encountered as successors to the node Node.
+void propagatePartitionDown(
+    std::shared_ptr<node_impl> Node, int PartitionNum,
+    std::list<std::shared_ptr<node_impl>> &HostTaskList) {
+  if (Node->MCGType == sycl::detail::CG::CGTYPE::CodeplayHostTask) {
+    if (Node->MPartitionNum != -1) {
+      HostTaskList.push_front(Node);
+    }
+    return;
+  }
+  Node->MPartitionNum = PartitionNum;
+  for (auto &Successor : Node->MSuccessors) {
+    propagatePartitionDown(Successor.lock(), PartitionNum, HostTaskList);
+  }
+}
+
+/// Tests if the node is a root of its partition (i.e. no predecessors that
+/// belong to the same partition)
+/// @param Node node to test
+/// @return True is `Node` is a root of its partition
+bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
+  for (auto Predecessor : Node->MPredecessors) {
+    if (Predecessor.lock()->MPartitionNum == Node->MPartitionNum) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // anonymous namespace
 
-void exec_graph_impl::schedule() {
+void partition::schedule() {
   if (MSchedule.empty()) {
-    for (auto &Node : MGraphImpl->MRoots) {
-      Node->sortTopological(Node, MSchedule);
+    for (auto &Node : MRoots) {
+      sortTopological(Node.lock(), MSchedule, true);
     }
+  }
+}
+
+void exec_graph_impl::makePartitions() {
+  int CurrentPartition = -1;
+  std::list<std::shared_ptr<node_impl>> HostTaskList;
+  // find all the host-tasks in the graph
+  for (auto Node : MGraphImpl->MNodeStorage) {
+    if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
+      HostTaskList.push_back(Node);
+    }
+  }
+
+  // Annotate nodes
+  // The first step in graph partitioning is to annotate all nodes of the graph
+  // with a temporary partition or group number. This step allows us to group
+  // the graph nodes into sets of nodes with kind of meta-dependencies that must
+  // be enforced by the runtime. For example, Group 2 depends on Groups 0 and 1,
+  // which means that we should not try to run Group 2 before Groups 0 and 1
+  // have finished executing. Since host-tasks are currently the only tasks that
+  // require runtime dependency handling, groups of nodes are created from
+  // host-task nodes. We therefore loop over all the host-task nodes, and for
+  // each node:
+  //  - Its predecessors are assigned to group number `n-1`
+  //  - The node itself constitutes a group, group number `n`
+  //  - Its successors are assigned to group number `n+1`
+  // Since running multiple partitions slows down the whole graph execution, we
+  // then try to reduce the number of partitions by merging them when possible.
+  // Typically, the grouping algorithm can create two successive partitions
+  // of target nodes in the following case:
+  // A host-task `A` is added to the graph. Later, another host task `B` is
+  // added to the graph. Consequently, the node `A` is stored before the node
+  // `B` in the node storage vector. Now, if `A` is placed as a successor of `B`
+  // (using make_edge function to make node `A` dependent on node `B`.) In this
+  // case, the host-task node `A` must be reprocessed after the node `B` and the
+  // group that includes the predecessor of `B` can be merged with the group of
+  // the predecessors of the node `A`.
+  while (HostTaskList.size() > 0) {
+    auto Node = HostTaskList.front();
+    HostTaskList.pop_front();
+    CurrentPartition++;
+    for (auto &Predecessor : Node->MPredecessors) {
+      propagatePartitionUp(Predecessor.lock(), CurrentPartition);
+    }
+    CurrentPartition++;
+    Node->MPartitionNum = CurrentPartition;
+    CurrentPartition++;
+    auto TmpSize = HostTaskList.size();
+    for (auto &Successor : Node->MSuccessors) {
+      propagatePartitionDown(Successor.lock(), CurrentPartition, HostTaskList);
+    }
+    if (HostTaskList.size() > TmpSize) {
+      // At least one HostTask has been re-numbered so group merge opportunities
+      for (auto HT : HostTaskList) {
+        auto HTPartitionNum = HT->MPartitionNum;
+        if (HTPartitionNum != -1) {
+          // can merge predecessors of node `Node` with predecessors of node
+          // `HT` (HTPartitionNum-1) since HT must be reprocessed
+          for (auto NodeImpl : MGraphImpl->MNodeStorage) {
+            if (NodeImpl->MPartitionNum == Node->MPartitionNum - 1) {
+              NodeImpl->MPartitionNum = HTPartitionNum - 1;
+            }
+          }
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  // Create partitions
+  int PartitionFinalNum = 0;
+  for (int i = -1; i <= CurrentPartition; i++) {
+    const std::shared_ptr<partition> &Partition = std::make_shared<partition>();
+    for (auto Node : MGraphImpl->MNodeStorage) {
+      if (Node->MPartitionNum == i) {
+        MPartitionNodes[Node] = PartitionFinalNum;
+        if (isPartitionRoot(Node)) {
+          Partition->MRoots.insert(Node);
+        }
+      }
+    }
+    if (Partition->MRoots.size() > 0) {
+      Partition->schedule();
+      MPartitions.push_back(Partition);
+      PartitionFinalNum++;
+    }
+  }
+
+  // Add an empty partition if there is no partition, i.e. empty graph
+  if (MPartitions.size() == 0) {
+    MPartitions.push_back(std::make_shared<partition>());
+  }
+
+  // Make global schedule list
+  for (auto Partition : MPartitions) {
+    MSchedule.insert(MSchedule.end(), Partition->MSchedule.begin(),
+                     Partition->MSchedule.end());
+  }
+
+  // Reset node groups (if node have to be re-processed - e.g. subgraph)
+  for (auto &Node : MGraphImpl->MNodeStorage) {
+    Node->MPartitionNum = -1;
   }
 }
 
@@ -148,10 +290,19 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
     }
   }
 
-  // Recursively walk the graph to find exit nodes and connect up the inputs
-  // TODO: Consider caching exit nodes so we don't have to do this
-  for (auto &NodeImpl : MRoots) {
-    connectToExitNodes(NodeImpl, Inputs);
+  // Find all exit nodes in the current graph and register the Inputs as
+  // successors
+  for (auto &NodeImpl : MNodeStorage) {
+    if (NodeImpl->MSuccessors.size() == 0) {
+      for (auto &Input : Inputs) {
+        NodeImpl->registerSuccessor(Input, NodeImpl);
+      }
+    }
+  }
+
+  // Add all the new nodes to the node storage
+  for (auto &Node : NodeList) {
+    MNodeStorage.push_back(Node);
   }
 
   return this->add(Outputs);
@@ -175,7 +326,7 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     *NewNodesIt = NodeCopy;
     NodesMap.insert({Node, NodeCopy});
     for (auto &NextNode : Node->MSuccessors) {
-      auto Successor = NodesMap.at(NextNode);
+      auto Successor = NodesMap.at(NextNode.lock());
       NodeCopy->registerSuccessor(Successor, NodeCopy);
     }
   }
@@ -193,18 +344,17 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 
 std::shared_ptr<node_impl>
 graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
+  // Copy deps so we can modify them
+  auto Deps = Dep;
+
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
-  // TODO: Encapsulate in separate function to avoid duplication
-  if (!Dep.empty()) {
-    for (auto &N : Dep) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
-  }
+  // Add any deps from the vector of extra dependencies
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
+  MNodeStorage.push_back(NodeImpl);
+
+  addDepsToNode(NodeImpl, Deps);
 
   return NodeImpl;
 }
@@ -218,6 +368,13 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   sycl::handler Handler{Impl};
   CGF(Handler);
   Handler.finalize();
+
+  if (Handler.MCGType == sycl::detail::CG::Barrier) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
+        "SYCL Graph Explicit API. Please use empty nodes instead.");
+  }
 
   // If the handler recorded a subgraph return that here as the relevant nodes
   // have already been added. The node returned here is an empty node with
@@ -272,17 +429,28 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       MemObj->markBeingUsedInGraph();
     }
     // Look through the graph for nodes which share this requirement
-    for (auto &NodePtr : MRoots) {
-      checkForRequirement(Req, NodePtr, UniqueDeps);
+    for (auto &Node : MNodeStorage) {
+      if (Node->hasRequirement(Req)) {
+        bool ShouldAddDep = true;
+        // If any of this node's successors have this requirement then we skip
+        // adding the current node as a dependency.
+        for (auto &Succ : Node->MSuccessors) {
+          if (Succ.lock()->hasRequirement(Req)) {
+            ShouldAddDep = false;
+            break;
+          }
+        }
+        if (ShouldAddDep) {
+          UniqueDeps.insert(Node);
+        }
+      }
     }
   }
 
   // Add any nodes specified by event dependencies into the dependency list
   for (auto &Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      if (UniqueDeps.find(NodeImpl->second) == UniqueDeps.end()) {
-        UniqueDeps.insert(NodeImpl->second);
-      }
+      UniqueDeps.insert(NodeImpl->second);
     } else {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Event dependency from handler::depends_on does "
@@ -293,17 +461,20 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
+  // Add any deps from the extra dependencies vector
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));
-  if (!Deps.empty()) {
-    for (auto &N : Deps) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
+  MNodeStorage.push_back(NodeImpl);
+
+  addDepsToNode(NodeImpl, Deps);
+
+  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
+  if (CGType == sycl::detail::CG::Barrier) {
+    MExtraDependencies.push_back(NodeImpl);
   }
+
   return NodeImpl;
 }
 
@@ -331,7 +502,7 @@ void graph_impl::searchDepthFirst(
 
   for (auto &Root : MRoots) {
     std::deque<std::shared_ptr<node_impl>> NodeStack;
-    if (visitNodeDepthFirst(Root, VisitedNodes, NodeStack, NodeFunc)) {
+    if (visitNodeDepthFirst(Root.lock(), VisitedNodes, NodeStack, NodeFunc)) {
       break;
     }
   }
@@ -372,18 +543,15 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 
   bool SrcFound = false;
   bool DestFound = false;
-  auto CheckForNodes = [&](std::shared_ptr<node_impl> &Node,
-                           std::deque<std::shared_ptr<node_impl>> &) {
-    if (Node == Src) {
-      SrcFound = true;
-    }
-    if (Node == Dest) {
-      DestFound = true;
-    }
-    return SrcFound && DestFound;
-  };
+  for (const auto &Node : MNodeStorage) {
 
-  searchDepthFirst(CheckForNodes);
+    SrcFound |= Node == Src;
+    DestFound |= Node == Dest;
+
+    if (SrcFound && DestFound) {
+      break;
+    }
+  }
 
   if (!SrcFound) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
@@ -415,24 +583,40 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   removeRoot(Dest); // remove receiver from root node list
 }
 
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+  std::vector<sycl::detail::EventImplPtr> Events;
+
+  for (auto Node : MNodeStorage) {
+    if (Node->MSuccessors.empty()) {
+      Events.push_back(getEventForNode(Node));
+    }
+  }
+
+  return Events;
+}
+
 // Check if nodes are empty and if so loop back through predecessors until we
 // find the real dependency.
 void exec_graph_impl::findRealDeps(
     std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
-    std::shared_ptr<node_impl> CurrentNode) {
+    std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
   if (CurrentNode->isEmpty()) {
     for (auto &N : CurrentNode->MPredecessors) {
       auto NodeImpl = N.lock();
-      findRealDeps(Deps, NodeImpl);
+      findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
     }
   } else {
-    // Verify that the sync point has actually been set for this node.
-    auto SyncPoint = MPiSyncPoints.find(CurrentNode);
-    assert(SyncPoint != MPiSyncPoints.end() &&
-           "No sync point has been set for node dependency.");
-    // Check if the dependency has already been added.
-    if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) == Deps.end()) {
-      Deps.push_back(SyncPoint->second);
+    // Verify if CurrentNode belong the the same partition
+    if (MPartitionNodes[CurrentNode] == ReferencePartitionNum) {
+      // Verify that the sync point has actually been set for this node.
+      auto SyncPoint = MPiSyncPoints.find(CurrentNode);
+      assert(SyncPoint != MPiSyncPoints.end() &&
+             "No sync point has been set for node dependency.");
+      // Check if the dependency has already been added.
+      if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) ==
+          Deps.end()) {
+        Deps.push_back(SyncPoint->second);
+      }
     }
   }
 }
@@ -443,7 +627,7 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNodeDirect(
     std::shared_ptr<node_impl> Node) {
   std::vector<sycl::detail::pi::PiExtSyncPoint> Deps;
   for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock());
+    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
   }
   sycl::detail::pi::PiExtSyncPoint NewSyncPoint;
   pi_int32 Res = sycl::detail::enqueueImpCommandBufferKernel(
@@ -471,7 +655,7 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   std::vector<sycl::detail::pi::PiExtSyncPoint> Deps;
   for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock());
+    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
   }
 
   sycl::detail::EventImplPtr Event =
@@ -480,9 +664,8 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 
   return Event->getSyncPoint();
 }
-void exec_graph_impl::createCommandBuffers(sycl::device Device) {
-  // TODO we only have a single command-buffer per graph here, but
-  // this will need to be multiple command-buffers for non-trivial graphs
+void exec_graph_impl::createCommandBuffers(
+    sycl::device Device, std::shared_ptr<partition> &Partition) {
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
@@ -496,10 +679,9 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
     throw sycl::exception(errc::invalid, "Failed to create PI command-buffer");
   }
 
-  MPiCommandBuffers[Device] = OutCommandBuffer;
+  Partition->MPiCommandBuffers[Device] = OutCommandBuffer;
 
-  // TODO extract kernel bundle logic from enqueueImpKernel
-  for (const auto &Node : MSchedule) {
+  for (const auto &Node : Partition->MSchedule) {
     // Empty nodes are not processed as other nodes, but only their
     // dependencies are propagated in findRealDeps
     if (Node->isEmpty())
@@ -542,11 +724,6 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  WriteLock LockImpl(MGraphImpl->MMutex);
-
-  // clear all recording queue if not done before (no call to end_recording)
-  MGraphImpl->clearQueues();
-
   const sycl::detail::PluginPtr &Plugin =
       sycl::detail::getSyclObjImpl(MContext)->getPlugin();
   MSchedule.clear();
@@ -556,12 +733,15 @@ exec_graph_impl::~exec_graph_impl() {
     Event->wait(Event);
   }
 
-  for (const auto &Iter : MPiCommandBuffers) {
-    if (auto CmdBuf = Iter.second; CmdBuf) {
-      pi_result Res = Plugin->call_nocheck<
-          sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
-      (void)Res;
-      assert(Res == pi_result::PI_SUCCESS);
+  for (const auto &Partition : MPartitions) {
+    Partition->MSchedule.clear();
+    for (const auto &Iter : Partition->MPiCommandBuffers) {
+      if (auto CmdBuf = Iter.second; CmdBuf) {
+        pi_result Res = Plugin->call_nocheck<
+            sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
+        (void)Res;
+        assert(Res == pi_result::PI_SUCCESS);
+      }
     }
   }
 }
@@ -571,6 +751,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                          sycl::detail::CG::StorageInitHelper CGData) {
   WriteLock Lock(MMutex);
 
+  std::vector<sycl::detail::EventImplPtr> PartitionEvents;
+
   auto CreateNewEvent([&]() {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
@@ -579,99 +761,148 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     return NewEvent;
   });
 
-  auto CommandBuffer = MPiCommandBuffers[Queue->get_device()];
   sycl::detail::EventImplPtr NewEvent;
+  for (auto CurrentPartition : MPartitions) {
+    auto CommandBuffer =
+        CurrentPartition->MPiCommandBuffers[Queue->get_device()];
 
-  if (CommandBuffer) {
-    if (!previousSubmissionCompleted()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "This Graph cannot be submitted at the moment "
-                            "because the previous run has not yet completed.");
-    }
-    NewEvent = CreateNewEvent();
-    sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
-    // Merge requirements from the nodes into requirements (if any) from the
-    // handler.
-    CGData.MRequirements.insert(CGData.MRequirements.end(),
-                                MRequirements.begin(), MRequirements.end());
-    CGData.MAccStorage.insert(CGData.MAccStorage.end(), MAccessors.begin(),
-                              MAccessors.end());
-
-    // If we have no requirements or dependent events for the command buffer,
-    // enqueue it directly
-    if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
-      if (NewEvent != nullptr)
-        NewEvent->setHostEnqueueTime();
-      pi_result Res =
-          Queue->getPlugin()
-              ->call_nocheck<
-                  sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-                  CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
-      if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Graphs cannot be submitted to a queue which uses "
-            "immediate command lists. Use "
-            "sycl::ext::intel::property::queue::no_immediate_"
-            "command_list to disable them.");
-      } else if (Res != pi_result::PI_SUCCESS) {
-        throw sycl::exception(
-            errc::event,
-            "Failed to enqueue event for command buffer submission");
+    if (CommandBuffer) {
+      // if previous submissions are incompleted, we automatically
+      // add completion events of previous submissions as dependencies.
+      // With Level-Zero backend we cannot resubmit a command-buffer until the
+      // previous one has already completed.
+      // Indeed, since a command-list does not accept a list a dependencies at
+      // submission, we circumvent this lack by adding a barrier that waits on a
+      // specific event and then define the conditions to signal this event in
+      // another command-list. Consequently, if a second submission is
+      // performed, the signal conditions of this single event are redefined by
+      // this second submission. Thus, this can lead to an undefined behaviour
+      // and potential hangs. We have therefore to expliclty wait in the host
+      // for previous submission to complete before resubmitting the
+      // command-buffer for level-zero backend.
+      // TODO : add a check to release this constraint and allow multiple
+      // concurrent submissions if the exec_graph has been updated since the
+      // last submission.
+      for (std::vector<sycl::detail::EventImplPtr>::iterator It =
+               MExecutionEvents.begin();
+           It != MExecutionEvents.end();) {
+        auto Event = *It;
+        if (!Event->isCompleted()) {
+          if (Queue->get_device().get_backend() ==
+              sycl::backend::ext_oneapi_level_zero) {
+            Event->wait(Event);
+          } else {
+            CGData.MEvents.push_back(Event);
+          }
+          ++It;
+        } else {
+          // Remove completed events
+          It = MExecutionEvents.erase(It);
+        }
       }
-    } else {
-      std::unique_ptr<sycl::detail::CG> CommandGroup =
-          std::make_unique<sycl::detail::CGExecCommandBuffer>(
-              CommandBuffer, std::move(CGData));
+
+      NewEvent = CreateNewEvent();
+      sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
+      // Merge requirements from the nodes into requirements (if any) from the
+      // handler.
+      CGData.MRequirements.insert(CGData.MRequirements.end(),
+                                  MRequirements.begin(), MRequirements.end());
+      CGData.MAccStorage.insert(CGData.MAccStorage.end(), MAccessors.begin(),
+                                MAccessors.end());
+
+      // If we have no requirements or dependent events for the command buffer,
+      // enqueue it directly
+      if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
+        if (NewEvent != nullptr)
+          NewEvent->setHostEnqueueTime();
+        pi_result Res =
+            Queue->getPlugin()
+                ->call_nocheck<
+                    sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
+        if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
+          throw sycl::exception(
+              make_error_code(errc::invalid),
+              "Graphs cannot be submitted to a queue which uses "
+              "immediate command lists. Use "
+              "sycl::ext::intel::property::queue::no_immediate_"
+              "command_list to disable them.");
+        } else if (Res != pi_result::PI_SUCCESS) {
+          throw sycl::exception(
+              errc::event,
+              "Failed to enqueue event for command buffer submission");
+        }
+      } else {
+        std::unique_ptr<sycl::detail::CG> CommandGroup =
+            std::make_unique<sycl::detail::CGExecCommandBuffer>(
+                CommandBuffer, std::move(CGData));
+
+        NewEvent = sycl::detail::Scheduler::getInstance().addCG(
+            std::move(CommandGroup), Queue);
+      }
+
+    } else if ((CurrentPartition->MSchedule.size() > 0) &&
+               (CurrentPartition->MSchedule.front()->MCGType ==
+                sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
+      auto NodeImpl = CurrentPartition->MSchedule.front();
+      // Schedule host task
+      NodeImpl->MCommandGroup->getEvents().insert(
+          NodeImpl->MCommandGroup->getEvents().end(), CGData.MEvents.begin(),
+          CGData.MEvents.end());
+      // HostTask CG stores the Queue on which the task was submitted.
+      // In case of graph, this queue may differ from the actual execution
+      // queue. We therefore overload this Queue before submitting the task.
+      static_cast<sycl::detail::CGHostTask &>(*NodeImpl->MCommandGroup.get())
+          .MQueue = Queue;
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          std::move(CommandGroup), Queue);
-    }
-  } else {
-    std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
-    for (auto &NodeImpl : MSchedule) {
-      std::vector<sycl::detail::pi::PiEvent> RawEvents;
+          NodeImpl->getCGCopy(), Queue);
+    } else {
+      std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
+      for (auto &NodeImpl : CurrentPartition->MSchedule) {
+        std::vector<sycl::detail::pi::PiEvent> RawEvents;
 
-      // If the node has no requirements for accessors etc. then we skip the
-      // scheduler and enqueue directly.
-      if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
-          NodeImpl->MCommandGroup->getRequirements().size() +
-                  static_cast<sycl::detail::CGExecKernel *>(
-                      NodeImpl->MCommandGroup.get())
-                      ->MStreams.size() ==
-              0) {
-        sycl::detail::CGExecKernel *CG =
-            static_cast<sycl::detail::CGExecKernel *>(
-                NodeImpl->MCommandGroup.get());
-        auto OutEvent = CreateNewEvent();
-        pi_int32 Res = sycl::detail::enqueueImpKernel(
-            Queue, CG->MNDRDesc, CG->MArgs,
-            // TODO: Handler KernelBundles
-            nullptr, CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
-            // TODO: Pass accessor mem allocations
-            nullptr,
-            // TODO: Extract from handler
-            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
-        if (Res != pi_result::PI_SUCCESS) {
-          throw sycl::exception(
-              sycl::make_error_code(sycl::errc::kernel),
-              "Error during emulated graph command group submission.");
+        // If the node has no requirements for accessors etc. then we skip the
+        // scheduler and enqueue directly.
+        if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
+            NodeImpl->MCommandGroup->getRequirements().size() +
+                    static_cast<sycl::detail::CGExecKernel *>(
+                        NodeImpl->MCommandGroup.get())
+                        ->MStreams.size() ==
+                0) {
+          sycl::detail::CGExecKernel *CG =
+              static_cast<sycl::detail::CGExecKernel *>(
+                  NodeImpl->MCommandGroup.get());
+          auto OutEvent = CreateNewEvent();
+          pi_int32 Res = sycl::detail::enqueueImpKernel(
+              Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
+              CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
+              // TODO: Pass accessor mem allocations
+              nullptr,
+              // TODO: Extract from handler
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+          if (Res != pi_result::PI_SUCCESS) {
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::kernel),
+                "Error during emulated graph command group submission.");
+          }
+          ScheduledEvents.push_back(NewEvent);
+        } else if (!NodeImpl->isEmpty()) {
+          // Empty nodes are node processed as other nodes, but only their
+          // dependencies are propagated in findRealDeps
+          sycl::detail::EventImplPtr EventImpl =
+              sycl::detail::Scheduler::getInstance().addCG(
+                  NodeImpl->getCGCopy(), Queue);
+
+          ScheduledEvents.push_back(EventImpl);
         }
-        ScheduledEvents.push_back(NewEvent);
-      } else if (!NodeImpl->isEmpty()) {
-        // Empty nodes are node processed as other nodes, but only their
-        // dependencies are propagated in findRealDeps
-        sycl::detail::EventImplPtr EventImpl =
-            sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
-                                                         Queue);
-
-        ScheduledEvents.push_back(EventImpl);
       }
+      // Create an event which has all kernel events as dependencies
+      NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
+      NewEvent->setStateIncomplete();
+      NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
-    // Create an event which has all kernel events as dependencies
-    NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
-    NewEvent->setStateIncomplete();
-    NewEvent->getPreparedDepsEvents() = ScheduledEvents;
+    CGData.MEvents.push_back(NewEvent);
   }
 
   // Keep track of this execution event so we can make sure it's completed in
@@ -712,6 +943,19 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   std::shared_ptr<detail::node_impl> NodeImpl =
       impl->add(impl, CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+}
+
+void modifiable_command_graph::addGraphLeafDependencies(node Node) {
+  // Find all exit nodes in the current graph and add them to the dependency
+  // vector
+  std::shared_ptr<detail::node_impl> DstImpl =
+      sycl::detail::getSyclObjImpl(Node);
+  graph_impl::WriteLock Lock(impl->MMutex);
+  for (auto &NodeImpl : impl->MNodeStorage) {
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
+    }
+  }
 }
 
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
@@ -820,6 +1064,18 @@ bool modifiable_command_graph::end_recording(
   return QueueStateChanged;
 }
 
+void modifiable_command_graph::print_graph(std::string path,
+                                           bool verbose) const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  if (path.substr(path.find_last_of(".") + 1) == "dot") {
+    impl->printGraphAsDot(path, verbose);
+  } else {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "DOT graph is the only format supported at the moment.");
+  }
+}
+
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
@@ -827,24 +1083,24 @@ executable_command_graph::executable_command_graph(
 }
 
 void executable_command_graph::finalizeImpl() {
-  // Create PI command-buffers for each device in the finalized context
-  impl->schedule();
+  impl->makePartitions();
 
-  auto Context = impl->getContext();
-  for (const auto &Device : Context.get_devices()) {
-    bool CmdBufSupport =
-        Device.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::native;
+  auto Device = impl->getGraphImpl()->getDevice();
+  bool CmdBufSupport =
+      Device
+          .get_info<ext::oneapi::experimental::info::device::graph_support>() ==
+      graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
-    // Above query should still succeed in emulation mode, but ignore the
-    // result and use emulation.
-    CmdBufSupport = false;
+  // Above query should still succeed in emulation mode, but ignore the
+  // result and use emulation.
+  CmdBufSupport = false;
 #endif
-
-    if (CmdBufSupport) {
-      impl->createCommandBuffers(Device);
+  if (CmdBufSupport) {
+    for (auto Partition : impl->getPartitions()) {
+      if (!Partition->isHostTask()) {
+        impl->createCommandBuffers(Device, Partition);
+      }
     }
   }
 }

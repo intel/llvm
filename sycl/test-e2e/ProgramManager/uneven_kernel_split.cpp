@@ -41,5 +41,6 @@ int main() {
     host_foo(q, buf);
   }
   q.wait();
+  sycl::free(buf, q);
   return 0;
 }
