@@ -82,11 +82,35 @@ context::context(const std::vector<device> &DeviceList,
                                                     PropList);
   }
 }
+
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
-  impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
-      Plugin);
+  uint32_t DeviceCount = 0;
+  size_t Ret = clGetContextInfo(ClContext, CL_CONTEXT_NUM_DEVICES,
+                                sizeof(DeviceCount), &DeviceCount, nullptr);
+  if (Ret != CL_SUCCESS) {
+    throw runtime_error(
+        "Failed to retrieve device count associated with the context",
+        PI_ERROR_INVALID_CONTEXT);
+  }
+  std::vector<cl_device_id> CLDevices(DeviceCount);
+  Ret = clGetContextInfo(ClContext, CL_CONTEXT_DEVICES, sizeof(CLDevices),
+                         CLDevices.data(), nullptr);
+  if (Ret != CL_SUCCESS) {
+    throw runtime_error(
+        "Failed to retrieve devices associated with the context",
+        PI_ERROR_INVALID_CONTEXT);
+  }
+  std::vector<sycl::detail::pi::PiDevice> Devices(DeviceCount);
+  for (uint32_t i = 0; i < DeviceCount; i++) {
+    Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+        detail::pi::cast<pi_native_handle>(CLDevices[i]), nullptr, &Devices[i]);
+  }
+  sycl::detail::pi::PiContext Context;
+  Plugin->call<detail::PiApiKind::piextContextCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(ClContext), DeviceCount,
+      Devices.data(), false, &Context);
+  impl = std::make_shared<detail::context_impl>(Context, AsyncHandler, Plugin);
 }
 
 template <typename Param>

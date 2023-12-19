@@ -81,14 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc
-  # Merge: 6883118 a187fbb
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Mar 25 11:22:45 2024 +0100
-  #     Merge pull request #1471 from pbalcer/remove-coverage
-  #     [CI] remove coverage workflow
-  set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
+  # commit 6513abc404979fa109d64500bf899e632d511291
+  # Merge: 09be0881 6d586094
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Mar 14 22:38:53 2024 +0000
+  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
+  #     [CMake] Support external adapter source dirs
+  set(UNIFIED_RUNTIME_TAG 820779f6ede3291227581c2b3f8acaf71a91ee0c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

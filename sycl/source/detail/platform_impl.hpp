@@ -106,7 +106,7 @@ public:
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_PLATFORM);
     }
-    return pi::cast<cl_platform_id>(MPlatform);
+    return pi::cast<cl_platform_id>(getNative());
   }
 
   /// Returns raw underlying plug-in platform handle.
