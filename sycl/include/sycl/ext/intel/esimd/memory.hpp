@@ -2040,8 +2040,9 @@ namespace detail {
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_accessor_with_v<AccessorTy,
-                               detail::accessor_mode_cap::can_write>>
+    (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+     detail::is_accessor_with_v<AccessorTy,
+                                detail::accessor_mode_cap::can_write>)>
 scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
              uint32_t glob_offset, simd_mask<N> mask) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
@@ -2075,8 +2076,9 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        detail::is_accessor_with_v<AccessorTy,
-                                   detail::accessor_mode_cap::can_read>,
+        (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+         detail::is_accessor_with_v<AccessorTy,
+                                    detail::accessor_mode_cap::can_read>),
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
