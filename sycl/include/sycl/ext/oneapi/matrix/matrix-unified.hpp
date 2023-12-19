@@ -483,7 +483,8 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
     sycl::detail::convertTypeToMatrixTypeString<Tc>(),
     sycl::detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
-inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,

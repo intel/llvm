@@ -149,8 +149,9 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                                std::is_same_v<T1, bfloat16>)) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
-          std::cout << "Incorrect result in matrix. " << "i: " << i
-                    << ", j: " << j << ", Ref: " << (T1)ref[i * cols + j]
+          std::cout << "Incorrect result in matrix. "
+                    << "i: " << i << ", j: " << j
+                    << ", Ref: " << (T1)ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << ", Diff: " << diff
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;

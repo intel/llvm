@@ -873,8 +873,8 @@ __spirv_ConvertFToBF16INTEL(float) noexcept;
 extern __DPCPP_SYCL_EXTERNAL float
     __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT
-    __ocl_vec_t<uint32_t, 4>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
     __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 // TODO: I'm not 100% sure that these NonUniform instructions should be
