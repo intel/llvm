@@ -12,6 +12,7 @@
 #include <cuda.h>
 #include <ur/ur.hpp>
 
+#include "common.hpp"
 #include "queue.hpp"
 
 /// UR Event mapping to CUevent
@@ -82,8 +83,18 @@ public:
   static ur_event_handle_t
   makeNative(ur_command_t Type, ur_queue_handle_t Queue, CUstream Stream,
              uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
-    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, Stream,
-                                  StreamToken);
+    const bool ProfilingEnabled =
+        Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
+    native_type EvEnd = nullptr, EvQueued = nullptr, EvStart = nullptr;
+    UR_CHECK_ERROR(cuEventCreate(
+        &EvEnd, ProfilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
+
+    if (ProfilingEnabled) {
+      UR_CHECK_ERROR(cuEventCreate(&EvQueued, CU_EVENT_DEFAULT));
+      UR_CHECK_ERROR(cuEventCreate(&EvStart, CU_EVENT_DEFAULT));
+    }
+    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, EvEnd,
+                                  EvQueued, EvStart, Stream, StreamToken);
   }
 
   static ur_event_handle_t makeWithNative(ur_context_handle_t context,
@@ -99,7 +110,8 @@ private:
   // This constructor is private to force programmers to use the makeNative /
   // make_user static members in order to create a pi_event for CUDA.
   ur_event_handle_t_(ur_command_t Type, ur_context_handle_t Context,
-                     ur_queue_handle_t Queue, CUstream Stream,
+                     ur_queue_handle_t Queue, native_type EvEnd,
+                     native_type EvQueued, native_type EvStart, CUstream Stream,
                      uint32_t StreamToken);
 
   // This constructor is private to force programmers to use the

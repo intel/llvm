@@ -184,7 +184,7 @@ struct ur_exp_command_buffer_handle_t_ {
 
   void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          std::shared_ptr<CUgraphNode> CuNode) {
-    SyncPoints[SyncPoint] = CuNode;
+    SyncPoints[SyncPoint] = std::move(CuNode);
     NextSyncPoint++;
   }
 
@@ -193,12 +193,12 @@ struct ur_exp_command_buffer_handle_t_ {
   }
 
   // Helper to register next sync point
-  // @param CuNode Node to register as next sycn point
+  // @param CuNode Node to register as next sync point
   // @return Pointer to the sync that registers the Node
   ur_exp_command_buffer_sync_point_t
   AddSyncPoint(std::shared_ptr<CUgraphNode> CuNode) {
     ur_exp_command_buffer_sync_point_t SyncPoint = NextSyncPoint;
-    RegisterSyncPoint(SyncPoint, CuNode);
+    RegisterSyncPoint(SyncPoint, std::move(CuNode));
     return SyncPoint;
   }
 
