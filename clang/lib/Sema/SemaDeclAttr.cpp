@@ -7542,15 +7542,15 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (auto *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
-    // Warn about duplicate memory attributes if they have different arguments,
-    // no diagnostic is emitted if the arguments match, and drop any duplicate
-    // memory attribute.
+    // Check to see if there's a duplicate memory attribute with different
+    // values already applied to the declaration.
     if (!MA->isImplicit()) {
       if (MA && MA->getKind() != Kind) {
         S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
         S.Diag(MA->getLocation(), diag::note_previous_attribute);
-      return;
       }
+      // Drop the duplicate attribute.
+      return;
     }
     // We are adding a user memory attribute, drop any implicit default.
     D->dropAttr<SYCLIntelMemoryAttr>();
