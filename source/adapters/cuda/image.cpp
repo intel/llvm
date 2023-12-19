@@ -234,7 +234,7 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
 
 ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const ur_image_desc_t *pImageDesc,
-                            CUDA_RESOURCE_DESC ResourceDesc,
+                            const CUDA_RESOURCE_DESC &ResourceDesc,
                             ur_exp_image_handle_t *phRetImage) {
 
   try {

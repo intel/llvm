@@ -187,20 +187,16 @@ public:
              void *HostPtr)
       : Arrays(Context->Devices.size(), nullptr),
         SurfObjs(Context->Devices.size(), nullptr),
-        OuterMemStruct{OuterMemStruct},
-        ImageFormat{ImageFormat}, ImageDesc{ImageDesc}, HostPtr{HostPtr} {
+        OuterMemStruct{OuterMemStruct}, ImageFormat{ImageFormat},
+        ImageDesc{ImageDesc}, ArrayDesc{}, HostPtr{HostPtr} {
     // We have to use hipArray3DCreate, which has some caveats. The height and
     // depth parameters must be set to 0 produce 1D or 2D arrays. image_desc
     // gives a minimum value of 1, so we need to convert the answer.
     ArrayDesc.NumChannels = 4; // Only support 4 channel image
     ArrayDesc.Flags = 0;       // No flags required
     ArrayDesc.Width = ImageDesc.width;
-    if (ImageDesc.type == UR_MEM_TYPE_IMAGE1D) {
-      ArrayDesc.Height = 0;
-      ArrayDesc.Depth = 0;
-    } else if (ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
+    if (ImageDesc.type == UR_MEM_TYPE_IMAGE2D) {
       ArrayDesc.Height = ImageDesc.height;
-      ArrayDesc.Depth = 0;
     } else if (ImageDesc.type == UR_MEM_TYPE_IMAGE3D) {
       ArrayDesc.Height = ImageDesc.height;
       ArrayDesc.Depth = ImageDesc.depth;
@@ -456,7 +452,7 @@ struct ur_mem_handle_t_ {
     urContextRetain(Context);
   }
 
-  ~ur_mem_handle_t_() {
+  ~ur_mem_handle_t_() noexcept(false) {
     if (isBuffer() && isSubBuffer()) {
       urMemRelease(std::get<BufferMem>(Mem).Parent);
       return;
@@ -468,7 +464,7 @@ struct ur_mem_handle_t_ {
     return std::holds_alternative<BufferMem>(Mem);
   }
 
-  bool isSubBuffer() const noexcept {
+  bool isSubBuffer() const {
     return (isBuffer() && (std::get<BufferMem>(Mem).Parent != nullptr));
   }
 

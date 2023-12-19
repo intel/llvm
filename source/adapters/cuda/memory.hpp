@@ -190,7 +190,7 @@ struct ur_mem_handle_t_ {
   /// Constructs the UR allocation for an unsampled image object
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
                    CUsurfObject Surf, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface},
+      : Context{Context}, RefCount{1}, MemType{Type::Surface}, MemFlags{0},
         Mem{ImageMem{Array, (void *)Surf, ImageType, nullptr}} {
     urContextRetain(Context);
   }
@@ -198,7 +198,7 @@ struct ur_mem_handle_t_ {
   /// Constructs the UR allocation for a sampled image object
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
                    ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Texture},
+      : Context{Context}, RefCount{1}, MemType{Type::Texture}, MemFlags{0},
         Mem{ImageMem{Array, (void *)Tex, ImageType, Sampler}} {
     urContextRetain(Context);
   }
