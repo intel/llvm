@@ -288,6 +288,8 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
         return UR_RESULT_SUCCESS;
     } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (const ur_result_t &e) {
+        return e;
     } catch (...) {
         return UR_RESULT_ERROR_UNKNOWN;
     }
