@@ -7547,7 +7547,7 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!MA->isImplicit()) {
       if ((AL.getNumArgs() == 0 &&
            MA->getKind() != SYCLIntelMemoryAttr::Default) ||
-           (MA->getKind() != Kind)) {
+          (MA->getKind() != Kind)) {
         S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
         S.Diag(MA->getLocation(), diag::note_previous_attribute);
       }
