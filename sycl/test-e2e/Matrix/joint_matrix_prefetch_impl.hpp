@@ -77,7 +77,8 @@ int main() {
   }
   if (!support_p) {
     std::cout << "Prefetch not supported on this device" << std::endl;
-    return 0;
+    // Once the test is not marke as XFAIL, this should change to return 0;
+    return 1;
   }
   static constexpr size_t M = TM * 2;
   static constexpr size_t N = TN * 2;
@@ -107,6 +108,6 @@ int main() {
                   vnniFactor>(C, A, vnniB, q);
 
   res = res && matrix_compare(M, N, C, D);
-  std::cout << ((res) ? "passed" : "failed") << std::endl;
+  std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
