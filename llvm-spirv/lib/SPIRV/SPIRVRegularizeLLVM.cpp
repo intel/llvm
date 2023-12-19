@@ -491,7 +491,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
 
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
-            "fpmath",
             "tbaa",
             "range",
         };

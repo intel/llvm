@@ -306,6 +306,31 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
   return Run(Ty);
 }
 
+// Add decoration if needed
+void addFPBuiltinDecoration(SPIRVModule *BM, Instruction *Inst,
+                            SPIRVInstruction *I) {
+  if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_max_error))
+    return;
+  auto *II = dyn_cast_or_null<IntrinsicInst>(Inst);
+  if (II && II->getCalledFunction()->getName().starts_with("llvm.fpbuiltin")) {
+    // Add a new decoration for llvm.builtin intrinsics, if needed
+    if (II->getAttributes().hasFnAttr("fpbuiltin-max-error")) {
+      double F = 0.0;
+      II->getAttributes()
+          .getFnAttr("fpbuiltin-max-error")
+          .getValueAsString()
+          .getAsDouble(F);
+      I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
+                     convertFloatToSPIRVWord(F));
+    }
+  } else if (auto *MD = Inst->getMetadata("fpmath")) {
+    auto *MDVal = mdconst::dyn_extract<ConstantFP>(MD->getOperand(0));
+    double ValAsDouble = MDVal->getValue().convertToFloat();
+    I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
+                   convertFloatToSPIRVWord(ValAsDouble));
+  }
+}
+
 SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(T);
   if (Loc != TypeMap.end())
@@ -2894,6 +2919,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       transMemAliasingINTELDecorations(Inst, BV);
     if (auto *IDecoMD = Inst->getMetadata(SPIRV_MD_DECORATIONS))
       transMetadataDecorations(IDecoMD, BV);
+    if (BV->isInst())
+      addFPBuiltinDecoration(BM, Inst, static_cast<SPIRVInstruction *>(BV));
   }
 
   if (auto *CI = dyn_cast<CallInst>(V)) {
@@ -3688,26 +3715,6 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
     // Unknown intrinsics' declarations should always be translated
     return false;
   }
-}
-
-// Add decoration if needed
-SPIRVInstruction *addFPBuiltinDecoration(SPIRVModule *BM, IntrinsicInst *II,
-                                         SPIRVInstruction *I) {
-  const bool AllowFPMaxError =
-      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_max_error);
-  assert(II->getCalledFunction()->getName().starts_with("llvm.fpbuiltin"));
-  // Add a new decoration for llvm.builtin intrinsics, if needed
-  if (AllowFPMaxError)
-    if (II->getAttributes().hasFnAttr("fpbuiltin-max-error")) {
-      double F = 0.0;
-      II->getAttributes()
-          .getFnAttr("fpbuiltin-max-error")
-          .getValueAsString()
-          .getAsDouble(F);
-      I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
-                     convertFloatToSPIRVWord(F));
-    }
-  return I;
 }
 
 // Performs mapping of LLVM IR rounding mode to SPIR-V rounding mode
@@ -4822,10 +4829,9 @@ SPIRVValue *LLVMToSPIRVBase::transFPBuiltinIntrinsicInst(IntrinsicInst *II,
                      .Case("fdiv", OpFDiv)
                      .Case("frem", OpFRem)
                      .Default(OpUndef);
-    auto *BI = BM->addBinaryInst(BinOp, transType(II->getType()),
-                                 transValue(II->getArgOperand(0), BB),
-                                 transValue(II->getArgOperand(1), BB), BB);
-    return addFPBuiltinDecoration(BM, II, BI);
+    return BM->addBinaryInst(BinOp, transType(II->getType()),
+                             transValue(II->getArgOperand(0), BB),
+                             transValue(II->getArgOperand(1), BB), BB);
   }
   case FPBuiltinType::EXT_1OPS: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4859,9 +4865,8 @@ SPIRVValue *LLVMToSPIRVBase::transFPBuiltinIntrinsicInst(IntrinsicInst *II,
                      .Case("erfc", OpenCLLIB::Erfc)
                      .Default(SPIRVWORD_MAX);
     assert(ExtOp != SPIRVWORD_MAX);
-    auto *BI = BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
-                              Ops, BB);
-    return addFPBuiltinDecoration(BM, II, BI);
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
   }
   case FPBuiltinType::EXT_2OPS: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4876,9 +4881,8 @@ SPIRVValue *LLVMToSPIRVBase::transFPBuiltinIntrinsicInst(IntrinsicInst *II,
                      .Case("ldexp", OpenCLLIB::Ldexp)
                      .Default(SPIRVWORD_MAX);
     assert(ExtOp != SPIRVWORD_MAX);
-    auto *BI = BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
-                              Ops, BB);
-    return addFPBuiltinDecoration(BM, II, BI);
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
   }
   case FPBuiltinType::EXT_3OPS: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4891,9 +4895,8 @@ SPIRVValue *LLVMToSPIRVBase::transFPBuiltinIntrinsicInst(IntrinsicInst *II,
                      .Case("sincos", OpenCLLIB::Sincos)
                      .Default(SPIRVWORD_MAX);
     assert(ExtOp != SPIRVWORD_MAX);
-    auto *BI = BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
-                              Ops, BB);
-    return addFPBuiltinDecoration(BM, II, BI);
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
   }
   default:
     return nullptr;
