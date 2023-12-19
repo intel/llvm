@@ -1,4 +1,4 @@
-//===--------- virtual_mem.cpp - HIP Adapter ------------------------------===//
+//===--------- virtual_mem.cpp - OpenCL Adapter ---------------------------===//
 //
 // Copyright (C) 2023 Intel Corporation
 //
@@ -10,7 +10,6 @@
 
 #include "common.hpp"
 #include "context.hpp"
-#include "event.hpp"
 #include "physical_mem.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(

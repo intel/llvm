@@ -19,7 +19,7 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        hipStream_t Stream, uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EvEnd{nullptr}, EvStart{nullptr},
+      StreamToken{StreamToken}, EventId{0}, EvEnd{nullptr}, EvStart{nullptr},
       EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
 
   bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
@@ -32,9 +32,7 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
     UR_CHECK_ERROR(hipEventCreateWithFlags(&EvStart, hipEventDefault));
   }
 
-  if (Queue != nullptr) {
-    urQueueRetain(Queue);
-  }
+  urQueueRetain(Queue);
   urContextRetain(Context);
 }
 
@@ -42,8 +40,9 @@ ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        hipEvent_t EventNative)
     : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{std::numeric_limits<uint32_t>::max()}, EvEnd{EventNative},
-      EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr}, Context{Context} {
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EventId{0},
+      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
+      Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 
@@ -72,7 +71,7 @@ ur_result_t ur_event_handle_t_::start() {
   return Result;
 }
 
-bool ur_event_handle_t_::isCompleted() const noexcept {
+bool ur_event_handle_t_::isCompleted() const {
   if (!IsRecorded) {
     return false;
   }
@@ -225,8 +224,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
     return ReturnValue(hEvent->getCommandType());
   case UR_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(hEvent->getReferenceCount());
-  case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS:
-    return ReturnValue(hEvent->getExecutionStatus());
+  case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+    try {
+      return ReturnValue(hEvent->getExecutionStatus());
+    } catch (ur_result_t Error) {
+      return Error;
+    }
+  }
   case UR_EVENT_INFO_CONTEXT:
     return ReturnValue(hEvent->getContext());
   default:

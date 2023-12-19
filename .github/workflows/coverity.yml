@@ -9,10 +9,10 @@ name: coverity-unified-runtime
 # It runs static analysis build - Coverity. It requires special token (set in CI's secret).
 
 on:
-  schedule:
-    # Run every day at 23:00 UTC
-    - cron: '0 23 * * *'
   workflow_dispatch:
+  schedule:
+    # Run every day at 22:00 UTC
+    - cron: '0 22 * * *'
 
 env:
   WORKDIR:                           ${{ github.workspace }}
@@ -23,10 +23,11 @@ env:
   COVERITY_SCAN_BRANCH_PATTERN:      "main"
   TRAVIS_BRANCH:                     ${{ github.ref_name }}
 
+
 jobs:
   linux:
     name: Coverity
-    runs-on: ubuntu-latest
+    runs-on: coverity
 
     steps:
       - name: Clone the git repo
@@ -36,7 +37,20 @@ jobs:
         run: pip install -r third_party/requirements.txt
 
       - name: Configure CMake
-        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUMF_ENABLE_POOL_TRACKING=ON
+        run: >
+          cmake
+          -B $WORKDIR/build
+          -DUR_ENABLE_TRACING=ON
+          -DUR_DEVELOPER_MODE=ON
+          -DUR_BUILD_TESTS=ON
+          -DUMF_ENABLE_POOL_TRACKING=ON
+          -DUR_FORMAT_CPP_STYLE=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DUR_BUILD_ADAPTER_L0=ON
+          -DUR_BUILD_ADAPTER_CUDA=ON
+          -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so
+          -DUR_BUILD_ADAPTER_NATIVE_CPU=ON
+          -DUR_BUILD_ADAPTER_HIP=ON
 
       - name: Run Coverity
         run: |

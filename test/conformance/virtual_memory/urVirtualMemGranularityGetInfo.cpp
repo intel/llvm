@@ -84,7 +84,7 @@ TEST_P(urVirtualMemGranularityGetInfoNegativeTest, InvalidEnumeration) {
                          context, device,
                          UR_VIRTUAL_MEM_GRANULARITY_INFO_FORCE_UINT32, 0,
                          nullptr, &size),
-                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+                     UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urVirtualMemGranularityGetInfoNegativeTest,

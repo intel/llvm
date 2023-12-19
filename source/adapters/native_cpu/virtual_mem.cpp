@@ -1,4 +1,4 @@
-//===--------- virtual_mem.cpp - HIP Adapter ------------------------------===//
+//===--------- virtual_mem.cpp - NATIVE CPU Adapter -----------------------===//
 //
 // Copyright (C) 2023 Intel Corporation
 //

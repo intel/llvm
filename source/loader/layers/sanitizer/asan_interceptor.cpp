@@ -256,15 +256,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
-        fprintf(stderr, "\n====ERROR: DeviceSanitizer: %s on %s\n\n",
-                DeviceSanitizerFormat(AH->ErrorType),
-                DeviceSanitizerFormat(AH->MemoryType));
-        fprintf(stderr,
-                "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-                "%lu, %lu)\n",
-                AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
-                AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
+        context.logger.always("====ERROR: DeviceSanitizer: %s on %s",
+                              DeviceSanitizerFormat(AH->ErrorType),
+                              DeviceSanitizerFormat(AH->MemoryType));
+        context.logger.always(
+            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
+            "%lu, %lu)",
+            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
+            AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
+        context.logger.always("  #0 %s %s:%d", Func, File, AH->Line);
         if (!AH->IsRecover) {
             abort();
         }
