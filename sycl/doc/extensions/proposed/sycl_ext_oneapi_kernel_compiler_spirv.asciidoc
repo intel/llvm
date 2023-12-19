@@ -177,7 +177,7 @@ backend's SPIR-V client API specification.
 |Corresponding SYCL type
 
 |*OpTypeInt*
-|A C++ type that is device copyable, which has same width and data
+|A C++ type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use a fixed-width integer type where the width
@@ -185,12 +185,12 @@ matches the width of the *OpTypeInt*.
 _{endnote}_]
 
 |*OpTypeFloat*
-|A C++ type that is device copyable, which has same width and data
+|A C++ type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use `float` when the *OpTypeFloat* has a width
-of 4, `double` when the *OpTypeFloat* has a width of 8, and `sycl::half` when
-the *OpTypeFloat* has a width of 2.
+of 32, `double` when the *OpTypeFloat* has a width of 64, and `sycl::half` when
+the *OpTypeFloat* has a width of 16.
 _{endnote}_]
 
 |*OpTypePointer* with storage class *CrossWorkgroup*
