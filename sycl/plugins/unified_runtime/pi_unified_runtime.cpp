@@ -240,8 +240,9 @@ piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
 }
 
-__SYCL_EXPORT pi_result piextMemGetNativeHandleExp(
-    pi_mem Mem, pi_device Device, pi_native_handle *NativeHandle) {
+__SYCL_EXPORT pi_result
+piextMemGetNativeHandleExp(pi_mem Mem, pi_device Device,
+                           pi_native_handle *NativeHandle) {
   return pi2ur::piextMemGetNativeHandleExp(Mem, Device, NativeHandle);
 }
 
