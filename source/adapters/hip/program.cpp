@@ -408,7 +408,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
