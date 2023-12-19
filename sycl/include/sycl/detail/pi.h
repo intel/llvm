@@ -1743,6 +1743,13 @@ __SYCL_EXPORT pi_result piSamplerRetain(pi_sampler sampler);
 
 __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 
+__SYCL_EXPORT pi_result piextSamplerCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context,
+    const bool ownNativeHandle, pi_sampler *sampler);
+
+__SYCL_EXPORT pi_result
+piextSamplerGetNativeHandle(pi_sampler sampler, pi_native_handle *nativeHandle);
+
 //
 // Queue Commands
 //

@@ -910,6 +910,18 @@ __SYCL_EXPORT pi_result piSamplerRetain(pi_sampler Sampler) {
 __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler Sampler) {
   return pi2ur::piSamplerRelease(Sampler);
 }
+/* clang-format off */
+__SYCL_EXPORT pi_result piextSamplerGetNativeHandle(
+    pi_sampler sampler, pi_native_handle *nativeHandle) {
+  return pi2ur::piextSamplerGetNativeHandle(sampler, nativeHandle);
+}
+/* clang-format on */
+__SYCL_EXPORT pi_result piextSamplerCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context,
+    const bool ownNativeHandle, pi_sampler *sampler) {
+  return pi2ur::piextSamplerCreateWithNativeHandle(nativeHandle, context,
+                                                   ownNativeHandle, sampler);
+}
 
 __SYCL_EXPORT pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
                                           size_t ParamValueSize,
@@ -1484,6 +1496,8 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piSamplerGetInfo)
   _PI_API(piSamplerRetain)
   _PI_API(piSamplerRelease)
+  _PI_API(piextSamplerCreateWithNativeHandle)
+  _PI_API(piextSamplerGetNativeHandle)
 
   // Peer to Peer
   _PI_API(piextEnablePeerAccess)

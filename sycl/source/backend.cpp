@@ -94,6 +94,11 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend) {
+  if (Backend == backend::opencl) {
+    sycl::context Context(detail::pi::cast<cl_context>(NativeHandle), Handler);
+    return Context;
+  }
+
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiContext PiContext = nullptr;
@@ -127,7 +132,11 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
         make_error_code(errc::invalid),
         "Queue create using make_queue cannot have compute_index property.");
   }
-
+  if (Backend == backend::opencl) {
+    sycl::queue Queue(detail::pi::cast<cl_command_queue>(NativeHandle), Context,
+                      Handler);
+    return Queue;
+  }
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
@@ -276,6 +285,19 @@ kernel make_kernel(const context &TargetContext,
         *KernelBundle.begin();
     const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
     PiProgram = DeviceImageImpl->get_program_ref();
+  } else if (Backend == backend::opencl) {
+    cl_kernel CLKernel = detail::pi::cast<cl_kernel>(NativeHandle);
+    cl_program CLProgram;
+    size_t Ret = clGetKernelInfo(CLKernel, CL_KERNEL_PROGRAM, sizeof(CLProgram),
+                                 &CLProgram, nullptr);
+    if (Ret != CL_SUCCESS) {
+      throw runtime_error(
+          "Failed to retrieve program associated with the kernel",
+          PI_ERROR_INVALID_KERNEL);
+    }
+    Plugin->call<detail::PiApiKind::piextProgramCreateWithNativeHandle>(
+        detail::pi::cast<pi_native_handle>(CLProgram),
+        ContextImpl->getHandleRef(), false, &PiProgram);
   }
 
   // Create PI kernel first.

@@ -80,6 +80,8 @@ piSamplerCreate
 piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
+piextSamplerGetNativeHandle
+piextSamplerCreateWithNativeHandle
 piTearDown
 piextBindlessImageSamplerCreate
 piextCommandBufferAdviseUSM

@@ -353,7 +353,11 @@ public:
           PI_ERROR_INVALID_QUEUE);
     }
     getPlugin()->call<PiApiKind::piQueueRetain>(MQueues[0]);
-    return pi::cast<cl_command_queue>(MQueues[0]);
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    pi_native_handle NativeQueue;
+    getPlugin()->call<PiApiKind::piextQueueGetNativeHandle>(
+        MQueues[0], &NativeQueue, nullptr);
+    return pi::cast<cl_command_queue>(NativeQueue);
   }
 
   /// \return an associated SYCL context.

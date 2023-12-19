@@ -21,9 +21,12 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  impl = detail::platform_impl::getOrMakePlatformImpl(
-      detail::pi::cast<sycl::detail::pi::PiPlatform>(PlatformId),
-      sycl::detail::pi::getPlugin<backend::opencl>());
+  sycl::detail::pi::PiPlatform Platform;
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  Plugin->call<detail::PiApiKind::piextPlatformCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(PlatformId), &Platform);
+
+  impl = detail::platform_impl::getOrMakePlatformImpl(Platform, Plugin);
 }
 
 // protected constructor for internal use
@@ -33,7 +36,9 @@ platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
 
-cl_platform_id platform::get() const { return impl->get(); }
+cl_platform_id platform::get() const {
+  return detail::pi::cast<cl_platform_id>(impl->getNative());
+}
 
 bool platform::has_extension(const std::string &ExtensionName) const {
   return impl->has_extension(ExtensionName);

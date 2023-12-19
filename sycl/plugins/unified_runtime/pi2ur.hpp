@@ -4412,6 +4412,38 @@ inline pi_result piSamplerRelease(pi_sampler Sampler) {
   return PI_SUCCESS;
 }
 
+pi_result piextSamplerGetNativeHandle(pi_sampler sampler,
+                                      pi_native_handle *nativeHandle) {
+  auto UrSampler = reinterpret_cast<ur_sampler_handle_t>(sampler);
+
+  ur_native_handle_t UrNativeHandle{};
+  HANDLE_ERRORS(urSamplerGetNativeHandle(UrSampler, &UrNativeHandle));
+
+  *nativeHandle = reinterpret_cast<pi_native_handle>(UrNativeHandle);
+
+  return PI_SUCCESS;
+}
+
+pi_result piextSamplerCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             bool ownNativeHandle,
+                                             pi_sampler *sampler) {
+  ur_native_handle_t UrNativeSampler =
+      reinterpret_cast<ur_native_handle_t>(nativeHandle);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(context);
+
+  ur_sampler_handle_t *URSampler =
+      reinterpret_cast<ur_sampler_handle_t *>(sampler);
+  ur_sampler_native_properties_t Properties{};
+  Properties.isNativeHandleOwned = ownNativeHandle;
+  HANDLE_ERRORS(urSamplerCreateWithNativeHandle(UrNativeSampler, UrContext,
+                                                &Properties, URSampler));
+
+  return PI_SUCCESS;
+}
+
 // Sampler
 ///////////////////////////////////////////////////////////////////////////////
 

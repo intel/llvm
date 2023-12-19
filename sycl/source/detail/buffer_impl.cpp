@@ -54,7 +54,10 @@ void buffer_impl::addInteropObject(
       const PluginPtr &Plugin = getPlugin();
       Plugin->call<PiApiKind::piMemRetain>(
           pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
-      Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
+      pi_native_handle Handle;
+      Plugin->call<PiApiKind::piextMemGetNativeHandle>(MInteropMemObject,
+                                                       nullptr, &Handle);
+      Handles.push_back(Handle);
     }
   }
 }

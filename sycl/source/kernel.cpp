@@ -16,19 +16,39 @@
 namespace sycl {
 inline namespace _V1 {
 
-kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
-    : impl(std::make_shared<detail::kernel_impl>(
-          detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr, nullptr)) {
-  // This is a special interop constructor for OpenCL, so the kernel must be
-  // retained.
-  if (get_backend() == backend::opencl) {
-    impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
-        detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel));
+kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
+  try {
+    sycl::detail::pi::PiKernel Kernel;
+    auto Context = detail::getSyclObjImpl(SyclContext);
+    auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+    cl_program CLProgram;
+    size_t Ret = clGetKernelInfo(ClKernel, CL_KERNEL_PROGRAM, sizeof(CLProgram),
+                                 &CLProgram, nullptr);
+    if (Ret != CL_SUCCESS) {
+      throw runtime_error(
+          "Failed to retrieve program associated with the kernel",
+          PI_ERROR_INVALID_KERNEL);
+    }
+    sycl::detail::pi::PiProgram Program;
+    Plugin->call<detail::PiApiKind::piextProgramCreateWithNativeHandle>(
+        detail::pi::cast<pi_native_handle>(CLProgram), Context->getHandleRef(),
+        false, &Program);
+
+    Plugin->call<detail::PiApiKind::piextKernelCreateWithNativeHandle>(
+        detail::pi::cast<pi_native_handle>(ClKernel), Context->getHandleRef(),
+        Program, false, &Kernel);
+    impl = std::make_shared<detail::kernel_impl>(Kernel, Context, nullptr,
+                                                 nullptr);
+  } catch (sycl::runtime_error &) {
+    throw sycl::invalid_parameter_error(
+        "Input context must be the same as the context of cl_kernel",
+        PI_ERROR_INVALID_CONTEXT);
   }
 }
 
-cl_kernel kernel::get() const { return impl->get(); }
+cl_kernel kernel::get() const {
+  return detail::pi::cast<cl_kernel>(impl->getNative());
+}
 
 bool kernel::is_host() const {
   bool IsHost = impl->is_host();
