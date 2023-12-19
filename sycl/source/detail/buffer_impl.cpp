@@ -49,15 +49,11 @@ void buffer_impl::destructorNotification(void *UserObj) {
 void buffer_impl::addInteropObject(
     std::vector<ur_native_handle_t> &Handles) const {
   if (MOpenCLInterop) {
-    if (std::find(Handles.begin(), Handles.end(),
-                  ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
-        Handles.end()) {
-      const AdapterPtr &Adapter = getAdapter();
-      Adapter->call<UrApiKind::urMemRetain>(
-          ur::cast<ur_mem_handle_t>(MInteropMemObject));
-      ur_native_handle_t NativeHandle = 0;
-      Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
-                                                     &NativeHandle);
+    const AdapterPtr &Adapter = getAdapter();
+    ur_native_handle_t NativeHandle = 0;
+    Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
+                                                    &NativeHandle);
+    if (std::find(Handles.begin(), Handles.end(), NativeHandle) == Handles.end()) {
       Handles.push_back(NativeHandle);
     }
   }
