@@ -58,7 +58,6 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
-  return {};
 }
 
 ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {

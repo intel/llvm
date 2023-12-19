@@ -108,7 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
       RetFlags |= UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE;
     if (Access & ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY)
       RetFlags |= UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY;
-    return ReturnValue(Access);
+    return ReturnValue(RetFlags);
   }
   default:
     urPrint("Unsupported propName in urQueueGetInfo: propName=%d(0x%x)\n",

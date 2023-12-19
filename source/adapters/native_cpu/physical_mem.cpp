@@ -1,4 +1,4 @@
-//===--------- physical_mem.cpp - HIP Adapter -----------------------------===//
+//===--------- physical_mem.cpp - NATIVE CPU Adapter ----------------------===//
 //
 // Copyright (C) 2023 Intel Corporation
 //

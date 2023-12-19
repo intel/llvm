@@ -424,7 +424,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // checked. Otherwise, the OpenCommandList containing compute commands is
   // checked.
   bool hasOpenCommandList(bool IsCopy) const {
-    auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+    const auto &CommandBatch =
+        (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
 
