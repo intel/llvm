@@ -25,6 +25,7 @@
 #include <compiler/utils/group_collective_helpers.h>
 #include <llvm/ADT/Twine.h>
 #include <llvm/Analysis/VectorUtils.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
@@ -46,6 +47,18 @@ using namespace vecz;
 namespace {
 inline Type *getWideType(Type *ty, ElementCount factor) {
   if (!ty->isVectorTy()) {
+    // The wide type of a struct literal is the wide type of each of its
+    // elements.
+    if (auto *structTy = dyn_cast<StructType>(ty);
+        structTy && structTy->isLiteral()) {
+      SmallVector<Type *, 4> wideElts(structTy->elements());
+      for (unsigned i = 0, e = wideElts.size(); i != e; i++) {
+        wideElts[i] = getWideType(wideElts[i], factor);
+      }
+      return StructType::get(ty->getContext(), wideElts);
+    } else if (structTy) {
+      VECZ_ERROR("Can't create wide type for structure type");
+    }
     return VectorType::get(ty, factor);
   }
   bool const isScalable = isa<ScalableVectorType>(ty);
@@ -694,7 +707,9 @@ const Packetizer::Result &Packetizer::Result::broadcast(unsigned width) const {
   auto &F = packetizer.F;
   Value *result = nullptr;
   const auto &TI = packetizer.context().targetInfo();
-  if (isa<UndefValue>(scalar)) {
+  if (isa<PoisonValue>(scalar)) {
+    result = PoisonValue::get(getWideType(ty, factor));
+  } else if (isa<UndefValue>(scalar)) {
     result = UndefValue::get(getWideType(ty, factor));
   } else if (ty->isVectorTy() && factor.isScalable()) {
     IRBuilder<> B(buildAfter(scalar, F));

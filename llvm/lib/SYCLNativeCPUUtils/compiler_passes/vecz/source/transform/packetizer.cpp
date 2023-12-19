@@ -302,14 +302,14 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeMemOp(MemOp &Op);
-  /// @brief Packetize a masked atomic RMW operation.
+  /// @brief Packetize a masked atomicrmw or cmpxchg operation.
   ///
-  /// @param[in] CI Masked atomic RMW builtin call to packetize.
-  /// @param[in] AtomicInfo Information about the masked atomic RMW.
+  /// @param[in] CI Masked atomic builtin call to packetize.
+  /// @param[in] AtomicInfo Information about the masked atomic.
   ///
   /// @return Packetized instruction.
-  ValuePacket packetizeMaskedAtomicRMW(
-      CallInst &CI, VectorizationContext::MaskedAtomicRMW AtomicInfo);
+  ValuePacket packetizeMaskedAtomic(
+      CallInst &CI, VectorizationContext::MaskedAtomic AtomicInfo);
   /// @brief Packetize a GEP instruction.
   ///
   /// @param[in] GEP Instruction to packetize.
@@ -334,6 +334,12 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeFreeze(FreezeInst *FreezeI);
+  /// @brief Packetize an atomic cmpxchg instruction.
+  ///
+  /// @param[in] AtomicI Instruction to packetize.
+  ///
+  /// @return Packetized instruction.
+  ValuePacket packetizeAtomicCmpXchg(AtomicCmpXchgInst *AtomicI);
   /// @brief Packetize a unary operator instruction.
   ///
   /// @param[in] UnOp Instruction to packetize.
@@ -402,6 +408,22 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeExtractElement(ExtractElementInst *ExtractElement);
+  /// @brief Packetize an insert value instruction.
+  ///
+  /// Only packetizes inserts into literal struct types.
+  ///
+  /// @param[in] InsertValue Instruction to packetize.
+  ///
+  /// @return Packetized instruction.
+  ValuePacket packetizeInsertValue(InsertValueInst *InsertValue);
+  /// @brief Packetize an extract value instruction.
+  ///
+  /// Only packetizes extracts from literal struct types.
+  ///
+  /// @param[in] ExtractValue Instruction to packetize.
+  ///
+  /// @return Packetized instruction.
+  ValuePacket packetizeExtractValue(ExtractValueInst *ExtractValue);
   /// @brief Packetize a shuffle vector instruction.
   ///
   /// @param[in] Shuffle Instruction to packetize.
@@ -1157,11 +1179,20 @@ Packetizer::Result Packetizer::Impl::packetizeInstruction(Instruction *Ins) {
     case Instruction::ExtractElement:
       results = packetizeExtractElement(cast<ExtractElementInst>(Ins));
       break;
+    case Instruction::InsertValue:
+      results = packetizeInsertValue(cast<InsertValueInst>(Ins));
+      break;
+    case Instruction::ExtractValue:
+      results = packetizeExtractValue(cast<ExtractValueInst>(Ins));
+      break;
     case Instruction::ShuffleVector:
       results = packetizeShuffleVector(cast<ShuffleVectorInst>(Ins));
       break;
     case Instruction::Freeze:
       results = packetizeFreeze(cast<FreezeInst>(Ins));
+      break;
+    case Instruction::AtomicCmpXchg:
+      results = packetizeAtomicCmpXchg(cast<AtomicCmpXchgInst>(Ins));
       break;
   }
 
@@ -2102,8 +2133,8 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
         return packetizeMemOp(*MaskedOp);
       }
     }
-    if (auto AtomicInfo = Ctx.isMaskedAtomicRMWFunction(*Callee)) {
-      return packetizeMaskedAtomicRMW(*CI, *AtomicInfo);
+    if (auto AtomicInfo = Ctx.isMaskedAtomicFunction(*Callee)) {
+      return packetizeMaskedAtomic(*CI, *AtomicInfo);
     }
   }
 
@@ -2778,16 +2809,18 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeMaskedAtomicRMW(
-    CallInst &CI, VectorizationContext::MaskedAtomicRMW AtomicInfo) {
+ValuePacket Packetizer::Impl::packetizeMaskedAtomic(
+    CallInst &CI, VectorizationContext::MaskedAtomic AtomicInfo) {
   ValuePacket results;
 
-  Value *const ptr = CI.getArgOperand(0);
-  Value *const val = CI.getArgOperand(1);
-  Value *const mask = CI.getArgOperand(2);
+  bool const IsCmpXchg = AtomicInfo.isCmpXchg();
 
-  assert(AtomicInfo.ValTy == val->getType() && "AtomicInfo mismatch");
-  auto const packetWidth = getPacketWidthForType(val->getType());
+  Value *const ptrArg = CI.getArgOperand(0);
+  Value *const valOrCmpArg = CI.getArgOperand(1);
+  Value *const maskArg = CI.getArgOperand(2 + IsCmpXchg);
+
+  assert(AtomicInfo.ValTy == valOrCmpArg->getType() && "AtomicInfo mismatch");
+  auto const packetWidth = getPacketWidthForType(valOrCmpArg->getType());
 
   if (VL && packetWidth != 1) {
     emitVeczRemarkMissed(&F, &CI,
@@ -2795,20 +2828,29 @@ ValuePacket Packetizer::Impl::packetizeMaskedAtomicRMW(
     return {};
   }
 
-  ValuePacket valPacket;
-  Result valResult = packetize(val);
+  ValuePacket valOrCmpPacket;
+  Result valResult = packetize(valOrCmpArg);
   PACK_FAIL_IF(!valResult);
-  valResult.getPacketValues(packetWidth, valPacket);
-  PACK_FAIL_IF(valPacket.empty());
+  valResult.getPacketValues(packetWidth, valOrCmpPacket);
+  PACK_FAIL_IF(valOrCmpPacket.empty());
+
+  ValuePacket newValPacket;
+  if (IsCmpXchg) {
+    Value *const newValArg = CI.getArgOperand(2);
+    Result newValResult = packetize(newValArg);
+    PACK_FAIL_IF(!newValResult);
+    newValResult.getPacketValues(packetWidth, newValPacket);
+    PACK_FAIL_IF(newValPacket.empty());
+  }
 
   ValuePacket ptrPacket;
-  Result ptrResult = packetize(ptr);
+  Result ptrResult = packetize(ptrArg);
   PACK_FAIL_IF(!ptrResult);
   ptrResult.getPacketValues(packetWidth, ptrPacket);
   PACK_FAIL_IF(ptrPacket.empty());
 
   ValuePacket maskPacket;
-  Result maskResult = packetize(mask);
+  Result maskResult = packetize(maskArg);
   PACK_FAIL_IF(!maskResult);
   maskResult.getPacketValues(packetWidth, maskPacket);
   PACK_FAIL_IF(maskPacket.empty());
@@ -2817,16 +2859,20 @@ ValuePacket Packetizer::Impl::packetizeMaskedAtomicRMW(
   IC.deleteInstructionLater(&CI);
 
   for (unsigned i = 0; i != packetWidth; ++i) {
-    auto *const ptrI = ptrPacket[i];
-    auto *const valI = valPacket[i];
+    auto *const ptr = ptrPacket[i];
+    auto *const valOrCmp = valOrCmpPacket[i];
 
-    AtomicInfo.ValTy = valI->getType();
-    AtomicInfo.PointerTy = ptrI->getType();
+    AtomicInfo.ValTy = valOrCmp->getType();
+    AtomicInfo.PointerTy = ptr->getType();
     auto *maskedAtomicF =
-        Ctx.getOrCreateMaskedAtomicRMWFunction(AtomicInfo, Choices, SimdWidth);
+        Ctx.getOrCreateMaskedAtomicFunction(AtomicInfo, Choices, SimdWidth);
     PACK_FAIL_IF(!maskedAtomicF);
 
-    SmallVector<Value *, 4> args = {ptrI, valI, maskPacket[i]};
+    SmallVector<Value *, 4> args = {ptr, valOrCmp};
+    if (IsCmpXchg) {
+      args.push_back(newValPacket[i]);
+    }
+    args.push_back(maskPacket[i]);
     if (AtomicInfo.IsVectorPredicated) {
       assert(VL && "Missing vector length");
       args.push_back(VL);
@@ -2988,6 +3034,49 @@ ValuePacket Packetizer::Impl::packetizeFreeze(FreezeInst *FreezeI) {
   for (unsigned i = 0; i < packetWidth; ++i) {
     results.push_back(B.CreateFreeze(src[i], name));
   }
+  return results;
+}
+
+ValuePacket Packetizer::Impl::packetizeAtomicCmpXchg(
+    AtomicCmpXchgInst *AtomicI) {
+  ValuePacket results;
+
+  VectorizationContext::MaskedAtomic MA;
+  MA.VF = SimdWidth;
+  MA.IsVectorPredicated = VU.choices().vectorPredication();
+
+  MA.Align = AtomicI->getAlign();
+  MA.BinOp = AtomicRMWInst::BAD_BINOP;
+  MA.IsWeak = AtomicI->isWeak();
+  MA.IsVolatile = AtomicI->isVolatile();
+  MA.Ordering = AtomicI->getSuccessOrdering();
+  MA.CmpXchgFailureOrdering = AtomicI->getFailureOrdering();
+  MA.SyncScope = AtomicI->getSyncScopeID();
+
+  IRBuilder<> B(AtomicI);
+
+  // Set up the arguments to this function
+  Value *Ptr = packetize(AtomicI->getPointerOperand()).getAsValue();
+  Value *Cmp = packetize(AtomicI->getCompareOperand()).getAsValue();
+  Value *New = packetize(AtomicI->getNewValOperand()).getAsValue();
+
+  MA.ValTy = Cmp->getType();
+  MA.PointerTy = Ptr->getType();
+
+  auto *const TrueMask = createAllTrueMask(B, SimdWidth);
+  SmallVector<Value *, 8> MaskedFnArgs = {Ptr, Cmp, New, TrueMask};
+  if (VL) {
+    MaskedFnArgs.push_back(VL);
+  }
+
+  Function *MaskedAtomicFn =
+      Ctx.getOrCreateMaskedAtomicFunction(MA, VU.choices(), SimdWidth);
+  PACK_FAIL_IF(!MaskedAtomicFn);
+
+  CallInst *MaskedCI = B.CreateCall(MaskedAtomicFn, MaskedFnArgs);
+
+  results.push_back(MaskedCI);
+
   return results;
 }
 
@@ -3713,6 +3802,70 @@ ValuePacket Packetizer::Impl::packetizeExtractElement(
   }
   IC.deleteInstructionLater(ExtractElement);
   results.push_back(Result);
+  return results;
+}
+
+ValuePacket Packetizer::Impl::packetizeInsertValue(
+    InsertValueInst *InsertValue) {
+  ValuePacket results;
+
+  Value *const Val = InsertValue->getInsertedValueOperand();
+  Value *const Aggregate = InsertValue->getAggregateOperand();
+
+  // We can only packetize literal struct types
+  if (auto *StructTy = dyn_cast<StructType>(Aggregate->getType());
+      !StructTy || !StructTy->isLiteral()) {
+    return results;
+  }
+
+  Value *PackAggregate = packetizeIfVarying(Aggregate);
+  PACK_FAIL_IF(!PackAggregate);
+
+  Value *PackVal = packetizeIfVarying(Val);
+  PACK_FAIL_IF(!PackVal);
+
+  bool const IsValVarying = Val != PackVal;
+  bool const IsAggregateVarying = Aggregate != PackAggregate;
+  if (!IsAggregateVarying && IsValVarying) {
+    // If the aggregate wasn't varying but the value was
+    PackAggregate = packetize(Aggregate).getAsValue();
+  } else if (IsAggregateVarying && !IsValVarying) {
+    // If the aggregate was varying but the value wasn't
+    PackVal = packetize(Val).getAsValue();
+  } else if (!IsAggregateVarying && !IsValVarying) {
+    // If both were uniform
+    return results;
+  }
+
+  IRBuilder<> B(buildAfter(InsertValue, F));
+
+  results.push_back(
+      B.CreateInsertValue(PackAggregate, PackVal, InsertValue->getIndices()));
+
+  IC.deleteInstructionLater(InsertValue);
+  return results;
+}
+
+ValuePacket Packetizer::Impl::packetizeExtractValue(
+    ExtractValueInst *ExtractValue) {
+  ValuePacket results;
+
+  Value *const Aggregate = ExtractValue->getAggregateOperand();
+  // We can only packetize literal struct types
+  if (auto *StructTy = dyn_cast<StructType>(Aggregate->getType());
+      !StructTy || !StructTy->isLiteral()) {
+    return results;
+  }
+
+  Value *PackAggregate = packetizeIfVarying(Aggregate);
+  PACK_FAIL_IF(!PackAggregate);
+
+  IRBuilder<> B(buildAfter(ExtractValue, F));
+
+  results.push_back(
+      B.CreateExtractValue(PackAggregate, ExtractValue->getIndices()));
+
+  IC.deleteInstructionLater(ExtractValue);
   return results;
 }
 
