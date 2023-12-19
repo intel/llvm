@@ -98,12 +98,8 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
-add_dependencies(pi_level_zero ze-api)
 
-if (WIN32)
- target_link_libraries(pi_level_zero PRIVATE delayimp)
- target_link_options(pi_level_zero PRIVATE /DELAYLOAD:ze_loader.dll)
-endif()
+add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)
   target_compile_definitions(pi_level_zero PRIVATE
