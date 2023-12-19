@@ -978,6 +978,8 @@ float fast_distance(T p0, T p1) {
 // double fast_distance (gengeodouble p0, gengeodouble p1)
 template <typename T,
           typename = std::enable_if_t<detail::is_gengeodouble_v<T>, T>>
+__SYCL_DEPRECATED("fast_distance for double precision types is non-standard "
+                  "and has been deprecated")
 double fast_distance(T p0, T p1) {
   return __sycl_std::__invoke_fast_distance<double>(p0, p1);
 }
@@ -992,6 +994,8 @@ float fast_length(T p) {
 // double fast_length (gengeodouble p)
 template <typename T,
           typename = std::enable_if_t<detail::is_gengeodouble_v<T>, T>>
+__SYCL_DEPRECATED("fast_length for double precision types is non-standard "
+                  "and has been deprecated")
 double fast_length(T p) {
   return __sycl_std::__invoke_fast_length<double>(p);
 }
@@ -1004,6 +1008,8 @@ std::enable_if_t<detail::is_gengeofloat_v<T>, T> fast_normalize(T p) {
 
 // gengeodouble fast_normalize (gengeodouble p)
 template <typename T>
+__SYCL_DEPRECATED("fast_normalize for double precision types is non-standard "
+                  "and has been deprecated")
 std::enable_if_t<detail::is_gengeodouble_v<T>, T> fast_normalize(T p) {
   return __sycl_std::__invoke_fast_normalize<T>(p);
 }
