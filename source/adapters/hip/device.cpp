@@ -819,6 +819,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
@@ -837,7 +839,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BFLOAT16:
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:

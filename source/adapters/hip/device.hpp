@@ -33,7 +33,7 @@ public:
       : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
         HIPContext(Context), DeviceIndex(DeviceIndex) {}
 
-  ~ur_device_handle_t_() {
+  ~ur_device_handle_t_() noexcept(false) {
     UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
   }
 
