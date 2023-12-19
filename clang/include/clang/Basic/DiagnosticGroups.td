@@ -1514,4 +1514,5 @@ def DXILValidation : DiagGroup<"dxil-validation">;
 def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 
 // Warnings and fixes to support the "safe buffers" programming model.
-def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage">;
+def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
+def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
