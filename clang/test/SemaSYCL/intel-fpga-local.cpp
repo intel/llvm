@@ -168,6 +168,20 @@ void diagnostics()
   [[intel::fpga_memory("BLOCK_RAM")]]
   [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_block[32]; // OK
 
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  // Diagnostic is emitted because the arguments mismatch.
+  //expected-warning@+2{{attribute 'fpga_memory' is already applied with different arguments}}
+  [[intel::fpga_memory]] // expected-note {{previous attribute is here}}
+  [[intel::fpga_memory("MLAB")]] unsigned int mem_mlabs[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  // Diagnostic is emitted because the arguments mismatch.
+  //expected-warning@+2{{attribute 'fpga_memory' is already applied with different arguments}}
+  [[intel::fpga_memory("BLOCK_RAM")]] // expected-note {{previous attribute is here}}
+  [[intel::fpga_memory]] unsigned int mem_mlabs_block_ram[64];
+
   // **bankwidth
   //expected-warning@+1 {{unknown attribute 'bankwidth' ignored}}
   [[intelfpga::bankwidth(4)]] unsigned int bankwidth_var[32];
