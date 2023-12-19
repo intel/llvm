@@ -13,6 +13,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "device_sanitizer_report.hpp"
 
 #include <map>
 #include <memory>
@@ -81,6 +82,18 @@ struct ContextInfo {
     std::map<uptr, std::shared_ptr<USMAllocInfo>> AllocatedUSMMap;
 };
 
+struct LaunchInfo {
+    uptr LocalShadowOffset;
+    uptr LocalShadowOffsetEnd;
+    ur_context_handle_t Context;
+
+    DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
+
+    LaunchInfo()
+        : LocalShadowOffset(0), LocalShadowOffsetEnd(0), Context(nullptr) {}
+    ~LaunchInfo();
+};
+
 class SanitizerInterceptor {
   public:
     SanitizerInterceptor() {}
@@ -92,10 +105,12 @@ class SanitizerInterceptor {
                                void **ResultPtr, USMMemoryType Type);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
-    bool preLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                         ur_event_handle_t &Event);
+    ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
+                                ur_queue_handle_t Queue,
+                                ur_event_handle_t &Event,
+                                LaunchInfo &LaunchInfo);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                          ur_event_handle_t *Event);
+                          ur_event_handle_t *Event, LaunchInfo &LaunchInfo);
 
     ur_result_t addContext(ur_context_handle_t Context);
     ur_result_t removeContext(ur_context_handle_t Context);
@@ -117,7 +132,8 @@ class SanitizerInterceptor {
 
     /// Initialize Global Variables & Kernel Name at first Launch
     ur_result_t prepareLaunch(ur_queue_handle_t Queue,
-                              ur_kernel_handle_t Kernel);
+                              ur_kernel_handle_t Kernel,
+                              LaunchInfo &LaunchInfo);
 
     std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
