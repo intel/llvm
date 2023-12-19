@@ -12,6 +12,8 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "queue.hpp"
+#include "ur_api.h"
+#include "ur_util.hpp"
 
 #include <cassert>
 #include <cuda.h>
@@ -65,7 +67,7 @@ ur_result_t ur_event_handle_t_::start() {
   return Result;
 }
 
-bool ur_event_handle_t_::isCompleted() const noexcept {
+bool ur_event_handle_t_::isCompleted() const noexcept try {
   if (!IsRecorded) {
     return false;
   }
@@ -80,6 +82,8 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
     }
   }
   return true;
+} catch (...) {
+  return exceptionToResult(std::current_exception()) == UR_RESULT_SUCCESS;
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
