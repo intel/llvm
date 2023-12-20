@@ -1,4 +1,4 @@
-// REQUIRES: fusion, gpu, (opencl || level_zero)
+// REQUIRES: gpu, (opencl || level_zero)
 // RUN: %{build} -O2 -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "WRONG a VALUE" --implicit-check-not "WRONG b VALUE"
 
