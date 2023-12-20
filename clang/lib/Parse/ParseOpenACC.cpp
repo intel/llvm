@@ -36,9 +36,12 @@ enum class OpenACCDirectiveKindEx {
 // identifies the first token), and doesn't fully handle 'enter data', 'exit
 // data', nor any of the 'atomic' variants, just the first token of each.  So
 // this should only be used by `ParseOpenACCDirectiveKind`.
-OpenACCDirectiveKindEx getOpenACCDirectiveKind(StringRef Name) {
+OpenACCDirectiveKindEx getOpenACCDirectiveKind(Token Tok) {
+  if (!Tok.is(tok::identifier))
+    return OpenACCDirectiveKindEx::Invalid;
   OpenACCDirectiveKind DirKind =
-      llvm::StringSwitch<OpenACCDirectiveKind>(Name)
+      llvm::StringSwitch<OpenACCDirectiveKind>(
+          Tok.getIdentifierInfo()->getName())
           .Case("parallel", OpenACCDirectiveKind::Parallel)
           .Case("serial", OpenACCDirectiveKind::Serial)
           .Case("kernels", OpenACCDirectiveKind::Kernels)
@@ -53,12 +56,14 @@ OpenACCDirectiveKindEx getOpenACCDirectiveKind(StringRef Name) {
           .Case("shutdown", OpenACCDirectiveKind::Shutdown)
           .Case("set", OpenACCDirectiveKind::Shutdown)
           .Case("update", OpenACCDirectiveKind::Update)
+          .Case("wait", OpenACCDirectiveKind::Wait)
           .Default(OpenACCDirectiveKind::Invalid);
 
   if (DirKind != OpenACCDirectiveKind::Invalid)
     return static_cast<OpenACCDirectiveKindEx>(DirKind);
 
-  return llvm::StringSwitch<OpenACCDirectiveKindEx>(Name)
+  return llvm::StringSwitch<OpenACCDirectiveKindEx>(
+             Tok.getIdentifierInfo()->getName())
       .Case("enter", OpenACCDirectiveKindEx::Enter)
       .Case("exit", OpenACCDirectiveKindEx::Exit)
       .Default(OpenACCDirectiveKindEx::Invalid);
@@ -66,8 +71,11 @@ OpenACCDirectiveKindEx getOpenACCDirectiveKind(StringRef Name) {
 
 // Since 'atomic' is effectively a compound directive, this will decode the
 // second part of the directive.
-OpenACCAtomicKind getOpenACCAtomicKind(StringRef Name) {
-  return llvm::StringSwitch<OpenACCAtomicKind>(Name)
+OpenACCAtomicKind getOpenACCAtomicKind(Token Tok) {
+  if (!Tok.is(tok::identifier))
+    return OpenACCAtomicKind::Invalid;
+  return llvm::StringSwitch<OpenACCAtomicKind>(
+             Tok.getIdentifierInfo()->getName())
       .Case("read", OpenACCAtomicKind::Read)
       .Case("write", OpenACCAtomicKind::Write)
       .Case("update", OpenACCAtomicKind::Update)
@@ -75,22 +83,46 @@ OpenACCAtomicKind getOpenACCAtomicKind(StringRef Name) {
       .Default(OpenACCAtomicKind::Invalid);
 }
 
-bool isOpenACCDirectiveKind(OpenACCDirectiveKind Kind, StringRef Tok) {
+enum class OpenACCSpecialTokenKind {
+  ReadOnly,
+  DevNum,
+  Queues,
+};
+
+bool isOpenACCSpecialToken(OpenACCSpecialTokenKind Kind, Token Tok) {
+  if (!Tok.is(tok::identifier))
+    return false;
+
+  switch (Kind) {
+  case OpenACCSpecialTokenKind::ReadOnly:
+    return Tok.getIdentifierInfo()->isStr("readonly");
+  case OpenACCSpecialTokenKind::DevNum:
+    return Tok.getIdentifierInfo()->isStr("devnum");
+  case OpenACCSpecialTokenKind::Queues:
+    return Tok.getIdentifierInfo()->isStr("queues");
+  }
+  llvm_unreachable("Unknown 'Kind' Passed");
+}
+
+bool isOpenACCDirectiveKind(OpenACCDirectiveKind Kind, Token Tok) {
+  if (!Tok.is(tok::identifier))
+    return false;
+
   switch (Kind) {
   case OpenACCDirectiveKind::Parallel:
-    return Tok == "parallel";
+    return Tok.getIdentifierInfo()->isStr("parallel");
   case OpenACCDirectiveKind::Serial:
-    return Tok == "serial";
+    return Tok.getIdentifierInfo()->isStr("serial");
   case OpenACCDirectiveKind::Kernels:
-    return Tok == "kernels";
+    return Tok.getIdentifierInfo()->isStr("kernels");
   case OpenACCDirectiveKind::Data:
-    return Tok == "data";
+    return Tok.getIdentifierInfo()->isStr("data");
   case OpenACCDirectiveKind::HostData:
-    return Tok == "host_data";
+    return Tok.getIdentifierInfo()->isStr("host_data");
   case OpenACCDirectiveKind::Loop:
-    return Tok == "loop";
+    return Tok.getIdentifierInfo()->isStr("loop");
   case OpenACCDirectiveKind::Cache:
-    return Tok == "cache";
+    return Tok.getIdentifierInfo()->isStr("cache");
 
   case OpenACCDirectiveKind::ParallelLoop:
   case OpenACCDirectiveKind::SerialLoop:
@@ -100,19 +132,21 @@ bool isOpenACCDirectiveKind(OpenACCDirectiveKind Kind, StringRef Tok) {
     return false;
 
   case OpenACCDirectiveKind::Atomic:
-    return Tok == "atomic";
+    return Tok.getIdentifierInfo()->isStr("atomic");
   case OpenACCDirectiveKind::Routine:
-    return Tok == "routine";
+    return Tok.getIdentifierInfo()->isStr("routine");
   case OpenACCDirectiveKind::Declare:
-    return Tok == "declare";
+    return Tok.getIdentifierInfo()->isStr("declare");
   case OpenACCDirectiveKind::Init:
-    return Tok == "init";
+    return Tok.getIdentifierInfo()->isStr("init");
   case OpenACCDirectiveKind::Shutdown:
-    return Tok == "shutdown";
+    return Tok.getIdentifierInfo()->isStr("shutdown");
   case OpenACCDirectiveKind::Set:
-    return Tok == "set";
+    return Tok.getIdentifierInfo()->isStr("set");
   case OpenACCDirectiveKind::Update:
-    return Tok == "update";
+    return Tok.getIdentifierInfo()->isStr("update");
+  case OpenACCDirectiveKind::Wait:
+    return Tok.getIdentifierInfo()->isStr("wait");
   case OpenACCDirectiveKind::Invalid:
     return false;
   }
@@ -121,20 +155,22 @@ bool isOpenACCDirectiveKind(OpenACCDirectiveKind Kind, StringRef Tok) {
 
 OpenACCDirectiveKind
 ParseOpenACCEnterExitDataDirective(Parser &P, Token FirstTok,
-                                   StringRef FirstTokSpelling,
                                    OpenACCDirectiveKindEx ExtDirKind) {
   Token SecondTok = P.getCurToken();
 
   if (SecondTok.isAnnotation()) {
-    P.Diag(FirstTok, diag::err_acc_invalid_directive) << 0 << FirstTokSpelling;
+    P.Diag(FirstTok, diag::err_acc_invalid_directive)
+        << 0 << FirstTok.getIdentifierInfo();
     return OpenACCDirectiveKind::Invalid;
   }
 
-  std::string SecondTokSpelling = P.getPreprocessor().getSpelling(SecondTok);
-
-  if (!isOpenACCDirectiveKind(OpenACCDirectiveKind::Data, SecondTokSpelling)) {
-    P.Diag(FirstTok, diag::err_acc_invalid_directive)
-        << 1 << FirstTokSpelling << SecondTokSpelling;
+  if (!isOpenACCDirectiveKind(OpenACCDirectiveKind::Data, SecondTok)) {
+    if (!SecondTok.is(tok::identifier))
+      P.Diag(SecondTok, diag::err_expected) << tok::identifier;
+    else
+      P.Diag(FirstTok, diag::err_acc_invalid_directive)
+          << 1 << FirstTok.getIdentifierInfo()->getName()
+          << SecondTok.getIdentifierInfo()->getName();
     return OpenACCDirectiveKind::Invalid;
   }
 
@@ -152,9 +188,7 @@ OpenACCAtomicKind ParseOpenACCAtomicKind(Parser &P) {
   if (AtomicClauseToken.isAnnotation())
     return OpenACCAtomicKind::Update;
 
-  std::string AtomicClauseSpelling =
-      P.getPreprocessor().getSpelling(AtomicClauseToken);
-  OpenACCAtomicKind AtomicKind = getOpenACCAtomicKind(AtomicClauseSpelling);
+  OpenACCAtomicKind AtomicKind = getOpenACCAtomicKind(AtomicClauseToken);
 
   // If we don't know what this is, treat it as 'nothing', and treat the rest of
   // this as a clause list, which, despite being invalid, is likely what the
@@ -172,15 +206,14 @@ OpenACCDirectiveKind ParseOpenACCDirectiveKind(Parser &P) {
 
   // Just #pragma acc can get us immediately to the end, make sure we don't
   // introspect on the spelling before then.
-  if (FirstTok.isAnnotation()) {
+  if (FirstTok.isNot(tok::identifier)) {
     P.Diag(FirstTok, diag::err_acc_missing_directive);
     return OpenACCDirectiveKind::Invalid;
   }
 
   P.ConsumeToken();
-  std::string FirstTokSpelling = P.getPreprocessor().getSpelling(FirstTok);
 
-  OpenACCDirectiveKindEx ExDirKind = getOpenACCDirectiveKind(FirstTokSpelling);
+  OpenACCDirectiveKindEx ExDirKind = getOpenACCDirectiveKind(FirstTok);
 
   // OpenACCDirectiveKindEx is meant to be an extended list
   // over OpenACCDirectiveKind, so any value below Invalid is one of the
@@ -190,14 +223,14 @@ OpenACCDirectiveKind ParseOpenACCDirectiveKind(Parser &P) {
   // immediately cast it and use it as that.
   if (ExDirKind >= OpenACCDirectiveKindEx::Invalid) {
     switch (ExDirKind) {
-    case OpenACCDirectiveKindEx::Invalid:
+    case OpenACCDirectiveKindEx::Invalid: {
       P.Diag(FirstTok, diag::err_acc_invalid_directive)
-          << 0 << FirstTokSpelling;
+          << 0 << FirstTok.getIdentifierInfo();
       return OpenACCDirectiveKind::Invalid;
+    }
     case OpenACCDirectiveKindEx::Enter:
     case OpenACCDirectiveKindEx::Exit:
-      return ParseOpenACCEnterExitDataDirective(P, FirstTok, FirstTokSpelling,
-                                                ExDirKind);
+      return ParseOpenACCEnterExitDataDirective(P, FirstTok, ExDirKind);
     }
   }
 
@@ -208,8 +241,7 @@ OpenACCDirectiveKind ParseOpenACCDirectiveKind(Parser &P) {
   // clause.
   Token SecondTok = P.getCurToken();
   if (!SecondTok.isAnnotation() &&
-      isOpenACCDirectiveKind(OpenACCDirectiveKind::Loop,
-                             P.getPreprocessor().getSpelling(SecondTok))) {
+      isOpenACCDirectiveKind(OpenACCDirectiveKind::Loop, SecondTok)) {
     switch (DirKind) {
     default:
       // Nothing to do except in the below cases, as they should be diagnosed as
@@ -239,6 +271,67 @@ void ParseOpenACCClauseList(Parser &P) {
 }
 
 } // namespace
+
+/// OpenACC 3.3, section 2.16:
+/// In this section and throughout the specification, the term wait-argument
+/// means:
+/// [ devnum : int-expr : ] [ queues : ] async-argument-list
+bool Parser::ParseOpenACCWaitArgument() {
+  // [devnum : int-expr : ]
+  if (isOpenACCSpecialToken(OpenACCSpecialTokenKind::DevNum, Tok) &&
+      NextToken().is(tok::colon)) {
+    // Consume devnum.
+    ConsumeToken();
+    // Consume colon.
+    ConsumeToken();
+
+    ExprResult IntExpr =
+        getActions().CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    if (IntExpr.isInvalid())
+      return true;
+
+    if (ExpectAndConsume(tok::colon))
+      return true;
+  }
+
+  // [ queues : ]
+  if (isOpenACCSpecialToken(OpenACCSpecialTokenKind::Queues, Tok) &&
+      NextToken().is(tok::colon)) {
+    // Consume queues.
+    ConsumeToken();
+    // Consume colon.
+    ConsumeToken();
+  }
+
+  // OpenACC 3.3, section 2.16:
+  // the term 'async-argument' means a nonnegative scalar integer expression, or
+  // one of the special values 'acc_async_noval' or 'acc_async_sync', as defined
+  // in the C header file and the Fortran opacc module.
+  //
+  // We are parsing this simply as list of assignment expressions (to avoid
+  // comma being troublesome), and will ensure it is an integral type.  The
+  // 'special' types are defined as macros, so we can't really check those
+  // (other than perhaps as values at one point?), but the standard does say it
+  // is implementation-defined to use any other negative value.
+  //
+  //
+  bool FirstArg = true;
+  while (!getCurToken().isOneOf(tok::r_paren, tok::annot_pragma_openacc_end)) {
+    if (!FirstArg) {
+      if (ExpectAndConsume(tok::comma))
+        return true;
+    }
+    FirstArg = false;
+
+    ExprResult CurArg =
+        getActions().CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+
+    if (CurArg.isInvalid())
+      return true;
+  }
+
+  return false;
+}
 
 ExprResult Parser::ParseOpenACCIDExpression() {
   ExprResult Res;
@@ -329,8 +422,7 @@ void Parser::ParseOpenACCCacheVarList() {
   // specifications.  First, see if we have `readonly:`, else we back-out and
   // treat it like the beginning of a reference to a potentially-existing
   // `readonly` variable.
-  if (getCurToken().is(tok::identifier) &&
-      getCurToken().getIdentifierInfo()->isStr("readonly") &&
+  if (isOpenACCSpecialToken(OpenACCSpecialTokenKind::ReadOnly, Tok) &&
       NextToken().is(tok::colon)) {
     // Consume both tokens.
     ConsumeToken();
@@ -387,6 +479,13 @@ void Parser::ParseOpenACCDirective() {
       // The ParseOpenACCCacheVarList function manages to recover from failures,
       // so we can always consume the close.
       T.consumeClose();
+      break;
+    case OpenACCDirectiveKind::Wait:
+      // OpenACC has an optional paren-wrapped 'wait-argument'.
+      if (ParseOpenACCWaitArgument())
+        T.skipToEnd();
+      else
+        T.consumeClose();
       break;
     }
   } else if (DirKind == OpenACCDirectiveKind::Cache) {
