@@ -26,6 +26,10 @@ int reference(size_t i) {
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph XSubSubGraph{Queue.get_context(), Queue.get_device()};
@@ -131,8 +135,8 @@ int main() {
   Queue.memcpy(Output.data(), Z, N * sizeof(int), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    int ref = reference(i);
-    assert(Output[i] == ref);
+    int Ref = reference(i);
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

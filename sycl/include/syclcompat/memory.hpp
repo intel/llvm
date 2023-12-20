@@ -47,6 +47,7 @@
 #include <sycl/usm.hpp>
 
 #include <syclcompat/device.hpp>
+#include <syclcompat/traits.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
@@ -564,13 +565,6 @@ static sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
   return detail::memcpy(q, to_ptr, from_ptr, size);
 }
 
-namespace detail {
-template <class T> struct dont_deduce {
-  using type = T;
-};
-template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
-} // namespace detail
-
 /// Asynchronously copies \p count T's from the address specified by \p
 /// from_ptr to the address specified by \p to_ptr. The return of the function
 /// does NOT guarantee the copy is completed.
@@ -582,10 +576,9 @@ template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
-                                const detail::dont_deduce_t<T> *from_ptr,
-                                size_t count,
-                                sycl::queue q = get_default_queue()) {
+static sycl::event
+memcpy_async(type_identity_t<T> *to_ptr, const type_identity_t<T> *from_ptr,
+             size_t count, sycl::queue q = get_default_queue()) {
   return detail::memcpy(q, static_cast<void *>(to_ptr),
                         static_cast<const void *>(from_ptr), count * sizeof(T));
 }
@@ -601,8 +594,8 @@ static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static void memcpy(detail::dont_deduce_t<T> *to_ptr,
-                   const detail::dont_deduce_t<T> *from_ptr, size_t count,
+static void memcpy(type_identity_t<T> *to_ptr,
+                   const type_identity_t<T> *from_ptr, size_t count,
                    sycl::queue q = get_default_queue()) {
   detail::memcpy(q, static_cast<void *>(to_ptr),
                  static_cast<const void *>(from_ptr), count * sizeof(T))

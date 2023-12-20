@@ -5,6 +5,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   const T ModValue = 7;
@@ -16,7 +20,7 @@ int main() {
 
   // Create reference data for output
   std::vector<T> ReferenceA(DataA), ReferenceB(DataB), ReferenceC(DataC);
-  for (unsigned i = 0; i < Iterations; i++) {
+  for (size_t i = 0; i < Iterations; i++) {
     for (size_t j = 0; j < Size; j++) {
       ReferenceA[j] = ReferenceB[j];
       ReferenceA[j] += ModValue;
@@ -106,11 +110,8 @@ int main() {
 
     event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = Queue.submit([&](handler &CGH) {
-        CGH.depends_on(Event);
-        CGH.ext_oneapi_graph(GraphExec);
-      });
-      Event.wait();
+      Event =
+          Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     }
     Queue.wait_and_throw();
   }
@@ -120,9 +121,9 @@ int main() {
   host_accessor HostAccC(BufferC);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(ReferenceA[i] == HostAccA[i]);
-    assert(ReferenceB[i] == HostAccB[i]);
-    assert(ReferenceC[i] == HostAccC[i]);
+    assert(check_value(i, ReferenceA[i], HostAccA[i], "HostAccA"));
+    assert(check_value(i, ReferenceB[i], HostAccB[i], "HostAccB"));
+    assert(check_value(i, ReferenceC[i], HostAccC[i], "HostAccC"));
   }
 
   return 0;

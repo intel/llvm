@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp> // for SYCL_EXT_ONEAPI_MATRIX_VERSION
+#include <sycl/detail/defines.hpp> // for __has_builtin
 #include <sycl/half_type.hpp>      // for half
 
 #include <cstddef> // for size_t
@@ -110,35 +110,19 @@ enum class GroupOperation : uint32_t {
   ClusteredReduce = 3,
 };
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
   Packed = 2,
   Dynamic = 3
 };
-#else
-enum class MatrixLayout : uint32_t {
-  RowMajor = 0,
-  ColumnMajor = 1,
-  PackedA = 2,
-  PackedB = 3,
-  Unused = 4
-};
-#endif
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
-#else
-template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_JointMatrixINTEL;
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 } // namespace __spv
 
@@ -176,8 +160,8 @@ template <int Bits> using ap_int = _BitInt(Bits);
 // SPIRV built-in functions.
 // Only in such cases the class is recognized as SPIRV type __ocl_event_t.
 #ifndef __SYCL_DEVICE_ONLY__
-typedef void* __ocl_event_t;
-typedef void* __ocl_sampler_t;
+typedef void *__ocl_event_t;
+typedef void *__ocl_sampler_t;
 // Adding only the datatypes that can be currently used in SYCL,
 // as per SYCL spec 1.2.1
 #define __SYCL_SPV_IMAGE_TYPE(NAME) typedef void *__ocl_##NAME##_t

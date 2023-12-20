@@ -86,8 +86,9 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     syclexp::destroy_image_handle(imgIn, q);
     syclexp::destroy_image_handle(imgOut, q);
 
-    syclexp::free_image_mem(imgMemIn, dev, ctxt);
-    syclexp::free_image_mem(imgMemOut, dev, ctxt);
+    syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, dev, ctxt);
+    syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard, dev,
+                            ctxt);
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";

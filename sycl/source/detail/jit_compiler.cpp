@@ -47,11 +47,20 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
     return ::jit_compiler::BinaryFormat::SPIRV;
   case backend::ext_oneapi_cuda:
     return ::jit_compiler::BinaryFormat::PTX;
+  case backend::ext_oneapi_hip:
+    return ::jit_compiler::BinaryFormat::AMDGCN;
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Backend unsupported by kernel fusion");
   }
+}
+
+::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  return ::jit_compiler::TargetInfo::get(
+      Format, static_cast<::jit_compiler::DeviceArchitecture>(
+                  Queue->getDeviceImplPtr()->getDeviceArch()));
 }
 
 std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
@@ -60,16 +69,20 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
 
   bool isNvidia =
       Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
-  if (isNvidia) {
+  bool isHIP =
+      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_hip;
+  if (isNvidia || isHIP) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
     std::vector<kernel_id> KernelIds{KernelID};
     auto DeviceImages =
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
-        DeviceImages.begin(), DeviceImages.end(), [](RTDeviceBinaryImage *DI) {
+        DeviceImages.begin(), DeviceImages.end(),
+        [isNvidia](RTDeviceBinaryImage *DI) {
+          const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
+                                                   : std::string("llvm_amdgcn");
           return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
-                 DI->getRawData().DeviceTargetSpec ==
-                     std::string("llvm_nvptx64");
+                 DI->getRawData().DeviceTargetSpec == TargetSpec;
         });
     if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};
@@ -145,6 +158,7 @@ struct PromotionInformation {
   Requirement *Definition;
   NDRDescT NDRange;
   size_t LocalSize;
+  size_t ElemSize;
   std::vector<bool> UsedParams;
 };
 
@@ -360,11 +374,11 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       ThisLocalSize = 0;
     }
     assert(ThisLocalSize.has_value());
-    Promotions.emplace(Req->MSYCLMemObj,
-                       PromotionInformation{ThisPromotionTarget, KernelIndex,
-                                            ArgFunctionIndex, Req, NDRange,
-                                            ThisLocalSize.value(),
-                                            std::vector<bool>()});
+    Promotions.emplace(
+        Req->MSYCLMemObj,
+        PromotionInformation{ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                             Req, NDRange, ThisLocalSize.value(),
+                             Req->MElemSize, std::vector<bool>()});
   }
 }
 
@@ -502,7 +516,7 @@ static ParamIterator preProcessArguments(
             (PromotionTarget == Promotion::Private)
                 ? ::jit_compiler::Internalization::Private
                 : ::jit_compiler::Internalization::Local,
-            Internalization.LocalSize);
+            Internalization.LocalSize, Internalization.ElemSize);
         // If an accessor will be promoted, i.e., if it has the promotion
         // property attached to it, the next three arguments, that are
         // associated with the accessor (access range, memory range, offset),
@@ -624,6 +638,11 @@ std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
                           const property_list &PropList) {
+  if (InputKernels.empty()) {
+    printPerformanceWarning("Fusion list is empty");
+    return nullptr;
+  }
+
   // Retrieve the device binary from each of the input
   // kernels to hand them over to the JIT compiler.
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;
@@ -796,11 +815,11 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   // Retrieve barrier flags.
-  int BarrierFlags =
+  ::jit_compiler::BarrierFlags BarrierFlags =
       (PropList
            .has_property<ext::codeplay::experimental::property::no_barriers>())
-          ? -1
-          : 3;
+          ? ::jit_compiler::getNoBarrierFlag()
+          : ::jit_compiler::getLocalAndGlobalBarrierFlag();
 
   static size_t FusedKernelNameIndex = 0;
   std::stringstream FusedKernelName;
@@ -812,8 +831,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
-  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
@@ -894,6 +914,11 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
     BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
     break;
   }
+  case ::jit_compiler::BinaryFormat::AMDGCN: {
+    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
+    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    break;
+  }
   case ::jit_compiler::BinaryFormat::SPIRV: {
     TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
                      ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
@@ -929,7 +954,8 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
 
   Binary.addProperty(std::move(ArgMaskPropSet));
 
-  if (Format == ::jit_compiler::BinaryFormat::PTX) {
+  if (Format == ::jit_compiler::BinaryFormat::PTX ||
+      Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
     // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
@@ -950,6 +976,14 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
       ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
       Binary.addProperty(std::move(ProgramMetadata));
     }
+  }
+  if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
+    PropertyContainer NeedFinalization{
+        __SYCL_PI_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
+    PropertySetContainer ProgramMetadata{
+        __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+    ProgramMetadata.addProperty(std::move(NeedFinalization));
+    Binary.addProperty(std::move(ProgramMetadata));
   }
 
   DeviceBinariesCollection Collection;

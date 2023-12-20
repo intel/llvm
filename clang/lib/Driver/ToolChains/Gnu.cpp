@@ -292,23 +292,9 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   }
 }
 
-static bool getPIE(const ArgList &Args, const ToolChain &TC) {
-  if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_static) ||
-      Args.hasArg(options::OPT_r) || Args.hasArg(options::OPT_static_pie))
-    return false;
-
-  Arg *A = Args.getLastArg(options::OPT_pie, options::OPT_no_pie,
-                           options::OPT_nopie);
-  if (!A)
-    return TC.isPIEDefault(Args);
-  return A->getOption().matches(options::OPT_pie);
-}
-
 static bool getStaticPIE(const ArgList &Args, const ToolChain &TC) {
   bool HasStaticPIE = Args.hasArg(options::OPT_static_pie);
-  // -no-pie is an alias for -nopie. So, handling -nopie takes care of
-  // -no-pie as well.
-  if (HasStaticPIE && Args.hasArg(options::OPT_nopie)) {
+  if (HasStaticPIE && Args.hasArg(options::OPT_no_pie)) {
     const Driver &D = TC.getDriver();
     const llvm::opt::OptTable &Opts = D.getOpts();
     StringRef StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
@@ -412,8 +398,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Generic_ELF, so the static_cast might return a reference to a invalid
   // instance (see PR45061). Ideally, the Linker constructor needs to take a
   // Generic_ELF instead.
-  const toolchains::Generic_ELF &ToolChain =
-      static_cast<const toolchains::Generic_ELF &>(getToolChain());
+  const auto &ToolChain = static_cast<const Generic_ELF &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
 
   const llvm::Triple &Triple = getToolChain().getEffectiveTriple();
@@ -423,7 +408,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const bool isAndroid = ToolChain.getTriple().isAndroid();
   const bool IsIAMCU = ToolChain.getTriple().isOSIAMCU();
   const bool IsVE = ToolChain.getTriple().isVE();
-  const bool IsPIE = getPIE(Args, ToolChain);
   const bool IsStaticPIE = getStaticPIE(Args, ToolChain);
   const bool IsStatic = getStatic(Args);
   const bool HasCRTBeginEndFiles =
@@ -448,20 +432,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!D.SysRoot.empty())
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
-
-  if (IsPIE)
-    CmdArgs.push_back("-pie");
-
-  if (IsStaticPIE) {
-    CmdArgs.push_back("-static");
-    CmdArgs.push_back("-pie");
-    CmdArgs.push_back("--no-dynamic-linker");
-    CmdArgs.push_back("-z");
-    CmdArgs.push_back("text");
-  }
-
-  if (Args.hasArg(options::OPT_rdynamic))
-    CmdArgs.push_back("-export-dynamic");
 
   if (Args.hasArg(options::OPT_s))
     CmdArgs.push_back("-s");
@@ -497,17 +467,26 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Triple.isRISCV())
     CmdArgs.push_back("-X");
 
-  if (Args.hasArg(options::OPT_shared))
+  const bool IsShared = Args.hasArg(options::OPT_shared);
+  if (IsShared)
     CmdArgs.push_back("-shared");
-
-  if (IsStatic) {
+  bool IsPIE = false;
+  if (IsStaticPIE) {
     CmdArgs.push_back("-static");
-  } else {
+    CmdArgs.push_back("-pie");
+    CmdArgs.push_back("--no-dynamic-linker");
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back("text");
+  } else if (IsStatic) {
+    CmdArgs.push_back("-static");
+  } else if (!Args.hasArg(options::OPT_r)) {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
-
-    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE &&
-        !Args.hasArg(options::OPT_r)) {
+    if (!IsShared) {
+      IsPIE = Args.hasFlag(options::OPT_pie, options::OPT_no_pie,
+                           ToolChain.isPIEDefault(Args));
+      if (IsPIE)
+        CmdArgs.push_back("-pie");
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
                                            ToolChain.getDynamicLinker(Args)));
@@ -583,7 +562,15 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    // Find the first filename InputInfo object.
+    auto Input = llvm::find_if(
+        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
+    if (Input == Inputs.end())
+      // For a very rare case, all of the inputs to the linker are
+      // InputArg. If that happens, just use the first InputInfo.
+      Input = Inputs.begin();
+
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, *Input,
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -597,15 +584,24 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) ||
+      JA.isOffloading(Action::OFK_SYCL)) {
     InputInfoList UpdatedInputs;
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      if (II.getType() == types::TY_Tempfilelist) {
+      // TODO: Incoming file from the unbundling of the AOCX archive is
+      // represented as an object. The file should be considered as a filelist
+      // file to correspond with the '@' addition.
+      bool IsAOCXFile = false;
+      if (II.isFilename())
+        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
+
+      if (II.getType() == types::TY_Tempfilelist ||
+          (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        std::string FileName(II.getFilename());
-        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        const char *ArgFile =
+            C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
       } else
@@ -641,10 +637,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Additional linker set-up and flags for Fortran. This is required in order
   // to generate executables. As Fortran runtime depends on the C runtime,
   // these dependencies need to be listed before the C runtime below (i.e.
-  // AddRuntTimeLibs).
+  // AddRunTimeLibs).
   if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranRuntimeLibs(ToolChain, CmdArgs);
+    addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
     CmdArgs.push_back("-lm");
   }
 
@@ -729,7 +725,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       if (Args.hasArg(options::OPT_fsycl) &&
           !Args.hasArg(options::OPT_nolibsycl)) {
-        CmdArgs.push_back("-lsycl");
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("-lsycl-preview");
+        else
+          CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
         // Use of -fintelfpga implies -lOpenCL.
         // FIXME: Adjust to use plugin interface when available.
@@ -1224,7 +1223,7 @@ static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
             .FilterOut(NonExistent)
             .setIncludeDirsCallback([](const Multilib &M) {
               std::vector<std::string> Dirs({"/include"});
-              if (StringRef(M.includeSuffix()).startswith("/uclibc"))
+              if (StringRef(M.includeSuffix()).starts_with("/uclibc"))
                 Dirs.push_back(
                     "/../../../../mips-linux-gnu/libc/uclibc/usr/include");
               else
@@ -1428,7 +1427,7 @@ static bool findMipsMtiMultilibs(const Multilib::flags_list &Flags,
             .FilterOut(NonExistent)
             .setIncludeDirsCallback([](const Multilib &M) {
               std::vector<std::string> Dirs({"/include"});
-              if (StringRef(M.includeSuffix()).startswith("/uclibc"))
+              if (StringRef(M.includeSuffix()).starts_with("/uclibc"))
                 Dirs.push_back("/../../../../sysroot/uclibc/usr/include");
               else
                 Dirs.push_back("/../../../../sysroot/usr/include");
@@ -2134,45 +2133,72 @@ Generic_GCC::GCCVersion Generic_GCC::GCCVersion::Parse(StringRef VersionText) {
   std::pair<StringRef, StringRef> First = VersionText.split('.');
   std::pair<StringRef, StringRef> Second = First.second.split('.');
 
-  GCCVersion GoodVersion = {VersionText.str(), -1, -1, -1, "", "", ""};
-  if (First.first.getAsInteger(10, GoodVersion.Major) || GoodVersion.Major < 0)
-    return BadVersion;
-  GoodVersion.MajorStr = First.first.str();
-  if (First.second.empty())
-    return GoodVersion;
+  StringRef MajorStr = First.first;
   StringRef MinorStr = Second.first;
-  if (Second.second.empty()) {
-    if (size_t EndNumber = MinorStr.find_first_not_of("0123456789")) {
-      GoodVersion.PatchSuffix = std::string(MinorStr.substr(EndNumber));
-      MinorStr = MinorStr.slice(0, EndNumber);
-    }
-  }
-  if (MinorStr.getAsInteger(10, GoodVersion.Minor) || GoodVersion.Minor < 0)
-    return BadVersion;
-  GoodVersion.MinorStr = MinorStr.str();
+  StringRef PatchStr = Second.second;
 
-  // First look for a number prefix and parse that if present. Otherwise just
-  // stash the entire patch string in the suffix, and leave the number
-  // unspecified. This covers versions strings such as:
-  //   5        (handled above)
+  GCCVersion GoodVersion = {VersionText.str(), -1, -1, -1, "", "", ""};
+
+  // Parse version number strings such as:
+  //   5
   //   4.4
   //   4.4-patched
   //   4.4.0
   //   4.4.x
   //   4.4.2-rc4
   //   4.4.x-patched
-  // And retains any patch number it finds.
-  StringRef PatchText = Second.second;
-  if (!PatchText.empty()) {
-    if (size_t EndNumber = PatchText.find_first_not_of("0123456789")) {
-      // Try to parse the number and any suffix.
-      if (PatchText.slice(0, EndNumber).getAsInteger(10, GoodVersion.Patch) ||
-          GoodVersion.Patch < 0)
-        return BadVersion;
-      GoodVersion.PatchSuffix = std::string(PatchText.substr(EndNumber));
+  //   10-win32
+  // Split on '.', handle 1, 2 or 3 such segments. Each segment must contain
+  // purely a number, except for the last one, where a non-number suffix
+  // is stored in PatchSuffix. The third segment is allowed to not contain
+  // a number at all.
+
+  auto TryParseLastNumber = [&](StringRef Segment, int &Number,
+                                std::string &OutStr) -> bool {
+    // Look for a number prefix and parse that, and split out any trailing
+    // string into GoodVersion.PatchSuffix.
+
+    if (size_t EndNumber = Segment.find_first_not_of("0123456789")) {
+      StringRef NumberStr = Segment.slice(0, EndNumber);
+      if (NumberStr.getAsInteger(10, Number) || Number < 0)
+        return false;
+      OutStr = NumberStr;
+      GoodVersion.PatchSuffix = Segment.substr(EndNumber);
+      return true;
     }
+    return false;
+  };
+  auto TryParseNumber = [](StringRef Segment, int &Number) -> bool {
+    if (Segment.getAsInteger(10, Number) || Number < 0)
+      return false;
+    return true;
+  };
+
+  if (MinorStr.empty()) {
+    // If no minor string, major is the last segment
+    if (!TryParseLastNumber(MajorStr, GoodVersion.Major, GoodVersion.MajorStr))
+      return BadVersion;
+    return GoodVersion;
   }
 
+  if (!TryParseNumber(MajorStr, GoodVersion.Major))
+    return BadVersion;
+  GoodVersion.MajorStr = MajorStr;
+
+  if (PatchStr.empty()) {
+    // If no patch string, minor is the last segment
+    if (!TryParseLastNumber(MinorStr, GoodVersion.Minor, GoodVersion.MinorStr))
+      return BadVersion;
+    return GoodVersion;
+  }
+
+  if (!TryParseNumber(MinorStr, GoodVersion.Minor))
+    return BadVersion;
+  GoodVersion.MinorStr = MinorStr;
+
+  // For the last segment, tolerate a missing number.
+  std::string DummyStr;
+  TryParseLastNumber(PatchStr, GoodVersion.Patch, DummyStr);
   return GoodVersion;
 }
 
@@ -2210,13 +2236,16 @@ void Generic_GCC::GCCInstallationDetector::init(
   // The compatible GCC triples for this particular architecture.
   SmallVector<StringRef, 16> CandidateTripleAliases;
   SmallVector<StringRef, 16> CandidateBiarchTripleAliases;
+  // Add some triples that we want to check first.
+  CandidateTripleAliases.push_back(TargetTriple.str());
+  std::string TripleNoVendor = TargetTriple.getArchName().str() + "-" +
+                               TargetTriple.getOSAndEnvironmentName().str();
+  if (TargetTriple.getVendor() == llvm::Triple::UnknownVendor)
+    CandidateTripleAliases.push_back(TripleNoVendor);
+
   CollectLibDirsAndTriples(TargetTriple, BiarchVariantTriple, CandidateLibDirs,
                            CandidateTripleAliases, CandidateBiarchLibDirs,
                            CandidateBiarchTripleAliases);
-
-  TripleNoVendor = TargetTriple.getArchName().str() + "-" +
-                   TargetTriple.getOSAndEnvironmentName().str();
-  StringRef TripleNoVendorRef(TripleNoVendor);
 
   // If --gcc-install-dir= is specified, skip filesystem detection.
   if (const Arg *A =
@@ -2297,13 +2326,6 @@ void Generic_GCC::GCCInstallationDetector::init(
       // Maybe filter out <libdir>/gcc and <libdir>/gcc-cross.
       bool GCCDirExists = VFS.exists(LibDir + "/gcc");
       bool GCCCrossDirExists = VFS.exists(LibDir + "/gcc-cross");
-      // Try to match the exact target triple first.
-      ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TargetTriple.str(),
-                             false, GCCDirExists, GCCCrossDirExists);
-      // If vendor is unknown, let's try triple without vendor.
-      if (TargetTriple.getVendor() == llvm::Triple::UnknownVendor)
-        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TripleNoVendorRef,
-                               false, GCCDirExists, GCCCrossDirExists);
       for (StringRef Candidate : CandidateTripleAliases)
         ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate, false,
                                GCCDirExists, GCCCrossDirExists);
@@ -3050,6 +3072,7 @@ ToolChain::UnwindTableLevel
 Generic_GCC::getDefaultUnwindTableLevel(const ArgList &Args) const {
   switch (getArch()) {
   case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_be:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
@@ -3171,7 +3194,7 @@ void Generic_GCC::AddMultilibPaths(const Driver &D,
     // the cross. Note that GCC does include some of these directories in some
     // configurations but this seems somewhere between questionable and simply
     // a bug.
-    if (StringRef(LibPath).startswith(SysRoot))
+    if (StringRef(LibPath).starts_with(SysRoot))
       addPathIfExists(D, LibPath + "/../" + OSLibDir, Paths);
   }
 }

@@ -1,52 +1,25 @@
-#TODO:
-#1. Figure out why CMP0057 has to be set. Should have been taken care of earlier in the build
-#2. Use AddLLVM to modify the build and access config options
-#cmake_policy(SET CMP0057 NEW)
-#include(AddLLVM)
-
 # Plugin for OpenCL
 # Create Shared library for libpi_opencl.so.
-#TODO: remove dependency on pi.h in sycl project.
-#TODO: Currently, the pi.h header is common between sycl and plugin library sources.
-#This can be changed by copying the pi.h file in the plugins project.
+
+# Get the OpenCL adapter sources so they can be shared with the OpenCL PI plugin
+get_target_property(UR_OPENCL_ADAPTER_SOURCES ur_adapter_opencl SOURCES)
 
 add_sycl_plugin(opencl
   SOURCES
+    ${UR_OPENCL_ADAPTER_SOURCES}
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
-    "../unified_runtime/ur/ur.hpp"
-    "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/adapters/opencl/adapter.cpp"
-    "../unified_runtime/ur/adapters/opencl/adapter.hpp"
-    "../unified_runtime/ur/adapters/opencl/common.cpp"
-    "../unified_runtime/ur/adapters/opencl/common.hpp"
-    "../unified_runtime/ur/adapters/opencl/context.cpp"
-    "../unified_runtime/ur/adapters/opencl/context.hpp"
-    "../unified_runtime/ur/adapters/opencl/device.cpp"
-    "../unified_runtime/ur/adapters/opencl/device.hpp"
-    "../unified_runtime/ur/adapters/opencl/enqueue.cpp"
-    "../unified_runtime/ur/adapters/opencl/image.cpp"
-    "../unified_runtime/ur/adapters/opencl/kernel.cpp"
-    "../unified_runtime/ur/adapters/opencl/platform.cpp"
-    "../unified_runtime/ur/adapters/opencl/platform.hpp"
-    "../unified_runtime/ur/adapters/opencl/sampler.cpp"
-    "../unified_runtime/ur/adapters/opencl/memory.cpp"
-    "../unified_runtime/ur/adapters/opencl/usm.cpp"
-    "../unified_runtime/ur/adapters/opencl/program.cpp"
-    "../unified_runtime/ur/adapters/opencl/event.cpp"
-    "../unified_runtime/ur/adapters/opencl/queue.cpp"
-    "../unified_runtime/ur/adapters/opencl/command_buffer.hpp"
-    "../unified_runtime/ur/adapters/opencl/command_buffer.cpp"
-    "../unified_runtime/ur/adapters/opencl/usm_p2p.cpp"
-    # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_opencl.cpp"
+    "pi_opencl.hpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
+    ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/opencl
   LIBRARIES
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
     OpenCL-ICD
 )
 

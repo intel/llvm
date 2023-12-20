@@ -506,7 +506,7 @@ RegInterval WaitcntBrackets::getRegInterval(const MachineInstr *MI,
   RegInterval Result;
 
   unsigned Reg = TRI->getEncodingValue(AMDGPU::getMCReg(Op.getReg(), *ST)) &
-                 AMDGPU::EncValues::REG_IDX_MASK;
+                 AMDGPU::HWEncoding::REG_IDX_MASK;
 
   if (TRI->isVectorRegister(*MRI, Op.getReg())) {
     assert(Reg >= Encoding.VGPR0 && Reg <= Encoding.VGPRL);
@@ -1504,6 +1504,11 @@ void SIInsertWaitcnts::updateEventWaitcntAfter(MachineInstr &Inst,
       break;
     case AMDGPU::S_MEMTIME:
     case AMDGPU::S_MEMREALTIME:
+    case AMDGPU::S_BARRIER_SIGNAL_ISFIRST_M0:
+    case AMDGPU::S_BARRIER_SIGNAL_ISFIRST_IMM:
+    case AMDGPU::S_BARRIER_LEAVE:
+    case AMDGPU::S_GET_BARRIER_STATE_M0:
+    case AMDGPU::S_GET_BARRIER_STATE_IMM:
       ScoreBrackets->updateByEvent(TII, TRI, MRI, SMEM_ACCESS, Inst);
       break;
     }
@@ -1839,10 +1844,10 @@ bool SIInsertWaitcnts::runOnMachineFunction(MachineFunction &MF) {
 
   RegisterEncoding Encoding = {};
   Encoding.VGPR0 =
-      TRI->getEncodingValue(AMDGPU::VGPR0) & AMDGPU::EncValues::REG_IDX_MASK;
+      TRI->getEncodingValue(AMDGPU::VGPR0) & AMDGPU::HWEncoding::REG_IDX_MASK;
   Encoding.VGPRL = Encoding.VGPR0 + NumVGPRsMax - 1;
   Encoding.SGPR0 =
-      TRI->getEncodingValue(AMDGPU::SGPR0) & AMDGPU::EncValues::REG_IDX_MASK;
+      TRI->getEncodingValue(AMDGPU::SGPR0) & AMDGPU::HWEncoding::REG_IDX_MASK;
   Encoding.SGPRL = Encoding.SGPR0 + NumSGPRsMax - 1;
 
   TrackedWaitcntSet.clear();

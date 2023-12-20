@@ -95,13 +95,13 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
             size_t dim2 = it.get_local_id(2);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
-            float fdim2 = float(dim2 + 0.5) / (float)depth;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
+            float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
             // Extension: read mipmap with anisotropic filtering with zero
             // viewing gradients
-            VecType px1 = sycl::ext::oneapi::experimental::read_image<VecType>(
+            VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
                 mipHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0),
                 sycl::float4(0.0f, 0.0f, 0.0f, 0.0f),
                 sycl::float4(0.0f, 0.0f, 0.0f, 0.0f));

@@ -5,6 +5,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   using T = int;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
@@ -38,14 +42,12 @@ int main() {
 
   // Execute several iterations of the graph using the different shortcuts
   event Event = Queue.ext_oneapi_graph(GraphExec);
-  Event.wait();
 
   assert(Iterations > 2);
   const size_t LoopIterations = Iterations - 2;
   std::vector<event> Events(LoopIterations);
   for (unsigned n = 0; n < LoopIterations; n++) {
     Events[n] = Queue.ext_oneapi_graph(GraphExec, Event);
-    Events[n].wait();
   }
 
   Queue.ext_oneapi_graph(GraphExec, Events).wait();
@@ -59,9 +61,11 @@ int main() {
   free(PtrB, Queue);
   free(PtrC, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

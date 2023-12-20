@@ -56,13 +56,13 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 
   // Extension: map image memory handles
   syclexp::image_mem_handle input_mapped_mem_handle_1 =
-      syclexp::map_external_memory_array(input_interop_mem_handle_1, desc, dev,
+      syclexp::map_external_image_memory(input_interop_mem_handle_1, desc, dev,
                                          ctxt);
   syclexp::image_mem_handle input_mapped_mem_handle_2 =
-      syclexp::map_external_memory_array(input_interop_mem_handle_2, desc, dev,
+      syclexp::map_external_image_memory(input_interop_mem_handle_2, desc, dev,
                                          ctxt);
   syclexp::image_mem_handle output_mapped_mem_handle =
-      syclexp::map_external_memory_array(output_interop_mem_handle, desc, dev,
+      syclexp::map_external_image_memory(output_interop_mem_handle, desc, dev,
                                          ctxt);
 
   // Extension: create the image and return the handle
@@ -565,11 +565,6 @@ bool run_all() {
                     sycl::image_channel_order::r, class float1_2d>(
       {32, 32}, {2, 2}, seed);
 
-  if (!valid) {
-    std::cout << "Unsampled images test has failure(s)\n";
-  } else {
-    std::cout << "Unsampled images test passes\n";
-  }
   return valid;
 }
 
@@ -598,5 +593,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  return run_ok ? EXIT_SUCCESS : EXIT_FAILURE;
+  if (run_ok) {
+    std::cout << "All tests passed!\n";
+    return EXIT_SUCCESS;
+  }
+
+  std::cerr << "Test failed\n";
+  return EXIT_FAILURE;
 }

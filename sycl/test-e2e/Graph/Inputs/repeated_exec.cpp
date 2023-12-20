@@ -3,8 +3,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -22,26 +25,29 @@ int main() {
 
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  int Expected = 0;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   auto ExecGraph = Graph.finalize();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 1);
+  Expected = 1;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 2);
+  Expected = 2;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

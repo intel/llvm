@@ -25,7 +25,7 @@ void kernel k() {
 // CHECK-SPIRV-DAG: String [[foo:[0-9]+]] "foo"
 // CHECK-SPIRV-DAG: String [[#EmptyStr:]] ""
 // CHECK-SPIRV-DAG: String [[k:[0-9]+]] "k"
-// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].0.0
+// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].[[#]].[[#]]
 // CHECK-SPIRV: [[#CU:]] [[#]] DebugCompilationUnit
 // CHECK-SPIRV: [[#FuncFoo:]] [[#]] DebugFunction [[foo]] {{.*}} [[#CU]]
 // CHECK-SPIRV: [[#FuncK:]] [[#]] DebugFunction [[k]] {{.*}} [[#CU]]

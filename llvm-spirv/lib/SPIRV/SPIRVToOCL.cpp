@@ -567,7 +567,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
     Mutator.mapArg(Mutator.arg_size() - 3, [](IRBuilder<> &Builder, Value *P) {
       Type *T = P->getType();
       assert(isa<PointerType>(T));
-      auto *NewTy = Builder.getInt8PtrTy(SPIRAS_Generic);
+      auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
         P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
       }

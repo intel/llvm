@@ -59,6 +59,13 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
     return false;
 #endif // FUSION_JIT_SUPPORT_PTX
   }
+  case BinaryFormat::AMDGCN: {
+#ifdef FUSION_JIT_SUPPORT_AMDGCN
+    return true;
+#else  // FUSION_JIT_SUPPORT_AMDGCN
+    return false;
+#endif // FUSION_JIT_SUPPORT_AMDGCN
+  }
   default:
     return false;
   }
@@ -69,7 +76,7 @@ FusionResult KernelFusion::fuseKernels(
     const std::vector<SYCLKernelInfo> &KernelInformation,
     const std::vector<std::string> &KernelsToFuse,
     const std::string &FusedKernelName, ParamIdentList &Identities,
-    int BarriersFlags,
+    BarrierFlags BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
   // Initialize the configuration helper to make the options for this invocation
@@ -80,27 +87,25 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes or "
-        "different global sizes in dimensions [2, N) and non-zero offsets"};
+        "Cannot fuse kernels with different offsets or local sizes, or "
+        "different global sizes in dimensions [2, N) and non-zero offsets, "
+        "or those whose fusion would yield non-uniform work-groups sizes"};
   }
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
 
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
+  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  DeviceArchitecture TargetArch = TargetInfo.getArch();
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
         "Fusion output target format not supported by this build");
   }
 
-  if (TargetFormat != BinaryFormat::SPIRV &&
-      TargetFormat != BinaryFormat::PTX && IsHeterogeneousList) {
-    return FusionResult{
-        "Heterogeneous ND ranges not supported for this target"};
-  }
-
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
-  CacheKeyT CacheKey{KernelsToFuse,
+  CacheKeyT CacheKey{TargetArch,
+                     KernelsToFuse,
                      Identities,
                      BarriersFlags,
                      Internalization,

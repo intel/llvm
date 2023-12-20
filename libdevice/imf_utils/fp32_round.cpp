@@ -68,4 +68,24 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fmul_rz(float x, float y) {
   return __fp_mul(x, y, __IML_RTZ);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rd(float x, float y) {
+  return __fp_div(x, y, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rn(float x, float y) {
+  return __fp_div(x, y, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_ru(float x, float y) {
+  return __fp_div(x, y, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rz(float x, float y) {
+  return __fp_div(x, y, __IML_RTZ);
+}
 #endif

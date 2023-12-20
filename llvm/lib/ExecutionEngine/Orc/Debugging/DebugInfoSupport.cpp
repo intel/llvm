@@ -105,7 +105,7 @@ llvm::orc::createDWARFContext(LinkGraph &G) {
       auto SecData = getSectionData(Sec);
       auto Name = Sec.getName();
       // DWARFContext expects the section name to not start with a dot
-      if (Name.startswith("."))
+      if (Name.starts_with("."))
         Name = Name.drop_front();
       LLVM_DEBUG(dbgs() << "Creating DWARFContext section " << Name
                         << " with size " << SecData.size() << "\n");
@@ -113,8 +113,9 @@ llvm::orc::createDWARFContext(LinkGraph &G) {
           std::make_unique<SmallVectorMemoryBuffer>(std::move(SecData));
     }
   }
-  auto Ctx = DWARFContext::create(DWARFSectionData, G.getPointerSize(),
-                                  G.getEndianness() == support::little);
+  auto Ctx =
+      DWARFContext::create(DWARFSectionData, G.getPointerSize(),
+                           G.getEndianness() == llvm::endianness::little);
   dumpDWARFContext(*Ctx);
   return std::make_pair(std::move(Ctx), std::move(DWARFSectionData));
 }

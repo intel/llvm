@@ -218,8 +218,8 @@ void collectCompositeElementsInfoRecursive(
     const Module &M, Type *Ty, const ID *&IDIter, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (IDIter->Undef) {
-    // We can just skip undefined values because every such value is just a
-    // padding and will be handled in a different manner.
+    ++IDIter;
+    // Skip undef IDs, they are not reported to runtime.
     return;
   }
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -409,11 +409,12 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
     Result.reserve(IDs.size());
     unsigned Offset = 0;
     const ID *IDPtr = IDs.data();
-    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
 
-    // We may have padding elements so size should be at least the same size as
-    // the ID vector.
-    assert(Result.size() >= IDs.size());
+    // Not all IDs are turned into metadata, because some of them may
+    // represent padding within structures. Additionally, there could
+    // be emitted multiple extra special ID describing post-struct
+    // padding to align spec constants for runtime.
+    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
@@ -517,6 +518,51 @@ Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
 }
 
+// Select corresponding element of the default value.  For a
+// struct, we getting the corresponding default value is a little
+// tricky.  There are potentially distinct two types: the type of
+// the default value, which comes from the initializer of the
+// global spec constant value, and the return type of the call to
+// getComposite2020SpecConstValue. The return type can be a
+// version of the default value type, with padding fields
+// potentially inserted at the top level and within nested
+// structs.
+
+// Examples: (RT = Return Type, DVT = Default Value Type)
+// RT: { i8, [3 x i8], i32 }, DVT = { i8, i32 }
+// RT: { { i32, i8, [3 x i8] }, i32 } DVT = { { i32, i8 }, i32 }
+
+// For a given element of the default value type we are
+// trying to initialize, we will initialize that element with
+// the element of the default value type that has the same offset
+// as the element we are trying to initialize. If no such element
+// exists, we used undef as the initializer.
+Constant *getElemDefaultValue(Type *Ty, Type *ElTy, Constant *DefaultValue,
+                              size_t ElemIndex, const DataLayout &DL) {
+  if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
+    const auto &DefaultValueTypeSL = DL.getStructLayout(DefaultValueType);
+    // The struct has padding, so we have to adjust ElemIndex
+    if (DefaultValueTypeSL->hasPadding()) {
+      const auto &ReturnTypeSL = DL.getStructLayout(StructTy);
+      ArrayRef<TypeSize> DefaultValueOffsets =
+          DefaultValueTypeSL->getMemberOffsets();
+      TypeSize CurrentIterationOffset =
+          ReturnTypeSL->getElementOffset(ElemIndex);
+      const auto It =
+          std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
+                    CurrentIterationOffset);
+
+      // The element we are looking at is a padding field
+      if (It == DefaultValueOffsets.end())
+        return UndefValue::get(ElTy);
+      // Select the index with the same offset
+      ElemIndex = It - DefaultValueOffsets.begin();
+    }
+  }
+  return DefaultValue->getAggregateElement(ElemIndex);
+}
+
 /// For specified specialization constant type emits LLVM IR which is required
 /// in order to correctly handle it later during LLVM IR -> SPIR-V translation.
 ///
@@ -544,6 +590,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<ID> &IDs,
                                            unsigned &Index,
                                            Constant *DefaultValue) {
+  const Module &M = *InsertBefore->getModule();
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
@@ -563,16 +610,11 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
       IDs.push_back({IDs.back().ID + 1, true});
     }
     Elements.push_back(Def);
+    Index++;
   };
-  auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
-    // Select corresponding element of the default value.
-    // There are cases when provided default value contains less elements than
-    // specialization constants: it could happen when a struct is extended with
-    // a padding to make its size aligned. In such cases, we simply initialize
-    // any "extra" elements with undef.
-    Constant *ElemDefaultValue = DefaultValue->getAggregateElement(LocalIndex);
-    if (!ElemDefaultValue)
-      ElemDefaultValue = UndefValue::get(Ty);
+  auto LoopIteration = [&](Type *ElTy, unsigned LocalIndex) {
+    const auto ElemDefaultValue = getElemDefaultValue(
+        Ty, ElTy, DefaultValue, LocalIndex, M.getDataLayout());
 
     // If the default value is a composite and has the value 'undef', we should
     // not generate a bunch of __spirv_SpecConstant for its elements but
@@ -581,22 +623,19 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
       HandleUndef(ElemDefaultValue);
     else
       Elements.push_back(emitSpecConstantRecursiveImpl(
-          Ty, InsertBefore, IDs, Index, ElemDefaultValue));
+          ElTy, InsertBefore, IDs, Index, ElemDefaultValue));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
-    for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
+    for (size_t I = 0; I < ArrTy->getNumElements(); ++I)
       LoopIteration(ArrTy->getElementType(), I);
-    }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    unsigned I = 0;
-    for (Type *ElTy : StructTy->elements()) {
+    size_t I = 0;
+    for (Type *ElTy : StructTy->elements())
       LoopIteration(ElTy, I++);
-    }
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
-    for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
+    for (size_t I = 0; I < VecTy->getNumElements(); ++I)
       LoopIteration(VecTy->getElementType(), I);
-    }
   } else {
     llvm_unreachable("Unexpected spec constant type");
   }

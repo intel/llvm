@@ -4,6 +4,7 @@
 ; RUN: opt < %s -passes=LowerWGScope -S | FileCheck %s
 ; RUN: opt < %s -passes=LowerWGScope --mtriple=nvptx -S | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PTX
 
+target datalayout = "e-i64:64-v16:16-v32:32-n16:32:64"
 
 %struct.baz = type { i64 }
 

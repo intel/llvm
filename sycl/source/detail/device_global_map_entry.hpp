@@ -37,14 +37,14 @@ struct DeviceGlobalUSMMem {
 
   void *const &getPtr() const noexcept { return MPtr; }
 
-  // Gets the zero-initialization event if it exists. If not the OwnedPiEvent
+  // Gets the initialization event if it exists. If not the OwnedPiEvent
   // will contain no event.
-  OwnedPiEvent getZeroInitEvent(const PluginPtr &Plugin);
+  OwnedPiEvent getInitEvent(const PluginPtr &Plugin);
 
 private:
   void *MPtr;
-  std::mutex MZeroInitEventMutex;
-  std::optional<sycl::detail::pi::PiEvent> MZeroInitEvent;
+  std::mutex MInitEventMutex;
+  std::optional<sycl::detail::pi::PiEvent> MInitEvent;
 
   friend struct DeviceGlobalMapEntry;
 };

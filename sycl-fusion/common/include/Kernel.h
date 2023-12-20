@@ -20,6 +20,30 @@ namespace jit_compiler {
 
 using BinaryAddress = const uint8_t *;
 
+/// Possible barrier flags
+enum class BarrierFlags : uint32_t {
+  None = 0,   // Do not insert barrier
+  Local = 1,  // Ensure correct ordering of memory operations to local memory
+  Global = 2, // Ensure correct ordering of memory operations to global memory
+  LocalAndGlobal = Local | Global
+};
+
+constexpr BarrierFlags getNoBarrierFlag() { return BarrierFlags::None; }
+constexpr BarrierFlags getLocalAndGlobalBarrierFlag() {
+  return BarrierFlags::LocalAndGlobal;
+}
+constexpr bool isNoBarrierFlag(BarrierFlags Flag) {
+  return Flag == BarrierFlags::None;
+}
+constexpr bool hasLocalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<uint32_t>(Flag) &
+         static_cast<uint32_t>(BarrierFlags::Local);
+}
+constexpr bool hasGlobalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<uint32_t>(Flag) &
+         static_cast<uint32_t>(BarrierFlags::Global);
+}
+
 ///
 /// Enumerate possible kinds of parameters.
 /// 1:1 correspondence with the definition in kernel_desc.hpp in the DPC++ SYCL
@@ -35,7 +59,39 @@ enum class ParameterKind : uint32_t {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
+
+/// Unique ID for each supported architecture in the SYCL implementation.
+///
+/// Values of this type will only be used in the kernel fusion non-persistent
+/// JIT. There is no guarantee for backwards compatibility, so this should not
+/// be used in persistent caches.
+using DeviceArchitecture = unsigned;
+
+class TargetInfo {
+public:
+  static constexpr TargetInfo get(BinaryFormat Format,
+                                  DeviceArchitecture Arch) {
+    if (Format == BinaryFormat::SPIRV) {
+      /// As an exception, SPIR-V targets have a single common ID (-1), as fused
+      /// kernels will be reused across SPIR-V devices.
+      return {Format, DeviceArchitecture(-1)};
+    }
+    return {Format, Arch};
+  }
+
+  TargetInfo() = default;
+
+  constexpr BinaryFormat getFormat() const { return Format; }
+  constexpr DeviceArchitecture getArch() const { return Arch; }
+
+private:
+  constexpr TargetInfo(BinaryFormat Format, DeviceArchitecture Arch)
+      : Format(Format), Arch(Arch) {}
+
+  BinaryFormat Format;
+  DeviceArchitecture Arch;
+};
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
