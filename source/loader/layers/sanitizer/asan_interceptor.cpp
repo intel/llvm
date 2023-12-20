@@ -247,6 +247,9 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
         &LaunchInfo.SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
 
+    context.logger.debug("urEnqueueDeviceGlobalVariableWrite({}): {}",
+                         kSPIR_DeviceSanitizerReportMem, Result);
+
     if (Result == UR_RESULT_SUCCESS) {
         *Event = ReadEvent;
 
@@ -352,9 +355,12 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
         const char Pattern[] = {(char)Value};
         auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
-            Queue, (void *)ShadowBegin, 1, Pattern,
-            (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
-            Event);
+            Queue, (void *)ShadowBegin, 1, Pattern, ShadowEnd - ShadowBegin + 1,
+            NumEventsInWaitList, EventsWaitList, Event);
+        context.logger.debug(
+            "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)Value,
+            URes);
         if (URes != UR_RESULT_SUCCESS) {
             context.logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
@@ -387,7 +393,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     }
                 }
 
-                context.logger.debug("zeVirtualMemMap: {} ~ {}",
+                context.logger.debug("zeVirtualMemMap({} ~ {})",
                                      (void *)MappedPtr,
                                      (void *)(MappedPtr + PageSize - 1));
 
@@ -422,9 +428,12 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
         const char Pattern[] = {(char)Value};
         auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
-            Queue, (void *)ShadowBegin, 1, Pattern,
-            (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
-            Event);
+            Queue, (void *)ShadowBegin, 1, Pattern, ShadowEnd - ShadowBegin + 1,
+            NumEventsInWaitList, EventsWaitList, Event);
+        context.logger.debug(
+            "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)Value,
+            URes);
         if (URes != UR_RESULT_SUCCESS) {
             context.logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
