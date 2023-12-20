@@ -206,6 +206,9 @@ Each source language `lang` specifies whether the language is text format or
 binary format, and the application must use the overload that corresponds to
 that format.
 
+The `sycl` language is text format, so the application must use the overload
+taking `std::string` when creating a kernel bundle from this language.
+
 _Effects:_ Creates a new kernel bundle that represents a kernel written in the
 source language `lang`, where the source code is contained either by `source`
 (if the source language is a text format) or by `bytes` (if the source language
