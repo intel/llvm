@@ -261,15 +261,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
-        context.logger.always("====ERROR: DeviceSanitizer: %s on %s",
+        context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                               DeviceSanitizerFormat(AH->ErrorType),
                               DeviceSanitizerFormat(AH->MemoryType));
         context.logger.always(
-            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-            "%lu, %lu)",
+            "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
+            "{}, {})",
             AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
             AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        context.logger.always("  #0 %s %s:%d", Func, File, AH->Line);
+        context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
         if (!AH->IsRecover) {
             abort();
         }
