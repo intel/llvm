@@ -254,6 +254,8 @@ static Expected<CallInst *> createFusionCall(
   // Insert call
   Builder.SetInsertPoint(IPs.CallInsertion);
   auto *Res = Builder.CreateCall(F, CallArgs);
+  Res->setCallingConv(F->getCallingConv());
+  Res->setAttributes(F->getAttributes());
   {
     // If we have introduced a guard, branch to barrier.
     auto *BrTarget = IPs.Exit;
@@ -490,6 +492,8 @@ Error SYCLKernelFusion::fuseKernel(
                ParamMapping, DefaultInternalizationVal);
     copyArgsMD(LLVMCtx, SYCLInternalizer::LocalSizeKey, StubFunction,
                *FusedFunction, ParamMapping);
+    copyArgsMD(LLVMCtx, SYCLInternalizer::ElemSizeKey, StubFunction,
+               *FusedFunction, ParamMapping);
     // and JIT constants
     copyArgsMD(LLVMCtx, SYCLCP::Key, StubFunction, *FusedFunction,
                ParamMapping);
@@ -584,11 +588,13 @@ Error SYCLKernelFusion::fuseKernel(
       // InlineFunction(...) will leave the program in a well-defined state
       // in case it fails, and calling the function is still semantically
       // correct, although it might hinder some optimizations across the borders
-      // of the fused functions.
-      FUSION_DEBUG(llvm::dbgs()
-                   << "WARNING: Inlining of "
-                   << InlineCall->getCalledFunction()->getName()
-                   << " failed due to: " << InlineRes.getFailureReason());
+      // of the fused functions. We need to prevent deletion of the called
+      // function, though.
+      auto *Callee = InlineCall->getCalledFunction();
+      FUSION_DEBUG(llvm::dbgs() << "WARNING: Inlining of " << Callee->getName()
+                                << " failed due to: "
+                                << InlineRes.getFailureReason() << '\n');
+      ToCleanUp.erase(Callee);
     }
   }
 

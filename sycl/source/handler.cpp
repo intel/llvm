@@ -279,6 +279,12 @@ event handler::finalize() {
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+        // Emit signal only when event is created
+        if (NewEvent != nullptr) {
+          detail::emitInstrumentationGeneral(
+              StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+              static_cast<const void *>(NewEvent->getHandleRef()));
+        }
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
@@ -377,11 +383,14 @@ event handler::finalize() {
         MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
         std::move(CGData), MCodeLoc));
     break;
-  case detail::CG::CodeplayHostTask:
+  case detail::CG::CodeplayHostTask: {
+    auto context = MGraph ? detail::getSyclObjImpl(MGraph->getContext())
+                          : MQueue->getContextImplPtr();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
-        std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
+        std::move(MHostTask), MQueue, context, std::move(MArgs),
+        std::move(CGData), MCGType, MCodeLoc));
     break;
+  }
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
@@ -389,6 +398,14 @@ event handler::finalize() {
       // nodes/events of the graph
       if (MEventsWaitWithBarrier.size() == 0) {
         MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
+        // Graph-wide barriers take precedence over previous one.
+        // We therefore remove the previous ones from ExtraDependencies list.
+        // The current barrier is then added to this list in the graph_impl.
+        std::vector<detail::EventImplPtr> EventsBarriers =
+            GraphImpl->removeBarriersFromExtraDependencies();
+        MEventsWaitWithBarrier.insert(std::end(MEventsWaitWithBarrier),
+                                      std::begin(EventsBarriers),
+                                      std::end(EventsBarriers));
       }
       CGData.MEvents.insert(std::end(CGData.MEvents),
                             std::begin(MEventsWaitWithBarrier),

@@ -81,6 +81,13 @@ event::get_info() const {
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
+  if (impl->getCommandGraph()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Profiling information is unavailable for events "
+                          "returned from a submission to a queue in the "
+                          "recording state.");
+  }
+
   if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
     impl->wait(impl);
   }

@@ -12,9 +12,9 @@ import os
 import re
 
 def get_triple(test, backend):
-    if backend == 'ext_oneapi_cuda':
+    if backend == 'cuda':
         return 'nvptx64-nvidia-cuda'
-    if backend == 'ext_oneapi_hip':
+    if backend == 'hip':
         if test.config.hip_platform == 'NVIDIA':
             return 'nvptx64-nvidia-cuda'
         else:
@@ -164,10 +164,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             # so that device might still be accessible to some of the tests yet
             # we won't set the environment variable below for such scenario.
             extra_env = []
-            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ze_debug'):
-                extra_env.append('ZE_DEBUG={}'.format(test.config.ze_debug))
+            if 'level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_debug'):
+                extra_env.append('UR_L0_DEBUG={}'.format(test.config.ur_l0_debug))
 
-            if 'ext_oneapi_cuda:gpu' in sycl_devices:
+            if 'level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_leaks_debug'):
+                extra_env.append('UR_L0_LEAKS_DEBUG={}'.format(test.config.ur_l0_leaks_debug))
+
+            if 'cuda:gpu' in sycl_devices:
                 extra_env.append('SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1')
 
             return extra_env
@@ -180,13 +183,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         run_unfiltered_substitution += test.config.run_launcher
 
         substitutions.append(('%{run-unfiltered-devices}', run_unfiltered_substitution))
-
-
-        # Temporary fix due to failures in CUDA and HIP behind preview flag.
-        if ((('ext_oneapi_cuda:gpu' in devices_for_test) or
-            ('ext_oneapi_hip:gpu' in devices_for_test)) and
-            ('preview-breaking-changes-supported' in test.config.available_features)):
-            test.config.available_features.remove('preview-breaking-changes-supported')
 
         new_script = []
         for directive in script:

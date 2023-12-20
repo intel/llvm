@@ -935,8 +935,8 @@ sycl_builtins = {# Math functions
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmax_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmax_common", convert_args=[(1,0)]),
                            Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
-                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_max", marray_use_loop=True),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_max", marray_use_loop=True),
+                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_max", marray_use_loop=True, template_scalar_args=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_max", marray_use_loop=True, template_scalar_args=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_max"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_max"),
                            Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
@@ -944,8 +944,8 @@ sycl_builtins = {# Math functions
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vhalfn", ["vhalfn", "half"], invoke_name="fmin_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
-                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min", marray_use_loop=True),
-                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min", marray_use_loop=True),
+                           Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min", marray_use_loop=True, template_scalar_args=True),
+                           Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min", marray_use_loop=True, template_scalar_args=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),
                            Def("vugeninteger", ["vugeninteger", "elementtype0"], invoke_name="u_min"),
                            Def("mgentype", ["mgentype", "elementtype0"], marray_use_loop=True)],
@@ -957,7 +957,7 @@ sycl_builtins = {# Math functions
                          Def("mdoublen", ["mdoublen", "mdoublen", "double"]),
                          Def("mhalfn", ["mhalfn", "mhalfn", "half"])], # Non-standard. Deprecated.
                  "radians": [Def("genfloat", ["genfloat"], template_scalar_args=True)],
-                 "step": [Def("genfloat", ["genfloat", "genfloat"]),
+                 "step": [Def("genfloat", ["genfloat", "genfloat"], template_scalar_args=True),
                           Def("vfloatn", ["float", "vfloatn"], convert_args=[(0,1)]),
                           Def("vdoublen", ["double", "vdoublen"], convert_args=[(0,1)]),
                           Def("vhalfn", ["half", "vhalfn"], convert_args=[(0,1)]), # Non-standard. Deprecated.
@@ -989,25 +989,19 @@ sycl_builtins = {# Math functions
                          Def("float", ["mgeofloat", "mgeofloat"], invoke_name="Dot"),
                          Def("double", ["mgeodouble", "mgeodouble"], invoke_name="Dot"),
                          Def("half", ["mgeohalf", "mgeohalf"], invoke_name="Dot"),
-                         Def("sgenfloat", ["sgenfloat", "sgenfloat"], custom_invoke=(lambda return_types, arg_types, arg_names: '  return ' + ' * '.join(arg_names) + ';'))],
-                 "distance": [Def("float", ["gengeofloat", "gengeofloat"]),
-                              Def("double", ["gengeodouble", "gengeodouble"]),
-                              Def("half", ["gengeohalf", "gengeohalf"])],
-                 "length": [Def("float", ["gengeofloat"]),
-                            Def("double", ["gengeodouble"]),
-                            Def("half", ["gengeohalf"])],
-                 "normalize": [Def("gengeofloat", ["gengeofloat"]),
-                               Def("gengeodouble", ["gengeodouble"]),
-                               Def("gengeohalf", ["gengeohalf"])],
-                 "fast_distance": [Def("float", ["gengeofloat", "gengeofloat"]),
-                                   Def("double", ["gengeodouble", "gengeodouble"]),
-                                   Def("half", ["gengeohalf", "gengeohalf"])],
-                 "fast_length": [Def("float", ["gengeofloat"]),
-                                 Def("double", ["gengeodouble"]),
-                                 Def("half", ["gengeohalf"])],
-                 "fast_normalize": [Def("gengeofloat", ["gengeofloat"]),
-                                    Def("gengeodouble", ["gengeodouble"]),
-                                    Def("gengeohalf", ["gengeohalf"])],
+                         Def("sgenfloat", ["sgenfloat", "sgenfloat"], template_scalar_args=True, custom_invoke=(lambda return_types, arg_types, arg_names: '  return ' + ' * '.join(arg_names) + ';'))],
+                 "distance": [Def("float", ["gengeofloat", "gengeofloat"], template_scalar_args=True),
+                              Def("double", ["gengeodouble", "gengeodouble"], template_scalar_args=True),
+                              Def("half", ["gengeohalf", "gengeohalf"], template_scalar_args=True)],
+                 "length": [Def("float", ["gengeofloat"], template_scalar_args=True),
+                            Def("double", ["gengeodouble"], template_scalar_args=True),
+                            Def("half", ["gengeohalf"], template_scalar_args=True)],
+                 "normalize": [Def("gengeofloat", ["gengeofloat"], template_scalar_args=True),
+                               Def("gengeodouble", ["gengeodouble"], template_scalar_args=True),
+                               Def("gengeohalf", ["gengeohalf"], template_scalar_args=True)],
+                 "fast_distance": [Def("float", ["gengeofloat", "gengeofloat"], template_scalar_args=True)],
+                 "fast_length": [Def("float", ["gengeofloat"], template_scalar_args=True)],
+                 "fast_normalize": [Def("gengeofloat", ["gengeofloat"], template_scalar_args=True)],
                  # Relational functions
                  "isequal": [RelDef("samesizesignedint0", ["vgenfloat", "vgenfloat"], invoke_name="FOrdEqual"),
                              RelDef("bool", ["sgenfloat", "sgenfloat"], invoke_name="FOrdEqual"),
@@ -1052,13 +1046,13 @@ sycl_builtins = {# Math functions
                              RelDef("bool", ["sgenfloat"], invoke_name="SignBitSet"),
                              RelDef("boolelements0", ["mgenfloat"])],
                  "any": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("Any")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["sigeninteger"], template_scalar_args=True, custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
                          Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("any"))],
                  "all": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("All")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["sigeninteger"], template_scalar_args=True, custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
                          Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("all"))],
                  "bitselect": [Def("vgentype", ["vgentype", "vgentype", "vgentype"]),
-                               Def("sgentype", ["sgentype", "sgentype", "sgentype"]),
+                               Def("sgentype", ["sgentype", "sgentype", "sgentype"], template_scalar_args=True),
                                Def("mgentype", ["mgentype", "mgentype", "mgentype"], marray_use_loop=True)],
                  "select": [Def("vint8n", ["vint8n", "vint8n", "vint8n"]),
                             Def("vint16n", ["vint16n", "vint16n", "vint16n"]),
@@ -1082,7 +1076,7 @@ sycl_builtins = {# Math functions
                             Def("vfloatn", ["vfloatn", "vfloatn", "vuint32n"]),
                             Def("vdoublen", ["vdoublen", "vdoublen", "vuint64n"]),
                             Def("vhalfn", ["vhalfn", "vhalfn", "vuint16n"]),
-                            Def("sgentype", ["sgentype", "sgentype", "bool"], custom_invoke=custom_bool_select_invoke),
+                            Def("sgentype", ["sgentype", "sgentype", "bool"], template_scalar_args=True, custom_invoke=custom_bool_select_invoke),
                             Def("mgentype", ["mgentype", "mgentype", "mbooln"], marray_use_loop=True)]}
 # List of all builtins definitions in the sycl::native namespace.
 native_builtins = {"cos": [Def("genfloatf", ["genfloatf"], invoke_prefix="native_")],
@@ -1210,10 +1204,15 @@ def type_combinations(return_type, arg_types, template_scalars):
   Generates all return and argument type combinations for a given builtin
   definition.
   """
-  unique_types = list(dict.fromkeys(arg_types + [return_type]))
+  unique_types = list(dict.fromkeys(arg_types))
   unique_type_lists = [builtin_types[unique_type] for unique_type in unique_types]
   if template_scalars:
     unique_type_lists = [convert_scalars_to_templated(type_list) for type_list in unique_type_lists]
+  if return_type not in unique_types:
+    # Add return type after scalars have been turned to template arguments if
+    # it is unique, to avoid undeducible return types.
+    unique_types.append(return_type)
+    unique_type_lists.append(builtin_types[return_type])
   combinations = list(itertools.product(*unique_type_lists))
   result = []
   for combination in combinations:

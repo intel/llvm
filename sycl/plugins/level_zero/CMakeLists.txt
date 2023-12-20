@@ -77,7 +77,6 @@ add_sycl_plugin(level_zero
     #
     "ur_bindings.hpp"
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     ${UR_L0_ADAPTER_SOURCES}
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"

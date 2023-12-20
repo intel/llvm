@@ -10,7 +10,7 @@
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
 // RUN: %{run} %t.out
 //
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
@@ -55,7 +55,7 @@ bool check_vectors_equal(sycl::vec<T, 4> a, sycl::vec<T, 4> b,
   return result;
 }
 
-template <typename From, typename To> bool check_convert() {
+template <typename From, typename To> bool check_convert(sycl::queue q) {
   sycl::vec<From, 4> input;
   if constexpr (std::is_signed_v<From>) {
     input = sycl::vec<From, 4>{static_cast<From>(37), static_cast<From>(0),
@@ -68,7 +68,6 @@ template <typename From, typename To> bool check_convert() {
   sycl::vec<To, 4> hostResult = input.template convert<To>();
 
   sycl::buffer<sycl::vec<To, 4>> buf(sycl::range{1});
-  sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
      sycl::accessor acc(buf, cgh);
      cgh.single_task([=]() { acc[0] = input.template convert<To>(); });
@@ -106,53 +105,55 @@ constexpr auto has_unsigned_v =
     std::is_integral_v<T> && !std::is_same_v<T, bool> &&
     !std::is_same_v<T, sycl::byte> && !std::is_same_v<T, std::byte>;
 
-template <typename From, typename To> bool check_signed_unsigned_convert_to() {
+template <typename From, typename To>
+bool check_signed_unsigned_convert_to(sycl::queue q) {
   bool pass = true;
-  pass &= check_convert<From, To>();
+  pass &= check_convert<From, To>(q);
   if constexpr (has_unsigned_v<To>)
-    pass &= check_convert<From, std::make_unsigned_t<To>>();
+    pass &= check_convert<From, std::make_unsigned_t<To>>(q);
   if constexpr (has_unsigned_v<From>)
-    pass &= check_convert<std::make_unsigned_t<From>, To>();
+    pass &= check_convert<std::make_unsigned_t<From>, To>(q);
   if constexpr (has_unsigned_v<To> && has_unsigned_v<From>)
     pass &=
-        check_convert<std::make_unsigned_t<From>, std::make_unsigned_t<To>>();
+        check_convert<std::make_unsigned_t<From>, std::make_unsigned_t<To>>(q);
   return pass;
 }
 
-template <typename From> bool check_convert_from() {
+template <typename From> bool check_convert_from(sycl::queue q) {
   bool pass = true;
-  pass &= check_signed_unsigned_convert_to<From, sycl::byte>();
-  pass &= check_signed_unsigned_convert_to<From, std::byte>();
-  pass &= check_signed_unsigned_convert_to<From, std::int8_t>();
-  pass &= check_signed_unsigned_convert_to<From, std::int16_t>();
-  pass &= check_signed_unsigned_convert_to<From, std::int32_t>();
-  pass &= check_signed_unsigned_convert_to<From, std::int64_t>();
-  pass &= check_signed_unsigned_convert_to<From, bool>();
-  pass &= check_signed_unsigned_convert_to<From, char>();
-  pass &= check_signed_unsigned_convert_to<From, signed char>();
-  pass &= check_signed_unsigned_convert_to<From, short>();
-  pass &= check_signed_unsigned_convert_to<From, int>();
-  pass &= check_signed_unsigned_convert_to<From, long>();
-  pass &= check_signed_unsigned_convert_to<From, long long>();
+  pass &= check_signed_unsigned_convert_to<From, sycl::byte>(q);
+  pass &= check_signed_unsigned_convert_to<From, std::byte>(q);
+  pass &= check_signed_unsigned_convert_to<From, std::int8_t>(q);
+  pass &= check_signed_unsigned_convert_to<From, std::int16_t>(q);
+  pass &= check_signed_unsigned_convert_to<From, std::int32_t>(q);
+  pass &= check_signed_unsigned_convert_to<From, std::int64_t>(q);
+  pass &= check_signed_unsigned_convert_to<From, bool>(q);
+  pass &= check_signed_unsigned_convert_to<From, char>(q);
+  pass &= check_signed_unsigned_convert_to<From, signed char>(q);
+  pass &= check_signed_unsigned_convert_to<From, short>(q);
+  pass &= check_signed_unsigned_convert_to<From, int>(q);
+  pass &= check_signed_unsigned_convert_to<From, long>(q);
+  pass &= check_signed_unsigned_convert_to<From, long long>(q);
 
   return pass;
 }
 
 int main() {
+  sycl::queue q;
   bool pass = true;
-  pass &= check_convert_from<sycl::byte>();
-  pass &= check_convert_from<std::byte>();
-  pass &= check_convert_from<std::int8_t>();
-  pass &= check_convert_from<std::int16_t>();
-  pass &= check_convert_from<std::int32_t>();
-  pass &= check_convert_from<std::int64_t>();
-  pass &= check_convert_from<char>();
-  pass &= check_convert_from<signed char>();
-  pass &= check_convert_from<short>();
-  pass &= check_convert_from<int>();
-  pass &= check_convert_from<long>();
-  pass &= check_convert_from<long long>();
-  pass &= check_convert_from<bool>();
+  pass &= check_convert_from<sycl::byte>(q);
+  pass &= check_convert_from<std::byte>(q);
+  pass &= check_convert_from<std::int8_t>(q);
+  pass &= check_convert_from<std::int16_t>(q);
+  pass &= check_convert_from<std::int32_t>(q);
+  pass &= check_convert_from<std::int64_t>(q);
+  pass &= check_convert_from<char>(q);
+  pass &= check_convert_from<signed char>(q);
+  pass &= check_convert_from<short>(q);
+  pass &= check_convert_from<int>(q);
+  pass &= check_convert_from<long>(q);
+  pass &= check_convert_from<long long>(q);
+  pass &= check_convert_from<bool>(q);
 
   return static_cast<int>(!pass);
 }

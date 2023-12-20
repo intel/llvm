@@ -17,6 +17,10 @@
 // RUN:   | FileCheck -check-prefix=DEFAULT_AOT %s
 
 // RUN: %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+
+// RUN: %clang -### -fsycl \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_AOT %s
 
@@ -35,6 +39,9 @@
 // RUN: %clang -### -fsycl \
 // RUN:   -ftarget-register-alloc-mode=pvc:default %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEFAULT_JIT %s
+
+// RUN: %clang -### -fsycl %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_JIT %} %else %{ -check-prefix=AUTO_JIT %} %s
 
 // RUN: %clang -### -fsycl \
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
