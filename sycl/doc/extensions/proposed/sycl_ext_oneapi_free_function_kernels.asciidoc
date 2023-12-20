@@ -882,6 +882,25 @@ int main() {
 +
 Where `kfp` would have some nicer name.
 
+* We're not sure we like the current syntax with the macros like
+  `SYCL_EXT_ONEAPI_RANGE_KERNEL`.
+  Instead, we'd prefer to use the general function property syntax, which would
+  lead to code like this:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
+void iota(float start, float *ptr) { /*...*/  }
+```
++
+Although this is more verbose, it uses the existing property mechanism rather
+than adding a new macro.
++
+The downside of this approach is that it requires the compiler front end to
+recognize the specific property named `range_kernel` and treat this as an
+indicator that the function is a kernel.
+Currently, the front end does not recognize any specific properties.
+Instead, it just has generic code that propagates the properties into the IR.
+
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
   `single_task`.
