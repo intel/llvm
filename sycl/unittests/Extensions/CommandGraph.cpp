@@ -1525,7 +1525,15 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
 }
 
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  queue Q{ext::codeplay::experimental::property::queue::enable_fusion{}};
+  device D;
+  if (!D.get_info<
+          ext::codeplay::experimental::info::device::supports_fusion>()) {
+    // Skip this test if the device does not support fusion. Otherwise, the
+    // queue construction in the next step would fail.
+    GTEST_SKIP();
+  }
+
+  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
 
   experimental::command_graph<experimental::graph_state::modifiable> Graph{
       Q.get_context(), Q.get_device()};
@@ -1931,6 +1939,25 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
   ASSERT_FALSE(PartitionsList[2]->isHostTask());
   ASSERT_TRUE(PartitionsList[3]->isHostTask());
   ASSERT_FALSE(PartitionsList[4]->isHostTask());
+}
+
+TEST_F(CommandGraphTest, ProfilingException) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Event2 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  try {
+    Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (exception &Exception) {
+    ASSERT_FALSE(
+        std::string(Exception.what())
+            .find("Profiling information is unavailable for events returned "
+                  "from a submission to a queue in the recording state.") ==
+        std::string::npos);
+  }
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {
