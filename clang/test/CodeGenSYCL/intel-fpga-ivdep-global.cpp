@@ -9,9 +9,9 @@ void ivdep_no_param() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
     a[i] = 0;
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_NO_PARAM:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_B_NO_PARAM:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_NO_PARAM:[0-9]+]]
   }
@@ -29,12 +29,12 @@ void ivdep_no_param_multiple_geps() {
   // CHECK: %[[TMP:[0-9a-z]+]] = alloca i32
   int t;
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
     t = a[i];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_A_MUL_GEPS]]
     a[i] = b[i];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_B_MUL_GEPS]]
     b[i] = t;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_MUL_GEPS:[0-9]+]]
   }
@@ -49,9 +49,9 @@ void ivdep_safelen() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(5)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_B_SAFELEN:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_SAFELEN:[0-9]+]]
   }
@@ -67,9 +67,9 @@ void ivdep_conflicting_safelen() {
   int b[10];
   [[intel::ivdep(5)]]
   [[intel::ivdep(4)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_CONFL_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.access.group ![[IDX_GROUP_B_CONFL_SAFELEN:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_CONFL_SAFELEN:[0-9]+]]
   }
@@ -83,7 +83,7 @@ void ivdep_safelen_one() {
   int a[10];
   [[intel::ivdep(1)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
-    // CHECK-NOT: !llvm.index.group
+    // CHECK-NOT: !llvm.access.group
     a[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN1:[0-9]+]]
   }
@@ -97,7 +97,7 @@ void ivdep_safelen_zero() {
   int a[10];
   [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
-    // CHECK-NOT: !llvm.index.group
+    // CHECK-NOT: !llvm.access.group
     a[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN2:[0-9]+]]
   }
@@ -122,7 +122,7 @@ int main() {
 
 // Find recurring instances of legacy "IVDep enable/safelen" MD nodes.
 // CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
-// CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
+// CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.parallel_accesses_safelen", i32 5}
 
 /// Global ivdep w/o safelen specified
 /// All arrays have the same INF safelen - put access groups into the same parallel_access_indices metadata
@@ -155,7 +155,7 @@ int main() {
 
 /// Global ivdep w/ safelen value of 1 has no effect. Attribute is ignored and no IR is generated with safelen value of 1.
 // CHECK-DAG: ![[MD_NO_LOOP_SAFELEN1]] = distinct !{![[MD_NO_LOOP_SAFELEN1]], ![[#]]}
-// CHECK-NOT: !{!"llvm.loop.ivdep.safelen", i32 1}
+// CHECK-NOT: !{!"llvm.loop.parallel_accesses_safelen", i32 1}
 
 /// Global ivdep w/ safelen value of 0 has no effect. Attribute is ignored and no IR is generated with safelen value of 0.
 // CHECK-DAG: ![[MD_NO_LOOP_SAFELEN2]] = distinct !{![[MD_NO_LOOP_SAFELEN2]], ![[#]]}

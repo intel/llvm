@@ -499,7 +499,7 @@ static void EmitLegacyIVDepLoopMetadata(
     return;
   }
 
-  Metadata *SafelenMDs[] = {MDString::get(Ctx, "llvm.loop.ivdep.safelen"),
+  Metadata *SafelenMDs[] = {MDString::get(Ctx, "llvm.loop.parallel_accesses_safelen"),
                             ConstantAsMetadata::get(ConstantInt::get(
                                 llvm::Type::getInt32Ty(Ctx), I.SafeLen))};
   LoopProperties.push_back(MDNode::get(Ctx, SafelenMDs));
@@ -1220,9 +1220,9 @@ void LoopInfo::addIVDepMetadata(const ValueDecl *Array,
   collectIVDepMetadata(Array, MD);
 
   if (MD.size() == 1)
-    GEP->setMetadata("llvm.index.group", cast<llvm::MDNode>(MD.front()));
+    GEP->setMetadata("llvm.access.group", cast<llvm::MDNode>(MD.front()));
   else if (!MD.empty())
-    GEP->setMetadata("llvm.index.group", MDNode::get(Header->getContext(), MD));
+    GEP->setMetadata("llvm.access.group", MDNode::get(Header->getContext(), MD));
 }
 
 void LoopInfoStack::addIVDepMetadata(const ValueDecl *Array,
