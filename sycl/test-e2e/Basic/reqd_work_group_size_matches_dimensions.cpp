@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple}  %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/9353
 // UNSUPPORTED: hip
 
 #include "sycl/sycl.hpp"
