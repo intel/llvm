@@ -132,6 +132,10 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
+if (WIN32)
+ target_link_options(ur_adapter_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
+endif()
+
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
