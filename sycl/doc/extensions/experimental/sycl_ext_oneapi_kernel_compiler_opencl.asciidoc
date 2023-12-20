@@ -149,6 +149,12 @@ The meaning of the `major`, `minor`, and `patch` values are defined by section
 
 The constant values (e.g. `opencl_c_1_0`) are shorthands that identify various
 OpenCL C versions.
+
+[_Note:_ The OpenCL C version is not the same as the the OpenCL version because
+some minor releases of OpenCL did not change the OpenCL C language.
+For example, there is no version of OpenCL C named "2.1" even though there is
+an OpenCL version named "2.1".
+_{endnote}_]
 |====
 
 ==== New member functions for the device class
@@ -243,6 +249,8 @@ library.
 
 The `-cl-std=` option is required when compiling kernels that use OpenCL C 2.0
 or OpenCL C 3.0 features.
+Otherwise, the implementation defaults to the highest OpenCL C 1.x language
+version that each device supports.
 See section 5.8.6.5 "Options Controlling the OpenCL C version" of the OpenCL
 specification for details.
 
