@@ -612,7 +612,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, stride, Height, Width, coordX, coordY,
-      joint_matrix_layout_to_spv(Layout), spv_scope_traits<Group>::value);
+      sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #else
   std::ignore = sg;
   std::ignore = res;
@@ -684,7 +685,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, src.spvm, stride, Height, Width, coordX, coordY,
-      joint_matrix_layout_to_spv(Layout), spv_scope_traits<Group>::value);
+      sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #else
   std::ignore = sg;
   std::ignore = src;
@@ -752,7 +754,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, stride, Height, Width, coordX, coordY,
-      joint_matrix_layout_to_spv(Layout), spv_scope_traits<Group>::value);
+      sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #else
   std::ignore = sg;
   std::ignore = res;
@@ -817,7 +820,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, src.spvm, stride, Height, Width, coordX, coordY,
-      joint_matrix_layout_to_spv(Layout), spv_scope_traits<Group>::value);
+      sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #else
   std::ignore = sg;
   std::ignore = src;
