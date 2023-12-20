@@ -1139,13 +1139,6 @@ Removing this information is useful for debugging since the backend is less
 likely to optimize away variables in the stack no longer used, as a result this
 pass should only be run on debug builds of the module.
 
-RemoveFencesPass
-----------------
-
-Removing memory fences can result in invalid code or incorrect behaviour in
-general. This pass is a workaround for backends that do not yet support memory
-fences.
-
 RemoveExceptionsPass
 --------------------
 
