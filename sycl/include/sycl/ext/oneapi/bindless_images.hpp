@@ -696,9 +696,8 @@ template <typename CoordT> constexpr size_t coord_size() {
   }
 }
 
-#if defined(__NVPTX__)
-// bit_cast Color to a type the NVPTX backend is known to accept
-template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
+// bit_cast Color to a type the backend is known to accept
+template <typename DataT> constexpr auto convert_color(DataT Color) {
   constexpr size_t dataSize = sizeof(DataT);
   static_assert(
       dataSize == 1 || dataSize == 2 || dataSize == 4 || dataSize == 8 ||
@@ -717,7 +716,6 @@ template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
     return sycl::bit_cast<sycl::vec<uint32_t, 4>>(Color);
   }
 }
-#endif
 
 // assert coords or elements of coords is of an integer type
 template <typename CoordT> constexpr void assert_unsampled_coords() {
@@ -1048,18 +1046,14 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
   } else {
     // Convert DataT to a supported backend write type when user-defined type is
     // passed
     __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
-                         detail::convert_color_nvptx(color));
+                         detail::convert_color(color));
   }
-#else
-  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
