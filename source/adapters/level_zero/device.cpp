@@ -40,6 +40,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
   std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  bool isCombinedMode = false;
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -69,15 +70,48 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       urPrint("Unknown device type");
       break;
     }
-    // Filter out composite devices when ZE_FLAT_DEVICE_HIERARCHY=COMBINED:
-    // component devices (tiles) enable ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE while
-    // composite devices (cards) don't.
-    bool isComposite =
-        (D->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-    if (Matched && (!Combined || !isComposite)) {
+
+    // We need to filter out composite devices depending on
+    // ZE_FLAT_DEVICE_HIERARCHY value:
+    //   - If COMPOSITE, L0 returns cards as devices. Thus, zeGetRootDevice must
+    //     return nullptr, because they don't have any device higher up in the
+    //     hierarchy.
+    //   - If FLAT,  according to L0 spec, zeGetRootDevice always returns
+    //     nullptr in this mode.
+    //   - If COMBINED, L0 returns tiles as devices, and zeGetRootdevice returns
+    //     the card containing a given tile.
+    //
+    // NOTE: We cannot directly filter out the composite devices here because we
+    // might have the composite device appear earlier than we know we are in
+    // combined mode, so we simply try and infer here if we are in combined
+    // mode, and then, if so, remove composite devices from MatchedDevices.
+    if (!isCombinedMode) {
+      ze_device_handle_t RootDev = nullptr;
+      // Query Root Device
+      ZE2UR_CALL(zeDeviceGetRootDevice, (D->ZeDevice, &RootDev));
+      // For COMPOSITE and FLAT modes, RootDev will always be nullptr. Thus a
+      // single device returning RootDev != nullptr means we are in COMBINED
+      // mode.
+      isCombinedMode = (RootDev != nullptr);
+    }
+
+    if (Matched) {
       MatchedDevices.push_back(D.get());
+    }
+  }
+
+  if (isCombinedMode) {
+    // Effectively filter out composite devices.
+    std::vector<std::vector<ur_device_handle_t>::iterator> toDelete;
+    for (auto it = MatchedDevices.begin(); it != MatchedDevices.end(); ++it) {
+      const auto &D = *it;
+      bool isComposite = (D->ZeDeviceProperties->flags &
+                          ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
+      if (isComposite)
+        toDelete.push_back(it);
+    }
+    for (const auto D : toDelete) {
+      MatchedDevices.erase(D);
     }
   }
 
@@ -832,43 +866,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_COMPONENT_DEVICES: {
-    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-    if (Combined) {
-      ze_device_handle_t DevHandle = Device->ZeDevice;
-      uint32_t SubDeviceCount = 0;
-      // First call to get SubDeviceCount.
-      ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
-      std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
-      // Second call to get the actual list of devices.
-      ZE2UR_CALL(zeDeviceGetSubDevices,
-                 (DevHandle, &SubDeviceCount, SubDevs.data()));
+    ze_device_handle_t DevHandle = Device->ZeDevice;
+    uint32_t SubDeviceCount = 0;
+    // First call to get SubDeviceCount.
+    ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
+    if (SubDeviceCount == 0)
+      return ReturnValue(0);
 
-      size_t SubDeviceCount_s{SubDeviceCount};
-      auto ResSize = std::min(SubDeviceCount_s, propSize);
-      if (pSize)
-        *pSize = SubDeviceCount * sizeof(ur_device_handle_t);
-      if (ParamValue) {
-        std::vector<ur_device_handle_t> Res;
-        for (const auto &d : SubDevs)
-          Res.push_back(Device->Platform->getDeviceFromNativeHandle(d));
-        return ReturnValue(Res.data(), ResSize);
-      }
-      return UR_RESULT_SUCCESS;
+    std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
+    // Second call to get the actual list of devices.
+    ZE2UR_CALL(zeDeviceGetSubDevices,
+               (DevHandle, &SubDeviceCount, SubDevs.data()));
+
+    size_t SubDeviceCount_s{SubDeviceCount};
+    auto ResSize = std::min(SubDeviceCount_s, propSize);
+    std::vector<ur_device_handle_t> Res;
+    for (const auto &d : SubDevs) {
+      // We can only reach this code if ZE_FLAT_DEVICE_HIERARCHY != FLAT,
+      // because in flat mode we directly get tiles, and those don't have any
+      // further divisions, so zeDeviceGetSubDevices always will return an empty
+      // list. Thus, there's only two options left: (a) composite mode, and (b)
+      // combined mode. In (b), zeDeviceGet returns tiles as devices, and those
+      // are presented as root devices (i.e. isSubDevice() returns false). In
+      // contrast, in (a), zeDeviceGet returns cards as devices, so tiles are
+      // not root devices (i.e. isSubDevice() returns true). Since we only reach
+      // this code if there are tiles returned by zeDeviceGetSubDevices, we
+      // can know if we are in (a) or (b) by checking if a tile is root device
+      // or not.
+      ur_device_handle_t URDev = Device->Platform->getDeviceFromNativeHandle(d);
+      if (URDev->isSubDevice())
+        // We are in COMPOSITE mode, return an empty list.
+        return ReturnValue(0);
+
+      Res.push_back(URDev);
     }
-    return ReturnValue(0);
+    if (pSize)
+      *pSize = SubDeviceCount * sizeof(ur_device_handle_t);
+    if (ParamValue) {
+      return ReturnValue(Res.data(), ResSize);
+    }
+    return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
     ur_device_handle_t UrRootDev = nullptr;
-    const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-    bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-    if (Combined) {
-      ze_device_handle_t DevHandle = Device->ZeDevice;
-      ze_device_handle_t RootDev;
-      // Query Root Device
-      ZE2UR_CALL(zeDeviceGetRootDevice, (DevHandle, &RootDev));
-      UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
-    }
+    ze_device_handle_t DevHandle = Device->ZeDevice;
+    ze_device_handle_t RootDev;
+    // Query Root Device
+    ZE2UR_CALL(zeDeviceGetRootDevice, (DevHandle, &RootDev));
+    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
     return ReturnValue(UrRootDev);
   }
 
