@@ -377,6 +377,21 @@ control which revision of Unified Runtime should be used when building DPC++:
 * `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
   Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
+### Build DPC++ libclc with a custom toolchain
+
+libclc is an implementation of the OpenCL required libraries, as described in
+the [OpenCL C specification](https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html),
+additionally providing definitions of SPIR-V builtins. It is built to
+target-specific bitcode, that is linked against SYCL binaries. By default, the
+built system uses the SYCL toolchain currently being built to create libclc
+bitcode. This can be suboptimal in case of debug builds, in which case debug
+tools are used to build non-debug libclc bitcode (the notion of debug builds
+doesn't really apply to libclc), resulting in very long compilation time. In
+order to specify a directory containing custom toolchain users can set:
+`LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR` variable. Care is required, as the
+changes to the local SYCL tree might not be reflected in the custom location
+during the build time.
+
 ### Deployment
 
 TODO: add instructions how to deploy built DPC++ toolchain.

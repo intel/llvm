@@ -26,7 +26,7 @@ const std::map<backend, std::string> BackendStringMap = {
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
     {backend::ext_oneapi_hip, "ext_oneapi_hip"},
-    {backend::ext_native_cpu, "ext_native_cpu"}};
+    {backend::ext_oneapi_native_cpu, "ext_oneapi_native_cpu"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();
