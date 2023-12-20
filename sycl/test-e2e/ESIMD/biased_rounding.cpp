@@ -1,4 +1,4 @@
-//==---------------- srnd.cpp - DPC++ ESIMD srnd function test -----------==//
+//==--- biased_rounding.cpp - DPC++ ESIMD biased_rounding function test ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
 // Exceptions. See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,6 @@
 // RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <iostream>
 
@@ -40,12 +37,12 @@ bool test(queue &Q) {
      InputVector.copy_from(Input);
      {
        simd<uint16_t, N> RandomVector(0);
-       simd<half, N> OutputVector = srnd(InputVector, RandomVector);
+       simd<half, N> OutputVector = biased_rounding(InputVector, RandomVector);
        OutputVector.copy_to(Output);
      }
      {
        simd<uint16_t, N> RandomVector(0xFFFF);
-       simd<half, N> OutputVector = srnd(InputVector, RandomVector);
+       simd<half, N> OutputVector = biased_rounding(InputVector, RandomVector);
        OutputVector.copy_to(Output + N);
      }
    }).wait();

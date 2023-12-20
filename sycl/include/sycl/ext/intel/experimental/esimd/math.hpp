@@ -1665,8 +1665,9 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
   return retv;
 }
 
-/// srnd - perform stochastic rounding.
-/// Supported conversions:
+/// biased_rounding - perform rounding by firt adding random number \c src1 to
+/// mantissa of \c src0 and then normalizing the mantissa and truncating the
+/// result. Supported conversions:
 ///   float -> half
 /// Available on PVC_XT+
 /// \param src0 the operand to be rounded
@@ -1674,7 +1675,8 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
 /// \return the converted value
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<sycl::half, N>
-srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
+biased_rounding(__ESIMD_NS::simd<float, N> src0,
+                __ESIMD_NS::simd<uint16_t, N> src1) {
   return __esimd_srnd<N>(src0.data(), src1.data());
 }
 
