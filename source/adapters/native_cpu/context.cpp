@@ -17,10 +17,10 @@
 #include "common.hpp"
 #include "context.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
-                ur_context_handle_t *phContext) {
+UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
+    [[maybe_unused]] uint32_t DeviceCount, const ur_device_handle_t *phDevices,
+    const ur_context_properties_t *pProperties,
+    ur_context_handle_t *phContext) {
   std::ignore = pProperties;
   assert(DeviceCount == 1);
 

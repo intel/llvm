@@ -124,7 +124,7 @@ add_ur_adapter(${TARGET_NAME}
 
 # TODO: fix level_zero adapter conversion warnings
 target_compile_options(${TARGET_NAME} PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/wd4267 /wd4805 /wd4244 /D_CRT_SECURE_NO_WARNINGS>
+    $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES

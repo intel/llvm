@@ -141,7 +141,8 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
         getMaxRegistersJitOptionValue(this->BuildOptions, MaxRegs);
     if (Valid) {
       Options.push_back(CU_JIT_MAX_REGISTERS);
-      OptionVals.push_back(reinterpret_cast<void *>(MaxRegs));
+      OptionVals.push_back(
+          reinterpret_cast<void *>(static_cast<std::uintptr_t>(MaxRegs)));
     }
   }
 
