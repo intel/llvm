@@ -25,8 +25,6 @@ BinaryFormat KernelBinary::format() const { return Format; }
 
 JITContext::JITContext() : LLVMCtx{new llvm::LLVMContext}, Binaries{} {}
 
-JITContext::~JITContext() = default;
-
 llvm::LLVMContext *JITContext::getLLVMContext() { return LLVMCtx.get(); }
 
 std::optional<SYCLKernelInfo>
