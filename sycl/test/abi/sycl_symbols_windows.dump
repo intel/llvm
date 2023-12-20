@@ -1265,6 +1265,8 @@
 ?get_mip_level_mem_handle@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@U612345@IAEBVqueue@45@@Z
 ?get_mip_level_mem_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@I@Z
 ?get_name@kernel_id@_V1@sycl@@QEBAPEBDXZ
+?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
+?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
 ?get_pitch@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$01@34@XZ
@@ -1275,16 +1277,20 @@
 ?get_pointer_device@_V1@sycl@@YA?AVdevice@12@PEBXAEBVcontext@12@@Z
 ?get_pointer_type@_V1@sycl@@YA?AW4alloc@usm@12@PEBXAEBVcontext@12@@Z
 ?get_precision@stream@_V1@sycl@@QEBA_KXZ
+?get_predecessors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_queue@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA?AVqueue@56@XZ
 ?get_range@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$02@34@XZ
 ?get_range@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$range@$02@56@XZ
 ?get_range@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$02@34@XZ
+?get_root_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_size@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_size@stream@_V1@sycl@@QEBA_KXZ
 ?get_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
 ?get_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBAXPEBDPEAX@Z
 ?get_stream_mode@stream@_V1@sycl@@QEBA?AW4stream_manipulator@23@XZ
+?get_successors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_type@23456@XZ
+?get_type@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4node_type@23456@XZ
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
@@ -1474,6 +1480,7 @@
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
 ?setType@handler@_V1@sycl@@AEAAXW4CGTYPE@CG@detail@23@@Z
+?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAX$$T@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
 ?set_final_data_from_storage@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
