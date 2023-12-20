@@ -33,9 +33,11 @@ const auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
-// uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
-//     return USM_SHADOW_BASE + (UPtr >> 3);
-// }
+const auto kSPIR_DeviceType = "__DeviceType";
+
+uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
+    return USM_SHADOW_BASE + (UPtr >> 3);
+}
 
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFF00000000000000ULL) { // Device USM
@@ -290,7 +292,18 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
 ur_result_t SanitizerInterceptor::allocShadowMemory(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
     if (DeviceInfo->Type == DeviceType::CPU) {
-        die("Unsupport device type");
+        // TODO: Check if host asan is enabled!!
+
+        // Based on "compiler-rt/lib/asan/asan_mapping.h"
+        // Typical shadow mapping on Linux/x86_64 with SHADOW_OFFSET == 0x00007fff8000:
+        DeviceInfo->ShadowOffset = 0x00007fff8000ULL;
+        DeviceInfo->ShadowOffsetEnd = 0x10007fff7fffULL;
+        // // Default Linux/i386 mapping on x86_64 machine:
+        // DeviceInfo->ShadowOffset = 0x20000000ULL;
+        // DeviceInfo->ShadowOffsetEnd = 0x3fffffffULL;
+        // // Default Linux/i386 mapping on i386 machine
+        // DeviceInfo->ShadowOffset = 0x20000000ULL;
+        // DeviceInfo->ShadowOffsetEnd = 0x37ffffffULL;
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
@@ -326,16 +339,27 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
     uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
     const ur_event_handle_t *EventsWaitList = DepEvent ? &DepEvent : nullptr;
+    ur_event_handle_t InternalEvent{};
+    ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
     if (DeviceInfo->Type == DeviceType::CPU) {
-        die("Unsupport device type");
-    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-        ur_event_handle_t InternalEvent{};
-        ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+        uptr ShadowBegin = MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr);
+        uptr ShadowEnd =
+            MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr + Size - 1);
 
+        const char Pattern[] = {(char)Value};
+        auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
+            Queue, (void *)ShadowBegin, 1, Pattern,
+            (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
+            Event);
+        if (URes != UR_RESULT_SUCCESS) {
+            context.logger.error("urEnqueueUSMFill(): {}", URes);
+            return URes;
+        }
+    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
         uptr ShadowEnd =
             MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
@@ -605,7 +629,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
     std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
     ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
-    {
+    do {
         // Set global variable to program
         auto EnqueueWriteGlobal = [&](const char *Name, const void *Value) {
             ur_event_handle_t NewEvent{};
@@ -631,6 +655,13 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
                            &DeviceInfo->ShadowOffsetEnd);
 
+        // Write device type
+        EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type);
+
+        if (DeviceInfo->Type == DeviceType::CPU) {
+            break;
+        }
+
         // Write shadow memory offset for local memory
         auto MaxWorkGroupSize = getWorkgoupSize(Kernel, Device);
         auto LocalMemorySize = getLocalMemorySize(Device);
@@ -652,7 +683,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         context.logger.info("Shadow memory (Local, {} - {})",
                             (void *)LaunchInfo.LocalShadowOffset,
                             (void *)LaunchInfo.LocalShadowOffsetEnd);
-    }
+    } while (false);
 
     QueueInfo->LastEvent = LastEvent;
     return UR_RESULT_SUCCESS;
