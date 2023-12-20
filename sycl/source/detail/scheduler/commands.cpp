@@ -1914,7 +1914,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::string &KernelName,
+    const std::string &KernelName, std::size_t KernelNameStringHash,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -1956,7 +1956,8 @@ void instrumentationAddExtraKernelMetadata(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
+            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName,
+            KernelNameStringHash);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2072,7 +2073,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   if (CmdTraceEvent) {
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
                                           KernelBundleImplPtr, SyclKernelName,
-                                          SyclKernel, Queue, CGArgs);
+                                          0, SyclKernel, Queue, CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
@@ -2119,8 +2120,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MSyclKernel, MQueue,
-          KernelCG->MArgs);
+          KernelCG->MKernelName, KernelCG->MKernelNameStringHash,
+          KernelCG->MSyclKernel, MQueue, KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -2430,7 +2431,8 @@ pi_int32 enqueueImpCommandBufferKernel(
   } else {
     std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName,
+            CommandGroup.MKernelNameStringHash);
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
@@ -2495,7 +2497,7 @@ pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName,
+    const std::string &KernelName, std::size_t KernelNameStringHash,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
@@ -2549,7 +2551,7 @@ pi_int32 enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName);
+            ContextImpl, DeviceImpl, KernelName, KernelNameStringHash);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2908,7 +2910,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
     const std::string &KernelName = ExecKernel->MKernelName;
-
+    std::size_t KernelNameStringHash = ExecKernel->MKernelNameStringHash;
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
@@ -2921,8 +2923,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig);
+        KernelName, KernelNameStringHash, RawEvents, EventImpl,
+        getMemAllocationFunc, ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
