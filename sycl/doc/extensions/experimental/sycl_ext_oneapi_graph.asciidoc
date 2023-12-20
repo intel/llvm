@@ -372,9 +372,9 @@ public:
 
   node_type get_type() const;
 
-  std::vector<node> get_dependencies() const;
+  std::vector<node> get_predecessors() const;
 
-  std::vector<node> get_dependent_nodes() const;
+  std::vector<node> get_successors() const;
 
   static node get_node_from_event(event nodeEvent);
 };
@@ -503,14 +503,14 @@ node_type get_type() const;
 |
 [source,c++]
 ----
-std::vector<node> get_dependencies() const;
+std::vector<node> get_predecessors() const;
 ----
 |Returns a list of the predecessor nodes which this node depends on.
 
 |
 [source,c++]
 ----
-std::vector<node> get_dependent_nodes() const;
+std::vector<node> get_successors() const;
 ----
 |Returns a list of the successor nodes which depend on this node.
 

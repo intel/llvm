@@ -504,6 +504,13 @@ event handler::finalize() {
     ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
         GraphImpl->MMutex);
 
+    ext::oneapi::experimental::node_type NodeType;
+    if (auto UserFacingType = MImpl->MUserFacingNodeType;
+        UserFacingType != ext::oneapi::experimental::node_type::empty) {
+      NodeType = UserFacingType;
+    } else {
+      NodeType = ext::oneapi::experimental::detail::getNodeTypeFromCG(MCGType);
+    }
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.
@@ -512,22 +519,20 @@ event handler::finalize() {
       auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
 
       NodeImpl = DependentNode
-                     ? GraphImpl->add(MCGType, std::move(CommandGroup),
+                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
                                       {DependentNode})
-                     : GraphImpl->add(MCGType, std::move(CommandGroup));
+                     : GraphImpl->add(NodeType, std::move(CommandGroup));
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
-      NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
-
-    EventImpl->setCommandGraph(GraphImpl);
+    GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -891,6 +896,7 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memset);
   setType(detail::CG::FillUSM);
 }
 
@@ -1412,7 +1418,7 @@ void handler::ext_oneapi_graph(
     // return it to the user later.
     // The nodes of the subgraph are duplicated when added to its parents.
     // This avoids changing properties of the graph added as a subgraph.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
+    MSubgraphNode = ParentGraph->addSubgraphNodes(ParentGraph, GraphImpl);
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.
@@ -1421,8 +1427,7 @@ void handler::ext_oneapi_graph(
     }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
-    SubgraphEvent->setCommandGraph(ParentGraph);
-    ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
+    ParentGraph->addEventForNode(ParentGraph, SubgraphEvent, MSubgraphNode);
   } else {
     // Set the exec graph for execution during finalize.
     MExecGraph = GraphImpl;
@@ -1435,6 +1440,10 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
+  MImpl->MUserFacingNodeType = Type;
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {

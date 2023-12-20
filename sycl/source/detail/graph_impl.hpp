@@ -37,6 +37,42 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
+inline node_type getNodeTypeFromCG(sycl::detail::CG::CGTYPE CGType) {
+  using sycl::detail::CG;
+
+  // TODO: Handle subgraph case when internal representation has been changed to
+  // contain a single subgraph node. The current approach copies nodes into the
+  // parent graph which prevents this.
+  switch (CGType) {
+  case CG::None:
+    return node_type::empty;
+  case CG::Kernel:
+    return node_type::kernel;
+  case CG::CopyAccToPtr:
+  case CG::CopyPtrToAcc:
+  case CG::CopyAccToAcc:
+  case CG::CopyUSM:
+    return node_type::memcpy;
+  case CG::Memset2DUSM:
+    return node_type::memset;
+  case CG::Fill:
+  case CG::FillUSM:
+    return node_type::memfill;
+  case CG::PrefetchUSM:
+    return node_type::prefetch;
+  case CG::AdviseUSM:
+    return node_type::memadvise;
+  case CG::Barrier:
+  case CG::BarrierWaitlist:
+    return node_type::ext_oneapi_barrier;
+  case CG::CodeplayHostTask:
+    return node_type::host_task;
+  default:
+    assert(false && "Invalid Graph Node Type");
+    return node_type::empty;
+  }
+}
+
 /// Implementation of node class from SYCL_EXT_ONEAPI_GRAPH.
 class node_impl {
 public:
@@ -48,6 +84,8 @@ public:
   std::vector<std::weak_ptr<node_impl>> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CG::CGTYPE MCGType = sycl::detail::CG::None;
+  /// User facing type of the node
+  node_type MNodeType = node_type::empty;
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
 
@@ -96,9 +134,10 @@ public:
   /// @param CGType Type of the command-group.
   /// @param CommandGroup The CG which stores the command information for this
   /// node.
-  node_impl(sycl::detail::CG::CGTYPE CGType,
+  node_impl(node_type NodeType,
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
-      : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
+      : MCGType(CommandGroup->getType()), MNodeType(NodeType),
+        MCommandGroup(std::move(CommandGroup)) {}
 
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
@@ -551,13 +590,12 @@ public:
   void removeRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Create a kernel node in the graph.
-  /// @param CGType Type of the command-group.
+  /// @param NodeType User facing type of the node.
   /// @param CommandGroup The CG which stores all information for this node.
   /// @param Dep Dependencies of the created node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(sycl::detail::CG::CGTYPE CGType,
-      std::unique_ptr<sycl::detail::CG> CommandGroup,
+  add(node_type NodeType, std::unique_ptr<sycl::detail::CG> CommandGroup,
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create a CGF node in the graph.
@@ -573,16 +611,20 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
+  /// @param Impl Graph implementation pointer
   /// @param Dep List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::vector<std::shared_ptr<node_impl>> &Dep = {});
+  add(const std::shared_ptr<graph_impl> &Impl,
+      const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
+  /// @param Impl Graph implementation pointer
   /// @param Events List of events associated to this node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::vector<sycl::detail::EventImplPtr> Events);
+  add(const std::shared_ptr<graph_impl> &Impl,
+      const std::vector<sycl::detail::EventImplPtr> Events);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -607,10 +649,15 @@ public:
   bool clearQueues();
 
   /// Associate a sycl event with a node in the graph.
+  /// @param GraphImpl shared_ptr to Graph impl associated with this event, aka
+  /// this
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
-  void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
+  void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
+                       std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
+    if (!EventImpl->getCommandGraph())
+      EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }
 
@@ -632,12 +679,28 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
+  std::shared_ptr<node_impl>
+  getNodeForEvent(std::shared_ptr<sycl::detail::event_impl> EventImpl) {
+    ReadLock Lock(MMutex);
+
+    if (auto NodeFound = MEventsMap.find(EventImpl);
+        NodeFound != std::end(MEventsMap)) {
+      return NodeFound->second;
+    }
+
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "No node in this graph is associated with this event");
+  }
+
   /// Duplicates and Adds sub-graph nodes from an executable graph to this
   /// graph.
+  /// @param Impl Graph implementation pointer
   /// @param SubGraphExec sub-graph to add to the parent.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::shared_ptr<exec_graph_impl> &SubGraphExec);
+  addSubgraphNodes(const std::shared_ptr<graph_impl> &Impl,
+                   const std::shared_ptr<exec_graph_impl> &SubGraphExec);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -873,10 +936,12 @@ private:
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Adds nodes to the exit nodes of this graph.
+  /// @param Impl Graph implementation pointer
   /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addNodesToExits(const std::shared_ptr<graph_impl> &Impl,
+                  const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.

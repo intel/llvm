@@ -804,7 +804,9 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
 
   // The first and fourth nodes should have events associated with MainGraph but
   // not graph. The second and third nodes were added as a sub-graph and
-  // duplicated. They should not have events associated with Graph or MainGraph.
+  // duplicated. They should only have events associated with MainGraph, however
+  // these events are created internally in the graph and not present in user
+  // code.
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
   ASSERT_EQ(
@@ -812,13 +814,13 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
       sycl::detail::getSyclObjImpl(Node1MainGraph));
 
   ScheduleIt++;
-  ASSERT_ANY_THROW(
+  ASSERT_NO_THROW(
       sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
 
   ScheduleIt++;
-  ASSERT_ANY_THROW(
+  ASSERT_NO_THROW(
       sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
@@ -1931,6 +1933,115 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
   ASSERT_FALSE(PartitionsList[2]->isHostTask());
   ASSERT_TRUE(PartitionsList[3]->isHostTask());
   ASSERT_FALSE(PartitionsList[4]->isHostTask());
+}
+
+TEST_F(CommandGraphTest, GetNodeQueries) {
+  // Tests graph and node queries for correctness
+
+  // Add some nodes to the graph for testing and test after each addition.
+  auto RootA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  {
+    auto GraphRoots = Graph.get_root_nodes();
+    auto GraphNodes = Graph.get_nodes();
+    ASSERT_EQ(GraphRoots.size(), 1lu);
+    ASSERT_EQ(GraphNodes.size(), 1lu);
+  }
+  auto RootB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  {
+    auto GraphRoots = Graph.get_root_nodes();
+    auto GraphNodes = Graph.get_nodes();
+    ASSERT_EQ(GraphRoots.size(), 2lu);
+    ASSERT_EQ(GraphNodes.size(), 2lu);
+  }
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(RootA, RootB)});
+  {
+    auto GraphRoots = Graph.get_root_nodes();
+    auto GraphNodes = Graph.get_nodes();
+    ASSERT_EQ(GraphRoots.size(), 2lu);
+    ASSERT_EQ(GraphNodes.size(), 3lu);
+  }
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(RootB)});
+  {
+    auto GraphRoots = Graph.get_root_nodes();
+    auto GraphNodes = Graph.get_nodes();
+    ASSERT_EQ(GraphRoots.size(), 2lu);
+    ASSERT_EQ(GraphNodes.size(), 4lu);
+  }
+  auto RootC = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  {
+    auto GraphRoots = Graph.get_root_nodes();
+    auto GraphNodes = Graph.get_nodes();
+    ASSERT_EQ(GraphRoots.size(), 3lu);
+    ASSERT_EQ(GraphNodes.size(), 5lu);
+  }
+
+  ASSERT_EQ(RootA.get_predecessors().size(), 0lu);
+  ASSERT_EQ(RootA.get_successors().size(), 1lu);
+  ASSERT_EQ(RootB.get_predecessors().size(), 0lu);
+  ASSERT_EQ(RootB.get_successors().size(), 2lu);
+  ASSERT_EQ(RootC.get_predecessors().size(), 0lu);
+  ASSERT_EQ(RootC.get_successors().size(), 0lu);
+  ASSERT_EQ(NodeA.get_predecessors().size(), 2lu);
+  ASSERT_EQ(NodeA.get_successors().size(), 0lu);
+  ASSERT_EQ(NodeB.get_predecessors().size(), 1lu);
+  ASSERT_EQ(NodeB.get_successors().size(), 0lu);
+}
+
+TEST_F(CommandGraphTest, NodeTypeQueries) {
+
+  // Allocate some pointers for testing memory nodes
+  int *PtrA = malloc_device<int>(16, Queue);
+  int *PtrB = malloc_device<int>(16, Queue);
+
+  auto NodeKernel = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  ASSERT_EQ(NodeKernel.get_type(), experimental::node_type::kernel);
+
+  auto NodeMemcpy = Graph.add(
+      [&](sycl::handler &cgh) { cgh.memcpy(PtrA, PtrB, 16 * sizeof(int)); });
+  ASSERT_EQ(NodeMemcpy.get_type(), experimental::node_type::memcpy);
+
+  auto NodeMemset = Graph.add(
+      [&](sycl::handler &cgh) { cgh.memset(PtrB, 7, 16 * sizeof(int)); });
+  ASSERT_EQ(NodeMemset.get_type(), experimental::node_type::memset);
+
+  auto NodeMemfill =
+      Graph.add([&](sycl::handler &cgh) { cgh.fill(PtrB, 7, 16); });
+  ASSERT_EQ(NodeMemfill.get_type(), experimental::node_type::memfill);
+
+  auto NodePrefetch = Graph.add(
+      [&](sycl::handler &cgh) { cgh.prefetch(PtrA, 16 * sizeof(int)); });
+  ASSERT_EQ(NodePrefetch.get_type(), experimental::node_type::prefetch);
+
+  auto NodeMemadvise = Graph.add(
+      [&](sycl::handler &cgh) { cgh.mem_advise(PtrA, 16 * sizeof(int), 1); });
+  ASSERT_EQ(NodeMemadvise.get_type(), experimental::node_type::memadvise);
+
+  // Use queue recording for barrier since it is not supported in explicit API
+  Graph.begin_recording(Queue);
+  auto EventBarrier =
+      Queue.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+  Graph.end_recording();
+
+  auto NodeBarrier = experimental::node::get_node_from_event(EventBarrier);
+  ASSERT_EQ(NodeBarrier.get_type(),
+            experimental::node_type::ext_oneapi_barrier);
+
+  auto NodeHostTask =
+      Graph.add([&](sycl::handler &cgh) { cgh.host_task([]() {}); });
+  ASSERT_EQ(NodeHostTask.get_type(), experimental::node_type::host_task);
+
+  auto NodeEmpty = Graph.add();
+  ASSERT_EQ(NodeEmpty.get_type(), experimental::node_type::empty);
+
+  // TODO: Test subgraph case once changes have been implemented.
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {

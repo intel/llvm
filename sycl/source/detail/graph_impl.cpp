@@ -70,7 +70,7 @@ void duplicateNode(const std::shared_ptr<node_impl> Node,
     NodeCopy = std::make_shared<node_impl>();
     NodeCopy->MCGType = sycl::detail::CG::None;
   } else {
-    NodeCopy = std::make_shared<node_impl>(Node->MCGType, Node->getCGCopy());
+    NodeCopy = std::make_shared<node_impl>(Node->MNodeType, Node->getCGCopy());
   }
 }
 
@@ -154,6 +154,32 @@ bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
     }
   }
   return true;
+}
+
+/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
+/// objects created from those impls, in the same order.
+std::vector<node> createNodesFromImpls(
+    const std::vector<std::weak_ptr<detail::node_impl>> &Impls) {
+  std::vector<node> Nodes{};
+
+  for (std::weak_ptr<detail::node_impl> Impl : Impls) {
+    Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl.lock()));
+  }
+
+  return Nodes;
+}
+
+/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
+/// objects created from those impls, in the same order.
+std::vector<node> createNodesFromImpls(
+    const std::vector<std::shared_ptr<detail::node_impl>> &Impls) {
+  std::vector<node> Nodes{};
+
+  for (std::shared_ptr<detail::node_impl> Impl : Impls) {
+    Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl));
+  }
+
+  return Nodes;
 }
 
 } // anonymous namespace
@@ -277,6 +303,7 @@ graph_impl::~graph_impl() {
 }
 
 std::shared_ptr<node_impl> graph_impl::addNodesToExits(
+    const std::shared_ptr<graph_impl> &Impl,
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -303,12 +330,14 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   // Add all the new nodes to the node storage
   for (auto &Node : NodeList) {
     MNodeStorage.push_back(Node);
+    addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), Node);
   }
 
-  return this->add(Outputs);
+  return this->add(Impl, Outputs);
 }
 
 std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
+    const std::shared_ptr<graph_impl> &Impl,
     const std::shared_ptr<exec_graph_impl> &SubGraphExec) {
   std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
 
@@ -331,7 +360,7 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     }
   }
 
-  return addNodesToExits(NewNodesList);
+  return addNodesToExits(Impl, NewNodesList);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -343,7 +372,8 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
+graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
+                const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // Copy deps so we can modify them
   auto Deps = Dep;
 
@@ -355,7 +385,8 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
-
+  // Add an event associated with this explicit node for mixed usage
+  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
   return NodeImpl;
 }
 
@@ -382,11 +413,23 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   if (Handler.MSubgraphNode) {
     return Handler.MSubgraphNode;
   }
-  return this->add(Handler.MCGType, std::move(Handler.MGraphNodeCG), Dep);
+
+  node_type NodeType;
+  if (auto UserFacingType = Handler.MImpl->MUserFacingNodeType;
+      UserFacingType != node_type::empty) {
+    NodeType = UserFacingType;
+  } else {
+    NodeType = getNodeTypeFromCG(Handler.MCGType);
+  }
+  auto NodeImpl = this->add(NodeType, std::move(Handler.MGraphNodeCG), Dep);
+  // Add an event associated with this explicit node for mixed usage
+  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  return NodeImpl;
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
+graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
+                const std::vector<sycl::detail::EventImplPtr> Events) {
 
   std::vector<std::shared_ptr<node_impl>> Deps;
 
@@ -401,11 +444,11 @@ graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
     }
   }
 
-  return this->add(Deps);
+  return this->add(Impl, Deps);
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(sycl::detail::CG::CGTYPE CGType,
+graph_impl::add(node_type NodeType,
                 std::unique_ptr<sycl::detail::CG> CommandGroup,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // Copy deps so we can modify them
@@ -465,13 +508,13 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
 
   const std::shared_ptr<node_impl> &NodeImpl =
-      std::make_shared<node_impl>(CGType, std::move(CommandGroup));
+      std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
 
   // Set barrier nodes as prerequisites (new start points) for subsequent nodes
-  if (CGType == sycl::detail::CG::Barrier) {
+  if (NodeImpl->MCGType == sycl::detail::CG::Barrier) {
     MExtraDependencies.push_back(NodeImpl);
   }
 
@@ -932,7 +975,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
+  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(impl, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1081,6 +1124,17 @@ void modifiable_command_graph::print_graph(std::string path,
   }
 }
 
+std::vector<node> modifiable_command_graph::get_nodes() const {
+  return createNodesFromImpls(impl->MNodeStorage);
+}
+std::vector<node> modifiable_command_graph::get_root_nodes() const {
+  auto &Roots = impl->MRoots;
+  std::vector<std::weak_ptr<node_impl>> Impls{};
+
+  std::copy(Roots.begin(), Roots.end(), std::back_inserter(Impls));
+  return createNodesFromImpls(Impls);
+}
+
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
@@ -1116,8 +1170,26 @@ void executable_command_graph::update(
   throw sycl::exception(sycl::make_error_code(errc::invalid),
                         "Method not yet implemented");
 }
-
 } // namespace detail
+
+node_type node::get_type() const { return impl->MNodeType; }
+
+std::vector<node> node::get_predecessors() const {
+  return detail::createNodesFromImpls(impl->MPredecessors);
+}
+
+std::vector<node> node::get_successors() const {
+  return detail::createNodesFromImpls(impl->MSuccessors);
+}
+
+node node::get_node_from_event(event nodeEvent) {
+  auto EventImpl = sycl::detail::getSyclObjImpl(nodeEvent);
+  auto GraphImpl = EventImpl->getCommandGraph();
+
+  return sycl::detail::createSyclObjFromImpl<node>(
+      GraphImpl->getNodeForEvent(EventImpl));
+}
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
