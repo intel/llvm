@@ -52,6 +52,25 @@ convertMatrixUseToString(ext::oneapi::experimental::matrix::use Use) {
   }
   return "";
 }
+inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+  switch (Layout) {
+  default:
+    assert(false && "Invalid Memory Layout!");
+  case sycl::ext::oneapi::experimental::matrix::layout::row_major:
+    return __spv::MatrixLayout::RowMajor;
+    break;
+  case sycl::ext::oneapi::experimental::matrix::layout::col_major:
+    return __spv::MatrixLayout::ColumnMajor;
+    break;
+  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
+    return __spv::MatrixLayout::Packed;
+    break;
+  case sycl::ext::oneapi::experimental::matrix::layout::dynamic:
+    return __spv::MatrixLayout::Dynamic;
+    break;
+  }
+}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
