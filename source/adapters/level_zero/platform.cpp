@@ -423,12 +423,9 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
       // through zeDeviceGetRootDevice. We need to cache the card device
       // handle too, such that it is readily visible to the
       // urDeviceCreateWithNativeHandle.
-      //
-      const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-      bool Combined = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-      if (Combined) {
-        ze_device_handle_t RootDevice;
-        ZE2UR_CALL(zeDeviceGetRootDevice, (Device->ZeDevice, &RootDevice));
+      ze_device_handle_t RootDevice;
+      ZE2UR_CALL(zeDeviceGetRootDevice, (Device->ZeDevice, &RootDevice));
+      if (RootDevice) {
         if (std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
                          [&](auto &Dev) {
                            return Dev->ZeDevice == RootDevice;
