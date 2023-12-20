@@ -15,26 +15,9 @@
 #include "memory.hpp"
 #include "queue.hpp"
 
-namespace {
+extern size_t imageElementByteSize(hipArray_Format ArrayFormat);
 
-static size_t imageElementByteSize(hipArray_Format ArrayFormat) {
-  switch (ArrayFormat) {
-  case HIP_AD_FORMAT_UNSIGNED_INT8:
-  case HIP_AD_FORMAT_SIGNED_INT8:
-    return 1;
-  case HIP_AD_FORMAT_UNSIGNED_INT16:
-  case HIP_AD_FORMAT_SIGNED_INT16:
-  case HIP_AD_FORMAT_HALF:
-    return 2;
-  case HIP_AD_FORMAT_UNSIGNED_INT32:
-  case HIP_AD_FORMAT_SIGNED_INT32:
-  case HIP_AD_FORMAT_FLOAT:
-    return 4;
-  default:
-    detail::ur::die("Invalid image format.");
-  }
-  return 0;
-}
+namespace {
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
                               uint32_t NumEventsInWaitList,
