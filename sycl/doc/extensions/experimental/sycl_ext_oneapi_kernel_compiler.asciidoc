@@ -185,10 +185,12 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const std::string& source,
   PropertyListT props = {})
 
+template<typename PropertyListT = empty_properties_t>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
-  const std::vector<std::byte>& bytes)
+  const std::vector<std::byte>& bytes,
+  PropertyListT props = {})
 
 } // namespace sycl::ext::oneapi::experimental
 ----
