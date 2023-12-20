@@ -1544,19 +1544,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+namespace {
+
+enum class GlobalVariableCopy { Read, Write };
+
+ur_result_t deviceGlobalCopyHelper(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
-    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
+    bool blocking, size_t count, size_t offset, void *ptr,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  // Since HIP requires the global variable to be referenced by name, we use
+    ur_event_handle_t *phEvent, GlobalVariableCopy CopyType) {
+  // Since HIP requires a the global variable to be referenced by name, we use
   // metadata to find the correct name to access it by.
   auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
   if (DeviceGlobalNameIt == hProgram->GlobalIDMD.end())
     return UR_RESULT_ERROR_INVALID_VALUE;
   std::string DeviceGlobalName = DeviceGlobalNameIt->second;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     hipDeviceptr_t DeviceGlobal = 0;
     size_t DeviceGlobalSize = 0;
@@ -1567,15 +1570,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     if (offset + count > DeviceGlobalSize)
       return UR_RESULT_ERROR_INVALID_VALUE;
 
-    return urEnqueueUSMMemcpy(
-        hQueue, blockingWrite,
-        reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(DeviceGlobal) +
-                                 offset),
-        pSrc, count, numEventsInWaitList, phEventWaitList, phEvent);
+    void *pSrc, *pDst;
+    if (CopyType == GlobalVariableCopy::Write) {
+      pSrc = ptr;
+      pDst = reinterpret_cast<uint8_t *>(DeviceGlobal) + offset;
+    } else {
+      pSrc = reinterpret_cast<uint8_t *>(DeviceGlobal) + offset;
+      pDst = ptr;
+    }
+    return urEnqueueUSMMemcpy(hQueue, blocking, pDst, pSrc, count,
+                              numEventsInWaitList, phEventWaitList, phEvent);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+}
+} // namespace
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return deviceGlobalCopyHelper(hQueue, hProgram, name, blockingWrite, count,
+                                offset, const_cast<void *>(pSrc),
+                                numEventsInWaitList, phEventWaitList, phEvent,
+                                GlobalVariableCopy::Write);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
@@ -1583,33 +1602,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // Since HIP requires the global variable to be referenced by name, we use
-  // metadata to find the correct name to access it by.
-  auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
-  if (DeviceGlobalNameIt == hProgram->GlobalIDMD.end())
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  std::string DeviceGlobalName = DeviceGlobalNameIt->second;
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  try {
-    hipDeviceptr_t DeviceGlobal = 0;
-    size_t DeviceGlobalSize = 0;
-    UR_CHECK_ERROR(hipModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
-                                      hProgram->get(),
-                                      DeviceGlobalName.c_str()));
-
-    if (offset + count > DeviceGlobalSize)
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    return urEnqueueUSMMemcpy(
-        hQueue, blockingRead, pDst,
-        reinterpret_cast<const void *>(
-            reinterpret_cast<uint8_t *>(DeviceGlobal) + offset),
-        count, numEventsInWaitList, phEventWaitList, phEvent);
-  } catch (ur_result_t Err) {
-    Result = Err;
-  }
-  return Result;
+  return deviceGlobalCopyHelper(
+      hQueue, hProgram, name, blockingRead, count, offset, pDst,
+      numEventsInWaitList, phEventWaitList, phEvent, GlobalVariableCopy::Read);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
