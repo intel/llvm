@@ -43,7 +43,8 @@ EXT(SPV_INTEL_variable_length_array)
 EXT(SPV_INTEL_fp_fast_math_mode)
 EXT(SPV_INTEL_fpga_cluster_attributes)
 EXT(SPV_INTEL_loop_fuse)
-EXT(SPV_INTEL_long_constant_composite)
+EXT(SPV_INTEL_long_constant_composite) // TODO: rename to
+                                       // SPV_INTEL_long_composites later
 EXT(SPV_INTEL_optnone)
 EXT(SPV_INTEL_fpga_dsp_control)
 EXT(SPV_INTEL_memory_access_aliasing)

@@ -53,8 +53,8 @@ static CXXRecordDecl *getCurrentInstantiationOf(QualType T,
     return nullptr;
   }
 
-  if (isa<InjectedClassNameType>(Ty))
-    return cast<InjectedClassNameType>(Ty)->getDecl();
+  if (auto *ICNT = dyn_cast<InjectedClassNameType>(Ty))
+    return ICNT->getDecl();
 
   return nullptr;
 }
