@@ -1,6 +1,6 @@
 // Test clang-offload-wrapper with -fno-sycl-rdc
 
-// REQUIRES: gpu && aspect_usm_host_allocations
+// REQUIRES: gpu && level-zero && aspect_usm_host_allocations
 
 // RUN: %clangxx -fsycl --offload-new-driver %s %S/Inputs/add.cpp %S/Inputs/sub.cpp -o %t1.out \
 // RUN:  -Xdevice-post-link "-split=auto -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native" -v 2>&1 \
