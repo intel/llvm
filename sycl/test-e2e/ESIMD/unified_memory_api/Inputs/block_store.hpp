@@ -332,7 +332,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
 
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
 
-  shared_vector Out(GroupSize, shared_allocator{Q});
+  shared_vector Out(Size, shared_allocator{Q});
   T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
     Out[i] = OutVal;
