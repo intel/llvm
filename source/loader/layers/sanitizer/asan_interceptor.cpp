@@ -258,14 +258,13 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
     assert(Res == UR_RESULT_SUCCESS);
 
-    std::vector<char> KernelNameBuf(KernelNameSize + 1);
+    std::vector<char> KernelNameBuf(KernelNameSize);
     Res = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
         KernelNameBuf.data(), nullptr);
     assert(Res == UR_RESULT_SUCCESS);
-    KernelNameBuf[KernelNameSize] = '\0';
 
-    return std::string(KernelNameBuf.data(), KernelNameSize);
+    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
 ur_result_t SanitizerInterceptor::allocShadowMemory(
