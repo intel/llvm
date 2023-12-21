@@ -722,8 +722,7 @@ struct get_device_info_impl<
   get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
-    using namespace oneapi_exp_arch = backend CurrentBackend =
-        Dev->getBackend();
+    backend CurrentBackend = Dev->getBackend();
     architecture DeviceArch = get_device_info_impl<
         ext::oneapi::experimental::architecture,
         ext::oneapi::experimental::info::device::architecture>::get(Dev);
@@ -815,21 +814,22 @@ struct get_device_info_impl<
       // using < and > will be implemented
       using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
       constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
-        {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
-        {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
-        {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
-        {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
-        {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
-        {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
-        {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
-        {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
-        {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
-        {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
-        {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
-        {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
-        {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
-        {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
-      } auto GetArchNum = [](const architecture &arch) {
+          {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
+          {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
+          {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
+          {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
+          {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
+          {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
+          {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
+          {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
+          {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
+          {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
+          {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
+          {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
+          {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
+          {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
+      };
+      auto GetArchNum = [&](const architecture &arch) {
         for (const auto &Item : NvidiaArchNumbs) {
           if (Item.second == arch)
             return Item.first;
