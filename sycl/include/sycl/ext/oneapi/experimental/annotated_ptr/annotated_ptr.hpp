@@ -84,10 +84,10 @@ private:
 
   // filter properties that are applied on annotations
   using annotation_props =
-      unpack<PropertiesFilter<mp_list_props, annotation_filter>>::type;
+      typename unpack<PropertiesFilter<mp_list_props, annotation_filter>>::type;
 
   // helper struct for annotated load/store
-  template <typename T, typename... Props> annotationHelper{};
+  template <typename T, typename... Props> struct annotationHelper{};
 
   template <typename T, typename... Props>
   struct annotationHelper<detail::properties_t<Props...>> {
@@ -97,7 +97,7 @@ private:
           detail::PropertyMetaInfo<Props>::value...);
     }
 
-    template <class O> static T store(T *m_Ptr, O &&obj) const {
+    template <class O> static T store(T *m_Ptr, O &&Obj) const {
       return *__builtin_intel_sycl_ptr_annotation(
                  m_Ptr, detail::PropertyMetaInfo<Props>::name...,
                  detail::PropertyMetaInfo<Props>::value...) =
@@ -287,8 +287,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #define OP_NOT_SUPPORTED(op, property)                                         \
   "operator" op " is not available when " property " is specified!"
 
-  static constexpr void operatorAvailablityCheck(constexpr unsigned op_id) {
-    static constexpr bool hasAlign =
+  static constexpr void operatorAvailablityCheck(unsigned op_id) {
+    constexpr bool hasAlign =
         detail::ContainsProperty<alignment_key, std::tuple<Props...>>::value;
     switch (op_id) {
     case op_plus:
@@ -411,7 +411,7 @@ public:
 
   reference operator[](std::ptrdiff_t idx) const noexcept {
     operatorAvailablityCheck(op_subscript);
-    return reference(base + idx);
+    return reference(m_Ptr + idx);
   }
 
   annotated_ptr operator+(size_t offset) const noexcept {
