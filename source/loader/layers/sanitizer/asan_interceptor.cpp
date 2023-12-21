@@ -248,7 +248,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
         &LaunchInfo.SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
 
-    context.logger.debug("urEnqueueDeviceGlobalVariableWrite({}): {}",
+    context.logger.debug("urEnqueueDeviceGlobalVariableRead({}): {}",
                          kSPIR_DeviceSanitizerReportMem, Result);
 
     if (Result == UR_RESULT_SUCCESS) {
@@ -272,7 +272,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
             AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
         context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
         if (!AH->IsRecover) {
-            abort();
+            exit(0);
         }
     }
 }
