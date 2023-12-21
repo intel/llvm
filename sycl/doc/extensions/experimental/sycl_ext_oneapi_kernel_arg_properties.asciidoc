@@ -178,7 +178,7 @@ pointer value does not have the indicated alignment.
 
 
 When alignment is specified on `annotated_ptr`, the `operator+`, `operator-`, `operator[]`,
-`operator\\++`,`operator\\++(int)`,`operator--` and `operator--(int)` are disabled.
+`operator++`,`operator++(int)`,`operator--` and `operator--(int)` are disabled.
 
 |===
 --
