@@ -91,13 +91,13 @@ private:
 
   template <typename T, typename... Props>
   struct annotationHelper<detail::properties_t<Props...>> {
-    static T load(T *m_Ptr) {
+    static T load(T *m_Ptr) const {
       return *__builtin_intel_sycl_ptr_annotation(
           m_Ptr, detail::PropertyMetaInfo<Props>::name...,
           detail::PropertyMetaInfo<Props>::value...);
     }
 
-    template <class O> static T store(T *m_Ptr, O &&obj) {
+    template <class O> static T store(T *m_Ptr, O &&obj) const {
       return *__builtin_intel_sycl_ptr_annotation(
                  m_Ptr, detail::PropertyMetaInfo<Props>::name...,
                  detail::PropertyMetaInfo<Props>::value...) =
