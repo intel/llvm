@@ -143,7 +143,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
-        die("SanitizerInterceptor: unsupport memory type");
+        context.logger.error("Unsupport memory type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     // Copy from LLVM compiler-rt/lib/asan
@@ -282,14 +283,13 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
     assert(Res == UR_RESULT_SUCCESS);
 
-    std::vector<char> KernelNameBuf(KernelNameSize + 1);
+    std::vector<char> KernelNameBuf(KernelNameSize);
     Res = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
         KernelNameBuf.data(), nullptr);
     assert(Res == UR_RESULT_SUCCESS);
-    KernelNameBuf[KernelNameSize] = '\0';
 
-    return std::string(KernelNameBuf.data(), KernelNameSize);
+    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
 ur_result_t SanitizerInterceptor::allocShadowMemory(
@@ -325,7 +325,8 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
 
         DeviceInfo->ShadowOffsetEnd = DeviceInfo->ShadowOffset + SHADOW_SIZE;
     } else {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     context.logger.info("Shadow memory (Global, {} - {})",
@@ -388,12 +389,12 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("zePhysicalMemCreate(): {}", URes);
+                        context.logger.error("urPhysicalMemCreate(): {}", URes);
                         return URes;
                     }
                 }
 
-                context.logger.debug("zeVirtualMemMap({} ~ {})",
+                context.logger.debug("urVirtualMemMap({} ~ {})",
                                      (void *)MappedPtr,
                                      (void *)(MappedPtr + PageSize - 1));
 
@@ -402,7 +403,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("zeVirtualMemMap(): {}", URes);
+                    context.logger.debug("urVirtualMemMap(): {}", URes);
                 }
 
                 // Initialize to zero
@@ -439,7 +440,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             return URes;
         }
     } else {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     return UR_RESULT_SUCCESS;
 }

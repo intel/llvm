@@ -18,10 +18,10 @@ namespace ur_sanitizer_layer {
 
 enum class DeviceSanitizerErrorType : int32_t {
     UNKNOWN,
-    OUT_OF_BOUND,
+    OUT_OF_BOUNDS,
     MISALIGNED,
     USE_AFTER_FREE,
-    OUT_OF_SHADOW_BOUND,
+    OUT_OF_SHADOW_BOUNDS,
 };
 
 enum class DeviceSanitizerMemoryType : int32_t {
@@ -79,14 +79,14 @@ inline const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
 
 inline const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
     switch (ErrorType) {
-    case DeviceSanitizerErrorType::OUT_OF_BOUND:
-        return "out-of-bound-access";
+    case DeviceSanitizerErrorType::OUT_OF_BOUNDS:
+        return "out-of-bounds-access";
     case DeviceSanitizerErrorType::MISALIGNED:
         return "misaligned-access";
     case DeviceSanitizerErrorType::USE_AFTER_FREE:
         return "use-after-free";
-    case DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUND:
-        return "out-of-shadow-bound-access";
+    case DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS:
+        return "out-of-shadow-bounds-access";
     default:
         return "unknown-error";
     }

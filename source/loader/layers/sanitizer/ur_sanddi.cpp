@@ -455,7 +455,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         }
     }
 
-    // FIXME: Interceptor needs use some of APIs that aren't registered, maybe just copy needed APIs?
     urDdiTable = *dditable;
 
     if (UR_RESULT_SUCCESS == result) {
