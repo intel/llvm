@@ -56,10 +56,7 @@ struct check_property_list<T, Prop, Props...>
                 "Property is invalid for the given type.");
 };
 
-template <typename PropTy>
-struct propagatePassAnnotatedRef : std::false_type {};
-template <typename PropTy>
-struct propagatePassPointerArith : std::false_type {};
+template <typename PropTy> struct propagateToPtrAnnotation : std::false_type {};
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
@@ -85,7 +82,7 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <> struct propagatePassAnnotatedRef<alignment_key> : std::true_type {};
+template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
 
 namespace detail {
 

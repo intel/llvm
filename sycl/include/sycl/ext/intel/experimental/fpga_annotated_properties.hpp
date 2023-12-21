@@ -353,20 +353,9 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
-// buffer_location and avalon bus properties pass through pointer arithmetics
+// buffer_location is applied on PtrAnnotation
 template <>
-struct propagatePassPointerArith<buffer_location_key> : std::true_type {};
-template <>
-struct propagatePassAnnotatedRef<buffer_location_key> : std::true_type {};
-
-template <> struct propagatePassPointerArith<awidth_key> : std::true_type {};
-template <> struct propagatePassPointerArith<dwidth_key> : std::true_type {};
-template <> struct propagatePassPointerArith<latency_key> : std::true_type {};
-template <>
-struct propagatePassPointerArith<read_write_mode_key> : std::true_type {};
-template <> struct propagatePassPointerArith<maxburst_key> : std::true_type {};
-template <>
-struct propagatePassPointerArith<wait_request_key> : std::true_type {};
+struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
 
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties
