@@ -1,4 +1,4 @@
-//==----------- joint_matrix_transposeC.cpp  - DPC++ joint_matrix-----------==//
+//==-------- joint_matrix_annotated_ptr.cpp  - DPC++ joint_matrix-----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// Currently row major B fails when annotated_ptr is used
+// XFAIL: gpu
+
 #include "../common.hpp"
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../joint_matrix_transposeC_impl.hpp"
+#include "../joint_matrix_annotated_ptr_impl.hpp"
