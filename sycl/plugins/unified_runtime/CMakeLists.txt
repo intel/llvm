@@ -62,7 +62,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date: Mon Dec 18 13:15:43 2023 +0000
   #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
   #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 3d0a9ec08fdd13bbff94b02698d5a7283bdad843)
+  set(UNIFIED_RUNTIME_TAG 0e37380e7a180431fa968fe1826cc5bbf15a3a5a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
