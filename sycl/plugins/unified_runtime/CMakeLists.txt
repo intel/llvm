@@ -56,14 +56,9 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Mon Dec 18 13:15:43 2023 +0000
-  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
-  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
-
+  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG cmdbuf-hip-support)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
