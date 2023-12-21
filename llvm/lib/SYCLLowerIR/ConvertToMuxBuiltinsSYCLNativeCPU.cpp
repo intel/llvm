@@ -46,7 +46,10 @@ static void fixFunctionAttributes(Function *F) {
 enum class BT_Sig {
   I64_I32,     // i64(i32)
   I32_void,    // i32()
+  B1_I32_B1,   // B1(I32, B1)
   I32_I32_I32, // I32(I32, I32)
+  F64_F64_I32, // F64(F64, I32)
+  F64_F64_F64_I32, // F64(F64, F64, I32)
 };
 
 // Helper macros for constructing builtin MS names
@@ -110,9 +113,27 @@ static const std::pair<std::pair<StringRef, StringRef>,
         GEN_u32(__spirv_SubgroupMaxSize, 23, __mux_get_max_sub_group_size),
         GEN_u32(__spirv_SubgroupId, 18, __mux_get_sub_group_id),
         GEN_u32(__spirv_NumSubgroups, 20, __mux_get_num_sub_groups),
+        GEN_u32(__spirv_SubgroupSize, 20, __mux_get_sub_group_size),
         GEN_direct("_Z28__spirv_SubgroupShuffleINTELIjET_S0_j",
                    "??$__spirv_SubgroupShuffleINTEL@I@@YAIII@Z",
                    __mux_sub_group_shuffle_i32, BT_Sig::I32_I32_I32),
+        GEN_direct("@_Z28__spirv_SubgroupShuffleINTELIdET_S0_j",
+                   "??$__spirv_SubgroupShuffleINTEL@N@@YANNI@Z",
+                   __mux_sub_group_shuffle_f64, BT_Sig::F64_F64_I32
+                   ),
+        GEN_direct("_Z30__spirv_SubgroupShuffleUpINTELIdET_S0_S0_j",
+                   "??$__spirv_SubgroupShuffleUpINTEL@N@@YANNNI@Z", // double (double,double,unsigned int)
+                   __mux_sub_group_shuffle_up_f64, BT_Sig::F64_F64_F64_I32
+                   ),
+        GEN_direct("_Z32__spirv_SubgroupShuffleDownINTELIdET_S0_S0_j",
+                   "??$__spirv_SubgroupShuffleDownINTEL@N@@YANNNI@Z", // double (double,double,unsigned int)
+                   __mux_sub_group_shuffle_down_f64, BT_Sig::F64_F64_F64_I32
+                   ),
+
+        GEN_direct("_Z31__spirv_SubgroupShuffleXorINTELIdET_S0_j",
+                   "??$__spirv_SubgroupShuffleXorINTEL@N@@YANNI@Z", // double (double, unsigned int)
+                   __mux_sub_group_shuffle_xor_f64, BT_Sig::F64_F64_I32
+                   )
 };
 
 static inline bool isForVisualStudio(StringRef TripleStr) {
@@ -131,10 +152,22 @@ static FunctionType *getFuncType(BT_Sig FType, LLVMContext &Ctx) {
                              false);
   case BT_Sig::I32_void:
     return FunctionType::get(Type::getInt32Ty(Ctx), {}, false);
+  case BT_Sig::B1_I32_B1:
+    return FunctionType::get(Type::getInt1Ty(Ctx),
+                             {Type::getInt32Ty(Ctx), Type::getInt1Ty(Ctx)},
+                             false);
   case BT_Sig::I32_I32_I32:
     return FunctionType::get(Type::getInt32Ty(Ctx),
                              {Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx)},
                              false);
+  case BT_Sig::F64_F64_I32: // F64(F64, I32)
+    return FunctionType::get(Type::getDoubleTy(Ctx),
+      { Type::getDoubleTy(Ctx), Type::getInt32Ty(Ctx) },
+      false);
+  case BT_Sig::F64_F64_F64_I32: // F64(F64, F64, I32)
+    return FunctionType::get(Type::getDoubleTy(Ctx),
+      { Type::getDoubleTy(Ctx), Type::getDoubleTy(Ctx), Type::getInt32Ty(Ctx) },
+      false);
   }
   report_fatal_error("Unsupported Value in SYCL Native CPU\n");
   return nullptr;
@@ -230,11 +263,13 @@ MakeCallArgs(const std::pair<StringRef, bt_info> &E, Module &M,
     return {Arg};
   }
   case BT_Sig::I32_I32_I32: {
-    llvm::SmallVector<llvm::Value *> res;
-    for (unsigned arg = 0; arg < CI.getNumOperands(); arg++)
-      res.push_back(CI.getArgOperand(arg));
-    return res;
+    return {CI.getArgOperand(0), CI.getArgOperand(1)};
   }
+  case BT_Sig::F64_F64_I32:
+    return { CI.getArgOperand(0), CI.getArgOperand(1) };
+  case BT_Sig::F64_F64_F64_I32:
+    return { CI.getArgOperand(0), CI.getArgOperand(1), CI.getArgOperand(2) };
+  case BT_Sig::B1_I32_B1: // todo
   case BT_Sig::I32_void:; // todo
   }
   return {};
