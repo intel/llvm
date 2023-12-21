@@ -135,7 +135,6 @@ class SanitizerInterceptor {
                               ur_kernel_handle_t Kernel,
                               LaunchInfo &LaunchInfo);
 
-    std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
     ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
