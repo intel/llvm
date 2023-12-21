@@ -133,6 +133,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 )
 
 if (WIN32)
+ # 0x800: Search for the DLL only in the System32 folder
  target_link_options(ur_adapter_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
 endif()
 
