@@ -92,7 +92,7 @@ enum class node_type {
   prefetch,
   memadvise,
   ext_oneapi_barrier,
-  host_task,
+  host_task
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().

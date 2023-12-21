@@ -505,14 +505,14 @@ node_type get_type() const;
 ----
 std::vector<node> get_predecessors() const;
 ----
-|Returns a list of the predecessor nodes which this node depends on.
+|Returns a list of the predecessor nodes which this node directly depends on.
 
 |
 [source,c++]
 ----
 std::vector<node> get_successors() const;
 ----
-|Returns a list of the successor nodes which depend on this node.
+|Returns a list of the successor nodes which directly depend on this node.
 
 |
 [source,c++]
