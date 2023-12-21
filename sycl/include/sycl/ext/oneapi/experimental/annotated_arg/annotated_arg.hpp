@@ -40,6 +40,14 @@ struct HasSubscriptOperator
     : std::bool_constant<
           !std::is_void_v<decltype(std::declval<T>().operator[](0))>> {};
 
+template <class T> struct is_ann_arg_impl : std::false_type {};
+template <class T, class P>
+struct is_ann_arg_impl<annotated_arg<T, P>> : std::true_type {};
+template <class T, class P>
+struct is_ann_arg_impl<const annotated_arg<T, P>> : std::true_type {};
+template <class T>
+constexpr bool is_ann_arg_v =
+    is_ann_arg_impl<std::remove_reference_t<T>>::value;
 } // namespace detail
 
 // Deduction guide
@@ -305,65 +313,50 @@ public:
     return property_list_t::template get_property<PropertyT>();
   }
 
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() + std::declval<T2>())>
-  R operator+(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj + other.obj;
+// propagate binary operators
+#define PROPAGATE_OP(op)                                                       \
+  template <class O>                                                           \
+  friend auto operator op(O &&a, const annotated_arg &b)                       \
+      ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
+    return std::forward<O>(a) op b.operator T();                               \
+  }                                                                            \
+  template <class O, typename = std::enable_if_t<!detail::is_ann_arg_v<O>>>    \
+  friend auto operator op(const annotated_arg &a, O &&b)                       \
+      ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
+    return a.operator T() op std::forward<O>(b);                               \
   }
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(*)
+  PROPAGATE_OP(/)
+  PROPAGATE_OP(%)
+  PROPAGATE_OP(|)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(^)
+  PROPAGATE_OP(<<)
+  PROPAGATE_OP(>>)
+  PROPAGATE_OP(<)
+  PROPAGATE_OP(<=)
+  PROPAGATE_OP(>)
+  PROPAGATE_OP(>=)
+  PROPAGATE_OP(==)
+  PROPAGATE_OP(!=)
+  PROPAGATE_OP(&&)
+  PROPAGATE_OP(||)
+#undef PROPAGATE_OP
 
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() - std::declval<T2>())>
-  R operator-(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj - other.obj;
+// Propagate unary operators
+// by setting a default template we get SFINAE to kick in
+#define PROPAGATE_OP(op)                                                       \
+  template <typename O = T>                                                    \
+  auto operator op() const->decltype(op std::declval<O>()) {                   \
+    return op this->operator O();                                              \
   }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() * std::declval<T2>())>
-  R operator*(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj * other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() / std::declval<T2>())>
-  R operator/(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj / other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() % std::declval<T2>())>
-  R operator%(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj % other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() & std::declval<T2>())>
-  R operator&(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj & other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() | std::declval<T2>())>
-  R operator|(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj | other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-  R operator^(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj ^ other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-  R operator>>(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj >> other.obj;
-  }
-
-  template <typename T2, typename PropertyList2,
-            typename R = decltype(std::declval<T>() << std::declval<T2>())>
-  R operator<<(const annotated_arg<T2, PropertyList2> &other) const {
-    return obj << other.obj;
-  }
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(!)
+  PROPAGATE_OP(~)
+#undef PROPAGATE_OP
 
   // *************************************************************************
   // All static error checking is added here instead of placing inside neat
@@ -441,146 +434,6 @@ public:
                 "The properties conduit and register_map cannot be "
                 "specified at the same time.");
 };
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() + std::declval<T2>())>
-R operator+(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 + b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() - std::declval<T2>())>
-R operator-(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 - b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() * std::declval<T2>())>
-R operator*(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 * b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() / std::declval<T2>())>
-R operator/(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 / b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() % std::declval<T2>())>
-R operator%(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 % b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() & std::declval<T2>())>
-R operator&(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 & b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() | std::declval<T2>())>
-R operator|(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 | b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-R operator^(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 ^ b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-R operator>>(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 >> b;
-}
-
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() << std::declval<T2>())>
-R operator<<(const annotated_arg<T, PropertyList> &a, const T2 &b) {
-  T a1 = a;
-  return a1 << b;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() + std::declval<T2>())>
-R operator+(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a + b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() - std::declval<T2>())>
-R operator-(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a - b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() * std::declval<T2>())>
-R operator*(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a * b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() / std::declval<T2>())>
-R operator/(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a / b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() % std::declval<T2>())>
-R operator%(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a % b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() & std::declval<T2>())>
-R operator&(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a & b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() | std::declval<T2>())>
-R operator|(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a | b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-R operator^(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a ^ b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-R operator>>(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a >> b1;
-}
-
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() << std::declval<T2>())>
-R operator<<(const T &a, const annotated_arg<T2, PropertyList2> &b) {
-  T2 b1 = b;
-  return a << b1;
-}
 
 } // namespace experimental
 } // namespace oneapi
