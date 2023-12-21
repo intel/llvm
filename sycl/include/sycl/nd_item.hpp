@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ControlBarrier
 #include <CL/__spirv/spirv_types.hpp>         // for Scope
+#include <CL/__spirv/spirv_vars.hpp>          // for initLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
@@ -38,6 +39,273 @@ namespace ext::oneapi::experimental {
 template <int Dimensions> class root_group;
 }
 
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+/// Identifies an instance of the function object executing at each point in an
+/// nd_range.
+///
+/// \ingroup sycl_api
+template <int Dimensions = 1> class nd_item {
+public:
+  static constexpr int dimensions = Dimensions;
+
+  id<Dimensions> get_global_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
+#else
+    // TODO: what should be the implementation on the host? nd_item can be unsed
+    // only in device code, so technically it's a dead code. Right?
+    return {};
+#endif
+  }
+
+  size_t __SYCL_ALWAYS_INLINE get_global_id(int Dimension) const {
+    size_t Id = get_global_id()[Dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    size_t Id = __spirv_GlobalLinearId();
+#else
+    size_t Id = 0;
+#endif
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  id<Dimensions> get_local_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+#else
+    return {};
+#endif
+  }
+
+  size_t __SYCL_ALWAYS_INLINE get_local_id(int Dimension) const {
+    size_t Id = get_local_id()[Dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  size_t get_local_linear_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    size_t Id = __spirv_LocalInvocationIndex();
+#else
+    size_t Id = 0;
+#endif
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  group<Dimensions> get_group() const {
+    // TODO: ideally Group object should be stateless and have a contructor with
+    // no arguments.
+#ifdef __SYCL_DEVICE_ONLY__
+    id<Dimensions> Id = __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
+#else
+    id<Dimensions> Id{};
+#endif
+    return detail::Builder::createGroup(get_global_range(), get_local_range(),
+                                        get_group_range(), Id);
+  }
+
+  sub_group get_sub_group() const { return sub_group(); }
+
+  size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
+    // Why Size? It returns group id!!!
+    size_t Size = get_group()[Dimension];
+    __SYCL_ASSUME_INT(Size);
+    return Size;
+  }
+
+  size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
+    size_t Id = get_global_linear_id() / get_local_range().size();
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  range<Dimensions> get_group_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
+#else
+    return {};
+#endif
+  }
+
+  size_t __SYCL_ALWAYS_INLINE get_group_range(int Dimension) const {
+    size_t Range = get_group_range()[Dimension];
+    __SYCL_ASSUME_INT(Range);
+    return Range;
+  }
+
+  range<Dimensions> get_global_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
+#else
+    return {};
+#endif
+  }
+
+  size_t get_global_range(int Dimension) const {
+    size_t Val = get_global_range()[Dimension];
+    __SYCL_ASSUME_INT(Val);
+    return Val;
+  }
+
+  range<Dimensions> get_local_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
+#else
+    return {};
+#endif
+  }
+
+  size_t get_local_range(int Dimension) const {
+    size_t Id = get_local_range()[Dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
+
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
+  id<Dimensions> get_offset() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
+#else
+    return {};
+#endif
+  }
+
+  nd_range<Dimensions> get_nd_range() const { return nd_range<Dimensions>(); }
+
+  void barrier(access::fence_space accessSpace =
+                   access::fence_space::global_and_local) const {
+    uint32_t flags = _V1::detail::getSPIRVMemorySemanticsMask(accessSpace);
+    __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                           flags);
+  }
+
+  /// Executes a work-group mem-fence with memory ordering on the local address
+  /// space, global address space or both based on the value of \p accessSpace.
+  template <access::mode accessMode = access::mode::read_write>
+  __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
+  void mem_fence(
+      typename std::enable_if_t<accessMode == access::mode::read ||
+                                    accessMode == access::mode::write ||
+                                    accessMode == access::mode::read_write,
+                                access::fence_space>
+          accessSpace = access::fence_space::global_and_local) const {
+    uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
+    // TODO: currently, there is no good way in SPIR-V to set the memory
+    // barrier only for load operations or only for store operations.
+    // The full read-and-write barrier is used and the template parameter
+    // 'accessMode' is ignored for now. Either SPIR-V or SYCL spec may be
+    // changed to address this discrepancy between SPIR-V and SYCL,
+    // or if we decide that 'accessMode' is the important feature then
+    // we can fix this later, for example, by using OpenCL 1.2 functions
+    // read_mem_fence() and write_mem_fence().
+    __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
+  }
+
+  template <typename dataT>
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+                            size_t numElements) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename dataT>
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+                            size_t numElements) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename dataT>
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+                            size_t numElements, size_t srcStride) const {
+
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements,
+                                                    srcStride);
+  }
+
+  template <typename dataT>
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  device_event
+      async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+                            size_t numElements, size_t destStride) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements,
+                                                    destStride);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                        decorated_global_ptr<SrcDataT> src,
+                        size_t numElements) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src,
+                        size_t numElements) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
+                        decorated_global_ptr<SrcDataT> src, size_t numElements,
+                        size_t srcStride) const {
+
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements,
+                                                    srcStride);
+  }
+
+  template <typename DestDataT, typename SrcDataT>
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src, size_t numElements,
+                        size_t destStride) const {
+    return group<Dimensions>::async_work_group_copy(dest, src, numElements,
+                                                    destStride);
+  }
+
+  template <typename... eventTN> void wait_for(eventTN... events) const {
+    group<Dimensions>::wait_for(events...);
+  }
+
+  sycl::ext::oneapi::experimental::root_group<Dimensions>
+  ext_oneapi_get_root_group() const {
+    return sycl::ext::oneapi::experimental::root_group<Dimensions>{*this};
+  }
+
+  nd_item(const nd_item &rhs) = default;
+  nd_item(nd_item &&rhs) = default;
+
+  nd_item &operator=(const nd_item &rhs) = default;
+  nd_item &operator=(nd_item &&rhs) = default;
+
+  bool operator==(const nd_item &) const { return true; }
+  bool operator!=(const nd_item &rhs) const { return !((*this) == rhs); }
+
+protected:
+  friend class detail::Builder;
+  nd_item() {}
+  nd_item(const item<Dimensions, true> &, const item<Dimensions, false> &,
+          const group<Dimensions> &) {}
+};
+#else
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.
 ///
@@ -246,6 +514,7 @@ private:
   item<Dimensions, false> localItem;
   group<Dimensions> Group;
 };
+#endif
 
 template <int Dims>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
