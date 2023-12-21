@@ -12,13 +12,8 @@ target triple = "spir64-unknown-unknown"
 %struct.MyStruct = type { i32, %"class.sycl::_V1::vec" }
 %"class.sycl::_V1::vec" = type { <3 x i32> }
 
-; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: write)
-declare void @llvm.assume(i1 noundef) #0
-
-; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none)
 declare spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32) local_unnamed_addr #1
 
-; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: write)
 define spir_kernel void @fused_0(ptr addrspace(1) nocapture align 16 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp,
    ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp3,
    ptr addrspace(1) nocapture readonly align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn,
@@ -27,7 +22,7 @@ define spir_kernel void @fused_0(ptr addrspace(1) nocapture align 16 %_ZTSZZ4mai
    ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp210,
    ptr addrspace(1) nocapture writeonly align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut,
    ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut3)
-     local_unnamed_addr #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !sycl.kernel.promote !11 !sycl.kernel.promote.localsize !12 !sycl.kernel.promote.elemsize !13 !sycl.kernel.constants !14 {
+     local_unnamed_addr #2 !sycl.kernel.promote !11 !sycl.kernel.promote.localsize !12 !sycl.kernel.promote.elemsize !13 {
 ; CHECK-LABEL: define spir_kernel void @fused_0(
 ; CHECK-SAME: ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
 ; CHECK-SAME: ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
@@ -67,10 +62,8 @@ entry:
   %add.ptr.i35.i = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn62.sroa.0.0.copyload
   %add.ptr.i44.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp27, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2103.sroa.0.0.copyload
   %0 = tail call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #3
-  %cmp.i.i.i = icmp ult i64 %0, 2147483648
-  tail call void @llvm.assume(i1 %cmp.i.i.i)
-  %mul.i.i = mul nuw nsw i64 %0, 3, !spirv.Decorations !15
-  %add.i.i = add nuw nsw i64 %mul.i.i, 1, !spirv.Decorations !15
+  %mul.i.i = mul nuw nsw i64 %0, 3
+  %add.i.i = add nuw nsw i64 %mul.i.i, 1
   %arrayidx.i.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i35.i, i64 %add.i.i
   %1 = load i32, ptr addrspace(1) %arrayidx.i.i, align 4
   %arrayidx.i54.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.i.i, i64 %add.i.i
@@ -83,42 +76,16 @@ entry:
   %add.ptr.i.i7 = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut34.sroa.0.0.copyload
   %2 = load i32, ptr addrspace(1) %arrayidx.i.i.i, align 4
   %conv.i.i13 = sext i8 %conv.i.i to i32
-  %add.i.i14 = add nsw i32 %2, %conv.i.i13, !spirv.Decorations !18
+  %add.i.i14 = add nsw i32 %2, %conv.i.i13
   %arrayidx.i62.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i.i7, i64 %add.i.i
   store i32 %add.i.i14, ptr addrspace(1) %arrayidx.i62.i, align 4
   ret void
 }
 
-attributes #0 = { mustprogress nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: write) }
 attributes #1 = { mustprogress nofree nosync nounwind willreturn memory(none) }
 attributes #2 = { mustprogress nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: write) }
 attributes #3 = { nounwind willreturn memory(none) }
 
-!spirv.MemoryModel = !{!0}
-!opencl.enable.FP_CONTRACT = !{}
-!spirv.Source = !{!1}
-!opencl.spir.version = !{!2}
-!opencl.ocl.version = !{!3}
-!opencl.used.extensions = !{!4}
-!opencl.used.optional.core.features = !{!4}
-!spirv.Generator = !{!5}
-
-!0 = !{i32 2, i32 2}
-!1 = !{i32 4, i32 100000}
-!2 = !{i32 1, i32 2}
-!3 = !{i32 1, i32 0}
-!4 = !{}
-!5 = !{i16 6, i16 14}
-!6 = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0}
-!7 = !{!"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none"}
-!8 = !{!"struct MyStruct*", !"class.sycl::_V1::range", !"int*", !"class.sycl::_V1::range", !"char*", !"class.sycl::_V1::range", !"int*", !"class.sycl::_V1::range"}
-!9 = !{!"", !"", !"", !"", !"", !"", !"", !""}
-!10 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp3", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn6", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp27", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp210", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut", !"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut3"}
 !11 = !{!"private", !"none", !"none", !"none", !"private", !"none", !"none", !"none"}
 !12 = !{i64 3, !"", !"", !"", i64 3, !"", !"", !""}
 !13 = !{i64 32, !"", !"", !"", i64 1, !"", !"", !""}
-!14 = !{!"", !"", !"", !"\00\00\00\00\00\00\00\00", !"", !"", !"", !"\00\00\00\00\00\00\00\00"}
-!15 = !{!16, !17}
-!16 = !{i32 4469}
-!17 = !{i32 4470}
-!18 = !{!16}
