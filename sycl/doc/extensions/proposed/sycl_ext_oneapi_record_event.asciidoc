@@ -192,10 +192,10 @@ int main() {
 
   // commands submitted here are not timed
 
-  sycl::event start = syclex::event_record(q);
+  sycl::event start = syclex::record_event(q);
   sycl::parallel_for(q, {N}, [=](auto i) {/* first kernel */});
   sycl::parallel_for(q, {N}, [=](auto i) {/* second kernel */});
-  sycl::event end = syclex::event_record(q);
+  sycl::event end = syclex::record_event(q);
 
   q.wait();
 
