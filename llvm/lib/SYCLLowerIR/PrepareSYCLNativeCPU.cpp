@@ -580,7 +580,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
 #ifdef NATIVECPU_USE_OCK
-  // Define __mum_mem_barrier here using the OCK
+  // Define __mux_mem_barrier here using the OCK
   compiler::utils::BuiltinInfo BI;
   for (auto &F : M) {
     if (F.getName() == compiler::utils::MuxBuiltins::mem_barrier) {
