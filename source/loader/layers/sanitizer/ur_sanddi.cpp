@@ -422,6 +422,9 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnHostAlloc = ur_sanitizer_layer::urUSMHostAlloc;
+    pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::urUSMSharedAlloc;
+    pDdiTable->pfnFree = ur_sanitizer_layer::urUSMFree;
 
     return result;
 }
