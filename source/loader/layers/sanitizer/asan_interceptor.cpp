@@ -340,12 +340,12 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("zePhysicalMemCreate(): {}", URes);
+                        context.logger.error("urPhysicalMemCreate(): {}", URes);
                         return URes;
                     }
                 }
 
-                context.logger.debug("zeVirtualMemMap: {} ~ {}",
+                context.logger.debug("urVirtualMemMap: {} ~ {}",
                                      (void *)MappedPtr,
                                      (void *)(MappedPtr + PageSize - 1));
 
@@ -354,7 +354,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("zeVirtualMemMap(): {}", URes);
+                    context.logger.debug("urVirtualMemMap(): {}", URes);
                 }
 
                 // Initialize to zero
