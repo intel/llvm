@@ -391,11 +391,6 @@ Specifies a global memory identifier for the pointer interface.
 
 This property is only meaningful on pointer kernel arguments.
 
-This property is passed to `annotated_ref` class when an `annotated_ptr` is
-dereferenced with `operator*` and `operator[]`
-
-This property is sustainable through pointer arithmetic (i.e. + and -)
-
 a|
 [source,c++]
 ----
