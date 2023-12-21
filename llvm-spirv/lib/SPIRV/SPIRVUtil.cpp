@@ -1163,11 +1163,11 @@ std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M) {
 
 ConstantInt *mapUInt(Module *M, ConstantInt *I,
                      std::function<unsigned(unsigned)> F) {
-  return ConstantInt::get(I->getType(), F(I->getZExtValue()), false);
+  return ConstantInt::get(I->getIntegerType(), F(I->getZExtValue()), false);
 }
 
 ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
-  return ConstantInt::get(I->getType(), F(I->getSExtValue()), true);
+  return ConstantInt::get(I->getIntegerType(), F(I->getSExtValue()), true);
 }
 
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
