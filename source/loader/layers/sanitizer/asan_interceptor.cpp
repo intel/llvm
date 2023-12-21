@@ -101,6 +101,21 @@ size_t getLocalMemorySize(ur_device_handle_t Device) {
     return LocalMemorySize;
 }
 
+std::string getKernelName(ur_kernel_handle_t Kernel) {
+    size_t KernelNameSize = 0;
+    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    std::vector<char> KernelNameBuf(KernelNameSize);
+    Res = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
+        KernelNameBuf.data(), nullptr);
+    assert(Res == UR_RESULT_SUCCESS);
+
+    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
+}
+
 } // namespace
 
 /// The memory chunk allocated from the underlying allocator looks like this:
@@ -261,6 +276,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
+        auto KernelName = getKernelName(Kernel);
 
         context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                               DeviceSanitizerFormat(AH->ErrorType),
@@ -268,28 +284,13 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         context.logger.always(
             "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
             "{}, {})",
-            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
-            AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
+            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, KernelName.c_str(),
+            AH->LID0, AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
         context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
         if (!AH->IsRecover) {
             exit(0);
         }
     }
-}
-
-std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
-    size_t KernelNameSize = 0;
-    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
-        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
-    assert(Res == UR_RESULT_SUCCESS);
-
-    std::vector<char> KernelNameBuf(KernelNameSize);
-    Res = context.urDdiTable.Kernel.pfnGetInfo(
-        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
-        KernelNameBuf.data(), nullptr);
-    assert(Res == UR_RESULT_SUCCESS);
-
-    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
 ur_result_t SanitizerInterceptor::allocShadowMemory(
