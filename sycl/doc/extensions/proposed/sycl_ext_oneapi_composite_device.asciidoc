@@ -161,7 +161,7 @@ struct composite_device;
 |`component_devices`
 |`std::vector<device>`
 |Returns the set of component devices that are contained by a composite device.
- If "this" device is not a composite device, an empty vector is returned.
+ If this device is not a composite device, an empty vector is returned.
 
 |`composite_device`
 |`device`
@@ -171,7 +171,7 @@ struct composite_device;
  the `device` object returned from this query is a copy of one of the `device`
  objects returned by `get_composite_devices`.
 
-If "this" device does not have `aspect::ext_oneapi_is_component`, the
+If this device does not have `aspect::ext_oneapi_is_component`, the
 `device::get_info` function throws a synchronous `exception` with the
 `errc::invalid` error code.
 |===
