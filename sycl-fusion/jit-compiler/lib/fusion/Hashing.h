@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_HASHING_H
-#define SYCL_FUSION_JIT_COMPILER_HASHING_H
+#ifndef SYCL_FUSION_JIT_COMPILER_FUSION_HASHING_H
+#define SYCL_FUSION_JIT_COMPILER_FUSION_HASHING_H
 
 #include "Kernel.h"
 #include "Parameter.h"
@@ -57,4 +57,4 @@ template <typename... T> struct hash<tuple<T...>> {
 };
 } // namespace std
 
-#endif // SYCL_FUSION_JIT_COMPILER_HASHING_H
+#endif // SYCL_FUSION_JIT_COMPILER_FUSION_HASHING_H

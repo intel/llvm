@@ -7520,9 +7520,7 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
 
 /// Handle the [[intel::fpga_memory]] attribute.
 /// This is incompatible with the [[intel::fpga_register]] attribute.
-static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
-                                  const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMemoryAttr>(S, D, AL);
+static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<SYCLIntelRegisterAttr>(S, D, AL))
     return;
 
@@ -7543,10 +7541,20 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
     }
   }
 
-  // We are adding a user memory attribute, drop any implicit default.
-  if (auto *MA = D->getAttr<SYCLIntelMemoryAttr>())
-    if (MA->isImplicit())
-      D->dropAttr<SYCLIntelMemoryAttr>();
+  if (auto *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
+    // Check to see if there's a duplicate memory attribute with different
+    // values already applied to the declaration.
+    if (!MA->isImplicit()) {
+      if (MA->getKind() != Kind) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
+        S.Diag(MA->getLocation(), diag::note_previous_attribute);
+      }
+      // Drop the duplicate attribute.
+      return;
+    }
+    // We are adding a user memory attribute, drop any implicit default.
+    D->dropAttr<SYCLIntelMemoryAttr>();
+  }
 
   D->addAttr(::new (S.Context) SYCLIntelMemoryAttr(S.Context, AL, Kind));
 }
