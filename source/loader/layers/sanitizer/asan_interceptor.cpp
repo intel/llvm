@@ -124,7 +124,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
-        die("SanitizerInterceptor: unsupport memory type");
+        context.logger.error("Unsupport memory type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     // Copy from LLVM compiler-rt/lib/asan
@@ -236,15 +237,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
 
-        context.logger.always("====ERROR: DeviceSanitizer: %s on %s",
+        context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                               DeviceSanitizerFormat(AH->ErrorType),
                               DeviceSanitizerFormat(AH->MemoryType));
         context.logger.always(
-            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-            "%lu, %lu)",
+            "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
+            "{}, {})",
             AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, Func, AH->LID0,
             AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        context.logger.always("  #0 %s %s:%d", Func, File, AH->Line);
+        context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
         if (!AH->IsRecover) {
             abort();
         }
@@ -270,7 +271,8 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
 ur_result_t SanitizerInterceptor::allocShadowMemory(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
     if (DeviceInfo->Type == DeviceType::CPU) {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
@@ -289,7 +291,8 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
 
         DeviceInfo->ShadowOffsetEnd = DeviceInfo->ShadowOffset + SHADOW_SIZE;
     } else {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     context.logger.info("Device ShadowOffset: {} - {}",
                         (void *)DeviceInfo->ShadowOffset,
@@ -309,7 +312,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
     if (DeviceInfo->Type == DeviceType::CPU) {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         ur_event_handle_t InternalEvent{};
         ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
@@ -384,7 +388,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             return URes;
         }
     } else {
-        die("Unsupport device type");
+        context.logger.error("Unsupport device type");
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     return UR_RESULT_SUCCESS;
 }
