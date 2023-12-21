@@ -13,7 +13,8 @@ set(UR_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
 
 set(UR_HIP_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/include")
 
-set(UR_HIP_HSA_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/hsa/include")
+set(UR_HIP_HSA_INCLUDE_DIRS
+    "${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include")
 
 # Set HIP lib dir
 set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/lib")
@@ -31,9 +32,16 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     endif()
 
     # Check if HSA include path exists
-    if(NOT EXISTS "${UR_HIP_HSA_INCLUDE_DIR}")
-    message(FATAL_ERROR "Couldn't find the HSA include directory at '${UR_HIP_HSA_INCLUDE_DIR}',"
-                        " please check ROCm installation.")
+    foreach(D IN LISTS UR_HIP_HSA_INCLUDE_DIRS)
+        if(EXISTS "${D}")
+            set(UR_HIP_HSA_INCLUDE_DIR "${D}")
+            break()
+        endif()
+    endforeach()
+    if(NOT UR_HIP_HSA_INCLUDE_DIR)
+        message(FATAL_ERROR "Couldn't find the HSA include directory in any of "
+        "these paths: '${UR_HIP_HSA_INCLUDE_DIRS}'. Please check ROCm "
+        "installation.")
     endif()
 endif()
 
