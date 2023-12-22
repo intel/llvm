@@ -65,7 +65,7 @@ private:
   // properties filter
   template <typename property_list, template <class...> typename filter>
   using PropertiesFilter =
-      detail::boost::mp11::mp_copy_if<property_list, filter>;
+      sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
 
   template <typename p>
   using annotation_filter = propagateToPtrAnnotation<typename p::key_t>;
