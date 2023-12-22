@@ -96,7 +96,7 @@ struct LaunchInfo {
 
 class SanitizerInterceptor {
   public:
-    SanitizerInterceptor() {}
+    SanitizerInterceptor();
 
     ur_result_t allocateMemory(ur_context_handle_t Context,
                                ur_device_handle_t Device,
@@ -154,6 +154,8 @@ class SanitizerInterceptor {
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
+
+    bool m_IsInASanContext;
 };
 
 } // namespace ur_sanitizer_layer

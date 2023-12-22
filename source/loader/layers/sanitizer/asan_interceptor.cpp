@@ -118,6 +118,9 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
 
 } // namespace
 
+SanitizerInterceptor::SanitizerInterceptor()
+    : m_IsInASanContext(IsInASanContext()) {}
+
 /// The memory chunk allocated from the underlying allocator looks like this:
 /// L L L L L L U U U U U U R R
 ///   L -- left redzone words (0 or more bytes)
@@ -296,7 +299,10 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t SanitizerInterceptor::allocShadowMemory(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
     if (DeviceInfo->Type == DeviceType::CPU) {
-        // TODO: Check if host asan is enabled!!
+        if (!m_IsInASanContext) {
+            context.logger.error("Host AddressSanitizer needs to be enabled");
+            return UR_RESULT_ERROR_INVALID_CONTEXT;
+        }
 
         // Based on "compiler-rt/lib/asan/asan_mapping.h"
         // Typical shadow mapping on Linux/x86_64 with SHADOW_OFFSET == 0x00007fff8000:
@@ -361,8 +367,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             NumEventsInWaitList, EventsWaitList, Event);
         context.logger.debug(
             "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
-            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)Value,
-            URes);
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+            (void *)(size_t)Value, URes);
         if (URes != UR_RESULT_SUCCESS) {
             context.logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
@@ -434,8 +440,8 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             NumEventsInWaitList, EventsWaitList, Event);
         context.logger.debug(
             "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
-            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)Value,
-            URes);
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+            (void *)(size_t)Value, URes);
         if (URes != UR_RESULT_SUCCESS) {
             context.logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
@@ -551,7 +557,6 @@ ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
     DeviceInfo->Type = DeviceType::CPU;
     DeviceInfo->Alignment = ASAN_SHADOW_GRANULARITY;
 
-    // TODO: Check if host asan is enabled
     DeviceInfo->ShadowOffset = 0;
     DeviceInfo->ShadowOffsetEnd = 0;
 
