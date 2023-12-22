@@ -1,7 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only %s
 //
 // This test is intended to check sycl::ext::oneapi::sub_group_mask interface.
-// test for spec ver.2: sycl/test-e2e/SubGroupMask/sub_group_mask_ver2.cpp
+// There is a work in progress update to the spec: intel/llvm#8174
+// TODO: udpate this test once revision 2 of the extension is supported
 
 #include <sycl/sycl.hpp>
 
