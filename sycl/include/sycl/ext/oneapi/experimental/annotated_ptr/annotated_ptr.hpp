@@ -65,18 +65,16 @@ private:
   // properties filter
   template <typename property_list, template <class...> typename filter>
   using PropertiesFilter =
-      sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
+      detail::boost::mp11::mp_copy_if<property_list, filter>;
 
   template <typename p>
   using annotation_filter = propagateToPtrAnnotation<typename p::key_t>;
 
   // filter properties that are applied on annotations
-  using annotation_props = sycl::detail::boost::mp11::mp_rename<
-      PropertiesFilter<property_list_t, annotation_filter>,
-      detail::properties_t>;
+  using annotation_props = PropertiesFilter<property_list_t, annotation_filter>;
 
   // unpack properties to varadic template
-  template <typename I, typename... P> struct annotationHelper {};
+  template <typename I, typename P> struct annotationHelper {};
 
   template <typename I, typename... P>
   struct annotationHelper<I, detail::properties_t<P...>> {
