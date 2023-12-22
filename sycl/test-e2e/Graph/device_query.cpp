@@ -20,7 +20,8 @@ int main() {
   auto Backend = Device.get_backend();
 
   if ((Backend == backend::ext_oneapi_level_zero) ||
-      (Backend == backend::ext_oneapi_cuda)) {
+      (Backend == backend::ext_oneapi_cuda) ||
+      (Backend == backend::hip) {
     assert(SupportsGraphs == exp_ext::graph_support_level::native);
   } else if (Backend == backend::opencl) {
     // OpenCL backend support is conditional on the cl_khr_command_buffer
