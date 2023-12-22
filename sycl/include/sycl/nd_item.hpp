@@ -65,13 +65,20 @@ public:
   }
 
   size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const {
-#ifdef __SYCL_DEVICE_ONLY__
-    size_t Id = __spirv_GlobalLinearId();
-#else
-    size_t Id = 0;
-#endif
-    __SYCL_ASSUME_INT(Id);
-    return Id;
+    size_t LinId = 0;
+    id<Dimensions> Index = get_global_id();
+    range<Dimensions> Extent = get_global_range();
+    id<Dimensions> Offset = get_offset();
+    if (1 == Dimensions) {
+      LinId = Index[0] - Offset[0];
+    } else if (2 == Dimensions) {
+      LinId = (Index[0] - Offset[0]) * Extent[1] + Index[1] - Offset[1];
+    } else {
+      LinId = (Index[0] - Offset[0]) * Extent[1] * Extent[2] +
+              (Index[1] - Offset[1]) * Extent[2] + Index[2] - Offset[2];
+    }
+    __SYCL_ASSUME_INT(LinId);
+    return LinId;
   }
 
   id<Dimensions> get_local_id() const {
@@ -89,13 +96,19 @@ public:
   }
 
   size_t get_local_linear_id() const {
-#ifdef __SYCL_DEVICE_ONLY__
-    size_t Id = __spirv_LocalInvocationIndex();
-#else
-    size_t Id = 0;
-#endif
-    __SYCL_ASSUME_INT(Id);
-    return Id;
+    size_t LinId = 0;
+    id<Dimensions> Index = get_local_id();
+    range<Dimensions> Extent = get_local_range();
+    if (1 == Dimensions) {
+      LinId = Index[0];
+    } else if (2 == Dimensions) {
+      LinId = Index[0] * Extent[1] + Index[1];
+    } else {
+      LinId =
+          Index[0] * Extent[1] * Extent[2] + Index[1] * Extent[2] + Index[2];
+    }
+    __SYCL_ASSUME_INT(LinId);
+    return LinId;
   }
 
   group<Dimensions> get_group() const {
