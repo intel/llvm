@@ -87,4 +87,6 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
 #define UR_ASSERT_EQ(Call, Result) (void)Call
 #endif
 
+bool IsInASanContext();
+
 } // namespace ur_sanitizer_layer
