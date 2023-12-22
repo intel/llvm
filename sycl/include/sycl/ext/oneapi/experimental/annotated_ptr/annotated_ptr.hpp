@@ -62,46 +62,34 @@ private:
   T *m_Ptr;
   explicit annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
-  // property list
-  using mp_list_props = sycl::detail::boost::mp11::mp_list<Props...>;
-
   // properties filter
-  template <typename mp_list_props, template <class...> typename filter>
-  struct PropertiesFilter {
-    using tuple = sycl::detail::boost::mp11::mp_copy_if<mp_list_props, filter>;
-  };
+  template <typename property_list, template <class...> typename filter>
+  using PropertiesFilter =
+      sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
 
   template <typename p>
   using annotation_filter = propagateToPtrAnnotation<typename p::key_t>;
 
-  // template unpack helper
-  template <typename... FilteredProps> struct unpack {};
-
-  template <typename... FilteredProps>
-  struct unpack<sycl::detail::boost::mp11::mp_list<FilteredProps...>> {
-    using type = detail::properties_t<FilteredProps...>;
-  };
-
   // filter properties that are applied on annotations
-  using annotation_props =
-      typename unpack<PropertiesFilter<mp_list_props, annotation_filter>>::type;
+  using annotation_props = sycl::detail::boost::mp11::mp_rename<
+      PropertiesFilter<property_list_t, annotation_filter>,
+      detail::properties_t>;
 
-  // helper struct for annotated load/store
-  template <typename T, typename... Props> struct annotationHelper{};
+  // unpack properties to varadic template
+  template <typename I, typename... P> struct annotationHelper {};
 
-  template <typename T, typename... Props>
-  struct annotationHelper<detail::properties_t<Props...>> {
-    static T load(T *m_Ptr) const {
+  template <typename I, typename... P>
+  struct annotationHelper<I, detail::properties_t<P...>> {
+    I load(I *m_Ptr) const {
       return *__builtin_intel_sycl_ptr_annotation(
-          m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...);
+          m_Ptr, detail::PropertyMetaInfo<P>::name...,
+          detail::PropertyMetaInfo<P>::value...);
     }
 
-    template <class O> static T store(T *m_Ptr, O &&Obj) const {
+    template <class O> I store(I *m_Ptr, O &&Obj) const {
       return *__builtin_intel_sycl_ptr_annotation(
-                 m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-                 detail::PropertyMetaInfo<Props>::value...) =
-                 std::forward<O>(Obj);
+                 m_Ptr, detail::PropertyMetaInfo<P>::name...,
+                 detail::PropertyMetaInfo<P>::value...) = std::forward<O>(Obj);
     }
   };
 
@@ -276,12 +264,12 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
       sycl::ext::oneapi::experimental::annotated_ref<T, property_list_t>;
 
   // operator enable/disable check
-  enum operator_id {
-    op_plus,
-    op_minus,
-    op_subscript,
-    op_inc,
-    op_dec,
+  enum class op {
+    plus,
+    minus,
+    subscript,
+    inc,
+    dec,
   };
 
 #define OP_NOT_SUPPORTED(op, property)                                         \
@@ -291,19 +279,19 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
     constexpr bool hasAlign =
         detail::ContainsProperty<alignment_key, std::tuple<Props...>>::value;
     switch (op_id) {
-    case op_plus:
+    case op::plus:
       static_assert(!hasAlign, OP_NOT_SUPPORTED("+", "alignment"));
       break;
-    case op_minus:
+    case op::minus:
       static_assert(!hasAlign, OP_NOT_SUPPORTED("-", "alignment"));
       break;
-    case op_subscript:
+    case op::subscript:
       static_assert(!hasAlign, OP_NOT_SUPPORTED("[]", "alignment"));
       break;
-    case op_inc:
+    case op::inc:
       static_assert(!hasAlign, OP_NOT_SUPPORTED("++", "alignment"));
       break;
-    case op_dec:
+    case op::dec:
       static_assert(!hasAlign, OP_NOT_SUPPORTED("--", "alignment"));
       break;
     }
@@ -410,17 +398,17 @@ public:
   reference operator*() const noexcept { return reference(m_Ptr); }
 
   reference operator[](std::ptrdiff_t idx) const noexcept {
-    operatorAvailablityCheck(op_subscript);
+    operatorAvailablityCheck(op::subscript);
     return reference(m_Ptr + idx);
   }
 
   annotated_ptr operator+(size_t offset) const noexcept {
-    operatorAvailablityCheck(op_plus);
+    operatorAvailablityCheck(op::plus);
     return annotated_ptr(m_Ptr + offset);
   }
 
   std::ptrdiff_t operator-(annotated_ptr other) const noexcept {
-    operatorAvailablityCheck(op_minus);
+    operatorAvailablityCheck(op::minus);
     return m_Ptr - other.m_Ptr;
   }
 
@@ -431,26 +419,26 @@ public:
   T *get() const noexcept { return m_Ptr; }
 
   annotated_ptr &operator++() noexcept {
-    operatorAvailablityCheck(op_inc);
+    operatorAvailablityCheck(op::inc);
     m_Ptr += 1;
     return *this;
   }
 
   annotated_ptr &operator++(int) noexcept {
-    operatorAvailablityCheck(op_inc);
+    operatorAvailablityCheck(op::inc);
     auto tmp = *this;
     m_Ptr += 1;
     return tmp;
   }
 
   annotated_ptr &operator--() noexcept {
-    operatorAvailablityCheck(op_dec);
+    operatorAvailablityCheck(op::dec);
     m_Ptr -= 1;
     return *this;
   }
 
   annotated_ptr &operator--(int) noexcept {
-    operatorAvailablityCheck(op_dec);
+    operatorAvailablityCheck(op::dec);
     auto tmp = *this;
     m_Ptr -= 1;
     return tmp;
