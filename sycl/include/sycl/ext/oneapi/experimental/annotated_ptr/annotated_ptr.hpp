@@ -74,7 +74,7 @@ private:
   using annotation_props = PropertiesFilter<property_list_t, annotation_filter>;
 
   // unpack properties to varadic template
-  template <typename I, typename P> struct annotationHelper {};
+  template <typename I, typename... P> struct annotationHelper {};
 
   template <typename I, typename... P>
   struct annotationHelper<I, detail::properties_t<P...>> {
@@ -97,7 +97,7 @@ public:
   // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<annotation_properties>::load(m_Ptr);
+    return annotationHelper<annotation_props>::load(m_Ptr);
 #else
     return *m_Ptr;
 #endif
