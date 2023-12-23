@@ -52,7 +52,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    // TODO: what should be the implementation on the host? nd_item can be unsed
+    // TODO: what should be the implementation on the host? nd_item can be used
     // only in device code, so technically it's a dead code. Right?
     return {};
 #endif
