@@ -117,7 +117,7 @@ enum class architecture {
 namespace detail {
 
 static constexpr ext::oneapi::experimental::architecture max_architecture =
-    ext::oneapi::experimental::architecture::amd_gpu_gfx1034;
+    ext::oneapi::experimental::architecture::amd_gpu_gfx1201;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
