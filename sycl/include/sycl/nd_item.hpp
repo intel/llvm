@@ -101,13 +101,8 @@ public:
   group<Dimensions> get_group() const {
     // TODO: ideally Group object should be stateless and have a contructor with
     // no arguments.
-#ifdef __SYCL_DEVICE_ONLY__
-    id<Dimensions> Id = __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
-#else
-    id<Dimensions> Id{};
-#endif
     return detail::Builder::createGroup(get_global_range(), get_local_range(),
-                                        get_group_range(), Id);
+                                        get_group_range(), get_group_id());
   }
 
   sub_group get_sub_group() const { return sub_group(); }
@@ -120,9 +115,19 @@ public:
   }
 
   size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
-    size_t Id = get_global_linear_id() / get_local_range().size();
-    __SYCL_ASSUME_INT(Id);
-    return Id;
+    size_t LinId = 0;
+    id<Dimensions> Index = get_group_id();
+    range<Dimensions> Extent = get_group_range();
+    if (1 == Dimensions) {
+      LinId = Index[0];
+    } else if (2 == Dimensions) {
+      LinId = Index[0] * Extent[1] + Index[1];
+    } else {
+      LinId =
+          Index[0] * Extent[1] * Extent[2] + Index[1] * Extent[2] + Index[2];
+    }
+    __SYCL_ASSUME_INT(LinId);
+    return LinId;
   }
 
   range<Dimensions> get_group_range() const {
@@ -304,6 +309,14 @@ protected:
   nd_item() {}
   nd_item(const item<Dimensions, true> &, const item<Dimensions, false> &,
           const group<Dimensions> &) {}
+
+  id<Dimensions> get_group_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
+#else
+    return {};
+#endif
+  }
 };
 #else
 /// Identifies an instance of the function object executing at each point in an
