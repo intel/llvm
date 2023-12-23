@@ -24,6 +24,7 @@ const int kUsmDeviceRedzoneMagic = (char)0x81;
 const int kUsmHostRedzoneMagic = (char)0x82;
 const int kUsmSharedRedzoneMagic = (char)0x83;
 const int kMemBufferRedzoneMagic = (char)0x84;
+const int kSharedLocalRedzoneMagic = (char)0xa1;
 const int kUnkownRedzoneMagic = (char)0x8F;
 
 const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
@@ -685,6 +686,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         auto LocalShadowMemorySize =
             (MaxWorkGroupSize * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
+        context.logger.debug("Local(MaxWorkGroupSize={}, LocalMemorySize={})",
+                             MaxWorkGroupSize, LocalMemorySize);
+
         ur_usm_desc_t Desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr, 0, 0};
         UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, &Desc, nullptr, LocalShadowMemorySize,
@@ -696,6 +700,23 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                            &LaunchInfo.LocalShadowOffset);
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalEnd,
                            &LaunchInfo.LocalShadowOffsetEnd);
+
+        {
+            ur_event_handle_t NewEvent{};
+            uint32_t NumEvents = LastEvent ? 1 : 0;
+            const ur_event_handle_t *EventsList =
+                LastEvent ? &LastEvent : nullptr;
+            const char Pattern[] = {kSharedLocalRedzoneMagic};
+
+            auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
+                Queue, (void *)LaunchInfo.LocalShadowOffset, 1, Pattern,
+                LocalShadowMemorySize, NumEvents, EventsList, &NewEvent);
+            if (URes != UR_RESULT_SUCCESS) {
+                context.logger.error("urEnqueueUSMFill(): {}", URes);
+                return URes;
+            }
+            LastEvent = NewEvent;
+        }
 
         context.logger.info("Shadow memory (Local, {} - {})",
                             (void *)LaunchInfo.LocalShadowOffset,
