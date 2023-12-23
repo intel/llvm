@@ -26,6 +26,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
+
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
@@ -75,12 +78,19 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "The memset feature is not yet available "
+                          "for use with the SYCL Graph extension.");
+  }
+
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -152,6 +162,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
@@ -345,6 +356,11 @@ event queue_impl::memcpyFromDeviceGlobal(
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+event queue_impl::getLastEvent() const {
+  std::lock_guard<std::mutex> Lock{MLastEventMtx};
+  return MDiscardEvents ? createDiscardedEvent() : MLastEvent;
+}
+
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
@@ -448,7 +464,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", DevStr);
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());

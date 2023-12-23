@@ -1,5 +1,5 @@
 // REQUIRES: gpu-intel-pvc
-// RUN: %{build} -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
@@ -22,11 +22,17 @@ int main() {
        matrix_type::sint32, matrix_type::sint32},
       {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
        matrix_type::sint32, matrix_type::sint32},
-      {8, 0, 0, 0, 16, 16, matrix_type::sint8, matrix_type::sint8,
+      {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
        matrix_type::sint32, matrix_type::sint32},
       {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
        matrix_type::fp32, matrix_type::fp32},
       {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
+       matrix_type::fp32, matrix_type::fp32},
+      {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+       matrix_type::fp32, matrix_type::fp32},
+      {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
+       matrix_type::fp32, matrix_type::fp32},
+      {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
        matrix_type::fp32, matrix_type::fp32},
   };
 

@@ -8,6 +8,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
@@ -21,12 +22,18 @@ on:
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
     runs-on: [Linux, build]
+    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
       options: -u 1001:1001
@@ -57,7 +64,7 @@ jobs:
     needs: [lint, detect_changes]
     if: |
       always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && (success() || needs.lint.result == 'skipped')
     uses: ./.github/workflows/sycl_linux_build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -65,6 +72,8 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
+      # FIXME: UR can't find /opt/rocm/hsa with rocm-6.0.0. Previous rocm-5.7.0 had it.
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
   test:
@@ -76,7 +85,8 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            # FIXME: Keep in sync with the above hack.
+            image: ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
           - name: Intel

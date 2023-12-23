@@ -65,6 +65,12 @@ DisableOption(FirAvc, "avc", "array value copy analysis and transformation");
 DisableOption(
     FirMao, "memory-allocation-opt", "memory allocation optimization");
 
+DisableOption(FirAliasTags, "fir-alias-tags", "fir alias analysis");
+static llvm::cl::opt<bool> useOldAliasTags("use-old-alias-tags",
+    llvm::cl::desc("Use a single TBAA tree for all functions and do not use "
+                   "the FIR alias tags pass"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
 /// CodeGen Passes
 #if !defined(FLANG_EXCLUDE_CODEGEN)
 DisableOption(CodeGenRewrite, "codegen-rewrite", "rewrite FIR for codegen");
@@ -152,10 +158,11 @@ inline void addDebugFoundationPass(mlir::PassManager &pm) {
 }
 
 inline void addFIRToLLVMPass(
-    mlir::PassManager &pm, llvm::OptimizationLevel optLevel = defaultOptLevel) {
+    mlir::PassManager &pm, const MLIRToLLVMPassPipelineConfig &config) {
   fir::FIRToLLVMPassOptions options;
   options.ignoreMissingTypeDescriptors = ignoreMissingTypeDescriptors;
-  options.applyTBAA = optLevel.isOptimizingForSpeed();
+  options.applyTBAA = config.AliasAnalysis;
+  options.forceUnifiedTBAATree = useOldAliasTags;
   addPassConditionally(pm, disableFirToLlvmIr,
       [&]() { return fir::createFIRToLLVMPass(options); });
 }
@@ -220,6 +227,9 @@ inline void createDefaultFIROptimizerPassPipeline(
   // Polymorphic types
   pm.addPass(fir::createPolymorphicOpConversionPass());
 
+  if (pc.AliasAnalysis && !disableFirAliasTags && !useOldAliasTags)
+    pm.addPass(fir::createAliasTagsPass());
+
   // convert control flow to CFG form
   fir::addCfgConversionPass(pm);
   pm.addPass(mlir::createConvertSCFToCFPass());
@@ -264,10 +274,8 @@ inline void createHLFIRToFIRPassPipeline(
 inline void createOpenMPFIRPassPipeline(
     mlir::PassManager &pm, bool isTargetDevice) {
   pm.addPass(fir::createOMPMarkDeclareTargetPass());
-  if (isTargetDevice) {
-    pm.addPass(fir::createOMPEarlyOutliningPass());
+  if (isTargetDevice)
     pm.addPass(fir::createOMPFunctionFilteringPass());
-  }
 }
 
 #if !defined(FLANG_EXCLUDE_CODEGEN)
@@ -303,7 +311,7 @@ inline void createDefaultFIRCodeGenPassPipeline(
   if (config.VScaleMin != 0)
     pm.addPass(fir::createVScaleAttrPass({config.VScaleMin, config.VScaleMax}));
 
-  fir::addFIRToLLVMPass(pm, config.OptLevel);
+  fir::addFIRToLLVMPass(pm, config);
 }
 
 /// Create a pass pipeline for lowering from MLIR to LLVM IR

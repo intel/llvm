@@ -47,6 +47,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 #define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
 #define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
+#define __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -99,6 +100,7 @@ public:
 // nop.
 class ur_mutex {
   std::mutex Mutex;
+  friend class ur_lock;
 
 public:
   void lock() {
@@ -109,6 +111,17 @@ public:
   void unlock() {
     if (!SingleThreadMode)
       Mutex.unlock();
+  }
+};
+
+class ur_lock {
+  std::unique_lock<std::mutex> Lock;
+
+public:
+  explicit ur_lock(ur_mutex &Mutex) {
+    if (!SingleThreadMode) {
+      Lock = std::unique_lock<std::mutex>(Mutex.Mutex);
+    }
   }
 };
 

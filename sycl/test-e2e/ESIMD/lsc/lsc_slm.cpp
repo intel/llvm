@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
-// TODO : esimd_emulator does not support lsc-atomic yet
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

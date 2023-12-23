@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include <sycl/detail/defines.hpp>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -258,8 +259,10 @@ namespace bitmap {
       width = std::abs(*(short *)&header_out[18]);
       height = std::abs(*(short *)&header_out[22]);
 
-      img_out = (unsigned char *)std::malloc(width * height * 3);
-      img_gold = (unsigned char *)std::malloc(width * height * 3);
+      auto img_out_vector = std::vector<unsigned char>(width * height * 3);
+      auto img_gold_vector = std::vector<unsigned char>(width * height * 3);
+      img_out = img_out_vector.data();
+      img_gold = img_gold_vector.data();
 
       if (fread(img_out, 1, width * height * 3, f_out) != width * height * 3) {
         perror(f_out_str);

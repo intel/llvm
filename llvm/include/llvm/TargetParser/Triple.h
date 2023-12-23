@@ -113,6 +113,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_5a,
     ARMSubArch_v9_4a,
     ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
@@ -156,8 +157,11 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
+    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
+    SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
+    SPIRSubArch_x86_64_image,
 
     PPCSubArch_spe,
 
@@ -227,7 +231,8 @@ public:
     Emscripten,
     ShaderModel, // DirectX ShaderModel
     LiteOS,
-    LastOSType = LiteOS
+    Serenity,
+    LastOSType = Serenity
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -423,9 +428,6 @@ public:
 
   /// Get the architecture (first) component of the triple.
   StringRef getArchName() const;
-
-  /// Get the architecture name based on Kind and SubArch.
-  StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch) const;
 
   /// Get the vendor (second) component of the triple.
   StringRef getVendorName() const;
@@ -677,6 +679,10 @@ public:
     return getOS() == Triple::AIX;
   }
 
+  bool isOSSerenity() const {
+    return getOS() == Triple::Serenity;
+  }
+
   /// Tests whether the OS uses the ELF binary format.
   bool isOSBinFormatELF() const {
     return getObjectFormat() == Triple::ELF;
@@ -783,6 +789,13 @@ public:
   /// Tests whether the target is SPIR (32- or 64-bit).
   bool isSPIR() const {
     return getArch() == Triple::spir || getArch() == Triple::spir64;
+  }
+
+  /// Tests whether the target is SPIR and AOT related.
+  bool isSPIRAOT() const {
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
+                        getSubArch() == Triple::SPIRSubArch_gen ||
+                        getSubArch() == Triple::SPIRSubArch_x86_64);
   }
 
   /// Tests whether the target is SPIR-V (32/64-bit/Logical).
@@ -1123,6 +1136,9 @@ public:
 
   /// Get the canonical name for the \p Kind architecture.
   static StringRef getArchTypeName(ArchType Kind);
+
+  /// Get the architecture name based on \p Kind and \p SubArch.
+  static StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch);
 
   /// Get the "prefix" canonical name for the \p Kind architecture. This is the
   /// prefix used by the architecture specific builtins, and is suitable for

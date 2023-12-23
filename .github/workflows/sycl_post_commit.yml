@@ -5,6 +5,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
 
   pull_request:
     branches:
@@ -66,7 +67,7 @@ jobs:
   build-win:
     if: |
       always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build.yml
 

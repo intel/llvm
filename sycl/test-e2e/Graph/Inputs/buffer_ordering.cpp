@@ -12,8 +12,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   const size_t N = 10;
   std::vector<int> Arr(N, 0);
@@ -44,8 +47,9 @@ int main() {
       });
     });
 
+    const int Zero = 0;
     for (size_t i = 0; i < N; i++) {
-      assert(Arr[i] == 0);
+      assert(check_value(i, Zero, Arr[i], "Arr"));
     }
 
     // Buffer elements set to 4
@@ -60,7 +64,7 @@ int main() {
     auto ExecGraph = Graph.finalize();
 
     for (size_t i = 0; i < N; i++) {
-      assert(Arr[i] == 0);
+      assert(check_value(i, Zero, Arr[i], "Arr"));
     }
 
     // Buffer elements set to 8
@@ -85,7 +89,6 @@ int main() {
       });
     });
 
-    Event.wait();
     // Buffer elements set to 22
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
@@ -96,8 +99,9 @@ int main() {
     Queue.wait();
   }
 
+  const int Expected = 22;
   for (size_t i = 0; i < N; i++) {
-    assert(Arr[i] == 22);
+    assert(check_value(i, Expected, Arr[i], "Arr"));
   }
 
   return 0;

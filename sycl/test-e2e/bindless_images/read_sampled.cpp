@@ -4,11 +4,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <cassert>
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
-
 // Print test names and pass status
 // #define VERBOSE_LV1
 
@@ -19,512 +14,151 @@
 // Same as above but all mismatches are printed
 // #define VERBOSE_LV3
 
-// Helpers and utilities
-struct util {
-  template <typename DType, int NChannels>
-  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
-    std::default_random_engine generator;
-    generator.seed(seed);
-    auto distribution = [&]() {
-      auto distr_t_zero = []() {
-        if constexpr (std::is_same_v<DType, sycl::half>) {
-          return float{};
-        } else if constexpr (sizeof(DType) == 1) {
-          return int{};
-        } else {
-          return DType{};
-        }
-      }();
-      using distr_t = decltype(distr_t_zero);
-      if constexpr (std::is_floating_point_v<distr_t>) {
-        return std::uniform_real_distribution(distr_t_zero,
-                                              static_cast<distr_t>(100));
-      } else {
-        return std::uniform_int_distribution<distr_t>(distr_t_zero, 100);
-      }
-    }();
-    for (int i = 0; i < v.size(); ++i) {
-      sycl::vec<DType, NChannels> temp;
+#include <cassert>
+#include <iostream>
+#include <random>
+#include <sycl/sycl.hpp>
 
-      for (int j = 0; j < NChannels; j++) {
-        temp[j] = static_cast<DType>(distribution(generator));
-      }
+namespace syclexp = sycl::ext::oneapi::experimental;
 
-      v[i] = temp;
-    }
-  }
-
-  // Returns the two pixels to access plus the weight each of them have
-  static double get_common_linear_fract_and_coords_fp64(double coord, int *x0,
-                                                        int *x1) {
-    double pixelCoord;
-
-    // sycl::fract stores results into a multi_ptr instead of a raw pointer.
-    sycl::private_ptr<double> pPixelCoord = &pixelCoord;
-
-    // Subtract to align so that pixel center is 0.5 away from origin.
-    coord = coord - 0.5;
-
-    double weight = sycl::fract(coord, pPixelCoord);
-    *x0 = static_cast<int>(*pPixelCoord);
-    *x1 = *x0 + 1;
-    return weight;
-  }
-
-  // Linear sampling is the process of giving a weighted linear blend
-  // between the nearest adjacent pixels.
-  // When performing linear sampling, we subtract 0.5 from the original
-  // coordinate to get the center-adjusted coordinate (as pixels are "centered"
-  // on the half-integers). For example, with original coord 3.2, we get a
-  // center-adjusted coord of 2.7. With 2.7, we have 70% of the pixel value will
-  // come from the pixel at coord 3 and 30% from the pixel value at coord 2
-
-  // The function arguments here are the two pixels to use and the weight to
-  // give each of them.
-  template <int NChannels, typename DType>
-  static sycl::vec<DType, NChannels>
-  linearOp1D(sycl::vec<DType, NChannels> pix1, sycl::vec<DType, NChannels> pix2,
-             double weight) {
-
-    sycl::vec<double, NChannels> weightArr(weight);
-    sycl::vec<double, NChannels> one(1.0f);
-
-    sycl::vec<double, NChannels> Ti0 = pix1.template convert<double>();
-    sycl::vec<double, NChannels> Ti1 = pix2.template convert<double>();
-
-    sycl::vec<double, NChannels> result;
-
-    result = ((one - weightArr) * Ti0 + weightArr * Ti1);
-
-    // Round to nearest whole number.
-    // There is no option to do this via sycl::rounding_mode.
-    if constexpr (std::is_same_v<DType, short> ||
-                  std::is_same_v<DType, unsigned short> ||
-                  std::is_same_v<DType, signed char> ||
-                  std::is_same_v<DType, unsigned char>) {
-      for (int i = 0; i < NChannels; i++) {
-        result[i] = std::round(result[i]);
-      }
-    }
-
-    return result.template convert<DType>();
-  }
-
-  // Out of range coords return a border color
-  // The border color happens to be all zeros
-  template <typename VecType>
-  static VecType clampNearest(double coordX, int width,
-                              std::vector<VecType> &input_image) {
-    // Due to pixel centers being 0.5 away from origin and because
-    // 0.5 is *not* subtracted here, rounding down gives the same results as
-    // rounding to nearest number if 0.5 is subtracted to account
-    // for pixel center
-    int coordXInt = static_cast<int>(std::floor(coordX));
-
-    // Clamp sampling according to the SYCL spec returns a border color.
-    // The border color is all zeros.
-    // There does not appear to be any way for the user to set the border color
-    if (coordXInt > width - 1 || coordXInt < 0) {
-      return VecType{0};
-    }
-    return input_image[coordXInt];
-  }
-
-  // Out of range coords are clamped to the extent.
-  template <typename VecType>
-  static VecType clampToEdgeNearest(double coordX, int width,
-                                    std::vector<VecType> &input_image) {
-    // Due to pixel centers being 0.5 away from origin and because
-    // 0.5 is *not* subtracted here, rounding down gives the same results as
-    // rounding to nearest number if 0.5 is subtracted to account
-    // for pixel center
-    int coordXInt = static_cast<int>(std::floor(coordX));
-    // Clamp to extent
-    coordXInt = std::clamp(coordXInt, 0, width - 1);
-    return input_image[coordXInt];
-  }
-
-  // Out of range coords are wrapped to the valid range.
-  template <typename VecType>
-  static VecType repeatNearest(double coordX, int width,
-                               std::vector<VecType> &input_image) {
-
-    // Convert unnormalized input coord to normalized format
-    double normCoordX = coordX / width;
-
-    // Keep only the fractional component of the number and unnormalize.
-    double fractComp = (normCoordX - std::floor(normCoordX));
-
-    // Unnormalize fractComp
-    double unnorm = fractComp * width;
-
-    // Due to pixel centers being 0.5 away from origin and because
-    // 0.5 is *not* subtracted here, rounding down gives the same results as
-    // rounding to nearest number if 0.5 is subtracted to account
-    // for pixel center
-    int coordXInt = static_cast<int>(std::floor(unnorm));
-
-    // Handle negative coords
-    if (coordXInt < 0) {
-      coordXInt = width + coordXInt;
-    }
-
-    return input_image[coordXInt];
-  }
-
-  // Out of range coordinates are flipped at every integer junction
-  template <typename VecType>
-  static VecType mirroredRepeatNearest(double coordX, int width,
-                                       std::vector<VecType> &input_image) {
-
-    // Convert unnormalized input coord to normalized format
-    double normCoordX = coordX / width;
-
-    // Round to nearest multiple of two.
-    // e.g.
-    // normCoordX == 0.3  -> result = 0
-    // normCoordX == 1.3  -> result = 2
-    // normCoordX == 2.4  -> result = 2
-    // normCoordX == 3.42 -> result = 4
-    double nearestMulOfTwo = 2.0f * std::rint(0.5f * normCoordX);
-    // Subtract nearestMulOfTwo from normCoordX.
-    // Gives the normalized form of the coord to use.
-    // With normCoordX=1.3, norm is set to 0.7
-    // With normCoordX=2.4, norm is set to 0.4
-    double norm = std::abs(normCoordX - nearestMulOfTwo);
-    // Unnormalize norm
-    double unnorm = norm * width;
-    // Round down and cast to int
-    int coordXInt = static_cast<int>(std::floor(unnorm));
-    // Constrain to valid range
-    coordXInt = std::min(coordXInt, width - 1);
-
-    // This prevents when at an integer junction, having three
-    // accesses to pixel at normalized location 0 and 1 instead of two which is
-    // correct.
-    int oddShift = 0;
-    // If not at image boundry and precisely on a pixel
-    if (std::fmod(normCoordX, 1) != 0.0 &&
-        std::fmod(normCoordX * width, 1) == 0.0) {
-      // Set oddShift to be one when the integral part of the normalized
-      // coords is odd.
-      // Otherwise set to zero.
-      oddShift =
-          std::abs(static_cast<int>(std::fmod(std::floor(normCoordX), 2)));
-    }
-    coordXInt -= oddShift;
-
-    return input_image[coordXInt];
-  }
-
-  // Out of range coords return a border color
-  // The border color is all zeros
-  template <typename DType, int NChannels>
-  static sycl::vec<DType, NChannels>
-  clampLinear(double coordX, int width,
-              std::vector<sycl::vec<DType, NChannels>> &input_image) {
-    using VecType = sycl::vec<DType, NChannels>;
-    // Get coords for linear sampling
-    int i0, i1;
-    double weight = get_common_linear_fract_and_coords_fp64(coordX, &i0, &i1);
-
-    VecType pix1;
-    VecType pix2;
-
-    // Clamp sampling according to the SYCL spec returns a border color.
-    // The border color is all zeros.
-    // There does not appear to be any way for the user to set the border color.
-    if (i0 < 0 || i0 > width - 1) {
-      pix1 = VecType(0);
+namespace util {
+template <typename DType, int NChannels>
+static void fillRand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
+  std::default_random_engine generator;
+  generator.seed(seed);
+  auto distribution = [&]() {
+    if constexpr (std::is_same_v<DType, sycl::half>) {
+      return std::uniform_real_distribution<double>(0.0, 100.0);
+    } else if constexpr (std::is_floating_point_v<DType>) {
+      return std::uniform_real_distribution<DType>(0.0, 100.0);
     } else {
-      pix1 = input_image[i0];
+      return std::uniform_int_distribution<DType>(0, 100);
+    }
+  }();
+  for (int i = 0; i < v.size(); ++i) {
+    sycl::vec<DType, NChannels> temp;
+
+    for (int j = 0; j < NChannels; j++) {
+      temp[j] = distribution(generator);
     }
 
-    if (i1 < 0 || i1 > width - 1) {
-      pix2 = VecType(0);
-    } else {
-      pix2 = input_image[i1];
-    }
-
-    // Perform linear sampling
-    return linearOp1D<NChannels, DType>(pix1, pix2, weight);
+    v[i] = temp;
   }
+}
 
-  // Out of range coords are clamped to the extent.
-  template <typename DType, int NChannels>
-  static sycl::vec<DType, NChannels>
-  clampToEdgeLinear(double coordX, int width,
-                    std::vector<sycl::vec<DType, NChannels>> &input_image) {
-    using VecType = sycl::vec<DType, NChannels>;
-    // Get coords for linear sampling
-    int i0, i1;
-    double weight = get_common_linear_fract_and_coords_fp64(coordX, &i0, &i1);
+static bool isNumberWithinPercentOfNumber(float firstN, float percent,
+                                          float secondN, float &diff,
+                                          float &percDiff) {
+  // Get absolute difference of the two numbers
+  diff = std::abs(firstN - secondN);
+  // Get the percentage difference of the two numbers
+  percDiff =
+      100.0f * (std::abs(firstN - secondN) / (((firstN + secondN) / 2.0f)));
 
-    // Clamp to extent
-    i0 = std::clamp(i0, 0, width - 1);
-    i1 = std::clamp(i1, 0, width - 1);
+  // Check if perc difference is not greater then maximum allowed
+  return percDiff <= percent;
+}
 
-    VecType pix1 = input_image[i0];
-    VecType pix2 = input_image[i1];
+// Return fractional part of argument
+// Whole part is returned through wholeComp
+static double fract(double x, double *wholeComp) {
+  // This fmin operation is to prevent fract from returning 1.0.
+  // Instead will return the largest possible floating-point number less
+  // than 1.0
+  double fractComp = std::fmin(x - std::floor(x), 0x1.fffffep-1f);
+  *wholeComp = std::floor(x);
+  return fractComp;
+}
 
-    // Perform linear sampling
-    return linearOp1D<NChannels, DType>(pix1, pix2, weight);
-  }
+// Returns the two pixels to access plus the weight each of them have
+static double getCommonLinearFractAndCoordsfp64(double coord, int *x0,
+                                                int *x1) {
+  double pixelCoord;
 
-  // Out of range coords are wrapped to the valid range
-  template <typename DType, int NChannels>
-  static sycl::vec<DType, NChannels>
-  repeatLinear(double coordX, int width,
-               std::vector<sycl::vec<DType, NChannels>> &input_image) {
-    using VecType = sycl::vec<DType, NChannels>;
+  // Subtract to align so that pixel center is 0.5 away from origin.
+  coord = coord - 0.5;
 
-    // Convert unnormalized input coord to normalized format
-    double normCoordX = coordX / width;
+  double weight = fract(coord, &pixelCoord);
+  *x0 = static_cast<int>(std::floor(pixelCoord));
+  *x1 = *x0 + 1;
+  return weight;
+}
 
-    double unnorm = (normCoordX - static_cast<int>(normCoordX)) * width;
-    // Get coords for linear sampling
-    int i0, i1;
-    double weight = get_common_linear_fract_and_coords_fp64(unnorm, &i0, &i1);
+// Linear sampling is the process of giving a weighted linear blend
+// between the nearest adjacent pixels.
+// When performing 1D linear sampling, we subtract 0.5 from the original
+// coordinate to get the center-adjusted coordinate (as pixels are "centered"
+// on the half-integers). For example, with original coord 3.2, we get a
+// center-adjusted coord of 2.7. With 2.7, we have 70% of the pixel value will
+// come from the pixel at coord 3 and 30% from the pixel value at coord 2
 
-    // Wrap linear sampling coords to valid range
-    if (i0 < 0) {
-      i0 = width + i0;
-    }
-    if (i1 < 0) {
-      i1 = width + i1;
-    }
+// The function accepts 4 pixel and 2 weight arguments for 2D linear sampling,
+// but also supports 1D linear sampling by setting the unneeded arguments to 0
+template <int NChannels, typename DType>
+static sycl::vec<DType, NChannels>
+linearOp(sycl::vec<DType, NChannels> pix1, sycl::vec<DType, NChannels> pix2,
+         sycl::vec<DType, NChannels> pix3, sycl::vec<DType, NChannels> pix4,
+         float weight1, float weight2) {
 
-    if (i1 > width - 1) {
-      i1 = i1 - width;
-    }
-    if (i0 > width - 1) {
-      i0 = i0 - width;
-    }
+  sycl::vec<double, NChannels> weightArr1(weight1);
+  sycl::vec<double, NChannels> weightArr2(weight2);
+  sycl::vec<double, NChannels> one(1.0f);
 
-    VecType pix1 = input_image[i0];
-    VecType pix2 = input_image[i1];
+  sycl::vec<double, NChannels> Ti0j0 = pix1.template convert<double>();
+  sycl::vec<double, NChannels> Ti1j0 = pix2.template convert<double>();
+  sycl::vec<double, NChannels> Ti0j1 = pix3.template convert<double>();
+  sycl::vec<double, NChannels> Ti1j1 = pix4.template convert<double>();
 
-    // Perform linear sampling
-    return linearOp1D<NChannels, DType>(pix1, pix2, weight);
-  }
+  sycl::vec<double, NChannels> result;
 
-  // Out of range coordinates are flipped at every integer junction
-  template <typename DType, int NChannels>
-  static sycl::vec<DType, NChannels>
-  mirroredRepeatLinear(double coordX, int width,
-                       std::vector<sycl::vec<DType, NChannels>> &input_image) {
-    using VecType = sycl::vec<DType, NChannels>;
+  result = (((one - weightArr1) * (one - weightArr2) * Ti0j0 +
+             weightArr1 * (one - weightArr2) * Ti1j0 +
+             (one - weightArr1) * weightArr2 * Ti0j1 +
+             weightArr1 * weightArr2 * Ti1j1));
 
-    // Convert unnormalized input coord to normalized format
-    double normCoordX = coordX / width;
-
-    // Round to nearest multiple of two.
-    // e.g.
-    // normCoordX == 0.3  -> result = 0
-    // normCoordX == 1.3  -> result = 2
-    // normCoordX == 2.4  -> result = 2
-    // normCoordX == 3.42 -> result = 4
-    double nearestMulOfTwo = 2.0f * std::rint(0.5f * normCoordX);
-    // Subtract nearestMulOfTwo from normCoordX.
-    // Gives the normalized form of the coord to use.
-    // With normCoordX=1.3, norm is set to 0.7
-    // With normCoordX=2.4, norm is set to 0.4
-    double norm = std::abs(normCoordX - nearestMulOfTwo);
-    // Unnormalize norm
-    double unnorm = norm * width;
-
-    // Get coords for linear sampling
-    int i0, i1;
-    double weight = get_common_linear_fract_and_coords_fp64(unnorm, &i0, &i1);
-
-    // get_common_linear sometimes returns numbers out of bounds.
-    // Handle this by wrapping to boundary.
-    i0 = std::max(i0, 0);
-    i1 = std::min(i1, width - 1);
-
-    VecType pix1 = input_image[i0];
-    VecType pix2 = input_image[i1];
-
-    // Perform linear sampling
-    return linearOp1D<NChannels, DType>(pix1, pix2, weight);
-  }
-
-  template <int NDims, typename DType, int NChannels,
-            typename = std::enable_if_t<NDims == 1>>
-  static sycl::vec<DType, NChannels>
-  read(sycl::range<1> globalSize, double coordX, double offset,
-       sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-       std::vector<sycl::vec<DType, NChannels>> &input_image) {
-    using VecType = sycl::vec<DType, NChannels>;
-    coordX = coordX + offset;
-    int width = globalSize[0];
-
-    // Ensure that coordX always contains unnormalized coords
-    sycl::coordinate_normalization_mode SampNormMode = samp.coordinate;
-    if (SampNormMode == sycl::coordinate_normalization_mode::normalized) {
-      // Unnormalize
-      coordX = coordX * width;
-    }
-
-    sycl::filtering_mode SampFiltMode = samp.filtering;
-    if (SampFiltMode == sycl::filtering_mode::nearest) {
-
-      sycl::addressing_mode SampAddrMode = samp.addressing;
-      if (SampAddrMode == sycl::addressing_mode::clamp) {
-        return clampNearest<VecType>(coordX, width, input_image);
-      }
-
-      if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
-        return clampToEdgeNearest<VecType>(coordX, width, input_image);
-      }
-
-      if (SampAddrMode == sycl::addressing_mode::repeat) {
-        if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
-          assert(false &&
-                 "Repeat addressing mode must be used with normalized coords");
-        }
-        return repeatNearest(coordX, width, input_image);
-      }
-
-      if (SampAddrMode == sycl::addressing_mode::mirrored_repeat) {
-        if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
-          assert(false && "Mirrored repeat addressing mode must be used with "
-                          "normalized coords");
-        }
-        return mirroredRepeatNearest(coordX, width, input_image);
-      }
-
-      if (SampAddrMode == sycl::addressing_mode::none) {
-        int intCoordX = static_cast<int>(std::floor(coordX));
-        if (intCoordX < 0 || intCoordX >= width) {
-          assert(false && "Accessed out of bounds with addressing mode none! "
-                          "Undefined Behaviour!");
-        }
-        return input_image[intCoordX];
-      }
-
-    } else { // linear
-      sycl::addressing_mode SampAddrMode = samp.addressing;
-      if (SampAddrMode == sycl::addressing_mode::clamp) {
-        return clampLinear<DType, NChannels>(coordX, width, input_image);
-      }
-      if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
-        return clampToEdgeLinear<DType, NChannels>(coordX, width, input_image);
-      }
-      if (SampAddrMode == sycl::addressing_mode::repeat) {
-        if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
-          assert(false &&
-                 "Repeat addressing mode must be used with normalized coords");
-        }
-        return repeatLinear<DType, NChannels>(coordX, width, input_image);
-      }
-      if (SampAddrMode == sycl::addressing_mode::mirrored_repeat) {
-        if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
-          assert(false && "Mirrored repeat addressing mode must be used with "
-                          "normalized coords");
-        }
-        return mirroredRepeatLinear<DType, NChannels>(coordX, width,
-                                                      input_image);
-      }
-      if (SampAddrMode == sycl::addressing_mode::none) {
-        if (coordX < 0 || coordX >= width) {
-          assert(false && "Accessed out of bounds with addressing mode none! "
-                          "Undefined Behaviour!");
-        }
-        assert(false && "filtering mode linear with addressing mode none "
-                        "currently not supported");
-      }
-    }
-    assert(false && "Invalid sampler encountered!");
-  }
-
-  // parallel_for ND bound normalized
-  template <int NDims, typename DType, int NChannels>
-  static void run_ndim_test_host(
-      sycl::range<NDims> globalSize, double offset,
-      sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-      std::vector<sycl::vec<DType, NChannels>> &input_image,
-      std::vector<sycl::vec<DType, NChannels>> &output) {
-    using VecType = sycl::vec<DType, NChannels>;
-    bool isNorm =
-        (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
-
-    if constexpr (NDims == 1) {
-      for (int i = 0; i < globalSize[0]; i++) {
-        double coordX;
-        if (isNorm) {
-          coordX = (double)i / (double)globalSize[0];
-        } else {
-          coordX = i;
-        }
-        VecType result = read<NDims, DType, NChannels>(
-            globalSize, coordX, offset, samp, input_image);
-        output[i] = result;
-      }
-    } else if constexpr (NDims == 2) {
-      assert(false && "2d normalized not yet implemented");
-    } else if constexpr (NDims == 3) {
-      assert(false && "3d normalized not yet implemented");
-    } else {
-      assert(false && "Invalid dimension number set");
+  // Round to nearest whole number.
+  // There is no option to do this via sycl::rounding_mode.
+  if constexpr (std::is_same_v<DType, short> ||
+                std::is_same_v<DType, unsigned short> ||
+                std::is_same_v<DType, signed char> ||
+                std::is_same_v<DType, unsigned char>) {
+    for (int i = 0; i < NChannels; i++) {
+      result[i] = std::round(result[i]);
     }
   }
 
-  // parallel_for ND bindless normalized
-  template <int NDims, typename DType, int NChannels, typename KernelName>
-  static void run_ndim_test_device(
-      sycl::queue &q, sycl::range<NDims> globalSize,
-      sycl::range<NDims> localSize, double offset,
-      sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-      sycl::ext::oneapi::experimental::sampled_image_handle input_image,
-      sycl::buffer<sycl::vec<DType, NChannels>, NDims> &output,
-      sycl::range<NDims> bufSize) {
-    using VecType = sycl::vec<DType, NChannels>;
-    bool isNorm =
-        (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
-    if constexpr (NDims == 1) {
-      try {
-        q.submit([&](sycl::handler &cgh) {
-          auto outAcc = output.template get_access<sycl::access_mode::write>(
-              cgh, bufSize);
-          cgh.parallel_for<KernelName>(
-              sycl::nd_range<NDims>{globalSize, localSize},
-              [=](sycl::nd_item<NDims> it) {
-                size_t dim0 = it.get_global_id(0);
-                double coordX = 0.0;
-                if (isNorm) {
-                  coordX = (double)dim0 / (double)globalSize[0];
-                } else {
-                  coordX = dim0;
-                }
+  return result.template convert<DType>();
+}
 
-                VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_image, float(coordX + offset));
-
-                outAcc[(int)dim0] = px1;
-              });
-        });
-      } catch (sycl::exception e) {
-        std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
-        exit(-1);
-      } catch (...) {
-        std::cerr << "\tKernel submission failed!" << std::endl;
-        exit(-1);
-      }
-    } else if constexpr (NDims == 2) {
-      assert(false && "2d normalized not yet implemented");
-    } else if constexpr (NDims == 3) {
-      assert(false && "3d normalized not yet implemented");
-    } else {
-      assert(false && "Invalid dimension number set");
-    }
+// This prevents when at an integer junction, having three
+// accesses to pixel at normalized location 0 and 1 instead of two which is
+// correct.
+static int integerJunctionAdjustment(double normCoord, int dimSize) {
+  int oddShift = 0;
+  // If not at image boundry and precisely on a pixel
+  if (std::fmod(normCoord, 1) != 0.0 &&
+      std::fmod(normCoord * dimSize, 1) == 0.0) {
+    // Set oddShift to be one when the integral part of the normalized
+    // coords is odd.
+    // Otherwise set to zero.
+    oddShift = std::abs(static_cast<int>(std::fmod(std::floor(normCoord), 2)));
   }
-};
+  return oddShift;
+}
 
-void printTestInfo(
-    sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-    double offset) {
+// Wrap linear sampling coords to valid range
+static int repeatWrap(int i, int dimSize) {
+  if (i < 0) {
+    i = dimSize + i;
+  }
+  if (i > dimSize - 1) {
+    i = i - dimSize;
+  }
+  return i;
+}
+
+static void printTestInfo(syclexp::bindless_image_sampler &samp,
+                          double offset) {
 
   sycl::addressing_mode SampAddrMode = samp.addressing;
   sycl::coordinate_normalization_mode SampNormMode = samp.coordinate;
@@ -574,70 +208,648 @@ void printTestInfo(
   std::cout << "offset: " << offset << "\n";
 }
 
-bool isNumberWithinPercentOfNumber(float firstN, float percent, float secondN,
-                                   float &diff, float &percDiff) {
-  // Get absolute difference of the two numbers
-  diff = std::abs(firstN - secondN);
-  // Get the percentage difference of the two numbers
-  percDiff =
-      100.0f * (std::abs(firstN - secondN) / (((firstN + secondN) / 2.0f)));
+// Out of range coords return a border color
+// The border color happens to be all zeros
+template <typename VecType>
+static VecType clampNearest(sycl::vec<double, 2> coords,
+                            sycl::range<2> globalSize,
+                            std::vector<VecType> &inputImage) {
+  double coordX = coords[0];
+  double coordY = coords[1];
+  int width = globalSize[0];
+  int height = globalSize[1];
 
-  // Check if perc difference is not greater then maximum allowed
-  return percDiff <= percent;
+  // Due to pixel centers being 0.5 away from origin and because
+  // 0.5 is *not* subtracted here, rounding down gives the same results as
+  // rounding to nearest number if 0.5 is subtracted to account
+  // for pixel center
+  int coordXInt = static_cast<int>(std::floor(coordX));
+  int coordYInt = static_cast<int>(std::floor(coordY));
+
+  // Clamp sampling according to the SYCL spec returns a border color.
+  // The border color is all zeros.
+  // There does not appear to be any way for the user to set the border color
+  if (coordXInt > width - 1) {
+    return VecType{0};
+  }
+  if (coordXInt < 0) {
+    return VecType{0};
+  }
+  if (coordYInt > height - 1) {
+    return VecType{0};
+  }
+  if (coordYInt < 0) {
+    return VecType{0};
+  }
+
+  return inputImage[coordX + (width * coordY)];
+}
+
+// Out of range coords are clamped to the extent.
+static int clampToEdgeNearestCoord(double coord, int dimSize) {
+  // Due to pixel centers being 0.5 away from origin and because
+  // 0.5 is *not* subtracted here, rounding down gives the same results as
+  // rounding to nearest number if 0.5 is subtracted to account
+  // for pixel center
+  int coordInt = static_cast<int>(std::floor(coord));
+
+  // Clamp to extent
+  coordInt = std::clamp(coordInt, 0, dimSize - 1);
+
+  return coordInt;
+}
+
+// Out of range coords are clamped to the extent.
+template <typename VecType>
+static VecType clampToEdgeNearest(sycl::vec<double, 2> coords,
+                                  sycl::range<2> globalSize,
+                                  std::vector<VecType> &inputImage) {
+  int width = globalSize[0];
+
+  int coordXInt =
+      clampToEdgeNearestCoord(coords[0], static_cast<int>(globalSize[0]));
+  int coordYInt =
+      clampToEdgeNearestCoord(coords[1], static_cast<int>(globalSize[1]));
+
+  return inputImage[coordXInt + (width * coordYInt)];
+}
+
+// Out of range coords are wrapped to the valid range.
+static int repeatNearestCoord(double coord, int dimSize) {
+  // Convert unnormalized input coord to normalized format
+  double normCoord = coord / dimSize;
+
+  // Keep only the fractional component of the number and unnormalize.
+  double fractComp = (normCoord - std::floor(normCoord));
+
+  // Unnormalize fractComp
+  double unnorm = fractComp * dimSize;
+
+  // Due to pixel centers being 0.5 away from origin and because
+  // 0.5 is *not* subtracted here, rounding down gives the same results as
+  // rounding to nearest number if 0.5 is subtracted to account
+  // for pixel center
+  int coordInt = static_cast<int>(std::floor(unnorm));
+
+  // Handle negative coords
+  if (coordInt < 0) {
+    coordInt = dimSize + coordInt;
+  }
+
+  return coordInt;
+}
+
+// Out of range coords are wrapped to the valid range.
+template <typename VecType>
+static VecType repeatNearest(sycl::vec<double, 2> coords,
+                             sycl::range<2> globalSize,
+                             std::vector<VecType> &inputImage) {
+  int width = globalSize[0];
+
+  int coordXInt =
+      util::repeatNearestCoord(coords[0], static_cast<int>(globalSize[0]));
+  int coordYInt =
+      util::repeatNearestCoord(coords[1], static_cast<int>(globalSize[1]));
+
+  return inputImage[coordXInt + (width * coordYInt)];
+}
+
+// Out of range coordinates are flipped at every integer junction
+static int mirroredRepeatNearestCoord(double coord, int dimSize) {
+
+  // Convert unnormalized input coord to normalized format
+  double normCoord = coord / dimSize;
+
+  // Round to nearest multiple of two.
+  // e.g.
+  // normCoord == 0.3  -> result = 0
+  // normCoord == 1.3  -> result = 2
+  // normCoord == 2.4  -> result = 2
+  // normCoord == 3.42 -> result = 4
+  double nearestMulOfTwo = 2.0f * std::rint(0.5f * normCoord);
+
+  // Subtract nearestMulOfTwo from normCoordX.
+  // Gives the normalized form of the coord to use.
+  // With normCoord=1.3, norm is set to 0.7
+  // With normCoord=2.4, norm is set to 0.4
+  double norm = std::abs(normCoord - nearestMulOfTwo);
+
+  // Unnormalize norm
+  double unnorm = norm * dimSize;
+
+  // Round down and cast to int
+  int coordInt = static_cast<int>(std::floor(unnorm));
+
+  // Constrain to valid range
+  coordInt = std::min(coordInt, dimSize - 1);
+
+  // This prevents when at an integer junction, having three
+  // accesses to pixel at normalized location 0 and 1 instead of two which is
+  // correct.
+  coordInt -= integerJunctionAdjustment(normCoord, dimSize);
+
+  return coordInt;
+}
+
+// Out of range coordinates are flipped at every integer junction
+template <typename VecType>
+static VecType mirroredRepeatNearest(sycl::vec<double, 2> coords,
+                                     sycl::range<2> globalSize,
+                                     std::vector<VecType> &inputImage) {
+  int width = globalSize[0];
+
+  int coordXInt = util::mirroredRepeatNearestCoord(
+      coords[0], static_cast<int>(globalSize[0]));
+  int coordYInt = util::mirroredRepeatNearestCoord(
+      coords[1], static_cast<int>(globalSize[1]));
+
+  return inputImage[coordXInt + (width * coordYInt)];
+}
+
+template <typename VecType>
+static VecType noneNearest(sycl::vec<double, 2> coords,
+                           sycl::range<2> globalSize,
+                           std::vector<VecType> &inputImage) {
+  int intCoordX = static_cast<int>(std::floor(coords[0]));
+  int intCoordY = static_cast<int>(std::floor(coords[1]));
+  int width = globalSize[0];
+
+  return inputImage[intCoordX + (width * intCoordY)];
+}
+
+// Clamp sampling according to the SYCL spec returns a border color.
+// The border color is all zeros.
+// There does not appear to be any way for the user to set the border color.
+template <typename VecType>
+static VecType clampLinearCheckBounds(int i, int j, int width, int height,
+                                      std::vector<VecType> &inputImage) {
+  if (i < 0 || i > width - 1 || j < 0 || j > height - 1) {
+    return VecType(0);
+  }
+  return inputImage[i + (width * j)];
+}
+
+struct InterpolRes {
+  int x0;
+  int x1;
+  double weight;
+  InterpolRes(int tempX0, int tempX1, double tempWeight)
+      : x0(tempX0), x1(tempX1), weight(tempWeight) {}
+};
+
+// Out of range coords return a border color
+// The border color is all zeros
+template <typename DType, int NChannels>
+static sycl::vec<DType, NChannels>
+clampLinear(sycl::vec<double, 2> coords, sycl::range<2> globalSize,
+            std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+  using VecType = sycl::vec<DType, NChannels>;
+
+  double coordX = coords[0];
+  double coordY = coords[1];
+  int width = globalSize[0];
+  int height = globalSize[1];
+
+  // Get coords for linear sampling
+  int i0, i1;
+  double weightX = util::getCommonLinearFractAndCoordsfp64(coordX, &i0, &i1);
+
+  int j0 = 0, j1 = 0;
+  // If height is not one, run as normal.
+  // Otherwise, keep weightY set to 0.
+  double weightY =
+      height == 1 ? 0
+                  : util::getCommonLinearFractAndCoordsfp64(coordY, &j0, &j1);
+
+  // Clamp sampling according to the SYCL spec returns a border color.
+  // The border color is all zeros.
+  // There does not appear to be any way for the user to set the border color.
+  VecType pix1 =
+      clampLinearCheckBounds<VecType>(i0, j0, width, height, inputImage);
+  VecType pix2 =
+      clampLinearCheckBounds<VecType>(i1, j0, width, height, inputImage);
+  VecType pix3 =
+      clampLinearCheckBounds<VecType>(i0, j1, width, height, inputImage);
+  VecType pix4 =
+      clampLinearCheckBounds<VecType>(i1, j1, width, height, inputImage);
+
+  // Perform linear sampling
+  return util::linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX,
+                                          weightY);
+}
+
+// Out of range coords are clamped to the extent.
+template <typename DType, int NChannels>
+static sycl::vec<DType, NChannels>
+clampToEdgeLinear(sycl::vec<double, 2> coords, sycl::range<2> globalSize,
+                  std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+  using VecType = sycl::vec<DType, NChannels>;
+
+  double coordX = coords[0];
+  double coordY = coords[1];
+  int width = globalSize[0];
+  int height = globalSize[1];
+
+  // Get coords for linear sampling
+  int i0, i1;
+  double weightX = util::getCommonLinearFractAndCoordsfp64(coordX, &i0, &i1);
+
+  int j0 = 0, j1 = 0;
+  // If height is not one, run as normal.
+  // Otherwise, keep weightY set to 0.
+  double weightY =
+      height == 1 ? 0
+                  : util::getCommonLinearFractAndCoordsfp64(coordY, &j0, &j1);
+
+  // Clamp to extent
+  i0 = std::clamp(i0, 0, width - 1);
+  i1 = std::clamp(i1, 0, width - 1);
+  j0 = std::clamp(j0, 0, height - 1);
+  j1 = std::clamp(j1, 0, height - 1);
+
+  VecType pix1 = inputImage[i0 + (width * j0)];
+  VecType pix2 = inputImage[i1 + (width * j0)];
+  VecType pix3 = inputImage[i0 + (width * j1)];
+  VecType pix4 = inputImage[i1 + (width * j1)];
+
+  // Perform linear sampling
+  return util::linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX,
+                                          weightY);
+}
+
+// Out of range coords return a border color
+// The border color is all zeros
+static InterpolRes repeatLinearCoord(double coord, int dimSize) {
+
+  // Convert unnormalized input coord to normalized format
+  double normCoord = coord / dimSize;
+
+  double unnorm = (normCoord - static_cast<int>(normCoord)) * dimSize;
+
+  // Get coords for linear sampling
+  int x0, x1;
+  double weight = getCommonLinearFractAndCoordsfp64(unnorm, &x0, &x1);
+
+  return InterpolRes(x0, x1, weight);
+}
+
+// Out of range coords are wrapped to the valid range
+template <typename DType, int NChannels>
+static sycl::vec<DType, NChannels>
+repeatLinear(sycl::vec<double, 2> coords, sycl::range<2> globalSize,
+             std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+  using VecType = sycl::vec<DType, NChannels>;
+
+  double coordX = coords[0];
+  double coordY = coords[1];
+  int width = globalSize[0];
+  int height = globalSize[1];
+
+  util::InterpolRes resX = util::repeatLinearCoord(coordX, width);
+  // If height is not one, run as normal.
+  // Otherwise, set resY to all zeros.
+  util::InterpolRes resY = height == 1
+                               ? InterpolRes(0, 0, 0)
+                               : util::repeatLinearCoord(coordY, height);
+
+  int i0 = resX.x0, i1 = resX.x1;
+  int j0 = resY.x0, j1 = resY.x1;
+
+  double weightX = resX.weight, weightY = resY.weight;
+
+  // Wrap linear sampling coords to valid range
+  i0 = util::repeatWrap(i0, width);
+  i1 = util::repeatWrap(i1, width);
+  j0 = util::repeatWrap(j0, height);
+  j1 = util::repeatWrap(j1, height);
+
+  VecType pix1 = inputImage[i0 + (width * j0)];
+  VecType pix2 = inputImage[i1 + (width * j0)];
+  VecType pix3 = inputImage[i0 + (width * j1)];
+  VecType pix4 = inputImage[i1 + (width * j1)];
+
+  // Perform linear sampling
+  return util::linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX,
+                                          weightY);
+}
+
+// Out of range coordinates are flipped at every integer junction
+static InterpolRes mirroredRepeatLinearCoord(double coord, int dimSize) {
+
+  // Convert unnormalized input coord to normalized format
+  double normCoord = coord / dimSize;
+
+  // Round to nearest multiple of two.
+  // e.g.
+  // normCoordX == 0.3  -> result = 0
+  // normCoordX == 1.3  -> result = 2
+  // normCoordX == 2.4  -> result = 2
+  // normCoordX == 3.42 -> result = 4
+  double nearestMulOfTwo = 2.0f * std::rint(0.5f * normCoord);
+
+  // Subtract nearestMulOfTwo from normCoordX.
+  // Gives the normalized form of the coord to use.
+  // With normCoordX=1.3, norm is set to 0.7
+  // With normCoordX=2.4, norm is set to 0.4
+  double norm = std::abs(normCoord - nearestMulOfTwo);
+
+  // Unnormalize norm
+  double unnorm = norm * dimSize;
+
+  // Get coords for linear sampling
+  int x0, x1;
+  double weight = getCommonLinearFractAndCoordsfp64(unnorm, &x0, &x1);
+
+  return InterpolRes(x0, x1, weight);
+}
+
+// Out of range coordinates are flipped at every integer junction
+template <typename DType, int NChannels>
+static sycl::vec<DType, NChannels>
+mirroredRepeatLinear(sycl::vec<double, 2> coords, sycl::range<2> globalSize,
+                     std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+  using VecType = sycl::vec<DType, NChannels>;
+
+  double coordX = coords[0];
+  double coordY = coords[1];
+  int width = globalSize[0];
+  int height = globalSize[1];
+
+  util::InterpolRes resX = util::mirroredRepeatLinearCoord(coordX, width);
+  // If height is not one, run as normal.
+  // Otherwise, set resY to all zeros.
+  util::InterpolRes resY =
+      height == 1 ? InterpolRes(0, 0, 0)
+                  : util::mirroredRepeatLinearCoord(coordY, height);
+
+  int i0 = resX.x0, i1 = resX.x1;
+  int j0 = resY.x0, j1 = resY.x1;
+
+  double weightX = resX.weight, weightY = resY.weight;
+
+  // getCommonLinear sometimes returns numbers out of bounds.
+  // Handle this by wrapping to boundary.
+  i0 = std::max(i0, 0);
+  i1 = std::min(i1, width - 1);
+  j0 = std::max(j0, 0);
+  j1 = std::min(j1, height - 1);
+
+  VecType pix1 = inputImage[i0 + (width * j0)];
+  VecType pix2 = inputImage[i1 + (width * j0)];
+  VecType pix3 = inputImage[i0 + (width * j1)];
+  VecType pix4 = inputImage[i1 + (width * j1)];
+
+  // Perform linear sampling
+  return util::linearOp<NChannels, DType>(pix1, pix2, pix3, pix4, weightX,
+                                          weightY);
+}
+
+// Some vector sizes here are hardcoded because the sampling functions are
+// designed to only accept vecs of that size.
+template <int NDims, typename DType, int NChannels>
+static sycl::vec<DType, NChannels>
+read(sycl::range<2> globalSize, sycl::vec<double, 2> coords, double offset,
+     syclexp::bindless_image_sampler &samp,
+     std::vector<sycl::vec<DType, NChannels>> &inputImage) {
+  using VecType = sycl::vec<DType, NChannels>;
+
+  // Add offset to coords
+  for (int i = 0; i < NDims; i++) {
+    coords[i] = coords[i] + offset;
+  }
+
+  // Ensure that coords always contain unnormalized coords
+  sycl::coordinate_normalization_mode SampNormMode = samp.coordinate;
+  if (SampNormMode == sycl::coordinate_normalization_mode::normalized) {
+    // Unnormalize
+    for (int i = 0; i < NDims; i++) {
+      coords[i] = coords[i] * globalSize[i];
+    }
+  }
+
+  sycl::filtering_mode SampFiltMode = samp.filtering;
+  if (SampFiltMode == sycl::filtering_mode::nearest) {
+
+    sycl::addressing_mode SampAddrMode = samp.addressing;
+    if (SampAddrMode == sycl::addressing_mode::clamp) {
+      return util::clampNearest<VecType>(coords, globalSize, inputImage);
+    }
+
+    if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
+      return util::clampToEdgeNearest<VecType>(coords, globalSize, inputImage);
+    }
+
+    if (SampAddrMode == sycl::addressing_mode::repeat) {
+      if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
+        assert(false &&
+               "Repeat addressing mode must be used with normalized coords");
+      }
+      return util::repeatNearest<VecType>(coords, globalSize, inputImage);
+    }
+
+    if (SampAddrMode == sycl::addressing_mode::mirrored_repeat) {
+      if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
+        assert(false && "Mirrored repeat addressing mode must be used with "
+                        "normalized coords");
+      }
+      return util::mirroredRepeatNearest<VecType>(coords, globalSize,
+                                                  inputImage);
+    }
+
+    if (SampAddrMode == sycl::addressing_mode::none) {
+      // Ensure no access out of bounds when addressing_mode is none
+      // due to that being undefined behaviour.
+      bool outOfBounds = false;
+      for (int i = 0; i < NDims; i++) {
+        int intCoord = static_cast<int>(std::floor(coords[i]));
+        outOfBounds =
+            outOfBounds || (intCoord < 0 || intCoord >= globalSize[i]);
+      }
+      if (outOfBounds) {
+        assert(false && "Accessed out of bounds with addressing mode none! "
+                        "Undefined Behaviour!");
+      }
+      return util::noneNearest(coords, globalSize, inputImage);
+    }
+
+  } else { // linear
+    sycl::addressing_mode SampAddrMode = samp.addressing;
+    if (SampAddrMode == sycl::addressing_mode::clamp) {
+      return util::clampLinear<DType, NChannels>(coords, globalSize,
+                                                 inputImage);
+    }
+    if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
+      return util::clampToEdgeLinear<DType, NChannels>(coords, globalSize,
+                                                       inputImage);
+    }
+    if (SampAddrMode == sycl::addressing_mode::repeat) {
+      if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
+        assert(false &&
+               "Repeat addressing mode must be used with normalized coords");
+      }
+      return util::repeatLinear<DType, NChannels>(coords, globalSize,
+                                                  inputImage);
+    }
+    if (SampAddrMode == sycl::addressing_mode::mirrored_repeat) {
+      if (SampNormMode == sycl::coordinate_normalization_mode::unnormalized) {
+        assert(false && "Mirrored repeat addressing mode must be used with "
+                        "normalized coords");
+      }
+      return util::mirroredRepeatLinear<DType, NChannels>(coords, globalSize,
+                                                          inputImage);
+    }
+    if (SampAddrMode == sycl::addressing_mode::none) {
+      // Ensure no access out of bounds when addressing_mode is none
+      // due to that being undefined behaviour.
+      bool outOfBounds = false;
+      for (int i = 0; i < NDims; i++) {
+        outOfBounds =
+            outOfBounds || (coords[i] < 0 || coords[i] >= globalSize[i]);
+      }
+      if (outOfBounds) {
+        assert(false && "Accessed out of bounds with addressing mode none! "
+                        "Undefined Behaviour!");
+      }
+      assert(false && "filtering mode linear with addressing mode none "
+                      "currently not supported");
+    }
+  }
+  assert(false && "Invalid sampler encountered!");
+}
+
+// parallel_for ND bound normalized
+template <int NDims, typename DType, int NChannels>
+static void
+runNDimTestHost(sycl::range<NDims> globalSize, double offset,
+                syclexp::bindless_image_sampler &samp,
+                std::vector<sycl::vec<DType, NChannels>> &inputImage,
+                std::vector<sycl::vec<DType, NChannels>> &output) {
+
+  using VecType = sycl::vec<DType, NChannels>;
+  bool isNorm =
+      (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
+
+  sycl::vec<double, 2> coords;
+
+  sycl::range<2> globalSizeTwoComp;
+
+  for (int i = 0; i < NDims; i++) {
+    globalSizeTwoComp[i] = globalSize[i];
+  }
+
+  for (int i = 0; i < 2 - NDims; i++) {
+    globalSizeTwoComp[NDims - i] = 1;
+  }
+
+  for (int i = 0; i < globalSizeTwoComp[0]; i++) {
+    for (int j = 0; j < globalSizeTwoComp[1]; j++) {
+      if (isNorm) {
+        coords[0] = (double)i / (double)globalSizeTwoComp[0];
+        coords[1] = (double)j / (double)globalSizeTwoComp[1];
+
+      } else {
+        coords[0] = i;
+        coords[1] = j;
+      }
+
+      VecType result = read<NDims, DType, NChannels>(globalSizeTwoComp, coords,
+                                                     offset, samp, inputImage);
+      output[i + (globalSize[0] * j)] = result;
+    }
+  }
+}
+
+// parallel_for ND bindless normalized
+template <int NDims, typename DType, int NChannels, typename KernelName>
+static void
+runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
+                  sycl::range<NDims> localSize, double offset,
+                  syclexp::bindless_image_sampler &samp,
+                  syclexp::sampled_image_handle inputImage,
+                  sycl::buffer<sycl::vec<DType, NChannels>, NDims> &output,
+                  sycl::range<NDims> bufSize) {
+
+  using VecType = sycl::vec<DType, NChannels>;
+  bool isNorm =
+      (samp.coordinate == sycl::coordinate_normalization_mode::normalized);
+  try {
+    q.submit([&](sycl::handler &cgh) {
+      auto outAcc =
+          output.template get_access<sycl::access_mode::write>(cgh, bufSize);
+      cgh.parallel_for<KernelName>(
+          sycl::nd_range<NDims>{globalSize, localSize},
+          [=](sycl::nd_item<NDims> it) {
+            sycl::id<NDims> accessorCoords;
+            sycl::float2 coords;
+
+            if (isNorm) {
+              for (int i = 0; i < NDims; i++) {
+                coords[i] =
+                    ((double)it.get_global_id(i) / (double)globalSize[i]) +
+                    offset;
+              }
+
+            } else {
+              for (int i = 0; i < NDims; i++) {
+                coords[i] = (double)it.get_global_id(i) + offset;
+              }
+            }
+            for (int i = 0; i < NDims; i++) {
+              // Accessor coords are to be inverted.
+              accessorCoords[i] = it.get_global_id(NDims - i - 1);
+            }
+
+            VecType px1 = syclexp::read_image<VecType>(inputImage, coords);
+
+            outAcc[accessorCoords] = px1;
+          });
+    });
+  } catch (sycl::exception e) {
+    std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
+  } catch (...) {
+    std::cerr << "\tKernel submission failed!" << std::endl;
+  }
 }
 
 template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
-          typename KernelName1, typename KernelName2>
-bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-              double offset,
-              sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
-              unsigned int seed = 0) {
+          typename KernelName>
+static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
+                    double offset, syclexp::bindless_image_sampler &samp,
+                    unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
 
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  // skip half tests if not supported
-  if constexpr (std::is_same_v<DType, sycl::half>) {
-    if (!dev.has(sycl::aspect::fp16)) {
-#if defined(VERBOSE_LV1) || defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      std::cout << "Test skipped due to lack of device support for fp16\n";
-#endif
-      return false;
-    }
+  size_t numElems = dims[0];
+  if constexpr (NDims == 2) {
+    numElems *= dims[1];
   }
 
-  size_t num_elems = dims[0];
-  if (NDims > 1)
-    num_elems *= dims[1];
-  if (NDims > 2)
-    num_elems *= dims[2];
-
-  std::vector<VecType> input_0(num_elems);
-  std::vector<VecType> expected(num_elems);
-  std::vector<VecType> actual(num_elems);
+  std::vector<VecType> input(numElems);
+  std::vector<VecType> expected(numElems);
+  std::vector<VecType> actual(numElems);
 
   std::srand(seed);
-  util::fill_rand(input_0, seed);
+  util::fillRand(input, seed);
 
   {
     sycl::range<NDims> globalSize = dims;
-    util::run_ndim_test_host<NDims, DType, NChannels>(globalSize, offset, samp,
-                                                      input_0, expected);
+    runNDimTestHost<NDims, DType, NChannels>(globalSize, offset, samp, input,
+                                             expected);
   }
 
   try {
 
-    sycl::ext::oneapi::experimental::image_descriptor desc(dims, COrder, CType);
+    syclexp::image_descriptor desc(dims, COrder, CType);
 
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, q);
+    syclexp::image_mem imgMem(desc, q);
 
-    auto img_input =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, samp, desc, q);
+    auto img_input = syclexp::create_image(imgMem, samp, desc, q);
 
-    q.ext_oneapi_copy(input_0.data(), img_mem_0.get_handle(), desc);
+    q.ext_oneapi_copy(input.data(), imgMem.get_handle(), desc);
     q.wait_and_throw();
 
     {
@@ -645,13 +857,13 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
       sycl::range<NDims> globalSize = dims;
       sycl::buffer<VecType, NDims> outBuf((VecType *)actual.data(), bufSize);
       q.wait_and_throw();
-      util::run_ndim_test_device<NDims, DType, NChannels, KernelName1>(
+      runNDimTestDevice<NDims, DType, NChannels, KernelName>(
           q, globalSize, localSize, offset, samp, img_input, outBuf, bufSize);
       q.wait_and_throw();
     }
 
     // Cleanup
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_input, q);
+    syclexp::destroy_image_handle(img_input, q);
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
@@ -686,15 +898,15 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   bool validated = true;
   float largestError = 0.0f;
   float largestPercentError = 0.0f;
-  for (int i = 0; i < num_elems; i++) {
+  for (int i = 0; i < numElems; i++) {
     for (int j = 0; j < NChannels; ++j) {
       bool mismatch = false;
       if (actual[i][j] != expected[i][j]) {
         // Nvidia GPUs have a 0.4%~ margin of error due to only using 8 bits to
         // represent values between 1-0 for weights during linear interpolation.
         float diff, percDiff;
-        if (!isNumberWithinPercentOfNumber(actual[i][j], deviation,
-                                           expected[i][j], diff, percDiff)) {
+        if (!util::isNumberWithinPercentOfNumber(
+                actual[i][j], deviation, expected[i][j], diff, percDiff)) {
           mismatch = true;
           validated = false;
         }
@@ -734,25 +946,40 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
 #if defined(VERBOSE_LV1) || defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
   if (validated) {
-    std::cout << "\tTest passed!\n";
+    std::cout << "\tCorrect output!\n";
   } else {
-    std::cout << "\tTest failed!\n";
+    std::cout << "\tIncorrect output!\n";
   }
 #endif
 
   return !validated;
 }
 
-void printTestName(std::string name) {
+template <int NDims>
+static void printTestName(std::string name, sycl::range<NDims> globalSize,
+                          sycl::range<NDims> localSize) {
 #if defined(VERBOSE_LV1) || defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-  std::cout << name;
+  std::cout << name << "\n";
+  std::cout << "Global Size: ";
+
+  for (int i = 0; i < NDims; i++) {
+    std::cout << globalSize[i] << " ";
+  }
+
+  std::cout << " Local Size: ";
+
+  for (int i = 0; i < NDims; i++) {
+    std::cout << localSize[i] << " ";
+  }
+
+  std::cout << "\n";
 #endif
 }
+}; // namespace util
 
 template <int NDims, typename = std::enable_if_t<NDims == 1>>
-bool run_tests(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-               double offset, int seed,
-               sycl::coordinate_normalization_mode normMode) {
+bool runTests(sycl::range<1> dims, sycl::range<1> localSize, double offset,
+              int seed, sycl::coordinate_normalization_mode normMode) {
 
   // addressing_mode::none currently removed due to
   // inconsistent behavour when switching between
@@ -783,115 +1010,263 @@ bool run_tests(sycl::range<NDims> dims, sycl::range<NDims> localSize,
         continue;
       }
 
-      sycl::ext::oneapi::experimental::bindless_image_sampler samp(
-          addrMode, normMode, filtMode);
+      syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
 
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      printTestInfo(samp, offset);
+      util::printTestInfo(samp, offset);
 #endif
 
-      // Tests using int data type currently disabled due to inconsistent
-      // rounding behaviour against non-float types smaller then 32 bit.
+      util::printTestName<NDims>("Running 1D short", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 1, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::r, class short_1d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D short2", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 2, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::rg, class short2_1d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D short4", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 4, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::rgba, class short4_1d>(
+              dims, localSize, offset, samp, seed);
 
-      printTestName("Running 1D short\n");
+      util::printTestName<NDims>("Running 1D unsigned short", dims, localSize);
+      failed |= util::runTest<NDims, unsigned short, 1,
+                              sycl::image_channel_type::unsigned_int16,
+                              sycl::image_channel_order::r, class ushort_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D unsigned short2", dims, localSize);
+      failed |= util::runTest<NDims, unsigned short, 2,
+                              sycl::image_channel_type::unsigned_int16,
+                              sycl::image_channel_order::rg, class ushort2_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D unsigned short4", dims, localSize);
       failed |=
-          run_test<NDims, short, 1, sycl::image_channel_type::signed_int16,
-                   sycl::image_channel_order::r, class short_1d1,
-                   class short_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D short2\n");
-      failed |=
-          run_test<NDims, short, 2, sycl::image_channel_type::signed_int16,
-                   sycl::image_channel_order::rg, class short2_1d1,
-                   class short2_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D short4\n");
-      failed |=
-          run_test<NDims, short, 4, sycl::image_channel_type::signed_int16,
-                   sycl::image_channel_order::rgba, class short4_1d1,
-                   class short4_1d2>(dims, localSize, offset, samp, seed);
+          util::runTest<NDims, unsigned short, 4,
+                        sycl::image_channel_type::unsigned_int16,
+                        sycl::image_channel_order::rgba, class ushort4_1d>(
+              dims, localSize, offset, samp, seed);
 
-      printTestName("Running 1D unsigned short\n");
-      failed |= run_test<
-          NDims, unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-          sycl::image_channel_order::r, class ushort_1d1, class ushort_1d2>(
+      util::printTestName<NDims>("Running 1D char", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 1,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::r, class char_1d>(
           dims, localSize, offset, samp, seed);
-      printTestName("Running 1D unsigned short2\n");
-      failed |= run_test<
-          NDims, unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-          sycl::image_channel_order::rg, class ushort2_1d1, class ushort2_1d2>(
+      util::printTestName<NDims>("Running 1D char2", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 2,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::rg, class char2_1d>(
           dims, localSize, offset, samp, seed);
-      printTestName("Running 1D unsigned short4\n");
-      failed |=
-          run_test<NDims, unsigned short, 4,
-                   sycl::image_channel_type::unsigned_int16,
-                   sycl::image_channel_order::rgba, class ushort4_1d1,
-                   class ushort4_1d2>(dims, localSize, offset, samp, seed);
-
-      printTestName("Running 1D char\n");
-      failed |=
-          run_test<NDims, signed char, 1, sycl::image_channel_type::signed_int8,
-                   sycl::image_channel_order::r, class char_1d1,
-                   class char_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D char2\n");
-      failed |=
-          run_test<NDims, signed char, 2, sycl::image_channel_type::signed_int8,
-                   sycl::image_channel_order::rg, class char2_1d1,
-                   class char2_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D char4\n");
-      failed |=
-          run_test<NDims, signed char, 4, sycl::image_channel_type::signed_int8,
-                   sycl::image_channel_order::rgba, class char4_1d1,
-                   class char4_1d2>(dims, localSize, offset, samp, seed);
-
-      printTestName("Running 1D unsigned char\n");
-      failed |= run_test<
-          NDims, unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-          sycl::image_channel_order::r, class uchar_1d1, class uchar_1d2>(
-          dims, localSize, offset, samp, seed);
-      printTestName("Running 1D unsigned char2\n");
-      failed |= run_test<
-          NDims, unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-          sycl::image_channel_order::rg, class uchar2_1d1, class uchar2_1d2>(
-          dims, localSize, offset, samp, seed);
-      printTestName("Running 1D unsigned char4\n");
-      failed |= run_test<
-          NDims, unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-          sycl::image_channel_order::rgba, class uchar4_1d1, class uchar4_1d2>(
+      util::printTestName<NDims>("Running 1D char4", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 4,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::rgba, class char4_1d>(
           dims, localSize, offset, samp, seed);
 
-      printTestName("Running 1D float\n");
-      failed |= run_test<NDims, float, 1, sycl::image_channel_type::fp32,
-                         sycl::image_channel_order::r, class float_1d1,
-                         class float_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D float2\n");
-      failed |= run_test<NDims, float, 2, sycl::image_channel_type::fp32,
-                         sycl::image_channel_order::rg, class float2_1d1,
-                         class float2_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D float4\n");
-      failed |= run_test<NDims, float, 4, sycl::image_channel_type::fp32,
-                         sycl::image_channel_order::rgba, class float4_1d1,
-                         class float4_1d2>(dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D unsigned char", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 1,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::r, class uchar_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D unsigned char2", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 2,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::rg, class uchar2_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D unsigned char4", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 4,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::rgba, class uchar4_1d>(
+          dims, localSize, offset, samp, seed);
 
-      printTestName("Running 1D half\n");
-      failed |= run_test<NDims, sycl::half, 1, sycl::image_channel_type::fp16,
-                         sycl::image_channel_order::r, class half_1d1,
-                         class half_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D half2\n");
-      failed |= run_test<NDims, sycl::half, 2, sycl::image_channel_type::fp16,
-                         sycl::image_channel_order::rg, class half2_1d1,
-                         class half2_1d2>(dims, localSize, offset, samp, seed);
-      printTestName("Running 1D half4\n");
-      failed |= run_test<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
-                         sycl::image_channel_order::rgba, class half4_1d1,
-                         class half4_1d2>(dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D float", dims, localSize);
+      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::r, class float_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D float2", dims, localSize);
+      failed |= util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::rg, class float2_1d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D float4", dims, localSize);
+      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::rgba, class float4_1d>(
+          dims, localSize, offset, samp, seed);
 
-      printTestName("Running 1D float - dims: 1024, local: 512\n");
-      failed |= run_test<NDims, float, 1, sycl::image_channel_type::fp32,
-                         sycl::image_channel_order::r, class float_1d11,
-                         class float_1d21>({1024}, {512}, offset, samp, seed);
-      printTestName("Running 1D float4 - dims: 4096, local: 8\n");
-      failed |= run_test<NDims, float, 4, sycl::image_channel_type::fp32,
-                         sycl::image_channel_order::rgba, class float4_1d13,
-                         class float4_1d23>({4096}, {8}, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D half", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 1, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::r, class half_1d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D half2", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 2, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::rg, class half2_1d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D half4", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::rgba, class half4_1d>(
+              dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 1D float", {512}, {32});
+      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::r, class float_1d1>(
+          {512}, {32}, offset, samp, seed);
+      util::printTestName<NDims>("Running 1D float4", {512}, {8});
+      failed |=
+          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                        sycl::image_channel_order::rgba, class float4_1d2>(
+              {512}, {8}, offset, samp, seed);
+    }
+  }
+
+  return !failed;
+}
+
+template <int NDims, typename = std::enable_if_t<NDims == 2>>
+bool runTests(sycl::range<2> dims, sycl::range<2> localSize, double offset,
+              int seed, sycl::coordinate_normalization_mode normMode) {
+
+  // addressing_mode::none currently removed due to
+  // inconsistent behavour when switching between
+  // normalized and unnormalized coords.
+  sycl::addressing_mode addrModes[4] = {
+      sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
+      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+
+  sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
+                                       sycl::filtering_mode::linear};
+
+  bool failed = false;
+
+  for (auto addrMode : addrModes) {
+
+    for (auto filtMode : filtModes) {
+
+      if (normMode == sycl::coordinate_normalization_mode::unnormalized) {
+        // These sampler combinations are not valid according to the SYCL spec
+        if (addrMode == sycl::addressing_mode::repeat ||
+            addrMode == sycl::addressing_mode::mirrored_repeat) {
+          continue;
+        }
+      }
+      // Skip using offset with address_mode of none. Will cause undefined
+      // behaviour.
+      if (addrMode == sycl::addressing_mode::none && offset != 0.0) {
+        continue;
+      }
+
+      syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
+
+#if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
+      util::printTestInfo(samp, offset);
+#endif
+
+      util::printTestName<NDims>("Running 2D short", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 1, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::r, class short_2d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D short2", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 2, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::rg, class short2_2d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D short4", dims, localSize);
+      failed |=
+          util::runTest<NDims, short, 4, sycl::image_channel_type::signed_int16,
+                        sycl::image_channel_order::rgba, class short4_2d>(
+              dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D unsigned short", dims, localSize);
+      failed |= util::runTest<NDims, unsigned short, 1,
+                              sycl::image_channel_type::unsigned_int16,
+                              sycl::image_channel_order::r, class ushort_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D unsigned short2", dims, localSize);
+      failed |= util::runTest<NDims, unsigned short, 2,
+                              sycl::image_channel_type::unsigned_int16,
+                              sycl::image_channel_order::rg, class ushort2_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D unsigned short4", dims, localSize);
+      failed |=
+          util::runTest<NDims, unsigned short, 4,
+                        sycl::image_channel_type::unsigned_int16,
+                        sycl::image_channel_order::rgba, class ushort4_2d>(
+              dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D char", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 1,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::r, class char_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D char2", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 2,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::rg, class char2_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D char4", dims, localSize);
+      failed |= util::runTest<NDims, signed char, 4,
+                              sycl::image_channel_type::signed_int8,
+                              sycl::image_channel_order::rgba, class char4_2d>(
+          dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D unsigned char", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 1,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::r, class uchar_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D unsigned char2", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 2,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::rg, class uchar2_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D unsigned char4", dims, localSize);
+      failed |= util::runTest<NDims, unsigned char, 4,
+                              sycl::image_channel_type::unsigned_int8,
+                              sycl::image_channel_order::rgba, class uchar4_2d>(
+          dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D float", dims, localSize);
+      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::r, class float_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D float2", dims, localSize);
+      failed |= util::runTest<NDims, float, 2, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::rg, class float2_2d>(
+          dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D float4", dims, localSize);
+      failed |= util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::rgba, class float4_2d>(
+          dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D half", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 1, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::r, class half_2d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D half2", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 2, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::rg, class half2_2d>(
+              dims, localSize, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D half4", dims, localSize);
+      failed |=
+          util::runTest<NDims, sycl::half, 4, sycl::image_channel_type::fp16,
+                        sycl::image_channel_order::rgba, class half4_2d>(
+              dims, localSize, offset, samp, seed);
+
+      util::printTestName<NDims>("Running 2D float", {512, 512}, {32, 32});
+      failed |= util::runTest<NDims, float, 1, sycl::image_channel_type::fp32,
+                              sycl::image_channel_order::r, class float_2d1>(
+          {512, 512}, {32, 32}, offset, samp, seed);
+      util::printTestName<NDims>("Running 2D float4", {512, 512}, {8, 8});
+      failed |=
+          util::runTest<NDims, float, 4, sycl::image_channel_type::fp32,
+                        sycl::image_channel_order::rgba, class float4_2d2>(
+              {512, 512}, {8, 8}, offset, samp, seed);
     }
   }
 
@@ -899,49 +1274,61 @@ bool run_tests(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 }
 
 template <int NDims>
-bool run_offset(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-                double offset, int seed) {
-  bool normPassed =
-      run_tests<NDims>(dims, localSize, (offset / (double)dims[0]), seed,
-                       sycl::coordinate_normalization_mode::normalized);
-  bool nonormPassed =
-      run_tests<NDims>(dims, localSize, offset, seed,
-                       sycl::coordinate_normalization_mode::unnormalized);
-  return normPassed && nonormPassed;
+bool runOffset(sycl::range<NDims> dims, sycl::range<NDims> localSize,
+               double offset, int seed) {
+  bool normPassed = true;
+  bool noNormPassed = true;
+  normPassed =
+      normPassed &&
+      runTests<NDims>(dims, localSize, (offset / (double)dims[0]), seed,
+                      sycl::coordinate_normalization_mode::normalized);
+  noNormPassed =
+      noNormPassed &&
+      runTests<NDims>(dims, localSize, offset, seed,
+                      sycl::coordinate_normalization_mode::unnormalized);
+  return normPassed && noNormPassed;
 }
 
 template <int NDims>
-bool run_no_offset(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-                   int seed) {
-  bool normPassed =
-      run_tests<NDims>(dims, localSize, 0.0, seed,
-                       sycl::coordinate_normalization_mode::normalized);
-  bool nonormPassed =
-      run_tests<NDims>(dims, localSize, 0.0, seed,
-                       sycl::coordinate_normalization_mode::unnormalized);
-  return normPassed && nonormPassed;
+bool runNoOffset(sycl::range<NDims> dims, sycl::range<NDims> localSize,
+                 int seed) {
+  bool normPassed = true;
+  bool noNormPassed = true;
+  normPassed = normPassed &&
+               runTests<NDims>(dims, localSize, 0.0, seed,
+                               sycl::coordinate_normalization_mode::normalized);
+  noNormPassed =
+      noNormPassed &&
+      runTests<NDims>(dims, localSize, 0.0, seed,
+                      sycl::coordinate_normalization_mode::unnormalized);
+  return normPassed && noNormPassed;
 }
 
 template <int NDims>
-bool run_dim(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-             double offset, int seed) {
-  bool offsetPassed = run_offset<NDims>(dims, localSize, offset, seed);
-  bool noOffsetPassed = run_no_offset<NDims>(dims, localSize, seed);
+bool runAll(sycl::range<NDims> dims, sycl::range<NDims> localSize,
+            double offset, int seed) {
+  bool offsetPassed = true;
+  bool noOffsetPassed = true;
+  offsetPassed =
+      offsetPassed && runOffset<NDims>(dims, localSize, offset, seed);
+  noOffsetPassed = noOffsetPassed && runNoOffset<NDims>(dims, localSize, seed);
   return offsetPassed && noOffsetPassed;
 }
-
-bool run_all(int seed) { return run_dim<1>({512}, {32}, 20, seed); }
 
 int main() {
 
   unsigned int seed = 0;
-  bool result = run_all(seed);
+  std::cout << "Running 1D Sampled Image Tests!\n";
+  bool result1D = runAll<1>({256}, {32}, 20, seed);
+  std::cout << "Running 2D Sampled Image Tests!\n";
+  bool result2D = runAll<2>({256, 256}, {32, 32}, 20, seed);
 
-  if (result) {
+  if (result1D && result2D) {
     std::cout << "All tests passed!\n";
-    return 0;
+  } else {
+    std::cerr << "An error has occurred!\n";
+    return 1;
   }
 
-  std::cerr << "An error has occured!\n";
-  return 1;
+  return 0;
 }

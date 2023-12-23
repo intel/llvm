@@ -52,6 +52,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -287,6 +288,12 @@ static cl::opt<bool> EnableSIModeRegisterPass(
   cl::init(true),
   cl::Hidden);
 
+// Enable GFX11.5+ s_singleuse_vdst insertion
+static cl::opt<bool>
+    EnableInsertSingleUseVDST("amdgpu-enable-single-use-vdst",
+                              cl::desc("Enable s_singleuse_vdst insertion"),
+                              cl::init(false), cl::Hidden);
+
 // Enable GFX11+ s_delay_alu insertion
 static cl::opt<bool>
     EnableInsertDelayAlu("amdgpu-enable-delay-alu",
@@ -350,6 +357,11 @@ static cl::opt<bool> EnableRewritePartialRegUses(
     cl::desc("Enable rewrite partial reg uses pass"), cl::init(false),
     cl::Hidden);
 
+static cl::opt<bool> EnableHipStdPar(
+  "amdgpu-enable-hipstdpar",
+  cl::desc("Enable HIP Standard Parallelism Offload support"), cl::init(false),
+  cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheR600Target());
@@ -365,6 +377,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUDAGToDAGISelPass(*PR);
   initializeGCNDPPCombinePass(*PR);
   initializeSILowerI1CopiesPass(*PR);
+  initializeAMDGPUGlobalISelDivergenceLoweringPass(*PR);
   initializeSILowerWWMCopiesPass(*PR);
   initializeSILowerSGPRSpillsPass(*PR);
   initializeSIFixSGPRCopiesPass(*PR);
@@ -377,7 +390,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSILoadStoreOptimizerPass(*PR);
   initializeAMDGPUCtorDtorLoweringLegacyPass(*PR);
   initializeAMDGPUAlwaysInlinePass(*PR);
-  initializeAMDGPUAttributorPass(*PR);
+  initializeAMDGPUAttributorLegacyPass(*PR);
   initializeAMDGPUAnnotateKernelFeaturesPass(*PR);
   initializeAMDGPUAnnotateUniformValuesPass(*PR);
   initializeAMDGPUArgumentUsageInfoPass(*PR);
@@ -400,6 +413,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPURewriteUndefForPHILegacyPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowPass(*PR);
+  initializeAMDGPUInsertSingleUseVDSTPass(*PR);
   initializeAMDGPUInsertDelayAluPass(*PR);
   initializeSIInsertHardClausesPass(*PR);
   initializeSIInsertWaitcntsPass(*PR);
@@ -428,6 +442,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(*PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(*PR);
+  initializeGCNRegPressurePrinterPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -595,8 +610,8 @@ StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
 /// and must be preserved.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
-    return F->isDeclaration() || F->getName().startswith("__asan_") ||
-           F->getName().startswith("__sanitizer_") ||
+    return F->isDeclaration() || F->getName().starts_with("__asan_") ||
+           F->getName().starts_with("__sanitizer_") ||
            AMDGPU::isEntryFunctionCC(F->getCallingConv()) ||
            F->hasFnAttribute("sycl-module-id");
 
@@ -612,6 +627,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
       [this](StringRef PassName, ModulePassManager &PM,
              ArrayRef<PassBuilder::PipelineElement>) {
+        if (PassName == "amdgpu-attributor") {
+          PM.addPass(AMDGPUAttributorPass(*this));
+          return true;
+        }
         if (PassName == "amdgpu-unify-metadata") {
           PM.addPass(AMDGPUUnifyMetadataPass());
           return true;
@@ -716,6 +735,8 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
           FPM.addPass(AMDGPUSimplifyLibCallsPass());
         PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+        if (EnableHipStdPar)
+          PM.addPass(HipStdParAcceleratorCodeSelectionPass());
       });
 
   PB.registerPipelineEarlySimplificationEPCallback(
@@ -1029,7 +1050,7 @@ void AMDGPUPassConfig::addIRPasses() {
   // AMDGPUAttributor infers lack of llvm.amdgcn.lds.kernel.id calls, so run
   // after their introduction
   if (TM.getOptLevel() > CodeGenOptLevel::None)
-    addPass(createAMDGPUAttributorPass());
+    addPass(createAMDGPUAttributorLegacyPass());
 
   if (TM.getOptLevel() > CodeGenOptLevel::None)
     addPass(createInferAddressSpacesPass());
@@ -1258,6 +1279,7 @@ bool GCNPassConfig::addLegalizeMachineIR() {
 void GCNPassConfig::addPreRegBankSelect() {
   bool IsOptNone = getOptLevel() == CodeGenOptLevel::None;
   addPass(createAMDGPUPostLegalizeCombiner(IsOptNone));
+  addPass(createAMDGPUGlobalISelDivergenceLoweringPass());
 }
 
 bool GCNPassConfig::addRegBankSelect() {
@@ -1291,7 +1313,6 @@ void GCNPassConfig::addFastRegAlloc() {
   insertPass(&PHIEliminationID, &SILowerControlFlowID);
 
   insertPass(&TwoAddressInstructionPassID, &SIWholeQuadModeID);
-  insertPass(&TwoAddressInstructionPassID, &SIPreAllocateWWMRegsID);
 
   TargetPassConfig::addFastRegAlloc();
 }
@@ -1300,7 +1321,6 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   // Allow the scheduler to run before SIWholeQuadMode inserts exec manipulation
   // instructions that cause scheduling barriers.
   insertPass(&MachineSchedulerID, &SIWholeQuadModeID);
-  insertPass(&MachineSchedulerID, &SIPreAllocateWWMRegsID);
 
   if (OptExecMaskPreRA)
     insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
@@ -1387,6 +1407,7 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
 
   // Equivalent of PEI for SGPRs.
   addPass(&SILowerSGPRSpillsID);
+  addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(false));
 
@@ -1410,6 +1431,7 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
 
   // Equivalent of PEI for SGPRs.
   addPass(&SILowerSGPRSpillsID);
+  addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(true));
 
@@ -1458,6 +1480,9 @@ void GCNPassConfig::addPreEmitPass() {
   // cases.
   addPass(&PostRAHazardRecognizerID);
 
+  if (isPassEnabled(EnableInsertSingleUseVDST, CodeGenOptLevel::Less))
+    addPass(&AMDGPUInsertSingleUseVDSTID);
+
   if (isPassEnabled(EnableInsertDelayAlu, CodeGenOptLevel::Less))
     addPass(&AMDGPUInsertDelayAluID);
 
@@ -1499,13 +1524,13 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
       static_cast<const yaml::SIMachineFunctionInfo &>(MFI_);
   MachineFunction &MF = PFS.MF;
   SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
 
   if (MFI->initializeBaseYamlFields(YamlMFI, MF, PFS, Error, SourceRange))
     return true;
 
   if (MFI->Occupancy == 0) {
     // Fixup the subtarget dependent default value.
-    const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
     MFI->Occupancy = ST.computeOccupancy(MF.getFunction(), MFI->getLDSSize());
   }
 
@@ -1659,8 +1684,10 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
                              MFI->ArgInfo.WorkItemIDZ, 0, 0)))
     return true;
 
-  MFI->Mode.IEEE = YamlMFI.Mode.IEEE;
-  MFI->Mode.DX10Clamp = YamlMFI.Mode.DX10Clamp;
+  if (ST.hasIEEEMode())
+    MFI->Mode.IEEE = YamlMFI.Mode.IEEE;
+  if (ST.hasDX10ClampMode())
+    MFI->Mode.DX10Clamp = YamlMFI.Mode.DX10Clamp;
 
   // FIXME: Move proper support for denormal-fp-math into base MachineFunction
   MFI->Mode.FP32Denormals.Input = YamlMFI.Mode.FP32InputDenormals

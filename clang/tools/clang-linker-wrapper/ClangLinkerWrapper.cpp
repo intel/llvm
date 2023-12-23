@@ -255,7 +255,7 @@ Error runLinker(ArrayRef<StringRef> Files, const ArgList &Args) {
       continue;
 
     Arg->render(Args, NewLinkerArgs);
-    if (Arg->getOption().matches(OPT_o))
+    if (Arg->getOption().matches(OPT_o) || Arg->getOption().matches(OPT_out))
       llvm::transform(Files, std::back_inserter(NewLinkerArgs),
                       [&](StringRef Arg) { return Args.MakeArgString(Arg); });
   }
@@ -529,7 +529,7 @@ struct Table {
 
   SmallVector<std::string, 16> getListOfIRFiles(void) {
     SmallVector<std::string, 16> Files;
-    for (auto Entry : Entries) {
+    for (auto &Entry : Entries) {
       Files.push_back(Entry.IRFile);
     }
     return Files;
@@ -546,7 +546,7 @@ struct Table {
     if (EC)
       reportError(errorCodeToError(EC));
     TableFile << "[Code|Properties|Symbols]\n";
-    for (auto Entry : Entries) {
+    for (auto &Entry : Entries) {
       TableFile << Entry.IRFile << "|";
       TableFile << Entry.PropFile << "|";
       TableFile << Entry.SymFile << "\n";
@@ -742,7 +742,7 @@ Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMLinkPath);
-  for (auto File : InputFiles)
+  for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
@@ -885,11 +885,12 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     CmdArgs.push_back(Args.MakeArgString("--cuda-path=" + CudaBinaryPath));
 
   for (StringRef Arg : Args.getAllArgValues(OPT_ptxas_arg))
-    llvm::copy(SmallVector<StringRef>({"-Xcuda-ptxas", Arg}),
-               std::back_inserter(CmdArgs));
+    llvm::copy(
+        SmallVector<StringRef>({"-Xcuda-ptxas", Args.MakeArgString(Arg)}),
+        std::back_inserter(CmdArgs));
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
-    CmdArgs.push_back(Args.MakeArgString("-Wl," + Arg));
+    CmdArgs.push_back(Args.MakeArgString(Arg));
 
   for (StringRef Arg : Args.getAllArgValues(OPT_builtin_bitcode_EQ)) {
     if (llvm::Triple(Arg.split('=').first) == Triple)
@@ -979,7 +980,7 @@ void diagnosticHandler(const DiagnosticInfo &DI) {
 std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
   SmallVector<StringRef> Features;
   for (const OffloadFile &File : InputFiles) {
-    for (auto Arg : llvm::split(File.getBinary()->getString("feature"), ","))
+    for (auto &Arg : llvm::split(File.getBinary()->getString("feature"), ","))
       Features.emplace_back(Arg);
   }
 
@@ -1008,6 +1009,7 @@ std::unique_ptr<lto::LTO> createLTO(
 
   Conf.CPU = Arch.str();
   Conf.Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple);
+  Conf.Freestanding = true;
 
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   Conf.MAttrs = Features;
@@ -1666,7 +1668,7 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
 std::optional<std::string> findFile(StringRef Dir, StringRef Root,
                                     const Twine &Name) {
   SmallString<128> Path;
-  if (Dir.startswith("="))
+  if (Dir.starts_with("="))
     sys::path::append(Path, Root, Dir.substr(1), Name);
   else
     sys::path::append(Path, Dir, Name);
@@ -1703,7 +1705,7 @@ searchLibraryBaseName(StringRef Name, StringRef Root,
 /// `-lfoo` or `-l:libfoo.a`.
 std::optional<std::string> searchLibrary(StringRef Input, StringRef Root,
                                          ArrayRef<StringRef> SearchPaths) {
-  if (Input.startswith(":"))
+  if (Input.starts_with(":") || Input.ends_with(".lib"))
     return findFromSearchPaths(Input.drop_front(), Root, SearchPaths);
   return searchLibraryBaseName(Input, Root, SearchPaths);
 }
@@ -1854,7 +1856,7 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
 
   StringRef Root = Args.getLastArgValue(OPT_sysroot_EQ);
   SmallVector<StringRef> LibraryPaths;
-  for (const opt::Arg *Arg : Args.filtered(OPT_library_path))
+  for (const opt::Arg *Arg : Args.filtered(OPT_library_path, OPT_libpath))
     LibraryPaths.push_back(Arg->getValue());
 
   BumpPtrAllocator Alloc;
@@ -1863,7 +1865,7 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
   // Try to extract device code from the linker input files.
   SmallVector<OffloadFile> InputFiles;
   DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
-  bool WholeArchive = false;
+  bool WholeArchive = Args.hasArg(OPT_wholearchive_flag) ? true : false;
   for (const opt::Arg *Arg : Args.filtered(
            OPT_INPUT, OPT_library, OPT_whole_archive, OPT_no_whole_archive)) {
     if (Arg->getOption().matches(OPT_whole_archive) ||
@@ -2001,8 +2003,16 @@ int main(int Argc, char **Argv) {
   Verbose = Args.hasArg(OPT_verbose);
   DryRun = Args.hasArg(OPT_dry_run);
   SaveTemps = Args.hasArg(OPT_save_temps);
-  ExecutableName = Args.getLastArgValue(OPT_o, "a.out");
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
+
+  llvm::Triple Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  if (Args.hasArg(OPT_o))
+    ExecutableName = Args.getLastArgValue(OPT_o, "a.out");
+  else if (Args.hasArg(OPT_out))
+    ExecutableName = Args.getLastArgValue(OPT_out, "a.exe");
+  else
+    ExecutableName = Triple.isOSWindows() ? "a.exe" : "a.out";
 
   parallel::strategy = hardware_concurrency(1);
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {

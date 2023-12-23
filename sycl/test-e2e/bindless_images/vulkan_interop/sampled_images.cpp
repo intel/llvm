@@ -75,7 +75,7 @@ handles_t create_test_handles(
 
   // Extension: interop mem handle imported from file descriptor
   syclexp::image_mem_handle inputMappedMemHandle =
-      syclexp::map_external_memory_array(inputInteropMemHandle, desc, dev,
+      syclexp::map_external_image_memory(inputInteropMemHandle, desc, dev,
                                          ctxt);
 
   // Extension: create the image and return the handle
@@ -143,9 +143,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               size_t dim2 = it.get_global_id(2);
 
               // Normalize coordinates -- +0.5 to look towards centre of pixel
-              float fdim0 = float(dim0 + 0.5) / (float)width;
-              float fdim1 = float(dim1 + 0.5) / (float)height;
-              float fdim2 = float(dim2 + 0.5) / (float)depth;
+              float fdim0 = float(dim0 + 0.5f) / (float)width;
+              float fdim1 = float(dim1 + 0.5f) / (float)height;
+              float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
               // Extension: read image data from handle (Vulkan imported)
               VecType pixel;
@@ -160,8 +160,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               size_t dim1 = it.get_global_id(1);
 
               // Normalize coordinates -- +0.5 to look towards centre of pixel
-              float fdim0 = float(dim0 + 0.5) / (float)width;
-              float fdim1 = float(dim1 + 0.5) / (float)height;
+              float fdim0 = float(dim0 + 0.5f) / (float)width;
+              float fdim1 = float(dim1 + 0.5f) / (float)height;
 
               // Extension: read image data from handle (Vulkan imported)
               VecType pixel = syclexp::read_image<

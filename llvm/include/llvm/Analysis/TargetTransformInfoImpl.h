@@ -235,6 +235,8 @@ public:
 
   bool isNumRegsMajorCostOfLSR() const { return true; }
 
+  bool shouldFoldTerminatingConditionAfterLSR() const { return false; }
+
   bool isProfitableLSRChainElement(Instruction *I) const { return false; }
 
   bool canMacroFuseCmp() const { return false; }
@@ -707,6 +709,7 @@ public:
     case Intrinsic::coro_subfn_addr:
     case Intrinsic::threadlocal_address:
     case Intrinsic::experimental_widenable_condition:
+    case Intrinsic::ssa_copy:
       // These intrinsics don't actually represent code after lowering.
       return 0;
     }
@@ -800,6 +803,11 @@ public:
             Callee->getFnAttribute("target-cpu")) &&
            (Caller->getFnAttribute("target-features") ==
             Callee->getFnAttribute("target-features"));
+  }
+
+  unsigned getInlineCallPenalty(const Function *F, const CallBase &Call,
+                                unsigned DefaultCallPenalty) const {
+    return DefaultCallPenalty;
   }
 
   bool areTypesABICompatible(const Function *Caller, const Function *Callee,

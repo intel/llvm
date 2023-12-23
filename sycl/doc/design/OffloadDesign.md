@@ -7,7 +7,7 @@ the DPC++ Compiler.  This leverages the existing community Offloading
 design [OffloadingDesign][1] which covers the Clang driver and code generation
 steps for creating offloading applications.
 
-[1]: <../../../clang/docs/OffloadingDesign.rst>
+[1]: <https://github.com/intel/llvm/blob/clang/docs/OffloadingDesign.rst>
 
 The current offloading model is completely encapsulated within the Clang
 Compiler Driver requiring the driver to perform all of the additional steps

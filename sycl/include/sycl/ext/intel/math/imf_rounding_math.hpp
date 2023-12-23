@@ -23,6 +23,14 @@ float __imf_fmul_rz(float, float);
 float __imf_fmul_rn(float, float);
 float __imf_fmul_ru(float, float);
 float __imf_fmul_rd(float, float);
+float __imf_fdiv_rz(float, float);
+float __imf_fdiv_rn(float, float);
+float __imf_fdiv_ru(float, float);
+float __imf_fdiv_rd(float, float);
+float __imf_frcp_rz(float);
+float __imf_frcp_rn(float);
+float __imf_frcp_ru(float);
+float __imf_frcp_rd(float);
 
 double __imf_dadd_rz(double, double);
 double __imf_dadd_rn(double, double);
@@ -36,6 +44,14 @@ double __imf_dmul_rz(double, double);
 double __imf_dmul_rn(double, double);
 double __imf_dmul_ru(double, double);
 double __imf_dmul_rd(double, double);
+double __imf_ddiv_rz(double, double);
+double __imf_ddiv_rn(double, double);
+double __imf_ddiv_ru(double, double);
+double __imf_ddiv_rd(double, double);
+double __imf_drcp_rz(double);
+double __imf_drcp_rn(double);
+double __imf_drcp_ru(double);
+double __imf_drcp_rd(double);
 };
 
 namespace sycl {
@@ -90,6 +106,30 @@ template <typename Tp = float> Tp fmul_rz(Tp x, Tp y) {
   return __imf_fmul_rz(x, y);
 }
 
+template <typename Tp = float> Tp fdiv_rd(Tp x, Tp y) {
+  return __imf_fdiv_rd(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_rn(Tp x, Tp y) {
+  return __imf_fdiv_rn(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_ru(Tp x, Tp y) {
+  return __imf_fdiv_ru(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_rz(Tp x, Tp y) {
+  return __imf_fdiv_rz(x, y);
+}
+
+template <typename Tp = float> Tp frcp_rd(Tp x) { return __imf_frcp_rd(x); }
+
+template <typename Tp = float> Tp frcp_rn(Tp x) { return __imf_frcp_rn(x); }
+
+template <typename Tp = float> Tp frcp_ru(Tp x) { return __imf_frcp_ru(x); }
+
+template <typename Tp = float> Tp frcp_rz(Tp x) { return __imf_frcp_rz(x); }
+
 template <typename Tp = double> Tp dadd_rd(Tp x, Tp y) {
   return __imf_dadd_rd(x, y);
 }
@@ -137,6 +177,30 @@ template <typename Tp = double> Tp dmul_ru(Tp x, Tp y) {
 template <typename Tp = double> Tp dmul_rz(Tp x, Tp y) {
   return __imf_dmul_rz(x, y);
 }
+
+template <typename Tp = double> Tp ddiv_rd(Tp x, Tp y) {
+  return __imf_ddiv_rd(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_rn(Tp x, Tp y) {
+  return __imf_ddiv_rn(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_ru(Tp x, Tp y) {
+  return __imf_ddiv_ru(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_rz(Tp x, Tp y) {
+  return __imf_ddiv_rz(x, y);
+}
+
+template <typename Tp = double> Tp drcp_rd(Tp x) { return __imf_drcp_rd(x); }
+
+template <typename Tp = double> Tp drcp_rn(Tp x) { return __imf_drcp_rn(x); }
+
+template <typename Tp = double> Tp drcp_ru(Tp x) { return __imf_drcp_ru(x); }
+
+template <typename Tp = double> Tp drcp_rz(Tp x) { return __imf_drcp_rz(x); }
 } // namespace ext::intel::math
 } // namespace _V1
 } // namespace sycl

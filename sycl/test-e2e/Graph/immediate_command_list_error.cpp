@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
@@ -17,6 +17,10 @@ int main() {
       QueueImmediate.get_context(),
       QueueImmediate.get_device(),
       {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(QueueNoImmediate)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{QueueNoImmediate.get_context(),
                                QueueNoImmediate.get_device()};

@@ -521,6 +521,51 @@ joint_matrix_store(Group,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
+template <
+    typename Group, typename T, typename Tp,
+    sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
+    size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+    typename PropertyListT,
+    std::enable_if_t<Use == sycl::ext::oneapi::experimental::matrix::use::a ||
+                         Use == sycl::ext::oneapi::experimental::matrix::use::b,
+                     bool> = true>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group,
+    const sycl::ext::oneapi::experimental::matrix::joint_matrix<
+        Group, Tp, Use, NumRows, NumCols, Layout> &src,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dst,
+    size_t stride) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
+  throw runtime_error(
+      "This version of the matrix extension is only currently supported on "
+      "intel devices",
+      PI_ERROR_INVALID_DEVICE);
+#else
+  // intel's impl
+  T *Ptr = dst.get();
+  __spirv_JointMatrixStoreINTEL<T, Tp, NumRows, NumCols,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_use_traits<Use>::value,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_layout_traits<Layout>::value>(
+      Ptr, src.spvm, stride,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 template <typename Group, typename T,
           sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
           size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout,
@@ -533,8 +578,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
-    lambda(jm.cuda_impl.wi_marray[i]);
+  for (int i = 0; i < jm.matrix_impl.wi_marray.size(); i++) {
+    lambda(jm.matrix_impl.wi_marray[i]);
   }
 #else // NVPTX
   using storage_element_type =

@@ -234,13 +234,12 @@ static FusionInsertPoints addGuard(IRBuilderBase &Builder,
   return {Entry, CallInsertion, Exit};
 }
 
-static Expected<CallInst *>
-createFusionCall(IRBuilderBase &Builder, Function *F,
-                 ArrayRef<Value *> CallArgs,
-                 const jit_compiler::NDRange &SrcNDRange,
-                 const jit_compiler::NDRange &FusedNDRange, bool IsLast,
-                 int BarriersFlags, jit_compiler::Remapper &Remapper,
-                 bool ShouldRemap, TargetFusionInfo &TargetInfo) {
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast,
+    jit_compiler::BarrierFlags BarriersFlags, jit_compiler::Remapper &Remapper,
+    bool ShouldRemap, TargetFusionInfo &TargetInfo) {
   const auto IPs =
       addGuard(Builder, TargetInfo, SrcNDRange, FusedNDRange, IsLast);
 
@@ -255,6 +254,8 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   // Insert call
   Builder.SetInsertPoint(IPs.CallInsertion);
   auto *Res = Builder.CreateCall(F, CallArgs);
+  Res->setCallingConv(F->getCallingConv());
+  Res->setAttributes(F->getAttributes());
   {
     // If we have introduced a guard, branch to barrier.
     auto *BrTarget = IPs.Exit;
@@ -266,7 +267,7 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   Builder.SetInsertPoint(IPs.Exit);
 
   // Insert barrier if needed
-  if (!IsLast && BarriersFlags > 0) {
+  if (!IsLast && !jit_compiler::isNoBarrierFlag(BarriersFlags)) {
     TargetInfo.createBarrierCall(Builder, BarriersFlags);
   }
 
@@ -491,6 +492,8 @@ Error SYCLKernelFusion::fuseKernel(
                ParamMapping, DefaultInternalizationVal);
     copyArgsMD(LLVMCtx, SYCLInternalizer::LocalSizeKey, StubFunction,
                *FusedFunction, ParamMapping);
+    copyArgsMD(LLVMCtx, SYCLInternalizer::ElemSizeKey, StubFunction,
+               *FusedFunction, ParamMapping);
     // and JIT constants
     copyArgsMD(LLVMCtx, SYCLCP::Key, StubFunction, *FusedFunction,
                ParamMapping);
@@ -585,11 +588,13 @@ Error SYCLKernelFusion::fuseKernel(
       // InlineFunction(...) will leave the program in a well-defined state
       // in case it fails, and calling the function is still semantically
       // correct, although it might hinder some optimizations across the borders
-      // of the fused functions.
-      FUSION_DEBUG(llvm::dbgs()
-                   << "WARNING: Inlining of "
-                   << InlineCall->getCalledFunction()->getName()
-                   << " failed due to: " << InlineRes.getFailureReason());
+      // of the fused functions. We need to prevent deletion of the called
+      // function, though.
+      auto *Callee = InlineCall->getCalledFunction();
+      FUSION_DEBUG(llvm::dbgs() << "WARNING: Inlining of " << Callee->getName()
+                                << " failed due to: "
+                                << InlineRes.getFailureReason() << '\n');
+      ToCleanUp.erase(Callee);
     }
   }
 

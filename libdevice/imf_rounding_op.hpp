@@ -627,4 +627,236 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
       Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
               (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
 }
+
+template <typename UTy> static UTy fra_uint_div(UTy x, UTy y, unsigned nbits) {
+  UTy res = 0;
+  unsigned iters = 0;
+  if (x == 0)
+    return 0x0;
+  while (iters < nbits) {
+    res = res << 1;
+    x = x << 1;
+    if (x > y) {
+      x = x - y;
+      res = res | 0x1;
+    } else if (x == y) {
+      res = res | 0x1;
+      res = res << (nbits - iters - 1);
+      return res;
+    } else {
+    }
+    iters++;
+  }
+  res = res | 0x1;
+  return res;
+}
+
+template <typename Ty> Ty __fp_div(Ty x, Ty y, int rd) {
+  typedef typename __iml_fp_config<Ty>::utype UTy;
+  typedef typename __iml_fp_config<Ty>::stype STy;
+  UTy x_bit = __builtin_bit_cast(UTy, x);
+  UTy y_bit = __builtin_bit_cast(UTy, y);
+  UTy x_exp = (x_bit >> (std::numeric_limits<Ty>::digits - 1)) &
+              __iml_fp_config<Ty>::exp_mask;
+  UTy y_exp = (y_bit >> (std::numeric_limits<Ty>::digits - 1)) &
+              __iml_fp_config<Ty>::exp_mask;
+  UTy x_fra = x_bit & __iml_fp_config<Ty>::fra_mask;
+  UTy y_fra = y_bit & __iml_fp_config<Ty>::fra_mask;
+  UTy x_sig = x_bit >> ((sizeof(Ty) * 8) - 1);
+  UTy y_sig = y_bit >> ((sizeof(Ty) * 8) - 1);
+  UTy z_sig = x_sig ^ y_sig;
+  UTy z_exp = 0x0, z_fra = 0x0;
+  const UTy one_bits = 0x1;
+  const UTy sig_off_mask = (one_bits << (sizeof(UTy) * 8 - 1)) - 1;
+
+  if (((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra != 0x0)) ||
+      ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra != 0x0)) ||
+      ((y_bit & sig_off_mask) == 0x0)) {
+    UTy tmp = __iml_fp_config<Ty>::nan_bits;
+    return __builtin_bit_cast(Ty, tmp);
+  }
+
+  if ((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra == 0x0)) {
+    if ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra == 0x0)) {
+      UTy tmp = __iml_fp_config<Ty>::nan_bits;
+      return __builtin_bit_cast(Ty, tmp);
+    } else {
+      UTy tmp =
+          (z_sig << (sizeof(Ty) * 8 - 1)) | __iml_fp_config<Ty>::pos_inf_bits;
+      return __builtin_bit_cast(Ty, tmp);
+    }
+  }
+
+  if ((x_bit & sig_off_mask) == 0x0)
+    return __builtin_bit_cast(Ty, (z_sig << (sizeof(UTy) * 8 - 1)) | 0x0);
+
+  if ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra == 0x0))
+    return __builtin_bit_cast(Ty, (z_sig << (sizeof(UTy) * 8 - 1)) | 0x0);
+
+  int sx_exp = x_exp, sy_exp = y_exp;
+  sx_exp = (sx_exp == 0) ? (1 - __iml_fp_config<Ty>::bias)
+                         : (sx_exp - __iml_fp_config<Ty>::bias);
+  sy_exp = (sy_exp == 0) ? (1 - __iml_fp_config<Ty>::bias)
+                         : (sy_exp - __iml_fp_config<Ty>::bias);
+  int exp_diff = sx_exp - sy_exp;
+  if (x_exp != 0x0)
+    x_fra = (one_bits << (std::numeric_limits<Ty>::digits - 1)) | x_fra;
+  if (y_exp != 0x0)
+    y_fra = (one_bits << (std::numeric_limits<Ty>::digits - 1)) | y_fra;
+
+  if (x_fra >= y_fra) {
+    // x_fra / y_fra max value for fp32 is 0xFFFFFF when x is normal
+    // and y is subnormal, so msb_pos max value is 23
+    UTy tmp = x_fra / y_fra;
+    UTy fra_rem = x_fra - y_fra * tmp;
+    int msb_pos = get_msb_pos(tmp);
+    int tmp2 = exp_diff + msb_pos;
+    if (tmp2 > __iml_fp_config<Ty>::bias)
+      return __handling_fp_overflow<Ty>(z_sig, rd);
+
+    if (tmp2 >= (1 - __iml_fp_config<Ty>::bias)) {
+      // Fall into normal floating point range
+      z_exp = tmp2 + __iml_fp_config<Ty>::bias;
+      // For fp32, starting msb_pos bits in fra comes from tmp and we need
+      // 23 - msb_pos( + grs) more bits from fraction division.
+      z_fra = ((one_bits << msb_pos) - 1) & tmp;
+      z_fra = z_fra << ((std::numeric_limits<Ty>::digits - 1) - msb_pos);
+      UTy fra_bits_quo = fra_uint_div(
+          fra_rem, y_fra, std::numeric_limits<Ty>::digits - msb_pos + 2);
+      z_fra = z_fra | (fra_bits_quo >> 3);
+      int rb = __handling_rounding(z_sig, z_fra, fra_bits_quo & 0x7, rd);
+      if (rb != 0) {
+        z_fra++;
+        if (z_fra > __iml_fp_config<Ty>::fra_mask) {
+          z_exp++;
+          if (z_exp == __iml_fp_config<Ty>::exp_mask)
+            return __handling_fp_overflow<Ty>(z_sig, rd);
+        }
+      }
+      return __builtin_bit_cast(
+          Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
+                  (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
+    }
+
+    // orignal value can be represented as (0.1xxxx.... * 2^tmp2)
+    // which is equivalent to 0.00000...1xxxxx * 2^(-126)
+    tmp2 = tmp2 + 1;
+    if ((tmp2 + std::numeric_limits<Ty>::digits - 1) <=
+        (1 - __iml_fp_config<Ty>::bias)) {
+      bool above_half = false;
+      if ((tmp2 + std::numeric_limits<Ty>::digits - 1) ==
+          (1 - __iml_fp_config<Ty>::bias))
+        above_half =
+            !((x_fra == y_fra * tmp) && (tmp == (one_bits << msb_pos)));
+      return __handling_fp_underflow<Ty, UTy>(z_sig, rd, above_half);
+    } else {
+      int rb;
+      // Fall into subnormal floating point range. For fp32, there are -126 -
+      // tmp2 leading zeros in final fra and we need get 23 + 126 + tmp2( + grs)
+      // bits from fraction division.
+      if (msb_pos >= (std::numeric_limits<Ty>::digits +
+                      __iml_fp_config<Ty>::bias + tmp2)) {
+        unsigned fra_discard_bits = msb_pos + 3 - __iml_fp_config<Ty>::bias -
+                                    std::numeric_limits<Ty>::digits - tmp2;
+        z_fra = tmp >> fra_discard_bits;
+        int grs_bits = (tmp >> (fra_discard_bits - 3)) & 0x7;
+        if ((grs_bits & 0x1) == 0x0) {
+          if ((tmp & ((0x1 << (fra_discard_bits - 3)) - 0x1)) || (fra_rem != 0))
+            grs_bits = grs_bits | 0x1;
+        }
+        rb = __handling_rounding(z_sig, z_fra, grs_bits, rd);
+      } else {
+        // For fp32, we need to get (23 + 126 + tmp2 + 3) - (msb_pos + 1) bits
+        // from fra division and the last bit is sticky bit.
+        z_fra = tmp;
+        unsigned fra_get_bits = std::numeric_limits<Ty>::digits +
+                                __iml_fp_config<Ty>::bias + tmp2 - msb_pos;
+        z_fra = z_fra << fra_get_bits;
+        UTy fra_bits_quo = fra_uint_div(fra_rem, y_fra, fra_get_bits);
+        z_fra = z_fra | fra_bits_quo;
+        int grs_bits = z_fra & 0x7;
+        z_fra = z_fra >> 3;
+        rb = __handling_rounding(z_sig, z_fra, grs_bits, rd);
+      }
+      if (rb != 0) {
+        z_fra++;
+        if (z_fra > __iml_fp_config<Ty>::fra_mask) {
+          z_exp++;
+          z_fra = 0x0;
+        }
+      }
+      return __builtin_bit_cast(
+          Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
+                  (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
+    }
+  } else {
+    // x_fra < y_fra, the final result can be represented as
+    // (2^exp_diff) * 0.000...01xxxxx
+    unsigned lz = 0;
+    UTy x_tmp = x_fra;
+    x_tmp = x_tmp << 1;
+    while (x_tmp < y_fra) {
+      lz++;
+      x_tmp = x_tmp << 1;
+    }
+    // x_fra < y_fra, the final result can be represented as
+    // (2^exp_diff) * 0.000...01xxxxx... which is equivalent to
+    // 2 ^ (exp_diff - lz - 1) * 1.xxxxx...
+    int nor_exp = exp_diff - lz - 1;
+    if (nor_exp > __iml_fp_config<Ty>::bias)
+      return __handling_fp_overflow<Ty>(z_sig, rd);
+
+    if (nor_exp >= (1 - __iml_fp_config<Ty>::bias)) {
+      z_exp = nor_exp + __iml_fp_config<Ty>::bias;
+      x_fra = x_fra << lz;
+      UTy fra_bits_quo =
+          fra_uint_div(x_fra, y_fra, 3 + std::numeric_limits<Ty>::digits);
+      z_fra = (fra_bits_quo >> 3) & __iml_fp_config<Ty>::fra_mask;
+      int grs_bits = fra_bits_quo & 0x7;
+      int rb = __handling_rounding(z_sig, z_fra, grs_bits, rd);
+      if (rb != 0x0) {
+        z_fra++;
+        if (z_fra > __iml_fp_config<Ty>::fra_mask) {
+          z_exp++;
+          z_fra = 0x0;
+          if (z_exp == __iml_fp_config<Ty>::exp_mask)
+            return __handling_fp_overflow<Ty>(z_sig, rd);
+        }
+      }
+      return __builtin_bit_cast(
+          Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
+                  (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
+    }
+
+    // Fall into subnormal range or underflow happens. For fp32,
+    // nor_exp < -126, so (-126 - exp_diff + lz + 1) > 0 which means
+    // (lz - exp_diff - 126) >= 0
+    unsigned lzs = lz - __iml_fp_config<Ty>::bias - exp_diff + 1;
+    if (lzs >= (std::numeric_limits<Ty>::digits - 1)) {
+      bool above_half = false;
+      if (lzs == (std::numeric_limits<Ty>::digits - 1)) {
+        if ((x_fra << (lz + 1)) > y_fra)
+          above_half = true;
+      }
+      return __handling_fp_underflow<Ty>(z_sig, rd, above_half);
+    } else {
+      x_fra = x_fra << lz;
+      UTy fra_bits_quo =
+          fra_uint_div(x_fra, y_fra, std::numeric_limits<Ty>::digits - lzs + 2);
+      z_fra = fra_bits_quo >> 3;
+      int grs_bits = fra_bits_quo & 0x7;
+      int rb = __handling_rounding(z_sig, z_fra, grs_bits, rd);
+      if (rb != 0x0) {
+        z_fra++;
+        if (z_fra > __iml_fp_config<Ty>::fra_mask) {
+          z_exp++;
+          z_fra = 0x0;
+        }
+      }
+      return __builtin_bit_cast(
+          Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
+                  (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
+    }
+  }
+}
 #endif
