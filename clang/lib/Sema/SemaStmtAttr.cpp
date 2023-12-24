@@ -989,8 +989,8 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 
   while (Attrs.end() != (LastFoundItr = std::find_if(LastFoundItr + 1,
                                                      Attrs.end(), FindFunc))) {
-    const auto *CASA = dyn_cast<ConstantExpr>(
-        cast<LoopAttrT>(*LastFoundItr)->getNExpr());
+    const auto *CASA =
+        dyn_cast<ConstantExpr>(cast<LoopAttrT>(*LastFoundItr)->getNExpr());
     // If the value is dependent, we can not test anything.
     if (!CASA)
       return;
@@ -1023,8 +1023,7 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(
-      S, Attrs);
+  CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelEnableLoopPipeliningAttr>(
       S, Attrs);
 }
