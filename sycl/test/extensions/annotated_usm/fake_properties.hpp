@@ -89,14 +89,14 @@ template <> struct property_value<foz_key> {
   bool value2;
 };
 
-#define rt_prop(N) \
-struct rt_prop ## N ## _key { \
-  using value_t = property_value<rt_prop ## N ## _key>; \
-}; \
-using rt_prop ## N = property_value<rt_prop ## N ## _key>; \
-template <> struct property_value<rt_prop ## N ## _key> { \
-using key_t = rt_prop ## N ## _key; \
-}
+#define rt_prop(N)                                                             \
+  struct rt_prop##N##_key {                                                    \
+    using value_t = property_value<rt_prop##N##_key>;                          \
+  };                                                                           \
+  using rt_prop##N = property_value<rt_prop##N##_key>;                         \
+  template <> struct property_value<rt_prop##N##_key> {                        \
+    using key_t = rt_prop##N##_key;                                            \
+  }
 
 rt_prop(1);
 rt_prop(2);
