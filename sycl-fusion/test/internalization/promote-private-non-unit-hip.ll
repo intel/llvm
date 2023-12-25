@@ -65,55 +65,55 @@ define amdgpu_kernel void @fused_0(ptr addrspace(1) noundef align 16 %_ZTSZZ4mai
 ; CHECK:           ret void
 ;
 entry:
-  %add.ptr.i.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7
+  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7
   %add.ptr.i82.i = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn35, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn.coerce17
   %add.ptr.i85.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp239, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce28
   %0 = call i32 @llvm.amdgcn.workgroup.id.x()
-  %conv.i1.i.i.i.i.i.i.i = zext i32 %0 to i64
+  %conv.i1.j7 = zext i32 %0 to i64
   %1 = call align 4 dereferenceable(64) ptr addrspace(4) @llvm.amdgcn.dispatch.ptr()
-  %arrayidx.i.i.i.i.i.i.i.i = getelementptr inbounds i16, ptr addrspace(4) %1, i64 2
-  %2 = load i16, ptr addrspace(4) %arrayidx.i.i.i.i.i.i.i.i, align 4
-  %conv.i.i.i.i.i.i.i.i = zext i16 %2 to i64
-  %mul.i.i.i.i.i.i.i = mul nuw nsw i64 %conv.i.i.i.i.i.i.i.i, %conv.i1.i.i.i.i.i.i.i
+  %arrayidx.j8 = getelementptr inbounds i16, ptr addrspace(4) %1, i64 2
+  %2 = load i16, ptr addrspace(4) %arrayidx.j8, align 4
+  %conv.j8 = zext i16 %2 to i64
+  %mul.j7 = mul nuw nsw i64 %conv.j8, %conv.i1.j7
   %3 = call i32 @llvm.amdgcn.workitem.id.x(), !range !20, !noundef !21
-  %conv.i2.i.i.i.i.i.i.i = zext nneg i32 %3 to i64
-  %add.i.i.i.i.i.i.i = add nuw nsw i64 %mul.i.i.i.i.i.i.i, %conv.i2.i.i.i.i.i.i.i
+  %conv.i2.j7 = zext nneg i32 %3 to i64
+  %add.j7 = add nuw nsw i64 %mul.j7, %conv.i2.j7
   %4 = call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
   %5 = load i32, ptr addrspace(5) %4, align 4
-  %zext.i.i.i.i.i.i.i.i = zext i32 %5 to i64
-  %add4.i.i.i.i.i.i.i = add nuw nsw i64 %add.i.i.i.i.i.i.i, %zext.i.i.i.i.i.i.i.i
-  %mul.i.i = mul nuw nsw i64 %add4.i.i.i.i.i.i.i, 3
-  %add.i.i = add nuw nsw i64 %mul.i.i, 1
-  %arrayidx.i.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i82.i, i64 %add.i.i
-  %6 = load i32, ptr addrspace(1) %arrayidx.i.i, align 4
-  %v.i.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.i.i, i64 %add.i.i, i32 1
-  %arrayidx.i.i.i = getelementptr inbounds i32, ptr addrspace(1) %v.i.i, i64 1
-  store i32 %6, ptr addrspace(1) %arrayidx.i.i.i, align 4
-  %conv.i.i = trunc i32 %6 to i8
-  %arrayidx.i104.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i85.i, i64 %add.i.i
-  store i8 %conv.i.i, ptr addrspace(1) %arrayidx.i104.i, align 1
+  %zext.j8 = zext i32 %5 to i64
+  %add4.j7 = add nuw nsw i64 %add.j7, %zext.j8
+  %mul.j2 = mul nuw nsw i64 %add4.j7, 3
+  %add.j2 = add nuw nsw i64 %mul.j2, 1
+  %arrayidx.j2 = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i82.i, i64 %add.j2
+  %6 = load i32, ptr addrspace(1) %arrayidx.j2, align 4
+  %v.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.j2, i64 %add.j2, i32 1
+  %arrayidx.j3 = getelementptr inbounds i32, ptr addrspace(1) %v.j2, i64 1
+  store i32 %6, ptr addrspace(1) %arrayidx.j3, align 4
+  %conv.j2 = trunc i32 %6 to i8
+  %arrayidx.i104.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i85.i, i64 %add.j2
+  store i8 %conv.j2, ptr addrspace(1) %arrayidx.i104.i, align 1
   %add.ptr.i.i1 = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut30, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut.coerce7
   %add.ptr.i81.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7
   %add.ptr.i84.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp239, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce28
   %7 = call i32 @llvm.amdgcn.workgroup.id.x()
-  %conv.i1.i.i.i.i.i.i.i2 = zext i32 %7 to i64
+  %conv.i1.j6.i2 = zext i32 %7 to i64
   %8 = call align 4 dereferenceable(64) ptr addrspace(4) @llvm.amdgcn.dispatch.ptr()
-  %arrayidx.i.i.i.i.i.i.i.i3 = getelementptr inbounds i16, ptr addrspace(4) %8, i64 2
-  %9 = load i16, ptr addrspace(4) %arrayidx.i.i.i.i.i.i.i.i3, align 4
-  %conv.i.i.i.i.i.i.i.i4 = zext i16 %9 to i64
-  %mul.i.i.i.i.i.i.i5 = mul nuw nsw i64 %conv.i.i.i.i.i.i.i.i4, %conv.i1.i.i.i.i.i.i.i2
+  %arrayidx.j7.i3 = getelementptr inbounds i16, ptr addrspace(4) %8, i64 2
+  %9 = load i16, ptr addrspace(4) %arrayidx.j7.i3, align 4
+  %conv.j7.i4 = zext i16 %9 to i64
+  %mul.j6.i5 = mul nuw nsw i64 %conv.j7.i4, %conv.i1.j6.i2
   %10 = call i32 @llvm.amdgcn.workitem.id.x(), !range !20, !noundef !21
-  %conv.i2.i.i.i.i.i.i.i6 = zext nneg i32 %10 to i64
-  %add.i.i.i.i.i.i.i7 = add nuw nsw i64 %mul.i.i.i.i.i.i.i5, %conv.i2.i.i.i.i.i.i.i6
+  %conv.i2.j6.i6 = zext nneg i32 %10 to i64
+  %add.j6.i7 = add nuw nsw i64 %mul.j6.i5, %conv.i2.j6.i6
   %11 = call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
   %12 = load i32, ptr addrspace(5) %11, align 4
-  %zext.i.i.i.i.i.i.i.i8 = zext i32 %12 to i64
-  %add4.i.i.i.i.i.i.i9 = add nuw nsw i64 %add.i.i.i.i.i.i.i7, %zext.i.i.i.i.i.i.i.i8
-  %mul.i.i11 = mul nuw nsw i64 %add4.i.i.i.i.i.i.i9, 3
+  %zext.j7.i8 = zext i32 %12 to i64
+  %add4.j6.i9 = add nuw nsw i64 %add.j6.i7, %zext.j7.i8
+  %mul.i.i11 = mul nuw nsw i64 %add4.j6.i9, 3
   %add.i87.i = add nuw nsw i64 %mul.i.i11, 1
   %v.i.i12 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.i81.i, i64 %add.i87.i, i32 1
-  %arrayidx.i.i.i13 = getelementptr inbounds i32, ptr addrspace(1) %v.i.i12, i64 1
-  %13 = load i32, ptr addrspace(1) %arrayidx.i.i.i13, align 4
+  %arrayidx.j2.i13 = getelementptr inbounds i32, ptr addrspace(1) %v.i.i12, i64 1
+  %13 = load i32, ptr addrspace(1) %arrayidx.j2.i13, align 4
   %arrayidx.i92.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i84.i, i64 %add.i87.i
   %14 = load i8, ptr addrspace(1) %arrayidx.i92.i, align 1
   %conv.i.i14 = sext i8 %14 to i32

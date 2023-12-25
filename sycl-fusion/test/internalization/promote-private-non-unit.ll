@@ -58,26 +58,26 @@ entry:
   %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2103.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp210, align 8
   %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn62.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn6, align 8
   %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp3, align 8
-  %add.ptr.i.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31.sroa.0.0.copyload
+  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31.sroa.0.0.copyload
   %add.ptr.i35.i = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn62.sroa.0.0.copyload
   %add.ptr.i44.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp27, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2103.sroa.0.0.copyload
   %0 = tail call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #3
-  %mul.i.i = mul nuw nsw i64 %0, 3
-  %add.i.i = add nuw nsw i64 %mul.i.i, 1
-  %arrayidx.i.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i35.i, i64 %add.i.i
-  %1 = load i32, ptr addrspace(1) %arrayidx.i.i, align 4
-  %arrayidx.i54.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.i.i, i64 %add.i.i
-  %arrayidx.i.i.i = getelementptr inbounds i8, ptr addrspace(1) %arrayidx.i54.i, i64 20
-  store i32 %1, ptr addrspace(1) %arrayidx.i.i.i, align 4
-  %conv.i.i = trunc i32 %1 to i8
-  %arrayidx.i70.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i44.i, i64 %add.i.i
-  store i8 %conv.i.i, ptr addrspace(1) %arrayidx.i70.i, align 1
+  %mul.j2 = mul nuw nsw i64 %0, 3
+  %add.j2 = add nuw nsw i64 %mul.j2, 1
+  %arrayidx.j2 = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i35.i, i64 %add.j2
+  %1 = load i32, ptr addrspace(1) %arrayidx.j2, align 4
+  %arrayidx.i54.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %add.ptr.j2, i64 %add.j2
+  %arrayidx.j3 = getelementptr inbounds i8, ptr addrspace(1) %arrayidx.i54.i, i64 20
+  store i32 %1, ptr addrspace(1) %arrayidx.j3, align 4
+  %conv.j2 = trunc i32 %1 to i8
+  %arrayidx.i70.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i44.i, i64 %add.j2
+  store i8 %conv.j2, ptr addrspace(1) %arrayidx.i70.i, align 1
   %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut34.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut3, align 8
   %add.ptr.i.i7 = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut34.sroa.0.0.copyload
-  %2 = load i32, ptr addrspace(1) %arrayidx.i.i.i, align 4
-  %conv.i.i13 = sext i8 %conv.i.i to i32
+  %2 = load i32, ptr addrspace(1) %arrayidx.j3, align 4
+  %conv.i.i13 = sext i8 %conv.j2 to i32
   %add.i.i14 = add nsw i32 %2, %conv.i.i13
-  %arrayidx.i62.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i.i7, i64 %add.i.i
+  %arrayidx.i62.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i.i7, i64 %add.j2
   store i32 %add.i.i14, ptr addrspace(1) %arrayidx.i62.i, align 4
   ret void
 }
