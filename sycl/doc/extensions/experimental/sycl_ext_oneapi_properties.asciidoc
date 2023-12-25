@@ -155,7 +155,6 @@ struct foo_key {
 // The name of the property value class is the the name of the property without any suffix.
 using foo = property_value<foo_key>;
 template <> struct property_value<foo_key> {
-  using key_t = foo_key;
   constexpr property_value(int v) : value(v) {}
   int value;
 };
@@ -233,10 +232,10 @@ template<typename V, typename O, typename=void> struct is_property_value_of;
 template<typename V> struct is_property_value<V, std::enable_if_t<(sizeof(V)>0)>> : is_property_key<V> {};
 template<typename V, typename O> struct is_property_value_of<V, O, std::enable_if_t<(sizeof(V)>0)>> : is_property_key_of<V,O> {};
 // Specialization for compile-time-constant properties
-template<typename V> struct is_property_value<V, std::void_t<typename V::key_t>> :
-  is_property_key<typename V::key_t> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<typename V::key_t>> :
-  is_property_key_of<typename V::key_t, O> {};
+template<typename V> struct is_property_value<V, std::void_t<key_from_value<V>>> : //key_from_value is exposition only
+  is_property_key<key_from_value<V>> {};
+template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<key_from_value<V>>> :
+  is_property_key_of<key_from_value<V>, O> {};
 
 } // namespace experimental::oneapi::ext::sycl
 ```
@@ -255,9 +254,6 @@ namespace sycl::ext::oneapi::experimental {
 
 template<typename Property, typename First, typename...Others>
 struct property_value {
-  // Alias of the property key type
-  using key_t = Property;
-
   // Each property with multi-parameter property_value must define template 
   // specializations for accessing the parameters.
 
@@ -290,11 +286,6 @@ using value_t = First;
 | Available only when there is exactly one parameter.  When the parameter's value is a type, `value_t`
 is that type.  When the parameter's value is a non-type, `value_t` is an implementation-defined type
 with a member constant `value` equal to the value.
-a|
-```c++
-using key_t = property;
-```
-| The property key type.
 |===
 --
 

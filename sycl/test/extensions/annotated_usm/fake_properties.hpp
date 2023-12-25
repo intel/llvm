@@ -74,7 +74,6 @@ struct foo_key {
 };
 using foo = property_value<foo_key>;
 template <> struct property_value<foo_key> {
-  using key_t = foo_key;
   constexpr property_value(foo_enum v) : value(v) {}
   foo_enum value;
 };
@@ -84,7 +83,6 @@ struct foz_key {
 };
 using foz = property_value<foz_key>;
 template <> struct property_value<foz_key> {
-  using key_t = foz_key;
   float value1;
   bool value2;
 };
@@ -95,7 +93,6 @@ template <> struct property_value<foz_key> {
   };                                                                           \
   using rt_prop##N = property_value<rt_prop##N##_key>;                         \
   template <> struct property_value<rt_prop##N##_key> {                        \
-    using key_t = rt_prop##N##_key;                                            \
   }
 
 rt_prop(1);

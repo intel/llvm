@@ -34,12 +34,22 @@ struct PropertyValueBase<T> : public detail::SingleNontypePropertyValueBase<T> {
   using value_t = T;
 };
 
+// Get property key from value. Key is always first template argument.
+template <class T>
+using key_from_value = sycl::detail::boost::mp11::mp_front<T>;
+
+template <class T>
+using key_from_value_ignore_const = key_from_value<std::remove_const_t<T>>;
+
+// Return void if not a valid value
+template <class T>
+using key_from_value_or_void =
+    sycl::detail::boost::mp11::mp_eval_or<void, key_from_value_ignore_const, T>;
+
 } // namespace detail
 
 template <typename PropertyT, typename... Ts>
-struct property_value : public detail::PropertyValueBase<Ts...> {
-  using key_t = PropertyT;
-};
+struct property_value : public detail::PropertyValueBase<Ts...> {};
 
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
@@ -56,18 +66,11 @@ operator!=(const property_value<PropertyT, A...> &,
            const property_value<PropertyT, B...> &) {
   return (!std::is_same<A, B>::value || ...);
 }
-
-template <typename V, typename = void>
-struct is_property_value : std::false_type {};
-template <typename V, typename O, typename = void>
-struct is_property_value_of : std::false_type {};
-// Specialization for properties
 template <typename V>
-struct is_property_value<V, std::void_t<typename V::key_t>>
-    : is_property_key<typename V::key_t> {};
+using is_property_value = is_property_key<detail::key_from_value_or_void<V>>;
+
 template <typename V, typename O>
-struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
-    : is_property_key_of<typename V::key_t, O> {};
+using is_property_value_of = is_property_key_of<detail::key_from_value_or_void<V>, O>;
 
 namespace detail {
 

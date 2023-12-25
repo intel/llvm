@@ -67,8 +67,6 @@ struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
   static_assert(detail::AllNonZero<Dim0, Dims...>::value,
                 "work_group_size property must only contain non-zero values.");
 
-  using key_t = work_group_size_key;
-
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
@@ -85,8 +83,6 @@ struct property_value<work_group_size_hint_key,
       detail::AllNonZero<Dim0, Dims...>::value,
       "work_group_size_hint property must only contain non-zero values.");
 
-  using key_t = work_group_size_hint_key;
-
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
@@ -98,7 +94,6 @@ struct property_value<sub_group_size_key,
   static_assert(Size != 0,
                 "sub_group_size_key property must contain a non-zero value.");
 
-  using key_t = sub_group_size_key;
   using value_t = std::integral_constant<uint32_t, Size>;
   static constexpr uint32_t value = Size;
 };
@@ -106,7 +101,6 @@ struct property_value<sub_group_size_key,
 template <aspect... Aspects>
 struct property_value<device_has_key,
                       std::integral_constant<aspect, Aspects>...> {
-  using key_t = device_has_key;
   static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
 };
 

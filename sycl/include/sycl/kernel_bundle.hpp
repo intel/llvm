@@ -818,7 +818,6 @@ struct build_options_key {
 };
 using build_options = property_value<build_options_key>;
 template <> struct property_value<build_options_key> {
-  using key_t = build_options_key;
   std::vector<std::string> opts;
   property_value(const std::string &optsArg) : opts{optsArg} {}
   property_value(const std::vector<std::string> &optsArg) : opts(optsArg) {}
@@ -856,7 +855,6 @@ struct save_log_key {
 };
 using save_log = property_value<save_log_key>;
 template <> struct property_value<save_log_key> {
-  using key_t = save_log_key;
   std::string *log;
   property_value(std::string *logArg) : log(logArg) {}
 };

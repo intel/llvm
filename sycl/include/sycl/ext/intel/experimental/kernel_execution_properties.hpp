@@ -33,7 +33,6 @@ using cache_config = cache_config_key::value_t;
 } // namespace ext::intel::experimental
 namespace ext::oneapi::experimental {
 template <> struct property_value<intel::experimental::cache_config_key> {
-  using key_t = intel::experimental::cache_config_key;
   property_value(intel::experimental::cache_config_enum v) : value(v) {}
   intel::experimental::cache_config_enum value;
 };

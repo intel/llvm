@@ -37,7 +37,6 @@ struct foo_key {
 };
 using foo = property_value<foo_key>;
 template <> struct property_value<foo_key> {
-  using key_t = foo_key;
   constexpr property_value(int v) : value(v) {}
   int value;
 };
@@ -52,7 +51,6 @@ struct foz_key {
 };
 using foz = property_value<foz_key>;
 template <> struct property_value<foz_key> {
-  using key_t = foz_key;
   constexpr property_value(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
   constexpr property_value(const foz &f) : value1(f.value1), value2(f.value2) {}
@@ -70,7 +68,6 @@ struct fir_key {
 };
 using fir = property_value<fir_key>;
 template <> struct property_value<fir_key> {
-  using key_t = fir_key;
   // Intentionally not constexpr to test for properties that cannot be constexpr
   property_value(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable

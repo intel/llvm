@@ -31,8 +31,6 @@ using device_has_all =
 
 template <aspect Aspect> inline void singleAspectDeviceHasChecks() {
   static_assert(is_property_value<decltype(device_has<Aspect>)>::value);
-  static_assert(std::is_same_v<device_has_key,
-                               typename decltype(device_has<Aspect>)::key_t>);
   static_assert(decltype(device_has<Aspect>)::value.size() == 1);
   static_assert(decltype(device_has<Aspect>)::value[0] == Aspect);
 }
@@ -51,22 +49,6 @@ int main() {
   static_assert(
       is_property_value<decltype(work_group_size_hint<6, 6, 6>)>::value);
   static_assert(is_property_value<decltype(sub_group_size<7>)>::value);
-
-  static_assert(
-      std::is_same_v<work_group_size_key, decltype(work_group_size<8>)::key_t>);
-  static_assert(std::is_same_v<work_group_size_key,
-                               decltype(work_group_size<9, 9>)::key_t>);
-  static_assert(std::is_same_v<work_group_size_key,
-                               decltype(work_group_size<10, 10, 10>)::key_t>);
-  static_assert(std::is_same_v<work_group_size_hint_key,
-                               decltype(work_group_size_hint<11>)::key_t>);
-  static_assert(std::is_same_v<work_group_size_hint_key,
-                               decltype(work_group_size_hint<12, 12>)::key_t>);
-  static_assert(
-      std::is_same_v<work_group_size_hint_key,
-                     decltype(work_group_size_hint<13, 13, 13>)::key_t>);
-  static_assert(
-      std::is_same_v<sub_group_size_key, decltype(sub_group_size<14>)::key_t>);
 
   static_assert(work_group_size<15>[0] == 15);
   static_assert(work_group_size<16, 17>[0] == 16);
@@ -123,11 +105,9 @@ int main() {
   singleAspectDeviceHasChecks<aspect::ext_intel_memory_bus_width>();
 
   static_assert(is_property_value<decltype(device_has<>)>::value);
-  static_assert(std::is_same_v<device_has_key, decltype(device_has<>)::key_t>);
   static_assert(decltype(device_has<>)::value.size() == 0);
 
   static_assert(is_property_value<device_has_all>::value);
-  static_assert(std::is_same_v<device_has_key, device_has_all::key_t>);
   static_assert(device_has_all::value.size() == 36);
   static_assert(device_has_all::value[0] == aspect::cpu);
   static_assert(device_has_all::value[1] == aspect::gpu);

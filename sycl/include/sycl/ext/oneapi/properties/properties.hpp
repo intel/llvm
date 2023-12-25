@@ -248,20 +248,20 @@ struct all_props_are_keys_of : std::true_type {};
 
 template <typename SyclT>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::detail::empty_properties_t>
+    SyclT, empty_properties_t>
     : std::true_type {};
 
 template <typename SyclT, typename PropT>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
-    : std::bool_constant<ext::oneapi::experimental::is_property_key_of<
-          typename PropT::key_t, SyclT>::value> {};
+    SyclT, properties<std::tuple<PropT>>>
+    : std::bool_constant<is_property_key_of<
+          key_from_value<PropT>, SyclT>::value> {};
 
 template <typename SyclT, typename PropT, typename... PropTs>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
-    : std::bool_constant<ext::oneapi::experimental::is_property_key_of<
-                             typename PropT::key_t, SyclT>::value &&
+    SyclT, properties<std::tuple<PropT, PropTs...>>>
+    : std::bool_constant<is_property_key_of<
+                             key_from_value<PropT>, SyclT>::value &&
                          all_props_are_keys_of<SyclT, PropTs...>()> {};
 
 } // namespace detail
