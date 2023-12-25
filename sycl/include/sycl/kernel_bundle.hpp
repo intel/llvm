@@ -813,12 +813,16 @@ namespace ext::oneapi::experimental {
 /////////////////////////
 // PropertyT syclex::build_options
 /////////////////////////
-struct build_options {
-  std::vector<std::string> opts;
-  build_options(const std::string &optsArg) : opts{optsArg} {}
-  build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
+struct build_options_key {
+  using value_t = property_value<build_options_key>;
 };
-using build_options_key = build_options;
+using build_options = property_value<build_options_key>;
+template <> struct property_value<build_options_key> {
+  using key_t = build_options_key;
+  std::vector<std::string> opts;
+  property_value(const std::string &optsArg) : opts{optsArg} {}
+  property_value(const std::vector<std::string> &optsArg) : opts(optsArg) {}
+};
 
 template <> struct is_property_key<build_options_key> : std::true_type {};
 
@@ -847,12 +851,15 @@ struct IsCompileTimeProperty<sycl::ext::oneapi::experimental::build_options_key>
 /////////////////////////
 // PropertyT syclex::save_log
 /////////////////////////
-struct save_log {
-  std::string *log;
-  save_log(std::string *logArg) : log(logArg) {}
+struct save_log_key {
+  using value_t = property_value<save_log_key>;
 };
-using save_log_key = save_log;
-
+using save_log = property_value<save_log_key>;
+template <> struct property_value<save_log_key> {
+  using key_t = save_log_key;
+  std::string *log;
+  property_value(std::string *logArg) : log(logArg) {}
+};
 template <> struct is_property_key<save_log_key> : std::true_type {};
 
 template <>
@@ -917,11 +924,11 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const std::vector<device> &Devices, PropertyListT props = {}) {
   std::vector<std::string> BuildOptionsVec;
   std::string *LogPtr = nullptr;
-  if constexpr (props.template has_property<build_options>()) {
-    BuildOptionsVec = props.template get_property<build_options>().opts;
+  if constexpr (props.template has_property<build_options_key>()) {
+    BuildOptionsVec = props.template get_property<build_options_key>().opts;
   }
-  if constexpr (props.template has_property<save_log>()) {
-    LogPtr = props.template get_property<save_log>().log;
+  if constexpr (props.template has_property<save_log_key>()) {
+    LogPtr = props.template get_property<save_log_key>().log;
   }
   return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr);
 }

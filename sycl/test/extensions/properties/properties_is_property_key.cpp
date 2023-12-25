@@ -33,13 +33,6 @@ int main() {
       !sycl::ext::oneapi::experimental::is_property_key<
           decltype(sycl::ext::oneapi::experimental::boo<bool, float>)>::value);
 
-  // Check is_property_key for runtime property values.
-  // NOTE: For runtime properties the key is an alias of the value.
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::oneapi::experimental::foo>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::oneapi::experimental::foz>::value);
-
   // Check is_property_key for non-property-key types.
   static_assert(!sycl::ext::oneapi::experimental::is_property_key<int>::value);
   static_assert(!sycl::ext::oneapi::experimental::is_property_key<
@@ -73,11 +66,10 @@ int main() {
                 sycl::queue>::value);
 
   // Check is_property_key_of for runtime property keys.
-  // NOTE: For runtime properties the key is an alias of the value.
   static_assert(sycl::ext::oneapi::experimental::is_property_key_of<
-                sycl::ext::oneapi::experimental::foo, sycl::queue>::value);
+                sycl::ext::oneapi::experimental::foo_key, sycl::queue>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_key_of<
-                sycl::ext::oneapi::experimental::foz, sycl::queue>::value);
+                sycl::ext::oneapi::experimental::foz_key, sycl::queue>::value);
 
   // Check is_property_key_of for non-property-key types.
   static_assert(

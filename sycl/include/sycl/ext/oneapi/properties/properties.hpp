@@ -77,7 +77,7 @@ template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
 };
 template <typename T, typename... Ts>
 struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : std::conditional_t<IsRuntimeProperty<T>::value,
+    : std::conditional_t<IsRuntimePropertyValue<T>::value,
                          PrependTuple<T, typename RuntimePropertyStorage<
                                              std::tuple<Ts...>>::type>,
                          RuntimePropertyStorage<std::tuple<Ts...>>> {};
@@ -149,9 +149,9 @@ public:
   template <typename PropertyT>
   typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value &&
                                 has_property<PropertyT>(),
-                            PropertyT>
+                            typename PropertyT::value_t>
   get_property() const {
-    return std::get<PropertyT>(Storage);
+    return std::get<typename PropertyT::value_t>(Storage);
   }
 
   template <typename PropertyT>
@@ -254,16 +254,15 @@ struct all_props_are_keys_of<
 template <typename SyclT, typename PropT>
 struct all_props_are_keys_of<
     SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
-};
+    : std::bool_constant<ext::oneapi::experimental::is_property_key_of<
+          typename PropT::key_t, SyclT>::value> {};
 
 template <typename SyclT, typename PropT, typename... PropTs>
 struct all_props_are_keys_of<
     SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, PropTs...>()> {};
+    : std::bool_constant<ext::oneapi::experimental::is_property_key_of<
+                             typename PropT::key_t, SyclT>::value &&
+                         all_props_are_keys_of<SyclT, PropTs...>()> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

@@ -57,15 +57,11 @@ operator!=(const property_value<PropertyT, A...> &,
   return (!std::is_same<A, B>::value || ...);
 }
 
-template <typename V, typename = void> struct is_property_value {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key<V>::value;
-};
-template <typename V, typename O, typename = void> struct is_property_value_of {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key_of<V, O>::value;
-};
-// Specialization for compile-time-constant properties
+template <typename V, typename = void>
+struct is_property_value : std::false_type {};
+template <typename V, typename O, typename = void>
+struct is_property_value_of : std::false_type {};
+// Specialization for properties
 template <typename V>
 struct is_property_value<V, std::void_t<typename V::key_t>>
     : is_property_key<typename V::key_t> {};
@@ -84,6 +80,10 @@ struct PropertyID<property_value<PropertyT, PropertyValueTs...>>
 template <typename PropertyT, typename... PropertyValueTs>
 struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
     : IsCompileTimeProperty<PropertyT> {};
+
+template <typename PropertyT, typename... PropertyValueTs>
+struct IsRuntimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
+    : IsRuntimeProperty<PropertyT> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
