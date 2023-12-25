@@ -471,6 +471,21 @@ lsc_format_ret(__ESIMD_NS::simd<T1, N> Vals) {
   }
 }
 
+template <typename T> constexpr uint32_t get_lsc_data_size() {
+  switch (sizeof(T)) {
+  case 1:
+    return 0;
+  case 2:
+    return 1;
+  case 4:
+    return 2;
+  case 8:
+    return 3;
+  default:
+    static_assert(true, "Unsupported data type.");
+  }
+}
+
 template <cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 constexpr uint32_t get_lsc_load_cache_mask() {
   if constexpr (L1H == cache_hint::read_invalidate &&
@@ -1984,14 +1999,15 @@ constexpr void check_lsc_block_2d_restrictions() {
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
-template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+template <typename Tx, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+              Tx, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
+__ESIMD_API __ESIMD_NS::simd<Tx, N>
+lsc_load_2d(const Tx *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
             unsigned SurfacePitch, int X, int Y) {
+  using T = __ESIMD_DNS::__raw_t<Tx>;
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed,
@@ -2139,13 +2155,14 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
-template <typename T, int BlockWidth, int BlockHeight = 1,
+template <typename Tx, int BlockWidth, int BlockHeight = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              T, 1u, BlockHeight, BlockWidth, false, false>()>
-__ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
+              Tx, 1u, BlockHeight, BlockWidth, false, false>()>
+__ESIMD_API void lsc_store_2d(Tx *Ptr, unsigned SurfaceWidth,
                               unsigned SurfaceHeight, unsigned SurfacePitch,
                               int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
+  using T = __ESIMD_DNS::__raw_t<Tx>;
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
                                           false, detail::block_2d_op::store>();
@@ -2428,17 +2445,23 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr int DstBlockElements = GRFColSize * GRFRowSize;
   constexpr int DstElements = DstBlockElements * NBlocks;
 
+  constexpr uint32_t DstLength = DstBlockElements * sizeof(T) / 32;
+  constexpr uint32_t DstLengthMask = DstLength == 0    ? 1 << 20
+                                     : DstLength == 32 ? 31 << 20
+                                                       : DstLength << 20;
+
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
                                   << 17;
-  constexpr uint32_t base_desc = 0x2800403;
+  constexpr uint32_t base_desc = 0x2000003;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
+  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
   __ESIMD_NS::simd<T, N> oldDst;
   constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc =
-      base_desc | cache_mask | transformMask | transposeMask;
+  constexpr uint32_t desc = base_desc | cache_mask | transformMask |
+                            transposeMask | dataSizeMask | DstLengthMask;
   constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
@@ -2500,12 +2523,13 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
                                   << 17;
-  constexpr uint32_t base_desc = 0x2000403;
+  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
+  constexpr uint32_t base_desc = 0x2000003;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
-      base_desc | cache_mask | transformMask | transposeMask;
+      base_desc | cache_mask | transformMask | transposeMask | dataSizeMask;
   constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
@@ -2542,10 +2566,11 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
 
   constexpr uint32_t cache_mask = detail::get_lsc_store_cache_mask<L1H, L3H>()
                                   << 17;
-  constexpr uint32_t base_desc = 0x2000407;
+  constexpr uint32_t dataSizeMask = detail::get_lsc_data_size<T>() << 9;
+  constexpr uint32_t base_desc = 0x2000007;
 
   constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc = base_desc | cache_mask;
+  constexpr uint32_t desc = base_desc | cache_mask | dataSizeMask;
   constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
