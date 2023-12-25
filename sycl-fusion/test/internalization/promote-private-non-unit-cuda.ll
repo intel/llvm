@@ -18,51 +18,51 @@ declare noundef i32 @llvm.nvvm.read.ptx.sreg.ntid.x() #0
 declare noundef i32 @llvm.nvvm.read.ptx.sreg.tid.x() #0
 declare ptr @llvm.nvvm.implicit.offset() #1
 
-define void @fused_0(ptr addrspace(1) nocapture noundef align 16 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp3,
-    ptr addrspace(1) nocapture noundef readonly align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn6,
-    ptr addrspace(1) nocapture noundef align 1 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp27,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp210,
-    ptr addrspace(1) nocapture noundef writeonly align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut3)
+define void @fused_0(ptr addrspace(1) nocapture noundef align 16 %KernelOne__arg_accTmp,
+    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp3,
+    ptr addrspace(1) nocapture noundef readonly align 4 %KernelOne__arg_accIn,
+    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accIn6,
+    ptr addrspace(1) nocapture noundef align 1 %KernelOne__arg_accTmp27,
+    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp210,
+    ptr addrspace(1) nocapture noundef writeonly align 4 %KernelTwo__arg_accOut,
+    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelTwo__arg_accOut3)
       local_unnamed_addr #3 !sycl.kernel.promote !13 !sycl.kernel.promote.localsize !14 !sycl.kernel.promote.elemsize !15 {
 ; CHECK-LABEL: define void @fused_0(
-; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
-; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
+; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
+; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
 ; CHECK:         entry:
 ; CHECK:           [[TMP0:%.*]] = alloca i8, i64 3, align 1
 ; CHECK:           [[TMP1:%.*]] = alloca i8, i64 96, align 16
-; CHECK:           [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP2103_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP210]], align 8
-; CHECK:           [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP31_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP3]], align 8
-; CHECK:           [[TMP2:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP31_SROA_0_0_COPYLOAD]], 3
-; CHECK:           [[TMP3:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP2103_SROA_0_0_COPYLOAD]], 3
-; CHECK:           [[MUL_I_I:%.*]] = mul nuw nsw i64 [[GLOBAL_ID:.*]], 3
-; CHECK:           [[ADD_I_I:%.*]] = add nuw nsw i64 [[MUL_I_I]], 1
-; CHECK:           [[TMP10:%.*]] = add i64 [[TMP2]], [[ADD_I_I]]
+; CHECK:           [[KERNELONE__ARG_ACCTMP2103_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[KERNELONE__ARG_ACCTMP210]], align 8
+; CHECK:           [[KERNELONE__ARG_ACCTMP31_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[KERNELONE__ARG_ACCTMP3]], align 8
+; CHECK:           [[TMP2:%.*]] = urem i64 [[KERNELONE__ARG_ACCTMP31_SROA_0_0_COPYLOAD]], 3
+; CHECK:           [[TMP3:%.*]] = urem i64 [[KERNELONE__ARG_ACCTMP2103_SROA_0_0_COPYLOAD]], 3
+; CHECK:           [[MUL:%.*]] = mul nuw nsw i64 [[GLOBAL_ID:.*]], 3
+; CHECK:           [[ADD:%.*]] = add nuw nsw i64 [[MUL]], 1
+; CHECK:           [[TMP10:%.*]] = add i64 [[TMP2]], [[ADD]]
 ; CHECK:           [[TMP11:%.*]] = urem i64 [[TMP10]], 3
-; CHECK:           [[ARRAYIDX_I55_I:%.*]] = getelementptr inbounds %struct.MyStruct, ptr [[TMP1]], i64 [[TMP11]]
+; CHECK:           [[ARRAYIDX_1:%.*]] = getelementptr inbounds %struct.MyStruct, ptr [[TMP1]], i64 [[TMP11]]
 
 ; COM:             This i8-GEP _was_ not remapped because it addresses into a single MyStruct element
-; CHECK:           [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i8, ptr [[ARRAYIDX_I55_I]], i64 20
-; CHECK:           store i32 {{.*}}, ptr [[ARRAYIDX_I_I_I]], align 4
-; CHECK:           [[TMP12:%.*]] = add i64 [[TMP3]], [[ADD_I_I]]
+; CHECK:           [[ARRAYIDX_2:%.*]] = getelementptr inbounds i8, ptr [[ARRAYIDX_1]], i64 20
+; CHECK:           store i32 {{.*}}, ptr [[ARRAYIDX_2]], align 4
+; CHECK:           [[TMP12:%.*]] = add i64 [[TMP3]], [[ADD]]
 ; CHECK:           [[TMP13:%.*]] = urem i64 [[TMP12]], 3
 
 ; COM:             This i8-GEP was remapped because it selects an element of the underlying i8-buffer
-; CHECK:           [[ARRAYIDX_I73_I:%.*]] = getelementptr inbounds i8, ptr [[TMP0]], i64 [[TMP13]]
+; CHECK:           [[ARRAYIDX_3:%.*]] = getelementptr inbounds i8, ptr [[TMP0]], i64 [[TMP13]]
 
-; CHECK:           store i8 {{.*}}, ptr [[ARRAYIDX_I73_I]], align 1
+; CHECK:           store i8 {{.*}}, ptr [[ARRAYIDX_3]], align 1
 ; CHECK:           store i32 {{.*}}, ptr addrspace(1)
 ; CHECK:           ret void
 ;
 entry:
-  %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2103.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp210, align 8
-  %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn62.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn6, align 8
-  %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp3, align 8
-  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31.sroa.0.0.copyload
-  %add.ptr.i37.i = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn62.sroa.0.0.copyload
-  %add.ptr.i43.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp27, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2103.sroa.0.0.copyload
+  %KernelOne__arg_accTmp2103.sroa.0.0.copyload = load i64, ptr %KernelOne__arg_accTmp210, align 8
+  %KernelOne__arg_accIn62.sroa.0.0.copyload = load i64, ptr %KernelOne__arg_accIn6, align 8
+  %KernelOne__arg_accTmp31.sroa.0.0.copyload = load i64, ptr %KernelOne__arg_accTmp3, align 8
+  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %KernelOne__arg_accTmp, i64 %KernelOne__arg_accTmp31.sroa.0.0.copyload
+  %add.ptr.i37.i = getelementptr inbounds i32, ptr addrspace(1) %KernelOne__arg_accIn, i64 %KernelOne__arg_accIn62.sroa.0.0.copyload
+  %add.ptr.i43.i = getelementptr inbounds i8, ptr addrspace(1) %KernelOne__arg_accTmp27, i64 %KernelOne__arg_accTmp2103.sroa.0.0.copyload
   %0 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
   %conv.i1.j7 = sext i32 %0 to i64
   %1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
@@ -85,8 +85,8 @@ entry:
   %conv.j2 = trunc i32 %5 to i8
   %arrayidx.i73.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i43.i, i64 %add.j2
   store i8 %conv.j2, ptr addrspace(1) %arrayidx.i73.i, align 1
-  %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut34.sroa.0.0.copyload = load i64, ptr %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut3, align 8
-  %add.ptr.i.i7 = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut34.sroa.0.0.copyload
+  %KernelTwo__arg_accOut34.sroa.0.0.copyload = load i64, ptr %KernelTwo__arg_accOut3, align 8
+  %add.ptr.i.i7 = getelementptr inbounds i32, ptr addrspace(1) %KernelTwo__arg_accOut, i64 %KernelTwo__arg_accOut34.sroa.0.0.copyload
   %6 = load i32, ptr %3, align 4
   %conv.j7.i13 = zext i32 %6 to i64
   %add4.j6.i14 = add nsw i64 %add.j7, %conv.j7.i13

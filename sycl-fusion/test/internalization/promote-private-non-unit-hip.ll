@@ -18,56 +18,56 @@ declare align 4 ptr addrspace(4) @llvm.amdgcn.dispatch.ptr() #0
 declare i32 @llvm.amdgcn.workitem.id.x() #0
 declare ptr addrspace(5) @llvm.amdgcn.implicit.offset() #1
 
-define amdgpu_kernel void @fused_0(ptr addrspace(1) noundef align 16 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce3,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7,
-     ptr addrspace(1) noundef align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn35,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn.coerce,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn.coerce13,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn.coerce17,
-     ptr addrspace(1) noundef align 1 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp239,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce24,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce28,
-     ptr addrspace(1) noundef align 4 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut30,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut.coerce,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut.coerce3,
-     i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut.coerce7)
+define amdgpu_kernel void @fused_0(ptr addrspace(1) noundef align 16 %KernelOne__arg_accTmp31,
+     i64 %KernelOne__arg_accTmp.coerce,
+     i64 %KernelOne__arg_accTmp.coerce3,
+     i64 %KernelOne__arg_accTmp.coerce7,
+     ptr addrspace(1) noundef align 4 %KernelOne__arg_accIn35,
+     i64 %KernelOne__arg_accIn.coerce,
+     i64 %KernelOne__arg_accIn.coerce13,
+     i64 %KernelOne__arg_accIn.coerce17,
+     ptr addrspace(1) noundef align 1 %KernelOne__arg_accTmp239,
+     i64 %KernelOne__arg_accTmp2.coerce,
+     i64 %KernelOne__arg_accTmp2.coerce24,
+     i64 %KernelOne__arg_accTmp2.coerce28,
+     ptr addrspace(1) noundef align 4 %KernelTwo__arg_accOut30,
+     i64 %KernelTwo__arg_accOut.coerce,
+     i64 %KernelTwo__arg_accOut.coerce3,
+     i64 %KernelTwo__arg_accOut.coerce7)
        #3 !sycl.kernel.promote !12 !sycl.kernel.promote.localsize !13 !sycl.kernel.promote.elemsize !14 {
 ; CHECK-LABEL: define amdgpu_kernel void @fused_0(
-; CHECK-SAME: i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP_COERCE7:%[^,]*accTmp.coerce7]]
-; CHECK-SAME: i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP2_COERCE28:%[^,]*accTmp2.coerce28]]
+; CHECK-SAME: i64 [[KERNELONE__ARG_ACCTMP_COERCE7:%[^,]*accTmp.coerce7]]
+; CHECK-SAME: i64 [[KERNELONE__ARG_ACCTMP2_COERCE28:%[^,]*accTmp2.coerce28]]
 ; CHECK:         entry:
 ; CHECK:           [[TMP0:%.*]] = alloca i8, i64 3, align 1, addrspace(5)
 ; CHECK:           [[TMP1:%.*]] = alloca i8, i64 96, align 16, addrspace(5)
-; CHECK:           [[TMP2:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP_COERCE7]], 3
-; CHECK:           [[TMP3:%.*]] = urem i64 [[_ZTSZZ4MAINENKULRN4SYCL3_V17HANDLEREE_CLES2_E9KERNELONE__ARG_ACCTMP2_COERCE28]], 3
-; CHECK:           [[MUL_I_I:%.*]] = mul nuw nsw i64 [[GLOBAL_ID:.*]], 3
-; CHECK:           [[ADD_I_I:%.*]] = add nuw nsw i64 [[MUL_I_I]], 1
-; CHECK:           [[TMP11:%.*]] = add i64 [[TMP2]], [[ADD_I_I]]
+; CHECK:           [[TMP2:%.*]] = urem i64 [[KERNELONE__ARG_ACCTMP_COERCE7]], 3
+; CHECK:           [[TMP3:%.*]] = urem i64 [[KERNELONE__ARG_ACCTMP2_COERCE28]], 3
+; CHECK:           [[MUL:%.*]] = mul nuw nsw i64 [[GLOBAL_ID:.*]], 3
+; CHECK:           [[ADD:%.*]] = add nuw nsw i64 [[MUL]], 1
+; CHECK:           [[TMP11:%.*]] = add i64 [[TMP2]], [[ADD]]
 ; CHECK:           [[TMP12:%.*]] = urem i64 [[TMP11]], 3
 
 ; COM:             This is a multi-index GEP into the aggregate. We have to remap the first index.
-; CHECK:           [[V_I_I:%.*]] = getelementptr inbounds %struct.MyStruct, ptr addrspace(5) [[TMP1]], i64 [[TMP12]], i32 1
+; CHECK:           [[V:%.*]] = getelementptr inbounds %struct.MyStruct, ptr addrspace(5) [[TMP1]], i64 [[TMP12]], i32 1
 
 ; COM:             This is a single-index GEP which shall not be remapped because its pointer operand already points into the struct (see above).
-; CHECK:           [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(5) [[V_I_I]], i64 1
+; CHECK:           [[ARRAYIDX_1:%.*]] = getelementptr inbounds i32, ptr addrspace(5) [[V]], i64 1
 
-; CHECK:           store i32 {{.*}}, ptr addrspace(5) [[ARRAYIDX_I_I_I]], align 4
-; CHECK:           [[TMP13:%.*]] = add i64 [[TMP3]], [[ADD_I_I]]
+; CHECK:           store i32 {{.*}}, ptr addrspace(5) [[ARRAYIDX_1]], align 4
+; CHECK:           [[TMP13:%.*]] = add i64 [[TMP3]], [[ADD]]
 ; CHECK:           [[TMP14:%.*]] = urem i64 [[TMP13]], 3
 
 ; COM:             This i8-GEP was remapped because it selects an element of the underlying i8-buffer
-; CHECK:           [[ARRAYIDX_I104_I:%.*]] = getelementptr inbounds i8, ptr addrspace(5) [[TMP0]], i64 [[TMP14]]
-; CHECK:           store i8 {{.*}}, ptr addrspace(5) [[ARRAYIDX_I104_I]], align 1
+; CHECK:           [[ARRAYIDX_2:%.*]] = getelementptr inbounds i8, ptr addrspace(5) [[TMP0]], i64 [[TMP14]]
+; CHECK:           store i8 {{.*}}, ptr addrspace(5) [[ARRAYIDX_2]], align 1
 ; CHECK:           store i32 {{.*}} ptr addrspace(1)
 ; CHECK:           ret void
 ;
 entry:
-  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7
-  %add.ptr.i82.i = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn35, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accIn.coerce17
-  %add.ptr.i85.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp239, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce28
+  %add.ptr.j2 = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %KernelOne__arg_accTmp31, i64 %KernelOne__arg_accTmp.coerce7
+  %add.ptr.i82.i = getelementptr inbounds i32, ptr addrspace(1) %KernelOne__arg_accIn35, i64 %KernelOne__arg_accIn.coerce17
+  %add.ptr.i85.i = getelementptr inbounds i8, ptr addrspace(1) %KernelOne__arg_accTmp239, i64 %KernelOne__arg_accTmp2.coerce28
   %0 = call i32 @llvm.amdgcn.workgroup.id.x()
   %conv.i1.j7 = zext i32 %0 to i64
   %1 = call align 4 dereferenceable(64) ptr addrspace(4) @llvm.amdgcn.dispatch.ptr()
@@ -92,9 +92,9 @@ entry:
   %conv.j2 = trunc i32 %6 to i8
   %arrayidx.i104.i = getelementptr inbounds i8, ptr addrspace(1) %add.ptr.i85.i, i64 %add.j2
   store i8 %conv.j2, ptr addrspace(1) %arrayidx.i104.i, align 1
-  %add.ptr.i.i1 = getelementptr inbounds i32, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut30, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo__arg_accOut.coerce7
-  %add.ptr.i81.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp31, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp.coerce7
-  %add.ptr.i84.i = getelementptr inbounds i8, ptr addrspace(1) %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp239, i64 %_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne__arg_accTmp2.coerce28
+  %add.ptr.i.i1 = getelementptr inbounds i32, ptr addrspace(1) %KernelTwo__arg_accOut30, i64 %KernelTwo__arg_accOut.coerce7
+  %add.ptr.i81.i = getelementptr inbounds %struct.MyStruct, ptr addrspace(1) %KernelOne__arg_accTmp31, i64 %KernelOne__arg_accTmp.coerce7
+  %add.ptr.i84.i = getelementptr inbounds i8, ptr addrspace(1) %KernelOne__arg_accTmp239, i64 %KernelOne__arg_accTmp2.coerce28
   %7 = call i32 @llvm.amdgcn.workgroup.id.x()
   %conv.i1.j6.i2 = zext i32 %7 to i64
   %8 = call align 4 dereferenceable(64) ptr addrspace(4) @llvm.amdgcn.dispatch.ptr()
