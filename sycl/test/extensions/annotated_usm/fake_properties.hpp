@@ -69,85 +69,70 @@ template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
 
 // Runtime properties
 enum foo_enum : unsigned { a, b, c };
-struct foo {
-  constexpr foo(foo_enum v) : value(v) {}
+struct foo_key {
+  using value_t = property_value<foo_key>;
+};
+using foo = property_value<foo_key>;
+template <> struct property_value<foo_key> {
+  using key_t = foo_key;
+  constexpr property_value(foo_enum v) : value(v) {}
   foo_enum value;
 };
 
-struct foz {
+struct foz_key {
+  using value_t = property_value<foz_key>;
+};
+using foz = property_value<foz_key>;
+template <> struct property_value<foz_key> {
+  using key_t = foz_key;
   float value1;
   bool value2;
 };
 
-struct rt_prop1 {};
-struct rt_prop2 {};
-struct rt_prop3 {};
-struct rt_prop4 {};
-struct rt_prop5 {};
-struct rt_prop6 {};
-struct rt_prop7 {};
-struct rt_prop8 {};
-struct rt_prop9 {};
-struct rt_prop10 {};
-struct rt_prop11 {};
-struct rt_prop12 {};
-struct rt_prop13 {};
-struct rt_prop14 {};
-struct rt_prop15 {};
-struct rt_prop16 {};
-struct rt_prop17 {};
-struct rt_prop18 {};
-struct rt_prop19 {};
-struct rt_prop20 {};
-struct rt_prop21 {};
-struct rt_prop22 {};
-struct rt_prop23 {};
-struct rt_prop24 {};
-struct rt_prop25 {};
-struct rt_prop26 {};
-struct rt_prop27 {};
-struct rt_prop28 {};
-struct rt_prop29 {};
-struct rt_prop30 {};
-struct rt_prop31 {};
-struct rt_prop32 {};
-struct rt_prop33 {};
+#define rt_prop(N) \
+struct rt_prop ## N ## _key { \
+  using value_t = property_value<rt_prop ## N ## _key>; \
+}; \
+using rt_prop ## N = property_value<rt_prop ## N ## _key>; \
+template <> struct property_value<rt_prop ## N ## _key> { \
+using key_t = rt_prop ## N ## _key; \
+}
 
-using foo_key = foo;
-using foz_key = foz;
-using rt_prop1_key = rt_prop1;
-using rt_prop2_key = rt_prop2;
-using rt_prop3_key = rt_prop3;
-using rt_prop4_key = rt_prop4;
-using rt_prop5_key = rt_prop5;
-using rt_prop6_key = rt_prop6;
-using rt_prop7_key = rt_prop7;
-using rt_prop8_key = rt_prop8;
-using rt_prop9_key = rt_prop9;
-using rt_prop10_key = rt_prop10;
-using rt_prop11_key = rt_prop11;
-using rt_prop12_key = rt_prop12;
-using rt_prop13_key = rt_prop13;
-using rt_prop14_key = rt_prop14;
-using rt_prop15_key = rt_prop15;
-using rt_prop16_key = rt_prop16;
-using rt_prop17_key = rt_prop17;
-using rt_prop18_key = rt_prop18;
-using rt_prop19_key = rt_prop19;
-using rt_prop20_key = rt_prop20;
-using rt_prop21_key = rt_prop21;
-using rt_prop22_key = rt_prop22;
-using rt_prop23_key = rt_prop23;
-using rt_prop24_key = rt_prop24;
-using rt_prop25_key = rt_prop25;
-using rt_prop26_key = rt_prop26;
-using rt_prop27_key = rt_prop27;
-using rt_prop28_key = rt_prop28;
-using rt_prop29_key = rt_prop29;
-using rt_prop30_key = rt_prop30;
-using rt_prop31_key = rt_prop31;
-using rt_prop32_key = rt_prop32;
-using rt_prop33_key = rt_prop33;
+rt_prop(1);
+rt_prop(2);
+rt_prop(3);
+rt_prop(4);
+rt_prop(5);
+rt_prop(6);
+rt_prop(7);
+rt_prop(8);
+rt_prop(9);
+rt_prop(10);
+rt_prop(11);
+rt_prop(12);
+rt_prop(13);
+rt_prop(14);
+rt_prop(15);
+rt_prop(16);
+rt_prop(17);
+rt_prop(18);
+rt_prop(19);
+rt_prop(20);
+rt_prop(21);
+rt_prop(22);
+rt_prop(23);
+rt_prop(24);
+rt_prop(25);
+rt_prop(26);
+rt_prop(27);
+rt_prop(28);
+rt_prop(29);
+rt_prop(30);
+rt_prop(31);
+rt_prop(32);
+rt_prop(33);
+
+#undef rt_prop
 
 template <> struct is_property_key<foo_key> : std::true_type {};
 template <> struct is_property_key<foz_key> : std::true_type {};
