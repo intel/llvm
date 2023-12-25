@@ -2161,7 +2161,7 @@ template <typename Tx, int BlockWidth, int BlockHeight = 1,
               Tx, 1u, BlockHeight, BlockWidth, false, false>()>
 __ESIMD_API void lsc_store_2d(Tx *Ptr, unsigned SurfaceWidth,
                               unsigned SurfaceHeight, unsigned SurfacePitch,
-                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
+                              int X, int Y, __ESIMD_NS::simd<Tx, N> Vals) {
   using T = __ESIMD_DNS::__raw_t<Tx>;
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
