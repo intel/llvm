@@ -70,7 +70,8 @@ template <typename V>
 using is_property_value = is_property_key<detail::key_from_value_or_void<V>>;
 
 template <typename V, typename O>
-using is_property_value_of = is_property_key_of<detail::key_from_value_or_void<V>, O>;
+using is_property_value_of =
+    is_property_key_of<detail::key_from_value_or_void<V>, O>;
 
 namespace detail {
 

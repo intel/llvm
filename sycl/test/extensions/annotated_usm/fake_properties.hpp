@@ -92,8 +92,7 @@ template <> struct property_value<foz_key> {
     using value_t = property_value<rt_prop##N##_key>;                          \
   };                                                                           \
   using rt_prop##N = property_value<rt_prop##N##_key>;                         \
-  template <> struct property_value<rt_prop##N##_key> {                        \
-  }
+  template <> struct property_value<rt_prop##N##_key> {}
 
 rt_prop(1);
 rt_prop(2);
