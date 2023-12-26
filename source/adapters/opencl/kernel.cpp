@@ -420,8 +420,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelSuggestedLocalWorkSize(
   std::ignore = pGlobalWorkSize;
 
   pSuggestedLocalWorkSize[0] = 1;
-  pSuggestedLocalWorkSize[1] = 1;
-  pSuggestedLocalWorkSize[2] = 1;
+  if (workDim >= 2)
+    pSuggestedLocalWorkSize[1] = 1;
+  if (workDim >= 3)
+    pSuggestedLocalWorkSize[2] = 1;
 
   // cl_int RetErr = clGetKernelSuggestedLocalWorkSizeKHR(
   //     cl_adapter::cast<cl_command_queue>(hQueue),
