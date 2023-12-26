@@ -2447,10 +2447,11 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr int DstBlockElements = GRFColSize * GRFRowSize;
   constexpr int DstElements = DstBlockElements * NBlocks;
 
-  constexpr uint32_t DstLength = DstBlockElements * sizeof(T) / 32;
-  constexpr uint32_t DstLengthMask = DstLength == 0    ? 1 << 20
-                                     : DstLength == 32 ? 31 << 20
-                                                       : DstLength << 20;
+  constexpr uint32_t GrfBytes = 64;
+  constexpr uint32_t DstBlockSize =
+      detail::roundUpNextMultiple<DstBlockElements * sizeof(T), GrfBytes>();
+  constexpr uint32_t DstLength = DstBlockSize > 31 ? 31 : DstBlockSize;
+  constexpr uint32_t DstLengthMask = DstLength << 20;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
