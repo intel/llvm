@@ -53,11 +53,21 @@ pi_result redefinedEventGetInfoAfter(pi_event event, pi_event_info param_name,
   // This is important, because removal algorithm assumes that
   // events are likely to be removed oldest first, and stops removing
   // at the first non-completed event.
+  // There might be multiple calls to get info on the same event. So we need to
+  // keep track of the submitted events.
+  static std::unordered_map<pi_event, pi_event_status> events;
   static int Counter = 0;
   auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (Counter < (ExpectedEventThreshold / 2)) ? PI_EVENT_COMPLETE
-                                                     : PI_EVENT_RUNNING;
-  Counter++;
+  if (events.find(event) == events.end()) {
+
+    pi_event_status status = (Counter < (ExpectedEventThreshold / 2))
+                                 ? PI_EVENT_COMPLETE
+                                 : PI_EVENT_RUNNING;
+    events.insert({event, status});
+    Counter++;
+  }
+
+  *Result = events[event];
   return PI_SUCCESS;
 }
 
