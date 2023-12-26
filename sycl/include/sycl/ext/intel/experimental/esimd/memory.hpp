@@ -1999,25 +1999,25 @@ constexpr void check_lsc_block_2d_restrictions() {
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
-template <typename Tx, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              Tx, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
-__ESIMD_API __ESIMD_NS::simd<Tx, N>
-lsc_load_2d(const Tx *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
+__ESIMD_API __ESIMD_NS::simd<T, N>
+lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
             unsigned SurfacePitch, int X, int Y) {
-  using T = __ESIMD_DNS::__raw_t<Tx>;
+  using RawT = __ESIMD_DNS::__raw_t<T>;
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed,
+  detail::check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight,
+                                          NBlocks, Transposed, Transformed,
                                           detail::block_2d_op::load>();
   // For Load BlockWidth is padded up to the next power-of-two value.
   // For Load with Transpose the pre-operation BlockHeight is padded up
   // to the next power-of-two value.
   // For Load with Transform pre-operation BlockHeight is padded up to
   // multiple of K, where K = 4B / sizeof(T).
-  constexpr int ElemsPerDword = 4 / sizeof(T);
+  constexpr int ElemsPerDword = 4 / sizeof(RawT);
   constexpr int GRFRowSize = Transposed    ? BlockHeight
                              : Transformed ? BlockWidth * ElemsPerDword
                                            : BlockWidth;
@@ -2029,7 +2029,7 @@ lsc_load_2d(const Tx *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
                          : BlockHeight);
   constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
   constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+      detail::roundUpNextMultiple<64 / sizeof(RawT), GRFBlockSize>();
   constexpr int ActualN = NBlocks * GRFBlockPitch;
 
   constexpr int DstBlockElements = GRFColSize * GRFRowSize;
@@ -2038,14 +2038,14 @@ lsc_load_2d(const Tx *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
 
   constexpr lsc_data_size DS =
-      detail::finalize_data_size<T, lsc_data_size::default_size>();
+      detail::finalize_data_size<RawT, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<ActualN> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
       Transposed ? detail::lsc_data_order::transpose
                  : detail::lsc_data_order::nontranspose;
-  __ESIMD_NS::simd<T, ActualN> Raw =
-      __esimd_lsc_load2d_stateless<T, L1H, L3H, DS, _Transposed, NBlocks,
+  __ESIMD_NS::simd<RawT, ActualN> Raw =
+      __esimd_lsc_load2d_stateless<RawT, L1H, L3H, DS, _Transposed, NBlocks,
                                    BlockWidth, BlockHeight, Transformed,
                                    ActualN>(pred.data(), surf_addr,
                                             SurfaceWidth, SurfaceHeight,
@@ -2071,16 +2071,17 @@ lsc_load_2d(const Tx *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
     // +----+----+----+----+----+----+-----+-----+
     // * signifies the padded element.
 
-    __ESIMD_NS::simd<T, DstElements> Dst;
+    __ESIMD_NS::simd<RawT, DstElements> Dst;
 
     for (auto i = 0; i < NBlocks; i++) {
       auto DstBlock =
           Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
 
       auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
-      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
-                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
-                     .template bit_cast_view<T>();
+      DstBlock =
+          RawBlock.template bit_cast_view<RawT, GRFColSize, GRFRowPitch>()
+              .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+              .template bit_cast_view<RawT>();
     }
 
     return Dst;
@@ -2155,38 +2156,39 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
-template <typename Tx, int BlockWidth, int BlockHeight = 1,
+template <typename T, int BlockWidth, int BlockHeight = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              Tx, 1u, BlockHeight, BlockWidth, false, false>()>
-__ESIMD_API void lsc_store_2d(Tx *Ptr, unsigned SurfaceWidth,
+              T, 1u, BlockHeight, BlockWidth, false, false>()>
+__ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                               unsigned SurfaceHeight, unsigned SurfacePitch,
-                              int X, int Y, __ESIMD_NS::simd<Tx, N> Vals) {
-  using T = __ESIMD_DNS::__raw_t<Tx>;
+                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
+  using RawT = __ESIMD_DNS::__raw_t<T>;
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
-                                          false, detail::block_2d_op::store>();
+  detail::check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, 1,
+                                          false, false,
+                                          detail::block_2d_op::store>();
   constexpr lsc_data_size DS =
-      detail::finalize_data_size<T, lsc_data_size::default_size>();
+      detail::finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
 
   constexpr int Pitch = __ESIMD_DNS::getNextPowerOf2<BlockWidth>();
-  __ESIMD_NS::simd<T, BlockHeight * Pitch> Raw;
+  __ESIMD_NS::simd<RawT, BlockHeight * Pitch> Raw;
 
   if constexpr (BlockHeight * Pitch == N) {
     Raw = Vals;
   } else {
     // For store with padding, allocate the block with padding, and place
     // original data there.
-    auto Data2D = Vals.template bit_cast_view<T, BlockHeight, BlockWidth>();
-    auto Raw2D = Raw.template bit_cast_view<T, BlockHeight, Pitch>();
+    auto Data2D = Vals.template bit_cast_view<RawT, BlockHeight, BlockWidth>();
+    auto Raw2D = Raw.template bit_cast_view<RawT, BlockHeight, Pitch>();
     Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
   }
 
   __ESIMD_NS::simd_mask<BlockHeight * Pitch> pred = 1;
-  __esimd_lsc_store2d_stateless<T, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
+  __esimd_lsc_store2d_stateless<RawT, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
                                 BlockHeight, false, BlockHeight * Pitch>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
       Raw.data());
