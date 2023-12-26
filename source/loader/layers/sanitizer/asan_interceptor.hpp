@@ -89,6 +89,8 @@ struct LaunchInfo {
 
     DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
+    size_t LocalWorkSize[3];
+
     LaunchInfo()
         : LocalShadowOffset(0), LocalShadowOffsetEnd(0), Context(nullptr) {}
     ~LaunchInfo();
@@ -108,7 +110,7 @@ class SanitizerInterceptor {
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue,
                                 ur_event_handle_t &Event,
-                                LaunchInfo &LaunchInfo);
+                                LaunchInfo &LaunchInfo, uint32_t numWorkgroup);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t *Event, LaunchInfo &LaunchInfo);
 
@@ -132,8 +134,8 @@ class SanitizerInterceptor {
 
     /// Initialize Global Variables & Kernel Name at first Launch
     ur_result_t prepareLaunch(ur_queue_handle_t Queue,
-                              ur_kernel_handle_t Kernel,
-                              LaunchInfo &LaunchInfo);
+                              ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo,
+                              uint32_t numWorkgroup);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);

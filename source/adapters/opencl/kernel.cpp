@@ -408,3 +408,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urGetKernelSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    size_t *pSuggestedLocalWorkSize) {
+  std::ignore = hQueue;
+  std::ignore = hKernel;
+  std::ignore = workDim;
+  std::ignore = pGlobalWorkOffset;
+  std::ignore = pGlobalWorkSize;
+
+  pSuggestedLocalWorkSize[0] = 1;
+  pSuggestedLocalWorkSize[1] = 1;
+  pSuggestedLocalWorkSize[2] = 1;
+
+  // cl_int RetErr = clGetKernelSuggestedLocalWorkSizeKHR(
+  //     cl_adapter::cast<cl_command_queue>(hQueue),
+  //     cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
+  //     pGlobalWorkSize, pSuggestedLocalWorkSize);
+  // CL_RETURN_ON_FAILURE(RetErr);
+
+  return UR_RESULT_SUCCESS;
+}
