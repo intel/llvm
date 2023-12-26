@@ -215,8 +215,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     uint32_t numWork = 1;
     for (uint32_t dim = 0; dim < workDim; ++dim) {
-        numWork *= (pGlobalWorkSize[dim] + pLocalWorkSize[dim] - 1) /
-                   pLocalWorkSize[dim];
+        numWork *= (pGlobalWorkSize[dim] + pUserLocalWorkSize[dim] - 1) /
+                   pUserLocalWorkSize[dim];
     }
 
     std::vector<ur_event_handle_t> hEvents;
@@ -234,7 +234,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, hEvents.size(), hEvents.data(), phEvent);
+        pUserLocalWorkSize, hEvents.size(), hEvents.data(), phEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         context.interceptor->postLaunchKernel(hKernel, hQueue, phEvent,
