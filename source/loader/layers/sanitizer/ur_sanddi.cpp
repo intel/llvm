@@ -33,6 +33,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
+    context.logger.debug("==== urUSMHostAlloc");
+
     return context.interceptor->allocateMemory(
         hContext, nullptr, pUSMDesc, pool, size, ppMem, USMMemoryType::HOST);
 }
@@ -55,6 +57,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    context.logger.debug("==== urUSMDeviceAlloc");
 
     return context.interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::DEVICE);
@@ -79,6 +83,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
+    context.logger.debug("==== urUSMSharedAlloc");
+
     return context.interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::SHARE);
 }
@@ -94,6 +100,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     if (nullptr == pfnFree) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    context.logger.debug("==== urUSMFree");
 
     return context.interceptor->releaseMemory(hContext, pMem);
 }
@@ -114,6 +122,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
+    context.logger.debug("==== urQueueCreate");
+
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
     if (result == UR_RESULT_SUCCESS) {
         result = context.interceptor->addQueue(hContext, *phQueue);
@@ -132,6 +142,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    context.logger.debug("==== urQueueRelease");
 
     ur_context_handle_t hContext;
     UR_CALL(context.urDdiTable.Queue.pfnGetInfo(hQueue, UR_QUEUE_INFO_CONTEXT,
@@ -181,22 +193,48 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    std::vector<ur_event_handle_t> events(numEventsInWaitList + 1);
-    for (unsigned i = 0; i < numEventsInWaitList; ++i) {
-        events.push_back(phEventWaitList[i]);
+    context.logger.debug("==== urEnqueueKernelLaunch");
+
+    // if (pGlobalWorkOffset) {
+    // context.logger.debug("pGlobalWorkOffset: {}, {}, {}", pGlobalWorkOffset[0], pGlobalWorkOffset[1], pGlobalWorkOffset[2]);
+
+    //     return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+    //                            pGlobalWorkSize, pLocalWorkSize,
+    //                            numEventsInWaitList, phEventWaitList, phEvent);
+    // }
+
+    LaunchInfo LaunchInfo;
+    const size_t *pUserLocalWorkSize = pLocalWorkSize;
+    if (!pUserLocalWorkSize) {
+        pUserLocalWorkSize = LaunchInfo.LocalWorkSize;
+        UR_CALL(
+            context.urDdiTable.KernelExp.pfnGetKernelSuggestedLocalWorkSizeExp(
+                hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+                LaunchInfo.LocalWorkSize));
+    }
+
+    uint32_t numWork = 1;
+    for (uint32_t dim = 0; dim < workDim; ++dim) {
+        numWork *= (pGlobalWorkSize[dim] + pLocalWorkSize[dim] - 1) /
+                   pLocalWorkSize[dim];
+    }
+
+    std::vector<ur_event_handle_t> hEvents;
+    for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        hEvents.push_back(phEventWaitList[i]);
     }
 
     // preLaunchKernel must append to num_events_in_wait_list, not prepend
     ur_event_handle_t hPLEvent{};
-    LaunchInfo LaunchInfo;
-    context.interceptor->preLaunchKernel(hKernel, hQueue, hPLEvent, LaunchInfo);
+    UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, hPLEvent,
+                                                 LaunchInfo, numWork));
     if (hPLEvent) {
-        events.push_back(hPLEvent);
+        hEvents.push_back(hPLEvent);
     }
 
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+        pLocalWorkSize, hEvents.size(), hEvents.data(), phEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         context.interceptor->postLaunchKernel(hKernel, hQueue, phEvent,
@@ -222,6 +260,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    context.logger.debug("==== urContextCreate");
 
     ur_result_t result =
         pfnCreate(numDevices, phDevices, pProperties, phContext);
@@ -263,6 +303,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
+    context.logger.debug("==== urContextCreateWithNativeHandle");
+
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeContext, numDevices, phDevices, pProperties, phContext);
 
@@ -293,6 +335,8 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     if (nullptr == pfnRelease) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+
+    context.logger.debug("==== urContextRelease");
 
     UR_CALL(context.interceptor->removeContext(hContext));
     ur_result_t result = pfnRelease(hContext);

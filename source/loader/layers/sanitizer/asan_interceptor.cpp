@@ -84,14 +84,14 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
     return Program;
 }
 
-size_t getWorkgoupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device) {
-    size_t MaxWorkGroupSize;
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetGroupInfo(
-        Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
-        sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
-    assert(Result == UR_RESULT_SUCCESS);
-    return MaxWorkGroupSize;
-}
+// size_t getWorkgoupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device) {
+//     size_t MaxWorkGroupSize;
+//     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetGroupInfo(
+//         Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+//         sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+//     assert(Result == UR_RESULT_SUCCESS);
+//     return MaxWorkGroupSize;
+// }
 
 size_t getLocalMemorySize(ur_device_handle_t Device) {
     size_t LocalMemorySize;
@@ -235,8 +235,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                                   ur_queue_handle_t Queue,
                                                   ur_event_handle_t &Event,
-                                                  LaunchInfo &LaunchInfo) {
-    UR_CALL(prepareLaunch(Queue, Kernel, LaunchInfo));
+                                                  LaunchInfo &LaunchInfo,
+                                                  uint32_t numWorkgroup) {
+    UR_CALL(prepareLaunch(Queue, Kernel, LaunchInfo, numWorkgroup));
 
     UR_CALL(updateShadowMemory(Queue));
 
@@ -337,7 +338,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    context.logger.info("Shadow memory (Global, {} - {})",
+    context.logger.info("ShadowMemory(Global, {} - {})",
                         (void *)DeviceInfo->ShadowOffset,
                         (void *)DeviceInfo->ShadowOffsetEnd);
 
@@ -633,7 +634,8 @@ ur_result_t SanitizerInterceptor::removeQueue(ur_context_handle_t Context,
 
 ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                                                 ur_kernel_handle_t Kernel,
-                                                LaunchInfo &LaunchInfo) {
+                                                LaunchInfo &LaunchInfo,
+                                                uint32_t numWorkgroup) {
     auto Context = getContext(Queue);
     auto Device = getDevice(Queue);
     auto Program = getProgram(Kernel);
@@ -681,13 +683,14 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         }
 
         // Write shadow memory offset for local memory
-        auto MaxWorkGroupSize = getWorkgoupSize(Kernel, Device);
         auto LocalMemorySize = getLocalMemorySize(Device);
         auto LocalShadowMemorySize =
-            (MaxWorkGroupSize * LocalMemorySize) >> ASAN_SHADOW_SCALE;
+            (numWorkgroup * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
-        context.logger.debug("Local(MaxWorkGroupSize={}, LocalMemorySize={})",
-                             MaxWorkGroupSize, LocalMemorySize);
+        context.logger.debug("LocalInfo(WorkGroup={}, LocalMemorySize={}, "
+                             "LocalShadowMemorySize={})",
+                             numWorkgroup, LocalMemorySize,
+                             LocalShadowMemorySize);
 
         ur_usm_desc_t Desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr, 0, 0};
         UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
@@ -718,7 +721,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
             LastEvent = NewEvent;
         }
 
-        context.logger.info("Shadow memory (Local, {} - {})",
+        context.logger.info("ShadowMemory(Local, {} - {})",
                             (void *)LaunchInfo.LocalShadowOffset,
                             (void *)LaunchInfo.LocalShadowOffsetEnd);
     } while (false);
