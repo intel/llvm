@@ -59,7 +59,7 @@ for name in possibly_dangerous_env_vars:
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES',
-    'CL_CONFIG_DEVICES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
+    'CL_CONFIG_DEVICES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME', 'ASAN_OPTIONS'])
 
 llvm_config.with_environment('PATH', config.lit_tools_dir, append_path=True)
 
@@ -524,3 +524,5 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
+
+config.substitutions.append( ('%device_sanitizer_flags', "-fsanitize=address -fsanitize-target=device") )
