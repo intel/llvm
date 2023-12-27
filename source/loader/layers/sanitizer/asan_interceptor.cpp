@@ -266,13 +266,18 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
-        &LaunchInfo.SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
+        &LaunchInfo.SPIR_DeviceSanitizerReportMem, Event ? 1 : 0, Event, &ReadEvent);
 
     context.logger.debug("urEnqueueDeviceGlobalVariableRead({}): {}",
                          kSPIR_DeviceSanitizerReportMem, Result);
 
     if (Result == UR_RESULT_SUCCESS) {
-        *Event = ReadEvent;
+        if (Event) {
+            *Event = ReadEvent;
+        } else {
+            [[maybe_unused]] auto Result = context.urDdiTable.Event.pfnWait(1, &ReadEvent);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
 
         auto AH = &LaunchInfo.SPIR_DeviceSanitizerReportMem;
         if (!AH->Flag) {
@@ -331,7 +336,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
                 Context, nullptr, SHADOW_SIZE, (void **)&ShadowOffset);
             if (Result != UR_RESULT_SUCCESS) {
                 context.logger.error(
-                    "Shadow memory is allocated failed on PVC ({})", Result);
+                    "Failed to allocate shadow memory on PVC: {}", Result);
                 return Result;
             }
             ShadowOffsetEnd = ShadowOffset + SHADOW_SIZE;
@@ -426,7 +431,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     // Reset PhysicalMem to null since it's been mapped
                     PhysicalMem = nullptr;
 
-                    const char Pattern[] = {kUnkownRedzoneMagic};
+                    const char Pattern[] = {0};
 
                     auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
