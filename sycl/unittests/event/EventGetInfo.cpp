@@ -24,8 +24,6 @@ pi_result redefinedEventGetInfoAfter(pi_event event, pi_event_info param_name,
   if (events.find(event) == events.end()) {
     *Result = PI_EVENT_QUEUED;
     events.insert({event, true});
-  } else {
-    *Result = PI_EVENT_SUBMITTED;
   }
 
   return PI_SUCCESS;
