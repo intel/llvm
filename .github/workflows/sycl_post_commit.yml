@@ -5,6 +5,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
 
   pull_request:
     branches:

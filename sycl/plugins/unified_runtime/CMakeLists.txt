@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Mon Dec 18 13:15:43 2023 +0000
-  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
-  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
+  # commit 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86 (HEAD -> main, gitlab-orion-origin/main)
+  # Author: Weronika Lewandowska <weronika.lewandowska@intel.com>
+  # Date:   Fri Dec 22 10:11:47 2023 +0100
+  #     Merge pull request #1207 from PietroGhg/pietro/remove_event_hpp
+  #     [NATIVECPU] Remove event.hpp inclusion
+  set(UNIFIED_RUNTIME_TAG 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
