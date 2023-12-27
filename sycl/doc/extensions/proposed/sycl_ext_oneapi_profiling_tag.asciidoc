@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_record_event
+= sycl_ext_oneapi_profiling_tag
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -78,7 +78,8 @@ sycl_ext_oneapi_enqueue_functions]
 This extension provides a feature-test macro as described in the core SYCL
 specification.
 An implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_RECORD_EVENT` to one of the values defined in the table below.
+`SYCL_EXT_ONEAPI_PROFILING_TAG` to one of the values defined in the table
+below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -96,22 +97,22 @@ supports.
 
 === New device aspect
 
-This extension adds the `ext_oneapi_queue_event_recording` enumerator to the
+This extension adds the `ext_oneapi_queue_profiling_tag` enumerator to the
 `sycl::aspect` enumeration.
 
 ```
 namespace sycl {
 
 enum class aspect : /*unspecified*/ {
-  ext_oneapi_queue_event_recording
+  ext_oneapi_queue_profiling_tag
 };
 
 } // namespace sycl
 ```
 
-When a device has this aspect, the `record_event` function may be called for a
-queue on this device even if the queue is not constructed with the property
-`property::queue::enable_profiling`.
+When a device has this aspect, the `submit_profiling_tag` function may be
+called for a queue on this device even if the queue is not constructed with the
+property `property::queue::enable_profiling`.
 
 === New free function
 
@@ -126,22 +127,28 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-event record_event(const queue& q);
+event submit_profiling_tag(const queue& q);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
-_Effects:_ Enqueues a command barrier to `q`.
+_Effects:_ If the queue `q` is out-of-order (i.e. was not constructed with
+`property::queue::in_order`), this function enqueues a command barrier to `q`.
 Any commands submitted after this barrier cannot begin execution until all
 previously submitted commands have completed.
+If this queue is in-order, this function simply enqueues a lightweight "tag"
+command that marks the current head of the queue.
 
-_Returns:_ An event which represents the completion of the barrier.
-The event's status becomes `info::event_command_status::complete` when all
-commands submitted to the queue prior to the call to `record_event` have
-completed.
+_Returns:_ If the queue is out-of-order, returns an event which represents the
+completion of the barrier.
+If the queue is in-order, returns an event which represents the completion of
+the "tag" command.
+In either case, the event's status becomes
+`info::event_command_status::complete` when all commands submitted to the queue
+prior to the call to `submit_profiling_tag` have completed.
 The event's `info::event_profiling::command_submit` timestamp reflects the
-time at which `record_event` is called.
+time at which `submit_profiling_tag` is called.
 The event's `info::event_profiling::command_end` timestamp reflects the time
 at which the event enters the "complete" state.
 
@@ -155,7 +162,7 @@ Implementations are encouraged to transition the event directly from the
 _Throws:_ A synchronous `exception` with the `errc::invalid` error code if the
 queue was not constructed with the `property::queue::enable_profiling` property
 and if the queue's device does not have the aspect
-`ext_oneapi_queue_event_recording`.
+`ext_oneapi_queue_profiling_tag`.
 
 [_Note:_ In order to understand why the "command_start" and "command_end"
 timestamps are encouraged to be the same, think of the barrier as an empty
@@ -185,17 +192,17 @@ static constexpr size_t N = 1024;
 int main() {
   sycl::queue q;
 
-  if (!q.get_device().has(sycl::aspect::ext_oneapi_queue_event_recording)) {
+  if (!q.get_device().has(sycl::aspect::ext_oneapi_queue_profiling_tag)) {
     std::cout << "Cannot time kernels without enabling profiling on queue\n";
     return;
   }
 
   // commands submitted here are not timed
 
-  sycl::event start = syclex::record_event(q);
+  sycl::event start = syclex::submit_profiling_tag(q);
   sycl::parallel_for(q, {N}, [=](auto i) {/* first kernel */});
   sycl::parallel_for(q, {N}, [=](auto i) {/* second kernel */});
-  sycl::event end = syclex::record_event(q);
+  sycl::event end = syclex::submit_profiling_tag(q);
 
   q.wait();
 
@@ -205,15 +212,3 @@ int main() {
   std::cout << "Execution time: " << elapsed << " (nanoseconds)\n";
 }
 ```
-
-
-== Issues
-
-. Is the name `record_event` confusing?
-+
---
-*UNRESOLVED*: The current name is similar to the CUDA API `cudaEventRecord`,
-which has similar functionality.
-However, the word "record" may be confused with the recording functionality
-associated with SYCL graphs.
---

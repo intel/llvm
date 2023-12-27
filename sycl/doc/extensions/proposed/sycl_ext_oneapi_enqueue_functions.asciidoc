@@ -133,7 +133,7 @@ syclex::submit(q, [&](sycl::handler& h) {
 float* output = sycl::malloc_shared<int>(1, q);
 *output = 0;
 std::vector<sycl::event> depEvents = /* some dependencies */;
-sycl::event e = syclex::submit_and_record(q, [&](sycl::handler& h) {
+sycl::event e = syclex::submit_with_event(q, [&](sycl::handler& h) {
   h.depends_on(depEvents);
   syclex::nd_launch(h, sycl::nd_range<1>{1024, 16},
     [=](sycl::nd_item<1> it, auto& sum) {
@@ -247,7 +247,7 @@ a!
 namespace sycl::ext::oneapi::experimental {
 
 template <typename CommandGroupFunc>
-sycl::event submit_and_record(sycl::queue q, CommandGroupFunc&& cgf);
+sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
 
 }
 ----
@@ -711,13 +711,12 @@ _{endnote}_]
 
 == Issues
 
-. Is the name `submit_and_record` confusing?
+. What should `submit_with_event` be called?
 +
 --
-*UNRESOLVED*: An advantage with the current name is that it sets up a naming
-pattern with `record_event`, where functions with the word "record" in their
-name return an event.  However, the word "record" may be confused with the
-recording functionality associated with SYCL graphs.
+*UNRESOLVED*: `submit_with_event` is descriptive but verbose. Synonyms for
+`submit` like `enqueue` do not obviously mean "return an event". `record` may
+be confused with the recording functionality associated with SYCL graphs.
 --
 
 . What about `accessor` overloads and `update_host`?
