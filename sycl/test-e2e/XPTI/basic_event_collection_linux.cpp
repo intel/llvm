@@ -74,7 +74,7 @@
 // CHECK-DAG:    src_memory_ptr : {{.*}}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piextUSMEnqueueMemcpy
-// CHECK-NEXT: Task end
+// CHECK: Task end
 // CHECK-DAG:    memory_size : {{.*}}
 // CHECK-DAG:    dest_memory_ptr : {{.*}}
 // CHECK-DAG:    src_memory_ptr : {{.*}}

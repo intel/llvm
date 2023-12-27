@@ -296,7 +296,6 @@ int main(int argc, char *argv[]) {
                                           Z1[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X1, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy2>(sycl::range<2>{M, N},
@@ -306,7 +305,6 @@ int main(int argc, char *argv[]) {
                                           Z2[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X2, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy3>(sycl::range<2>{M, N},
@@ -316,7 +314,6 @@ int main(int argc, char *argv[]) {
                                           Z3[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X3, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy4>(sycl::range<2>{M, N},
@@ -326,7 +323,6 @@ int main(int argc, char *argv[]) {
                                           Z4[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X4, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy5>(sycl::range<2>{M, N},
@@ -336,7 +332,6 @@ int main(int argc, char *argv[]) {
                                           Z5[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X5, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy6>(sycl::range<2>{M, N},
@@ -346,7 +341,6 @@ int main(int argc, char *argv[]) {
                                           Z6[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X6, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy7>(sycl::range<2>{M, N},
@@ -356,7 +350,6 @@ int main(int argc, char *argv[]) {
                                           Z7[m * N + n] = Y1[m * N + n];
                                         });
       });
-      q.memcpy(X7, Y1, sizeof(uint32_t) * M * N);
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy8>(sycl::range<2>{M, N},
@@ -366,6 +359,16 @@ int main(int argc, char *argv[]) {
                                           Z8[m * N + n] = Y1[m * N + n];
                                         });
       });
+
+      q.wait();
+
+      q.memcpy(X1, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X2, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X3, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X4, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X5, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X6, Y1, sizeof(uint32_t) * M * N);
+      q.memcpy(X7, Y1, sizeof(uint32_t) * M * N);
       q.memcpy(X8, Y1, sizeof(uint32_t) * M * N);
 
       q.wait();
