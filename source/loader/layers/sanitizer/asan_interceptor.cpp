@@ -322,17 +322,23 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
         ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
+        // FIXME: Currently, level-zero doesn't create independent VAs for each contexts
+        static uptr ShadowOffset, ShadowOffsetEnd;
 
-        // TODO: Protect Bad Zone
-        auto Result = context.urDdiTable.VirtualMem.pfnReserve(
-            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset);
-        if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error(
-                "Shadow memory is allocated failed on PVC ({})", Result);
-            return Result;
+        if (!ShadowOffset) {
+            // TODO: Protect Bad Zone
+            auto Result = context.urDdiTable.VirtualMem.pfnReserve(
+                Context, nullptr, SHADOW_SIZE, (void **)&ShadowOffset);
+            if (Result != UR_RESULT_SUCCESS) {
+                context.logger.error(
+                    "Shadow memory is allocated failed on PVC ({})", Result);
+                return Result;
+            }
+            ShadowOffsetEnd = ShadowOffset + SHADOW_SIZE;
         }
 
-        DeviceInfo->ShadowOffsetEnd = DeviceInfo->ShadowOffset + SHADOW_SIZE;
+        DeviceInfo->ShadowOffset = ShadowOffset;
+        DeviceInfo->ShadowOffsetEnd = ShadowOffsetEnd;
     } else {
         context.logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -574,6 +580,7 @@ ur_result_t SanitizerInterceptor::removeContext(ur_context_handle_t Context) {
     std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
     m_ContextMap.erase(Context);
+    // TODO: Remove devices in each context
     return UR_RESULT_SUCCESS;
 }
 
@@ -687,15 +694,22 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
         auto LocalShadowMemorySize =
             (numWorkgroup * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
-        context.logger.debug("LocalInfo(WorkGroup={}, LocalMemorySize={}, "
-                             "LocalShadowMemorySize={})",
-                             numWorkgroup, LocalMemorySize,
-                             LocalShadowMemorySize);
+        context.logger.info("LocalInfo(WorkGroup={}, LocalMemorySize={}, "
+                            "LocalShadowMemorySize={})",
+                            numWorkgroup, LocalMemorySize,
+                            LocalShadowMemorySize);
 
         ur_usm_desc_t Desc{UR_STRUCTURE_TYPE_USM_HOST_DESC, nullptr, 0, 0};
-        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+        auto Result = context.urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, &Desc, nullptr, LocalShadowMemorySize,
-            (void **)&LaunchInfo.LocalShadowOffset));
+            (void **)&LaunchInfo.LocalShadowOffset);
+        if (Result != UR_RESULT_SUCCESS) {
+            context.logger.error(
+                "Failed to allocate shadow memory for local memory: {}",
+                numWorkgroup, Result);
+            context.logger.error("Maybe the number of workgroup too large");
+            return Result;
+        }
         LaunchInfo.LocalShadowOffsetEnd =
             LaunchInfo.LocalShadowOffset + LocalShadowMemorySize - 1;
 
@@ -709,7 +723,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
             uint32_t NumEvents = LastEvent ? 1 : 0;
             const ur_event_handle_t *EventsList =
                 LastEvent ? &LastEvent : nullptr;
-            const char Pattern[] = {kSharedLocalRedzoneMagic};
+            const char Pattern[] = {0};
 
             auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
                 Queue, (void *)LaunchInfo.LocalShadowOffset, 1, Pattern,
