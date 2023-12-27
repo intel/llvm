@@ -121,10 +121,9 @@ public:
   sub_group get_sub_group() const { return sub_group(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
-    // Why Size? It returns group id!!!
-    size_t Size = get_group()[Dimension];
-    __SYCL_ASSUME_INT(Size);
-    return Size;
+    size_t Id = get_group_id()[Dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
   }
 
   size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
@@ -375,9 +374,9 @@ public:
   sub_group get_sub_group() const { return sub_group(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
-    size_t Size = Group[Dimension];
-    __SYCL_ASSUME_INT(Size);
-    return Size;
+    size_t Id = Group[Dimension];
+    __SYCL_ASSUME_INT(Id);
+    return Id;
   }
 
   size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
