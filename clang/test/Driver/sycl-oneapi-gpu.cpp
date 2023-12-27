@@ -161,8 +161,18 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx906 -DMAC_STR=GFX906
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx908 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx908 -DMAC_STR=GFX908
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx909 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx909 -DMAC_STR=GFX909
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90a -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90a -DMAC_STR=GFX90A
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90c -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90c -DMAC_STR=GFX90C
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx940 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx940 -DMAC_STR=GFX940
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx941 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx941 -DMAC_STR=GFX941
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx942 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx942 -DMAC_STR=GFX942
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1010 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1010 -DMAC_STR=GFX1010
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1011 -### %s 2>&1 | \
@@ -177,8 +187,30 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1031 -DMAC_STR=GFX1031
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1032 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1032 -DMAC_STR=GFX1032
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1033 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1033 -DMAC_STR=GFX1033
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1034 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1034 -DMAC_STR=GFX1034
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1035 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1035 -DMAC_STR=GFX1035
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1036 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1036 -DMAC_STR=GFX1036
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1100 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1100 -DMAC_STR=GFX1100
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1101 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1101 -DMAC_STR=GFX1101
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1102 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1102 -DMAC_STR=GFX1102
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1103 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1103 -DMAC_STR=GFX1103
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1150 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1150 -DMAC_STR=GFX1150
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1151 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1151 -DMAC_STR=GFX1151
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1200 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1200 -DMAC_STR=GFX1200
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1201 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1201 -DMAC_STR=GFX1201
 // MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
