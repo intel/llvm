@@ -144,18 +144,41 @@ using select_apply_cl_t = std::conditional_t<
 template <typename T> struct vec_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }
+  static constexpr RetType set(T value) { return value; }
 };
 template <> struct vec_helper<bool> {
   using RetType = select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                     std::int32_t, std::int64_t>;
   static constexpr RetType get(bool value) { return value; }
+  static constexpr RetType set(bool value) { return value; }
+};
+
+template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
+  using RetType = sycl::ext::oneapi::bfloat16;
+  using BFloat16StorageT = sycl::ext::oneapi::detail::Bfloat16StorageT;
+  static constexpr RetType get(BFloat16StorageT value) {
+    // given that BFloat16StorageT is the storageT for bfloat16, I'd prefer
+    // to use a reinterpret_cast (or cast from void*). But inexplicably
+    // that's not allowed in constexpr (before C++20).
+    return sycl::bit_cast<RetType>(value);
+  }
+
+  static constexpr RetType get(RetType value) { return value; }
+
+  static constexpr BFloat16StorageT set(RetType value) {
+    return sycl::bit_cast<BFloat16StorageT>(value);
+  }
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
+  static constexpr RetType set(std::byte value) { return (RetType)value; }
   static constexpr std::byte get(std::uint8_t value) {
+    return (std::byte)value;
+  }
+  static constexpr std::byte set(std::uint8_t value) {
     return (std::byte)value;
   }
 };
@@ -330,7 +353,7 @@ template <typename Type, int NumElements> class vec {
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
   static constexpr bool IsUsingArrayOnDevice =
-      (IsHostHalf || IsSizeGreaterThanMaxAlign);
+      (IsHostHalf || IsBfloat16 || IsSizeGreaterThanMaxAlign);
 
 #if defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArrayOnDevice;
@@ -343,7 +366,7 @@ template <typename Type, int NumElements> class vec {
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  static constexpr bool IsUsingArrayOnDevice = IsHostHalf;
+  static constexpr bool IsUsingArrayOnDevice = IsHostHalf || IsBfloat16;
 #endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   static constexpr int getNumElements() { return NumElements; }
@@ -1035,7 +1058,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1464,13 +1487,13 @@ private:
 
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
-
+  // These versions are for N > 1.
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
                           int) {
-    m_Data[Index] = vec_data<DataT>::get(Value);
+    m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
@@ -1482,7 +1505,7 @@ private:
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
+    m_Data.s[Index] = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
@@ -1495,9 +1518,9 @@ private:
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    m_Data[Index] = vec_data<DataT>::get(Value);
+    m_Data[Index] = vec_data<DataT>::set(Value);
 #else
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
+    m_Data.s[Index] = vec_data<DataT>::set(Value);
 #endif
   }
 
@@ -1512,10 +1535,11 @@ private:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
+  // N==1 versions, used by host and device. Shouldn't trailing type be int?
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 == Num>>
   constexpr void setValue(int, const DataT &Value, float) {
-    m_Data = vec_data<DataT>::get(Value);
+    m_Data = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements,
@@ -1524,6 +1548,9 @@ private:
     return vec_data<DataT>::get(m_Data);
   }
 
+  // setValue and getValue.
+  // The "api" functions used by BINOP etc.  These versions just dispatch
+  // using additional int or float arg to disambiguate vec<1> vs. vec<N>
   // Special proxies as specialization is not allowed in class scope.
   constexpr void setValue(int Index, const DataT &Value) {
     if (NumElements == 1)
@@ -2544,6 +2571,7 @@ __SYCL_DEFINE_HALF_VECSTORAGE(16)
 // Single element bfloat16
 template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
   using DataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+  // using VectorDataType = sycl::ext::oneapi::bfloat16;
   using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
 };
 // Multiple elements bfloat16
