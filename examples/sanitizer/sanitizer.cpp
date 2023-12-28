@@ -6,7 +6,7 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file codegen.cpp
+ * @file sanitizer.cpp
  *
  * @brief UR code generation and execution example for use with the Level Zero adapter.
  *
