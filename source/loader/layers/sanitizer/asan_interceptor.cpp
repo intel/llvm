@@ -298,7 +298,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
             AH->LID0, AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
         context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
         if (!AH->IsRecover) {
-            exit(0);
+            exit(1);
         }
     }
 }

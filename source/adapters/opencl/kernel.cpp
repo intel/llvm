@@ -425,6 +425,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelSuggestedLocalWorkSize(
   if (workDim >= 3)
     pSuggestedLocalWorkSize[2] = 1;
 
+  // FIXME: clGetKernelSuggestedLocalWorkSizeKHR is unimplemented now.
   // cl_int RetErr = clGetKernelSuggestedLocalWorkSizeKHR(
   //     cl_adapter::cast<cl_command_queue>(hQueue),
   //     cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,

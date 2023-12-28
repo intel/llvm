@@ -195,14 +195,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     context.logger.debug("==== urEnqueueKernelLaunch");
 
-    // if (pGlobalWorkOffset) {
-    // context.logger.debug("pGlobalWorkOffset: {}, {}, {}", pGlobalWorkOffset[0], pGlobalWorkOffset[1], pGlobalWorkOffset[2]);
-
-    //     return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-    //                            pGlobalWorkSize, pLocalWorkSize,
-    //                            numEventsInWaitList, phEventWaitList, phEvent);
-    // }
-
     LaunchInfo LaunchInfo;
     const size_t *pUserLocalWorkSize = pLocalWorkSize;
     if (!pUserLocalWorkSize) {
