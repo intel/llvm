@@ -1,6 +1,6 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes=print-sycl-module-info\
-; RUN: --sycl-info-path %S/kernel-info.yaml -disable-output %s | FileCheck %s
+; RUN: --sycl-info-path %S/../kernel-fusion/kernel-info.yaml -disable-output %s | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
