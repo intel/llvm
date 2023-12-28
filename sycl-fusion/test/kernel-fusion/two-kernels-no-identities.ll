@@ -312,12 +312,12 @@ attributes #5 = { nounwind }
 ; This prefix focuses on the correct update of the SYCLModuleInfo, 
 ; tested by verifying the YAML print of the module/kernel info.
 
-; INFO-LABEL: - KernelName:      fused_0
-; INFO-NEXT:   Args:
-; INFO-NEXT: Kinds: [ Accessor, StdLayout, StdLayout, StdLayout, Accessor,
-; INFO-NEXT: StdLayout, StdLayout, StdLayout, Accessor, StdLayout,
-; INFO-NEXT: StdLayout, StdLayout, Accessor, StdLayout, StdLayout,
-; INFO-NEXT: StdLayout, Accessor, StdLayout, StdLayout, StdLayout,
-; INFO-NEXT: Accessor, StdLayout, StdLayout, StdLayout ]
-; INFO-NEXT: Mask: [ 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1,
-; INFO-NEXT:  1, 0, 0, 1, 1, 0, 0, 1 ]
+; INFO-LABEL: KernelName: fused_0
+; INFO-NEXT:    Args:
+; INFO-NEXT:      Kinds: Accessor, StdLayout, StdLayout, StdLayout, Accessor,
+; INFO-SAME:             StdLayout, StdLayout, StdLayout, Accessor, StdLayout,
+; INFO-SAME:             StdLayout, StdLayout, Accessor, StdLayout, StdLayout,
+; INFO-SAME:             StdLayout, Accessor, StdLayout, StdLayout, StdLayout,
+; INFO-SAME:             Accessor, StdLayout, StdLayout, StdLayout
+; INFO-NEXT:      Mask: 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0,
+; INFO-SAME:            1, 1, 0, 0, 1

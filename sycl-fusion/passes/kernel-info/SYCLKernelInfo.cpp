@@ -11,8 +11,10 @@
 #include "KernelIO.h"
 #include "metadata/MDParsing.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormattedStream.h"
 
 using namespace llvm;
 using namespace jit_compiler;
@@ -23,6 +25,20 @@ static llvm::cl::opt<std::string>
                        llvm::cl::value_desc("filename"), llvm::cl::init(""));
 
 llvm::AnalysisKey SYCLModuleInfoAnalysis::Key;
+
+// Keep this in sync with the enum definition in
+// `sycl-fusion/common/include/Kernel.h`.
+static constexpr unsigned NumParameterKinds = 6;
+static constexpr std::array<llvm::StringLiteral, NumParameterKinds>
+    ParameterKindStrings = {
+        StringLiteral{"Accessor"},
+        StringLiteral{"StdLayout"},
+        StringLiteral{"Sampler"},
+        StringLiteral{"Pointer"},
+        StringLiteral{"SpecConstantBuffer"},
+        StringLiteral{"Stream"},
+};
+static constexpr llvm::StringLiteral InvalidParameterKindString{"Invalid"};
 
 void SYCLModuleInfoAnalysis::loadModuleInfoFromFile() {
   DiagnosticPrinterRawOStream Printer{llvm::errs()};
@@ -66,14 +82,14 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
     llvm::transform(
         ArgsKindsMD->operands(), std::back_inserter(KernelInfo.Args.Kinds),
         [](const auto &Op) {
-          return StringSwitch<ParameterKind>(cast<MDString>(Op)->getString())
-              .Case("Accessor", ParameterKind::Accessor)
-              .Case("StdLayout", ParameterKind::StdLayout)
-              .Case("Sampler", ParameterKind::Sampler)
-              .Case("Pointer", ParameterKind::Pointer)
-              .Case("SpecConstantBuffer", ParameterKind::SpecConstBuffer)
-              .Case("Stream", ParameterKind::Stream)
-              .Default(ParameterKind::Invalid);
+          auto KindStr = cast<MDString>(Op)->getString();
+          auto It = std::find_if(
+              ParameterKindStrings.begin(), ParameterKindStrings.end(),
+              [&KindStr](auto &SL) { return KindStr == SL; });
+          if (It == ParameterKindStrings.end())
+            return ParameterKind::Invalid;
+          auto Idx = std::distance(ParameterKindStrings.begin(), It);
+          return static_cast<ParameterKind>(Idx);
         });
     ++It;
 
@@ -136,7 +152,43 @@ PreservedAnalyses SYCLModuleInfoPrinter::run(Module &Mod,
     Printer << "Error: No module info available\n";
     return PreservedAnalyses::all();
   }
-  llvm::yaml::Output Out{llvm::outs()};
-  Out << *ModuleInfo;
+
+  formatted_raw_ostream Out{llvm::outs()};
+  constexpr auto Indent = 2, Pad = 26;
+  for (const auto &KernelInfo : ModuleInfo->kernels()) {
+    Out << "KernelName:";
+    Out.PadToColumn(Pad);
+    Out << KernelInfo.Name << '\n';
+
+    Out.indent(Indent) << "Args:\n";
+    Out.indent(Indent * 2) << "Kinds:";
+    Out.PadToColumn(Pad);
+    llvm::interleaveComma(KernelInfo.Args.Kinds, Out, [&Out](auto Kind) {
+      auto KindInt = static_cast<unsigned>(Kind);
+      Out << (KindInt < NumParameterKinds ? ParameterKindStrings[KindInt]
+                                          : InvalidParameterKindString);
+    });
+    Out << '\n';
+
+    Out.indent(Indent * 2) << "Mask:";
+    Out.PadToColumn(Pad);
+    llvm::interleaveComma(KernelInfo.Args.UsageMask, Out, [&Out](auto Mask) {
+      Out << static_cast<unsigned>(Mask);
+    });
+    Out << '\n';
+
+    if (KernelInfo.Attributes.empty()) {
+      continue;
+    }
+
+    Out.indent(Indent) << "Attributes:\n";
+    for (const auto &AttrInfo : KernelInfo.Attributes) {
+      Out.indent(Indent * 2) << AttrInfo.AttributeName << ':';
+      Out.PadToColumn(Pad);
+      llvm::interleaveComma(AttrInfo.Values, Out);
+      Out << '\n';
+    }
+  }
+
   return PreservedAnalyses::all();
 }
