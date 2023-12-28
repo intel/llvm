@@ -248,6 +248,14 @@ class type_traits:
         match = re.match(cls.RE_ARRAY, name)
         return match.groups()[0]
 
+    @staticmethod
+    def get_struct_members(type_name, meta):
+        struct_type = _remove_const_ptr(type_name)
+        if not struct_type in meta['struct']:
+            raise Exception(
+                f"Cannot return members of non-struct type {struct_type}")
+        return meta['struct'][struct_type]['members']
+
 """
     Extracts traits from a value name
 """
@@ -1305,9 +1313,8 @@ def get_struct_handle_members(namespace,
                     'optional': param_traits.is_optional(m)
                 })
         elif type_traits.is_struct(m['type'], meta):
-            member_struct_type = _remove_const_ptr(m['type'])
-            member_struct_members = meta['struct'][member_struct_type][
-                'members']
+            member_struct_members = type_traits.get_struct_members(
+                m['type'], meta)
             if param_traits.is_range(m):
                 # If we've hit a range of structs we need to start a new recursion looking
                 # for handle members. We do not support range within range, so skip that
@@ -1319,7 +1326,7 @@ def get_struct_handle_members(namespace,
                     handle_members.append({
                         'parent': parent,
                         'name': m['name'],
-                        'type': subt(namespace, tags, member_struct_type),
+                        'type': subt(namespace, tags, _remove_const_ptr(m['type'])),
                         'range_start': param_traits.range_start(m),
                         'range_end': param_traits.range_end(m),
                         'handle_members': range_handle_members
@@ -1363,8 +1370,7 @@ def get_object_handle_structs_to_convert(namespace, tags, obj, meta):
 
     for item in params:
         if type_traits.is_struct(item['type'], meta):
-            members = meta['struct'][_remove_const_ptr(
-                item['type'])]['members']
+            members = type_traits.get_struct_members(item['type'], meta)
             handle_members = get_struct_handle_members(namespace, tags, meta,
                                                        members)
             if handle_members:

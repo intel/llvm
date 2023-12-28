@@ -214,8 +214,9 @@ they are preventing you from implementing a feature please open an issue and we
 will be happy to try and accommodate your use case. Otherwise beware of the
 following:
 
-* A function parameter which is a struct type that has any of the following
-  members in its type definition must not have the ``[range]`` tag:
+* A function parameter or struct member which is a struct type that has any of
+  the following members in its type definition must not have the ``[range]``
+  tag:
 
   * An object handle with the ``[range]`` tag
 
