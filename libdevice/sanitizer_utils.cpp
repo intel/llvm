@@ -533,16 +533,17 @@ __asan_set_shadow_local_memory(uptr ptr, size_t size,
                                size_t size_with_redzone) {
   uptr aligned_size = RoundUpTo(size, ASAN_SHADOW_GRANULARITY);
 
-  auto user_end = ptr + size - 1;
-  auto *shadow_beg = (s8 *)MemToShadow(ptr, AS_LOCAL);
-  auto *shadow_end = (s8 *)MemToShadow(user_end, AS_LOCAL);
-
-  while (shadow_beg <= shadow_end) {
-    *shadow_beg = 0;
-    ++shadow_beg;
+  {
+    auto shadow_address = MemToShadow(ptr + aligned_size, AS_LOCAL);
+    auto count = (size_with_redzone - aligned_size) / ASAN_SHADOW_GRANULARITY;
+    for (size_t i = 0; i < count; ++i) {
+      ((u8 *)shadow_address)[i] = kSharedLocalRedzoneMagic;
+    }
   }
 
   if (size != aligned_size) {
+    auto user_end = ptr + size - 1;
+    auto *shadow_end = (s8 *)MemToShadow(user_end, AS_LOCAL);
     *shadow_end = user_end - RoundDownTo(user_end, ASAN_SHADOW_GRANULARITY);
   }
 }
