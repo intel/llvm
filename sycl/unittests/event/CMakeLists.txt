@@ -1,4 +1,4 @@
 add_sycl_unittest(EventTests OBJECT
   EventDestruction.cpp
-        EventGetInfo.cpp
+  EventGetInfo.cpp
 )
