@@ -337,7 +337,7 @@ template <typename Type, int NumElements> class vec {
       std::is_same_v<sycl::detail::half_impl::StorageT,
                      sycl::detail::host_half_impl::half>;
 
-  static constexpr bool IsBfloat16 = 
+  static constexpr bool IsBfloat16 =
       std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
 
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -1305,8 +1305,7 @@ public:
         Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
       }
       return Ret;
-    }
-    else {
+    } else {
       vec Ret{-m_Data};
       if constexpr (std::is_same_v<Type, bool>) {
         Ret.ConvertToDataT();
@@ -2509,7 +2508,8 @@ struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
 // Single element floating-point (except half/bfloat16)
 template <typename T>
 struct VecStorage<
-    T, 1, typename std::enable_if_t<!is_half_or_bf16_v<T> && is_sgenfloat_v<T>>> {
+    T, 1,
+    typename std::enable_if_t<!is_half_or_bf16_v<T> && is_sgenfloat_v<T>>> {
   using DataType = T;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_DEVICE_ONLY__
