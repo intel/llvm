@@ -2517,7 +2517,8 @@ struct VecStorage<
 #endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
-// Multiple elements signed/unsigned integers and floating-point (except half/bfloat16)
+// Multiple elements signed/unsigned integers and floating-point (except
+// half/bfloat16)
 template <typename T, int N>
 struct VecStorage<
     T, N,
