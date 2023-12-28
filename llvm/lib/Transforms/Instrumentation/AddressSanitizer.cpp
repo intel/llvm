@@ -193,12 +193,12 @@ constexpr size_t kIsWriteMask = 0x1;
 
 static cl::opt<bool> ClEnableKasan(
     "asan-kernel", cl::desc("Enable KernelAddressSanitizer instrumentation"),
-                  cl::Hidden, cl::init(false));
+    cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClRecover(
     "asan-recover",
-              cl::desc("Enable recovery mode (continue-after-error)."),
-              cl::Hidden, cl::init(false));
+    cl::desc("Enable recovery mode (continue-after-error)."),
+    cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClInsertVersionCheck(
     "asan-guard-against-version-mismatch",
@@ -331,7 +331,7 @@ static cl::opt<int> ClInstrumentationWithCallsThreshold(
 
 static cl::opt<std::string> ClMemoryAccessCallbackPrefix(
     "asan-memory-access-callback-prefix",
-                                 cl::desc("Prefix for memory access callbacks"), cl::Hidden,
+    cl::desc("Prefix for memory access callbacks"), cl::Hidden,
     cl::init("__asan_"));
 
 static cl::opt<bool> ClKasanMemIntrinCallbackPrefix(
@@ -346,7 +346,7 @@ static cl::opt<bool>
 
 static cl::opt<bool> ClSkipPromotableAllocas(
     "asan-skip-promotable-allocas",
-                            cl::desc("Do not instrument promotable allocas"), cl::Hidden,
+    cl::desc("Do not instrument promotable allocas"), cl::Hidden,
     cl::init(true));
 
 static cl::opt<AsanCtorKind> ClConstructorKind(
@@ -398,7 +398,7 @@ static cl::opt<bool> ClDynamicAllocaStack(
 
 static cl::opt<uint32_t> ClForceExperiment(
     "asan-force-experiment",
-                      cl::desc("Force optimization experiment (for testing)"), cl::Hidden,
+    cl::desc("Force optimization experiment (for testing)"), cl::Hidden,
     cl::init(0));
 
 static cl::opt<bool>
@@ -536,7 +536,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
     else if (IsSystemZ)
       Mapping.Offset = kSystemZ_ShadowOffset64;
     else if (IsFreeBSD && IsAArch64)
-      Mapping.Offset = kFreeBSDAArch64_ShadowOffset64;
+        Mapping.Offset = kFreeBSDAArch64_ShadowOffset64;
     else if (IsFreeBSD && !IsMIPS64) {
       if (IsKasan)
         Mapping.Offset = kFreeBSDKasan_ShadowOffset64;
@@ -787,6 +787,8 @@ private:
 
   FunctionCallee AMDGPUAddressShared;
   FunctionCallee AMDGPUAddressPrivate;
+  int InstrumentationWithCallsThreshold;
+  uint32_t MaxInlinePoisoningSize;
 };
 
 class ModuleAddressSanitizer {
@@ -1708,36 +1710,36 @@ void AddressSanitizer::instrumentMaskedLoadOrStore(
 
   SplitBlockAndInsertForEachLane(EVL, LoopInsertBefore,
                                  [&](IRBuilderBase &IRB, Value *Index) {
-        Value *MaskElem = IRB.CreateExtractElement(Mask, Index);
-        if (auto *MaskElemC = dyn_cast<ConstantInt>(MaskElem)) {
-          if (MaskElemC->isZero())
-            // No check
-            return;
-          // Unconditional check
-        } else {
-          // Conditional check
-          Instruction *ThenTerm = SplitBlockAndInsertIfThen(
-              MaskElem, &*IRB.GetInsertPoint(), false);
-          IRB.SetInsertPoint(ThenTerm);
-        }
+    Value *MaskElem = IRB.CreateExtractElement(Mask, Index);
+    if (auto *MaskElemC = dyn_cast<ConstantInt>(MaskElem)) {
+      if (MaskElemC->isZero())
+        // No check
+        return;
+      // Unconditional check
+    } else {
+      // Conditional check
+      Instruction *ThenTerm = SplitBlockAndInsertIfThen(
+          MaskElem, &*IRB.GetInsertPoint(), false);
+      IRB.SetInsertPoint(ThenTerm);
+    }
 
-        Value *InstrumentedAddress;
-        if (isa<VectorType>(Addr->getType())) {
-          assert(
+    Value *InstrumentedAddress;
+    if (isa<VectorType>(Addr->getType())) {
+      assert(
           cast<VectorType>(Addr->getType())->getElementType()->isPointerTy() &&
-                 "Expected vector of pointer.");
-          InstrumentedAddress = IRB.CreateExtractElement(Addr, Index);
-        } else if (Stride) {
-          Index = IRB.CreateMul(Index, Stride);
-          Addr = IRB.CreateBitCast(Addr, PointerType::getUnqual(*C));
-          InstrumentedAddress = IRB.CreateGEP(Type::getInt8Ty(*C), Addr, {Index});
-        } else {
-          InstrumentedAddress = IRB.CreateGEP(VTy, Addr, {Zero, Index});
-        }
-        doInstrumentAddress(Pass, I, &*IRB.GetInsertPoint(),
-                            InstrumentedAddress, Alignment, Granularity,
-                            ElemTypeSize, IsWrite, SizeArgument, UseCalls, Exp);
-      });
+          "Expected vector of pointer.");
+      InstrumentedAddress = IRB.CreateExtractElement(Addr, Index);
+    } else if (Stride) {
+      Index = IRB.CreateMul(Index, Stride);
+      Addr = IRB.CreateBitCast(Addr, PointerType::getUnqual(*C));
+      InstrumentedAddress = IRB.CreateGEP(Type::getInt8Ty(*C), Addr, {Index});
+    } else {
+      InstrumentedAddress = IRB.CreateGEP(VTy, Addr, {Zero, Index});
+    }
+    doInstrumentAddress(Pass, I, &*IRB.GetInsertPoint(),
+                        InstrumentedAddress, Alignment, Granularity,
+                        ElemTypeSize, IsWrite, SizeArgument, UseCalls, Exp);
+  });
 }
 
 void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
@@ -1937,7 +1939,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       CrashTerm = SplitBlockAndInsertIfThen(Cmp2, CheckTerm, false);
     } else {
       BasicBlock *CrashBlock =
-          BasicBlock::Create(*C, "", NextBB->getParent(), NextBB);
+        BasicBlock::Create(*C, "", NextBB->getParent(), NextBB);
       CrashTerm = new UnreachableInst(*C, CrashBlock);
       BranchInst *NewTerm = BranchInst::Create(CrashBlock, NextBB, Cmp2);
       ReplaceInstWithInst(CheckTerm, NewTerm);
@@ -1983,7 +1985,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     Value *SizeMinusOne = IRB.CreateSub(Size, ConstantInt::get(IntptrTy, 1));
     Value *LastByte = IRB.CreateIntToPtr(
         IRB.CreateAdd(AddrLong, SizeMinusOne),
-                                         Addr->getType());
+        Addr->getType());
     instrumentAddress(I, InsertBefore, Addr, {}, 8, IsWrite, Size, false, Exp);
     instrumentAddress(I, InsertBefore, LastByte, {}, 8, IsWrite, Size, false,
                       Exp);
@@ -2302,7 +2304,7 @@ ModuleAddressSanitizer::CreateMetadataGlobal(Module &M, Constant *Initializer,
                      : GlobalVariable::PrivateLinkage;
   GlobalVariable *Metadata = new GlobalVariable(
       M, Initializer->getType(), false, Linkage, Initializer,
-                         Twine("__asan_global_") + GlobalValue::dropLLVMManglingEscape(OriginalName));
+      Twine("__asan_global_") + GlobalValue::dropLLVMManglingEscape(OriginalName));
   Metadata->setSection(getGlobalMetadataSection());
   // Place metadata in a large section for x86-64 ELF binaries to mitigate
   // relocation pressure.
@@ -2409,9 +2411,9 @@ void ModuleAddressSanitizer::instrumentGlobalsELF(
   // Create a call to register the globals with the runtime.
   if (ConstructorKind == AsanCtorKind::Global)
     IRB.CreateCall(AsanRegisterElfGlobals,
-                   {IRB.CreatePointerCast(RegisteredFlag, IntptrTy),
-                    IRB.CreatePointerCast(StartELFMetadata, IntptrTy),
-                    IRB.CreatePointerCast(StopELFMetadata, IntptrTy)});
+                 {IRB.CreatePointerCast(RegisteredFlag, IntptrTy),
+                  IRB.CreatePointerCast(StartELFMetadata, IntptrTy),
+                  IRB.CreatePointerCast(StopELFMetadata, IntptrTy)});
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
@@ -2473,7 +2475,7 @@ void ModuleAddressSanitizer::InstrumentGlobalsMachO(
 
   if (ConstructorKind == AsanCtorKind::Global)
     IRB.CreateCall(AsanRegisterImageGlobals,
-                   {IRB.CreatePointerCast(RegisteredFlag, IntptrTy)});
+                 {IRB.CreatePointerCast(RegisteredFlag, IntptrTy)});
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
@@ -2503,8 +2505,8 @@ void ModuleAddressSanitizer::InstrumentGlobalsWithMetadataArray(
 
   if (ConstructorKind == AsanCtorKind::Global)
     IRB.CreateCall(AsanRegisterGlobals,
-                   {IRB.CreatePointerCast(AllGlobals, IntptrTy),
-                    ConstantInt::get(IntptrTy, N)});
+                 {IRB.CreatePointerCast(AllGlobals, IntptrTy),
+                  ConstantInt::get(IntptrTy, N)});
 
   // We also need to unregister globals at the end, e.g., when a shared library
   // gets closed.
@@ -2634,7 +2636,7 @@ void ModuleAddressSanitizer::instrumentGlobals(IRBuilder<> &IRB, Module &M,
 
     bool CanUsePrivateAliases =
         TargetTriple.isOSBinFormatELF() || TargetTriple.isOSBinFormatMachO() ||
-                                TargetTriple.isOSBinFormatWasm();
+        TargetTriple.isOSBinFormatWasm();
     if (CanUsePrivateAliases && UsePrivateAlias) {
       // Create local alias for NewGlobal to avoid crash on ODR between
       // instrumented and non-instrumented libraries.
@@ -2773,7 +2775,7 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
       std::tie(AsanCtorFunction, std::ignore) =
           createSanitizerCtorAndInitFunctions(M, kAsanModuleCtorName,
                                               kAsanInitName, /*InitArgTypes=*/{},
-              /*InitArgs=*/{}, VersionCheckName);
+                                              /*InitArgs=*/{}, VersionCheckName);
     }
   }
 
@@ -3769,7 +3771,7 @@ void FunctionStackPoisoner::poisonAlloca(Value *V, uint64_t Size,
   Value *SizeArg = ConstantInt::get(IntptrTy, Size);
   IRB.CreateCall(
       DoPoison ? AsanPoisonStackMemoryFunc : AsanUnpoisonStackMemoryFunc,
-                 {AddrArg, SizeArg});
+      {AddrArg, SizeArg});
 }
 
 // Handling llvm.lifetime intrinsics for a given %alloca:
