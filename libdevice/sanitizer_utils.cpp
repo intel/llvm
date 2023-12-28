@@ -268,7 +268,7 @@ static void __asan_internal_report_save(
     DeviceSanitizerMemoryType memory_type, DeviceSanitizerErrorType error_type,
     bool is_recover = false) {
 
-  int Expected = ASAN_REPORT_NONE;
+  const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
   if (atomicCompareAndSet(&__DeviceSanitizerReportMem.Flag, Desired,
                           Expected) == Expected) {
@@ -323,19 +323,6 @@ static void __asan_internal_report_save(
 ///
 /// ASAN Error Reporters
 ///
-
-void __asan_report_overlapping_error(uptr dst, uptr src, size_t size,
-                                     const char *file, int32_t line,
-                                     const char *func) {
-  // TODO
-}
-
-void __asan_report_shadow_error(uptr addr, int32_t as, size_t size,
-                                bool is_write, uptr poisoned_addr,
-                                const char *file, int32_t line,
-                                const char *func) {
-  // TODO
-}
 
 void __asan_report_access_error(uptr addr, int32_t as, size_t size,
                                 bool is_write, uptr poisoned_addr,
