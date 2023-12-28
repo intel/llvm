@@ -1,5 +1,5 @@
 // RUN: %{build} %device_sanitizer_flags -g -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{run} not %t.out 2>&1 | FileCheck %s
 #include <sycl.hpp>
 
 constexpr std::size_t N = 16;

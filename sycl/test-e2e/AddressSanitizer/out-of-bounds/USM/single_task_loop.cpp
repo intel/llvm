@@ -3,7 +3,7 @@
 // TODO: rely on "printf_abort"
 
 // RUN: %{build} %device_sanitizer_flags -g -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{run} not %t.out 2>&1 | FileCheck %s
 
 // XFAIL: *
 

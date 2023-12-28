@@ -1,12 +1,12 @@
 // REQUIRES: linux
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
-// RUN: %{run} %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
+// RUN: %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
-// RUN: %{run} %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
+// RUN: %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O2 -g -o %t
-// RUN: %{run} %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
+// RUN: %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: %{run} %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+// RUN: %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -29,9 +29,9 @@ int main() {
   auto matrixB = (int(*)[N])sycl::malloc_device<int>(N * M, Q);
   auto matrixC = (int(*)[N])sycl::malloc_device<int>(N * M, Q);
 #elif defined(MALLOC_SYSTEM)
-  auto matrixA = (int(*)[N])sycl::malloc_device<int>(N * M, Q);
-  auto matrixB = (int(*)[N])sycl::malloc_device<int>(N * M, Q);
-  auto matrixC = (int(*)[N])sycl::malloc_device<int>(N * M, Q);
+  auto matrixA = (int(*)[N])new int[N * M];
+  auto matrixB = (int(*)[N])new int[N * M];
+  auto matrixC = (int(*)[N])new int[N * M];
 #else
 #error "Must provide malloc type to run the test"
 #endif
@@ -83,23 +83,6 @@ int main() {
         });
   });
   Q.wait();
-
-  // Q.single_task([=]() {
-  //   for (unsigned m = 0; m < M; ++m) {
-  //     for (unsigned n = 0; n < N; ++n) {
-  //       sycl::ext::oneapi::experimental::printf("%d ", matrixA[m][n]);
-  //     }
-  //     sycl::ext::oneapi::experimental::printf("\n");
-  //   }
-  // });
-
-  // Q.parallel_for(nd_range<2>{{M, N}, {1, 16}}, [=](nd_item<2> item) {
-  //   int m = item.get_global_id()[0];
-  //   int n = item.get_global_id()[1];
-  //   matrixA[m][n] = m;
-  //   matrixB[m][n] = n + m;
-  //   matrixC[m][n] = m * n;
-  // });
 
   return 0;
 }
