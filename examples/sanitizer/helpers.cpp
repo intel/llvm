@@ -13,7 +13,7 @@
 #include <sstream>
 
 std::string generate_plus_one_spv() {
-    std::ifstream spv("../../examples/sanitizer/asan.spv");
+    std::ifstream spv(CURRENT_SOURCE_DIR "/asan.spv");
     std::stringstream buffer;
     buffer << spv.rdbuf();
 
