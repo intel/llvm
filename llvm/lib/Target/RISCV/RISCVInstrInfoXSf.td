@@ -356,10 +356,9 @@ multiclass VPseudoSiFiveVQMACCDOD<string Constraint = ""> {
 }
 
 multiclass VPseudoSiFiveVQMACCQOQ<string Constraint = ""> {
-  foreach i = 0-3 in
-    let VLMul = MxListVF4[i].value in
-    defm NAME : VPseudoSiFiveVMACC<MxListVF4[i].MX, MxListVF8[i].vrclass,
-                                   MxListVF4[i].vrclass, Constraint>;
+  foreach m = [V_MF2, V_M1, V_M2, V_M4] in
+    let VLMul = m.value in
+    defm NAME : VPseudoSiFiveVMACC<m.MX, m.wvrclass, m.vrclass, Constraint>;
 }
 
 multiclass VPseudoSiFiveVFWMACC<string Constraint = ""> {
@@ -369,7 +368,7 @@ multiclass VPseudoSiFiveVFWMACC<string Constraint = ""> {
 }
 
 multiclass VPseudoSiFiveVFNRCLIP<string Constraint = "@earlyclobber $rd"> {
-  foreach i = [0, 1, 2, 3, 4] in
+  foreach i = 0-4 in
     let hasSideEffects = 0 in
       defm "Pseudo" # NAME : VPseudoBinaryRoundingMode<MxListW[i].vrclass,
                                                        MxListVF4[i].vrclass,
@@ -581,10 +580,10 @@ defset list<VTypeInfoToWide> VQMACCDODInfoPairs = {
 }
 
 defset list<VTypeInfoToWide> VQMACCQOQInfoPairs = {
-   def : VTypeInfoToWide<VI8MF2, VI32M1>;
-   def : VTypeInfoToWide<VI8M1, VI32M2>;
-   def : VTypeInfoToWide<VI8M2, VI32M4>;
-   def : VTypeInfoToWide<VI8M4, VI32M8>;
+  def : VTypeInfoToWide<VI8MF2, VI32M1>;
+  def : VTypeInfoToWide<VI8M1, VI32M2>;
+  def : VTypeInfoToWide<VI8M2, VI32M4>;
+  def : VTypeInfoToWide<VI8M4, VI32M8>;
 }
 
 multiclass VPatVQMACCDOD<string intrinsic, string instruction, string kind>
