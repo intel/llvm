@@ -100,8 +100,8 @@ add_sycl_plugin(level_zero
 )
 
 if (WIN32)
- # 0x800: Search for the DLL only in the System32 folder
- target_link_options(pi_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
+  # 0x800: Search for the DLL only in the System32 folder
+  target_link_options(pi_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
 endif()
 
 add_dependencies(pi_level_zero ze-api)
