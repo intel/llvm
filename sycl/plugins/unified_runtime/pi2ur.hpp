@@ -1991,10 +1991,6 @@ inline pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     PropName = UR_PROGRAM_INFO_DEVICES;
     break;
   }
-  case PI_PROGRAM_INFO_SOURCE: {
-    PropName = UR_PROGRAM_INFO_SOURCE;
-    break;
-  }
   case PI_PROGRAM_INFO_BINARY_SIZES: {
     PropName = UR_PROGRAM_INFO_BINARY_SIZES;
     break;
