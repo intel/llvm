@@ -2353,18 +2353,8 @@ inline pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     break;
   }
   case PI_KERNEL_INFO_NUM_ARGS: {
-    size_t NumArgs = 0;
-    HANDLE_ERRORS(urKernelGetInfo(UrKernel, UR_KERNEL_INFO_NUM_ARGS,
-                                  sizeof(NumArgs), &NumArgs, nullptr));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = sizeof(uint32_t);
-    }
-    if (ParamValue) {
-      if (ParamValueSize != sizeof(uint32_t))
-        return PI_ERROR_INVALID_BUFFER_SIZE;
-      *static_cast<uint32_t *>(ParamValue) = static_cast<uint32_t>(NumArgs);
-    }
-    return PI_SUCCESS;
+    UrParamName = UR_KERNEL_INFO_NUM_ARGS;
+    break;
   }
   case PI_KERNEL_INFO_REFERENCE_COUNT: {
     UrParamName = UR_KERNEL_INFO_REFERENCE_COUNT;
