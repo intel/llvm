@@ -161,8 +161,8 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
     // to use a reinterpret_cast (or cast from void*). But inexplicably
     // that's not allowed in constexpr (before C++20).
 #ifdef _WIN32
-    void *ptr = (void*)(&value);
-    return *((RetType*)ptr);
+    void *ptr = (void *)(&value);
+    return *((RetType *)ptr);
 #else
     return sycl::bit_cast<RetType>(value);
 #endif
@@ -172,8 +172,8 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
 
   static constexpr BFloat16StorageT set(RetType value) {
 #ifdef _WIN32
-    void *ptr = (void*)(&value);
-    return *((BFloat16StorageT*)ptr);
+    void *ptr = (void *)(&value);
+    return *((BFloat16StorageT *)ptr);
 #else
     return sycl::bit_cast<BFloat16StorageT>(value);
 #endif
