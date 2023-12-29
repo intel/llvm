@@ -3,6 +3,10 @@
 #include <random>
 #include <sycl/sycl.hpp>
 
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclintelex = sycl::ext::intel::experimental;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 // Most of the time, failures related to floating-point calculations (both float

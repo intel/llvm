@@ -22,10 +22,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
-
-jit_compiler::~jit_compiler() = default;
-
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   switch (Type) {
@@ -836,7 +832,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
+      std::move(JITConfig), InputKernelInfo, InputKernelNames,
       FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 

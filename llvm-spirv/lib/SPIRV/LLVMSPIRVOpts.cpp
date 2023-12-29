@@ -54,7 +54,7 @@ bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
   const auto &IntrinsicPrefixList = SPIRVAllowUnknownIntrinsics.value();
   StringRef IntrinsicName = II->getCalledOperand()->getName();
   for (const auto &Prefix : IntrinsicPrefixList) {
-    if (IntrinsicName.startswith(Prefix)) // Also true if `Prefix` is empty
+    if (IntrinsicName.starts_with(Prefix)) // Also true if `Prefix` is empty
       return true;
   }
   return false;
