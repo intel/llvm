@@ -1,3 +1,5 @@
 urMemBufferCreateWithNativeHandleTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-urMemImageGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_ROW_PITCH
-urMemImageGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_SLICE_PITCH
+{{OPT}}urMemGetInfoImageTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_SIZE
+{{OPT}}urMemGetInfoImageTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_CONTEXT
+urMemImageGetInfoTest.InvalidSizeSmall/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_ROW_PITCH
+urMemImageGetInfoTest.InvalidSizeSmall/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_SLICE_PITCH
