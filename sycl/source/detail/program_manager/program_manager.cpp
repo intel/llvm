@@ -530,7 +530,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 // its ref count incremented.
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, bool JITCompilationIsRequired) {
+    const std::string &KernelName, const NDRDescT &NDRDesc,
+    bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -565,7 +566,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       getDeviceImage(KernelName, Context, Device, JITCompilationIsRequired);
 
   // Check that device supports all aspects used by the kernel
-  if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
+  if (auto exception = checkDevSupportDeviceRequirements(Device, Img, NDRDesc))
     throw *exception;
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
@@ -649,7 +650,8 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName) {
+                                  const std::string &KernelName,
+                                  const NDRDescT &NDRDesc) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -685,7 +687,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   }
 
   sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
@@ -2679,7 +2681,8 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
 
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device &Dev,
-                                  const RTDeviceBinaryImage &Img) {
+                                  const RTDeviceBinaryImage &Img,
+                                  const NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
     const RTDeviceBinaryImage::PropertyRange &PropRange =
         Img.getDeviceRequirements();
@@ -2803,6 +2806,12 @@ checkDevSupportDeviceRequirements(const device &Dev,
       ReqdWGSizeVec.push_back(SingleDimSize);
       Dims++;
     }
+
+    if (NDRDesc.Dims != 0 && NDRDesc.Dims != static_cast<size_t>(Dims))
+      return sycl::exception(
+          sycl::errc::nd_range,
+          "The local size dimension of submitted nd_range doesn't match the "
+          "required work-group size dimension");
 
     // The SingleDimSize was computed in an uint64_t; size_t does not
     // necessarily have to be the same uint64_t (but should fit in an
