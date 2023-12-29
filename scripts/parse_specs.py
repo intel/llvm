@@ -314,9 +314,6 @@ def _validate_doc(f, d, tags, line_num, meta):
             if not annotation:
                 raise Exception(prefix+"'desc' must start with {'[in]', '[out]', '[in,out]'}")
 
-            if type_traits.is_handle(item['type']):
-                raise Exception(prefix+"'type' must not be '*_handle_t': %s"%item['type'])
-
             if item['type'].endswith("flag_t"):
                 raise Exception(prefix+"'type' must not be '*_flag_t': %s"%item['type'])
 
