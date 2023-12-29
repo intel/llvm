@@ -273,7 +273,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
+  // setKernelArg is expecting a pointer to our argument
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
   return UR_RESULT_SUCCESS;
 }
 

@@ -213,9 +213,7 @@ urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto ptrToPtr = reinterpret_cast<const intptr_t *>(pArgValue);
-  auto derefPtr = reinterpret_cast<void *>(*ptrToPtr);
-  hKernel->_args.push_back(derefPtr);
+  hKernel->_args.push_back(const_cast<void *>(pArgValue));
 
   return UR_RESULT_SUCCESS;
 }
