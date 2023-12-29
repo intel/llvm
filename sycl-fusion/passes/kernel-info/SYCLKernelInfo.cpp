@@ -8,7 +8,6 @@
 
 #include "SYCLKernelInfo.h"
 
-#include "KernelIO.h"
 #include "metadata/MDParsing.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -18,11 +17,6 @@
 
 using namespace llvm;
 using namespace jit_compiler;
-
-static llvm::cl::opt<std::string>
-    ModuleInfoFilePath("sycl-info-path",
-                       llvm::cl::desc("Path to the SYCL module info YAML file"),
-                       llvm::cl::value_desc("filename"), llvm::cl::init(""));
 
 llvm::AnalysisKey SYCLModuleInfoAnalysis::Key;
 
@@ -39,25 +33,6 @@ static constexpr std::array<llvm::StringLiteral, NumParameterKinds>
         StringLiteral{"Stream"},
 };
 static constexpr llvm::StringLiteral InvalidParameterKindString{"Invalid"};
-
-void SYCLModuleInfoAnalysis::loadModuleInfoFromFile() {
-  DiagnosticPrinterRawOStream Printer{llvm::errs()};
-  ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrError =
-      MemoryBuffer::getFile(ModuleInfoFilePath);
-  if (std::error_code EC = FileOrError.getError()) {
-    Printer << "Could not open file " << ModuleInfoFilePath << " due to error "
-            << EC.message() << "\n";
-    return;
-  }
-  llvm::yaml::Input In{FileOrError->get()->getMemBufferRef()};
-  ModuleInfo = std::make_unique<SYCLModuleInfo>();
-  In >> *ModuleInfo;
-  if (In.error()) {
-    Printer << "Error parsing YAML from " << ModuleInfoFilePath << ": "
-            << In.error().message() << "\n";
-    return;
-  }
-}
 
 void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
   DiagnosticPrinterRawOStream Printer{llvm::errs()};
@@ -134,11 +109,7 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
 SYCLModuleInfoAnalysis::Result
 SYCLModuleInfoAnalysis::run(Module &M, ModuleAnalysisManager &) {
   if (!ModuleInfo) {
-    if (!ModuleInfoFilePath.empty()) {
-      loadModuleInfoFromFile();
-    } else {
-      loadModuleInfoFromMetadata(M);
-    }
+    loadModuleInfoFromMetadata(M);
   }
   return {ModuleInfo.get()};
 }

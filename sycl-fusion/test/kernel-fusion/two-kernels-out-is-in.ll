@@ -316,7 +316,7 @@ attributes #5 = { nounwind }
 ;.
 
 ; This prefix focuses on the correct update of the SYCLModuleInfo, 
-; tested by verifying the YAML print of the module/kernel info.
+; tested by verifying the textual dump of the module/kernel info.
 
 ; INFO-LABEL: KernelName: fused_0
 ; INFO-NEXT:    Args:
