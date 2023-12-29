@@ -61,8 +61,9 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
           auto It = std::find_if(
               ParameterKindStrings.begin(), ParameterKindStrings.end(),
               [&KindStr](auto &SL) { return KindStr == SL; });
-          if (It == ParameterKindStrings.end())
+          if (It == ParameterKindStrings.end()) {
             return ParameterKind::Invalid;
+          }
           auto Idx = std::distance(ParameterKindStrings.begin(), It);
           return static_cast<ParameterKind>(Idx);
         });
