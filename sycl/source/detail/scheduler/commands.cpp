@@ -252,47 +252,6 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   return RetPiEvents;
 }
 
-// This function is implemented (duplicating getPiEvents a lot) as short term
-// solution for the issue that barrier with wait list could not
-// handle empty pi event handles when kernel is enqueued on host task
-// completion.
-std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
-    const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls) {
-    // Throwaway events created with empty constructor will not have a context
-    // (which is set lazily) calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    // Skip host task also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
-      continue;
-    // In this path nullptr native event means that the command has not been
-    // enqueued. It may happen if async enqueue in a host task is involved.
-    if (EventImpl->getHandleRef() == nullptr) {
-      if (!EventImpl->getCommand() ||
-          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
-        continue;
-      std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
-    }
-    // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
-    // to different sync mechanisms for different task types on in-order queue.
-    const QueueImplPtr &WorkerQueue = getWorkerQueue();
-    // MWorkerQueue in command is always not null. So check if
-    // EventImpl->getWorkerQueue != nullptr is implicit.
-    if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->isInOrder() && !isHostTask())
-      continue;
-
-    RetPiEvents.push_back(EventImpl->getHandleRef());
-  }
-
-  return RetPiEvents;
-}
-
 bool Command::isHostTask() const {
   return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
          ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
@@ -500,18 +459,21 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(
     CommandType Type, QueueImplPtr Queue,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints)
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    bool ProducesPiEvent)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
-      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints),
+      MProducesPiEvent(ProducesPiEvent) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
+  MEvent->setProducesPiEvent(MProducesPiEvent);
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -735,8 +697,6 @@ const QueueImplPtr &Command::getWorkerQueue() const {
   assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
   return MWorkerQueue;
 }
-
-bool Command::producesPiEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
@@ -971,7 +931,8 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
                                      AllocaCommandBase *LinkedAllocaCmd,
                                      bool IsConst)
-    : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
+    : Command(Type, Queue, nullptr, {}, false),
+      MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
       MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
@@ -999,8 +960,6 @@ void AllocaCommandBase::emitInstrumentationData() {
   }
 #endif
 }
-
-bool AllocaCommandBase::producesPiEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1170,7 +1129,8 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 }
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+    : Command(CommandType::RELEASE, std::move(Queue), nullptr, {}, false),
+      MAllocaCmd(AllocaCmd) {
   emitInstrumentationDataProxy();
 }
 
@@ -1281,8 +1241,6 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool ReleaseCommand::producesPiEvent() const { return false; }
-
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
 bool ReleaseCommand::readyForCleanup() const { return false; }
@@ -1383,27 +1341,6 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
-  // TODO remove this workaround once the batching issue is addressed in Level
-  // Zero plugin.
-  // Consider the following scenario on Level Zero:
-  // 1. Kernel A, which uses buffer A, is submitted to queue A.
-  // 2. Kernel B, which uses buffer B, is submitted to queue B.
-  // 3. queueA.wait().
-  // 4. queueB.wait().
-  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
-  // dependencies (i.e. they were waited for prior to enqueueing any command
-  // that's dependent on them). This allowed Level Zero plugin to detect that
-  // each queue is idle on steps 1/2 and submit the command list right away.
-  // This is no longer the case since we started passing these dependencies in
-  // an event waitlist and Level Zero plugin attempts to batch these commands,
-  // so the execution of kernel B starts only on step 4. This workaround
-  // restores the old behavior in this case until this is resolved.
-  return MQueue->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero ||
-         MEvent->getHandleRef() != nullptr;
-}
-
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1488,28 +1425,6 @@ void MemCpyCommand::emitInstrumentationData() {
 
 const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
-}
-
-bool MemCpyCommand::producesPiEvent() const {
-  // TODO remove this workaround once the batching issue is addressed in Level
-  // Zero plugin.
-  // Consider the following scenario on Level Zero:
-  // 1. Kernel A, which uses buffer A, is submitted to queue A.
-  // 2. Kernel B, which uses buffer B, is submitted to queue B.
-  // 3. queueA.wait().
-  // 4. queueB.wait().
-  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
-  // dependencies (i.e. they were waited for prior to enqueueing any command
-  // that's dependent on them). This allowed Level Zero plugin to detect that
-  // each queue is idle on steps 1/2 and submit the command list right away.
-  // This is no longer the case since we started passing these dependencies in
-  // an event waitlist and Level Zero plugin attempts to batch these commands,
-  // so the execution of kernel B starts only on step 4. This workaround
-  // restores the old behavior in this case until this is resolved.
-  return MQueue->is_host() ||
-         MQueue->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero ||
-         MEvent->getHandleRef() != nullptr;
 }
 
 pi_int32 MemCpyCommand::enqueueImp() {
@@ -1695,7 +1610,7 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
+    : Command(CommandType::EMPTY_TASK, std::move(Queue), nullptr, {}, false) {
   emitInstrumentationDataProxy();
 }
 
@@ -1757,8 +1672,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1770,8 +1684,6 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
-
-bool EmptyCommand::producesPiEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -1883,7 +1795,9 @@ ExecCGCommand::ExecCGCommand(
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
-              Dependencies),
+              Dependencies,
+              !CommandBuffer &&
+                  CommandGroup->getType() != CG::CGTYPE::CodeplayHostTask),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
@@ -3047,31 +2961,36 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::Barrier: {
     if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // All dependencies should be already enqueued by our scheduler and wait list must be empty even if we add MLastEvent to the deps. Empty wait list enables the rigth barrier work scenario.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
+    
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::BarrierWaitlist: {
-    CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<sycl::detail::pi::PiEvent> PiEvents =
-        getPiEventsBlocking(Events);
-    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
+    if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
-      // If Events is empty, then the barrier has no effect.
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // This should not be skipped even for in order queue, we need a proper
+    // event to wait for.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0], Event);
+    
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   }
@@ -3168,11 +3087,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   return PI_ERROR_INVALID_OPERATION;
 }
 
-bool ExecCGCommand::producesPiEvent() const {
-  return !MCommandBuffer &&
-         MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
-}
-
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
   // Host tasks are cleaned up upon completion instead.
   return Command::supportsPostEnqueueCleanup() &&
@@ -3186,7 +3100,7 @@ bool ExecCGCommand::readyForCleanup() const {
 }
 
 KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
-    : Command(Command::CommandType::FUSION, Queue),
+    : Command(Command::CommandType::FUSION, Queue, nullptr, {}, false),
       MStatus(FusionStatus::ACTIVE) {
   emitInstrumentationDataProxy();
 }
@@ -3202,8 +3116,6 @@ void KernelFusionCommand::addToFusionList(ExecCGCommand *Kernel) {
 std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
   return MFusionList;
 }
-
-bool KernelFusionCommand::producesPiEvent() const { return false; }
 
 pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();

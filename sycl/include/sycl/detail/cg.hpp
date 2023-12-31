@@ -348,13 +348,18 @@ public:
 
 class CGBarrier : public CG {
 public:
+  // TODO: remove MEventsWaitWithBarrier during the next ABI Breaking window,
+  // not used any more. Events are now handled via CG.MData.MEvents. The same as
+  // for kernel and other commands.
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
             CG::StorageInitHelper CGData, CGTYPE Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {
+    assert(EventsWaitWithBarrier.empty());
+  }
 };
 
 /// "Copy 2D USM" command group class.

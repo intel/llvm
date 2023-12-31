@@ -26,8 +26,60 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
+
+static std::vector<sycl::detail::pi::PiEvent>
+getPIEvents(const std::vector<sycl::event> &DepEvents,
+            const EventImplPtr &ExtraDepEvent) {
+  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+  auto AddEvent = [&RetPiEvents](const EventImplPtr &EventImpl) {
+    if (EventImpl->getHandleRef() == nullptr)
+      return;
+    RetPiEvents.push_back(EventImpl->getHandleRef());
+  };
+  if (ExtraDepEvent)
+    AddEvent(ExtraDepEvent);
+  for_each(DepEvents.begin(), DepEvents.end(),
+           [&RetPiEvents, &AddEvent](const sycl::event &Event) {
+             auto EventImpl = detail::getSyclObjImpl(Event);
+             return AddEvent(EventImpl);
+           });
+  return RetPiEvents;
+}
+
+static bool isEventsReady(const std::vector<sycl::event> &DepEvents,
+                          const EventImplPtr &ExtraDepEventPtr,
+                          ContextImplPtr Context) {
+  auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
+    // throwaway events created with empty constructor will not have a
+    // context (which is set lazily) calling getContextImpl() would set that
+    // context, which we wish to avoid as it is expensive.
+    if (!SyclEventImplPtr->isContextInitialized() &&
+        !SyclEventImplPtr->is_host()) {
+      return true;
+    }
+    if (SyclEventImplPtr->is_host()) {
+      return SyclEventImplPtr->isCompleted();
+    }
+    // The fusion command and its event are associated with a non-host
+    // context, but still do not produce a PI event.
+    if (SyclEventImplPtr->getContextImpl() != Context ||
+        !SyclEventImplPtr->producesPiEvent())
+      return false;
+
+    // In this path nullptr native event means that the command has not
+    // been enqueued. It may happen if async enqueue in a host task is
+    // involved.
+    return SyclEventImplPtr->getHandleRef() != nullptr;
+  };
+
+  return (!ExtraDepEventPtr || CheckEvent(ExtraDepEventPtr)) &&
+         std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context, &CheckEvent](const sycl::event &Event) {
+                       auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
+                       return CheckEvent(SyclEventImplPtr);
+                     });
+}
 
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
@@ -85,49 +137,55 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+
   if (MGraph.lock()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "The memset feature is not yet available "
                           "for use with the SYCL Graph extension.");
   }
 
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+  // We need to submit command and update the last event under same lock if we
+  // have in-order queue.
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext),
-                            &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      guard.lock();
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                              getPIEvents(DepEvents, ExtraEventToWait),
+                              &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        auto &EventToStoreIn =
+          MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memset(Ptr, Value, Count);
+      },
+      Self, {});
 }
 
 void report(const code_location &CodeLoc) {
@@ -184,176 +242,191 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
   }
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
 
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext),
-                            &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      guard.lock();
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_usm(Src, Self, Count, Dest,
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_usm(Src, Self, Count, Dest,
+                              getPIEvents(DepEvents, ExtraEventToWait),
+                              &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        auto &EventToStoreIn =
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpy(Dest, Src, Count);
+      },
+      Self, {});
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext),
-                              &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      guard.lock();
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                                  getPIEvents(DepEvents, ExtraEventToWait),
+                                  nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host()) {
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      }
+      if (isInOrder()) {
+        auto &EventToStoreIn =
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+
+      return discard_or_return(ResEvent);
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.mem_advise(Ptr, Length, Advice);
+      },
+      Self, {});
 }
 
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_to_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                                         getOrWaitEvents(DepEvents, MContext),
-                                         &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      guard.lock();
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_to_device_global(
+            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_to_device_global(
+          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        auto &EventToStoreIn =
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                 NumBytes, Offset);
+      },
+      Self, {});
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &EventImpl->getHandleRef(),
-        EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      guard.lock();
+      ExtraEventToWait = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_from_device_global(
+            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_from_device_global(
+          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        auto &EventToStoreIn =
+            MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                   NumBytes, Offset);
+      },
+      Self, {});
 }
 
 event queue_impl::getLastEvent() const {
@@ -366,9 +439,9 @@ void queue_impl::addEvent(const event &Event) {
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
-    // if there is no command on the event, we cannot track it with MEventsWeak
-    // as that will leave it with no owner. Track in MEventsShared only if we're
-    // unable to call piQueueFinish during wait.
+    // if there is no command on the event, we cannot track it with
+    // MEventsWeak as that will leave it with no owner. Track in MEventsShared
+    // only if we're unable to call piQueueFinish during wait.
     if (is_host() || MEmulateOOO)
       addSharedEvent(Event);
   }
@@ -390,18 +463,18 @@ void queue_impl::addSharedEvent(const event &Event) {
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
   // make, and ~queue_impl(). If the number of events grows large enough,
-  // there's a good chance that most of them are already completed and ownership
-  // of them can be released.
+  // there's a good chance that most of them are already completed and
+  // ownership of them can be released.
   const size_t EventThreshold = 128;
   if (MEventsShared.size() >= EventThreshold) {
     // Generally, the vector is ordered so that the oldest events are in the
-    // front and the newer events are in the end.  So, search to find the first
-    // event that isn't yet complete.  All the events prior to that can be
-    // erased. This could leave some few events further on that have completed
-    // not yet erased, but that is OK.  This cleanup doesn't have to be perfect.
-    // This also keeps the algorithm linear rather than quadratic because it
-    // doesn't continually recheck things towards the back of the list that
-    // really haven't had time to complete.
+    // front and the newer events are in the end.  So, search to find the
+    // first event that isn't yet complete.  All the events prior to that can
+    // be erased. This could leave some few events further on that have
+    // completed not yet erased, but that is OK.  This cleanup doesn't have to
+    // be perfect. This also keeps the algorithm linear rather than quadratic
+    // because it doesn't continually recheck things towards the back of the
+    // list that really haven't had time to complete.
     MEventsShared.erase(
         MEventsShared.begin(),
         std::find_if(
@@ -526,9 +599,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
-  // directly. Otherwise, only wait for unenqueued or host task events, starting
-  // from the latest submitted task in order to minimize total amount of calls,
-  // then handle the rest with piQueueFinish.
+  // directly. Otherwise, only wait for unenqueued or host task events,
+  // starting from the latest submitted task in order to minimize total amount
+  // of calls, then handle the rest with piQueueFinish.
   const bool SupportsPiFinish = !is_host() && !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
@@ -584,9 +657,10 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
-    std::lock_guard<std::mutex> Lock(MLastEventMtx);
-    return MLastEvent.get_info<info::event::command_execution_status>() ==
-           info::event_command_status::complete;
+    std::lock_guard<std::mutex> Lock(MMutex);
+    return !MDefaultGraphDeps.LastEventPtr ||
+           MDefaultGraphDeps.LastEventPtr->get_info<info::event::command_execution_status>() ==
+               info::event_command_status::complete;
   }
 
   // Check the status of the backend queue if this is not a host queue.
@@ -620,6 +694,12 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we didn't exit early above then it means that all events in the queue
   // are completed.
   return true;
+}
+
+event queue_impl::discard_or_return(const event &Event) {
+  if (!(MDiscardEvents))
+    return Event;
+  return createDiscardedEvent();
 }
 
 } // namespace detail

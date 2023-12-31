@@ -1496,8 +1496,7 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1515,8 +1514,8 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc),
+                                               kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1534,8 +1533,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1552,8 +1550,8 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ void kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc),
+                                                kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -3317,10 +3315,10 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  /// The list of valid SYCL events that need to complete
-  /// before barrier command can be executed
+  // TODO: remove MEventsWaitWithBarrier during the next ABI Breaking window,
+  // not used any more. Events are now handled via CG.MData.MEvents. The same as
+  // for kernel and other commands.
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
-
   /// The graph that is associated with this handler.
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph
@@ -3633,6 +3631,11 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
+protected:
+  /// Registers event dependencies on this command group.
+  void depends_on(const detail::EventImplPtr& Event);
+  /// Registers event dependencies on this command group.
+  void depends_on(const std::vector<detail::EventImplPtr> &Events);
 };
 } // namespace _V1
 } // namespace sycl

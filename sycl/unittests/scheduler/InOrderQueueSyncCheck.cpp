@@ -22,6 +22,8 @@ class LimitedHandler {
 public:
   virtual ~LimitedHandler() {}
   virtual void depends_on(sycl::event) {}
+  virtual void depends_on(const sycl::detail::EventImplPtr&) {}
+  virtual void depends_on(const std::vector<sycl::detail::EventImplPtr>&) {}
 
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
@@ -35,6 +37,8 @@ public:
 class LimitedHandlerSimulation : public LimitedHandler {
 public:
   MOCK_METHOD1(depends_on, void(sycl::event));
+  MOCK_METHOD1(depends_on, void(const sycl::detail::EventImplPtr&));
+  MOCK_METHOD1(depends_on, void(const std::vector<sycl::detail::EventImplPtr>&));
 };
 
 class MockQueueImpl : public sycl::detail::queue_impl {
@@ -61,14 +65,17 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   //  host      | yes - always, separate sync management
   //  host      | yes - always, separate sync management
   //  kernel    | yes - change of sync approach
-  //  kernel    | no  - sync between pi calls must be done by backend
+  //  kernel    | yes - sync between pi calls must be done by backend, but we
+  //  still add dependency to handle the right order due to host task. This
+  //  dependency will not be sent to backend. It is checked in
+  //  SchedulerTest.InOrderQueueCrossDeps
   //  host      | yes - always, separate sync management
 
   sycl::event Event;
   // host task
   {
     LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    EXPECT_CALL(MockCGH, depends_on).Times(0);
     Queue->finalizeHandler<LimitedHandlerSimulation>(
         MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
   }
@@ -89,7 +96,7 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   // kernel task
   {
     LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(0);
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
     Queue->finalizeHandler<LimitedHandlerSimulation>(
         MockCGH, detail::CG::CGTYPE::Kernel, Event);
   }
