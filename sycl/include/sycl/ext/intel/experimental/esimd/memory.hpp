@@ -2449,8 +2449,9 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
 
   constexpr uint32_t GrfBytes = 64;
   constexpr uint32_t DstBlockSize =
-      detail::roundUpNextMultiple<DstBlockElements * sizeof(T), GrfBytes>();
-  constexpr uint32_t DstLength = DstBlockSize > 31 ? 31 : DstBlockSize;
+      detail::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
+  constexpr uint32_t DstLength =
+      (DstBlockSize / GrfBytes) > 31 ? 31 : (DstBlockSize / GrfBytes);
   constexpr uint32_t DstLengthMask = DstLength << 20;
 
   static_assert(N == ActualN || N == DstElements, "Incorrect element count");
