@@ -93,7 +93,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     const ur_exp_command_buffer_desc_t *Desc)
     : Context(Context), Device(Device), ZeCommandList(CommandList),
       ZeCommandListDesc(ZeDesc), QueueProperties(), SyncPoints(),
-      NextSyncPoint(0), CommandListMap() {
+      NextSyncPoint(0), ZeFencesList() {
   (void)Desc;
   urContextRetain(Context);
   urDeviceRetain(Device);
@@ -132,10 +132,8 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   }
 
   // Release Fences allocated to command_buffer
-  for (auto it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
-    if (it->second.ZeFence != nullptr) {
-      ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
-    }
+  for (auto &ZeFence : ZeFencesList) {
+    ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
   }
 }
 
@@ -418,7 +416,6 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   ZE2UR_CALL(
       zeCommandListAppendBarrier,
       (ZeCommandList, nullptr, 1, &RetCommandBuffer->WaitEvent->ZeEvent));
-
   return UR_RESULT_SUCCESS;
 }
 
@@ -687,12 +684,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t Queue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) {
-  // There are issues with immediate command lists so return an error if the
-  // queue is in that mode.
-  if (Queue->UsingImmCmdLists) {
-    return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
-  }
-
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   // Use compute engine rather than copy engine
   const auto UseCopyEngine = false;
@@ -702,33 +693,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
   ze_fence_handle_t ZeFence;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-  ur_command_list_ptr_t CommandListPtr;
 
   ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-  // TODO: Refactor so requiring a map iterator is not required here, currently
-  // required for executeCommandList though.
-  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
-  ZeQueueDesc.ordinal = QueueGroupOrdinal;
-  CommandListPtr = CommandBuffer->CommandListMap.insert(
-      std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
-          CommandBuffer->ZeCommandList,
-          {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
-
-  // Previous execution will have closed the command list, we need to reopen
-  // it otherwise calling `executeCommandList` will return early.
-  CommandListPtr->second.IsClosed = false;
-  CommandListPtr->second.ZeFenceInUse = true;
+  CommandBuffer->ZeFencesList.push_back(ZeFence);
 
   // Create command-list to execute before `CommandListPtr` and will signal
   // when `EventWaitList` dependencies are complete.
-  ur_command_list_ptr_t WaitCommandList{};
+  bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
     _ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
-
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false))
 
     // Update the WaitList of the Wait Event
     // Events are appended to the WaitList if the WaitList is not empty
@@ -737,42 +712,48 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     else
       CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
 
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
-                CommandBuffer->WaitEvent->WaitList.Length,
-                CommandBuffer->WaitEvent->WaitList.ZeEventList));
-  } else {
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false));
+    if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
+      ur_command_list_ptr_t WaitCommandList{};
+      UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
+                                                      false, false))
 
-    ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
+                  CommandBuffer->WaitEvent->WaitList.Length,
+                  CommandBuffer->WaitEvent->WaitList.ZeEventList));
+      Queue->executeCommandList(WaitCommandList, false, false);
+      MustSignalWaitEvent = false;
+    }
   }
+
+  if (MustSignalWaitEvent) {
+    ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->WaitEvent->ZeEvent));
+  }
+
+  // Submit main command-list. This command-list is of a batch command-list
+  // type, regardless of the UR Queue type. We therefore need to submit the list
+  // directly using the Level-Zero API to avoid type mismatches if using UR
+  // functions.
+  ZE2UR_CALL(zeCommandQueueExecuteCommandLists,
+             (ZeCommandQueue, 1, &CommandBuffer->ZeCommandList, ZeFence));
 
   // Execution event for this enqueue of the UR command-buffer
   ur_event_handle_t RetEvent{};
-  // Create a command-list to signal RetEvent on completion
-  ur_command_list_ptr_t SignalCommandList{};
   if (Event) {
+    // Create a command-list to signal RetEvent on completion
+    ur_command_list_ptr_t SignalCommandList{};
     UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                     false, false));
 
     UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
                                          UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
-                                         SignalCommandList, false));
+                                         SignalCommandList, false, true));
 
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (SignalCommandList->first, RetEvent->ZeEvent, 1,
                 &(CommandBuffer->SignalEvent->ZeEvent)));
+    Queue->executeCommandList(SignalCommandList, false, false);
   }
-
-  // Execution our command-lists asynchronously
-  // TODO Look using a single `zeCommandQueueExecuteCommandLists()` call
-  // passing all three command-lists, rather than individual calls which
-  // introduces latency.
-  UR_CALL(Queue->executeCommandList(WaitCommandList, false, false));
-  UR_CALL(Queue->executeCommandList(CommandListPtr, false, false));
-  UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
   if (Event) {
     *Event = RetEvent;
