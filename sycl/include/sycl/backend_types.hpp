@@ -85,6 +85,8 @@ inline std::string_view get_backend_name_no_vendor(backend Backend) {
   case backend::all:
     return "all";
   }
+
+  return "";
 }
 } // namespace detail
 
