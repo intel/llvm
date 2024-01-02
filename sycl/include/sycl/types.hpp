@@ -157,26 +157,26 @@ template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
   using RetType = sycl::ext::oneapi::bfloat16;
   using BFloat16StorageT = sycl::ext::oneapi::detail::Bfloat16StorageT;
   static constexpr RetType get(BFloat16StorageT value) {
-    // given that BFloat16StorageT is the storageT for bfloat16, I'd prefer
-    // to use a reinterpret_cast (or cast from void*). But inexplicably
-    // that's not allowed in constexpr (before C++20).
-#ifdef _WIN32
-    void *ptr = (void *)(&value);
-    return *((RetType *)ptr);
-#else
-    return sycl::bit_cast<RetType>(value);
-#endif
+    // awkward workaround. sycl::bit_cast isn't constexpr on Win.
+    // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
+    // but neither available yet.
+    union {
+      sycl::ext::oneapi::bfloat16 bf16;
+      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
+    } result = {};
+    result.storage = value;
+    return result.bf16;
   }
 
   static constexpr RetType get(RetType value) { return value; }
 
   static constexpr BFloat16StorageT set(RetType value) {
-#ifdef _WIN32
-    void *ptr = (void *)(&value);
-    return *((BFloat16StorageT *)ptr);
-#else
-    return sycl::bit_cast<BFloat16StorageT>(value);
-#endif
+    union {
+      sycl::ext::oneapi::bfloat16 bf16;
+      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
+    } result = {};
+    result.bf16 = value;
+    return result.storage;
   }
 };
 
