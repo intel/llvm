@@ -155,8 +155,9 @@ int main(int argc, char **argv) {
       // plugin.
 
       for (const auto &Device : Devices) {
-        std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
-                  << DeviceNums[Backend] << "] ";
+        std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+                  << getDeviceTypeName(Device) << ":" << DeviceNums[Backend]
+                  << "] ";
         ++DeviceNums[Backend];
         // Verbose parameter is set to false to print regular devices output
         // first
