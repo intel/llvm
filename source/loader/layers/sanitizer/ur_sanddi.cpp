@@ -116,7 +116,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
     if (result == UR_RESULT_SUCCESS) {
-        result = context.interceptor->addQueue(hContext, *phQueue);
+        result = context.interceptor->insertQueue(hContext, *phQueue);
     }
 
     return result;
@@ -137,7 +137,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     UR_CALL(context.urDdiTable.Queue.pfnGetInfo(hQueue, UR_QUEUE_INFO_CONTEXT,
                                                 sizeof(ur_context_handle_t),
                                                 &hContext, nullptr));
-    UR_CALL(context.interceptor->removeQueue(hContext, hQueue));
+    UR_CALL(context.interceptor->eraseQueue(hContext, hQueue));
 
     ur_result_t result = pfnRelease(hQueue);
 
@@ -226,12 +226,12 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
     if (result == UR_RESULT_SUCCESS) {
         auto Context = *phContext;
-        result = context.interceptor->addContext(Context);
+        result = context.interceptor->insertContext(Context);
         if (result != UR_RESULT_SUCCESS) {
             return result;
         }
         for (uint32_t i = 0; i < numDevices; ++i) {
-            result = context.interceptor->addDevice(Context, phDevices[i]);
+            result = context.interceptor->insertDevice(Context, phDevices[i]);
             if (result != UR_RESULT_SUCCESS) {
                 return result;
             }
@@ -266,12 +266,12 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     if (result == UR_RESULT_SUCCESS) {
         auto Context = *phContext;
-        result = context.interceptor->addContext(Context);
+        result = context.interceptor->insertContext(Context);
         if (result != UR_RESULT_SUCCESS) {
             return result;
         }
         for (uint32_t i = 0; i < numDevices; ++i) {
-            result = context.interceptor->addDevice(Context, phDevices[i]);
+            result = context.interceptor->insertDevice(Context, phDevices[i]);
             if (result != UR_RESULT_SUCCESS) {
                 return result;
             }
@@ -292,7 +292,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    UR_CALL(context.interceptor->removeContext(hContext));
+    UR_CALL(context.interceptor->eraseContext(hContext));
     ur_result_t result = pfnRelease(hContext);
 
     return result;

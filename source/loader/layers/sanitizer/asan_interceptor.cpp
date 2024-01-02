@@ -21,16 +21,16 @@ namespace {
 
 // These magic values are written to shadow for better error
 // reporting.
-const int kUsmDeviceRedzoneMagic = (char)0x81;
-const int kUsmHostRedzoneMagic = (char)0x82;
-const int kUsmSharedRedzoneMagic = (char)0x83;
-const int kMemBufferRedzoneMagic = (char)0x84;
-const int kUnkownRedzoneMagic = (char)0x8F;
+constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
+constexpr int kUsmHostRedzoneMagic = (char)0x82;
+constexpr int kUsmSharedRedzoneMagic = (char)0x83;
+constexpr int kMemBufferRedzoneMagic = (char)0x84;
+constexpr int kUnkownRedzoneMagic = (char)0x8F;
 
-const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
-const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
+constexpr auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
+constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 
-const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
+constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
 DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
@@ -157,7 +157,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     std::shared_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
 
-    auto Addr = (uptr)Ptr;
+    auto Addr = reinterpret_cast<uptr>(Ptr);
     // Find the last element is not greater than key
     auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound((uptr)Addr);
     if (AllocInfoIt == ContextInfo->AllocatedUSMMap.begin()) {
@@ -484,7 +484,7 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
+ur_result_t SanitizerInterceptor::insertContext(ur_context_handle_t Context) {
     auto ContextInfo = std::make_shared<ur_sanitizer_layer::ContextInfo>();
 
     // Host Device
@@ -505,14 +505,14 @@ ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::removeContext(ur_context_handle_t Context) {
+ur_result_t SanitizerInterceptor::eraseContext(ur_context_handle_t Context) {
     std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
     m_ContextMap.erase(Context);
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
+ur_result_t SanitizerInterceptor::insertDevice(ur_context_handle_t Context,
                                             ur_device_handle_t Device) {
     auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
 
@@ -546,7 +546,7 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::addQueue(ur_context_handle_t Context,
+ur_result_t SanitizerInterceptor::insertQueue(ur_context_handle_t Context,
                                            ur_queue_handle_t Queue) {
     auto QueueInfo = std::make_shared<ur_sanitizer_layer::QueueInfo>();
     QueueInfo->LastEvent = nullptr;
@@ -558,7 +558,7 @@ ur_result_t SanitizerInterceptor::addQueue(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::removeQueue(ur_context_handle_t Context,
+ur_result_t SanitizerInterceptor::eraseQueue(ur_context_handle_t Context,
                                               ur_queue_handle_t Queue) {
     auto ContextInfo = getContextInfo(Context);
     std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
