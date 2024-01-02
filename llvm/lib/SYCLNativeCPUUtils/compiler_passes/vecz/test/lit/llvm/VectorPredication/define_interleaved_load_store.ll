@@ -54,7 +54,7 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 
 ; Test if the interleaved load is defined correctly
 ; Vector-predicated interleaved loads are always masked
-; CHECK: define <vscale x 4 x double> @__vecz_b_masked_interleaved_load8_vp_4_u5nxv4du3ptrU3AS1u5nxv4bj(ptr addrspace(1){{( %0)?}}, <vscale x 4 x i1>{{( %1)?}}, i32{{( %2)?}}) {
+; CHECK: define <vscale x 4 x double> @__vecz_b_masked_interleaved_load8_vp_4_u5nxv4du3ptrU3AS1u5nxv4bj(ptr addrspace(1){{( %0)?}}, <vscale x 4 x i1>{{( %1)?}}, i32{{( %2)?}}) [[ATTRS:#[0-9]+]] {
 ; CHECK: entry:
 ; CHECK:   %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) %0, {{i32|i64}} 0
 ; CHECK:   %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
@@ -68,7 +68,7 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 
 ; Test if the interleaved store is defined correctly
 ; Vector-predicated interleaved stores are always masked
-; CHECK: define void @__vecz_b_masked_interleaved_store8_vp_4_u5nxv4du3ptrU3AS1u5nxv4bj(<vscale x 4 x double>{{( %0)?}}, ptr addrspace(1){{( %1)?}}, <vscale x 4 x i1>{{( %2)?}}, i32{{( %3)?}})
+; CHECK: define void @__vecz_b_masked_interleaved_store8_vp_4_u5nxv4du3ptrU3AS1u5nxv4bj(<vscale x 4 x double>{{( %0)?}}, ptr addrspace(1){{( %1)?}}, <vscale x 4 x i1>{{( %2)?}}, i32{{( %3)?}}) [[ATTRS]]
 ; CHECK: entry:
 ; CHECK:  %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) %1, {{i32|i64}} 0
 ; CHECK:  %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
@@ -78,3 +78,5 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 ; CHECK:  call void @llvm.vp.scatter.nxv4f64.nxv4p1(<vscale x 4 x double> %0, <vscale x 4 x ptr addrspace(1)> %6, <vscale x 4 x i1> %2, i32 %3)
 ; CHECK:  ret void
 ; CHECK: }
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }

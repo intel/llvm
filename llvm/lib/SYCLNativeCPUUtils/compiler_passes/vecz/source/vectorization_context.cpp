@@ -207,6 +207,13 @@ Function *VectorizationContext::getOrCreateInternalBuiltin(StringRef Name,
   if (!F && FT) {
     F = dyn_cast_or_null<Function>(
         Module.getOrInsertFunction(Name, FT).getCallee());
+    if (F) {
+      // Set some default attributes on the function.
+      // We never use exceptions
+      F->addFnAttr(Attribute::NoUnwind);
+      // Recursion is not supported in ComputeMux
+      F->addFnAttr(Attribute::NoRecurse);
+    }
   }
 
   return F;
