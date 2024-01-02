@@ -14,14 +14,18 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: linux
-; RUN: veczc -k add -vecz-simd-width=128 -S < %s | FileCheck %s
+; RUN: veczc -vecz-simd-width=128 -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
+; CHECK-LABEL: define spir_kernel void @__vecz_v128_add(ptr addrspace(1) %in1, ptr addrspace(1) %in2, ptr addrspace(1) %out) 
+; CHECK: = load <128 x i32>, ptr addrspace(1)
+; CHECK: = load <128 x i32>, ptr addrspace(1)
+; CHECK: = add nsw <128 x i32>
+; CHECK: store <128 x i32>
 define spir_kernel void @add(i32 addrspace(1)* %in1, i32 addrspace(1)* %in2, i32 addrspace(1)* %out) #0 !dbg !4 {
 entry:
   %in1.addr = alloca i32 addrspace(1)*, align 8
@@ -112,6 +116,3 @@ attributes #3 = { nobuiltin }
 !33 = !DILocation(line: 6, scope: !4)
 !34 = !DILocation(line: 7, scope: !4)
 !35 = !DILocation(line: 8, scope: !4)
-
-; We do not expect this test to succeed
-; XFAIL: *

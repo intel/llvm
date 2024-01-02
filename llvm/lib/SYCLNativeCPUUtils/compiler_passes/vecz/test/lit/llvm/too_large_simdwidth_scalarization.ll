@@ -14,14 +14,16 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: linux
-; RUN: veczc -k add -vecz-simd-width=4 -S < %s | FileCheck %s
+; RUN: veczc -w 4 -vecz-passes=scalarizer -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
+; CHECK-LABEL: define spir_kernel void @__vecz_v4_add(ptr %in1, ptr %in2, ptr %out)
+; CHECK-COUNT-128: = extractelement <128 x i32> %in1v,
+; CHECK-COUNT-128: insertelement <128 x i32>
 define spir_kernel void @add(<128 x i32>* %in1, <128 x i32>* %in2, <128 x i32>* %out) {
 entry:
   %call = call i64 @__mux_get_global_id(i32 0)
@@ -36,6 +38,3 @@ entry:
 }
 
 declare i64 @__mux_get_global_id(i32) #2
-
-; We do not expect this test to succeed
-; XFAIL: *
