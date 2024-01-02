@@ -806,10 +806,13 @@ class DefCommon:
         joined_args = ", ".join(args)
         (size_alias, size_alias_init) = self.require_size_alias("N", first_marray_type)
         result += size_alias_init
-        return result + f"""  {return_type} Res;
+        return (
+            result
+            + f"""  {return_type} Res;
   for (int I = 0; I < {size_alias}; ++I)
     Res[I] = {namespaced_builtin_name}({joined_args});
   return Res;"""
+        )
 
     def get_marray_vec_cast_invoke_body(
         self,
@@ -858,7 +861,9 @@ class DefCommon:
             rem_args.append(f"{arg_name}[{size_alias} - 1]" if is_marray else arg_name)
         joined_imm_args = ", ".join(imm_args)
         joined_rem_args = ", ".join(rem_args)
-        return result + f"""  {return_type} Res;
+        return (
+            result
+            + f"""  {return_type} Res;
   for (size_t I = 0; I < {size_alias} / 2; ++I) {{
     auto PartialRes = {namespaced_builtin_name}({joined_imm_args});
     std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
@@ -866,6 +871,7 @@ class DefCommon:
   if ({size_alias} % 2)
     Res[{size_alias} - 1] = {namespaced_builtin_name}({joined_rem_args});
   return Res;"""
+        )
 
     def get_marray_invoke_body(
         self,
@@ -2328,7 +2334,8 @@ def generate_file(directory, file_name, includes, generated_builtins):
         include = "sycl/builtins_utils_vec.hpp"
 
     with open(os.path.join(directory, file_name), "w+") as f:
-        f.write(f"""
+        f.write(
+            f"""
 //==--------- {file_name} - SYCL generated built-in functions ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2348,7 +2355,8 @@ def generate_file(directory, file_name, includes, generated_builtins):
 
 namespace sycl {{
 inline namespace _V1 {{
-""")
+"""
+        )
 
         for namespace, builtins in generated_builtins:
             if namespace:
@@ -2357,12 +2365,14 @@ inline namespace _V1 {{
             if namespace:
                 f.write(f"}} // namespace {namespace}\n")
 
-        f.write("""
+        f.write(
+            """
 } // namespace _V1
 } // namespace sycl
 
 #undef __NOEXC
-""")
+"""
+        )
 
 
 if __name__ == "__main__":

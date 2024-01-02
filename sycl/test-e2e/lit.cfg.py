@@ -199,10 +199,12 @@ if sp[0] == 0:
 check_l0_file = "l0_include.cpp"
 with open(check_l0_file, "w") as fp:
     print(
-        textwrap.dedent("""
+        textwrap.dedent(
+            """
         #include <level_zero/ze_api.h>
         int main() { uint32_t t; zeDriverGet(&t, nullptr); return t; }
-        """),
+        """
+        ),
         file=fp,
     )
 
@@ -247,13 +249,15 @@ else:
 check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
 with open(check_preview_breaking_changes_file, "w") as fp:
     print(
-        textwrap.dedent("""
+        textwrap.dedent(
+            """
         #include <sycl/sycl.hpp>
         namespace sycl { inline namespace _V1 { namespace detail {
         extern void PreviewMajorReleaseMarker();
         }}}
         int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
-        """),
+        """
+        ),
         file=fp,
     )
 
@@ -269,10 +273,12 @@ if sp[0] == 0:
 check_cuda_file = "cuda_include.cpp"
 with open(check_cuda_file, "w") as fp:
     print(
-        textwrap.dedent("""
+        textwrap.dedent(
+            """
         #include <cuda.h>
         int main() { CUresult r = cuInit(0); return r; }
-        """),
+        """
+        ),
         file=fp,
     )
 
