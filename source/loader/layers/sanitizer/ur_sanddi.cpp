@@ -188,7 +188,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     // launchKernel must append to num_events_in_wait_list, not prepend
-    context.interceptor->preLaunchKernel(hKernel, hQueue, lk_event);
+    context.interceptor->preLaunchKernel(hKernel, hQueue, &lk_event);
     if (lk_event) {
         events.push_back(lk_event);
     }
