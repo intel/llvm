@@ -1,9 +1,12 @@
 // RUN: %{build} -o %t.out
 // There is an issue with reported device time for the L0 backend, works only on
 // pvc for now. No such problems for other backends.
-// RUN: %if (!ext_oneapi_level_zero || gpu-intel-pvc) %{ %{run} %t.out %}
+// RUN: %if (!level_zero || gpu-intel-pvc) %{ %{run} %t.out %}
 
 // Check that submission time is calculated properly.
+
+// Test fails on hip flakily, disable temprorarily.
+// UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
 

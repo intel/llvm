@@ -72,8 +72,7 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    JITContext &JITCtx, Config &&JITConfig,
-    const std::vector<SYCLKernelInfo> &KernelInformation,
+    Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
     const std::vector<std::string> &KernelsToFuse,
     const std::string &FusedKernelName, ParamIdentList &Identities,
     BarrierFlags BarriersFlags,
@@ -103,6 +102,7 @@ FusionResult KernelFusion::fuseKernels(
         "Fusion output target format not supported by this build");
   }
 
+  auto &JITCtx = JITContext::getInstance();
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
   CacheKeyT CacheKey{TargetArch,
                      KernelsToFuse,

@@ -24,7 +24,14 @@ else()
 endif()
 
 if("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "")
-  set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+  # pre v6 versions of ROCM prefix their include directory with /hsa but this
+  # was fixed in v6 to act like a well-behaved package
+  foreach (SUF hsa/include include)
+    if (EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}/${SUF}")
+      set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/${SUF}")
+      break()
+    endif()
+  endforeach()
 else()
   set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
 endif()

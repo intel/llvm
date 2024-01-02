@@ -94,7 +94,7 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
 
       cgh.parallel_for<kernel<DType, CType>>(N, [=](sycl::id<1> id) {
         DType sum = 0;
-        float x = float(id[0] + 0.5) / (float)N;
+        float x = float(id[0] + 0.5f) / (float)N;
         // Extension: read mipmap level 0 with anisotropic filtering and level 1
         // with LOD
         VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(

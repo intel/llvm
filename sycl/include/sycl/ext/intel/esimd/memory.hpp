@@ -121,10 +121,9 @@ __ESIMD_API simd<Tx, N> gather(const Tx *p, simd<Toffset, N> offsets,
 /// @return A vector of elements read. Elements in masked out lanes are
 ///   undefined.
 ///
-template <typename Tx, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>>
+template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API simd<Tx, N> gather(const Tx *p,
-                               simd_view<Toffset, RegionTy> offsets,
+                               simd_view<OffsetObjT, RegionTy> offsets,
                                simd_mask<N> mask = 1) {
   return gather<Tx, N>(p, offsets.read(), mask);
 }
@@ -199,9 +198,8 @@ __ESIMD_API void scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
 /// @param vals The vector to scatter.
 /// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
+template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
+__ESIMD_API void scatter(Tx *p, simd_view<OffsetObjT, RegionTy> offsets,
                          simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, offsets.read(), vals, mask);
 }
@@ -1753,58 +1751,6 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
   block_store<T, N>(AdjustedPtr, vals, pred, props);
 }
 
-/// The semantics, assumptions and restrictions are identical to
-/// (usm-bs-1) defined above.
-template <typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, simd_view<Toffset, RegionTy> vals,
-            PropertyListT props = {}) {
-  block_store<T, N>(ptr, vals.read(), props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (usm-bs-2) defined above.
-template <typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
-            PropertyListT props = {}) {
-  block_store<T, N>(ptr, byte_offset, vals.read(), props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (usm-bs-3) defined above.
-template <typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
-            PropertyListT props = {}) {
-  block_store<T, N>(ptr, vals.read(), pred, props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (usm-bs-4) defined above.
-template <typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
-            simd_mask<1> pred, PropertyListT props = {}) {
-  block_store<T, N>(ptr, byte_offset, vals.read(), pred, props);
-}
-
 /// Each of the following block_store functions stores the vector 'vals' to a
 /// contiguous memory block at the address referenced by accessor 'acc', or from
 /// 'acc + byte_offset', The parameter 'pred' is the one element predicate. If
@@ -1873,8 +1819,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
             simd<T, N> vals, PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1956,8 +1901,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
@@ -2012,8 +1956,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
             simd<T, N> vals, simd_mask<1> pred, PropertyListT props = {}) {
   constexpr auto L1Hint =
@@ -2064,8 +2007,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
             PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',
@@ -2083,71 +2025,6 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
   block_store<T, N>(acc, 0, vals, pred, Props);
 }
 
-/// The semantics, assumptions and restrictions are identical to
-/// (acc-bs-2) defined above.
-template <typename AccessorT, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals,
-            PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, vals.read(), props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (acc-bs-1) defined above.
-template <typename AccessorT, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
-            simd_view<Toffset, RegionTy> vals, PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, byte_offset, vals.read(), props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (acc-bs-4) defined above.
-template <typename AccessorT, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
-            PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, vals.read(), pred, props);
-}
-
-/// The semantics, assumptions and restrictions are identical to
-/// (acc-bs-3) defined above.
-template <typename AccessorT, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
-            simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
-            PropertyListT props = {}) {
-  block_store<Toffset, N>(acc, byte_offset, vals.read(), pred, props);
-}
-
 /// @} sycl_esimd_memory_block
 
 /// @} sycl_esimd_memory
@@ -2157,12 +2034,12 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 // Implementations of accessor-based gather and scatter functions
 namespace detail {
 template <typename T, int N, typename AccessorTy>
-ESIMD_INLINE
-    ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
-                                   (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                   !std::is_pointer_v<AccessorTy>>
-    scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-                 uint32_t glob_offset, simd_mask<N> mask) {
+ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+     is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_write>)>
+scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+             uint32_t glob_offset, simd_mask<N> mask) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
@@ -2194,7 +2071,8 @@ ESIMD_INLINE
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer_v<AccessorTy>,
+        (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+         is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_read>),
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
@@ -2432,10 +2310,9 @@ gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>>
+          int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
-gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
+gather_rgba(const T *p, simd_view<OffsetObjT, RegionTy> offsets,
             simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, T, N>(p, offsets.read(), mask);
 }
@@ -2526,10 +2403,9 @@ scatter_rgba(T *p, simd<Toffset, N> offsets,
 ///   undefined.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>>
+          int N, typename OffsetObjT, typename RegionTy>
 __ESIMD_API void
-scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
+scatter_rgba(T *p, simd_view<OffsetObjT, RegionTy> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
   scatter_rgba<RGBAMask, T, N>(p, offsets.read(), vals, mask);
@@ -4351,10 +4227,10 @@ __ESIMD_API
 ///               props = {});                                  /// (usm-au0-2)
 /// simd<T, N>
 ///
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (usm-au0-4)
 ///
 /// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
@@ -4465,7 +4341,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 ///
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -4484,21 +4360,21 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, offsets.read(), mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+/// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               props = {});                                  /// (usm-au0-4)
 ///
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -4515,15 +4391,15 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), mask, props);
@@ -4560,31 +4436,13 @@ atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
 ///               simd<T, N> src0, props = {});                  // (usm-au1-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (usm-au1-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-5)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               props = {});                                   // (usm-au1-6)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-7)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (usm-au1-8)
 ///
 
 /// simd<T, N>
@@ -4708,23 +4566,23 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               simd_mask<N> mask, props = {});                // (usm-au1-3)
-
-/// A variation of \c atomic_update API with src0 represented as
+///
+/// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object.
-
+///
 /// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
-/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
-/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
-/// atomic_op::fsub, \c atomic_op::store.
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
 /// @param src0 The additional argument.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
@@ -4734,102 +4592,23 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd<T, N> src0,
               simd_mask<N> mask, PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), mask, props);
+  return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0,
 ///               props = {});                                   // (usm-au1-4)
-
-/// A variation of \c atomic_update API with src0 represented as
-/// \c simd_view object and no mask operand.
-
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
-/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
-/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
-/// atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
-              PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-5)
-///
-/// A variation of \c atomic_update API with \c byte_offset represented as
-/// \c simd_view object.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
-              simd_mask<N> mask, PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0,
-///               props = {});                                   // (usm-au1-6)
 ///
 /// A variation of \c atomic_update API with \c byte_offset represented as
 /// \c simd_view object and no mask operand.
@@ -4851,100 +4630,18 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<Toffset, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename RegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 1 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+atomic_update(T *p, simd_view<OffsetObjT, RegionTy> offsets, simd<T, N> src0,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, offsets.read(), src0, mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               simd_mask<N> mask, props = {});                // (usm-au1-7)
-///
-/// A variation of \c atomic_update API with byte_offset and src0 represented as
-/// \c simd_view objects.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
-              simd_view<T, RegionTy> src0, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0,
-///               props = {});                                   // (usm-au1-8)
-///
-/// A variation of \c atomic_update API with byte_offset and src0 represented as
-/// \c simd_view objects and no mask operand.
-///
-/// @tparam Op The atomic operation - can be one of the following:
-/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
-/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
-/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
-/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The additional argument.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used. Other properties are
-///   ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-///
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 1 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
-              simd_view<T, RegionTy> src0, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, offsets.read(), src0.read(), mask, props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -4990,67 +4687,13 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd_mask<N> mask) {
 ///               props = {});                                  // (usm-au2-2)
 ///
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-5)
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-6)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-7)
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-8)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-9)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-10)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-11)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-12)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-13)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-14)
-///
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-15)
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-16)
 ///
 
 /// simd<T, N>
@@ -5151,8 +4794,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               simd_mask<N> mask, props = {})                // (usm-au2-3)
 ///
 /// @tparam Op The atomic operation - can be one of the following:
@@ -5170,24 +4813,24 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 //    Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename OffsetRegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
-              simd_view<T, RegionTy> src1, simd_mask<N> mask,
+atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+              simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask,
               PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), mask,
+  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
                                  props);
 }
 
 /// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
+/// atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+///               simd<T, N> src0, simd<T, N> src1,
 ///               props = {})                                   // (usm-au2-4)
 ///
 /// @tparam Op The atomic operation - can be one of the following:
@@ -5203,435 +4846,19 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 //    Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
+template <atomic_op Op, typename T, int N, typename OffsetObjT,
+          typename OffsetRegionTy,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 2 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
-              simd_view<T, RegionTy> src1, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset, src0, src1.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-5)
-///
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
-              simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-6)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
-              simd<T, N> src1, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1, mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-7)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
-              simd_view<T, RegionTy> src1, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd<Toffset, N> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-8)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
-              simd_view<T, RegionTy> src1, PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset, src0.read(), src1.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-9)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-10)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
+atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
               simd<T, N> src0, simd<T, N> src1, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
   return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1, mask,
                                  props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-11)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_view<T, RegionTy> src1, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd<T, N> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-12)
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd<T, N> src0, simd_view<T, RegionTy> src1,
-              PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0, src1.read(), mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-13)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, simd<T, N> src1, simd_mask<N> mask,
-              PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1, mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd<T, N> src1,
-///               props = {})                                   // (usm-au2-14)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, simd<T, N> src1,
-              PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(), src1, mask,
-                                 props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               simd_mask<N> mask, props = {})                // (usm-au2-15)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param mask Operation mask, only locations with non-zero in the
-///   corresponding mask element are updated.
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-              simd_mask<N> mask, PropertyListT props = {}) {
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
-                                 src1.read(), mask, props);
-}
-
-/// simd<T, N>
-/// atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-///               simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-///               props = {})                                   // (usm-au2-16)
-///
-/// @tparam Op The atomic operation - can be one of the following:
-///   \c atomic_op::cmpxchg, \c atomic_op::fcmpxchg.
-/// @tparam T The vector element type.
-/// @tparam N The number of memory locations to update.
-/// @param p The USM pointer.
-/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes.
-/// @param src0 The first additional argument (new value).
-/// @param src1 The second additional argument (expected value).
-/// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties are used.
-//    Other properties are ignored.
-/// @return A vector of the old values at the memory locations before the
-///   update.
-template <atomic_op Op, typename T, int N, typename Toffset,
-          typename OffsetRegionTy = region1d_t<Toffset, N, 1>,
-          typename RegionTy = region1d_t<T, N, 1>,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    __ESIMD_DNS::get_num_args<Op>() == 2 &&
-        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> byte_offset,
-              simd_view<T, RegionTy> src0, simd_view<T, RegionTy> src1,
-              PropertyListT props = {}) {
-  simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, byte_offset.read(), src0.read(),
-                                 src1.read(), mask, props);
 }
 
 /// A variation of \c atomic_update API with \c byte_offset represented as
@@ -7084,8 +6311,6 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
   constexpr unsigned NumBlocks = Size / BlockSize;
   constexpr unsigned RemSize = Size % BlockSize;
 
-  using OffsetTy = decltype(offset);
-
   simd<UT, N> Tmp{data()};
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
@@ -7110,7 +6335,7 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
   } else {
     constexpr unsigned NumChunks = N / ChunkSize;
     if constexpr (NumChunks > 0) {
-      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
+      simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
       ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
                                     &Tmp](unsigned Block) {
         scatter<UT, ChunkSize, AccessorT>(
@@ -7121,7 +6346,7 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
+        simd<TOffset, RemN> Offsets(0u, sizeof(T));
         scatter<UT, RemN, AccessorT>(
             acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
             offset + (NumChunks * ChunkSize * sizeof(T)));
@@ -7132,7 +6357,7 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
         simd<UT, N1> Vals;
         Vals.template select<RemN, 1>() =
             Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
+        simd<TOffset, N1> Offsets(0u, sizeof(T));
         scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
                                    offset + (NumChunks * ChunkSize * sizeof(T)),
                                    Pred);
@@ -7153,8 +6378,6 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
   constexpr unsigned RemSize = Size % BlockSize;
-
-  using OffsetTy = decltype(offset);
 
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
@@ -7179,7 +6402,7 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
   } else {
     constexpr unsigned NumChunks = N / ChunkSize;
     if constexpr (NumChunks > 0) {
-      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
+      simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
       ForHelper<NumChunks>::unroll(
           [acc, offset, &Offsets, this](unsigned Block) {
             select<ChunkSize, 1>(Block * ChunkSize) =
@@ -7190,14 +6413,14 @@ ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
+        simd<TOffset, RemN> Offsets(0u, sizeof(T));
         select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
             acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);
         Pred.template select<RemN, 1>() = 1;
-        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
+        simd<TOffset, N1> Offsets(0u, sizeof(T));
         simd<UT, N1> Vals = gather<UT, N1>(
             acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)), Pred);
         select<RemN, 1>(NumChunks * ChunkSize) =
