@@ -55,11 +55,11 @@ entry:
 ; CHECK: [[v:%.*]] = call <vscale x 4 x i32> @llvm.vp.load.nxv4i32.p1(
 ; CHECK: call void @__vecz_b_masked_scatter_store4_vp_u5nxv4ju14nxv4u3ptrU3AS1u5nxv4bj(<vscale x 4 x i32> [[v]],
 
-; CHECK: define <vscale x 4 x i32> @__vecz_b_masked_gather_load4_vp_u5nxv4ju14nxv4u3ptrU3AS1u5nxv4bj(<vscale x 4 x ptr addrspace(1)> %0, <vscale x 4 x i1> %1, i32 %2) {
+; CHECK: define <vscale x 4 x i32> @__vecz_b_masked_gather_load4_vp_u5nxv4ju14nxv4u3ptrU3AS1u5nxv4bj(<vscale x 4 x ptr addrspace(1)> %0, <vscale x 4 x i1> %1, i32 %2) [[ATTRS:#[0-9]+]] {
 ; CHECK:   %3 = call <vscale x 4 x i32> @llvm.vp.gather.nxv4i32.nxv4p1(<vscale x 4 x ptr addrspace(1)> %0, <vscale x 4 x i1> %1, i32 %2)
 ; CHECK:   ret <vscale x 4 x i32> %3
 
-; CHECK: define void @__vecz_b_masked_scatter_store4_vp_u5nxv4ju14nxv4u3ptrU3AS1u5nxv4bj(<vscale x 4 x i32> %0, <vscale x 4 x ptr addrspace(1)> %1, <vscale x 4 x i1> %2, i32 %3) {
+; CHECK: define void @__vecz_b_masked_scatter_store4_vp_u5nxv4ju14nxv4u3ptrU3AS1u5nxv4bj(<vscale x 4 x i32> %0, <vscale x 4 x ptr addrspace(1)> %1, <vscale x 4 x i1> %2, i32 %3) [[ATTRS]] {
 ; CHECK: entry:
 ; CHECK:   call void @llvm.vp.scatter.nxv4i32.nxv4p1(<vscale x 4 x i32> %0, <vscale x 4 x ptr addrspace(1)> %1, <vscale x 4 x i1> %2, i32 %3)
 ; CHECK:   ret void

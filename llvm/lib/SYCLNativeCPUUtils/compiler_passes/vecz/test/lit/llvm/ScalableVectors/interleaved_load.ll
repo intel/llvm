@@ -44,7 +44,7 @@ entry:
 
 declare i64 @__mux_get_global_id(i32)
 
-; CHECK: define void @__vecz_b_interleaved_store4_V_u5nxv4ju3ptrU3AS1(<vscale x 4 x i32> [[ARG0:%.*]], ptr addrspace(1) [[ARG1:%.*]], i64 [[ARG2:%.*]]) {
+; CHECK: define void @__vecz_b_interleaved_store4_V_u5nxv4ju3ptrU3AS1(<vscale x 4 x i32> [[ARG0:%.*]], ptr addrspace(1) [[ARG1:%.*]], i64 [[ARG2:%.*]]) [[ATTRS:#[0-9]+]] {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: [[TMP0:%.*]] = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) [[ARG1]], {{i32|i64}} 0
 ; CHECK-NEXT: [[TMP1:%.*]] = shufflevector <vscale x 4 x ptr addrspace(1)> [[TMP0]], <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
@@ -53,8 +53,9 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK-NEXT: [[TMP4:%.*]] = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
 ; CHECK-NEXT: [[TMP5:%.*]] = mul <vscale x 4 x i64> [[TMP3]], [[TMP4]]
 ; CHECK-NEXT: [[TMP6:%.*]] = getelementptr i32, <vscale x 4 x ptr addrspace(1)> [[TMP1]], <vscale x 4 x i64> [[TMP5]]
-; CHECK-NEXT: call void @llvm.masked.scatter.nxv4i32.nxv4p1(<vscale x 4 x i32> [[ARG0]], <vscale x 4 x ptr addrspace(1)> [[TMP6]], i32 immarg 4, <vscale x 4 x i1> shufflevector (<vscale x 4 x i1> insertelement (<vscale x 4 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 4 x i1> poison, <vscale x 4 x i32> zeroinitializer)) #[[ATTRS:[0-9]+]]
+; CHECK-NEXT: call void @llvm.masked.scatter.nxv4i32.nxv4p1(<vscale x 4 x i32> [[ARG0]], <vscale x 4 x ptr addrspace(1)> [[TMP6]], i32 immarg 4, <vscale x 4 x i1> shufflevector (<vscale x 4 x i1> insertelement (<vscale x 4 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 4 x i1> poison, <vscale x 4 x i32> zeroinitializer)) [[MASKED_ATTRS:#[0-9]+]]
 ; CHECK-NEXT: ret void
 ; CHECK-NEXT: }
 
-; CHECK: attributes #[[ATTRS]] = {
+; CHECK-DAG: attributes [[ATTRS]] = { norecurse nounwind }
+; CHECK-DAG: attributes [[MASKED_ATTRS]] = {

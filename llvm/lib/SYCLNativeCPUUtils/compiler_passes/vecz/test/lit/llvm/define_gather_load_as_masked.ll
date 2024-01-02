@@ -38,6 +38,8 @@ entry:
 declare i64 @__mux_get_global_id(i32)
 
 ; Test if the scatter store is defined correctly
-; CHECK: define <4 x i64> @__vecz_b_gather_load4_Dv4_mDv4_u3ptr(<4 x ptr>{{( %0)?}}) {
+; CHECK: define <4 x i64> @__vecz_b_gather_load4_Dv4_mDv4_u3ptr(<4 x ptr>{{( %0)?}}) [[ATTRS:#[0-9]+]] {
 ; CHECK: call <4 x i64> @llvm.masked.gather.v4i64.v4p0(<4 x ptr> %0, i32{{( immarg)?}} 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, <4 x i64> undef)
 ; CHECK: ret <4 x i64>
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }

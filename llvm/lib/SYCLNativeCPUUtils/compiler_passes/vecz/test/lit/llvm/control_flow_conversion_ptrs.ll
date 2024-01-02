@@ -41,7 +41,7 @@ if.else:
 
 if.end:
   ret void
-; CHECK:     define void @__vecz_b_masked_store4_u3ptru3ptrb(ptr [[A:%.*]], ptr [[B:%.*]], i1 [[MASK:%.*]]) {
+; CHECK:     define void @__vecz_b_masked_store4_u3ptru3ptrb(ptr [[A:%.*]], ptr [[B:%.*]], i1 [[MASK:%.*]]) [[ATTRS:#[0-9]+]] {
 ; CHECK:       br i1 [[MASK]], label %[[IF:.*]], label %[[EXIT:.*]]
 ; CHECK:     [[IF]]:
 ; CHECK-NEXT:  store ptr [[A]], ptr [[B]], align 4
@@ -71,3 +71,5 @@ if.else:
 if.end:
   ret void
 }
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }

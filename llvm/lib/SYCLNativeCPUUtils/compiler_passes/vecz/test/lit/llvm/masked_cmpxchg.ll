@@ -64,7 +64,7 @@ if.end:                                           ; preds = %if.then, %entry
   ret void
 }
 
-; CHECK: define { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_align4_acquire_monotonic_1_Dv4_u3ptrDv4_jDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[CMPS:%1]], <4 x i32> [[NEWS:%2]], <4 x i1> [[MASK:%3]]) {
+; CHECK: define { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_align4_acquire_monotonic_1_Dv4_u3ptrDv4_jDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[CMPS:%1]], <4 x i32> [[NEWS:%2]], <4 x i1> [[MASK:%3]]) [[ATTRS:#[0-9]+]] {
 ; CHECK: entry:
 ; CHECK: br label %loopIR
 
@@ -99,7 +99,9 @@ if.end:                                           ; preds = %if.then, %entry
 
 ; Assume that all masked cmpxchg operations follow the logic above. Just
 ; check that the right cmpxchg instruction is being generated.
-; CHECK: define { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_weak_volatile_align8_monotonic_seqcst_0_Dv4_u3ptrDv4_jDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[CMPS:%1]], <4 x i32> [[NEWS:%2]], <4 x i1> [[MASK:%3]]) {
+; CHECK: define { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_weak_volatile_align8_monotonic_seqcst_0_Dv4_u3ptrDv4_jDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[CMPS:%1]], <4 x i32> [[NEWS:%2]], <4 x i1> [[MASK:%3]]) [[ATTRS]] {
 ; CHECK: cmpxchg weak volatile ptr {{%.*}}, i32 {{%.*}}, i32 {{%.*}} syncscope("singlethread") monotonic seq_cst, align 8
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }
 
 declare i64 @__mux_get_global_id(i32)
