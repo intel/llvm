@@ -403,12 +403,6 @@ The table below summarize the mapping between the element type of a
 |======================
 | `joint_matrix` ELEMENT_TYPE | STORAGE_TYPE
 |precision::tf32 | float
-// INTEL_CUSTOMIZATION
-// INTEL_FEATURE_GPU_FS1
-|precision::bf8 | std::byte
-|precision::hf8 | std::byte
-// end INTEL_FEATURE_GPU_FS1
-// end INTEL_CUSTOMIZATION
 |======================
 
 Whenever the application loads, stores, fills, or accesses the
