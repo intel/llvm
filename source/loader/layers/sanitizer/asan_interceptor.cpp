@@ -27,7 +27,8 @@ constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
 constexpr int kUnkownRedzoneMagic = (char)0x8F;
 
-constexpr auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
+constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
+    "__AsanShadowMemoryGlobalStart";
 constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 
 constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
@@ -220,7 +221,8 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         if (Event) {
             *Event = ReadEvent;
         } else {
-            [[maybe_unused]] auto Result = context.urDdiTable.Event.pfnWait(1, &ReadEvent);
+            [[maybe_unused]] auto Result =
+                context.urDdiTable.Event.pfnWait(1, &ReadEvent);
             assert(Result == UR_RESULT_SUCCESS);
         }
 
@@ -278,8 +280,8 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         auto Result = context.urDdiTable.VirtualMem.pfnReserve(
             Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset);
         if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error(
-                "Failed to allocate shadow memory on PVC: {}", Result);
+            context.logger.error("Failed to allocate shadow memory on PVC: {}",
+                                 Result);
             return Result;
         }
 
@@ -316,12 +318,18 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
         uptr ShadowEnd =
             MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
 
-        // Maybe in future, we needn't to map physical memory manually
-        const bool IsNeedMapPhysicalMem = true;
-
-        if (IsNeedMapPhysicalMem) {
-            // We use fixed GPU PageSize: 64KB
-            const size_t PageSize = 64 * 1024u;
+        {
+            static const size_t PageSize = [Context, Device]() {
+                size_t Size;
+                auto Result =
+                    context.urDdiTable.VirtualMem.pfnGranularityGetInfo(
+                        Context, Device,
+                        UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
+                        sizeof(Size), &Size, nullptr);
+                assert(Result == UR_RESULT_SUCCESS);
+                context.logger.info("PVC PageSize: {}", Size);
+                return Size;
+            }();
 
             ur_physical_mem_properties_t Desc{
                 UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
@@ -513,7 +521,7 @@ ur_result_t SanitizerInterceptor::eraseContext(ur_context_handle_t Context) {
 }
 
 ur_result_t SanitizerInterceptor::insertDevice(ur_context_handle_t Context,
-                                            ur_device_handle_t Device) {
+                                               ur_device_handle_t Device) {
     auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
 
     // Query device type
@@ -547,7 +555,7 @@ ur_result_t SanitizerInterceptor::insertDevice(ur_context_handle_t Context,
 }
 
 ur_result_t SanitizerInterceptor::insertQueue(ur_context_handle_t Context,
-                                           ur_queue_handle_t Queue) {
+                                              ur_queue_handle_t Queue) {
     auto QueueInfo = std::make_shared<ur_sanitizer_layer::QueueInfo>();
     QueueInfo->LastEvent = nullptr;
 
@@ -559,7 +567,7 @@ ur_result_t SanitizerInterceptor::insertQueue(ur_context_handle_t Context,
 }
 
 ur_result_t SanitizerInterceptor::eraseQueue(ur_context_handle_t Context,
-                                              ur_queue_handle_t Queue) {
+                                             ur_queue_handle_t Queue) {
     auto ContextInfo = getContextInfo(Context);
     std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
     assert(ContextInfo->QueueMap.find(Queue) != ContextInfo->QueueMap.end());
