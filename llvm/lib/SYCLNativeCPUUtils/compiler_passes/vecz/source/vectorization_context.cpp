@@ -198,7 +198,7 @@ VectorizationResult VectorizationContext::getVectorizedFunction(
 }
 
 bool VectorizationContext::isInternalBuiltin(const Function *F) {
-  return F->getName().startswith(VectorizationContext::InternalBuiltinPrefix);
+  return F->getName().starts_with(VectorizationContext::InternalBuiltinPrefix);
 }
 
 Function *VectorizationContext::getOrCreateInternalBuiltin(StringRef Name,
