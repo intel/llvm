@@ -1,6 +1,6 @@
 ; REQUIRES: cuda
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
-; RUN: -passes=sycl-internalization --sycl-info-path %S/../kernel-fusion/kernel-info.yaml -S %s | FileCheck %s
+; RUN: -passes=sycl-internalization -S %s | FileCheck %s
 
 ; This test is a reduced IR version of
 ; sycl/test-e2e/KernelFusion/internalize_non_unit_localsize.cpp for CUDA
