@@ -49,14 +49,6 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     }
 }
 
-// uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
-//     if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
-//         return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
-//     } else {
-//         return USM_SHADOW_BASE + (UPtr >> 3);
-//     }
-// }
-
 ur_context_handle_t getContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context;
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
@@ -83,15 +75,6 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
     assert(Result == UR_RESULT_SUCCESS);
     return Program;
 }
-
-// size_t getWorkgoupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device) {
-//     size_t MaxWorkGroupSize;
-//     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetGroupInfo(
-//         Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
-//         sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
-//     assert(Result == UR_RESULT_SUCCESS);
-//     return MaxWorkGroupSize;
-// }
 
 size_t getLocalMemorySize(ur_device_handle_t Device) {
     size_t LocalMemorySize;
