@@ -22,6 +22,8 @@ class SYCLModuleInfoAnalysis
 public:
   static llvm::AnalysisKey Key;
 
+  constexpr static llvm::StringLiteral ModuleInfoMDKey{"sycl.moduleinfo"};
+
   SYCLModuleInfoAnalysis(
       std::unique_ptr<jit_compiler::SYCLModuleInfo> Info = nullptr)
       : ModuleInfo{std::move(Info)} {}
@@ -29,10 +31,11 @@ public:
   struct Result {
     jit_compiler::SYCLModuleInfo *ModuleInfo;
   };
-  Result run(llvm::Module &, llvm::ModuleAnalysisManager &);
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &);
 
 private:
   void loadModuleInfoFromFile();
+  void loadModuleInfoFromMetadata(llvm::Module &M);
 
   std::unique_ptr<jit_compiler::SYCLModuleInfo> ModuleInfo;
 };
