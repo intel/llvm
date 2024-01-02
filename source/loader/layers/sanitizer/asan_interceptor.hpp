@@ -83,7 +83,6 @@ struct ContextInfo {
 
 class SanitizerInterceptor {
   public:
-    SanitizerInterceptor() {}
 
     ur_result_t allocateMemory(ur_context_handle_t Context,
                                ur_device_handle_t Device,
@@ -93,7 +92,7 @@ class SanitizerInterceptor {
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     bool preLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                         ur_event_handle_t &Event);
+                         ur_event_handle_t *Event);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t *Event);
 
