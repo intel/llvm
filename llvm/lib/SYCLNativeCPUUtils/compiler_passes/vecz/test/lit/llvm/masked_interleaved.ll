@@ -71,4 +71,4 @@ attributes #2 = { nobuiltin }
 ; CHECK: %BroadcastAddr.splat = shufflevector <4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <4 x ptr addrspace(1)> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: %3 = getelementptr i32, <4 x ptr addrspace(1)> %BroadcastAddr.splat, <4 x i64> <i64 0, i64 2, i64 4, i64 6>
 ; CHECK: call void @llvm.masked.scatter.v4i32.v4p1(<4 x i32> %0, <4 x ptr addrspace(1)> %3, i32{{( immarg)?}} 4, <4 x i1> %2) #
-; CHECK ret void
+; CHECK: ret void
