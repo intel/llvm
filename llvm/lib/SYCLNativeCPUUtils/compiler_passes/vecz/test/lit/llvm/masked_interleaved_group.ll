@@ -96,4 +96,4 @@ attributes #2 = { convergent nobuiltin nounwind readonly }
 
 ; Definitely no unmasked stores:
 ; CHECK-NOT: store <16 x i8>
-; CHECK ret void
+; CHECK: ret void

@@ -254,7 +254,7 @@ attributes #2 = { nobuiltin nounwind readonly }
 ; CHECK: [[FLOOPEXIT1]]:
 ; CHECK: br label %[[IFTHEN]]
 
-; CHECK; [[F]]:
+; CHECK: [[F]]:
 ; CHECK: br label %[[G]]
 
 ; CHECK: [[G]]:
