@@ -58,7 +58,7 @@ struct DeviceSanitizerReport {
     bool IsRecover = false;
 };
 
-const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
+inline const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
     switch (MemoryType) {
     case DeviceSanitizerMemoryType::USM_DEVICE:
         return "USM Device Memory";
@@ -77,7 +77,7 @@ const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
     }
 }
 
-const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
+inline const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
     switch (ErrorType) {
     case DeviceSanitizerErrorType::OUT_OF_BOUNDS:
         return "out-of-bounds-access";

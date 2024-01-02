@@ -7,7 +7,7 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_sanitizer_layer.cpp
+ * @file asan_interceptor.cpp
  *
  */
 
@@ -34,10 +34,6 @@ const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
 DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
-// uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
-//     return USM_SHADOW_BASE + (UPtr >> 3);
-// }
-
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFF00000000000000ULL) { // Device USM
         return USM_SHADOW_BASE + 0x200000000000ULL +
@@ -46,14 +42,6 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
         return USM_SHADOW_BASE + ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
     }
 }
-
-// uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
-//     if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
-//         return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
-//     } else {
-//         return USM_SHADOW_BASE + (UPtr >> 3);
-//     }
-// }
 
 ur_context_handle_t getContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context;
@@ -196,7 +184,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
 bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                            ur_queue_handle_t Queue,
-                                           ur_event_handle_t &Event) {
+                                           ur_event_handle_t *Event) {
+    assert(Event != nullptr);
+
     prepareLaunch(Queue, Kernel);
 
     UR_CALL(updateShadowMemory(Queue));
@@ -207,7 +197,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
     std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
-    Event = QueueInfo->LastEvent;
+    *Event = QueueInfo->LastEvent;
     QueueInfo->LastEvent = nullptr;
 
     return true;
@@ -224,10 +214,15 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(SPIR_DeviceSanitizerReportMem), 0,
-        &SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
+        &SPIR_DeviceSanitizerReportMem, Event ? 1 : 0, Event, &ReadEvent);
 
     if (Result == UR_RESULT_SUCCESS) {
-        *Event = ReadEvent;
+        if (Event) {
+            *Event = ReadEvent;
+        } else {
+            [[maybe_unused]] auto Result = context.urDdiTable.Event.pfnWait(1, &ReadEvent);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
 
         auto AH = &SPIR_DeviceSanitizerReportMem;
         if (!AH->Flag) {
@@ -284,7 +279,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
             Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset);
         if (Result != UR_RESULT_SUCCESS) {
             context.logger.error(
-                "Shadow memory is allocated failed on PVC ({})", Result);
+                "Failed to allocate shadow memory on PVC: {}", Result);
             return Result;
         }
 
@@ -293,7 +288,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         context.logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
-    context.logger.info("Device ShadowOffset: {} - {}",
+    context.logger.info("ShadowMemory(Global): {} - {}",
                         (void *)DeviceInfo->ShadowOffset,
                         (void *)DeviceInfo->ShadowOffsetEnd);
     return UR_RESULT_SUCCESS;
@@ -361,7 +356,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     // Reset PhysicalMem to null since it's been mapped
                     PhysicalMem = nullptr;
 
-                    const char Pattern[] = {kUnkownRedzoneMagic};
+                    const char Pattern[] = {0};
 
                     auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
@@ -504,6 +499,7 @@ ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
     ContextInfo->DeviceMap.emplace(nullptr, std::move(DeviceInfo));
 
     std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+    assert(m_ContextMap.find(Context) == m_ContextMap.end());
     m_ContextMap.emplace(Context, std::move(ContextInfo));
 
     return UR_RESULT_SUCCESS;

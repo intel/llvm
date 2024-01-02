@@ -23,12 +23,12 @@ namespace ur_sanitizer_layer {
 // ================================================================
 // Copy from LLVM compiler-rt/lib/asan
 
-typedef uintptr_t uptr;
-typedef unsigned char u8;
-typedef unsigned int u32;
+using uptr = uintptr_t;
+using u8 = unsigned char;
+using u32 = unsigned int;
 
-#define ASAN_SHADOW_SCALE 3
-#define ASAN_SHADOW_GRANULARITY (1ULL << ASAN_SHADOW_SCALE)
+constexpr unsigned ASAN_SHADOW_SCALE = 3;
+constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
 inline constexpr bool IsPowerOfTwo(uptr x) {
     return (x & (x - 1)) == 0 && x != 0;
