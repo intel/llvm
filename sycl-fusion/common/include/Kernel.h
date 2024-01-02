@@ -111,8 +111,6 @@ struct SYCLKernelBinaryInfo {
 struct SYCLKernelAttribute {
   using AttributeValueList = std::vector<std::string>;
 
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelAttribute() : Values{} {};
   SYCLKernelAttribute(std::string Name)
       : AttributeName{std::move(Name)}, Values{} {}
 
@@ -135,18 +133,11 @@ enum ArgUsage : uint8_t {
 
 ///
 /// Encode usage of parameters for the actual kernel function.
-// This is a vector of unsigned char, because std::vector<bool> is a weird
-// construct and unlike all other std::vectors, and LLVM YAML I/O is having a
-// hard time coping with it.
 using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
 
 ///
 /// Describe the list of arguments by their kind.
 struct SYCLArgumentDescriptor {
-
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLArgumentDescriptor() : Kinds{}, UsageMask{} {}
-
   std::vector<ParameterKind> Kinds;
 
   ArgUsageMask UsageMask;
@@ -276,9 +267,6 @@ struct SYCLKernelInfo {
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
-
-  //// Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
   SYCLKernelInfo(const std::string &KernelName,
                  const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
