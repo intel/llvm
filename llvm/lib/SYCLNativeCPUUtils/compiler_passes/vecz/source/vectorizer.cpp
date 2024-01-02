@@ -183,7 +183,7 @@ void collectStatistics(VectorizationUnit &VU, Function *Scalar,
       // Detect vector splats
       // Count insert/extractelement instructions
       if (isa<InsertElementInst>(I) || isa<ExtractElementInst>(I)) {
-        if (I.getName().startswith(".splatinsert")) {
+        if (I.getName().starts_with(".splatinsert")) {
           ++VeczSplats;
         }
         ++VeczInsertExtract;
