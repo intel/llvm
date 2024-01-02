@@ -371,7 +371,8 @@ joint_matrix_apply(sg, C, [=](T &x) {
 });
 ```
 
-=== Support for the TF32 Data Type
+=== Support for New ML Data Types
+==== TF32 Data Type
 Some devices support the TF32 floating point type for matrix
 elements. This type has a 19 bit format with one sign bit, 8 exponent
 bits (offering the same range as float), and 10 mantissa bits
@@ -395,16 +396,31 @@ For example:
 joint_matrix<sub_group, precision::tf32, use::a, tM, tK,
              layout::row_major> tA;
 ```
+The table below summarize the mapping between the element type of a
+`joint_matrix` object and the storage type of that element:
+
+[frame="none",options="header",cols="60%,40%"]
+|======================
+| `joint_matrix` ELEMENT_TYPE | STORAGE_TYPE
+|precision::tf32 | float
+// INTEL_CUSTOMIZATION
+// INTEL_FEATURE_GPU_FS1
+|precision::bf8 | std::byte
+|precision::hf8 | std::byte
+// end INTEL_FEATURE_GPU_FS1
+// end INTEL_CUSTOMIZATION
+|======================
 
 Whenever the application loads, stores, fills, or accesses the
-elements of a TF32 matrix, the application sees the elements as
-float. There are special overloads of these functions for TF32 for
-this purpose.
+elements of a ELEMENT_TYPE matrix, the application sees the elements
+as STORAGE_TYPE. There are special overloads of these functions for
+ELEMENT_TYPE for this purpose.
 
-==== TF32 load
-These overloads of `joint_matrix_load` load float values into a TF32
-matrix. It is unspecified whether the implementation loads all 32 bits
-into the joint matrix or if it only loads the relevant 19 bits.
+==== ELEMENT_TYPE load
+These overloads of `joint_matrix_load` load STORAGE_TYPE values into a
+ELEMENT_TYPE matrix. In the case of TF32, it is unspecified whether
+the implementation loads all 32 bits into the joint matrix or if it
+only loads the relevant 19 bits.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -412,39 +428,41 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
+    joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride, layout Layout);
+    multi_ptr<const STORAGE_TYPE, Space, IsDecorated> src,
+    size_t stride, layout Layout);
 
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
+    joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<float, Space, IsDecorated> src, size_t stride, layout Layout);
+    multi_ptr<STORAGE_TYPE, Space, IsDecorated> src,
+    size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
           use Use, layout Layout,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, ELEMENT_TYPE, Use, Rows, Cols, Layout> &res,
+    multi_ptr<const STORAGE_TYPE, Space, IsDecorated> src, size_t stride);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
           use Use, layout Layout,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<float, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, ELEMENT_TYPE, Use, Rows, Cols, Layout> &res,
+    multi_ptr<STORAGE_TYPE, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-==== TF32 store
-This overload of joint_matrix_store stores float values from a TF32
-matrix.
+==== ELEMENT_TYPE store
+This overload of joint_matrix_store stores STORAGE_TYPE values from a
+ELEMENT_TYPE matrix.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -452,26 +470,28 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store(Group g,
-   const joint_matrix<Group, precision::tf32, use::accumulator, Rows,
+   const joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows,
                       Cols,  layout::dynamic> &res,
-   multi_ptr<float, Space, IsDecorated> dest, size_t stride, layout Layout);
+   multi_ptr<STORAGE_TYPE, Space, IsDecorated> dest,
+   size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-==== TF32 fill
-When `joint_matrix_fill` is called for a TF32 matrix, the type `Tv`
-(the type of the fill value) must be implicitly convertible to
-`float`. It is unspecified whether the implementation writes all 32
-bits of the value into the joint matrix or if it only writes the
-relevant 19 bits.
+==== ELEMENT_TYPE fill
+When `joint_matrix_fill` is called for a ELEMENT_TYPE matrix, the type
+`Tv` (the type of the fill value) must be implicitly convertible to
+STORAGE_TYPE. In the case of TF32, it is unspecified whether the
+implementation writes all 32 bits of the value into the joint matrix
+or if it only writes the relevant 19 bits.
 
-==== TF32 element-wise operations
-When `joint_matrix_apply` is called for a TF32 matrix, the Callable
-object func is called with a single argument of type `float &`. When the
-application changes this value, it is unspecified whether the
-implementation writes back all 32 bits of the element into the joint
-matrix or if it only write the relevant 19 bits.
+==== ELEMENT_TYPE element-wise operations
+When `joint_matrix_apply` is called for a ELEMENT_TYPE matrix, the
+Callable object func is called with a single argument of type
+`STORAGE_TYPE &`. In the case of TF32, when the application changes
+this value, it is unspecified whether the implementation writes back
+all 32 bits of the element into the joint matrix or if it only write
+the relevant 19 bits.
 
 In the example below, `C` is a joint matrix of type `precision::tf32`.
 
@@ -887,7 +907,8 @@ is shown in a single column in the table below.
 This is currently available in devices with the architecture
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_dg2_g10`,
 `architecture::intel_gpu_dg2_g11`, and
-`architecture::intel_gpu_dg2_g12`. In these architectures'
+`architecture::intel_gpu_dg2_g12`.
+In these architectures'
 implementation, the type of the C matrix must be the same as the type
 of the D matrix. Therefore, that common type is shown in a single
 column in the table below.
@@ -897,27 +918,32 @@ column in the table below.
 | A type | B type | C and D type | M | N | K | device
 .2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
-|`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+|`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+`architecture::intel_gpu_pvc`
+|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
 `matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
-`architecture::intel_gpu_pvc`|8| `architecture::intel_gpu_dg2_g10,
+`architecture::intel_gpu_pvc`
+|8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .4+|  `matrix_type::bf16`       .4+|  `matrix_type::bf16`   .4+|
-`matrix_type::fp32`  | 16 | 16 | 16 .3+|`architecture::intel_gpu_pvc` |
-32 | 64 | 16
+`matrix_type::fp32`  | 16 | 16 | 16 .3+|`architecture::intel_gpu_pvc`
+|32 | 64 | 16
 .2+|  +<=+ 8 |  16   .2+|  16
 |8 | `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
