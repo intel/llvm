@@ -71,7 +71,7 @@ struct BufferMem {
   /// Size of the allocation in bytes
   size_t Size;
   /// A map that contains all the active mappings for this buffer.
-  std::unordered_map<void*, BufferMap> PtrToBufferMap;
+  std::unordered_map<void *, BufferMap> PtrToBufferMap;
 
   AllocMode MemAllocMode;
 
@@ -84,7 +84,7 @@ struct BufferMem {
 
   size_t getSize() const noexcept { return Size; }
 
-  BufferMap * getMapDetails(void* Map) {
+  BufferMap *getMapDetails(void *Map) {
     auto details = PtrToBufferMap.find(Map);
     if (details != PtrToBufferMap.end()) {
       return &details->second;
@@ -104,7 +104,8 @@ struct BufferMem {
       /// memory on the host.
       auto MapMem = std::make_unique<unsigned char[]>(MapSize);
       MapPtr = MapMem.get();
-      PtrToBufferMap.insert({MapPtr, BufferMap(MapSize, MapOffset, MapFlags, MapMem)});
+      PtrToBufferMap.insert(
+          {MapPtr, BufferMap(MapSize, MapOffset, MapFlags, MapMem)});
     } else {
       /// However, if HostPtr already has valid memory (e.g. pinned allocation),
       /// we can just use that memory for the mapping.
@@ -115,7 +116,7 @@ struct BufferMem {
   }
 
   /// Detach the allocation from the host memory.
-  void unmap(void * MapPtr) noexcept {
+  void unmap(void *MapPtr) noexcept {
     assert(MapPtr != nullptr);
     PtrToBufferMap.erase(MapPtr);
   }
