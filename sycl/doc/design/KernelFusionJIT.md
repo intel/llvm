@@ -78,11 +78,11 @@ The `KernelFusionCommand` status is set to `COMPLETED`.
 
 Users can provide hints to perform local and private promotion of arguments when performing fusion. On local promotion, arguments become _local internal_, meaning memory is shared between work-items of the same work-group. On the other hand, on private promotion, they become _private internal_, meaning memory is private to each work-item. 
 
-Local internalization is implemented by replacing the pointer to global memory corresponding to the argument to be promoted with a new argument being a pointer to local memory. The size of the local memory region will be `original_size / num_work_groups`. Note an ND-range kernel (parametrized by a `sycl::nd_range`) has to be used to perform local internalization.
+Local internalization is implemented by replacing the pointer to global memory corresponding to the argument to be promoted with a new argument being a pointer to local memory. The size of the local memory region will be `original_size / num_work_groups`. Note that an ND-range kernel (parametrized by a `sycl::nd_range`) has to be used to perform local internalization.
 
-Private internalization is implemented by dropping the pointer to global memory corresponding to the argument to be promoted and using a pointer to a private memory allocation instead. The size of the private memory allocation will be `original_size / global_size`. Note a basic kernel (parametrized by a `sycl::range`) can be used to perform local internalization.
+Private internalization is implemented by dropping the pointer to global memory corresponding to the argument to be promoted and using a pointer to a private memory allocation instead. The size of the private memory allocation will be `original_size / global_size`. Note that a basic kernel (parametrized by a `sycl::range`) can be used to perform local internalization.
 
-For a given argument, all kernels using that arguments must receive a promotion hint. If a kernel using an argument does not receive a promotion hint, no internalization will be performed. In case the hints differ, local promotion will be performed, omitting private internalization hints.
+For a given argument, all kernels using that argument must receive a promotion hint. If a kernel using an argument does not receive a promotion hint, no internalization will be performed. In case the hints differ, local promotion will be performed, omitting private internalization hints.
 
 As kernel fusion supports fusing kernel with different ND-ranges, in some cases, internalization will be affected. For both local and private internalization, internalization when fusing kernels with different ND-ranges is allowed as long as the size of the memory allocations replacing the original argument are the same for all kernels using the argument to be promoted. Meaning:
 
