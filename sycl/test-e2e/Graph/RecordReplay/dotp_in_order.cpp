@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
@@ -22,6 +22,7 @@ int main() {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   int *Dotp = malloc_device<int>(1, Queue);
+  Queue.memset(Dotp, 0, sizeof(int)).wait();
 
   const size_t N = 10;
   int *X = malloc_device<int>(N, Queue);

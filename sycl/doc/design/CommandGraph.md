@@ -132,6 +132,64 @@ in a command-graph, it will perform a blocking wait on the dependencies of the
 command-group first. The user will experience this wait as part of graph
 finalization.
 
+## Graph Partitioning
+
+To handle dependencies from other devices, the graph can be partitioned during
+the finalization process. A partition is a set of one or more nodes intended
+to run on the same device. Each partition instantiates a command-buffer
+(or equivalent) which contains all the commands to be executed on the device.
+Therefore, the partitioning only impacts graphs in the executable state and
+occurs during finalization. Synchronization between partitions is managed
+by the runtime unlike internal partition dependencies that are handled directly
+by the backend.
+
+Since runtime synchronization and multiple command-buffer involves
+extra latency, the implementation ensures to minimize the number of partitions.
+Currently, the creation of a new partition is triggered by a node containing
+a host-task.
+When a host-task is encountered the predecessors of this host-task node
+are assigned to one partition, the host-task is assigned to another partition,
+and the successors are assigned to a third partition as shown below:
+
+![Graph partition illustration.](images/SYCL-Graph-partitions.jpg)
+
+Partition numbers are allocated in order. Hence, the runtime must ensure that
+Partition `n` complete before starting execution of Partition `n+1`.
+
+Note that partitioning can only happen during the finalization stage due to
+potential backward dependencies that could be created using
+the `make_edge` function.
+
+### Example
+The partitioning process is achieved is two main stages:
+
+1 - Nodes are assigned to a temporary group/partition.
+
+2 - Once all the nodes have been annotated with a group number, 
+actual partitions are created based on these annotations.
+
+The following diagrams show the annotation process:
+
+![Graph partition illustration step 1.](images/SYCL-Graph-partitions_step1.jpg)
+![Graph partition illustration step 2.](images/SYCL-Graph-partitions_step2.jpg)
+![Graph partition illustration step 3.](images/SYCL-Graph-partitions_step3.jpg)
+![Graph partition illustration step 4.](images/SYCL-Graph-partitions_step4.jpg)
+![Graph partition illustration step 5.](images/SYCL-Graph-partitions_step5.jpg)
+![Graph partition illustration step 6.](images/SYCL-Graph-partitions_step6.jpg)
+
+Now consider a slightly different graph. 
+We used the `make_edge` function to create a dependency between Node E and 
+Node HT1. The first 5 steps are identical.
+However, from the step 6 the process changes and a group merge is needed as 
+illustrated in the following diagrams:
+
+![Graph partition illustration step 6b.](images/SYCL-Graph-partitions_step7.jpg)
+![Graph partition illustration step 7b.](images/SYCL-Graph-partitions_step8.jpg)
+![Graph partition illustration step 8b.](images/SYCL-Graph-partitions_step9.jpg)
+![Graph partition illustration step 9b.](images/SYCL-Graph-partitions_step10.jpg)
+![Graph partition illustration step 10b.](images/SYCL-Graph-partitions_step11.jpg)
+![Graph partition illustration step 11b.](images/SYCL-Graph-partitions_step12.jpg)
+
 ## Memory handling: Buffer and Accessor
 
 There is no extra support for graph-specific USM allocations in the current
@@ -218,6 +276,13 @@ Level Zero:
    in the submission pipeline that is heavier than having a barrier or a
    `waitForEvents` on the same command-list. Resulting in additional latency when
    executing a UR command-buffer.
+
+3. Dependencies between multiple submissions must be handled by the runtime.
+   Indeed, when a second submission is performed the signal conditions 
+   of *WaitEvent* are redefined by this second submission. 
+   Therefore, this can lead to an undefined behavior and potential
+   hangs especially if the conditions of the first submissions were not yet 
+   satisfied and the event has not yet been signaled.
 
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
