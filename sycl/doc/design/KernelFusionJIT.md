@@ -82,6 +82,8 @@ Local internalization is implemented by replacing the pointer to global memory c
 
 Private internalization is implemented by dropping the pointer to global memory corresponding to the argument to be promoted and using a pointer to a private memory allocation instead. The size of the private memory allocation will be `original_size / global_size`. Note that a basic kernel (parametrized by a `sycl::range`) can be used to perform local internalization.
 
+As the promoted address space will be potentially smaller than the original one, each access has to be remapped accordingly. Our current approach is to replace each access `ptr + offset` to `ptr + offset % new_size`. Users should be aware of this transformation and write their code carefully, making sure the resulting memory access pattern is legal and respects the original program semantics.
+
 For a given argument, all kernels using that argument must receive a promotion hint. If a kernel using an argument does not receive a promotion hint, no internalization will be performed. In case the hints differ, local promotion will be performed, omitting private internalization hints.
 
 As kernel fusion supports fusing kernel with different ND-ranges, in some cases, internalization will be affected. For both local and private internalization, internalization when fusing kernels with different ND-ranges is allowed as long as the size of the memory allocations replacing the original argument are the same for all kernels using the argument to be promoted. Meaning:
