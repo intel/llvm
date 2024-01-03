@@ -11,6 +11,7 @@
 #include "program.hpp"
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
+#include <rocm/rocm_version.h>
 #if (ROCM_VERSION_MAJOR >= 5)
 #include <amd_comgr/amd_comgr.h>
 #else
