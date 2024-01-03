@@ -10,7 +10,11 @@
 #pragma once
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
+#if (ROCM_VERSION_MAJOR >= 5)
 #include <amd_comgr/amd_comgr.h>
+#else
+#include <amd_comgr.h>
+#endif
 #endif
 #include <hip/hip_runtime.h>
 #include <ur/ur.hpp>

@@ -108,8 +108,8 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
             INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
             INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
         )
-        target_link_libraries(pi_hip PUBLIC amd_comgr)
-        target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+        target_link_libraries(${TARGET_NAME} PUBLIC amd_comgr)
+        target_compile_definitions(${TARGET_NAME} PRIVATE SYCL_ENABLE_KERNEL_FUSION)
     endif(UR_ENABLE_COMGR)
 
     target_link_libraries(${TARGET_NAME} PRIVATE
