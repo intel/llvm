@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cstddef>                         // for std::byte
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
@@ -887,10 +888,14 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(
-    const context &SyclContext,
-    sycl::ext::oneapi::experimental::source_language Language,
-    const std::string &Source);
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::string &Source);
+
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::vector<std::byte> &Bytes);
 
 /////////////////////////
 // syclex::build(source_kb) => exe_kb

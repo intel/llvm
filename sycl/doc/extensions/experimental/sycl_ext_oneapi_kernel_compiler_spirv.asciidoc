@@ -52,14 +52,12 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.
-Interfaces defined in this specification may not be implemented yet or may be
-in a preliminary state.
-The specification itself may also change in incompatible ways before it is
-finalized.
-*Shipping software products should not rely on APIs defined in this
-specification.*
+This is an experimental extension specification, intended to provide early 
+access to features and gather community feedback. Interfaces defined in 
+this specification are implemented in DPC++, but they are not finalized 
+and may change incompatibly in future versions of DPC++ without prior notice. 
+*Shipping software products should not rely on APIs defined in 
+this specification.*
 
 
 == Overview
