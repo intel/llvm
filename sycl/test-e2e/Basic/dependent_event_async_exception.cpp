@@ -81,7 +81,7 @@ int main() {
       test_exception_handler teh2;
 
       auto e1 = teh1.get_queue().submit([&](sycl::handler &cgh) {
-        auto B = Buf.template get_access<sycl::access::mode::read_write>(cgh);
+        auto B = sycl::accessor(Buf, cgh, sycl::read_write_host_task);
         cgh.host_task([=]() {
           B[0] = 10;
           throw test_exception{"some-error"};
@@ -89,7 +89,7 @@ int main() {
       });
 
       auto e2 = teh2.get_queue().submit([&](sycl::handler &cgh) {
-        auto B = Buf.template get_access<sycl::access::mode::read_write>(cgh);
+        auto B = sycl::accessor(Buf, cgh, sycl::read_write_host_task);
         cgh.host_task([=]() {
           B[0] *= 10;
           throw test_exception{"another-error"};
