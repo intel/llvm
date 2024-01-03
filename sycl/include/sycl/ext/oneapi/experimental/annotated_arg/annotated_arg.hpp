@@ -48,6 +48,15 @@ struct is_ann_arg_impl<const annotated_arg<T, P>> : std::true_type {};
 template <class T>
 constexpr bool is_ann_arg_v =
     is_ann_arg_impl<std::remove_reference_t<T>>::value;
+
+template <class T> struct GetUnderlyingTImpl;
+template <class T, class P> struct GetUnderlyingTImpl<annotated_arg<T, P>> {
+  using type = T;
+};
+template <class T>
+using GetUnderlyingT = typename GetUnderlyingTImpl<
+    std::remove_cv_t<std::remove_reference_t<T>>>::type;
+
 } // namespace detail
 
 // Deduction guide
@@ -220,6 +229,7 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+  using UnderlyingT = T;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
@@ -326,10 +336,11 @@ public:
 
 // propagate binary operators
 #define PROPAGATE_OP(op)                                                       \
-  template <class O>                                                           \
-  friend auto operator op(O &&a, const annotated_arg &b)                       \
-      ->decltype(std::forward<O>(a) op std::declval<T>()) {                    \
-    return std::forward<O>(a) op b.operator T();                               \
+  template <class O> friend auto operator op(O &&a, const annotated_arg &b) {  \
+    if constexpr (!detail::is_ann_arg_v<O>)                                    \
+      return std::forward<O>(a) op b.operator T();                             \
+    else                                                                       \
+      return a.operator detail::GetUnderlyingT<O>() op b.operator T();         \
   }                                                                            \
   template <class O, typename = std::enable_if_t<!detail::is_ann_arg_v<O>>>    \
   friend auto operator op(const annotated_arg &a, O &&b)                       \
