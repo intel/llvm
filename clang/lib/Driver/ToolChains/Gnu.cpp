@@ -30,6 +30,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/TargetParser.h"
 #include <system_error>
@@ -292,23 +293,9 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   }
 }
 
-static bool getPIE(const ArgList &Args, const ToolChain &TC) {
-  if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_static) ||
-      Args.hasArg(options::OPT_r) || Args.hasArg(options::OPT_static_pie))
-    return false;
-
-  Arg *A = Args.getLastArg(options::OPT_pie, options::OPT_no_pie,
-                           options::OPT_nopie);
-  if (!A)
-    return TC.isPIEDefault(Args);
-  return A->getOption().matches(options::OPT_pie);
-}
-
 static bool getStaticPIE(const ArgList &Args, const ToolChain &TC) {
   bool HasStaticPIE = Args.hasArg(options::OPT_static_pie);
-  // -no-pie is an alias for -nopie. So, handling -nopie takes care of
-  // -no-pie as well.
-  if (HasStaticPIE && Args.hasArg(options::OPT_nopie)) {
+  if (HasStaticPIE && Args.hasArg(options::OPT_no_pie)) {
     const Driver &D = TC.getDriver();
     const llvm::opt::OptTable &Opts = D.getOpts();
     StringRef StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
@@ -422,7 +409,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const bool isAndroid = ToolChain.getTriple().isAndroid();
   const bool IsIAMCU = ToolChain.getTriple().isOSIAMCU();
   const bool IsVE = ToolChain.getTriple().isVE();
-  const bool IsPIE = getPIE(Args, ToolChain);
   const bool IsStaticPIE = getStaticPIE(Args, ToolChain);
   const bool IsStatic = getStatic(Args);
   const bool HasCRTBeginEndFiles =
@@ -447,20 +433,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!D.SysRoot.empty())
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
-
-  if (IsPIE)
-    CmdArgs.push_back("-pie");
-
-  if (IsStaticPIE) {
-    CmdArgs.push_back("-static");
-    CmdArgs.push_back("-pie");
-    CmdArgs.push_back("--no-dynamic-linker");
-    CmdArgs.push_back("-z");
-    CmdArgs.push_back("text");
-  }
-
-  if (Args.hasArg(options::OPT_rdynamic))
-    CmdArgs.push_back("-export-dynamic");
 
   if (Args.hasArg(options::OPT_s))
     CmdArgs.push_back("-s");
@@ -496,17 +468,26 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Triple.isRISCV())
     CmdArgs.push_back("-X");
 
-  if (Args.hasArg(options::OPT_shared))
+  const bool IsShared = Args.hasArg(options::OPT_shared);
+  if (IsShared)
     CmdArgs.push_back("-shared");
-
-  if (IsStatic) {
+  bool IsPIE = false;
+  if (IsStaticPIE) {
     CmdArgs.push_back("-static");
-  } else {
+    CmdArgs.push_back("-pie");
+    CmdArgs.push_back("--no-dynamic-linker");
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back("text");
+  } else if (IsStatic) {
+    CmdArgs.push_back("-static");
+  } else if (!Args.hasArg(options::OPT_r)) {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
-
-    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE &&
-        !Args.hasArg(options::OPT_r)) {
+    if (!IsShared) {
+      IsPIE = Args.hasFlag(options::OPT_pie, options::OPT_no_pie,
+                           ToolChain.isPIEDefault(Args));
+      if (IsPIE)
+        CmdArgs.push_back("-pie");
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
                                            ToolChain.getDynamicLinker(Args)));
@@ -610,10 +591,18 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      if (II.getType() == types::TY_Tempfilelist) {
+      // TODO: Incoming file from the unbundling of the AOCX archive is
+      // represented as an object. The file should be considered as a filelist
+      // file to correspond with the '@' addition.
+      bool IsAOCXFile = false;
+      if (II.isFilename())
+        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
+
+      if (II.getType() == types::TY_Tempfilelist ||
+          (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        std::string FileName(II.getFilename());
-        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        const char *ArgFile =
+            C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
       } else
@@ -652,7 +641,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // AddRunTimeLibs).
   if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranRuntimeLibs(ToolChain, CmdArgs);
+    addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
     CmdArgs.push_back("-lm");
   }
 
@@ -1235,7 +1224,7 @@ static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
             .FilterOut(NonExistent)
             .setIncludeDirsCallback([](const Multilib &M) {
               std::vector<std::string> Dirs({"/include"});
-              if (StringRef(M.includeSuffix()).startswith("/uclibc"))
+              if (StringRef(M.includeSuffix()).starts_with("/uclibc"))
                 Dirs.push_back(
                     "/../../../../mips-linux-gnu/libc/uclibc/usr/include");
               else
@@ -1439,7 +1428,7 @@ static bool findMipsMtiMultilibs(const Multilib::flags_list &Flags,
             .FilterOut(NonExistent)
             .setIncludeDirsCallback([](const Multilib &M) {
               std::vector<std::string> Dirs({"/include"});
-              if (StringRef(M.includeSuffix()).startswith("/uclibc"))
+              if (StringRef(M.includeSuffix()).starts_with("/uclibc"))
                 Dirs.push_back("/../../../../sysroot/uclibc/usr/include");
               else
                 Dirs.push_back("/../../../../sysroot/usr/include");
@@ -1866,6 +1855,129 @@ static void findCSKYMultilibs(const Driver &D, const llvm::Triple &TargetTriple,
     Result.Multilibs = CSKYMultilibs;
 }
 
+/// Extend the multi-lib re-use selection mechanism for RISC-V.
+/// This function will try to re-use multi-lib if they are compatible.
+/// Definition of compatible:
+///   - ABI must be the same.
+///   - multi-lib is a subset of current arch, e.g. multi-lib=march=rv32im
+///     is a subset of march=rv32imc.
+///   - march that contains atomic extension can't reuse multi-lib that
+///     doesn't have atomic, vice versa. e.g. multi-lib=march=rv32im and
+///     march=rv32ima are not compatible, because software and hardware
+///     atomic operation can't work together correctly.
+static bool
+selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
+                    const Multilib::flags_list &Flags,
+                    llvm::SmallVectorImpl<Multilib> &SelectedMultilibs) {
+  // Try to find the perfect matching multi-lib first.
+  if (RISCVMultilibSet.select(Flags, SelectedMultilibs))
+    return true;
+
+  Multilib::flags_list NewFlags;
+  std::vector<MultilibBuilder> NewMultilibs;
+
+  llvm::Expected<std::unique_ptr<llvm::RISCVISAInfo>> ParseResult =
+      llvm::RISCVISAInfo::parseArchString(
+          Arch, /*EnableExperimentalExtension=*/true,
+          /*ExperimentalExtensionVersionCheck=*/false);
+  if (!ParseResult) {
+    // Ignore any error here, we assume it will be handled in another place.
+    consumeError(ParseResult.takeError());
+    return false;
+  }
+
+  auto &ISAInfo = *ParseResult;
+
+  addMultilibFlag(ISAInfo->getXLen() == 32, "-m32", NewFlags);
+  addMultilibFlag(ISAInfo->getXLen() == 64, "-m64", NewFlags);
+
+  // Collect all flags except march=*
+  for (StringRef Flag : Flags) {
+    if (Flag.starts_with("!march=") || Flag.starts_with("-march="))
+      continue;
+
+    NewFlags.push_back(Flag.str());
+  }
+
+  llvm::StringSet<> AllArchExts;
+  // Reconstruct multi-lib list, and break march option into separated
+  // extension. e.g. march=rv32im -> +i +m
+  for (const auto &M : RISCVMultilibSet) {
+    bool Skip = false;
+
+    MultilibBuilder NewMultilib =
+        MultilibBuilder(M.gccSuffix(), M.osSuffix(), M.includeSuffix());
+    for (StringRef Flag : M.flags()) {
+      // Add back all flags except -march.
+      if (!Flag.consume_front("-march=")) {
+        NewMultilib.flag(Flag);
+        continue;
+      }
+
+      // Break down -march into individual extension.
+      llvm::Expected<std::unique_ptr<llvm::RISCVISAInfo>> MLConfigParseResult =
+          llvm::RISCVISAInfo::parseArchString(
+              Flag, /*EnableExperimentalExtension=*/true,
+              /*ExperimentalExtensionVersionCheck=*/false);
+      if (!MLConfigParseResult) {
+        // Ignore any error here, we assume it will handled in another place.
+        llvm::consumeError(MLConfigParseResult.takeError());
+
+        // We might get a parsing error if rv32e in the list, we could just skip
+        // that and process the rest of multi-lib configs.
+        Skip = true;
+        continue;
+      }
+      auto &MLConfigISAInfo = *MLConfigParseResult;
+
+      const llvm::RISCVISAInfo::OrderedExtensionMap &MLConfigArchExts =
+          MLConfigISAInfo->getExtensions();
+      for (auto MLConfigArchExt : MLConfigArchExts) {
+        auto ExtName = MLConfigArchExt.first;
+        NewMultilib.flag(Twine("-", ExtName).str());
+
+        if (AllArchExts.insert(ExtName).second) {
+          addMultilibFlag(ISAInfo->hasExtension(ExtName),
+                          Twine("-", ExtName).str(), NewFlags);
+        }
+      }
+
+      // Check the XLEN explicitly.
+      if (MLConfigISAInfo->getXLen() == 32) {
+        NewMultilib.flag("-m32");
+        NewMultilib.flag("-m64", /*Disallow*/ true);
+      } else {
+        NewMultilib.flag("-m32", /*Disallow*/ true);
+        NewMultilib.flag("-m64");
+      }
+
+      // Atomic extension must be explicitly checked, soft and hard atomic
+      // operation never co-work correctly.
+      if (!MLConfigISAInfo->hasExtension("a"))
+        NewMultilib.flag("-a", /*Disallow*/ true);
+    }
+
+    if (Skip)
+      continue;
+
+    NewMultilibs.emplace_back(NewMultilib);
+  }
+
+  // Build an internal used only multi-lib list, used for checking any
+  // compatible multi-lib.
+  MultilibSet NewRISCVMultilibs =
+      MultilibSetBuilder().Either(NewMultilibs).makeMultilibSet();
+
+  if (NewRISCVMultilibs.select(NewFlags, SelectedMultilibs))
+    for (const Multilib &NewSelectedM : SelectedMultilibs)
+      for (const auto &M : RISCVMultilibSet)
+        // Look up the corresponding multi-lib entry in original multi-lib set.
+        if (M.gccSuffix() == NewSelectedM.gccSuffix())
+          return true;
+
+  return false;
+}
+
 static void findRISCVBareMetalMultilibs(const Driver &D,
                                         const llvm::Triple &TargetTriple,
                                         StringRef Path, const ArgList &Args,
@@ -1917,7 +2029,8 @@ static void findRISCVBareMetalMultilibs(const Driver &D,
     }
   }
 
-  if (RISCVMultilibs.select(Flags, Result.SelectedMultilibs))
+  if (selectRISCVMultilib(RISCVMultilibs, MArch, Flags,
+                          Result.SelectedMultilibs))
     Result.Multilibs = RISCVMultilibs;
 }
 
@@ -2248,13 +2361,16 @@ void Generic_GCC::GCCInstallationDetector::init(
   // The compatible GCC triples for this particular architecture.
   SmallVector<StringRef, 16> CandidateTripleAliases;
   SmallVector<StringRef, 16> CandidateBiarchTripleAliases;
+  // Add some triples that we want to check first.
+  CandidateTripleAliases.push_back(TargetTriple.str());
+  std::string TripleNoVendor = TargetTriple.getArchName().str() + "-" +
+                               TargetTriple.getOSAndEnvironmentName().str();
+  if (TargetTriple.getVendor() == llvm::Triple::UnknownVendor)
+    CandidateTripleAliases.push_back(TripleNoVendor);
+
   CollectLibDirsAndTriples(TargetTriple, BiarchVariantTriple, CandidateLibDirs,
                            CandidateTripleAliases, CandidateBiarchLibDirs,
                            CandidateBiarchTripleAliases);
-
-  TripleNoVendor = TargetTriple.getArchName().str() + "-" +
-                   TargetTriple.getOSAndEnvironmentName().str();
-  StringRef TripleNoVendorRef(TripleNoVendor);
 
   // If --gcc-install-dir= is specified, skip filesystem detection.
   if (const Arg *A =
@@ -2335,13 +2451,6 @@ void Generic_GCC::GCCInstallationDetector::init(
       // Maybe filter out <libdir>/gcc and <libdir>/gcc-cross.
       bool GCCDirExists = VFS.exists(LibDir + "/gcc");
       bool GCCCrossDirExists = VFS.exists(LibDir + "/gcc-cross");
-      // Try to match the exact target triple first.
-      ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TargetTriple.str(),
-                             false, GCCDirExists, GCCCrossDirExists);
-      // If vendor is unknown, let's try triple without vendor.
-      if (TargetTriple.getVendor() == llvm::Triple::UnknownVendor)
-        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TripleNoVendorRef,
-                               false, GCCDirExists, GCCCrossDirExists);
       for (StringRef Candidate : CandidateTripleAliases)
         ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate, false,
                                GCCDirExists, GCCCrossDirExists);
@@ -3088,6 +3197,7 @@ ToolChain::UnwindTableLevel
 Generic_GCC::getDefaultUnwindTableLevel(const ArgList &Args) const {
   switch (getArch()) {
   case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_be:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
@@ -3209,7 +3319,7 @@ void Generic_GCC::AddMultilibPaths(const Driver &D,
     // the cross. Note that GCC does include some of these directories in some
     // configurations but this seems somewhere between questionable and simply
     // a bug.
-    if (StringRef(LibPath).startswith(SysRoot))
+    if (StringRef(LibPath).starts_with(SysRoot))
       addPathIfExists(D, LibPath + "/../" + OSLibDir, Paths);
   }
 }

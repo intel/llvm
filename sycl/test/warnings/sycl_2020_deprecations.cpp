@@ -139,7 +139,7 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-warning@+1{{'abs<float>' is deprecated: abs for floating point types is non-standard and has been deprecated. Please use fabs instead.}}
+  // expected-warning@+1{{abs for floating point types is non-standard and has been deprecated. Please use fabs instead.}}
   sycl::abs(0.0f);
 
   // expected-warning@+1{{'image_support' is deprecated: deprecated in SYCL 2020, use device::has(aspect::ext_intel_legacy_image) to query for SYCL 1.2.1 image support}}
@@ -447,6 +447,12 @@ int main() {
     // expected-warning@+1{{'get_max_statement_size' is deprecated: get_max_statement_size() is deprecated since SYCL 2020. Please use get_work_item_buffer_size() instead.}}
     size_t StreamMaxStatementSize = Stream.get_max_statement_size();
   });
+
+  // expected-warning@+1 {{'fast_distance<double, double>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore = sycl::fast_distance(double{1.0}, double{2.0});
+  // expected-warning@+2 {{'fast_distance<sycl::vec<double, 2>, sycl::vec<double, 2>>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore =
+      sycl::fast_distance(sycl::vec<double, 2>{0.0}, sycl::vec<double, 2>{1.0});
 
   return 0;
 }

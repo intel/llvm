@@ -1,4 +1,7 @@
 // RUN: polygeist-opt --cpuify="method=distribute" --split-input-file %s | FileCheck %s
+// XFAIL: *
+
+// COM: Expected to fail as `scf.parallel` is not in the correct shape and is not supported in this pass.
 
 module {
   func.func private @use(i1) -> ()

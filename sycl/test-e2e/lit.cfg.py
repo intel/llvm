@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import tempfile
+import textwrap
 from distutils.spawn import find_executable
 
 import lit.formats
@@ -138,10 +139,15 @@ if lit_config.params.get('matrix-xmx8', False):
 if lit_config.params.get('matrix-fp16', False):
     config.available_features.add('matrix-fp16')
 
-#support for LIT parameter ze_debug<num>
-if lit_config.params.get('ze_debug'):
-    config.ze_debug = lit_config.params.get('ze_debug')
-    lit_config.note("ZE_DEBUG: "+config.ze_debug)
+#support for LIT parameter ur_l0_debug<num>
+if lit_config.params.get('ur_l0_debug'):
+    config.ur_l0_debug = lit_config.params.get('ur_l0_debug')
+    lit_config.note("UR_L0_DEBUG: "+config.ur_l0_debug)
+
+#support for LIT parameter ur_l0_leaks_debug
+if lit_config.params.get('ur_l0_leaks_debug'):
+    config.ur_l0_leaks_debug = lit_config.params.get('ur_l0_leaks_debug')
+    lit_config.note("UR_L0_LEAKS_DEBUG: "+config.ur_l0_leaks_debug)
 
 # Make sure that any dynamic checks below are done in the build directory and
 # not where the sources are located. This is important for the in-tree
@@ -158,8 +164,12 @@ if sp[0] == 0:
 # Check for Level Zero SDK
 check_l0_file='l0_include.cpp'
 with open(check_l0_file, 'w') as fp:
-    fp.write('#include<level_zero/ze_api.h>\n')
-    fp.write('int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }')
+    print(textwrap.dedent(
+        '''
+        #include <level_zero/ze_api.h>
+        int main() { uint32_t t; zeDriverGet(&t, nullptr); return t; }
+        '''
+    ), file=fp)
 
 config.level_zero_libs_dir=lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else config.sycl_include))
@@ -180,11 +190,15 @@ else:
 # Check for sycl-preview library
 check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
 with open(check_preview_breaking_changes_file, 'w') as fp:
-    fp.write('#include <sycl/sycl.hpp>')
-    fp.write('namespace sycl { inline namespace _V1 { namespace detail {')
-    fp.write('extern void PreviewMajorReleaseMarker();')
-    fp.write('}}}')
-    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }')
+    print(textwrap.dedent(
+        '''
+        #include <sycl/sycl.hpp>
+        namespace sycl { inline namespace _V1 { namespace detail {
+        extern void PreviewMajorReleaseMarker();
+        }}}
+        int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
+        '''
+    ), file=fp)
 
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
 if sp[0] == 0:
@@ -193,8 +207,12 @@ if sp[0] == 0:
 # Check for CUDA SDK
 check_cuda_file='cuda_include.cpp'
 with open(check_cuda_file, 'w') as fp:
-    fp.write('#include <cuda.h>\n')
-    fp.write('int main() { CUresult r = cuInit(0); return r; }')
+    print(textwrap.dedent(
+        '''
+        #include <cuda.h>
+        int main() { CUresult r = cuInit(0); return r; }
+        '''
+    ), file=fp)
 
 config.cuda_libs_dir=lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 config.cuda_include=lit_config.params.get("cuda_include", (config.cuda_include if config.cuda_include else config.sycl_include))
@@ -290,10 +308,12 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
 if len(config.sycl_devices) > 1:
     lit_config.note('Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices')
 
+config.sycl_devices = [x.replace('ext_oneapi_', '') for x in config.sycl_devices]
+
 available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
-                     'ext_oneapi_cuda':('gpu'),
-                     'ext_oneapi_level_zero':('gpu'),
-                     'ext_oneapi_hip':('gpu'),
+                     'cuda':('gpu'),
+                     'level_zero':('gpu'),
+                     'hip':('gpu'),
                      'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
@@ -308,10 +328,11 @@ if config.hip_platform not in supported_hip_platforms:
     lit_config.error("Unknown HIP platform '" + config.hip_platform + "' supported platforms are " + ', '.join(supported_hip_platforms))
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
-if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
-elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
+elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add('hip_nvidia')
     arch_flag = ""
 else:
@@ -410,8 +431,7 @@ for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(':')
     config.available_features.add('any-device-is-' + dev)
     # Use short names for LIT rules.
-    config.available_features.add(
-        'any-device-is-' + be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
+    config.available_features.add('any-device-is-' + be)
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
@@ -422,7 +442,7 @@ config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
-    if sycl_device.startswith('ext_oneapi_cuda:'):
+    if sycl_device.startswith('cuda:'):
         env['SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT'] = '1'
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
@@ -493,7 +513,7 @@ for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(':')
     features.add(dev.replace('acc', 'accelerator'))
     # Use short names for LIT rules.
-    features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
+    features.add(be)
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:

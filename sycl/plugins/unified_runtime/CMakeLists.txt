@@ -30,7 +30,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -56,13 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
+  # commit 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86 (HEAD -> main, gitlab-orion-origin/main)
+  # Author: Weronika Lewandowska <weronika.lewandowska@intel.com>
+  # Date:   Fri Dec 22 10:11:47 2023 +0100
+  #     Merge pull request #1207 from PietroGhg/pietro/remove_event_hpp
+  #     [NATIVECPU] Remove event.hpp inclusion
+  set(UNIFIED_RUNTIME_TAG 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -95,10 +95,10 @@ elseif(SYCL_PI_UR_SOURCE_DIR)
 else()
   # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
-  if(NOT ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified
-      Runtime source directory has be proivided, either:
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
 
       * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
@@ -140,7 +140,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"

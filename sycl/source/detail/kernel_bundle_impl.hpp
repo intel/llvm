@@ -352,6 +352,10 @@ public:
            "bundle_state::ext_oneapi_source required");
     assert(Language == syclex::source_language::opencl &&
            "TODO: add other Languages. Must be OpenCL");
+    if (Language != syclex::source_language::opencl)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "OpenCL C is the only supported language at this time");
 
     // if successful, the log is empty. if failed, throws an error with the
     // compilation log.
@@ -365,14 +369,17 @@ public:
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     Plugin->call<PiApiKind::piProgramCreate>(
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
+    // program created by piProgramCreate is implicitly retained.
 
-    Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
-
+    std::vector<pi::PiDevice> DeviceVec;
+    DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-          PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
+      DeviceVec.push_back(Dev);
     }
+    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
+        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
+        nullptr);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
@@ -429,8 +436,7 @@ public:
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     sycl::detail::pi::PiKernel PiKernel = nullptr;
     Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
-
-    Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
+    // Kernel created by piKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         PiKernel, detail::getSyclObjImpl(MContext), Self);
@@ -523,15 +529,14 @@ public:
                             "The kernel bundle does not contain the kernel "
                             "identified by kernelId.");
 
-    sycl::detail::pi::PiKernel Kernel = nullptr;
-    const KernelArgMask *ArgMask = nullptr;
-    std::tie(Kernel, std::ignore, ArgMask) =
+    auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask);
+    std::shared_ptr<kernel_impl> KernelImpl =
+        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
+                                      SelectedImage, Self, ArgMask, CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }

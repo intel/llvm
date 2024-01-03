@@ -318,6 +318,7 @@ public:
   // TODO - fix all __esimd* intrinsics and table entries according to the rule
   // above.
   ESIMDIntrinDescTable() {
+    // clang-format off
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
         // source
@@ -658,8 +659,10 @@ public:
          {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
-        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
+        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
+        {"srnd", {"srnd", {a(0), a(1)}}}};
   }
+  // clang-format on
 
   const IntrinTable &getTable() { return Table; }
 };
@@ -1835,6 +1838,17 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
+  // The VC backend doesn't support debugging, and trying to use
+  // non-optimized code often produces crashes or wrong answers.
+  // The recommendation from the VC team was always optimize code,
+  // even if the user requested no optimization. We already drop
+  // debugging flags in the SYCL runtime, so also drop optnone and
+  // noinline here.
+  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
+    F.removeFnAttr(Attribute::OptimizeNone);
+    F.removeFnAttr(Attribute::NoInline);
+  }
+
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
@@ -1961,7 +1975,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // Translate all uses of the load instruction from SPIRV builtin global.
       // Replaces the original global load and it is uses and stores the old
-      // instructions to ESIMDToErases.
+      // instructions to ToErase.
       translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
                                ToErase);
     }

@@ -1,6 +1,5 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %if level_zero || cuda %{ %{run} %t.out 2>&1 | FileCheck %s %} %else %{ %{run} %t.out %}
 //
 // CHECK: complete
 //

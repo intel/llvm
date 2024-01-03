@@ -143,8 +143,7 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 
   /// Handle the given inlined terminator by replacing it with a new operation
   /// as necessary.
-  void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
+  void handleTerminator(Operation *op, ValueRange valuesToRepl) const final {
     // Only "std.return" needs to be handled here.
     auto returnOp = cast<func::ReturnOp>(op);
 
@@ -154,6 +153,8 @@ struct AlwaysInlinerInterface : public InlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
+
+// TODO: Handle scf.parallel
 
 // TODO
 mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {

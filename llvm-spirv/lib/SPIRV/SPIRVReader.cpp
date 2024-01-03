@@ -1167,7 +1167,7 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
     auto *LD = dyn_cast<LoadInst>(Loc->second);
     auto *Placeholder = dyn_cast<GlobalVariable>(LD->getPointerOperand());
     assert(LD && Placeholder &&
-           Placeholder->getName().startswith(KPlaceholderPrefix) &&
+           Placeholder->getName().starts_with(KPlaceholderPrefix) &&
            "A value is translated twice");
     // Replaces placeholders for PHI nodes
     LD->replaceAllUsesWith(V);
@@ -2235,9 +2235,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *CC = static_cast<SPIRVCompositeConstruct *>(BV);
     auto Constituents = transValue(CC->getOperands(), F, BB);
     std::vector<Constant *> CV;
+    bool HasRtValues = false;
     for (const auto &I : Constituents) {
-      CV.push_back(dyn_cast<Constant>(I));
+      auto *C = dyn_cast<Constant>(I);
+      CV.push_back(C);
+      if (!HasRtValues && C == nullptr)
+        HasRtValues = true;
     }
+
     switch (static_cast<size_t>(BV->getType()->getOpCode())) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
@@ -2247,7 +2252,22 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
     case OpTypeStruct: {
       auto *ST = cast<StructType>(transType(CC->getType()));
-      return mapValue(BV, ConstantStruct::get(ST, CV));
+      if (!HasRtValues)
+        return mapValue(BV, ConstantStruct::get(ST, CV));
+
+      AllocaInst *Alloca = new AllocaInst(ST, SPIRAS_Private, "", BB);
+
+      // get pointer to the element of structure
+      // store the result of argument
+      for (size_t I = 0; I < Constituents.size(); I++) {
+        auto *GEP = GetElementPtrInst::Create(
+            Constituents[I]->getType(), Alloca, {getInt32(M, I)}, "gep", BB);
+        GEP->setIsInBounds(true);
+        new StoreInst(Constituents[I], GEP, false, BB);
+      }
+
+      auto *Load = new LoadInst(ST, Alloca, "load", false, BB);
+      return mapValue(BV, Load);
     }
     case internal::OpTypeJointMatrixINTEL:
     case OpTypeCooperativeMatrixKHR:
@@ -2353,9 +2373,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFunctionCall: {
     SPIRVFunctionCall *BC = static_cast<SPIRVFunctionCall *>(BV);
-    auto *Call = CallInst::Create(transFunction(BC->getFunction()),
-                                  transValue(BC->getArgumentValues(), F, BB),
+    std::vector<Value *> Args = transValue(BC->getArgumentValues(), F, BB);
+    auto *Call = CallInst::Create(transFunction(BC->getFunction()), Args,
                                   BC->getName(), BB);
+    for (auto *Arg : Args)
+      if (Arg->getType()->isPointerTy())
+        replaceOperandWithAnnotationIntrinsicCallResult(F, Arg);
     setCallingConv(Call);
     setAttrByCalledFunc(Call);
     return mapValue(BV, Call);
@@ -2949,7 +2972,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   // assuming llvm.memset is supported by the device compiler. If this
   // assumption is not safe, we should have a command line option to control
   // this behavior.
-  if (FuncNameRef.startswith("spirv.llvm_memset_p")) {
+  if (FuncNameRef.starts_with("spirv.llvm_memset_p")) {
     // We can't guarantee that the name is correctly mangled due to opaque
     // pointers. Derive the correct name from the function type.
     FuncName =
@@ -3380,8 +3403,7 @@ bool SPIRVToLLVM::translate() {
     auto *BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
-    else
-      transGlobalCtorDtors(BV);
+    transGlobalCtorDtors(BV);
   }
 
   // Then translate all debug instructions.
@@ -3849,7 +3871,8 @@ transDecorationsToMetadataList(llvm::LLVMContext *Context,
       OPs.push_back(LinkTypeMD);
       break;
     }
-    case spv::internal::DecorationHostAccessINTEL: {
+    case spv::internal::DecorationHostAccessINTEL:
+    case DecorationHostAccessINTEL: {
       const auto *const HostAccDeco =
           static_cast<const SPIRVDecorateHostAccessINTEL *>(Deco);
       auto *const AccModeMD = ConstantAsMetadata::get(ConstantInt::get(

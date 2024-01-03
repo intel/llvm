@@ -187,97 +187,9 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   }
 };
 
-struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
-  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
-
-  void canonicalizeLoopBounds(PatternRewriter &rewriter,
-                              AffineParallelOp forOp) const {
-    SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
-    SmallVector<Value, 4> ubOperands(forOp.getUpperBoundsOperands());
-
-    auto lbMap = forOp.getLowerBoundsMap();
-    auto ubMap = forOp.getUpperBoundsMap();
-
-    auto *scope = getAffineScope(forOp)->getParentOp();
-    DominanceInfo DI(scope);
-
-    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
-    canonicalizeMapAndOperands(&lbMap, &lbOperands);
-
-    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
-    canonicalizeMapAndOperands(&ubMap, &ubOperands);
-
-    forOp.setLowerBounds(lbOperands, lbMap);
-    forOp.setUpperBounds(ubOperands, ubMap);
-  }
-
-  LogicalResult matchAndRewrite(scf::ParallelOp loop,
-                                PatternRewriter &rewriter) const final {
-    OpBuilder builder(loop);
-
-    if (loop.getResults().size())
-      return failure();
-
-    if (!llvm::all_of(loop.getLowerBound(), isValidIndex))
-      return failure();
-
-    if (!llvm::all_of(loop.getUpperBound(), isValidIndex))
-      return failure();
-
-    SmallVector<int64_t> steps;
-    for (auto step : loop.getStep())
-      if (auto cst = step.getDefiningOp<ConstantIndexOp>())
-        steps.push_back(cst.value());
-      else
-        return failure();
-
-    ArrayRef<AtomicRMWKind> reductions;
-    SmallVector<AffineMap> bounds;
-    for (size_t i = 0; i < loop.getLowerBound().size(); i++)
-      bounds.push_back(AffineMap::get(
-          /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
-          builder.getAffineSymbolExpr(i)));
-    affine::AffineParallelOp affineLoop =
-        rewriter.create<affine::AffineParallelOp>(
-            loop.getLoc(), loop.getResultTypes(), reductions, bounds,
-            loop.getLowerBound(), bounds, loop.getUpperBound(),
-            steps); //, loop.getInitVals());
-
-    canonicalizeLoopBounds(rewriter, affineLoop);
-
-    auto mergedYieldOp =
-        cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
-
-    Block &newBlock = affineLoop.getRegion().front();
-
-    // The terminator is added if the iterator args are not provided.
-    // see the ::build method.
-    if (affineLoop.getResults().size() == 0) {
-      auto *affineYieldOp = newBlock.getTerminator();
-      rewriter.eraseOp(affineYieldOp);
-    }
-
-    SmallVector<Value> vals;
-    for (Value arg : affineLoop.getRegion().front().getArguments())
-      vals.push_back(arg);
-
-    rewriter.mergeBlocks(&loop.getRegion().front(),
-                         &affineLoop.getRegion().front(), vals);
-
-    rewriter.setInsertionPoint(mergedYieldOp);
-    rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
-                                   mergedYieldOp.getOperands());
-    rewriter.eraseOp(mergedYieldOp);
-
-    rewriter.replaceOp(loop, affineLoop.getResults());
-
-    return success();
-  }
-};
-
 void RaiseSCFToAffine::runOnOperation() {
   RewritePatternSet patterns(&getContext());
-  patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());
+  patterns.insert<ForOpRaising>(&getContext());
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

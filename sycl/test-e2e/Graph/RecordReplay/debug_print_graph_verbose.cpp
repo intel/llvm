@@ -1,11 +1,9 @@
-// REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
-// RUN: %if linux %{ %{run} %t.out ; FileCheck %s --input-file graph_verbose.dot %}
-// RUN: %if windows %{ %{run} %t.out %}
+// RUN: %if linux && (level_zero || cuda) %{ %{run} %t.out ; FileCheck %s --input-file graph_verbose.dot %} %else %{ %{run} %t.out %}
 // Windows output format differs from linux format.
 // The filecheck-based output checking is suited to linux standards.
 // On Windows, we only test that printing takes place correctly and does not
-// trigger errors or throw execeptions.
+// trigger errors or throw exceptions.
 //
 //
 // CHECK: digraph dot {

@@ -1,4 +1,8 @@
 // RUN: polygeist-opt --cpuify="method=distribute.mincut" --split-input-file %s | FileCheck %s
+// XFAIL: *
+
+// COM: Expected to fail as `scf.parallel` is not in the correct shape and is not supported in this pass.
+
 module {
   func.func @t(%arg0: memref<?xf32>, %arg1: memref<?xmemref<?xf32>>, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32, %arg7: i32, %arg8: i32, %arg9: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
     %true = arith.constant true

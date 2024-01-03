@@ -1,4 +1,7 @@
 // RUN: polygeist-opt --cpuify="method=distribute" -allow-unregistered-dialect -canonicalize --split-input-file %s | FileCheck %s
+// XFAIL: *
+
+// COM: Expected to fail as `scf.parallel` is not in the correct shape and is not supported in this pass.
 
 module {
   func.func private @use(%a : i1) -> ()

@@ -107,7 +107,7 @@ func.func @scf_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: index)
   // CHECK-NEXT:      %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:      scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
   // CHECK-NEXT:        func.call @use(%1) : (f32) -> ()
-  // CHECK-NEXT:        scf.yield
+  // CHECK-NEXT:        scf.reduce
   // CHECK-NEXT:      }
   // CHECK-NEXT:    }
 
@@ -134,7 +134,7 @@ func.func @scf_parallel_hoist2(%arg0: memref<?xf32>, %arg1: index, %arg2: index)
   // CHECK-NEXT:       %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:       scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
   // CHECK-NEXT:         func.call @use(%1) : (f32) -> ()
-  // CHECK-NEXT:         scf.yield
+  // CHECK-NEXT:         scf.reduce
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }
 
@@ -159,7 +159,7 @@ func.func @scf_parallel_nohoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: inde
   // CHECK-NEXT:       memref.store %0, %alloca[] : memref<f32>
   // CHECK-NEXT:       %1 = memref.load %alloca[] : memref<f32>
   // CHECK-NEXT:       func.call @use(%1) : (f32) -> ()
-  // CHECK-NEXT:       scf.yield
+  // CHECK-NEXT:       scf.reduce
   // CHECK-NEXT:     }
 
   %c1 = arith.constant 1 : index 

@@ -383,12 +383,8 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
     // barrier is considered nested in that `parallel` op and _not_ in `op`.
     for (auto arg : barrier->getOperands()) {
       if (auto ba = dyn_cast<BlockArgument>(arg)) {
-        if (auto parallel =
-                dyn_cast<scf::ParallelOp>(ba.getOwner()->getParentOp())) {
-          if (parallel->isAncestor(op))
-            vals.push_back(ba);
-        } else if (auto parallel = dyn_cast<affine::AffineParallelOp>(
-                       ba.getOwner()->getParentOp())) {
+        if (auto parallel = dyn_cast<affine::AffineParallelOp>(
+                ba.getOwner()->getParentOp())) {
           if (parallel->isAncestor(op))
             vals.push_back(ba);
         } else {
@@ -420,7 +416,7 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
-    if (isNormalized(op) || !isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
+    if (isNormalized(op) || !isa<affine::AffineParallelOp>(op->getParentOp())) {
       LLVM_DEBUG(DBGS() << "[normalize-loop] loop already normalized\n");
       return failure();
     }
@@ -458,19 +454,6 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 };
 #endif
 
-/// Returns `true` if the loop has a form expected by interchange patterns.
-static bool isNormalized(scf::ParallelOp op) {
-  auto isZero = [](Value v) {
-    APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isZero();
-  };
-  auto isOne = [](Value v) {
-    APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isOne();
-  };
-  return llvm::all_of(op.getLowerBound(), isZero) &&
-         llvm::all_of(op.getStep(), isOne);
-}
 static bool isNormalized(affine::AffineParallelOp op) {
   auto isZero = [](AffineExpr v) {
     if (auto ce = v.dyn_cast<AffineConstantExpr>())
@@ -479,112 +462,6 @@ static bool isNormalized(affine::AffineParallelOp op) {
   };
   return llvm::all_of(op.getLowerBoundsMap().getResults(), isZero) &&
          llvm::all_of(op.getSteps(), [](int64_t s) { return s == 1; });
-}
-
-/// Transforms a loop to the normal form expected by interchange patterns, i.e.
-/// with zero lower bounds and unit steps.
-struct NormalizeParallel : public OpRewritePattern<scf::ParallelOp> {
-  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(scf::ParallelOp op,
-                                PatternRewriter &rewriter) const override {
-    if (isNormalized(op)) {
-      LLVM_DEBUG(DBGS() << "[normalize-parallel] loop already normalized\n");
-      return failure();
-    }
-    if (op->getNumResults() != 0) {
-      LLVM_DEBUG(
-          DBGS() << "[normalize-parallel] not processing reduction loops\n");
-      return failure();
-    }
-    SmallVector<BlockArgument> args;
-    if (!hasNestedBarrier(op, args)) {
-      LLVM_DEBUG(DBGS() << "[normalize-parallel] no nested barrier\n");
-      return failure();
-    }
-
-    Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
-    Value one = rewriter.create<ConstantIndexOp>(op.getLoc(), 1);
-    SmallVector<Value> iterationCounts = emitIterationCounts(rewriter, op);
-    auto newOp = rewriter.create<scf::ParallelOp>(
-        op.getLoc(), SmallVector<Value>(iterationCounts.size(), zero),
-        iterationCounts, SmallVector<Value>(iterationCounts.size(), one));
-
-    SmallVector<Value> inductionVars;
-    inductionVars.reserve(iterationCounts.size());
-    rewriter.setInsertionPointToStart(newOp.getBody());
-    for (unsigned i = 0, e = iterationCounts.size(); i < e; ++i) {
-      Value scaled = rewriter.create<MulIOp>(
-          op.getLoc(), newOp.getInductionVars()[i], op.getStep()[i]);
-      Value shifted =
-          rewriter.create<AddIOp>(op.getLoc(), op.getLowerBound()[i], scaled);
-      inductionVars.push_back(shifted);
-    }
-
-    rewriter.inlineBlockBefore(op.getBody(), &newOp.getBody()->back(),
-                               inductionVars);
-    rewriter.eraseOp(&newOp.getBody()->back());
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-LogicalResult splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter,
-                           BarrierOp barrier, SmallVector<Value> &iterCounts,
-                           scf::ParallelOp &preLoop, scf::ParallelOp &postLoop,
-                           Block *&outerBlock, scf::ParallelOp &outerLoop,
-                           memref::AllocaScopeOp &outerEx) {
-
-  SmallVector<Value> outerLower;
-  SmallVector<Value> outerUpper;
-  SmallVector<Value> outerStep;
-  SmallVector<Value> innerLower;
-  SmallVector<Value> innerUpper;
-  SmallVector<Value> innerStep;
-  for (auto en : llvm::zip(op.getBody()->getArguments(), op.getLowerBound(),
-                           op.getUpperBound(), op.getStep())) {
-    bool found = false;
-    for (auto v : barrier.getOperands())
-      if (v == std::get<0>(en))
-        found = true;
-    if (found) {
-      innerLower.push_back(std::get<1>(en));
-      innerUpper.push_back(std::get<2>(en));
-      innerStep.push_back(std::get<3>(en));
-    } else {
-      outerLower.push_back(std::get<1>(en));
-      outerUpper.push_back(std::get<2>(en));
-      outerStep.push_back(std::get<3>(en));
-    }
-  }
-  if (!innerLower.size())
-    return failure();
-  if (outerLower.size()) {
-    outerLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), outerLower,
-                                                 outerUpper, outerStep);
-    rewriter.eraseOp(&outerLoop.getBody()->back());
-    outerBlock = outerLoop.getBody();
-  } else {
-    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
-    outerBlock = new Block();
-    outerEx.getRegion().push_back(outerBlock);
-  }
-
-  rewriter.setInsertionPointToEnd(outerBlock);
-  for (auto tup : llvm::zip(innerLower, innerUpper, innerStep)) {
-    iterCounts.push_back(rewriter.create<DivUIOp>(
-        op.getLoc(),
-        rewriter.create<SubIOp>(op.getLoc(), std::get<1>(tup),
-                                std::get<0>(tup)),
-        std::get<2>(tup)));
-  }
-  preLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
-                                             innerUpper, innerStep);
-  rewriter.eraseOp(&preLoop.getBody()->back());
-  postLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
-                                              innerUpper, innerStep);
-  rewriter.eraseOp(&postLoop.getBody()->back());
-  return success();
 }
 
 LogicalResult splitSubLoop(
@@ -917,12 +794,8 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   // Create the second loop.
   rewriter.setInsertionPointToEnd(outerBlock);
   if (outerLoop) {
-    if (isa<scf::ParallelOp>(outerLoop))
-      rewriter.create<scf::YieldOp>(op.getLoc());
-    else {
-      assert(isa<affine::AffineParallelOp>(outerLoop));
-      rewriter.create<affine::AffineYieldOp>(op.getLoc());
-    }
+    assert(isa<affine::AffineParallelOp>(outerLoop));
+    rewriter.create<affine::AffineYieldOp>(op.getLoc());
   } else {
     rewriter.create<memref::AllocaScopeReturnOp>(op.getLoc());
   }
@@ -991,7 +864,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 /// necessary but insufficient condition.
 static LogicalResult canWrapWithBarriers(Operation *op,
                                          SmallVector<BlockArgument> &vals) {
-  if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
+  if (!isa<affine::AffineParallelOp>(op->getParentOp())) {
     LLVM_DEBUG(DBGS() << "[wrap] not nested in a pfor\n");
     return failure();
   }
@@ -1109,7 +982,6 @@ static LogicalResult wrapAndDistribute(T op, bool singleExecution,
   // eliminating it in some cases when now two barriers appear before `op` and
   // only one of them is necessary
   auto pop = op->getParentOp();
-  (void)distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
   (void)distributeAfterWrap<affine::AffineParallelOp, UseMinCut>(pop, before,
                                                                  rewriter);
 
@@ -1261,10 +1133,6 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
   rewriter.eraseOp(op);
 }
 
-mlir::OperandRange getLowerBounds(scf::ParallelOp op,
-                                  PatternRewriter &rewriter) {
-  return op.getLowerBound();
-}
 SmallVector<Value> getLowerBounds(affine::AffineParallelOp op,
                                   PatternRewriter &rewriter) {
   SmallVector<Value> vals;
@@ -1619,7 +1487,7 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     if (op.getNumResults() == 0 || !hasNestedBarrier(op, args))
       return failure();
 
-    if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
+    if (!isa<affine::AffineParallelOp>(op->getParentOp())) {
       return failure();
     }
 
@@ -1712,7 +1580,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
     if (!op.getResults().size() || !hasNestedBarrier(op, args))
       return failure();
 
-    if (!isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp())) {
+    if (!isa<affine::AffineParallelOp>(op->getParentOp())) {
       return failure();
     }
 
@@ -2069,12 +1937,14 @@ struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
   }
 };
 
+// TODO: Handle scf.parallel
+
 struct CPUifyPass : public mlir::polygeist::impl::SCFCPUifyBase<CPUifyPass> {
   using SCFCPUifyBase<CPUifyPass>::SCFCPUifyBase;
 
   void runOnOperation() override {
     StringRef method(this->method);
-    if (method.startswith("distribute")) {
+    if (method.starts_with("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
         patterns.insert<BarrierElim</*TopLevelOnly*/ false>, Reg2MemWhile>(
@@ -2101,30 +1971,21 @@ struct CPUifyPass : public mlir::polygeist::impl::SCFCPUifyBase<CPUifyPass> {
         }
 
         patterns.insert<
-            InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
             InterchangeForIfPFor<affine::AffineParallelOp, scf::ForOp>,
-            InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
             InterchangeForIfPFor<affine::AffineParallelOp, scf::IfOp>,
-            InterchangeForIfPFor<scf::ParallelOp, affine::AffineForOp>,
             InterchangeForIfPFor<affine::AffineParallelOp, affine::AffineForOp>,
-            InterchangeForIfPFor<scf::ParallelOp, affine::AffineIfOp>,
             InterchangeForIfPFor<affine::AffineParallelOp, affine::AffineIfOp>,
 
-            InterchangeWhilePFor<scf::ParallelOp>,
-            InterchangeWhilePFor<affine::AffineParallelOp>,
-            // NormalizeLoop,
-            NormalizeParallel
+            InterchangeWhilePFor<affine::AffineParallelOp>
             // RotateWhile,
             >(&getContext());
         if (method.contains("mincut")) {
           patterns
-              .insert<DistributeAroundBarrier<scf::ParallelOp, true>,
-                      DistributeAroundBarrier<affine::AffineParallelOp, true>>(
+              .insert<DistributeAroundBarrier<affine::AffineParallelOp, true>>(
                   &getContext());
         } else {
           patterns
-              .insert<DistributeAroundBarrier<scf::ParallelOp, false>,
-                      DistributeAroundBarrier<affine::AffineParallelOp, false>>(
+              .insert<DistributeAroundBarrier<affine::AffineParallelOp, false>>(
                   &getContext());
         }
         GreedyRewriteConfig config;

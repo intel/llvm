@@ -18,6 +18,10 @@ int main() {
               Dev,
               {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   sycl::kernel_id Kernel1ID = sycl::get_kernel_id<Kernel1Name>();
   sycl::kernel_id Kernel2ID = sycl::get_kernel_id<Kernel2Name>();
 

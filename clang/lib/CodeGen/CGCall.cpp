@@ -1389,7 +1389,7 @@ static void CreateCoercedStore(llvm::Value *Src,
   llvm::PointerType *DstPtrTy = llvm::dyn_cast<llvm::PointerType>(DstTy);
   if (SrcPtrTy && DstPtrTy &&
       SrcPtrTy->getAddressSpace() != DstPtrTy->getAddressSpace()) {
-    Src = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(Src, DstTy);
+    Src = CGF.Builder.CreateAddrSpaceCast(Src, DstTy);
     CGF.Builder.CreateStore(Src, Dst, DstIsVolatile);
     return;
   }
@@ -5703,6 +5703,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     CI = Builder.CreateInvoke(IRFuncTy, CalleePtr, Cont, InvokeDest, IRCallArgs,
                               BundleList);
     EmitBlock(Cont);
+  }
+  if (CI->getCalledFunction() && CI->getCalledFunction()->hasName() &&
+      CI->getCalledFunction()->getName().starts_with("_Z4sqrt")) {
+    SetSqrtFPAccuracy(CI);
   }
   if (callOrInvoke)
     *callOrInvoke = CI;

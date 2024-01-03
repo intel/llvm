@@ -67,13 +67,12 @@ bool CurrentCodeLocationValid() {
 
 void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
-                                const char *Txt) {
+                                const void *Addr) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
     return;
   // Trace event notifier that emits a Type event
   xptiNotifySubscribers(StreamID, Type, detail::GSYCLGraphEvent,
-                        static_cast<xpti_td *>(TraceEvent), InstanceID,
-                        static_cast<const void *>(Txt));
+                        static_cast<xpti_td *>(TraceEvent), InstanceID, Addr);
 }
 #endif
 
@@ -788,22 +787,18 @@ Command *Command::addDep(EventImplPtr Event,
 
 void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType = xpti::trace_signal;
-  if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
-        MTraceEvent && PiEventAddr))
-    return;
-  // Asynchronous call, so send a signal with the event information as
-  // user_data
-  xptiNotifySubscribers(
-      MStreamID, NotificationTraceType, detail::GSYCLGraphEvent,
-      static_cast<xpti_td *>(MTraceEvent), MInstanceID, (void *)PiEventAddr);
+  emitInstrumentationGeneral(
+      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent),
+      xpti::trace_signal, static_cast<const void *>(PiEventAddr));
 #endif
+  std::ignore = PiEventAddr;
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  return emitInstrumentationGeneral(
-      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent), Type, Txt);
+  return emitInstrumentationGeneral(MStreamID, MInstanceID,
+                                    static_cast<xpti_td *>(MTraceEvent), Type,
+                                    static_cast<const void *>(Txt));
 #else
   std::ignore = Type;
   std::ignore = Txt;
@@ -2403,8 +2398,8 @@ pi_int32 enqueueImpCommandBufferKernel(
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
+  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
@@ -2417,7 +2412,6 @@ pi_int32 enqueueImpCommandBufferKernel(
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    std::shared_ptr<kernel_impl> SyclKernelImpl;
     auto KernelName = CommandGroup.MKernelName;
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
@@ -2427,14 +2421,14 @@ pi_int32 enqueueImpCommandBufferKernel(
     PiKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     PiProgram = DeviceImageImpl->get_program_ref();
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, PiProgram);
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
+    auto SyclProg = Kernel->getProgramImpl();
+    PiProgram = SyclProg->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
@@ -2483,9 +2477,15 @@ pi_int32 enqueueImpCommandBufferKernel(
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
       SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
 
+  if (!SyclKernelImpl && !Kernel) {
+    Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<PiApiKind::piProgramRelease>(PiProgram);
+  }
+
   if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid,
-                          "Failed to add kernel to PI command-buffer");
+    const device_impl &DeviceImplem = *(DeviceImpl);
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
+                                                        PiKernel, NDRDesc);
   }
 
   return Res;
@@ -2530,10 +2530,8 @@ pi_int32 enqueueImpKernel(
 
     Program = DeviceImageImpl->get_program_ref();
 
-    std::tie(Kernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, Program);
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
@@ -2551,7 +2549,7 @@ pi_int32 enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName);
+            ContextImpl, DeviceImpl, KernelName, NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2574,8 +2572,11 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    assert(KernelMutex);
-    std::lock_guard<std::mutex> Lock(*KernelMutex);
+    // When KernelMutex is null, this means that in-memory caching is
+    // disabled, which means that kernel object is not shared, so no locking
+    // is necessary.
+    using LockT = std::unique_lock<std::mutex>;
+    auto Lock = KernelMutex ? LockT(*KernelMutex) : LockT();
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
@@ -2590,6 +2591,12 @@ pi_int32 enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
                                      EliminatedArgMask, getMemAllocationFunc);
+
+    const PluginPtr &Plugin = Queue->getPlugin();
+    if (!SyclKernelImpl && !MSyclKernel) {
+      Plugin->call<PiApiKind::piKernelRelease>(Kernel);
+      Plugin->call<PiApiKind::piProgramRelease>(Program);
+    }
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

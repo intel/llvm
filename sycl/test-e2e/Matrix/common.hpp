@@ -3,6 +3,10 @@
 #include <random>
 #include <sycl/sycl.hpp>
 
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclintelex = sycl::ext::intel::experimental;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 // Most of the time, failures related to floating-point calculations (both float
@@ -82,6 +86,15 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
 }
 
 template <typename T>
+void matrix_transpose(unsigned int rows, unsigned int cols, T *dst, T *src) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      dst[i + j * rows] = src[i * cols + j];
+    }
+  }
+}
+
+template <typename T>
 void matrix_fill(unsigned int rows, unsigned int cols, T *src, T val) {
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
@@ -128,11 +141,12 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
-template <typename T1, typename T2>
+template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr (std::is_same_v<T1, float> || std::is_same_v<T1, bfloat16>) {
+      if constexpr (!exact && (std::is_same_v<T1, float> ||
+                               std::is_same_v<T1, bfloat16>)) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cout << "Incorrect result in matrix. "
@@ -142,9 +156,10 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (std::is_same_v<T1, int32_t>) {
+      } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix. Ref: " << ref[i * cols + j]
+          std::cout << "Incorrect result in matrix." << "i: " << i
+                    << ", j: " << j << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }

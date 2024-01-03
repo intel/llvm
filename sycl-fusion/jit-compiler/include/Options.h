@@ -16,7 +16,7 @@
 
 namespace jit_compiler {
 
-enum OptionID { VerboseOutput, EnableCaching, TargetFormat };
+enum OptionID { VerboseOutput, EnableCaching, TargetDeviceInfo };
 
 class OptionPtrBase {};
 
@@ -80,8 +80,8 @@ struct JITEnableVerbose : public OptionBase<OptionID::VerboseOutput, bool> {};
 
 struct JITEnableCaching : public OptionBase<OptionID::EnableCaching, bool> {};
 
-struct JITTargetFormat
-    : public OptionBase<OptionID::TargetFormat, BinaryFormat> {};
+struct JITTargetInfo
+    : public OptionBase<OptionID::TargetDeviceInfo, TargetInfo> {};
 
 } // namespace option
 } // namespace jit_compiler

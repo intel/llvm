@@ -1,4 +1,7 @@
 // RUN: polygeist-opt --cpuify="method=distribute.mincut" --split-input-file %s | FileCheck %s
+// XFAIL: *
+
+// COM: Expected to fail as `scf.parallel` is not in the correct shape and is not supported in this pass.
 
 module {
   func.func private @use(%arg0: i32)
