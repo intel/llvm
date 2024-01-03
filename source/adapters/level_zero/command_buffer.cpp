@@ -92,8 +92,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ZeStruct<ze_command_list_desc_t> ZeDesc,
     const ur_exp_command_buffer_desc_t *Desc)
     : Context(Context), Device(Device), ZeCommandList(CommandList),
-      ZeCommandListDesc(ZeDesc), QueueProperties(), SyncPoints(),
-      NextSyncPoint(0), ZeFencesList() {
+      ZeCommandListDesc(ZeDesc), ZeFencesList(), QueueProperties(),
+      SyncPoints(), NextSyncPoint(0) {
   (void)Desc;
   urContextRetain(Context);
   urDeviceRetain(Device);
