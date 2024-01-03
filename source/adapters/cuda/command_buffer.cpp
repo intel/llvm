@@ -525,6 +525,77 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   return Result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void * /* Mem */,
+    size_t /*Size*/, ur_usm_migration_flags_t /*Flags*/,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  // Prefetch cmd is not supported by Cuda Graph.
+  // We implement it as an empty node to enforce dependencies.
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
+
+  try {
+    // Add an empty node to preserve dependencies.
+    UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                       DepsList.data(), DepsList.size()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+
+    setErrorMessage("Prefetch hint ignored and replaced with empty node as "
+                    "prefetch is not supported by CUDA Graph backend",
+                    UR_RESULT_SUCCESS);
+    Result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void * /* Mem */,
+    size_t /*Size*/, ur_usm_advice_flags_t /*Advice*/,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  // Mem-Advise cmd is not supported by Cuda Graph.
+  // We implement it as an empty node to enforce dependencies.
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
+
+  try {
+    // Add an empty node to preserve dependencies.
+    UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                       DepsList.data(), DepsList.size()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+
+    setErrorMessage("Memory advice ignored and replaced with empty node as "
+                    "memory advice is not supported by CUDA Graph backend",
+                    UR_RESULT_SUCCESS);
+    Result = UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+
+  return Result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,

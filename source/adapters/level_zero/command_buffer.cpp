@@ -683,6 +683,106 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
       SyncPointWaitList, SyncPoint);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
+    ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  std::ignore = Flags;
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  if (NumSyncPointsInWaitList) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                ZeEventList.data()));
+  }
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  // Add the prefetch command to the command buffer.
+  // Note that L0 does not handle migration flags.
+  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+             (CommandBuffer->ZeCommandList, Mem, Size));
+
+  // Level Zero does not have a completion "event" with the prefetch API,
+  // so manually add command to signal our event.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
+    ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  // A memory chunk can be advised with muliple memory advices
+  // We therefore prefer if statements to switch cases to combine all potential
+  // flags
+  uint32_t Value = 0;
+  if (Advice & UR_USM_ADVICE_FLAG_SET_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_CACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_CACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_UNCACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_UNCACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+
+  ze_memory_advice_t ZeAdvice = static_cast<ze_memory_advice_t>(Value);
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  if (NumSyncPointsInWaitList) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                ZeEventList.data()));
+  }
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  ZE2UR_CALL(zeCommandListAppendMemAdvise,
+             (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
+              Mem, Size, ZeAdvice));
+
+  // Level Zero does not have a completion "event" with the advise API,
+  // so manually add command to signal our event.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t Queue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
