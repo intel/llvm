@@ -139,10 +139,10 @@ as:
 - virtual member function *not* annotated with `indirectly_callable`
   compile-time property should *not* be emitted into device code;
 
-There is no need to actually check which exact property is applied to a
-function, it is enough to check if `add_ir_attribute_function` attribute was
-applied and that we are in SYCL device mode to decide whether or not a virtual
-function should be emitted into vtable and device code.
+Since mechanism for attaching the property automatically attaches `sycl_device`
+attribute to virtual functions (see the previous section), it is enough for the
+FE to only look for the `sycl_device` attribute, following the logic which is
+already in place for regular directly called functions.
 
 **TODO:** any extra diagnostics we would like to emit? Like kernel without
 `calls_indirectly` property performing virtual function call.
