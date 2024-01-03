@@ -407,6 +407,7 @@ static std::vector<device> amendDeviceAndSubDevices(
 
       if (!deviceMatch)
         continue;
+
       // Top level matches. Do we add it, or subdevices, or sub-sub-devices?
       bool wantSubDevice = target.SubDeviceNum || target.HasSubDeviceWildCard;
       bool supportsSubPartitioning =
@@ -415,8 +416,8 @@ static std::vector<device> amendDeviceAndSubDevices(
       bool wantSubSubDevice =
           target.SubSubDeviceNum || target.HasSubSubDeviceWildCard;
 
-      // -- Add top level device.
       if (!wantSubDevice) {
+        // -- Add top level device only.
         if (!deviceAdded) {
           FinalResult.push_back(dev);
           deviceAdded = true;
@@ -435,39 +436,27 @@ static std::vector<device> amendDeviceAndSubDevices(
         continue;
       }
 
-      if (!wantSubSubDevice) {
-        // -- Add sub device.
-        auto subDevices = dev.create_sub_devices<
-            info::partition_property::partition_by_affinity_domain>(
-            affinityDomain);
-        if (target.HasSubDeviceWildCard) {
-          FinalResult.insert(FinalResult.end(), subDevices.begin(),
-                             subDevices.end());
-        } else {
-          if (subDevices.size() > target.SubDeviceNum.value()) {
-            FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
-          } else {
-            std::cout << "subdevice index out of bounds: " << target
-                      << std::endl;
-          }
-        }
-        continue;
-      }
-
-      // -- Add sub sub device.
-      auto subDevicesToPartition =
-          dev.create_sub_devices<partitionProperty>(affinityDomain);
+      auto subDevices = dev.create_sub_devices<
+          info::partition_property::partition_by_affinity_domain>(
+          affinityDomain);
       if (target.SubDeviceNum) {
-        if (subDevicesToPartition.size() > target.SubDeviceNum.value()) {
-          subDevicesToPartition[0] =
-              subDevicesToPartition[target.SubDeviceNum.value()];
-          subDevicesToPartition.resize(1);
-        } else {
+        if (subDevices.size() <= target.SubDeviceNum.value()) {
           std::cout << "subdevice index out of bounds: " << target << std::endl;
           continue;
         }
+        subDevices[0] = subDevices[target.SubDeviceNum.value()];
+        subDevices.resize(1);
       }
-      for (device subDev : subDevicesToPartition) {
+
+      if (!wantSubSubDevice) {
+        // -- Add sub device(s) only.
+        FinalResult.insert(FinalResult.end(), subDevices.begin(),
+                           subDevices.end());
+        continue;
+      }
+
+      // -- Add sub sub device(s).
+      for (device subDev : subDevices) {
         bool supportsSubSubPartitioning =
             (supportsPartitionProperty(subDev, partitionProperty) &&
              supportsAffinityDomain(subDev, partitionProperty, affinityDomain));
@@ -480,23 +469,22 @@ static std::vector<device> amendDeviceAndSubDevices(
           }
           continue;
         }
+
         // Allright, lets get them sub-sub-devices.
         auto subSubDevices =
             subDev.create_sub_devices<partitionProperty>(affinityDomain);
-        if (target.HasSubSubDeviceWildCard) {
-          FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
-                             subSubDevices.end());
-        } else {
-          if (subSubDevices.size() > target.SubSubDeviceNum.value()) {
-            FinalResult.push_back(
-                subSubDevices[target.SubSubDeviceNum.value()]);
-          } else {
+        if (target.SubSubDeviceNum) {
+          if (subSubDevices.size() <= target.SubSubDeviceNum.value()) {
             std::cout << "sub-sub-device index out of bounds: " << target
                       << std::endl;
+            continue;
           }
+          subSubDevices[0] = subSubDevices[target.SubSubDeviceNum.value()];
+          subSubDevices.resize(1);
         }
+        FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
+                           subSubDevices.end());
       }
-      continue;
     }
   }
   return FinalResult;
