@@ -734,7 +734,14 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
     return ImagesOrErr.takeError();
 
   auto &Images = *ImagesOrErr;
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "can't wrap SYCL image. -triple argument is missed.");
+
+  for (SYCLImage &Image : Images)
+    Image.Target = Target;
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);

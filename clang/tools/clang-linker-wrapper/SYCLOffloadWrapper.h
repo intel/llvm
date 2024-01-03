@@ -32,7 +32,7 @@ struct SYCLImage {
 
   std::string Entries;
 
-  // Offload target triple. TODO: check is not performed yet.
+  // Offload target triple.
   std::string Target;
 
   // TODO: remove it as not used.

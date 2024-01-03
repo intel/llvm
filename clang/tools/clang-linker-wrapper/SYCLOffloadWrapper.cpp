@@ -329,7 +329,6 @@ struct Wrapper {
   addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
                          StringRef TargetTriple) {
     // Create global variable for the image data.
-    // TODO: recheck TargetTriple.empty()
     return addArrayToModule(
         Buf, Name,
         TargetTriple.empty() ? ""
@@ -603,7 +602,7 @@ struct Wrapper {
     Constant *EntriesE = Constant::getNullValue(PointerType::getUnqual(C));
     static constexpr uint16_t BinDescStructVersion = 1;
     auto *DescInit = ConstantStruct::get(
-        getSyclBinDescTy(),
+        SyclBinDescTy,
         ConstantInt::get(Type::getInt16Ty(C), BinDescStructVersion),
         ConstantInt::get(Type::getInt16Ty(C), WrappedImages.size()), ImagesB,
         EntriesB, EntriesE);
