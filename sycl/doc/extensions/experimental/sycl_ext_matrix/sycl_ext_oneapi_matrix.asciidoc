@@ -252,11 +252,12 @@ layout.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-template <typename Group, typename T, size_t Rows, size_t Cols,
+// T1 must be the same as T2
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store(Group g,
-   const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   multi_ptr<T, Space, IsDecorated> dest, size_t stride, layout Layout);
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   multi_ptr<T2, Space, IsDecorated> dest, size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -371,16 +372,17 @@ joint_matrix_apply(sg, C, [=](T &x) {
 });
 ```
 
-=== Support for New ML Data Types
-==== TF32 Data Type
-Some devices support the TF32 floating point type for matrix
-elements. This type has a 19 bit format with one sign bit, 8 exponent
-bits (offering the same range as float), and 10 mantissa bits
-(offering the same precision as sycl::half). Use of this type can
-accelerate the joint_matrix_mad operation by reducing its
-precision. In order to declare a `joint_matrix` object with this
-element type, use `matrix::precision::tf32` in place of the `T`
-template parameter.
+=== Support for Machine Learning Types
+Some devices support special matrix element types that are commonly
+used in machine learning algorithms.
+These types are unusual because the type of the matrix element is
+different from the way the data is stored in memory. As a result, each
+of these elements has two types. There is an abstract identifier for
+the element type, which is an incomplete type defined in the
+`sycl::ext::oneapi::experimental::matrix::precision` namespace, and
+there is a corresponding storage format type. The following synopsis
+lists the abstract types and the table shows the associated storage
+format type.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix::precision {
@@ -390,31 +392,30 @@ class tf32;
 } // namespace sycl::ext::oneapi::experimental::matrix::precision
 ```
 
-For example:
+[frame="none",options="header",cols="20%,20%,60%"]
+|======================
+| `joint_matrix` element type | Storage type | Descritpion
+|precision::tf32 | float | The TF32 type has a 19 bit format with one
+sign bit, 8 exponent bits (offering the same range as float), and 10
+mantissa bits (offering the same precision as sycl::half).
+|======================
+
+In order to declare a `joint_matrix` with one of these element types,
+use the abstract type like so:
 
 ```c++
 joint_matrix<sub_group, precision::tf32, use::a, tM, tK,
              layout::row_major> tA;
 ```
-The table below summarize the mapping between the element type of a
-`joint_matrix` object and the storage type of that element:
 
-[frame="none",options="header",cols="60%,40%"]
-|======================
-| `joint_matrix` ELEMENT_TYPE | STORAGE_TYPE
-|precision::tf32 | float
-|======================
+Operations on these matrices use the functions described above, but
+there are different constraints on the template parameters as
+described below.
 
-Whenever the application loads, stores, fills, or accesses the
-elements of a ELEMENT_TYPE matrix, the application sees the elements
-as STORAGE_TYPE. There are special overloads of these functions for
-ELEMENT_TYPE for this purpose.
-
-==== ELEMENT_TYPE load
-These overloads of `joint_matrix_load` load STORAGE_TYPE values into a
-ELEMENT_TYPE matrix. In the case of TF32, it is unspecified whether
-the implementation loads all 32 bits into the joint matrix or if it
-only loads the relevant 19 bits.
+==== load
+The template parameter `T2` must either be the storage format type
+that corresponds to the abstract type `T1` or it must be a
+const-qualified version of that storage format type. For example:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -422,17 +423,17 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows, Cols,
+    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<const STORAGE_TYPE, Space, IsDecorated> src,
+    multi_ptr<const float, Space, IsDecorated> src,
     size_t stride, layout Layout);
 
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows, Cols,
+    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<STORAGE_TYPE, Space, IsDecorated> src,
+    multi_ptr<float, Space, IsDecorated> src,
     size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
@@ -440,23 +441,23 @@ template <typename Group, size_t Rows, size_t Cols,
           use Use, layout Layout,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, ELEMENT_TYPE, Use, Rows, Cols, Layout> &res,
-    multi_ptr<const STORAGE_TYPE, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
+    multi_ptr<const float, Space, IsDecorated> src, size_t stride);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
           use Use, layout Layout,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, ELEMENT_TYPE, Use, Rows, Cols, Layout> &res,
-    multi_ptr<STORAGE_TYPE, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
+    multi_ptr<float, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-==== ELEMENT_TYPE store
-This overload of joint_matrix_store stores STORAGE_TYPE values from a
-ELEMENT_TYPE matrix.
+==== store
+The template parameter `T2` must be the storage format type that
+corresponds to the abstract type `T1`. For example:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -464,30 +465,49 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store(Group g,
-   const joint_matrix<Group, ELEMENT_TYPE, use::accumulator, Rows,
+   const joint_matrix<Group, precision::tf32, use::accumulator, Rows,
                       Cols,  layout::dynamic> &res,
-   multi_ptr<STORAGE_TYPE, Space, IsDecorated> dest,
+   multi_ptr<float, Space, IsDecorated> dest,
    size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-==== ELEMENT_TYPE fill
-When `joint_matrix_fill` is called for a ELEMENT_TYPE matrix, the type
-`Tv` (the type of the fill value) must be implicitly convertible to
-STORAGE_TYPE. In the case of TF32, it is unspecified whether the
-implementation writes all 32 bits of the value into the joint matrix
-or if it only writes the relevant 19 bits.
+==== fill
+The template parameter `Tv` must be implicitly convertible to the
+storage format type that corresponds to the abstract type `T`. For example:
 
-==== ELEMENT_TYPE element-wise operations
-When `joint_matrix_apply` is called for a ELEMENT_TYPE matrix, the
-Callable object func is called with a single argument of type
-`STORAGE_TYPE &`. In the case of TF32, when the application changes
-this value, it is unspecified whether the implementation writes back
-all 32 bits of the element into the joint matrix or if it only write
-the relevant 19 bits.
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
 
-In the example below, `C` is a joint matrix of type `precision::tf32`.
+template <typename Group, size_t Rows, size_t Cols,
+          use Use, layout Layout>
+void joint_matrix_fill(Group g, joint_matrix<Group, precision::tf32, Use, Rows,
+          Cols, Layout> &m, float v);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+==== copy
+The template parameters `T1` and `T2` must use the abstract type.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, size_t Rows, size_t Cols, use Use1,
+          use Use2, layout Layout1, layout Layout2>
+void joint_matrix_copy(Group g,
+        joint_matrix<Group, precision::tf32, Use1, Rows, Cols, Layout1> &src,
+        joint_matrix<Group, float, Use2, Rows, Cols, Layout2> &dest);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+==== Element-wise operations
+The Callable function type `F` must be invocable with a single argument
+whose type is a reference to the storage format type that corresponds
+to the abstract type `T`. For example, in the case where `C` is a
+joint matrix of type `precision::tf32`:
 
 ```c++
 joint_matrix_apply(sg, C, [=](float &x) {
