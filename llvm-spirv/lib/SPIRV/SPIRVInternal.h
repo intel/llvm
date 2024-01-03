@@ -830,6 +830,9 @@ std::string getImageBaseTypeName(StringRef Name);
 /// Extract the image type descriptor from the given image type.
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty);
 
+/// Return the index of image operands given an image op.
+size_t getImageOperandsIndex(Op OpCode);
+
 /// Check if access qualifier is encoded in the type name.
 bool hasAccessQualifiedName(StringRef TyName);
 
@@ -901,9 +904,11 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \param OC opcode of corresponding built-in instruction. Used to gather info
 /// for unsigned/constant arguments.
 /// \param Types of arguments of SPIR-V built-in function
+/// \param Ops Operands of SPIRVInstruction
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC, ArrayRef<Type *> ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<SPIRVValue *> Ops);
 
 /// Get i8* with the same address space.
 PointerType *getInt8PtrTy(PointerType *T);

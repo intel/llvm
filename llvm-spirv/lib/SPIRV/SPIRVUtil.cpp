@@ -1598,6 +1598,18 @@ std::string getImageBaseTypeName(StringRef Name) {
   return ImageTyName;
 }
 
+size_t getImageOperandsIndex(Op OpCode) {
+  switch (OpCode) {
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+    return 2;
+  case OpImageWrite:
+    return 3;
+  default:
+    return ~0U;
+  }
+}
+
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
   if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
     auto IntParams = TET->int_params();
@@ -2273,8 +2285,9 @@ bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp) {
 namespace {
 class SPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
-  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys)
-      : OC(OC), ArgTys(ArgTys) {}
+  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys,
+                            ArrayRef<SPIRVValue *> Ops)
+      : OC(OC), ArgTys(ArgTys), Ops(Ops) {}
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
@@ -2434,6 +2447,15 @@ public:
     case OpSUDotAccSatKHR:
       addUnsignedArg(1);
       break;
+    case OpImageWrite: {
+      size_t Idx = getImageOperandsIndex(OC);
+      if (Ops.size() > Idx) {
+        auto ImOp = static_cast<SPIRVConstant *>(Ops[Idx])->getZExtIntValue();
+        if (ImOp & ImageOperandsMask::ImageOperandsZeroExtendMask)
+          addUnsignedArg(2);
+      }
+      break;
+    }
     default:;
       // No special handling is needed
     }
@@ -2442,6 +2464,7 @@ public:
 private:
   spv::Op OC;
   ArrayRef<Type *> ArgTys;
+  ArrayRef<SPIRVValue *> Ops;
 };
 class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
@@ -2511,9 +2534,9 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 }
 
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC,
-                                           ArrayRef<Type *> ArgTys) {
-  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<SPIRVValue *> Ops) {
+  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
 
