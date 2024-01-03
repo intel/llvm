@@ -138,6 +138,8 @@ public:
   template <typename... SYCLType>
   AccessorInformation getInformationImpl(const polygeist::Definition &def);
 
+  mlir::AliasAnalysis &getAliasAnalysis() { return *aliasAnalysis; }
+
 private:
   template <typename OperandType>
   std::optional<IDRangeInformation>

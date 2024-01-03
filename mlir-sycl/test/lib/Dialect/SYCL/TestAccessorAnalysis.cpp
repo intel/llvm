@@ -23,11 +23,9 @@ struct TestAccessorAnalysisPass
   void runOnOperation() override {
     Operation *op = getOperation();
     bool relaxedAliasing = true;
-    AliasAnalysis &aliasAnalysis = getAnalysis<mlir::AliasAnalysis>();
-    aliasAnalysis.addAnalysisImplementation(
-        sycl::AliasAnalysis(relaxedAliasing));
     auto &AccessorAnalysis =
         getAnalysis<sycl::SYCLAccessorAnalysis>().initialize(relaxedAliasing);
+    auto &aliasAnalysis = AccessorAnalysis.getAliasAnalysis();
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");
