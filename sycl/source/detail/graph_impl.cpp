@@ -724,11 +724,6 @@ void exec_graph_impl::createCommandBuffers(
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  WriteLock LockImpl(MGraphImpl->MMutex);
-
-  // clear all recording queue if not done before (no call to end_recording)
-  MGraphImpl->clearQueues();
-
   const sycl::detail::PluginPtr &Plugin =
       sycl::detail::getSyclObjImpl(MContext)->getPlugin();
   MSchedule.clear();
@@ -772,12 +767,40 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         CurrentPartition->MPiCommandBuffers[Queue->get_device()];
 
     if (CommandBuffer) {
-      if (!previousSubmissionCompleted()) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "This Graph cannot be submitted at the moment "
-            "because the previous run has not yet completed.");
+      // if previous submissions are incompleted, we automatically
+      // add completion events of previous submissions as dependencies.
+      // With Level-Zero backend we cannot resubmit a command-buffer until the
+      // previous one has already completed.
+      // Indeed, since a command-list does not accept a list a dependencies at
+      // submission, we circumvent this lack by adding a barrier that waits on a
+      // specific event and then define the conditions to signal this event in
+      // another command-list. Consequently, if a second submission is
+      // performed, the signal conditions of this single event are redefined by
+      // this second submission. Thus, this can lead to an undefined behaviour
+      // and potential hangs. We have therefore to expliclty wait in the host
+      // for previous submission to complete before resubmitting the
+      // command-buffer for level-zero backend.
+      // TODO : add a check to release this constraint and allow multiple
+      // concurrent submissions if the exec_graph has been updated since the
+      // last submission.
+      for (std::vector<sycl::detail::EventImplPtr>::iterator It =
+               MExecutionEvents.begin();
+           It != MExecutionEvents.end();) {
+        auto Event = *It;
+        if (!Event->isCompleted()) {
+          if (Queue->get_device().get_backend() ==
+              sycl::backend::ext_oneapi_level_zero) {
+            Event->wait(Event);
+          } else {
+            CGData.MEvents.push_back(Event);
+          }
+          ++It;
+        } else {
+          // Remove completed events
+          It = MExecutionEvents.erase(It);
+        }
       }
+
       NewEvent = CreateNewEvent();
       sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
       // Merge requirements from the nodes into requirements (if any) from the

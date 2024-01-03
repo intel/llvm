@@ -116,19 +116,63 @@ execute_process( COMMAND ${LLVM_CONFIG} "--bindir"
 # These were not properly reported in early LLVM and we don't need them
 list( APPEND LLVM_CXX_FLAGS -fno-rtti -fno-exceptions )
 
+# List containing all the toolchain variables.
+list( APPEND BINARY_VARIABLES LLVM_CLANG LLVM_AS LLVM_LINK LLVM_OPT LLVM_SPIRV
+      LIBCLC_REMANGLER )
+# List containing all the names of toolchain binaries.
+# NOTE: both lists (BINARY_VARIABLES and BINARY_NAMES) must be in sync.
+list( APPEND BINARY_NAMES clang llvm-as llvm-link opt llvm-spirv
+      libclc-remangler )
+
+# find_program needs the variable to be cleared in order to perform a search.
+# Make sure that the cached entries are cleared as well.
+function( ClearVariables BINARY_VARIABLES_LIST )
+  foreach( V ${BINARY_VARIABLES_LIST} )
+    unset( ${V} CACHE )
+    unset( ${V} PARENT_SCOPE )
+  endforeach( V )
+endfunction()
+
+# Use find_program to locate toolchain binaries.
+function( FindToolBinary BINARY_VARIABLES_LIST BINARY_NAMES_LIST PATH_NAME )
+  list( LENGTH BINARY_NAMES_LIST COUNT )
+  math( EXPR COUNT "${COUNT}-1" )
+  foreach( I RANGE ${COUNT} )
+    list( GET BINARY_VARIABLES_LIST ${I} BV )
+    list( GET BINARY_NAMES_LIST ${I} BN )
+    find_program( ${BV} ${BN} PATHS ${PATH_NAME} NO_DEFAULT_PATH )
+  endforeach( I )
+endfunction()
+
+# Use custom toolchain to build libclc, this can be useful when dealing with
+# debug builds, that do not need libclc bitcode to be built using debug tools.
+if ( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+  message( WARNING "Using custom LLVM tools to build libclc: "
+    "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
+    " make sure that the tools are up to date." )
+
+  # First clear the variables,
+  ClearVariables( "${BINARY_VARIABLES}" )
+  # then set.
+  FindToolBinary( "${BINARY_VARIABLES}" "${BINARY_NAMES}"
+    ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+
+  if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+      OR NOT LIBCLC_REMANGLER )
+    message( FATAL_ERROR "Custom toolchain incomplete!" )
+  endif()
+endif()
+
 # Print LLVM variables
 message( "LLVM libdir: ${LLVM_LIBRARY_DIR}" )
 message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
-find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_OPT opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_TOOLS_BINARY_DIR}
-							NO_DEFAULT_PATH )
+# It's OK to call find program again, if the variables have been set in the
+# custom location clause, find_program returns immediately.
+FindToolBinary( "${BINARY_VARIABLES}" "${BINARY_NAMES}"
+  ${LLVM_TOOLS_BINARY_DIR} )
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
