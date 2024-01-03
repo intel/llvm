@@ -39,13 +39,13 @@ int main() {
     // When an object of a polymorphic class is created, its vtable is filled
     // with pointer to virtual member functions. However, we don't always know
     // features supported by a target device (in case of JIT) and therefore
-    // can't decide whether both 'foo' and 'bar' should be both included in the
+    // can't decide whether both 'foo' and 'bar' should be included in the
     // resulting device image - the decision must be made at runtime when we
     // know the target device.
     new (Obj) Base;
   });
 
-  // The same binary produced by thy sycl compiler should correctly work on both
+  // The same binary produced by a sycl compiler should correctly work on both
   // devices with and without support for 'fp64' aspect.
   Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
     Obj->foo();
@@ -201,7 +201,7 @@ int main() {
 
   Q.single_task<Constructor>([=] {
     // Even though at LLVM IR level this kernel does reference 'Base::foo'
-    // and 'Base::bar' though global variable containing `vtable` for `Base`,
+    // and 'Base::bar' through global variable containing `vtable` for `Base`,
     // we do not consider the kernel to be using `fp64` optional feature.
     new (Obj) Base;
   });
@@ -213,7 +213,7 @@ int main() {
   });
 
   if (Q.get_device().has(sycl::aspect::fp64)) {
-    Q.single_task<Use>(syclext::properties{syclext::calls_indirectly<set_fp64>},
+    Q.single_task<UseFP64>(syclext::properties{syclext::calls_indirectly<set_fp64>},
         [=] {
       // This kernel is considered to be using 'fp64' optional feature, because
       // there is a virtual function in 'set_fp64' which uses double.
@@ -225,7 +225,7 @@ int main() {
 }
 ```
 
-This way, "Consturctor" kernel(s) won't pull optional features
+This way, "Constructor" kernel(s) won't pull optional features
 requirements from virtual functions it may reference through vtable, making it
 independent from those. This allows to launch such kernels on wider list of
 devices, even though there could be virtual functions which require optional
@@ -335,13 +335,13 @@ Therefore, `sycl-post-link` should read the device config file to determine list
 of optional features supported by a target and based on that drop all virtual
 functions from sets that use unsupported optional features.
 
-Note that we are making decision not based on which aspects are used by each
+Note that we are making decisions not based on which aspects are used by each
 individual virtual functions, but based on which aspects are used by a set of
 virtual functions (as identified by the `indirectlly_callable` property
 argument). The latter is computed as conjunction of aspects used by each
 virtual function within a set.
 
-The behavior is defined this way to better match the extension speficiation
+The behavior is defined this way to better match the extension specification
 which defines virtual functions availability in terms of whole sets and not
 individual functions.
 

@@ -137,7 +137,7 @@ namespace sycl::ext::oneapi::experimental {
   };
 
   struct calls_indirectly_key {
-    template <typename First = void, typename... SetIds>
+    template <typename First, typename... SetIds>
     using value_t = property_value<calls_indirectly_key, First, SetIds...>;
   };
 
@@ -154,13 +154,13 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
-Before describing those properties those properties in more detail, a couple of
-new terms are introduced to simplify the extension specification:
+Before describing those properties in more detail, a couple of new terms are
+introduced to simplify the extension specification:
 
 Set of virtual member functions:: a group of virtual member functions which are
-defined with `indirectly_callable` property with the same value of the property
-parameter `SetId`. For the simplicity, this will also be further refferred to as
-a _set_, or as a _set of virtual functions_.
+defined with the `indirectly_callable` property and with the same value of the
+property parameter `SetId`. For simplicity, this will also be further referred
+to as a _set_, or as a _set of virtual functions_.
 
 Kernel declares a use of a set of virtual member functions:: a kernel is
 considered to be declaring a use of a set of virtual member functions `SetIdA`
@@ -183,7 +183,7 @@ property parameter `SetId` and therefore has all the same requirements.
 Optional parameter `SetId` specifies a set of virtual member functions this
 function belongs to and at the same time it defines a group of kernels, which
 can call this function, it must be a C++ typename. When the parameter is
-ommitted, a virtual member function is considered to belong to the default set.
+omitted, a virtual member function is considered to belong to the default set.
 
 Calling a virtual member function from a kernel which does not declare use of a
 set the virtual member function belongs to is an undefined behavior.
@@ -312,7 +312,7 @@ exact virtual functions are called from which kernels.
 
 Instead, information from the new properties is used by an implementation to
 issue such diagnostic. When determining a set of aspects which are used by a
-SYCL kernel function, implementation also takes into account all aspects which
+SYCL kernel function, an implementation must take into account all aspects which
 are used by all virtual member functions included into all sets of virtual
 member functions declared to be used by a kernel.
 
@@ -332,7 +332,7 @@ struct Foo {
 
   // This function uses 'fp16' aspect
   virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_fp16) void f16() {
-    sycl::half h = 2.71;
+    sycl::half h = 2.71f;
   }
 };
 
@@ -405,7 +405,7 @@ q.single_task(syclext::properties{syclext::calls_indirectly<set_B>}, [=] {
 An implementation may not raise a compile time diagnostic or a run time
 exception merely due to speculative compilation of a virtual member function for
 a device when the application does not specify a use of virtual member functions
-through the correponding properties.
+through the corresponding properties.
 
 [source,dpcpp]
 ----
@@ -505,7 +505,7 @@ int main() {
     CGH.use_kernel_bundle(bundleA);
     CGH.single_task<Constructor>([=] {
       // Only placement new can be used within device functions.
-      new (Obj) Derived;
+      new (Obj) Base;
     });
   });
 
@@ -567,12 +567,12 @@ int main() {
     Base B;
     Result[0] = B.get_random_number();
   }).wait();
-  assert(A[0] == 4);
+  assert(Result[0] == 4);
 
   Q.single_task(props, [=] {
-    A[0] = Obj->get_random_number();
+    Result[0] = Obj->get_random_number();
   }).wait();
-  assert(A[0] == 221);
+  assert(Result[0] == 221);
 
   return 0;
 }
