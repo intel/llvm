@@ -58,17 +58,52 @@ make_throwing_host_event(sycl::queue &queue, std::string name,
 }
 
 int main() {
-  test_exception_handler teh1;
-  test_exception_handler teh2;
+  {
+    test_exception_handler teh1;
+    test_exception_handler teh2;
 
-  auto e1 = make_throwing_host_event(teh1.get_queue(), "some-error");
-  auto e2 = make_throwing_host_event(teh2.get_queue(), "another-error", {e1});
+    auto e1 = make_throwing_host_event(teh1.get_queue(), "some-error");
+    auto e2 = make_throwing_host_event(teh2.get_queue(), "another-error", {e1});
 
-  e2.wait_and_throw();
+    e2.wait_and_throw();
 
-  assert(teh2.count() == 1);
-  assert(teh2.has("another-error"));
+    assert(teh2.count() == 1);
+    assert(teh2.has("another-error"));
 
-  assert(teh1.count() == 1);
-  assert(teh1.has("some-error"));
+    assert(teh1.count() == 1);
+    assert(teh1.has("some-error"));
+  }
+  {
+    int data = 0;
+    {
+      sycl::buffer<int, 1> Buf(&data, sycl::range<1>(1));
+      test_exception_handler teh1;
+      test_exception_handler teh2;
+
+      auto e1 = teh1.get_queue().submit([&](sycl::handler &cgh) {
+        auto B = Buf.template get_access<sycl::access::mode::read_write>(cgh);
+        cgh.host_task([=]() {
+          B[0] = 10;
+          throw test_exception{"some-error"};
+        });
+      });
+
+      auto e2 = teh2.get_queue().submit([&](sycl::handler &cgh) {
+        auto B = Buf.template get_access<sycl::access::mode::read_write>(cgh);
+        cgh.host_task([=]() {
+          B[0] *= 10;
+          throw test_exception{"another-error"};
+        });
+      });
+
+      e2.wait_and_throw();
+
+      assert(data == 100);
+      assert(teh2.count() == 1);
+      assert(teh2.has("another-error"));
+
+      assert(teh1.count() == 1);
+      assert(teh1.has("some-error"));
+    }
+  }
 }
