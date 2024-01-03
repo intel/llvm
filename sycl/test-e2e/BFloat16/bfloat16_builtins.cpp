@@ -2,6 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
+
+// RUN:  %if preview-breaking-changes-supported %{  %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t2.out %{mathflags} %}
+// RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
+
 // Currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
 #include <sycl/sycl.hpp>

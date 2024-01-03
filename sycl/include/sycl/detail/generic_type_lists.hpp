@@ -97,8 +97,16 @@ using scalar_vector_double_list =
 using double_list =
     tl_append<scalar_double_list, vector_double_list, marray_double_list>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using scalar_floating_list = tl_append<scalar_float_list, scalar_double_list,
                                        scalar_half_list, scalar_bfloat16_list>;
+#else
+// Presently, this is used only by builtins_legacy_scalar.hpp for defining math
+// funcs. bfloat16 provides its own scalar math definitions so we skip its
+// inclusion.
+using scalar_floating_list =
+    tl_append<scalar_float_list, scalar_double_list, scalar_half_list>;
+#endif
 
 using vector_floating_list = tl_append<vector_float_list, vector_double_list,
                                        vector_half_list, vector_bfloat16_list>;
