@@ -266,59 +266,33 @@ std::vector<int> platform_impl::filterDeviceFilter(
     MPlugin->call<PiApiKind::piDeviceGetInfo>(
         Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
         &PiDevType, nullptr);
-    // Assumption here is that there is 1-to-1 mapping between PiDevType and
-    // Sycl device type for GPU, CPU, and ACC.
-    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend.value_or(backend::all);
-      // First, match the backend entry
+      // First, match the backend entry.
       if (FilterBackend != Backend && FilterBackend != backend::all)
         continue;
-      info::device_type FilterDevType =
-          Filter.DeviceType.value_or(info::device_type::all);
 
-      // match the device_num entry
+      // Match the device_num entry.
       if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
         continue;
 
-      // Next, match the device_type entry
-      if (FilterDevType == info::device_type::all) {
-        if constexpr (is_ods_target) {      // dealing with ODS filters
-          if (!Blacklist[DeviceNum]) {      // ensure it is not blacklisted
-            if (!Filter.IsNegativeTarget) { // is filter positive?
-              PiDevices[InsertIDx++] = Device;
-              original_indices.push_back(DeviceNum);
-            } else {
-              // Filter is negative and the device matches the filter so
-              // blacklist the device.
-              Blacklist[DeviceNum] = true;
-            }
-          }
-        } else { // dealing with SYCL_DEVICE_FILTER
-          PiDevices[InsertIDx++] = Device;
-          original_indices.push_back(DeviceNum);
+      if constexpr (is_ods_target) {
+        // Dealing with ONEAPI_DEVICE_SELECTOR - check for negative filters.
+        if (Blacklist[DeviceNum]) // already blacklisted.
+          break;
+
+        if (Filter.IsNegativeTarget) {
+          // Filter is negative and the device matches the filter so
+          // blacklist the device now.
+          Blacklist[DeviceNum] = true;
+          break;
         }
-        break;
       }
-      if (FilterDevType == DeviceType) {
-        if constexpr (is_ods_target) {
-          if (!Blacklist[DeviceNum]) {
-            if (!Filter.IsNegativeTarget) {
-              PiDevices[InsertIDx++] = Device;
-              original_indices.push_back(DeviceNum);
-            } else {
-              // Filter is negative and the device matches the filter so
-              // blacklist the device.
-              Blacklist[DeviceNum] = true;
-            }
-          }
-        } else {
-          PiDevices[InsertIDx++] = Device;
-          original_indices.push_back(DeviceNum);
-        }
-        break;
-      }
+
+      PiDevices[InsertIDx++] = Device;
+      original_indices.push_back(DeviceNum);
+      break;
     }
     DeviceNum++;
   }
