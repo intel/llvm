@@ -33,17 +33,17 @@ public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
                       ur_platform_handle_t Platform, uint32_t DeviceIndex)
       : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        HIPContext(Context), DeviceIndex(DeviceIndex) {}
-
-  ~ur_device_handle_t_() noexcept(false) {
-    UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
+        HIPContext(Context), DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
         HIPDevice));
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &ManagedMemSupport, hipDeviceAttributeManagedMemory,
-        HIPDevice));
+        &ManagedMemSupport, hipDeviceAttributeManagedMemory, HIPDevice));
+  }
+
+  ~ur_device_handle_t_() noexcept(false) {
+    UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
   }
 
   native_type get() const noexcept { return HIPDevice; };
@@ -60,7 +60,7 @@ public:
 
   int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
 
-  bool getManagedMemSupport() const noexcept { return ManagedMemSupport; };
+  int getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
