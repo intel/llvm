@@ -477,7 +477,7 @@ static std::vector<device> amendDeviceAndSubDevices(
                 }
               }
             }
-          } else if (wantSubDevice) {
+          } else {
             auto subDevices = dev.create_sub_devices<
                 info::partition_property::partition_by_affinity_domain>(
                 affinityDomain);
