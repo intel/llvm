@@ -584,10 +584,6 @@ template <typename T> T getArgAs(CallInst *CI, unsigned I) {
 /// \param I argument index.
 Scope getArgAsScope(CallInst *CI, unsigned I);
 
-/// Get constant function call argument as a Decoration enum.
-/// \param I argument index.
-Decoration getArgAsDecoration(CallInst *CI, unsigned I);
-
 /// Check if a type is OCL image type.
 /// \return type name without "opencl." prefix.
 bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
@@ -601,12 +597,6 @@ bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
 bool isSYCLHalfType(llvm::Type *Ty);
 
 bool isSYCLBfloat16Type(llvm::Type *Ty);
-
-/// Decorate a function name as __spirv_{Name}_
-std::string decorateSPIRVFunction(const std::string &S);
-
-/// Remove prefix/postfix from __spirv_{Name}_
-StringRef undecorateSPIRVFunction(StringRef S);
 
 /// Check if a function has decorated name as __spirv_{Name}_
 /// and get the original name.
@@ -788,13 +778,6 @@ std::set<std::string> getNamedMDAsStringSet(Module *M,
 /// Get SPIR-V language by SPIR-V metadata spirv.Source
 std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M);
 
-/// Map an unsigned integer constant by applying a function.
-ConstantInt *mapUInt(Module *M, ConstantInt *I,
-                     std::function<unsigned(unsigned)> F);
-
-/// Map a signed integer constant by applying a function.
-ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F);
-
 /// Get postfix for given decoration.
 /// The returned postfix does not include "_" at the beginning.
 std::string getPostfix(Decoration Dec, unsigned Value = 0);
@@ -921,9 +904,6 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
                                            spv::Op OC, ArrayRef<Type *> ArgTys);
-
-/// Cast a function to a void(void) funtion pointer.
-Constant *castToVoidFuncPtr(Function *F);
 
 /// Get i8* with the same address space.
 PointerType *getInt8PtrTy(PointerType *T);
