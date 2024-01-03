@@ -277,12 +277,13 @@ std::vector<int> platform_impl::filterDeviceFilter(
         continue;
       info::device_type FilterDevType =
           Filter.DeviceType.value_or(info::device_type::all);
+
+      // match the device_num entry
+      if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
+        continue;
+
       // Next, match the device_type entry
       if (FilterDevType == info::device_type::all) {
-        // Last, match the device_num entry
-        if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
-          continue;
-
         if constexpr (is_ods_target) {      // dealing with ODS filters
           if (!Blacklist[DeviceNum]) {      // ensure it is not blacklisted
             if (!Filter.IsNegativeTarget) { // is filter positive?
@@ -301,9 +302,6 @@ std::vector<int> platform_impl::filterDeviceFilter(
         break;
       }
       if (FilterDevType == DeviceType) {
-        if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
-          continue;
-
         if constexpr (is_ods_target) {
           if (!Blacklist[DeviceNum]) {
             if (!Filter.IsNegativeTarget) {
