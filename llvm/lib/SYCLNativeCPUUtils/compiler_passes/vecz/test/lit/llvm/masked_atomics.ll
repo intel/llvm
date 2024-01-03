@@ -50,7 +50,7 @@ if.end:                                           ; preds = %if.then, %entry
   ret void
 }
 
-; CHECK: define <4 x i32> @__vecz_b_v4_masked_atomicrmw_add_align4_acquire_1_Dv4_u3ptrDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[VALS:%1]], <4 x i1> [[MASK:%2]]) {
+; CHECK: define <4 x i32> @__vecz_b_v4_masked_atomicrmw_add_align4_acquire_1_Dv4_u3ptrDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[VALS:%1]], <4 x i1> [[MASK:%2]]) [[ATTRS:#[0-9]+]] {
 ; CHECK: entry:
 ; CHECK: br label %loopIR
 
@@ -77,11 +77,13 @@ if.end:                                           ; preds = %if.then, %entry
 
 ; Assume that all masked atomicrmw operations follow the logic above. Just
 ; check that the right atomicrmw instruction is being generated.
-; CHECK: define <4 x i32> @__vecz_b_v4_masked_atomicrmw_umin_align2_monotonic_1_Dv4_u3ptrDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[VALS:%1]], <4 x i1> [[MASK:%2]]) {
+; CHECK: define <4 x i32> @__vecz_b_v4_masked_atomicrmw_umin_align2_monotonic_1_Dv4_u3ptrDv4_jDv4_b(<4 x ptr> [[PTRS:%0]], <4 x i32> [[VALS:%1]], <4 x i1> [[MASK:%2]]) [[ATTRS]] {
 ; CHECK: atomicrmw umin ptr {{%.*}}, i32 {{%.*}} monotonic, align 2
 
 
-; CHECK: define <4 x float> @__vecz_b_v4_masked_atomicrmw_volatile_fmax_align4_seqcst_0_Dv4_u3ptrDv4_fDv4_b(<4 x ptr> [[PTRS:%0]], <4 x float> [[VALS:%1]], <4 x i1> [[MASK:%2]]) {
+; CHECK: define <4 x float> @__vecz_b_v4_masked_atomicrmw_volatile_fmax_align4_seqcst_0_Dv4_u3ptrDv4_fDv4_b(<4 x ptr> [[PTRS:%0]], <4 x float> [[VALS:%1]], <4 x i1> [[MASK:%2]]) [[ATTRS]] {
 ; CHECK: atomicrmw volatile fmax ptr {{%.*}}, float {{%.*}} syncscope("singlethread") seq_cst, align 4
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }
 
 declare i64 @__mux_get_global_id(i32)

@@ -64,13 +64,15 @@ declare i64 @__mux_get_local_size(i32)
 declare i64 @__mux_get_group_id(i32)
 
 ; Test if the masked store is defined correctly
-; CHECK: define void @__vecz_b_masked_store4_vp_Dv4_ju3ptrU3AS1Dv4_bj(<4 x i32>{{( %0)?}}, ptr addrspace(1){{( %1)?}}, <4 x i1>{{( %2)?}}, i32{{( %3)?}}) {
+; CHECK: define void @__vecz_b_masked_store4_vp_Dv4_ju3ptrU3AS1Dv4_bj(<4 x i32>{{( %0)?}}, ptr addrspace(1){{( %1)?}}, <4 x i1>{{( %2)?}}, i32{{( %3)?}}) [[ATTRS:#[0-9]+]] {
 ; CHECK: entry:
 ; CHECK: call void @llvm.vp.store.v4i32.p1(<4 x i32> %0, ptr addrspace(1) %1, <4 x i1> %2, i32 %3)
 ; CHECK: ret void
 
 ; Test if the masked load is defined correctly
-; CHECK: define <4 x i32> @__vecz_b_masked_load4_vp_Dv4_ju3ptrU3AS2Dv4_bj(ptr addrspace(2){{( %0)?}}, <4 x i1>{{( %1)?}}, i32{{( %2)?}})
+; CHECK: define <4 x i32> @__vecz_b_masked_load4_vp_Dv4_ju3ptrU3AS2Dv4_bj(ptr addrspace(2){{( %0)?}}, <4 x i1>{{( %1)?}}, i32{{( %2)?}}) [[ATTRS]] {
 ; CHECK: entry:
 ; CHECK: %3 = call <4 x i32> @llvm.vp.load.v4i32.p2(ptr addrspace(2) %0, <4 x i1> %1, i32 %2)
 ; CHECK: ret <4 x i32> %3
+
+; CHECK: attributes [[ATTRS]] = { norecurse nounwind }
