@@ -286,6 +286,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       urCommandBufferAppendMemBufferWriteExp;
   pDdiTable->pfnAppendMemBufferWriteRectExp =
       urCommandBufferAppendMemBufferWriteRectExp;
+  pDdiTable->pfnAppendUSMPrefetchExp = urCommandBufferAppendUSMPrefetchExp;
+  pDdiTable->pfnAppendUSMAdviseExp = urCommandBufferAppendUSMAdviseExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;
