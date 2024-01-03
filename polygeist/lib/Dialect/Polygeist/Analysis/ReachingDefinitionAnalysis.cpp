@@ -230,6 +230,35 @@ void ReachingDefinitionAnalysis::setToEntryState(ReachingDefinition *lattice) {
       lattice, lattice->join(ReachingDefinition::getUnknownDefinition(p)));
 }
 
+// FIXME: This function is overriden because visitCallOperation() is not working
+// as expected for external functions (setToEntryState() not working as
+// expected). Fix and drop this function.
+void ReachingDefinitionAnalysis::processOperation(Operation *op) {
+  LLVM_DEBUG(llvm::dbgs() << "Visit: " << *op << "\n");
+
+  // If the containing block is not executable, bail out.
+  if (!getOrCreateFor<Executable>(op, op->getBlock())->isLive())
+    return;
+
+  // Get the dense lattice to update.
+  AbstractDenseLattice *after = getLattice(op);
+
+  // Get the dense state before the execution of the op.
+  const AbstractDenseLattice *before;
+  if (Operation *prev = op->getPrevNode())
+    before = getLatticeFor(op, prev);
+  else
+    before = getLatticeFor(op, op->getBlock());
+
+  // If this op implements region control-flow, then control-flow dictates its
+  // transfer function.
+  if (auto branch = dyn_cast<RegionBranchOpInterface>(op))
+    return visitRegionBranchOperation(op, branch, after);
+
+  // Invoke the operation transfer function.
+  visitOperationImpl(op, *before, after);
+}
+
 void ReachingDefinitionAnalysis::visitOperation(
     Operation *op, const ReachingDefinition &before,
     ReachingDefinition *after) {

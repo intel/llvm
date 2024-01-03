@@ -237,6 +237,9 @@ public:
       : DenseForwardDataFlowAnalysis<ReachingDefinition>(solver),
         aliasAnalysis(aliasAnalysis) {}
 
+  /// Visit operatio \p op by always invoking visitOperation().
+  void processOperation(Operation *op) override;
+
   /// Visit operation \p op and update the output state \p after with the
   /// contributions of this operation:
   /// - if the operation has no memory effects, no changes are made
