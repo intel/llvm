@@ -419,78 +419,77 @@ static std::vector<device> amendDeviceAndSubDevices(
             FinalResult.push_back(dev);
             deviceAdded = true;
           }
-        } else {
-          if (!supportsSubPartitioning) {
-            if (target.DeviceNum ||
-                (target.DeviceType &&
-                 (target.DeviceType.value() != info::device_type::all))) {
-              // This device was specifically requested and yet is not
-              // partitionable.
-              std::cout << "device is not partitionable: " << target
-                        << std::endl;
-            }
-            continue;
+          continue;
+        }
+        if (!supportsSubPartitioning) {
+          if (target.DeviceNum ||
+              (target.DeviceType &&
+               (target.DeviceType.value() != info::device_type::all))) {
+            // This device was specifically requested and yet is not
+            // partitionable.
+            std::cout << "device is not partitionable: " << target << std::endl;
           }
-          // -- Add sub sub device.
-          if (wantSubSubDevice) {
+          continue;
+        }
+        // -- Add sub sub device.
+        if (wantSubSubDevice) {
 
-            auto subDevicesToPartition =
-                dev.create_sub_devices<partitionProperty>(affinityDomain);
-            if (target.SubDeviceNum) {
-              if (subDevicesToPartition.size() > target.SubDeviceNum.value()) {
-                subDevicesToPartition[0] =
-                    subDevicesToPartition[target.SubDeviceNum.value()];
-                subDevicesToPartition.resize(1);
-              } else {
-                std::cout << "subdevice index out of bounds: " << target
-                          << std::endl;
-                continue;
-              }
-            }
-            for (device subDev : subDevicesToPartition) {
-              bool supportsSubSubPartitioning =
-                  (supportsPartitionProperty(subDev, partitionProperty) &&
-                   supportsAffinityDomain(subDev, partitionProperty,
-                                          affinityDomain));
-              if (!supportsSubSubPartitioning) {
-                if (target.SubDeviceNum) {
-                  // Parent subdevice was specifically requested, yet is not
-                  // partitionable.
-                  std::cout << "sub-device is not partitionable: " << target
-                            << std::endl;
-                }
-                continue;
-              }
-              // Allright, lets get them sub-sub-devices.
-              auto subSubDevices =
-                  subDev.create_sub_devices<partitionProperty>(affinityDomain);
-              if (target.HasSubSubDeviceWildCard) {
-                FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
-                                   subSubDevices.end());
-              } else {
-                if (subSubDevices.size() > target.SubSubDeviceNum.value()) {
-                  FinalResult.push_back(
-                      subSubDevices[target.SubSubDeviceNum.value()]);
-                } else {
-                  std::cout << "sub-sub-device index out of bounds: " << target
-                            << std::endl;
-                }
-              }
-            }
-          } else {
-            auto subDevices = dev.create_sub_devices<
-                info::partition_property::partition_by_affinity_domain>(
-                affinityDomain);
-            if (target.HasSubDeviceWildCard) {
-              FinalResult.insert(FinalResult.end(), subDevices.begin(),
-                                 subDevices.end());
+          auto subDevicesToPartition =
+              dev.create_sub_devices<partitionProperty>(affinityDomain);
+          if (target.SubDeviceNum) {
+            if (subDevicesToPartition.size() > target.SubDeviceNum.value()) {
+              subDevicesToPartition[0] =
+                  subDevicesToPartition[target.SubDeviceNum.value()];
+              subDevicesToPartition.resize(1);
             } else {
-              if (subDevices.size() > target.SubDeviceNum.value()) {
-                FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
-              } else {
-                std::cout << "subdevice index out of bounds: " << target
+              std::cout << "subdevice index out of bounds: " << target
+                        << std::endl;
+              continue;
+            }
+          }
+          for (device subDev : subDevicesToPartition) {
+            bool supportsSubSubPartitioning =
+                (supportsPartitionProperty(subDev, partitionProperty) &&
+                 supportsAffinityDomain(subDev, partitionProperty,
+                                        affinityDomain));
+            if (!supportsSubSubPartitioning) {
+              if (target.SubDeviceNum) {
+                // Parent subdevice was specifically requested, yet is not
+                // partitionable.
+                std::cout << "sub-device is not partitionable: " << target
                           << std::endl;
               }
+              continue;
+            }
+            // Allright, lets get them sub-sub-devices.
+            auto subSubDevices =
+                subDev.create_sub_devices<partitionProperty>(affinityDomain);
+            if (target.HasSubSubDeviceWildCard) {
+              FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
+                                 subSubDevices.end());
+            } else {
+              if (subSubDevices.size() > target.SubSubDeviceNum.value()) {
+                FinalResult.push_back(
+                    subSubDevices[target.SubSubDeviceNum.value()]);
+              } else {
+                std::cout << "sub-sub-device index out of bounds: " << target
+                          << std::endl;
+              }
+            }
+          }
+        } else {
+          auto subDevices = dev.create_sub_devices<
+              info::partition_property::partition_by_affinity_domain>(
+              affinityDomain);
+          if (target.HasSubDeviceWildCard) {
+            FinalResult.insert(FinalResult.end(), subDevices.begin(),
+                               subDevices.end());
+          } else {
+            if (subDevices.size() > target.SubDeviceNum.value()) {
+              FinalResult.push_back(subDevices[target.SubDeviceNum.value()]);
+            } else {
+              std::cout << "subdevice index out of bounds: " << target
+                        << std::endl;
             }
           }
         }
