@@ -23,6 +23,9 @@ using namespace sycl;
 
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
                     int added) {
+  const auto NumArgs = Kernel.get_info<sycl::info::kernel::num_args>();
+  assert(NumArgs == 2 && "kernel should take 2 args");
+
   constexpr int N = 4;
   cl_int InputArray[N] = {0, 1, 2, 3};
   cl_int OutputArray[N] = {};
@@ -68,8 +71,6 @@ void testKernelFromSpvFile(std::string file_name) {
   sycl::kernel my_kernel = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
   // Test the kernel
-  auto my_num_args = my_kernel.get_info<sycl::info::kernel::num_args>();
-  assert(my_num_args == 2 && "my_kernel should take 2 args");
   testSyclKernel(q, my_kernel, 2, 100);
 }
 
