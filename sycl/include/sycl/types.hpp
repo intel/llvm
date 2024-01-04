@@ -431,11 +431,7 @@ template <typename Type, int NumElements> class vec {
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
-#else
-    return std::array<DataT_, 1>{vec_data<DataT_>::get(A)};
-#endif
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
     constexpr auto operator()(const T &A) const {

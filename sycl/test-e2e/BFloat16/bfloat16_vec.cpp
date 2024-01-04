@@ -15,7 +15,8 @@
 
 #include <sycl/sycl.hpp>
 
-constexpr unsigned N = 8; // + - * /   for vec<1> and vec<2>
+constexpr unsigned N =
+    10; // init plus arithmetic + - * /   for vec<1> and vec<2>
 
 int main() {
 
@@ -34,17 +35,20 @@ int main() {
 
     std::cout << " ===  vec<bfloat16, 1> === " << std::endl;
     std::cout << " ---  ON HOST --- " << std::endl;
+    sycl::vec<T, 1>  init_float{ 2.0f };
     sycl::vec<T, 1>  oneA{ a0 }, oneB{ b0 };
     sycl::vec<T, 1>  simple_addition = oneA + oneB;
     sycl::vec<T, 1>  simple_subtraction = oneA - oneB;
     sycl::vec<T, 1>  simple_multiplication = oneA * oneB;
     sycl::vec<T, 1>  simple_division = oneA / oneB;
 
+    std::cout << "iniitialization     : " << oneA[0]             << " float: " << init_float[0] << std::endl;
     std::cout << "addition.        ref: " << addition_ref0       << " vec: " << simple_addition[0] << std::endl;
     std::cout << "subtraction.     ref: " << subtraction_ref0    << " vec: " << simple_subtraction[0] << std::endl;
     std::cout << "multiplication.  ref: " << multiplication_ref0 << " vec: " << simple_multiplication[0] << std::endl;
     std::cout << "division.        ref: " << division_ref0       << " vec: " << simple_division[0] << std::endl;
 
+    assert(oneA[0] == init_float[0]);
     assert(addition_ref0 == simple_addition[0]);
     assert(subtraction_ref0 == simple_subtraction[0]);
     assert(multiplication_ref0 == simple_multiplication[0]);
@@ -58,20 +62,23 @@ int main() {
         sycl::stream out(2024, 400, cgh);
         sycl::accessor acc(buf, cgh, sycl::write_only );
         cgh.single_task([=](){
+            sycl::vec<T, 1>  dev_float{ 2.0f };
             sycl::vec<T, 1>  device_addition = oneA + oneB;
             sycl::vec<T, 1>  device_subtraction = oneA - oneB;
             sycl::vec<T, 1>  device_multiplication = oneA * oneB;
             sycl::vec<T, 1>  device_division = oneA / oneB;
 
+            out << "iniitialization     : " << oneA[0]             << " float: " << dev_float[0] << sycl::endl;
             out << "addition.        ref: " << addition_ref0       << " vec: " << device_addition[0] << sycl::endl;
             out << "subtraction.     ref: " << subtraction_ref0    << " vec: " << device_subtraction[0] << sycl::endl;
             out << "multiplication.  ref: " << multiplication_ref0 << " vec: " << device_multiplication[0] << sycl::endl;
             out << "division.        ref: " << division_ref0       << " vec: " << device_division[0] << sycl::endl;
 
-            acc[0] = (addition_ref0 == device_addition[0]);
-            acc[1] = (subtraction_ref0 == device_subtraction[0]);
-            acc[2] = (multiplication_ref0 == device_multiplication[0]);
-            acc[3] = (division_ref0 == device_division[0]);
+            acc[0] = (oneA[0] == dev_float[0]);
+            acc[1] = (addition_ref0 == device_addition[0]);
+            acc[2] = (subtraction_ref0 == device_subtraction[0]);
+            acc[3] = (multiplication_ref0 == device_multiplication[0]);
+            acc[4] = (division_ref0 == device_division[0]);
             
         }); 
     }).wait();
@@ -88,11 +95,14 @@ int main() {
     std::cout << "\n ===  vec<bfloat16, 2> === " << std::endl;
     std::cout << " ---  ON HOST --- " << std::endl;
     sycl::vec<T, 2> twoA{ a0, a1 }, twoB{ b0, b1 };
+    sycl::vec<T, 2> double_float { 2.0f, 3.33333f };
     sycl::vec<T, 2> double_addition = twoA + twoB;
     sycl::vec<T, 2> double_subtraction = twoA - twoB;
     sycl::vec<T, 2> double_multiplication = twoA * twoB;
     sycl::vec<T, 2> double_division = twoA / twoB;
 
+    std::cout << "init ref: " << twoA[0]                << "    ref1: " << twoA[1] << std::endl;
+    std::cout << "  float0: " << double_float[0]        << "  float1: " << double_float[1] << std::endl;
     std::cout << "+ ref0: " << addition_ref0            << "    ref1: " << addition_ref1 << std::endl;
     std::cout << "add[0]: " << double_addition[0]       << "  add[1]: " << double_addition[1] << std::endl;
     std::cout << "- ref0: " << subtraction_ref0         << "    ref1: " << subtraction_ref1 << std::endl;
@@ -102,7 +112,8 @@ int main() {
     std::cout << "/ ref0: " << division_ref0            << "    ref1: " << division_ref1 << std::endl;
     std::cout << "div[0]: " << double_division[0]       << "  div[1]: " << double_division[1] << std::endl;
     
-    assert(addition_ref0 == double_addition[0]);              assert(addition_ref1 == double_addition[1]);
+    assert(twoA[0] == double_float[0]);                      assert(twoA[1] == double_float[1]);
+    assert(addition_ref0 == double_addition[0]);             assert(addition_ref1 == double_addition[1]);
     assert(subtraction_ref0 == double_subtraction[0]);       assert(subtraction_ref1 == double_subtraction[1]);
     assert(multiplication_ref0 == double_multiplication[0]); assert(multiplication_ref1 == double_multiplication[1]);
     assert(division_ref0 == double_division[0]);             assert(division_ref1 == double_division[1]);
@@ -112,11 +123,14 @@ int main() {
         sycl::stream out(2024, 400, cgh);
         sycl::accessor acc(buf, cgh, sycl::write_only );
         cgh.single_task([=](){
+            sycl::vec<T, 2> device_float { 2.0f, 3.33333f };
             sycl::vec<T, 2> device_addition = twoA + twoB;
             sycl::vec<T, 2> device_subtraction = twoA - twoB;
             sycl::vec<T, 2> device_multiplication = twoA * twoB;
             sycl::vec<T, 2> device_division = twoA / twoB;
 
+            out << "init ref: " << twoA[0]                << "    ref1: " << twoA[1] << sycl::endl;
+            out << "  float0: " << device_float[0]        << "  float1: " << device_float[1] << sycl::endl;
             out << "+ ref0: " << addition_ref0            << "    ref1: " << addition_ref1 << sycl::endl;
             out << "add[0]: " << device_addition[0]       << "  add[1]: " << device_addition[1] << sycl::endl;
             out << "- ref0: " << subtraction_ref0         << "    ref1: " << subtraction_ref1 << sycl::endl;
@@ -126,10 +140,11 @@ int main() {
             out << "/ ref0: " << division_ref0            << "    ref1: " << division_ref1 << sycl::endl;
             out << "div[0]: " << device_division[0]       << "  div[1]: " << device_division[1] << sycl::endl;
 
-            acc[4] = (addition_ref0 == device_addition[0]) && (addition_ref1 == device_addition[1]);
-            acc[5] = (subtraction_ref0 == device_subtraction[0]) && (subtraction_ref1 == device_subtraction[1]);
-            acc[6] = (multiplication_ref0 == device_multiplication[0]) && (multiplication_ref1 == device_multiplication[1]);
-            acc[7] = (division_ref0 == device_division[0]) && (division_ref1 == device_division[1]);
+            acc[5] = (twoA[0] == device_float[0]) && (twoA[1] == device_float[1]);
+            acc[6] = (addition_ref0 == device_addition[0]) && (addition_ref1 == device_addition[1]);
+            acc[7] = (subtraction_ref0 == device_subtraction[0]) && (subtraction_ref1 == device_subtraction[1]);
+            acc[8] = (multiplication_ref0 == device_multiplication[0]) && (multiplication_ref1 == device_multiplication[1]);
+            acc[9] = (division_ref0 == device_division[0]) && (division_ref1 == device_division[1]);
 
         }); 
     }).wait();
