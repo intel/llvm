@@ -39,9 +39,7 @@ Basic/diagnostics/non-uniform-wk-gp-test.cpp
 Basic/group_async_copy.cpp
 Basic/group_async_copy_legacy.cpp
 Basic/group_local_memory.cpp
-Basic/half_type.cpp
 Basic/image/image_accessor_readsampler.cpp
-Basic/image/image_accessor_readwrite.cpp
 Basic/image/image_array.cpp
 Basic/image/image.cpp
 Basic/image/image_max_size.cpp
@@ -49,7 +47,6 @@ Basic/image/image_read.cpp
 Basic/image/image_read_fp16.cpp
 Basic/image/image_sample.cpp
 Basic/image/image_write.cpp
-Basic/image/image_write_fp16.cpp
 Basic/image/srgba-read.cpp
 Basic/large-range.cpp
 Basic/multi_ptr.cpp
@@ -120,7 +117,6 @@ ESIMD/accessor_gather_scatter.cpp
 ESIMD/accessor_gather_scatter_stateless.cpp
 ESIMD/accessor_global.cpp
 ESIMD/accessor_load_store.cpp
-ESIMD/accessor_load_store_stateless.cpp
 ESIMD/accessor_local.cpp
 ESIMD/accessor_stateless.cpp
 ESIMD/acc_gather_scatter_rgba.cpp
@@ -186,7 +182,6 @@ ESIMD/api/simd_view_subscript_operator.cpp
 ESIMD/api/slm_gather_scatter.cpp
 ESIMD/api/slm_gather_scatter_heavy.cpp
 ESIMD/api/slm_gather_scatter_rgba.cpp
-ESIMD/api/svm_gather_scatter_64.cpp
 ESIMD/api/svm_gather_scatter.cpp
 ESIMD/api/svm_gather_scatter_scalar_off.cpp
 ESIMD/api/unary_ops_heavy.cpp
@@ -272,7 +267,6 @@ ESIMD/regression/dgetrf_8x8.cpp
 ESIMD/regression/dgetrf.cpp
 ESIMD/regression/double_conversion.cpp
 ESIMD/regression/fmod_compatibility_test.cpp
-ESIMD/regression/globals.cpp
 ESIMD/regression/half_conversion_test.cpp
 ESIMD/regression/iselect.cpp
 ESIMD/regression/math_const_fix_test.cpp
@@ -415,7 +409,6 @@ KernelParams/union_kernel_param.cpp
 NonUniformGroups/ballot_group_algorithms.cpp
 NonUniformGroups/ballot_group.cpp
 NonUniformGroups/cluster_group.cpp
-NonUniformGroups/fixed_size_group_algorithms.cpp
 NonUniformGroups/opportunistic_group_algorithms.cpp
 NonUniformGroups/opportunistic_group.cpp
 NonUniformGroups/tangle_group_algorithms.cpp
