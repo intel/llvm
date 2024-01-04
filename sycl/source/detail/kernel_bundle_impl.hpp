@@ -372,12 +372,17 @@ public:
                                                 LogPtr);
       }
       if (Language == syclex::source_language::spirv) {
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
         const auto &SourceBytes =
             std::get<std::vector<std::byte>>(this->Source);
         std::vector<uint8_t> Result(SourceBytes.size());
         std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
                        [](std::byte B) { return static_cast<uint8_t>(B); });
         return Result;
+#else
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "SPIR-V language support requires std::byte");
+#endif
       }
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -704,7 +709,11 @@ private:
   bundle_state MState;
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames
   const syclex::source_language Language = syclex::source_language::opencl;
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   const std::variant<std::string, std::vector<std::byte>> Source;
+#else
+  const std::variant<std::string> Source;
+#endif
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
 };

@@ -387,6 +387,7 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
+
 source_kb create_kernel_bundle_from_source(const context &SyclContext,
                                            source_language Language,
                                            const std::string &Source) {
@@ -403,6 +404,7 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
 }
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 source_kb
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
@@ -416,6 +418,7 @@ create_kernel_bundle_from_source(const context &SyclContext,
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
 }
+#endif
 
 /////////////////////////
 // syclex::detail::build_from_source(source_kb) => exe_kb
