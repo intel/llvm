@@ -6,9 +6,7 @@ on:
   # https://github.com/intel/llvm/settings/actions for security.
   pull_request:
     branches:
-    - sycl
-    - sycl-devops-pr/**
-    - sycl-rel-**
+    - sycl-mlir
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
