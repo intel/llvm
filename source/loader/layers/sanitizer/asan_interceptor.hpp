@@ -70,7 +70,6 @@ struct ContextInfo {
     }
 
     ur_shared_mutex Mutex;
-    // Note: nullptr is host device
     std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
         DeviceMap;
     std::unordered_map<ur_queue_handle_t, std::shared_ptr<QueueInfo>> QueueMap;
@@ -92,9 +91,9 @@ class SanitizerInterceptor {
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     bool preLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                         ur_event_handle_t *Event);
+                         ur_event_handle_t &Event);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                          ur_event_handle_t *Event);
+                          ur_event_handle_t &Event);
 
     ur_result_t insertContext(ur_context_handle_t Context);
     ur_result_t eraseContext(ur_context_handle_t Context);

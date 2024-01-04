@@ -88,11 +88,14 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     assert(Alignment == 0 || IsPowerOfTwo(Alignment));
 
     auto ContextInfo = getContextInfo(Context);
-    // Device is nullptr if Type == USMMemoryType::HOST
-    auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
+    std::shared_ptr<DeviceInfo> DeviceInfo;
+    if (Device) {
+        DeviceInfo = ContextInfo->getDeviceInfo(Device);
+    }
 
     if (Alignment == 0) {
-        Alignment = DeviceInfo->Alignment;
+        Alignment =
+            DeviceInfo ? DeviceInfo->Alignment : ASAN_SHADOW_GRANULARITY;
     }
 
     // Copy from LLVM compiler-rt/lib/asan
@@ -133,9 +136,15 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         USMAllocInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type});
 
     // For updating shadow memory
-    {
+    if (DeviceInfo) { // device/shared USM
         std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
         DeviceInfo->AllocInfos.emplace_back(AllocInfo);
+    } else { // host USM's AllocInfo needs to insert into all devices
+        for (auto &pair : ContextInfo->DeviceMap) {
+            auto DeviceInfo = pair.second;
+            std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
+            DeviceInfo->AllocInfos.emplace_back(AllocInfo);
+        }
     }
 
     // For memory release
@@ -185,9 +194,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
 bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                            ur_queue_handle_t Queue,
-                                           ur_event_handle_t *Event) {
-    assert(Event != nullptr);
-
+                                           ur_event_handle_t &Event) {
     prepareLaunch(Queue, Kernel);
 
     UR_CALL(updateShadowMemory(Queue));
@@ -198,7 +205,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
     std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
-    *Event = QueueInfo->LastEvent;
+    Event = QueueInfo->LastEvent;
     QueueInfo->LastEvent = nullptr;
 
     return true;
@@ -206,7 +213,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
-                                            ur_event_handle_t *Event) {
+                                            ur_event_handle_t &Event) {
     auto Program = getProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 
@@ -215,16 +222,10 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(SPIR_DeviceSanitizerReportMem), 0,
-        &SPIR_DeviceSanitizerReportMem, Event ? 1 : 0, Event, &ReadEvent);
+        &SPIR_DeviceSanitizerReportMem, 1, &Event, &ReadEvent);
 
     if (Result == UR_RESULT_SUCCESS) {
-        if (Event) {
-            *Event = ReadEvent;
-        } else {
-            [[maybe_unused]] auto Result =
-                context.urDdiTable.Event.pfnWait(1, &ReadEvent);
-            assert(Result == UR_RESULT_SUCCESS);
-        }
+        Event = ReadEvent;
 
         auto AH = &SPIR_DeviceSanitizerReportMem;
         if (!AH->Flag) {
@@ -476,12 +477,6 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
 
     ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
-    // FIXME: Always update host USM, but it'd be better to update host USM
-    // selectively, or each devices once
-    for (auto &AllocInfo : HostInfo->AllocInfos) {
-        UR_CALL(enqueueAllocInfo(Context, Device, Queue, AllocInfo, LastEvent));
-    }
-
     for (auto &AllocInfo : DeviceInfo->AllocInfos) {
         UR_CALL(enqueueAllocInfo(Context, Device, Queue, AllocInfo, LastEvent));
     }
@@ -494,17 +489,6 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
 
 ur_result_t SanitizerInterceptor::insertContext(ur_context_handle_t Context) {
     auto ContextInfo = std::make_shared<ur_sanitizer_layer::ContextInfo>();
-
-    // Host Device
-    auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
-    DeviceInfo->Type = DeviceType::CPU;
-    DeviceInfo->Alignment = ASAN_SHADOW_GRANULARITY;
-
-    // TODO: Check if host asan is enabled
-    DeviceInfo->ShadowOffset = 0;
-    DeviceInfo->ShadowOffsetEnd = 0;
-
-    ContextInfo->DeviceMap.emplace(nullptr, std::move(DeviceInfo));
 
     std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) == m_ContextMap.end());
