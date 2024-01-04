@@ -2476,12 +2476,13 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this memory operation.
-__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
-    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
-    size_t pattern_size, size_t offset, size_t size,
-    pi_uint32 num_sync_points_in_wait_list,
-    const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point);
+__SYCL_EXPORT pi_result
+piextCommandBufferMemBufferFill(pi_ext_command_buffer command_buffer,
+                                pi_mem buffer, const void *pattern,
+                                size_t pattern_size, size_t offset, size_t size,
+                                pi_uint32 num_sync_points_in_wait_list,
+                                const pi_ext_sync_point *sync_point_wait_list,
+                                pi_ext_sync_point *sync_point);
 
 /// API to append a USM fill command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
@@ -2494,11 +2495,12 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this memory operation.
-__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
-    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
-    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
-    const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point);
+__SYCL_EXPORT pi_result
+piextCommandBufferFillUSM(pi_ext_command_buffer command_buffer, void *ptr,
+                          const void *pattern, size_t pattern_size, size_t size,
+                          pi_uint32 num_sync_points_in_wait_list,
+                          const pi_ext_sync_point *sync_point_wait_list,
+                          pi_ext_sync_point *sync_point);
 
 /// API to submit the command-buffer to queue for execution, returns an error if
 /// the command-buffer is not finalized or another instance of the same
