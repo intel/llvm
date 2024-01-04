@@ -71,7 +71,7 @@ static float fract(float x, float *wholeComp) {
 }
 
 // Returns the two pixels to access plus the weight each of them have
-static float getCommonLinearFractAndCoordsfp64(float coord, int *x0, int *x1) {
+static float getCommonLinearFractAndCoords(float coord, int *x0, int *x1) {
   float pixelCoord;
 
   // Subtract to align so that pixel center is 0.5 away from origin.
@@ -410,14 +410,14 @@ clampLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
 
   // Get coords for linear sampling
   int i0, i1;
-  float weightX = util::getCommonLinearFractAndCoordsfp64(coordX, &i0, &i1);
+  float weightX = util::getCommonLinearFractAndCoords(coordX, &i0, &i1);
 
   int j0 = 0, j1 = 0;
   // If height is not one, run as normal.
   // Otherwise, keep weightY set to 0.
   float weightY =
       height == 1 ? 0
-                  : util::getCommonLinearFractAndCoordsfp64(coordY, &j0, &j1);
+                  : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
 
   // Clamp sampling according to the SYCL spec returns a border color.
   // The border color is all zeros.
@@ -450,14 +450,14 @@ clampToEdgeLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
 
   // Get coords for linear sampling
   int i0, i1;
-  float weightX = util::getCommonLinearFractAndCoordsfp64(coordX, &i0, &i1);
+  float weightX = util::getCommonLinearFractAndCoords(coordX, &i0, &i1);
 
   int j0 = 0, j1 = 0;
   // If height is not one, run as normal.
   // Otherwise, keep weightY set to 0.
   float weightY =
       height == 1 ? 0
-                  : util::getCommonLinearFractAndCoordsfp64(coordY, &j0, &j1);
+                  : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
 
   // Clamp to extent
   i0 = std::clamp(i0, 0, width - 1);
@@ -486,7 +486,7 @@ static InterpolRes repeatLinearCoord(float coord, int dimSize) {
 
   // Get coords for linear sampling
   int x0, x1;
-  float weight = getCommonLinearFractAndCoordsfp64(unnorm, &x0, &x1);
+  float weight = getCommonLinearFractAndCoords(unnorm, &x0, &x1);
 
   return InterpolRes(x0, x1, weight);
 }
@@ -556,7 +556,7 @@ static InterpolRes mirroredRepeatLinearCoord(float coord, int dimSize) {
 
   // Get coords for linear sampling
   int x0, x1;
-  float weight = getCommonLinearFractAndCoordsfp64(unnorm, &x0, &x1);
+  float weight = getCommonLinearFractAndCoords(unnorm, &x0, &x1);
 
   return InterpolRes(x0, x1, weight);
 }
