@@ -20,8 +20,8 @@ int* alloc() {
 }
 
 // CHECK-LABEL:   llvm.mlir.global internal constant @str1("
-// CHECK-SAME:                                              %d\0A\00") {addr_space = 0 : i32}
-// CHECK-NEXT:    llvm.mlir.global internal constant @str0("%d\00") {addr_space = 0 : i32}
+// CHECK-SAME:                                              %d\0A\00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK-NEXT:    llvm.mlir.global internal constant @str0("%d\00") {addr_space = 0 : i32, alignment = 1 : i64}
 // CHECK-NEXT:    llvm.func @__isoc99_scanf(!llvm.ptr, ...) -> i32 attributes {sym_visibility = "private"}
 
 // CHECK-LABEL:   func.func @alloc() -> memref<?xi32> attributes {llvm.linkage = #llvm.linkage<external>} {

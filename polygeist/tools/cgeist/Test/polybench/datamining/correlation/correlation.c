@@ -189,16 +189,16 @@ int main(int argc, char** argv)
 // CHECK: #[[$ATTR_1:.+]] = affine_map<(d0) -> (d0 + 1)>
 // CHECK: #[[$ATTR_2:.+]] = affine_set<(d0, d1)[s0] : ((d0 + d1 * s0) mod 20 == 0)>
 
-// CHECK-LABEL:   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00") {addr_space = 0 : i32}
-// CHECK:         llvm.mlir.global internal constant @str6("\0Aend   dump: %[[VAL_0:.*]]\0A\00") {addr_space = 0 : i32}
-// CHECK:         llvm.mlir.global internal constant @str5("%[[VAL_1:.*]].2lf \00") {addr_space = 0 : i32}
-// CHECK:         llvm.mlir.global internal constant @str4("\0A\00") {addr_space = 0 : i32}
-// CHECK:         llvm.mlir.global internal constant @str3("corr\00") {addr_space = 0 : i32}
-// CHECK:         llvm.mlir.global internal constant @str2("begin dump: %[[VAL_0]]\00") {addr_space = 0 : i32}
+// CHECK-LABEL:   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK:         llvm.mlir.global internal constant @str6("\0Aend   dump: %[[VAL_0:.*]]\0A\00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK:         llvm.mlir.global internal constant @str5("%[[VAL_1:.*]].2lf \00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK:         llvm.mlir.global internal constant @str4("\0A\00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK:         llvm.mlir.global internal constant @str3("corr\00") {addr_space = 0 : i32, alignment = 1 : i64}
+// CHECK:         llvm.mlir.global internal constant @str2("begin dump: %[[VAL_0]]\00") {addr_space = 0 : i32, alignment = 1 : i64}
 // CHECK:         llvm.func @fprintf(!llvm.ptr, !llvm.ptr, ...) -> i32
-// CHECK:         llvm.mlir.global internal constant @str1("==BEGIN DUMP_ARRAYS==\0A\00") {addr_space = 0 : i32}
+// CHECK:         llvm.mlir.global internal constant @str1("==BEGIN DUMP_ARRAYS==\0A\00") {addr_space = 0 : i32, alignment = 1 : i64}
 // CHECK:         llvm.mlir.global external @stderr() {addr_space = 0 : i32} : !llvm.ptr
-// CHECK:         llvm.mlir.global internal constant @str0("\00") {addr_space = 0 : i32}
+// CHECK:         llvm.mlir.global internal constant @str0("\00") {addr_space = 0 : i32, alignment = 1 : i64}
 
 // CHECK-LABEL:   func.func @main(
 // CHECK-SAME:                    %[[VAL_0:.*]]: i32,

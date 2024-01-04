@@ -11,6 +11,7 @@
 #include "CodeGenTypes.h"
 #include "Options.h"
 #include "TypeUtils.h"
+#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -1784,12 +1785,18 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
     OpBuilder::InsertionGuard InsertGuard(Builder);
     mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
+    unsigned addrSpace =
+        FuncContext == InsertionContext::SYCLDevice
+            ? static_cast<unsigned>(sycl::AccessAddrSpace::GlobalAccess)
+            : 0;
+
     auto Type = LLVM::LLVMArrayType::get(
         IntegerType::get(Builder.getContext(), 8), Value.size() + 1);
     LLVMStringGlobals[Value.str()] = Builder.create<LLVM::GlobalOp>(
         Loc, Type, /*isConstant=*/true, LLVM::Linkage::Internal,
         "str" + std::to_string(LLVMStringGlobals.size()),
-        Builder.getStringAttr(Value.str() + '\0'));
+        Builder.getStringAttr(Value.str() + '\0'), /*alignment=*/1,
+        /*addrSpace=*/addrSpace);
   }
 
   LLVM::GlobalOp Global = LLVMStringGlobals[Value.str()];
