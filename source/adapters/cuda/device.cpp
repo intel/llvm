@@ -16,6 +16,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -40,7 +41,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
                                                     void *pPropValue,
-                                                    size_t *pPropSizeRet) {
+                                                    size_t *pPropSizeRet) try {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -1017,6 +1018,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO: Investigate if this information is available on CUDA.
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
@@ -1026,13 +1029,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 /// \return PI_SUCCESS if the function is executed successfully
@@ -1143,17 +1147,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
-  ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
-      malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, Plat, nullptr);
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+
+  Result =
+      urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(), nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   // Iterate through platforms to find device that matches nativeHandle
-  for (uint32_t j = 0; j < NumPlatforms; ++j) {
-    auto SearchRes =
-        std::find_if(begin(Plat[j]->Devices), end(Plat[j]->Devices), IsDevice);
-    if (SearchRes != end(Plat[j]->Devices)) {
+  for (const auto Platform : Platforms) {
+    auto SearchRes = std::find_if(std::begin(Platform->Devices),
+                                  std::end(Platform->Devices), IsDevice);
+    if (SearchRes != end(Platform->Devices)) {
       *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
       return UR_RESULT_SUCCESS;
     }

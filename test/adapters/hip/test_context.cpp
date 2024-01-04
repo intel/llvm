@@ -28,7 +28,9 @@ TEST_P(urHipContextTest, ActiveContexts) {
     hipCtx_t hipContext = nullptr;
     ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&hipContext));
     ASSERT_NE(hipContext, nullptr);
-    ASSERT_EQ(hipContext, context->getDevice()->getNativeContext());
+    if (context->getDevices().size() == 1) {
+        ASSERT_EQ(hipContext, context->getDevices()[0]->getNativeContext());
+    }
 
     ASSERT_SUCCESS(urQueueRelease(queue));
     ASSERT_SUCCESS(urContextRelease(context));
@@ -60,7 +62,9 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
 
         // check that the first context is now the active HIP context
         ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&current));
-        ASSERT_EQ(current, context1->getDevice()->getNativeContext());
+        if (context1->getDevices().size() == 1) {
+            ASSERT_EQ(current, context1->getDevices()[0]->getNativeContext());
+        }
 
         ASSERT_SUCCESS(urQueueRelease(queue));
 
@@ -87,7 +91,9 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
 
         // check that the second context is now the active HIP context
         ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&current));
-        ASSERT_EQ(current, context2->getDevice()->getNativeContext());
+        if (context2->getDevices().size() == 1) {
+            ASSERT_EQ(current, context2->getDevices()[0]->getNativeContext());
+        }
 
         ASSERT_SUCCESS(urQueueRelease(queue));
     });

@@ -267,6 +267,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_host_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_device_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_alloc_location_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_pool_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_pool_limits_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_info_t value);
@@ -317,7 +318,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_layered_image_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, ur_exp_peer_info_t value);
 
@@ -993,6 +993,9 @@ inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value) {
     case UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES";
         break;
+    case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
+        os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
+        break;
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
         os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
         break;
@@ -1010,9 +1013,6 @@ inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value) {
         break;
     case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE:
         os << "UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE";
-        break;
-    case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES";
         break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
@@ -1204,6 +1204,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         printPtr(os, pstruct);
     } break;
 
+    case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
+        const ur_usm_alloc_location_desc_t *pstruct = (const ur_usm_alloc_location_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
         const ur_exp_command_buffer_desc_t *pstruct = (const ur_exp_command_buffer_desc_t *)ptr;
         printPtr(os, pstruct);
@@ -1231,11 +1236,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE: {
         const ur_exp_win32_handle_t *pstruct = (const ur_exp_win32_handle_t *)ptr;
-        printPtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES: {
-        const ur_exp_layered_image_properties_t *pstruct = (const ur_exp_layered_image_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
@@ -6537,6 +6537,31 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_device_des
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_alloc_location_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_alloc_location_desc_t params) {
+    os << "(struct ur_usm_alloc_location_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".location = ";
+
+    os << (params.location);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_pool_desc_t type
 /// @returns
 ///     std::ostream &
@@ -9091,31 +9116,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_se
 
     ur::details::printStruct(os,
                              (params.pNext));
-
-    os << "}";
-    return os;
-}
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_layered_image_properties_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_layered_image_properties_t params) {
-    os << "(struct ur_exp_layered_image_properties_t){";
-
-    os << ".stype = ";
-
-    os << (params.stype);
-
-    os << ", ";
-    os << ".pNext = ";
-
-    ur::details::printStruct(os,
-                             (params.pNext));
-
-    os << ", ";
-    os << ".numLayers = ";
-
-    os << (params.numLayers);
 
     os << "}";
     return os;
@@ -12512,10 +12512,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phQueue));
 
     os << ", ";
-    os << ".ptr = ";
+    os << ".pMem = ";
 
     ur::details::printPtr(os,
-                          *(params->pptr));
+                          *(params->ppMem));
 
     os << ", ";
     os << ".patternSize = ";

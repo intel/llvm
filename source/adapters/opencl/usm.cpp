@@ -10,6 +10,75 @@
 
 #include "common.hpp"
 
+inline cl_mem_alloc_flags_intel
+hostDescToClFlags(const ur_usm_host_desc_t &desc) {
+  cl_mem_alloc_flags_intel allocFlags = 0;
+  if (desc.flags & UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT) {
+    allocFlags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
+  }
+  return allocFlags;
+}
+
+inline cl_mem_alloc_flags_intel
+deviceDescToClFlags(const ur_usm_device_desc_t &desc) {
+  cl_mem_alloc_flags_intel allocFlags = 0;
+  if (desc.flags & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT) {
+    allocFlags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
+  }
+  if (desc.flags & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) {
+    allocFlags |= CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
+  }
+  return allocFlags;
+}
+
+ur_result_t
+usmDescToCLMemProperties(const ur_base_desc_t *Desc,
+                         std::vector<cl_mem_properties_intel> &Properties) {
+  cl_mem_alloc_flags_intel AllocFlags = 0;
+  const auto *Next = Desc;
+  do {
+    switch (Next->stype) {
+    case UR_STRUCTURE_TYPE_USM_HOST_DESC: {
+      auto HostDesc = reinterpret_cast<const ur_usm_host_desc_t *>(Next);
+      if (UR_USM_HOST_MEM_FLAGS_MASK & HostDesc->flags) {
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+      AllocFlags |= hostDescToClFlags(*HostDesc);
+      break;
+    }
+    case UR_STRUCTURE_TYPE_USM_DEVICE_DESC: {
+      auto DeviceDesc = reinterpret_cast<const ur_usm_device_desc_t *>(Next);
+      if (UR_USM_HOST_MEM_FLAGS_MASK & DeviceDesc->flags) {
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+      AllocFlags |= deviceDescToClFlags(*DeviceDesc);
+      break;
+    }
+    case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
+      auto LocationDesc =
+          reinterpret_cast<const ur_usm_alloc_location_desc_t *>(Next);
+      Properties.push_back(CL_MEM_ALLOC_BUFFER_LOCATION_INTEL);
+      // CL bitfields are cl_ulong
+      Properties.push_back(static_cast<cl_ulong>(LocationDesc->location));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    Next = Next->pNext ? static_cast<const ur_base_desc_t *>(Next->pNext)
+                       : nullptr;
+  } while (Next);
+
+  if (AllocFlags) {
+    Properties.push_back(CL_MEM_ALLOC_FLAGS_INTEL);
+    Properties.push_back(AllocFlags);
+  }
+  Properties.push_back(0);
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t, size_t size, void **ppMem) {
@@ -17,23 +86,10 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
-  cl_mem_alloc_flags_intel Flags = 0;
-  cl_mem_properties_intel Properties[3];
-
-  if (pUSMDesc && pUSMDesc->pNext &&
-      static_cast<const ur_base_desc_t *>(pUSMDesc->pNext)->stype ==
-          UR_STRUCTURE_TYPE_USM_HOST_DESC) {
-    const auto *HostDesc =
-        static_cast<const ur_usm_host_desc_t *>(pUSMDesc->pNext);
-
-    if (HostDesc->flags & UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT) {
-      Flags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
-    }
-    Properties[0] = CL_MEM_ALLOC_FLAGS_INTEL;
-    Properties[1] = Flags;
-    Properties[2] = 0;
-  } else {
-    Properties[0] = 0;
+  std::vector<cl_mem_properties_intel> AllocProperties;
+  if (pUSMDesc && pUSMDesc->pNext) {
+    UR_RETURN_ON_FAILURE(usmDescToCLMemProperties(
+        static_cast<const ur_base_desc_t *>(pUSMDesc->pNext), AllocProperties));
   }
 
   // First we need to look up the function pointer
@@ -47,7 +103,9 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
 
   if (FuncPtr) {
     cl_int ClResult = CL_SUCCESS;
-    Ptr = FuncPtr(CLContext, Properties, size, Alignment, &ClResult);
+    Ptr = FuncPtr(CLContext,
+                  AllocProperties.empty() ? nullptr : AllocProperties.data(),
+                  size, Alignment, &ClResult);
     if (ClResult == CL_INVALID_BUFFER_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
     }
@@ -71,25 +129,10 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
-  cl_mem_alloc_flags_intel Flags = 0;
-  cl_mem_properties_intel Properties[3];
-  if (pUSMDesc && pUSMDesc->pNext &&
-      static_cast<const ur_base_desc_t *>(pUSMDesc->pNext)->stype ==
-          UR_STRUCTURE_TYPE_USM_DEVICE_DESC) {
-    const auto *HostDesc =
-        static_cast<const ur_usm_device_desc_t *>(pUSMDesc->pNext);
-
-    if (HostDesc->flags & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT) {
-      Flags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
-    }
-    if (HostDesc->flags & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) {
-      Flags |= CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
-    }
-    Properties[0] = CL_MEM_ALLOC_FLAGS_INTEL;
-    Properties[1] = Flags;
-    Properties[2] = 0;
-  } else {
-    Properties[0] = 0;
+  std::vector<cl_mem_properties_intel> AllocProperties;
+  if (pUSMDesc && pUSMDesc->pNext) {
+    UR_RETURN_ON_FAILURE(usmDescToCLMemProperties(
+        static_cast<const ur_base_desc_t *>(pUSMDesc->pNext), AllocProperties));
   }
 
   // First we need to look up the function pointer
@@ -104,8 +147,8 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   if (FuncPtr) {
     cl_int ClResult = CL_SUCCESS;
     Ptr = FuncPtr(CLContext, cl_adapter::cast<cl_device_id>(hDevice),
-                  cl_adapter::cast<cl_mem_properties_intel *>(Properties), size,
-                  Alignment, &ClResult);
+                  AllocProperties.empty() ? nullptr : AllocProperties.data(),
+                  size, Alignment, &ClResult);
     if (ClResult == CL_INVALID_BUFFER_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
     }
@@ -129,35 +172,10 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
-  cl_mem_alloc_flags_intel Flags = 0;
-  const auto *NextStruct =
-      (pUSMDesc ? static_cast<const ur_base_desc_t *>(pUSMDesc->pNext)
-                : nullptr);
-  while (NextStruct) {
-    if (NextStruct->stype == UR_STRUCTURE_TYPE_USM_HOST_DESC) {
-      const auto *HostDesc =
-          reinterpret_cast<const ur_usm_host_desc_t *>(NextStruct);
-      if (HostDesc->flags & UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT) {
-        Flags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
-      }
-    } else if (NextStruct->stype == UR_STRUCTURE_TYPE_USM_DEVICE_DESC) {
-      const auto *DevDesc =
-          reinterpret_cast<const ur_usm_device_desc_t *>(NextStruct);
-      if (DevDesc->flags & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT) {
-        Flags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
-      }
-      if (DevDesc->flags & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) {
-        Flags |= CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
-      }
-    }
-    NextStruct = static_cast<const ur_base_desc_t *>(NextStruct->pNext);
-  }
-
-  cl_mem_properties_intel Properties[3] = {CL_MEM_ALLOC_FLAGS_INTEL, Flags, 0};
-
-  // Passing a flags value of 0 doesn't work, so truncate the properties
-  if (Flags == 0) {
-    Properties[0] = 0;
+  std::vector<cl_mem_properties_intel> AllocProperties;
+  if (pUSMDesc && pUSMDesc->pNext) {
+    UR_RETURN_ON_FAILURE(usmDescToCLMemProperties(
+        static_cast<const ur_base_desc_t *>(pUSMDesc->pNext), AllocProperties));
   }
 
   // First we need to look up the function pointer
@@ -172,8 +190,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   if (FuncPtr) {
     cl_int ClResult = CL_SUCCESS;
     Ptr = FuncPtr(CLContext, cl_adapter::cast<cl_device_id>(hDevice),
-                  cl_adapter::cast<cl_mem_properties_intel *>(Properties), size,
-                  Alignment, cl_adapter::cast<cl_int *>(&ClResult));
+                  AllocProperties.empty() ? nullptr : AllocProperties.data(),
+                  size, Alignment, cl_adapter::cast<cl_int *>(&ClResult));
     if (ClResult == CL_INVALID_BUFFER_SIZE) {
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
     }

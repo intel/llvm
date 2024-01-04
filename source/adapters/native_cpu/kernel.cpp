@@ -97,7 +97,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   default:
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
-  DIE_NO_IMPLEMENTATION
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

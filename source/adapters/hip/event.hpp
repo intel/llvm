@@ -28,6 +28,8 @@ public:
 
   ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
+  ur_device_handle_t getDevice() const noexcept { return Queue->getDevice(); }
+
   hipStream_t getStream() const noexcept { return Stream; }
 
   uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
@@ -40,10 +42,9 @@ public:
 
   bool isStarted() const noexcept { return IsStarted; }
 
-  bool isCompleted() const noexcept;
+  bool isCompleted() const;
 
-  uint32_t getExecutionStatus() const noexcept {
-
+  uint32_t getExecutionStatus() const {
     if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
     }

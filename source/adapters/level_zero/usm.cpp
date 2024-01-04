@@ -49,14 +49,6 @@ ur_result_t umf2urResult(umf_result_t umfResult) {
 }
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
-  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
-  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
-  const char *PoolConfigVal =
-      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
-  if (PoolConfigVal == nullptr) {
-    return usm::DisjointPoolAllConfigs();
-  }
-
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
   const char *PoolPiTraceVal =
       std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
@@ -64,9 +56,17 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
                                  ? PoolUrTraceVal
                                  : (PoolPiTraceVal ? PoolPiTraceVal : nullptr);
 
-  bool PoolTrace = false;
+  int PoolTrace = 0;
   if (PoolTraceVal != nullptr) {
     PoolTrace = std::atoi(PoolTraceVal);
+  }
+
+  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  const char *PoolConfigVal =
+      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
+  if (PoolConfigVal == nullptr) {
+    return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 
   return usm::parseDisjointPoolConfig(PoolConfigVal, PoolTrace);
@@ -178,15 +178,24 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
   ZeDesc.flags = 0;
   ZeDesc.ordinal = 0;
 
-  ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
-  if (Size > Device->ZeDeviceProperties->maxMemAllocSize) {
-    // Tell Level-Zero to accept Size > maxMemAllocSize
+  if (Device->useOptimized32bitAccess() == 0 &&
+      (Size > Device->ZeDeviceProperties->maxMemAllocSize)) {
+    // Tell Level-Zero to accept Size > maxMemAllocSize if
+    // large allocations are used.
+    ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
     RelaxedDesc.flags = ZE_RELAXED_ALLOCATION_LIMITS_EXP_FLAG_MAX_SIZE;
     ZeDesc.pNext = &RelaxedDesc;
   }
 
-  ZE2UR_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
-                                Device->ZeDevice, ResultPtr));
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, Alignment,
+                         Device->ZeDevice, ResultPtr));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ze2urResult(ZeResult);
+  }
 
   UR_ASSERT(Alignment == 0 ||
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
@@ -224,8 +233,15 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
     ZeDevDesc.pNext = &RelaxedDesc;
   }
 
-  ZE2UR_CALL(zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc,
-                                Size, Alignment, Device->ZeDevice, ResultPtr));
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      zeMemAllocShared, (Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
+                         Alignment, Device->ZeDevice, ResultPtr));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ze2urResult(ZeResult);
+  }
 
   UR_ASSERT(Alignment == 0 ||
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
@@ -252,8 +268,15 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;
-  ZE2UR_CALL(zeMemAllocHost,
-             (Context->ZeContext, &ZeHostDesc, Size, Alignment, ResultPtr));
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeMemAllocHost, (Context->ZeContext, &ZeHostDesc, Size,
+                                       Alignment, ResultPtr));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ze2urResult(ZeResult);
+  }
 
   UR_ASSERT(Alignment == 0 ||
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
@@ -597,6 +620,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     ZE2UR_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, nullptr, &Size));
     return ReturnValue(Size);
   }
+  case UR_USM_ALLOC_INFO_POOL: {
+    auto UMFPool = umfPoolByPtr(Ptr);
+    if (!UMFPool) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+
+    auto SearchMatchingPool =
+        [](std::unordered_map<ur_device_handle_t, umf::pool_unique_handle_t>
+               &PoolMap,
+           umf_memory_pool_handle_t UMFPool) {
+          for (auto &PoolPair : PoolMap) {
+            if (PoolPair.second.get() == UMFPool) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+    for (auto &Pool : Context->UsmPoolHandles) {
+      if (SearchMatchingPool(Pool->DeviceMemPools, UMFPool)) {
+        return ReturnValue(Pool);
+      }
+      if (SearchMatchingPool(Pool->SharedMemPools, UMFPool)) {
+        return ReturnValue(Pool);
+      }
+      if (Pool->HostMemPool.get() == UMFPool) {
+        return ReturnValue(Pool);
+      }
+    }
+
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
   default:
     urPrint("urUSMGetMemAllocInfo: unsupported ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -746,6 +803,7 @@ ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc) {
 
+  this->Context = Context;
   zeroInit = static_cast<uint32_t>(PoolDesc->flags &
                                    UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK);
 
@@ -829,6 +887,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
+
+    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
+
   } catch (const UsmAllocationException &Ex) {
     return Ex.getError();
   }
@@ -846,6 +908,8 @@ ur_result_t
 urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
 ) {
   if (Pool->RefCount.decrementAndTest()) {
+    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+    Pool->Context->UsmPoolHandles.remove(Pool);
     delete Pool;
   }
   return UR_RESULT_SUCCESS;
@@ -859,13 +923,19 @@ ur_result_t urUSMPoolGetInfo(
                      ///< property
     size_t *PropSizeRet ///< [out] size in bytes returned in pool property value
 ) {
-  std::ignore = Pool;
-  std::ignore = PropName;
-  std::ignore = PropSize;
-  std::ignore = PropValue;
-  std::ignore = PropSizeRet;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
+
+  switch (PropName) {
+  case UR_USM_POOL_INFO_REFERENCE_COUNT: {
+    return ReturnValue(Pool->RefCount.load());
+  }
+  case UR_USM_POOL_INFO_CONTEXT: {
+    return ReturnValue(Pool->Context);
+  }
+  default: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  }
 }
 
 // If indirect access tracking is not enabled then this functions just performs
