@@ -698,8 +698,16 @@ public:
   // Get the compilation step setting.
   bool getCompileStep() const { return CompileStep; }
 
+  // Set the offload kind for the current wrapping job action.  Default usage
+  // is to use the kind of the current toolchain.
+  void setOffloadKind(OffloadKind SetKind) { Kind = SetKind; }
+
+  // Get the offload kind.
+  OffloadKind getOffloadKind() const { return Kind; }
+
 private:
   bool CompileStep = true;
+  OffloadKind Kind = OFK_None;
 };
 
 class OffloadPackagerJobAction : public JobAction {

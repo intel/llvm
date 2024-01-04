@@ -8,7 +8,6 @@
 
 #include "KernelFusion.h"
 #include "Kernel.h"
-#include "KernelIO.h"
 #include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
@@ -72,8 +71,7 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    JITContext &JITCtx, Config &&JITConfig,
-    const std::vector<SYCLKernelInfo> &KernelInformation,
+    Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
     const std::vector<std::string> &KernelsToFuse,
     const std::string &FusedKernelName, ParamIdentList &Identities,
     BarrierFlags BarriersFlags,
@@ -87,21 +85,26 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes or "
-        "different global sizes in dimensions [2, N) and non-zero offsets"};
+        "Cannot fuse kernels with different offsets or local sizes, or "
+        "different global sizes in dimensions [2, N) and non-zero offsets, "
+        "or those whose fusion would yield non-uniform work-groups sizes"};
   }
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
 
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
+  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  DeviceArchitecture TargetArch = TargetInfo.getArch();
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
         "Fusion output target format not supported by this build");
   }
 
+  auto &JITCtx = JITContext::getInstance();
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
-  CacheKeyT CacheKey{KernelsToFuse,
+  CacheKeyT CacheKey{TargetArch,
+                     KernelsToFuse,
                      Identities,
                      BarriersFlags,
                      Internalization,

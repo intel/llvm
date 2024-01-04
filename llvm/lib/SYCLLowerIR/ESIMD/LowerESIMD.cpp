@@ -659,7 +659,8 @@ public:
          {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
-        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
+        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
+        {"srnd", {"srnd", {a(0), a(1)}}}};
   }
   // clang-format on
 

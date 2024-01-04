@@ -25,6 +25,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/properties/queue_properties.hpp>
@@ -145,6 +146,14 @@ public:
             make_error_code(errc::invalid),
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
+    }
+    if (has_property<
+            ext::codeplay::experimental::property::queue::enable_fusion>() &&
+        !MDevice->get_info<
+            ext::codeplay::experimental::info::device::supports_fusion>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot enable fusion if device does not support fusion");
     }
     if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() && Context->getBackend() == backend::opencl)
