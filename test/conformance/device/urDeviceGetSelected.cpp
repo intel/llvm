@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
-#include "C:\Users\holmesda\git-repos\oneAPI-src\unified-runtime\test\unit\helpers.h"
+#include "helpers.h"
 
 using urDeviceGetSelectedTest = uur::urPlatformTest;
 
