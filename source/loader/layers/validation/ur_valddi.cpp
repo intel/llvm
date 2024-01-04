@@ -1188,6 +1188,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 /// @brief Intercept function for urMemGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device that the native handle will be resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -1202,12 +1204,16 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == phNativeMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result = pfnGetNativeHandle(hMem, phNativeMem);
+    ur_result_t result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 
     return result;
 }
