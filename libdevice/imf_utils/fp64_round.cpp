@@ -92,21 +92,21 @@ double __devicelib_imf_ddiv_rz(double x, double y) {
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_fma_rd(double x, double y, double z) {
-  return __fp64_fma(x, y, z, __IML_RTN);
+  return __fp_fma(x, y, z, __IML_RTN);
 }
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_fma_rn(double x, double y, double z) {
-  return __fp64_fma(x, y, z, __IML_RTE);
+  return __fp_fma(x, y, z, __IML_RTE);
 }
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_fma_ru(double x, double y, double z) {
-  return __fp64_fma(x, y, z, __IML_RTP);
+  return __fp_fma(x, y, z, __IML_RTP);
 }
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_fma_rz(double x, double y, double z) {
-  return __fp64_fma(x, y, z, __IML_RTZ);
+  return __fp_fma(x, y, z, __IML_RTZ);
 }
 #endif
