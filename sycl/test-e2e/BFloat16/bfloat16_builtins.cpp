@@ -5,6 +5,7 @@
 // + below sm_80 always uses generic impls
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
