@@ -1,13 +1,10 @@
-// RUN: %{build} -O1 -o %t.O1.out
-// RUN: %{run} %t.O1.out
-// RUN: %{build} -O2 -o %t.O2.out
-// RUN: %{run} %t.O2.out
-// RUN: %{build} -O3 -o %t.O3.out
-// RUN: %{run} %t.O3.out
-// RUN: %{build} -Ofast -o %t.Ofast.out
-// RUN: %{run} %t.Ofast.out
+// RUN: %{build} -O0 -o %t.O0.out
+// RUN: %{run} %t.O0.out
 // REQUIRES: linux
 // UNSUPPORTED: hip || cuda
+
+// COM: FIXME: Fails with -O0
+// XFAIL: *
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

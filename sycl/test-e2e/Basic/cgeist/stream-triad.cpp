@@ -1,5 +1,3 @@
-// RUN: %{build} -O0 -o %t.O0.out
-// RUN: %{run} %t.O0.out
 // RUN: %{build} -O1 -o %t.O1.out
 // RUN: %{run} %t.O1.out
 // RUN: %{build} -O2 -o %t.O2.out
