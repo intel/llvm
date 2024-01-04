@@ -1389,6 +1389,27 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
+bool UnMapMemObject::producesPiEvent() const {
+  // TODO remove this workaround once the batching issue is addressed in Level
+  // Zero plugin.
+  // Consider the following scenario on Level Zero:
+  // 1. Kernel A, which uses buffer A, is submitted to queue A.
+  // 2. Kernel B, which uses buffer B, is submitted to queue B.
+  // 3. queueA.wait().
+  // 4. queueB.wait().
+  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
+  // dependencies (i.e. they were waited for prior to enqueueing any command
+  // that's dependent on them). This allowed Level Zero plugin to detect that
+  // each queue is idle on steps 1/2 and submit the command list right away.
+  // This is no longer the case since we started passing these dependencies in
+  // an event waitlist and Level Zero plugin attempts to batch these commands,
+  // so the execution of kernel B starts only on step 4. This workaround
+  // restores the old behavior in this case until this is resolved.
+  return MQueue->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero ||
+         MEvent->getHandleRef() != nullptr;
+}
+
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1474,6 +1495,28 @@ void MemCpyCommand::emitInstrumentationData() {
 
 const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
+}
+
+bool MemCpyCommand::producesPiEvent() const {
+  // TODO remove this workaround once the batching issue is addressed in Level
+  // Zero plugin.
+  // Consider the following scenario on Level Zero:
+  // 1. Kernel A, which uses buffer A, is submitted to queue A.
+  // 2. Kernel B, which uses buffer B, is submitted to queue B.
+  // 3. queueA.wait().
+  // 4. queueB.wait().
+  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
+  // dependencies (i.e. they were waited for prior to enqueueing any command
+  // that's dependent on them). This allowed Level Zero plugin to detect that
+  // each queue is idle on steps 1/2 and submit the command list right away.
+  // This is no longer the case since we started passing these dependencies in
+  // an event waitlist and Level Zero plugin attempts to batch these commands,
+  // so the execution of kernel B starts only on step 4. This workaround
+  // restores the old behavior in this case until this is resolved.
+  return MQueue->is_host() ||
+         MQueue->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero ||
+         MEvent->getHandleRef() != nullptr;
 }
 
 pi_int32 MemCpyCommand::enqueueImp() {
