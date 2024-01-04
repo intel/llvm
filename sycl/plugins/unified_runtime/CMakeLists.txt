@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Wed Jan 3 13:27:16 2024 +0000
   #     Merge pull request #1198 from al42and/aa-rocm6
   #     [HIP] Fix build with ROCm 6.0.0
-  set(UNIFIED_RUNTIME_TAG lukas/comgr-include-rocm4)
+  set(UNIFIED_RUNTIME_TAG d398d4aec1f9c2397433dc5a4619d5c30269c622)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
