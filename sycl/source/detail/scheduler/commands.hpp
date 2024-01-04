@@ -118,8 +118,7 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue,
           sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {},
-          bool ProducesPiEvent = true);
+          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {});
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -224,8 +223,8 @@ public:
   /// for memory copy commands.
   const QueueImplPtr &getWorkerQueue() const;
 
-  /// Returns true if the command produces a PI event on non-host devices.
-  bool producesPiEvent() const { return MProducesPiEvent; }
+  /// Returns true iff the command produces a PI event on non-host devices.
+  virtual bool producesPiEvent() const;
 
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
@@ -402,8 +401,6 @@ protected:
   sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
   /// List of sync points for submissions to a command buffer.
   std::vector<sycl::detail::pi::PiExtSyncPoint> MSyncPointDeps;
-
-  bool MProducesPiEvent;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -418,6 +415,8 @@ public:
                       const Requirement *Req);
 
   void emitInstrumentationData() override;
+
+  bool producesPiEvent() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -436,6 +435,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
   bool readyForCleanup() const final;
 
@@ -461,6 +461,8 @@ public:
   const Requirement *getRequirement() const final { return &MRequirement; }
 
   void emitInstrumentationData() override;
+
+  bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
 
@@ -658,6 +660,8 @@ public:
   // necessary.
   KernelFusionCommand *MFusionCmd = nullptr;
 
+  bool producesPiEvent() const final;
+
   bool supportsPostEnqueueCleanup() const final;
 
   bool readyForCleanup() const final;
@@ -713,6 +717,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
+  bool producesPiEvent() const final;
 
   std::vector<Command *> &auxiliaryCommands();
 
