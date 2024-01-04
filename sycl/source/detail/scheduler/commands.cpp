@@ -512,7 +512,6 @@ Command::Command(
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
-  MEvent->setProducesPiEvent(producesPiEvent());
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -976,7 +975,6 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
       MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
-  MEvent->setProducesPiEvent(producesPiEvent());
   emitInstrumentationDataProxy();
 }
 
@@ -1096,7 +1094,6 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
   Command *ConnectionCmd = addDep(
       DepDesc(MParentAlloca, getRequirement(), MParentAlloca), ToCleanUp);
   if (ConnectionCmd)
@@ -1175,7 +1172,6 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
     : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void ReleaseCommand::emitInstrumentationData() {
@@ -1298,7 +1294,6 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
       MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
       MMapMode(MapMode) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MapMemObject::emitInstrumentationData() {
@@ -1362,7 +1357,6 @@ UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue)),
       MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void UnMapMemObject::emitInstrumentationData() {
@@ -1458,7 +1452,6 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MemCpyCommand::emitInstrumentationData() {
@@ -1635,7 +1628,6 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 void MemCpyCommandHost::emitInstrumentationData() {
@@ -1705,7 +1697,6 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
     : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 pi_int32 EmptyCommand::enqueueImp() {
@@ -1899,7 +1890,6 @@ ExecCGCommand::ExecCGCommand(
   }
 
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -3200,7 +3190,6 @@ KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
     : Command(Command::CommandType::FUSION, Queue),
       MStatus(FusionStatus::ACTIVE) {
   emitInstrumentationDataProxy();
-  MEvent->setProducesPiEvent(producesPiEvent());
 }
 
 std::vector<Command *> &KernelFusionCommand::auxiliaryCommands() {

@@ -61,15 +61,13 @@ static bool isEventsReady(const std::vector<sycl::event> &DepEvents,
     if (SyclEventImplPtr->is_host()) {
       return SyclEventImplPtr->isCompleted();
     }
-    // The fusion command and its event are associated with a non-host
-    // context, but still do not produce a PI event.
-    if (SyclEventImplPtr->getContextImpl() != Context ||
-        !SyclEventImplPtr->producesPiEvent())
+    // Cross-context dependencies can't be passed directly.
+    if (SyclEventImplPtr->getContextImpl() != Context)
       return false;
 
-    // In this path nullptr native event means that the command has not
-    // been enqueued. It may happen if async enqueue in a host task is
-    // involved.
+    // A nullptr here means that the commmand does not produce a PI event or it
+    // hasn't been enqueued yet. Either way, this dependency needs to be handled
+    // by the scheduler.
     return SyclEventImplPtr->getHandleRef() != nullptr;
   };
 
@@ -430,8 +428,9 @@ event queue_impl::memcpyFromDeviceGlobal(
 }
 
 event queue_impl::getLastEvent() const {
-  std::lock_guard<std::mutex> Lock{MLastEventMtx};
-  return MDiscardEvents ? createDiscardedEvent() : MLastEvent;
+  std::lock_guard<std::mutex> Lock{MMutex};
+  return MDiscardEvents ? createDiscardedEvent()
+                        : detail::createSyclObjFromImpl<event>(MLastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {

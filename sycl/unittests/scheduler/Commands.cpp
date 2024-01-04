@@ -8,7 +8,6 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <detail/buffer_impl.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <iostream>
@@ -84,41 +83,4 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
         detail::CG::CGTYPE::BarrierWaitlist, {}));
     MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl);
   }
-}
-
-TEST_F(SchedulerTest, CommandsPiEventExpectation) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  context Ctx{Plt};
-  queue Queue{Ctx, default_selector_v};
-  detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
-  MockScheduler MS;
-
-  buffer<int, 1> Buf{range<1>(1)};
-  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
-  detail::Requirement MockReq = getMockRequirement(Buf);
-  MockReq.MDims = 1;
-  MockReq.MSYCLMemObj = BufImpl.get();
-
-  std::vector<detail::Command *> AuxCmds;
-  detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq, AuxCmds);
-  detail::AllocaCommandBase *AllocaCmd =
-      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, AuxCmds);
-  EXPECT_EQ(AllocaCmd->producesPiEvent(),
-            AllocaCmd->getEvent()->producesPiEvent());
-  EXPECT_EQ(AllocaCmd->producesPiEvent(), false);
-
-  std::unique_ptr<detail::CG> CG{
-      new detail::CGFill(/*Pattern*/ {}, &MockReq,
-                         detail::CG::StorageInitHelper(
-                             /*ArgsStorage*/ {},
-                             /*AccStorage*/ {},
-                             /*SharedPtrStorage*/ {},
-                             /*Requirements*/ {&MockReq},
-                             /*Events*/ {}))};
-  detail::EventImplPtr Event = MS.addCG(std::move(CG), QueueImpl);
-  auto *Cmd = static_cast<detail::Command *>(Event->getCommand());
-  EXPECT_EQ(Cmd->producesPiEvent(), Event->producesPiEvent());
-  EXPECT_EQ(Cmd->producesPiEvent(), true);
 }
