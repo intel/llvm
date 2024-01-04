@@ -839,11 +839,11 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-string handler::getKernelName() {
+detail::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
-void handler::verifyUsedKernelBundleInternal(string &Name) {
+void handler::verifyUsedKernelBundleInternal(detail::string &Name) {
   std::string KernelName = Name.getPtr();
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
@@ -1295,7 +1295,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-void handler::ext_intel_read_host_pipe(string Name, void *Ptr, size_t Size,
+void handler::ext_intel_read_host_pipe(detail::string Name, void *Ptr, size_t Size,
                                        bool Block) {
   MImpl->HostPipeName = Name.getPtr();
   MImpl->HostPipePtr = Ptr;
@@ -1305,7 +1305,7 @@ void handler::ext_intel_read_host_pipe(string Name, void *Ptr, size_t Size,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-void handler::ext_intel_write_host_pipe(string Name, void *Ptr, size_t Size,
+void handler::ext_intel_write_host_pipe(detail::string Name, void *Ptr, size_t Size,
                                         bool Block) {
   MImpl->HostPipeName = Name.getPtr();
   MImpl->HostPipePtr = Ptr;

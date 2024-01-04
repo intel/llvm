@@ -138,7 +138,7 @@ device::get_info_internal() const {
   return impl->template get_info<Param>();
 }
 
-void device::get_device_info(string &Type) const {
+void device::get_device_info(detail::string &Type) const {
   std::string Info;
   if (Type == typeid(info::device::name).name()) {
     Info = impl->template get_info<info::device::name>();

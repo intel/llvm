@@ -16,9 +16,9 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_platform_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/detail/string.hpp>             // for c++11 ABI compatibility
 #include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
 #include <sycl/info/info_desc.hpp>            // for device_type
-#include <sycl/string.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -154,7 +154,7 @@ public:
                   std::is_same_v<Param, info::platform::version> ||
                   std::is_same_v<Param, info::platform::profile>) {
 
-      string Info = typeid(Param).name();
+      detail::string Info = typeid(Param).name();
       Info.allocate(100);
       get_platform_info(Info);
       std::string PlatformInfo = Info.marshall();
@@ -226,7 +226,7 @@ private:
   typename detail::is_platform_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_platform_info(string &Type) const;
+  void get_platform_info(detail::string &Type) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

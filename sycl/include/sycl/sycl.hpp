@@ -53,7 +53,6 @@
 #include <sycl/sampler.hpp>
 #include <sycl/specialization_id.hpp>
 #include <sycl/stream.hpp>
-#include <sycl/string.hpp>
 #include <sycl/sub_group.hpp>
 #include <sycl/types.hpp>
 #include <sycl/usm.hpp>

@@ -5,16 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 
 #pragma once
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
 
 class string {
   const char *str; // used to send existing std::string to libsycl
-  char *ret_str;   // set from libsycl
+  char *ret_str = nullptr;   // set from libsycl
 
 public:
   string() : str(nullptr), ret_str(nullptr) {}
@@ -38,5 +38,6 @@ public:
   char *getRetPtr() { return ret_str; }
 };
 
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
