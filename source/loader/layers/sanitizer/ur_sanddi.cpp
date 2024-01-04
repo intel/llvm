@@ -181,24 +181,29 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_event_handle_t lk_event{};
+    ur_event_handle_t hPreEvent{};
     std::vector<ur_event_handle_t> events(numEventsInWaitList + 1);
     for (unsigned i = 0; i < numEventsInWaitList; ++i) {
         events.push_back(phEventWaitList[i]);
     }
 
     // launchKernel must append to num_events_in_wait_list, not prepend
-    context.interceptor->preLaunchKernel(hKernel, hQueue, &lk_event);
-    if (lk_event) {
-        events.push_back(lk_event);
+    context.interceptor->preLaunchKernel(hKernel, hQueue, hPreEvent);
+    if (hPreEvent) {
+        events.push_back(hPreEvent);
     }
 
+    ur_event_handle_t hEvent{};
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+        pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        context.interceptor->postLaunchKernel(hKernel, hQueue, phEvent);
+        context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent);
+    }
+
+    if (phEvent) {
+        *phEvent = hEvent;
     }
 
     return result;
