@@ -3007,10 +3007,7 @@ _SPIRV_OP(SUDotAccSatKHR, true, 6, true, 3)
 class SPIRVBitOp : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions))
-      return getVec(CapabilityBitInstructions);
-
-    return getVec(CapabilityShader);
+    return getVec(CapabilityBitInstructions);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {

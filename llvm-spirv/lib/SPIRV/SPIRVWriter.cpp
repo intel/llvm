@@ -3901,8 +3901,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return nullptr;
   }
   case Intrinsic::bitreverse: {
-    if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions)) {
-      BM->addCapability(CapabilityShader);
+    if (!BM->getErrorLog().checkError(
+            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions),
+            SPIRVEC_InvalidFunctionCall, II,
+            "Translation of llvm.bitreverse intrinsic requires "
+            "SPV_KHR_bit_instructions extension.")) {
+      return nullptr;
     }
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
