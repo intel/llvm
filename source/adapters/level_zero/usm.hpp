@@ -29,6 +29,8 @@ struct ur_usm_pool_handle_t_ : _ur_object {
       SharedReadOnlyMemPools;
   umf::pool_unique_handle_t HostMemPool;
 
+  ur_context_handle_t Context{};
+
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc);
 };

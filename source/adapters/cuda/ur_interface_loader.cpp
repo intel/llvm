@@ -279,6 +279,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
   pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
+  pDdiTable->pfnAppendUSMFillExp = urCommandBufferAppendUSMFillExp;
   pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;
   pDdiTable->pfnAppendMemBufferCopyRectExp =
       urCommandBufferAppendMemBufferCopyRectExp;
@@ -289,6 +290,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       urCommandBufferAppendMemBufferWriteExp;
   pDdiTable->pfnAppendMemBufferWriteRectExp =
       urCommandBufferAppendMemBufferWriteRectExp;
+  pDdiTable->pfnAppendUSMPrefetchExp = urCommandBufferAppendUSMPrefetchExp;
+  pDdiTable->pfnAppendUSMAdviseExp = urCommandBufferAppendUSMAdviseExp;
+  pDdiTable->pfnAppendMemBufferFillExp = urCommandBufferAppendMemBufferFillExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;
@@ -360,13 +364,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnFree = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGranularityGetInfo = nullptr;
-  pDdiTable->pfnMap = nullptr;
-  pDdiTable->pfnReserve = nullptr;
-  pDdiTable->pfnSetAccess = nullptr;
-  pDdiTable->pfnUnmap = nullptr;
+  pDdiTable->pfnFree = urVirtualMemFree;
+  pDdiTable->pfnGetInfo = urVirtualMemGetInfo;
+  pDdiTable->pfnGranularityGetInfo = urVirtualMemGranularityGetInfo;
+  pDdiTable->pfnMap = urVirtualMemMap;
+  pDdiTable->pfnReserve = urVirtualMemReserve;
+  pDdiTable->pfnSetAccess = urVirtualMemSetAccess;
+  pDdiTable->pfnUnmap = urVirtualMemUnmap;
 
   return retVal;
 }
@@ -381,9 +385,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnCreate = urPhysicalMemCreate;
+  pDdiTable->pfnRelease = urPhysicalMemRelease;
+  pDdiTable->pfnRetain = urPhysicalMemRetain;
 
   return retVal;
 }

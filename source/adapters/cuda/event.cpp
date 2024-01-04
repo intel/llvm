@@ -9,36 +9,26 @@
 //===----------------------------------------------------------------------===//
 
 #include "event.hpp"
-#include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "queue.hpp"
+#include "ur_api.h"
+#include "ur_util.hpp"
 
 #include <cassert>
 #include <cuda.h>
 
 ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
-                                       ur_queue_handle_t Queue, CUstream Stream,
+                                       ur_queue_handle_t Queue,
+                                       native_type EvEnd, native_type EvQueued,
+                                       native_type EvStart, CUstream Stream,
                                        uint32_t StreamToken)
     : CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EvEnd{nullptr}, EvStart{nullptr},
-      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
-
-  bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
-
-  UR_CHECK_ERROR(cuEventCreate(
-      &EvEnd, ProfilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
-
-  if (ProfilingEnabled) {
-    UR_CHECK_ERROR(cuEventCreate(&EvQueued, CU_EVENT_DEFAULT));
-    UR_CHECK_ERROR(cuEventCreate(&EvStart, CU_EVENT_DEFAULT));
-  }
-
-  if (Queue != nullptr) {
-    urQueueRetain(Queue);
-  }
+      StreamToken{StreamToken}, EventID{0}, EvEnd{EvEnd}, EvStart{EvStart},
+      EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
+  urQueueRetain(Queue);
   urContextRetain(Context);
 }
 
@@ -46,8 +36,9 @@ ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        CUevent EventNative)
     : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{std::numeric_limits<uint32_t>::max()}, EvEnd{EventNative},
-      EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr}, Context{Context} {
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EventID{0},
+      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
+      Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 
@@ -76,7 +67,7 @@ ur_result_t ur_event_handle_t_::start() {
   return Result;
 }
 
-bool ur_event_handle_t_::isCompleted() const noexcept {
+bool ur_event_handle_t_::isCompleted() const noexcept try {
   if (!IsRecorded) {
     return false;
   }
@@ -91,6 +82,8 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
     }
   }
   return true;
+} catch (...) {
+  return exceptionToResult(std::current_exception()) == UR_RESULT_SUCCESS;
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
