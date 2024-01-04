@@ -1274,12 +1274,10 @@ template <typename FTy> FTy __fp_fma(FTy x, FTy y, FTy z, int rd) {
   if (((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra == 0x0)) ||
       ((y_exp == __iml_fp_config<FTy>::exp_mask) && (y_fra == 0x0))) {
     if ((z_exp == __iml_fp_config<FTy>::exp_mask) && (z_fra == 0x0))
-      return is_sig_diff
-                 ? __builtin_bit_cast(FTy, NAN_BITS)
-                 : z;
+      return is_sig_diff ? __builtin_bit_cast(FTy, NAN_BITS) : z;
     else
-      return __builtin_bit_cast(FTy, (INF_BITS |
-                                      (xy_sig << (sizeof(FTy) * 8 - 1))));
+      return __builtin_bit_cast(FTy,
+                                (INF_BITS | (xy_sig << (sizeof(FTy) * 8 - 1))));
   }
 
   if ((z_exp == 0x0) && (z_fra == 0x0))

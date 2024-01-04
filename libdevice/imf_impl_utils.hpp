@@ -137,7 +137,7 @@ public:
   }
 
   __iml_ui128 operator+=(const __iml_ui128 &x) {
-    uint64_t temp =  this->bits[0] + x.bits[0];
+    uint64_t temp = this->bits[0] + x.bits[0];
     this->bits[1] += x.bits[1];
     if ((temp < this->bits[0]) || (temp < x.bits[0]))
       this->bits[1] += 1;
