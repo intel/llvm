@@ -2723,6 +2723,7 @@ urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -2730,6 +2731,7 @@ urMemBufferPartition(
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(
     ur_mem_handle_t hMem,           ///< [in] handle of the mem.
+    ur_device_handle_t hDevice,     ///< [in] handle of the device that the native handle will be resident on.
     ur_native_handle_t *phNativeMem ///< [out] a pointer to the native handle of the mem.
 );
 
@@ -9488,6 +9490,7 @@ typedef struct ur_mem_buffer_partition_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_mem_get_native_handle_params_t {
     ur_mem_handle_t *phMem;
+    ur_device_handle_t *phDevice;
     ur_native_handle_t **pphNativeMem;
 } ur_mem_get_native_handle_params_t;
 
