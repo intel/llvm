@@ -57,11 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit aaa4661f5c32e6dcb43248ed7575de6971852cc3
+  # commit c311fe82256a7bc7f6ddd19cb86c8d555ce401bc
+  # Merge: eee75a29 d398d4ae
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Dec 15 16:05:36 2023 +0000
-  #     Set version to v0.8.2
-  set(UNIFIED_RUNTIME_TAG aaa4661f5c32e6dcb43248ed7575de6971852cc3)
+  # Date:   Thu Jan 4 15:12:54 2024 +0000
+  #     Merge pull request #1222 from sommerlukas/lukas/comgr-include-rocm4
+  #     [UR][HIP] Fix include for AMD COMGR
+  set(UNIFIED_RUNTIME_TAG c311fe82256a7bc7f6ddd19cb86c8d555ce401bc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

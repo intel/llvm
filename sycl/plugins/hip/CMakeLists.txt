@@ -128,6 +128,21 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   target_link_libraries(pi_hip PUBLIC rocmdrv)
 
   if(SYCL_ENABLE_COMGR)
+    set(PI_COMGR_VERSION5_HEADER "${PI_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")
+    set(PI_COMGR_VERSION4_HEADER "${PI_HIP_INCLUDE_DIR}/amd_comgr.h")
+    # The COMGR header changed location between ROCm version 4 and 5.
+    # Check for the existence in the version 5 location or fallback to version 4
+    if(NOT EXISTS "${PI_COMGR_VERSION5_HEADER}")
+      if(NOT EXISTS "${PI_COMGR_VERSION4_HEADER}")
+        message(FATAL_ERROR "Could not find AMD COMGR header at "
+                            "${PI_COMGR_VERSION5_HEADER} or "
+                            "${PI_COMGR_VERSION4_HEADER}, "
+                            "check ROCm installation")
+      else()
+        target_compile_definitions(pi_hip PRIVATE UR_COMGR_VERSION4_INCLUDE)
+      endif()
+    endif()  
+
     add_library(amd_comgr SHARED IMPORTED GLOBAL)
     set_target_properties(
       amd_comgr PROPERTIES
