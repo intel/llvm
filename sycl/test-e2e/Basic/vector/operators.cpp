@@ -9,6 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 #define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
 namespace s = sycl;

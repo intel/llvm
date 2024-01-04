@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 #include <sycl/sycl.hpp>
 
 constexpr int size = 2;

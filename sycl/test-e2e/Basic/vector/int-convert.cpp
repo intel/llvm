@@ -13,6 +13,8 @@
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 #include <sycl/sycl.hpp>
 
 #include <cstdint>

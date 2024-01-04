@@ -40,6 +40,7 @@ Basic/group_async_copy.cpp
 Basic/group_async_copy_legacy.cpp
 Basic/group_local_memory.cpp
 Basic/image/image_accessor_readsampler.cpp
+Basic/image/image_accessor_readwrite.cpp
 Basic/image/image_array.cpp
 Basic/image/image.cpp
 Basic/image/image_max_size.cpp
@@ -47,6 +48,7 @@ Basic/image/image_read.cpp
 Basic/image/image_read_fp16.cpp
 Basic/image/image_sample.cpp
 Basic/image/image_write.cpp
+Basic/image/image_write_fp16.cpp
 Basic/image/srgba-read.cpp
 Basic/large-range.cpp
 Basic/multi_ptr.cpp
@@ -54,17 +56,19 @@ Basic/multi_ptr_legacy.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
 Basic/multi_ptr_usm_addr_ext.cpp
 Basic/sampler/sampler.cpp
-Basic/scalar_vec_access.cpp
 Basic/span.cpp
 Basic/stream/auto_flush.cpp
 Basic/stream/release_resources_test.cpp
-Basic/stream/stream_copies_buffer_sync.cpp
 Basic/stream/stream.cpp
+Basic/stream/stream_copies_buffer_sync.cpp
 Basic/stream/stream_max_stmt_exceed.cpp
 Basic/stream/zero_buffer_size.cpp
 Basic/sub_group_size_prop.cpp
-Basic/vec_bool.cpp
-Basic/vector_operators.cpp
+Basic/swizzle_op.cpp
+Basic/vector/bool.cpp
+Basic/vector/int-convert.cpp
+Basic/vector/operators.cpp
+Basic/vector/scalar_access.cpp
 Basic/work_group_size_prop.cpp
 BFloat16/bfloat16_builtins.cpp
 BFloat16/bfloat16_type.cpp
@@ -401,6 +405,7 @@ InvokeSimd/Regression/tiled_matrix_multiplication.cpp
 InvokeSimd/Spec/clang_run_error/sycl_marray_argument.cpp
 InvokeSimd/Spec/clang_run_error/sycl_vec_argument.cpp
 InvokeSimd/Spec/ESIMD_to_unmarked_function.cpp
+InvokeSimd/Spec/ImplicitSubgroup/uniform_retval.cpp
 InvokeSimd/Spec/function_overloads.cpp
 InvokeSimd/Spec/multiple_SPMD_to_multiple_ESIMD.cpp
 InvokeSimd/Spec/multiple_SPMD_to_single_ESIMD.cpp
@@ -437,8 +442,6 @@ OptionalKernelFeatures/large-reqd-work-group-size.cpp
 OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
 OptionalKernelFeatures/throw-exception-for-unsupported-aspect.cpp
 Plugin/interop-level-zero-image-get-native-mem.cpp
-Plugin/level_zero_queue_profiling.cpp
-Plugin/level_zero_usm_residency.cpp
 Prefetch/joint_prefetch.cpp
 Prefetch/prefetch.cpp
 Printf/char.cpp
@@ -490,6 +493,8 @@ Regression/implicit_kernel_bundle_image_filtering.cpp
 Regression/mad_sat.cpp
 Regression/reduction_64bit_atomic64.cpp
 Regression/unoptimized_stream.cpp
+Regression/vec_logical_ops.cpp
+Regression/vec_rel_swizzle_ops.cpp
 Regression/void_global_ptr_conversion.cpp
 Sampler/basic-rw.cpp
 Sampler/basic-rw-float.cpp

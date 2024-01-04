@@ -9,6 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 // CHECK-NOT: Error: unexpected behavior because of accessing element of the
 // vector by reference
 

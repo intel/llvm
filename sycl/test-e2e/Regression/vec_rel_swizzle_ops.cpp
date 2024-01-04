@@ -4,6 +4,8 @@
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 #include <cstdlib>
 #include <sycl/sycl.hpp>
 

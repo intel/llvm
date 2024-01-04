@@ -7,6 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// COM: FIXME. See issue https://github.com/intel/llvm/issues/12296
+
 #define SYCL_SIMPLE_SWIZZLES
 
 #include <cassert>
