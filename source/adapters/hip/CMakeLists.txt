@@ -101,6 +101,21 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     )
 
     if(UR_ENABLE_COMGR)
+        set(UR_COMGR_VERSION5_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")
+        set(UR_COMGR_VERSION4_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr.h")
+        # The COMGR header changed location between ROCm versions 4 and 5.
+        # Check for existence in the version 5 location or fallback to version 4
+        if(NOT EXISTS "${UR_COMGR_VERSION5_HEADER}")
+            if(NOT EXISTS "${UR_COMGR_VERSION4_HEADER}")
+                message(FATAL_ERROR "Could not find AMD COMGR header at "
+                                    "${UR_COMGR_VERSION5_HEADER} or"
+                                    "${UR_COMGR_VERSION4_HEADER}, "
+                                    "check ROCm installation")
+            else()
+                target_compile_definitions(${TARGET_NAME} PRIVATE UR_COMGR_VERSION4_INCLUDE)
+            endif()
+        endif()
+
         add_library(amd_comgr SHARED IMPORTED GLOBAL)
         set_target_properties(
         amd_comgr PROPERTIES
