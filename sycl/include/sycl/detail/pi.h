@@ -146,9 +146,10 @@
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 39
+#define _PI_H_VERSION_MINOR 40
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -2475,13 +2476,12 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this memory operation.
-__SYCL_EXPORT pi_result
-piextCommandBufferMemBufferFill(pi_ext_command_buffer command_buffer,
-                                pi_mem buffer, const void *pattern,
-                                size_t pattern_size, size_t offset, size_t size,
-                                pi_uint32 num_sync_points_in_wait_list,
-                                const pi_ext_sync_point *sync_point_wait_list,
-                                pi_ext_sync_point *sync_point);
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
+    size_t pattern_size, size_t offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
 
 /// API to append a USM fill command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
@@ -2494,12 +2494,11 @@ piextCommandBufferMemBufferFill(pi_ext_command_buffer command_buffer,
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this memory operation.
-__SYCL_EXPORT pi_result
-piextCommandBufferFillUSM(pi_ext_command_buffer command_buffer, void *ptr,
-                          const void *pattern, size_t pattern_size, size_t size,
-                          pi_uint32 num_sync_points_in_wait_list,
-                          const pi_ext_sync_point *sync_point_wait_list,
-                          pi_ext_sync_point *sync_point);
+__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
+    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
 
 /// API to submit the command-buffer to queue for execution, returns an error if
 /// the command-buffer is not finalized or another instance of the same
