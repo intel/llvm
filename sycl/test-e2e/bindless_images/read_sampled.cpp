@@ -416,8 +416,7 @@ clampLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
   // If height is not one, run as normal.
   // Otherwise, keep weightY set to 0.
   float weightY =
-      height == 1 ? 0
-                  : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
+      height == 1 ? 0 : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
 
   // Clamp sampling according to the SYCL spec returns a border color.
   // The border color is all zeros.
@@ -456,8 +455,7 @@ clampToEdgeLinear(sycl::vec<float, 2> coords, sycl::range<2> globalSize,
   // If height is not one, run as normal.
   // Otherwise, keep weightY set to 0.
   float weightY =
-      height == 1 ? 0
-                  : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
+      height == 1 ? 0 : util::getCommonLinearFractAndCoords(coordY, &j0, &j1);
 
   // Clamp to extent
   i0 = std::clamp(i0, 0, width - 1);
