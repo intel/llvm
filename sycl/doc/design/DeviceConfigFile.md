@@ -41,7 +41,7 @@ different tools and compiler modules:
     - Compiler driver requires `aot-toolchain` and `ocloc-device` to trigger the
     compilation for the required targets.
     [https://github.com/intel/llvm/pull/6775/files]
-- `sycl-post-list` (see the description in the
+- `sycl-post-link` (see the description in the
   [OptionalDeviceFeatures](./OptionalDeviceFeatures.md#new-filtering-pass-in-the-post-link-tool)
   design doc).
 
