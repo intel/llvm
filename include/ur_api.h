@@ -4037,6 +4037,9 @@ urProgramCreateWithIL(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, `phProgram` will
+///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
+///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
 ///
 /// @remarks
 ///   _Analogues_
