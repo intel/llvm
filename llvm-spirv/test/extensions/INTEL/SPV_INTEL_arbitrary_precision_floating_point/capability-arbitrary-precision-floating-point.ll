@@ -480,22 +480,20 @@ target triple = "spir64-unknown-linux"
 ; Function Attrs: norecurse
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
   %1 = alloca %"class._ZTSZ4mainE3$_0.anon", align 1
-  %2 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %2) #5
-  %3 = addrspacecast %"class._ZTSZ4mainE3$_0.anon"* %1 to %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %3)
-  %4 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  %2 = addrspacecast ptr %1 to ptr addrspace(4)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %2)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %0) #2 align 2 {
-  %2 = alloca %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, align 8
-  store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %0, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %2, align 8, !tbaa !5
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %0) #2 align 2 {
+  %2 = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %0, ptr %2, align 8, !tbaa !5
   call spir_func void @_Z13ap_float_castILi11ELi28ELi9ELi30EEvv()
   call spir_func void @_Z22ap_float_cast_from_intILi43ELi8ELi16EEvv()
   call spir_func void @_Z20ap_float_cast_to_intILi7ELi15ELi30EEvv()
@@ -545,26 +543,22 @@ define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.an
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind
 define linkonce_odr dso_local spir_func void @_Z13ap_float_castILi11ELi28ELi9ELi30EEvv() #3 {
   %1 = alloca i40, align 8
   %2 = alloca i40, align 8
-  %3 = bitcast i40* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i40* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i40, i40* %1, align 8, !tbaa !9
-  %6 = call spir_func i40 @_Z31__spirv_ArbitraryFloatCastINTELILi40ELi40EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %5, i32 28, i32 30, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i40, ptr %1, align 8, !tbaa !9
+  %4 = call spir_func i40 @_Z31__spirv_ArbitraryFloatCastINTELILi40ELi40EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %3, i32 28, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_40]] [[Cast_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastINTEL [[Ty_40]] [[#]] [[Cast_AId]] 28 30 0 2 1
 ; CHECK-LLVM: call i40 @intel_arbitrary_float_cast.i40.i40(i40 %[[#]], i32 28, i32 30, i32 0, i32 2, i32 1)
-  store i40 %6, i40* %2, align 8, !tbaa !9
-  %7 = bitcast i40* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i40* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i40 %4, ptr %2, align 8, !tbaa !9
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -572,20 +566,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_castILi11ELi28ELi9ELi
 define linkonce_odr dso_local spir_func void @_Z22ap_float_cast_from_intILi43ELi8ELi16EEvv() #3 {
   %1 = alloca i43, align 8
   %2 = alloca i25, align 4
-  %3 = bitcast i43* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = load i43, i43* %1, align 8, !tbaa !11
-  %6 = call spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i43 %5, i32 16, i1 zeroext false, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  %3 = load i43, ptr %1, align 8, !tbaa !11
+  %4 = call spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i43 %3, i32 16, i1 zeroext false, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_43]] [[CastFromInt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastFromIntINTEL [[Ty_25]] [[#]] [[CastFromInt_AId]] 16 0 0 2 1
 ; CHECK-LLVM: call i25 @intel_arbitrary_float_cast_from_int.i25.i43(i43 %[[#]], i32 16, i1 false, i32 0, i32 2, i32 1)
-  store i25 %6, i25* %2, align 4, !tbaa !13
-  %7 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
-  %8 = bitcast i43* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i25 %4, ptr %2, align 4, !tbaa !13
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -593,20 +583,16 @@ define linkonce_odr dso_local spir_func void @_Z22ap_float_cast_from_intILi43ELi
 define linkonce_odr dso_local spir_func void @_Z20ap_float_cast_to_intILi7ELi15ELi30EEvv() #3 {
   %1 = alloca i23, align 4
   %2 = alloca i30, align 4
-  %3 = bitcast i23* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i30* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = load i23, i23* %1, align 4, !tbaa !15
-  %6 = call spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i23 signext %5, i32 15, i1 zeroext true, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  %3 = load i23, ptr %1, align 4, !tbaa !15
+  %4 = call spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiibiii(i23 signext %3, i32 15, i1 zeroext true, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_23]] [[CastToInt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastToIntINTEL [[Ty_30]] [[#]] [[CastToInt_AId]] 15 1 0 2 1
 ; CHECK-LLVM: call i30 @intel_arbitrary_float_cast_to_int.i30.i23(i23 %[[#]], i32 15, i1 true, i32 0, i32 2, i32 1)
-  store i30 %6, i30* %2, align 4, !tbaa !17
-  %7 = bitcast i30* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
-  %8 = bitcast i23* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i30 %4, ptr %2, align 4, !tbaa !17
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -618,46 +604,34 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi5ELi7ELi6ELi8EL
   %4 = alloca i15, align 2
   %5 = alloca i14, align 2
   %6 = alloca i14, align 2
-  %7 = bitcast i13* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %7) #5
-  %8 = bitcast i13* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %8) #5
-  %9 = bitcast i15* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %9) #5
-  %10 = bitcast i15* %4 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %10) #5
-  %11 = bitcast i14* %5 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %11) #5
-  %12 = load i13, i13* %1, align 2, !tbaa !19
-  %13 = load i15, i15* %3, align 2, !tbaa !21
-  %14 = call spir_func signext i14 @_Z30__spirv_ArbitraryFloatAddINTELILi13ELi15ELi14EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i13 signext %12, i32 7, i15 signext %13, i32 8, i32 9, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %4) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %5) #5
+  %7 = load i13, ptr %1, align 2, !tbaa !19
+  %8 = load i15, ptr %3, align 2, !tbaa !21
+  %9 = call spir_func signext i14 @_Z30__spirv_ArbitraryFloatAddINTELILi13ELi15ELi14EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i13 signext %7, i32 7, i15 signext %8, i32 8, i32 9, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Add1_A1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[Add1_B1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_14]] [[#]] [[Add1_A1Id]] 7 [[Add1_B1Id]] 8 9 0 2 1
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_add.i14.i13.i15(i13 %[[#]], i32 7, i15 %[[#]], i32 8, i32 9, i32 0, i32 2, i32 1)
-  store i14 %14, i14* %5, align 2, !tbaa !23
-  %15 = bitcast i14* %6 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %15) #5
-  %16 = load i13, i13* %2, align 2, !tbaa !19
-  %17 = load i15, i15* %4, align 2, !tbaa !21
-  %18 = call spir_func signext i14 @_Z30__spirv_ArbitraryFloatAddINTELILi13ELi15ELi14EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i13 signext %16, i32 7, i15 signext %17, i32 8, i32 9, i32 0, i32 2, i32 1) #5
+  store i14 %9, ptr %5, align 2, !tbaa !23
+  call void @llvm.lifetime.start.p0(i64 2, ptr %6) #5
+  %10 = load i13, ptr %2, align 2, !tbaa !19
+  %11 = load i15, ptr %4, align 2, !tbaa !21
+  %12 = call spir_func signext i14 @_Z30__spirv_ArbitraryFloatAddINTELILi13ELi15ELi14EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i13 signext %10, i32 7, i15 signext %11, i32 8, i32 9, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Add1_A2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[Add1_B2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_14]] [[#]] [[Add1_A2Id]] 7 [[Add1_B2Id]] 8 9 0 2 1
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_add.i14.i13.i15(i13 %[[#]], i32 7, i15 %[[#]], i32 8, i32 9, i32 0, i32 2, i32 1)
-  store i14 %18, i14* %6, align 2, !tbaa !23
-  %19 = bitcast i14* %6 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %19) #5
-  %20 = bitcast i14* %5 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %20) #5
-  %21 = bitcast i15* %4 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %21) #5
-  %22 = bitcast i15* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %22) #5
-  %23 = bitcast i13* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %23) #5
-  %24 = bitcast i13* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %24) #5
+  store i14 %12, ptr %6, align 2, !tbaa !23
+  call void @llvm.lifetime.end.p0(i64 2, ptr %6) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %5) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %4) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -669,46 +643,34 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi6ELi8ELi4ELi9EL
   %4 = alloca i14, align 2
   %5 = alloca i13, align 2
   %6 = alloca i13, align 2
-  %7 = bitcast i15* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %7) #5
-  %8 = bitcast i15* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %8) #5
-  %9 = bitcast i14* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %9) #5
-  %10 = bitcast i14* %4 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %10) #5
-  %11 = bitcast i13* %5 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %11) #5
-  %12 = load i15, i15* %1, align 2, !tbaa !21
-  %13 = load i14, i14* %3, align 2, !tbaa !23
-  %14 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatAddINTELILi15ELi14ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i15 signext %12, i32 8, i14 signext %13, i32 9, i32 7, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %4) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %5) #5
+  %7 = load i15, ptr %1, align 2, !tbaa !21
+  %8 = load i14, ptr %3, align 2, !tbaa !23
+  %9 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatAddINTELILi15ELi14ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i15 signext %7, i32 8, i14 signext %8, i32 9, i32 7, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Add2_A1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_14]] [[Add2_B1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_13]] [[#]] [[Add2_A1Id]] 8 [[Add2_B1Id]] 9 7 0 2 1
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_add.i13.i15.i14(i15 %[[#]], i32 8, i14 %[[#]], i32 9, i32 7, i32 0, i32 2, i32 1)
-  store i13 %14, i13* %5, align 2, !tbaa !19
-  %15 = bitcast i13* %6 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %15) #5
-  %16 = load i15, i15* %2, align 2, !tbaa !21
-  %17 = load i14, i14* %4, align 2, !tbaa !23
-  %18 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatAddINTELILi15ELi14ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i15 signext %16, i32 8, i14 signext %17, i32 9, i32 7, i32 0, i32 2, i32 1) #5
+  store i13 %9, ptr %5, align 2, !tbaa !19
+  call void @llvm.lifetime.start.p0(i64 2, ptr %6) #5
+  %10 = load i15, ptr %2, align 2, !tbaa !21
+  %11 = load i14, ptr %4, align 2, !tbaa !23
+  %12 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatAddINTELILi15ELi14ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i15 signext %10, i32 8, i14 signext %11, i32 9, i32 7, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Add2_A2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_14]] [[Add2_B2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_13]] [[#]] [[Add2_A2Id]] 8 [[Add2_B2Id]] 9 7 0 2 1
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_add.i13.i15.i14(i15 %[[#]], i32 8, i14 %[[#]], i32 9, i32 7, i32 0, i32 2, i32 1)
-  store i13 %18, i13* %6, align 2, !tbaa !19
-  %19 = bitcast i13* %6 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %19) #5
-  %20 = bitcast i13* %5 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %20) #5
-  %21 = bitcast i14* %4 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %21) #5
-  %22 = bitcast i14* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %22) #5
-  %23 = bitcast i15* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %23) #5
-  %24 = bitcast i15* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %24) #5
+  store i13 %12, ptr %6, align 2, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 2, ptr %6) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %5) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %4) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -717,26 +679,20 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_subILi4ELi4ELi5ELi5EL
   %1 = alloca i9, align 2
   %2 = alloca i11, align 2
   %3 = alloca i13, align 2
-  %4 = bitcast i9* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = bitcast i11* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %5) #5
-  %6 = bitcast i13* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %6) #5
-  %7 = load i9, i9* %1, align 2, !tbaa !25
-  %8 = load i11, i11* %2, align 2, !tbaa !27
-  %9 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatSubINTELILi9ELi11ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i9 signext %7, i32 4, i11 signext %8, i32 5, i32 6, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %3) #5
+  %4 = load i9, ptr %1, align 2, !tbaa !25
+  %5 = load i11, ptr %2, align 2, !tbaa !27
+  %6 = call spir_func signext i13 @_Z30__spirv_ArbitraryFloatSubINTELILi9ELi11ELi13EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i9 signext %4, i32 4, i11 signext %5, i32 5, i32 6, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_9]] [[Sub_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_11]] [[Sub_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatSubINTEL [[Ty_13]] [[#]] [[Sub_AId]] 4 [[Sub_BId]] 5 6 0 2 1
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_sub.i13.i9.i11(i9 %[[#]], i32 4, i11 %[[#]], i32 5, i32 6, i32 0, i32 2, i32 1)
-  store i13 %9, i13* %3, align 2, !tbaa !19
-  %10 = bitcast i13* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %10) #5
-  %11 = bitcast i11* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %11) #5
-  %12 = bitcast i9* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %12) #5
+  store i13 %6, ptr %3, align 2, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -745,26 +701,20 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_mulILi16ELi34ELi16ELi
   %1 = alloca i51, align 8
   %2 = alloca i51, align 8
   %3 = alloca i51, align 8
-  %4 = bitcast i51* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i51* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  %6 = bitcast i51* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %6) #5
-  %7 = load i51, i51* %1, align 8, !tbaa !29
-  %8 = load i51, i51* %2, align 8, !tbaa !29
-  %9 = call spir_func i51 @_Z30__spirv_ArbitraryFloatMulINTELILi51ELi51ELi51EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i51 %7, i32 34, i51 %8, i32 34, i32 34, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %3) #5
+  %4 = load i51, ptr %1, align 8, !tbaa !29
+  %5 = load i51, ptr %2, align 8, !tbaa !29
+  %6 = call spir_func i51 @_Z30__spirv_ArbitraryFloatMulINTELILi51ELi51ELi51EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i51 %4, i32 34, i51 %5, i32 34, i32 34, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_51]] [[Mul_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_51]] [[Mul_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatMulINTEL [[Ty_51]] [[#]] [[Mul_AId]] 34 [[Mul_BId]] 34 34 0 2 1
 ; CHECK-LLVM: call i51 @intel_arbitrary_float_mul.i51.i51.i51(i51 %[[#]], i32 34, i51 %[[#]], i32 34, i32 34, i32 0, i32 2, i32 1)
-  store i51 %9, i51* %3, align 8, !tbaa !29
-  %10 = bitcast i51* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i51* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
-  %12 = bitcast i51* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %12) #5
+  store i51 %6, ptr %3, align 8, !tbaa !29
+  call void @llvm.lifetime.end.p0(i64 8, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -773,26 +723,20 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_divILi4ELi11ELi4ELi11
   %1 = alloca i16, align 2
   %2 = alloca i16, align 2
   %3 = alloca i18, align 4
-  %4 = bitcast i16* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = bitcast i16* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %5) #5
-  %6 = bitcast i18* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5
-  %7 = load i16, i16* %1, align 2, !tbaa !31
-  %8 = load i16, i16* %2, align 2, !tbaa !31
-  %9 = call spir_func signext i18 @_Z30__spirv_ArbitraryFloatDivINTELILi16ELi16ELi18EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i16 signext %7, i32 11, i16 signext %8, i32 11, i32 12, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %3) #5
+  %4 = load i16, ptr %1, align 2, !tbaa !31
+  %5 = load i16, ptr %2, align 2, !tbaa !31
+  %6 = call spir_func signext i18 @_Z30__spirv_ArbitraryFloatDivINTELILi16ELi16ELi18EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i16 signext %4, i32 11, i16 signext %5, i32 11, i32 12, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_16]] [[Div_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_16]] [[Div_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatDivINTEL [[Ty_18]] [[#]] [[Div_AId]] 11 [[Div_BId]] 11 12 0 2 1
 ; CHECK-LLVM: call i18 @intel_arbitrary_float_div.i18.i16.i16(i16 %[[#]], i32 11, i16 %[[#]], i32 11, i32 12, i32 0, i32 2, i32 1)
-  store i18 %9, i18* %3, align 4, !tbaa !33
-  %10 = bitcast i18* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5
-  %11 = bitcast i16* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %11) #5
-  %12 = bitcast i16* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %12) #5
+  store i18 %6, ptr %3, align 4, !tbaa !33
+  call void @llvm.lifetime.end.p0(i64 4, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -801,25 +745,21 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_gtILi20ELi42ELi21ELi4
   %1 = alloca i63, align 8
   %2 = alloca i63, align 8
   %3 = alloca i8, align 1
-  %4 = bitcast i63* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i63* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %6 = load i63, i63* %1, align 8, !tbaa !35
-  %7 = load i63, i63* %2, align 8, !tbaa !35
-  %8 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatGTINTELILi63ELi63EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i63 %6, i32 42, i63 %7, i32 41) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %3) #5
+  %4 = load i63, ptr %1, align 8, !tbaa !35
+  %5 = load i63, ptr %2, align 8, !tbaa !35
+  %6 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatGTINTELILi63ELi63EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i63 %4, i32 42, i63 %5, i32 41) #5
 ; CHECK-SPIRV: 6 Load [[Ty_63]] [[GT_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_63]] [[GT_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatGTINTEL [[Ty_Bool]] [[#]] [[GT_AId]] 42 [[GT_BId]] 41
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_gt.i1.i63.i63(i63 %[[#]], i32 42, i63 %[[#]], i32 41)
-  %9 = zext i1 %8 to i8
-  store i8 %9, i8* %3, align 1, !tbaa !37
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %10 = bitcast i63* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i63* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
+  %7 = zext i1 %6 to i8
+  store i8 %7, ptr %3, align 1, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 1, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -828,25 +768,21 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_geILi19ELi27ELi19ELi2
   %1 = alloca i47, align 8
   %2 = alloca i47, align 8
   %3 = alloca i8, align 1
-  %4 = bitcast i47* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i47* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %6 = load i47, i47* %1, align 8, !tbaa !39
-  %7 = load i47, i47* %2, align 8, !tbaa !39
-  %8 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatGEINTELILi47ELi47EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i47 %6, i32 27, i47 %7, i32 27) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %3) #5
+  %4 = load i47, ptr %1, align 8, !tbaa !39
+  %5 = load i47, ptr %2, align 8, !tbaa !39
+  %6 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatGEINTELILi47ELi47EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i47 %4, i32 27, i47 %5, i32 27) #5
 ; CHECK-SPIRV: 6 Load [[Ty_47]] [[GE_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_47]] [[GE_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatGEINTEL [[Ty_Bool]] [[#]] [[GE_AId]] 27 [[GE_BId]] 27
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_ge.i1.i47.i47(i47 %[[#]], i32 27, i47 %[[#]], i32 27)
-  %9 = zext i1 %8 to i8
-  store i8 %9, i8* %3, align 1, !tbaa !37
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %10 = bitcast i47* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i47* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
+  %7 = zext i1 %6 to i8
+  store i8 %7, ptr %3, align 1, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 1, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -855,25 +791,21 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_ltILi2ELi2ELi3ELi3EEv
   %1 = alloca i5, align 1
   %2 = alloca i7, align 1
   %3 = alloca i8, align 1
-  %4 = bitcast i5* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #5
-  %5 = bitcast i7* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %6 = load i5, i5* %1, align 1, !tbaa !41
-  %7 = load i7, i7* %2, align 1, !tbaa !43
-  %8 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatLTINTELILi5ELi7EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i5 signext %6, i32 2, i7 signext %7, i32 3) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %3) #5
+  %4 = load i5, ptr %1, align 1, !tbaa !41
+  %5 = load i7, ptr %2, align 1, !tbaa !43
+  %6 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatLTINTELILi5ELi7EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i5 signext %4, i32 2, i7 signext %5, i32 3) #5
 ; CHECK-SPIRV: 6 Load [[Ty_5]] [[LT_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_7]] [[LT_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatLTINTEL [[Ty_Bool]] [[#]] [[LT_AId]] 2 [[LT_BId]] 3
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_lt.i1.i5.i7(i5 %[[#]], i32 2, i7 %[[#]], i32 3)
-  %9 = zext i1 %8 to i8
-  store i8 %9, i8* %3, align 1, !tbaa !37
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %10 = bitcast i7* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %10) #5
-  %11 = bitcast i5* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %11) #5
+  %7 = zext i1 %6 to i8
+  store i8 %7, ptr %3, align 1, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 1, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -882,25 +814,21 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_leILi27ELi27ELi26ELi2
   %1 = alloca i55, align 8
   %2 = alloca i55, align 8
   %3 = alloca i8, align 1
-  %4 = bitcast i55* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i55* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %6 = load i55, i55* %1, align 8, !tbaa !45
-  %7 = load i55, i55* %2, align 8, !tbaa !45
-  %8 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatLEINTELILi55ELi55EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i55 %6, i32 27, i55 %7, i32 28) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %3) #5
+  %4 = load i55, ptr %1, align 8, !tbaa !45
+  %5 = load i55, ptr %2, align 8, !tbaa !45
+  %6 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatLEINTELILi55ELi55EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i55 %4, i32 27, i55 %5, i32 28) #5
 ; CHECK-SPIRV: 6 Load [[Ty_55]] [[LE_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_55]] [[LE_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatLEINTEL [[Ty_Bool]] [[#]] [[LE_AId]] 27 [[LE_BId]] 28
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_le.i1.i55.i55(i55 %[[#]], i32 27, i55 %[[#]], i32 28)
-  %9 = zext i1 %8 to i8
-  store i8 %9, i8* %3, align 1, !tbaa !37
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %10 = bitcast i55* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i55* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
+  %7 = zext i1 %6 to i8
+  store i8 %7, ptr %3, align 1, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 1, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -909,25 +837,21 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_eqILi7ELi12ELi7ELi7EE
   %1 = alloca i20, align 4
   %2 = alloca i15, align 2
   %3 = alloca i8, align 1
-  %4 = bitcast i20* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = bitcast i15* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %5) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %6 = load i20, i20* %1, align 4, !tbaa !47
-  %7 = load i15, i15* %2, align 2, !tbaa !21
-  %8 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatEQINTELILi20ELi15EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i20 signext %6, i32 12, i15 signext %7, i32 7) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %3) #5
+  %4 = load i20, ptr %1, align 4, !tbaa !47
+  %5 = load i15, ptr %2, align 2, !tbaa !21
+  %6 = call spir_func zeroext i1 @_Z29__spirv_ArbitraryFloatEQINTELILi20ELi15EEbU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEii(i20 signext %4, i32 12, i15 signext %5, i32 7) #5
 ; CHECK-SPIRV: 6 Load [[Ty_20]] [[EQ_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[EQ_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatEQINTEL [[Ty_Bool]] [[#]] [[EQ_AId]] 12 [[EQ_BId]] 7
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_eq.i1.i20.i15(i20 %[[#]], i32 12, i15 %[[#]], i32 7)
-  %9 = zext i1 %8 to i8
-  store i8 %9, i8* %3, align 1, !tbaa !37
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %10 = bitcast i15* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %10) #5
-  %11 = bitcast i20* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %11) #5
+  %7 = zext i1 %6 to i8
+  store i8 %7, ptr %3, align 1, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 1, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -935,20 +859,16 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_eqILi7ELi12ELi7ELi7EE
 define linkonce_odr dso_local spir_func void @_Z14ap_float_recipILi9ELi29ELi9ELi29EEvv() #3 {
   %1 = alloca i39, align 8
   %2 = alloca i39, align 8
-  %3 = bitcast i39* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i39* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i39, i39* %1, align 8, !tbaa !49
-  %6 = call spir_func i39 @_Z32__spirv_ArbitraryFloatRecipINTELILi39ELi39EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i39 %5, i32 29, i32 29, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i39, ptr %1, align 8, !tbaa !49
+  %4 = call spir_func i39 @_Z32__spirv_ArbitraryFloatRecipINTELILi39ELi39EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i39 %3, i32 29, i32 29, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_39]] [[Recip_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatRecipINTEL [[Ty_39]] [[#]] [[Recip_AId]] 29 29 0 2 1
 ; CHECK-LLVM: call i39 @intel_arbitrary_float_recip.i39.i39(i39 %[[#]], i32 29, i32 29, i32 0, i32 2, i32 1)
-  store i39 %6, i39* %2, align 8, !tbaa !49
-  %7 = bitcast i39* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i39* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i39 %4, ptr %2, align 8, !tbaa !49
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -956,20 +876,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_recipILi9ELi29ELi9ELi
 define linkonce_odr dso_local spir_func void @_Z14ap_float_rsqrtILi12ELi19ELi13ELi20EEvv() #3 {
   %1 = alloca i32, align 4
   %2 = alloca i34, align 8
-  %3 = bitcast i32* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i32, i32* %1, align 4, !tbaa !51
-  %6 = call spir_func i34 @_Z32__spirv_ArbitraryFloatRSqrtINTELILi32ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i32 %5, i32 19, i32 20, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i32, ptr %1, align 4, !tbaa !51
+  %4 = call spir_func i34 @_Z32__spirv_ArbitraryFloatRSqrtINTELILi32ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i32 %3, i32 19, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_32]] [[Rsqrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatRSqrtINTEL [[Ty_34]] [[#]] [[Rsqrt_AId]] 19 20 0 2 1
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_rsqrt.i34.i32(i32 %[[#]], i32 19, i32 20, i32 0, i32 2, i32 1)
-  store i34 %6, i34* %2, align 8, !tbaa !53
-  %7 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i32* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i34 %4, ptr %2, align 8, !tbaa !53
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -977,20 +893,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_rsqrtILi12ELi19ELi13E
 define linkonce_odr dso_local spir_func void @_Z13ap_float_cbrtILi0ELi1ELi0ELi1EEvv() #3 {
   %1 = alloca i2, align 1
   %2 = alloca i2, align 1
-  %3 = bitcast i2* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i2* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #5
-  %5 = load i2, i2* %1, align 1, !tbaa !55
-  %6 = call spir_func signext i2 @_Z31__spirv_ArbitraryFloatCbrtINTELILi2ELi2EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i2 signext %5, i32 1, i32 1, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %2) #5
+  %3 = load i2, ptr %1, align 1, !tbaa !55
+  %4 = call spir_func signext i2 @_Z31__spirv_ArbitraryFloatCbrtINTELILi2ELi2EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i2 signext %3, i32 1, i32 1, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_2]] [[Cbrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCbrtINTEL [[Ty_2]] [[#]] [[Cbrt_AId]] 1 1 0 2 1
 ; CHECK-LLVM: call i2 @intel_arbitrary_float_cbrt.i2.i2(i2 %[[#]], i32 1, i32 1, i32 0, i32 2, i32 1)
-  store i2 %6, i2* %2, align 1, !tbaa !55
-  %7 = bitcast i2* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5
-  %8 = bitcast i2* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5
+  store i2 %4, ptr %2, align 1, !tbaa !55
+  call void @llvm.lifetime.end.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -999,26 +911,20 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_hypotILi20ELi20ELi21E
   %1 = alloca i41, align 8
   %2 = alloca i43, align 8
   %3 = alloca i42, align 8
-  %4 = bitcast i41* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i43* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  %6 = bitcast i42* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %6) #5
-  %7 = load i41, i41* %1, align 8, !tbaa !57
-  %8 = load i43, i43* %2, align 8, !tbaa !11
-  %9 = call spir_func i42 @_Z32__spirv_ArbitraryFloatHypotINTELILi41ELi43ELi42EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i41 %7, i32 20, i43 %8, i32 21, i32 22, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %3) #5
+  %4 = load i41, ptr %1, align 8, !tbaa !57
+  %5 = load i43, ptr %2, align 8, !tbaa !11
+  %6 = call spir_func i42 @_Z32__spirv_ArbitraryFloatHypotINTELILi41ELi43ELi42EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i41 %4, i32 20, i43 %5, i32 21, i32 22, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_41]] [[Hypot_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_43]] [[Hypot_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatHypotINTEL [[Ty_42]] [[#]] [[Hypot_AId]] 20 [[Hypot_BId]] 21 22 0 2 1
 ; CHECK-LLVM: call i42 @intel_arbitrary_float_hypot.i42.i41.i43(i41 %[[#]], i32 20, i43 %[[#]], i32 21, i32 22, i32 0, i32 2, i32 1)
-  store i42 %9, i42* %3, align 8, !tbaa !59
-  %10 = bitcast i42* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i43* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
-  %12 = bitcast i41* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %12) #5
+  store i42 %6, ptr %3, align 8, !tbaa !59
+  call void @llvm.lifetime.end.p0(i64 8, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1026,20 +932,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_hypotILi20ELi20ELi21E
 define linkonce_odr dso_local spir_func void @_Z13ap_float_sqrtILi7ELi7ELi8ELi8EEvv() #3 {
   %1 = alloca i15, align 2
   %2 = alloca i17, align 4
-  %3 = bitcast i15* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i17* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = load i15, i15* %1, align 2, !tbaa !21
-  %6 = call spir_func signext i17 @_Z31__spirv_ArbitraryFloatSqrtINTELILi15ELi17EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i15 signext %5, i32 7, i32 8, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  %3 = load i15, ptr %1, align 2, !tbaa !21
+  %4 = call spir_func signext i17 @_Z31__spirv_ArbitraryFloatSqrtINTELILi15ELi17EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i15 signext %3, i32 7, i32 8, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Sqrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSqrtINTEL [[Ty_17]] [[#]] [[Sqrt_AId]] 7 8 0 2 1
 ; CHECK-LLVM: call i17 @intel_arbitrary_float_sqrt.i17.i15(i15 %[[#]], i32 7, i32 8, i32 0, i32 2, i32 1)
-  store i17 %6, i17* %2, align 4, !tbaa !61
-  %7 = bitcast i17* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
-  %8 = bitcast i15* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %8) #5
+  store i17 %4, ptr %2, align 4, !tbaa !61
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -1047,20 +949,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_sqrtILi7ELi7ELi8ELi8E
 define linkonce_odr dso_local spir_func void @_Z12ap_float_logILi30ELi19ELi19ELi30EEvv() #3 {
   %1 = alloca i50, align 8
   %2 = alloca i50, align 8
-  %3 = bitcast i50* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i50* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i50, i50* %1, align 8, !tbaa !63
-  %6 = call spir_func i50 @_Z30__spirv_ArbitraryFloatLogINTELILi50ELi50EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i50 %5, i32 19, i32 30, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i50, ptr %1, align 8, !tbaa !63
+  %4 = call spir_func i50 @_Z30__spirv_ArbitraryFloatLogINTELILi50ELi50EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i50 %3, i32 19, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_50]] [[Log_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLogINTEL [[Ty_50]] [[#]] [[Log_AId]] 19 30 0 2 1
 ; CHECK-LLVM: call i50 @intel_arbitrary_float_log.i50.i50(i50 %[[#]], i32 19, i32 30, i32 0, i32 2, i32 1)
-  store i50 %6, i50* %2, align 8, !tbaa !63
-  %7 = bitcast i50* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i50* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i50 %4, ptr %2, align 8, !tbaa !63
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1068,20 +966,16 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_logILi30ELi19ELi19ELi
 define linkonce_odr dso_local spir_func void @_Z13ap_float_log2ILi17ELi20ELi18ELi19EEvv() #3 {
   %1 = alloca i38, align 8
   %2 = alloca i38, align 8
-  %3 = bitcast i38* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i38* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i38, i38* %1, align 8, !tbaa !65
-  %6 = call spir_func i38 @_Z31__spirv_ArbitraryFloatLog2INTELILi38ELi38EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i38 %5, i32 20, i32 19, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i38, ptr %1, align 8, !tbaa !65
+  %4 = call spir_func i38 @_Z31__spirv_ArbitraryFloatLog2INTELILi38ELi38EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i38 %3, i32 20, i32 19, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_38]] [[Log2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog2INTEL [[Ty_38]] [[#]] [[Log2_AId]] 20 19 0 2 1
 ; CHECK-LLVM: call i38 @intel_arbitrary_float_log2.i38.i38(i38 %[[#]], i32 20, i32 19, i32 0, i32 2, i32 1)
-  store i38 %6, i38* %2, align 8, !tbaa !65
-  %7 = bitcast i38* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i38* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i38 %4, ptr %2, align 8, !tbaa !65
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1089,18 +983,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_log2ILi17ELi20ELi18EL
 define linkonce_odr dso_local spir_func void @_Z14ap_float_log10ILi4ELi3ELi4ELi5EEvv() #3 {
   %1 = alloca i8, align 1
   %2 = alloca i10, align 2
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  %3 = bitcast i10* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %3) #5
-  %4 = load i8, i8* %1, align 1, !tbaa !67
-  %5 = call spir_func signext i10 @_Z32__spirv_ArbitraryFloatLog10INTELILi8ELi10EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i8 signext %4, i32 3, i32 5, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  %3 = load i8, ptr %1, align 1, !tbaa !67
+  %4 = call spir_func signext i10 @_Z32__spirv_ArbitraryFloatLog10INTELILi8ELi10EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i8 signext %3, i32 3, i32 5, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_8]] [[Log10_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog10INTEL [[Ty_10]] [[#]] [[Log10_AId]] 3 5 0 2 1
 ; CHECK-LLVM: call i10 @intel_arbitrary_float_log10.i10.i8(i8 %[[#]], i32 3, i32 5, i32 0, i32 2, i32 1)
-  store i10 %5, i10* %2, align 2, !tbaa !69
-  %6 = bitcast i10* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %6) #5
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %1) #5
+  store i10 %4, ptr %2, align 2, !tbaa !69
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -1108,20 +1000,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_log10ILi4ELi3ELi4ELi5
 define linkonce_odr dso_local spir_func void @_Z14ap_float_log1pILi17ELi30ELi18ELi30EEvv() #3 {
   %1 = alloca i48, align 8
   %2 = alloca i49, align 8
-  %3 = bitcast i48* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i49* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i48, i48* %1, align 8, !tbaa !71
-  %6 = call spir_func i49 @_Z32__spirv_ArbitraryFloatLog1pINTELILi48ELi49EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i48 %5, i32 30, i32 30, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i48, ptr %1, align 8, !tbaa !71
+  %4 = call spir_func i49 @_Z32__spirv_ArbitraryFloatLog1pINTELILi48ELi49EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i48 %3, i32 30, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_48]] [[Log1p_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog1pINTEL [[Ty_49]] [[#]] [[Log1p_AId]] 30 30 0 2 1
 ; CHECK-LLVM: call i49 @intel_arbitrary_float_log1p.i49.i48(i48 %[[#]], i32 30, i32 30, i32 0, i32 2, i32 1)
-  store i49 %6, i49* %2, align 8, !tbaa !73
-  %7 = bitcast i49* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i48* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i49 %4, ptr %2, align 8, !tbaa !73
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1129,20 +1017,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_log1pILi17ELi30ELi18E
 define linkonce_odr dso_local spir_func void @_Z12ap_float_expILi16ELi25ELi16ELi25EEvv() #3 {
   %1 = alloca i42, align 8
   %2 = alloca i42, align 8
-  %3 = bitcast i42* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i42* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i42, i42* %1, align 8, !tbaa !59
-  %6 = call spir_func i42 @_Z30__spirv_ArbitraryFloatExpINTELILi42ELi42EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i42 %5, i32 25, i32 25, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i42, ptr %1, align 8, !tbaa !59
+  %4 = call spir_func i42 @_Z30__spirv_ArbitraryFloatExpINTELILi42ELi42EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i42 %3, i32 25, i32 25, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_42]] [[Exp_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExpINTEL [[Ty_42]] [[#]] [[Exp_AId]] 25 25 0 2 1
 ; CHECK-LLVM: call i42 @intel_arbitrary_float_exp.i42.i42(i42 %[[#]], i32 25, i32 25, i32 0, i32 2, i32 1)
-  store i42 %6, i42* %2, align 8, !tbaa !59
-  %7 = bitcast i42* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i42* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i42 %4, ptr %2, align 8, !tbaa !59
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1150,20 +1034,16 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_expILi16ELi25ELi16ELi
 define linkonce_odr dso_local spir_func void @_Z13ap_float_exp2ILi1ELi1ELi2ELi2EEvv() #3 {
   %1 = alloca i3, align 1
   %2 = alloca i5, align 1
-  %3 = bitcast i3* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i5* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #5
-  %5 = load i3, i3* %1, align 1, !tbaa !75
-  %6 = call spir_func signext i5 @_Z31__spirv_ArbitraryFloatExp2INTELILi3ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i3 signext %5, i32 1, i32 2, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %2) #5
+  %3 = load i3, ptr %1, align 1, !tbaa !75
+  %4 = call spir_func signext i5 @_Z31__spirv_ArbitraryFloatExp2INTELILi3ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i3 signext %3, i32 1, i32 2, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_3]] [[Exp2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExp2INTEL [[Ty_5]] [[#]] [[Exp2_AId]] 1 2 0 2 1
 ; CHECK-LLVM: call i5 @intel_arbitrary_float_exp2.i5.i3(i3 %[[#]], i32 1, i32 2, i32 0, i32 2, i32 1)
-  store i5 %6, i5* %2, align 1, !tbaa !41
-  %7 = bitcast i5* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5
-  %8 = bitcast i3* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5
+  store i5 %4, ptr %2, align 1, !tbaa !41
+  call void @llvm.lifetime.end.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -1171,20 +1051,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_exp2ILi1ELi1ELi2ELi2E
 define linkonce_odr dso_local spir_func void @_Z14ap_float_exp10ILi8ELi16ELi8ELi16EEvv() #3 {
   %1 = alloca i25, align 4
   %2 = alloca i25, align 4
-  %3 = bitcast i25* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = load i25, i25* %1, align 4, !tbaa !13
-  %6 = call spir_func signext i25 @_Z32__spirv_ArbitraryFloatExp10INTELILi25ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i25 signext %5, i32 16, i32 16, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  %3 = load i25, ptr %1, align 4, !tbaa !13
+  %4 = call spir_func signext i25 @_Z32__spirv_ArbitraryFloatExp10INTELILi25ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i25 signext %3, i32 16, i32 16, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_25]] [[Exp10_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExp10INTEL [[Ty_25]] [[#]] [[Exp10_AId]] 16 16 0 2 1
 ; CHECK-LLVM: call i25 @intel_arbitrary_float_exp10.i25.i25(i25 %[[#]], i32 16, i32 16, i32 0, i32 2, i32 1)
-  store i25 %6, i25* %2, align 4, !tbaa !13
-  %7 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #5
-  %8 = bitcast i25* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i25 %4, ptr %2, align 4, !tbaa !13
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1192,20 +1068,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_exp10ILi8ELi16ELi8ELi
 define linkonce_odr dso_local spir_func void @_Z14ap_float_expm1ILi21ELi42ELi20ELi41EEvv() #3 {
   %1 = alloca i64, align 8
   %2 = alloca i62, align 8
-  %3 = bitcast i64* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i62* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i64, i64* %1, align 8, !tbaa !77
-  %6 = call spir_func i62 @_Z32__spirv_ArbitraryFloatExpm1INTELILi64ELi62EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i64 %5, i32 42, i32 41, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i64, ptr %1, align 8, !tbaa !77
+  %4 = call spir_func i62 @_Z32__spirv_ArbitraryFloatExpm1INTELILi64ELi62EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i64 %3, i32 42, i32 41, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_64]] [[Expm1_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExpm1INTEL [[Ty_62]] [[#]] [[Expm1_AId]] 42 41 0 2 1
 ; CHECK-LLVM: call i62 @intel_arbitrary_float_expm1.i62.i64(i64 %[[#]], i32 42, i32 41, i32 0, i32 2, i32 1)
-  store i62 %6, i62* %2, align 8, !tbaa !79
-  %7 = bitcast i62* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i64* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i62 %4, ptr %2, align 8, !tbaa !79
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1213,20 +1085,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_expm1ILi21ELi42ELi20E
 define linkonce_odr dso_local spir_func void @_Z12ap_float_sinILi14ELi15ELi16ELi17EEvv() #3 {
   %1 = alloca i30, align 4
   %2 = alloca i34, align 8
-  %3 = bitcast i30* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i30, i30* %1, align 4, !tbaa !17
-  %6 = call spir_func i34 @_Z30__spirv_ArbitraryFloatSinINTELILi30ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %5, i32 15, i32 17, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i30, ptr %1, align 4, !tbaa !17
+  %4 = call spir_func i34 @_Z30__spirv_ArbitraryFloatSinINTELILi30ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %3, i32 15, i32 17, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_30]] [[Sin_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinINTEL [[Ty_34]] [[#]] [[Sin_AId]] 15 17 0 2 1
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_sin.i34.i30(i30 %[[#]], i32 15, i32 17, i32 0, i32 2, i32 1)
-  store i34 %6, i34* %2, align 8, !tbaa !53
-  %7 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i30* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i34 %4, ptr %2, align 8, !tbaa !53
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1234,20 +1102,16 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_sinILi14ELi15ELi16ELi
 define linkonce_odr dso_local spir_func void @_Z12ap_float_cosILi1ELi2ELi2ELi1EEvv() #3 {
   %1 = alloca i4, align 1
   %2 = alloca i4, align 1
-  %3 = bitcast i4* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i4* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #5
-  %5 = load i4, i4* %1, align 1, !tbaa !81
-  %6 = call spir_func signext i4 @_Z30__spirv_ArbitraryFloatCosINTELILi4ELi4EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i4 signext %5, i32 2, i32 1, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %2) #5
+  %3 = load i4, ptr %1, align 1, !tbaa !81
+  %4 = call spir_func signext i4 @_Z30__spirv_ArbitraryFloatCosINTELILi4ELi4EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i4 signext %3, i32 2, i32 1, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_4]] [[Cos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCosINTEL [[Ty_4]] [[#]] [[Cos_AId]] 2 1 0 2 1
 ; CHECK-LLVM: call i4 @intel_arbitrary_float_cos.i4.i4(i4 %[[#]], i32 2, i32 1, i32 0, i32 2, i32 1)
-  store i4 %6, i4* %2, align 1, !tbaa !81
-  %7 = bitcast i4* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5
-  %8 = bitcast i4* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5
+  store i4 %4, ptr %2, align 1, !tbaa !81
+  call void @llvm.lifetime.end.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -1255,20 +1119,16 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_cosILi1ELi2ELi2ELi1EE
 define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10ELi20EEvv() #3 {
   %1 = alloca i27, align 4
   %2 = alloca i62, align 8
-  %3 = bitcast i27* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i62* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i27, i27* %1, align 4, !tbaa !83
-  %6 = call spir_func i62 @_Z33__spirv_ArbitraryFloatSinCosINTELILi27ELi31EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i27 signext %5, i32 18, i32 20, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i27, ptr %1, align 4, !tbaa !83
+  %4 = call spir_func i62 @_Z33__spirv_ArbitraryFloatSinCosINTELILi27ELi31EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i27 signext %3, i32 18, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_27]] [[SinCos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_62]] [[#]] [[SinCos_AId]] 18 20 0 2 1
 ; CHECK-LLVM: call i62 @intel_arbitrary_float_sincos.i62.i27(i27 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
-  store i62 %6, i62* %2, align 8, !tbaa !79
-  %7 = bitcast i62* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i27* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i62 %4, ptr %2, align 8, !tbaa !79
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1276,20 +1136,16 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10E
 define linkonce_odr dso_local spir_func void @_Z14ap_float_sinpiILi3ELi6ELi6ELi6EEvv() #3 {
   %1 = alloca i10, align 2
   %2 = alloca i13, align 2
-  %3 = bitcast i10* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i13* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = load i10, i10* %1, align 2, !tbaa !69
-  %6 = call spir_func signext i13 @_Z32__spirv_ArbitraryFloatSinPiINTELILi10ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i10 signext %5, i32 6, i32 6, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  %3 = load i10, ptr %1, align 2, !tbaa !69
+  %4 = call spir_func signext i13 @_Z32__spirv_ArbitraryFloatSinPiINTELILi10ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i10 signext %3, i32 6, i32 6, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_10]] [[SinPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinPiINTEL [[Ty_13]] [[#]] [[SinPi_AId]] 6 6 0 2 1
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_sinpi.i13.i10(i10 %[[#]], i32 6, i32 6, i32 0, i32 2, i32 1)
-  store i13 %6, i13* %2, align 2, !tbaa !19
-  %7 = bitcast i13* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %7) #5
-  %8 = bitcast i10* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %8) #5
+  store i13 %4, ptr %2, align 2, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -1297,20 +1153,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_sinpiILi3ELi6ELi6ELi6
 define linkonce_odr dso_local spir_func void @_Z14ap_float_cospiILi18ELi40ELi18ELi40EEvv() #3 {
   %1 = alloca i59, align 8
   %2 = alloca i59, align 8
-  %3 = bitcast i59* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i59* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i59, i59* %1, align 8, !tbaa !85
-  %6 = call spir_func i59 @_Z32__spirv_ArbitraryFloatCosPiINTELILi59ELi59EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i59 %5, i32 40, i32 40, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i59, ptr %1, align 8, !tbaa !85
+  %4 = call spir_func i59 @_Z32__spirv_ArbitraryFloatCosPiINTELILi59ELi59EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i59 %3, i32 40, i32 40, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_59]] [[CosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCosPiINTEL [[Ty_59]] [[#]] [[CosPi_AId]] 40 40 0 2 1
 ; CHECK-LLVM: call i59 @intel_arbitrary_float_cospi.i59.i59(i59 %[[#]], i32 40, i32 40, i32 0, i32 2, i32 1)
-  store i59 %6, i59* %2, align 8, !tbaa !85
-  %7 = bitcast i59* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i59* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i59 %4, ptr %2, align 8, !tbaa !85
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1318,20 +1170,16 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_cospiILi18ELi40ELi18E
 define linkonce_odr dso_local spir_func void @_Z17ap_float_sincospiILi9ELi20ELi11ELi20EEvv() #3 {
   %1 = alloca i30, align 4
   %2 = alloca i64, align 8
-  %3 = bitcast i30* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i64* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i30, i30* %1, align 4, !tbaa !17
-  %6 = call spir_func i64 @_Z35__spirv_ArbitraryFloatSinCosPiINTELILi30ELi32EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %5, i32 20, i32 20, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i30, ptr %1, align 4, !tbaa !17
+  %4 = call spir_func i64 @_Z35__spirv_ArbitraryFloatSinCosPiINTELILi30ELi32EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %3, i32 20, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_30]] [[SinCosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosPiINTEL [[Ty_64]] [[#]] [[SinCosPi_AId]] 20 20 0 2 1
 ; CHECK-LLVM: call i64 @intel_arbitrary_float_sincospi.i64.i30(i30 %[[#]], i32 20, i32 20, i32 0, i32 2, i32 1)
-  store i64 %6, i64* %2, align 8, !tbaa !77
-  %7 = bitcast i64* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i30* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8) #5
+  store i64 %4, ptr %2, align 8, !tbaa !77
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1339,20 +1187,16 @@ define linkonce_odr dso_local spir_func void @_Z17ap_float_sincospiILi9ELi20ELi1
 define linkonce_odr dso_local spir_func void @_Z13ap_float_asinILi2ELi4ELi2ELi8EEvv() #3 {
   %1 = alloca i7, align 1
   %2 = alloca i11, align 2
-  %3 = bitcast i7* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i11* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = load i7, i7* %1, align 1, !tbaa !43
-  %6 = call spir_func signext i11 @_Z31__spirv_ArbitraryFloatASinINTELILi7ELi11EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i7 signext %5, i32 4, i32 8, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  %3 = load i7, ptr %1, align 1, !tbaa !43
+  %4 = call spir_func signext i11 @_Z31__spirv_ArbitraryFloatASinINTELILi7ELi11EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i7 signext %3, i32 4, i32 8, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_7]] [[ASin_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatASinINTEL [[Ty_11]] [[#]] [[ASin_AId]] 4 8 0 2 1
 ; CHECK-LLVM: call i11 @intel_arbitrary_float_asin.i11.i7(i7 %[[#]], i32 4, i32 8, i32 0, i32 2, i32 1)
-  store i11 %6, i11* %2, align 2, !tbaa !27
-  %7 = bitcast i11* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %7) #5
-  %8 = bitcast i7* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5
+  store i11 %4, ptr %2, align 2, !tbaa !27
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -1360,20 +1204,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_asinILi2ELi4ELi2ELi8E
 define linkonce_odr dso_local spir_func void @_Z15ap_float_asinpiILi11ELi23ELi11ELi23EEvv() #3 {
   %1 = alloca i35, align 8
   %2 = alloca i35, align 8
-  %3 = bitcast i35* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i35* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i35, i35* %1, align 8, !tbaa !87
-  %6 = call spir_func i35 @_Z33__spirv_ArbitraryFloatASinPiINTELILi35ELi35EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i35 %5, i32 23, i32 23, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i35, ptr %1, align 8, !tbaa !87
+  %4 = call spir_func i35 @_Z33__spirv_ArbitraryFloatASinPiINTELILi35ELi35EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i35 %3, i32 23, i32 23, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_35]] [[ASinPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatASinPiINTEL [[Ty_35]] [[#]] [[ASinPi_AId]] 23 23 0 2 1
 ; CHECK-LLVM: call i35 @intel_arbitrary_float_asinpi.i35.i35(i35 %[[#]], i32 23, i32 23, i32 0, i32 2, i32 1)
-  store i35 %6, i35* %2, align 8, !tbaa !87
-  %7 = bitcast i35* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i35* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i35 %4, ptr %2, align 8, !tbaa !87
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1381,20 +1221,16 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_asinpiILi11ELi23ELi11
 define linkonce_odr dso_local spir_func void @_Z13ap_float_acosILi4ELi9ELi3ELi10EEvv() #3 {
   %1 = alloca i14, align 2
   %2 = alloca i14, align 2
-  %3 = bitcast i14* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i14* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = load i14, i14* %1, align 2, !tbaa !23
-  %6 = call spir_func signext i14 @_Z31__spirv_ArbitraryFloatACosINTELILi14ELi14EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i14 signext %5, i32 9, i32 10, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  %3 = load i14, ptr %1, align 2, !tbaa !23
+  %4 = call spir_func signext i14 @_Z31__spirv_ArbitraryFloatACosINTELILi14ELi14EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i14 signext %3, i32 9, i32 10, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_14]] [[ACos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatACosINTEL [[Ty_14]] [[#]] [[ACos_AId]] 9 10 0 2 1
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_acos.i14.i14(i14 %[[#]], i32 9, i32 10, i32 0, i32 2, i32 1)
-  store i14 %6, i14* %2, align 2, !tbaa !23
-  %7 = bitcast i14* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %7) #5
-  %8 = bitcast i14* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %8) #5
+  store i14 %4, ptr %2, align 2, !tbaa !23
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
@@ -1402,16 +1238,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_acosILi4ELi9ELi3ELi10
 define linkonce_odr dso_local spir_func void @_Z15ap_float_acospiILi2ELi5ELi3ELi4EEvv() #3 {
   %1 = alloca i8, align 1
   %2 = alloca i8, align 1
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %2) #5
-  %3 = load i8, i8* %1, align 1, !tbaa !67
+  call void @llvm.lifetime.start.p0(i64 1, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %2) #5
+  %3 = load i8, ptr %1, align 1, !tbaa !67
   %4 = call spir_func signext i8 @_Z33__spirv_ArbitraryFloatACosPiINTELILi8ELi8EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i8 signext %3, i32 5, i32 4, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_8]] [[ACosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatACosPiINTEL [[Ty_8]] [[#]] [[ACosPi_AId]] 5 4 0 2 1
 ; CHECK-LLVM: call i8 @intel_arbitrary_float_acospi.i8.i8(i8 %[[#]], i32 5, i32 4, i32 0, i32 2, i32 1)
-  store i8 %4, i8* %2, align 1, !tbaa !67
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #5
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %1) #5
+  store i8 %4, ptr %2, align 1, !tbaa !67
+  call void @llvm.lifetime.end.p0(i64 1, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %1) #5
   ret void
 }
 
@@ -1419,20 +1255,16 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_acospiILi2ELi5ELi3ELi
 define linkonce_odr dso_local spir_func void @_Z13ap_float_atanILi12ELi31ELi12ELi31EEvv() #3 {
   %1 = alloca i44, align 8
   %2 = alloca i44, align 8
-  %3 = bitcast i44* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i44* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i44, i44* %1, align 8, !tbaa !89
-  %6 = call spir_func i44 @_Z31__spirv_ArbitraryFloatATanINTELILi44ELi44EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i44 %5, i32 31, i32 31, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i44, ptr %1, align 8, !tbaa !89
+  %4 = call spir_func i44 @_Z31__spirv_ArbitraryFloatATanINTELILi44ELi44EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i44 %3, i32 31, i32 31, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_44]] [[ATan_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatATanINTEL [[Ty_44]] [[#]] [[ATan_AId]] 31 31 0 2 1
 ; CHECK-LLVM: call i44 @intel_arbitrary_float_atan.i44.i44(i44 %[[#]], i32 31, i32 31, i32 0, i32 2, i32 1)
-  store i44 %6, i44* %2, align 8, !tbaa !89
-  %7 = bitcast i44* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i44* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i44 %4, ptr %2, align 8, !tbaa !89
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1440,20 +1272,16 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_atanILi12ELi31ELi12EL
 define linkonce_odr dso_local spir_func void @_Z15ap_float_atanpiILi1ELi38ELi1ELi32EEvv() #3 {
   %1 = alloca i40, align 8
   %2 = alloca i34, align 8
-  %3 = bitcast i40* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = load i40, i40* %1, align 8, !tbaa !9
-  %6 = call spir_func i34 @_Z33__spirv_ArbitraryFloatATanPiINTELILi40ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %5, i32 38, i32 32, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  %3 = load i40, ptr %1, align 8, !tbaa !9
+  %4 = call spir_func i34 @_Z33__spirv_ArbitraryFloatATanPiINTELILi40ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %3, i32 38, i32 32, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_40]] [[ATanPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatATanPiINTEL [[Ty_34]] [[#]] [[ATanPi_AId]] 38 32 0 2 1
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_atanpi.i34.i40(i40 %[[#]], i32 38, i32 32, i32 0, i32 2, i32 1)
-  store i34 %6, i34* %2, align 8, !tbaa !53
-  %7 = bitcast i34* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #5
-  %8 = bitcast i40* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %8) #5
+  store i34 %4, ptr %2, align 8, !tbaa !53
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1462,26 +1290,20 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
   %1 = alloca i24, align 4
   %2 = alloca i25, align 4
   %3 = alloca i27, align 4
-  %4 = bitcast i24* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5
-  %6 = bitcast i27* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5
-  %7 = load i24, i24* %1, align 4, !tbaa !91
-  %8 = load i25, i25* %2, align 4, !tbaa !13
-  %9 = call spir_func signext i27 @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi27EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i24 signext %7, i32 16, i25 signext %8, i32 17, i32 18, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %3) #5
+  %4 = load i24, ptr %1, align 4, !tbaa !91
+  %5 = load i25, ptr %2, align 4, !tbaa !13
+  %6 = call spir_func signext i27 @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi27EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i24 signext %4, i32 16, i25 signext %5, i32 17, i32 18, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_27]] [[#]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
 ; CHECK-LLVM: call i27 @intel_arbitrary_float_atan2.i27.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
-  store i27 %9, i27* %3, align 4, !tbaa !83
-  %10 = bitcast i27* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5
-  %11 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %11) #5
-  %12 = bitcast i24* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #5
+  store i27 %6, ptr %3, align 4, !tbaa !83
+  call void @llvm.lifetime.end.p0(i64 4, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1490,26 +1312,20 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_powILi8ELi8ELi9ELi9EL
   %1 = alloca i17, align 4
   %2 = alloca i19, align 4
   %3 = alloca i21, align 4
-  %4 = bitcast i17* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5
-  %5 = bitcast i19* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5
-  %6 = bitcast i21* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5
-  %7 = load i17, i17* %1, align 4, !tbaa !61
-  %8 = load i19, i19* %2, align 4, !tbaa !93
-  %9 = call spir_func signext i21 @_Z30__spirv_ArbitraryFloatPowINTELILi17ELi19ELi21EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i17 signext %7, i32 8, i19 signext %8, i32 9, i32 10, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %3) #5
+  %4 = load i17, ptr %1, align 4, !tbaa !61
+  %5 = load i19, ptr %2, align 4, !tbaa !93
+  %6 = call spir_func signext i21 @_Z30__spirv_ArbitraryFloatPowINTELILi17ELi19ELi21EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i17 signext %4, i32 8, i19 signext %5, i32 9, i32 10, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_17]] [[Pow_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_19]] [[Pow_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowINTEL [[Ty_21]] [[#]] [[Pow_AId]] 8 [[Pow_BId]] 9 10 0 2 1
 ; CHECK-LLVM: call i21 @intel_arbitrary_float_pow.i21.i17.i19(i17 %[[#]], i32 8, i19 %[[#]], i32 9, i32 10, i32 0, i32 2, i32 1)
-  store i21 %9, i21* %3, align 4, !tbaa !95
-  %10 = bitcast i21* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5
-  %11 = bitcast i19* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %11) #5
-  %12 = bitcast i17* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #5
+  store i21 %6, ptr %3, align 4, !tbaa !95
+  call void @llvm.lifetime.end.p0(i64 4, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1518,26 +1334,20 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_powrILi18ELi35ELi19EL
   %1 = alloca i54, align 8
   %2 = alloca i55, align 8
   %3 = alloca i56, align 8
-  %4 = bitcast i54* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4) #5
-  %5 = bitcast i55* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5) #5
-  %6 = bitcast i56* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %6) #5
-  %7 = load i54, i54* %1, align 8, !tbaa !97
-  %8 = load i55, i55* %2, align 8, !tbaa !45
-  %9 = call spir_func i56 @_Z31__spirv_ArbitraryFloatPowRINTELILi54ELi55ELi56EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i54 %7, i32 35, i55 %8, i32 35, i32 35, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %3) #5
+  %4 = load i54, ptr %1, align 8, !tbaa !97
+  %5 = load i55, ptr %2, align 8, !tbaa !45
+  %6 = call spir_func i56 @_Z31__spirv_ArbitraryFloatPowRINTELILi54ELi55ELi56EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i54 %4, i32 35, i55 %5, i32 35, i32 35, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_54]] [[PowR_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_55]] [[PowR_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowRINTEL [[Ty_56]] [[#]] [[PowR_AId]] 35 [[PowR_BId]] 35 35 0 2 1
 ; CHECK-LLVM: call i56 @intel_arbitrary_float_powr.i56.i54.i55(i54 %[[#]], i32 35, i55 %[[#]], i32 35, i32 35, i32 0, i32 2, i32 1)
-  store i56 %9, i56* %3, align 8, !tbaa !99
-  %10 = bitcast i56* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %10) #5
-  %11 = bitcast i55* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5
-  %12 = bitcast i54* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %12) #5
+  store i56 %6, ptr %3, align 8, !tbaa !99
+  call void @llvm.lifetime.end.p0(i64 8, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1) #5
   ret void
 }
 
@@ -1546,51 +1356,41 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5
   %1 = alloca i12, align 2
   %2 = alloca i10, align 2
   %3 = alloca i15, align 2
-  %4 = bitcast i12* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = bitcast i10* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %5) #5
-  %6 = bitcast i15* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %6) #5
-  %7 = load i12, i12* %1, align 2, !tbaa !101
-  %8 = load i10, i10* %2, align 2, !tbaa !69
-  %9 = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext %7, i32 7, i10 signext %8, i1 zeroext false, i32 9, i32 0, i32 2, i32 1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %3) #5
+  %4 = load i12, ptr %1, align 2, !tbaa !101
+  %5 = load i10, ptr %2, align 2, !tbaa !69
+  %6 = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext %4, i32 7, i10 signext %5, i1 zeroext false, i32 9, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_12]] [[PowN_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 0 9 0 2 1
 ; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i12.i10(i12 %[[#]], i32 7, i10 %[[#]], i1 false, i32 9, i32 0, i32 2, i32 1)
-  store i15 %9, i15* %3, align 2, !tbaa !21
-  %10 = bitcast i15* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %10) #5
-  %11 = bitcast i10* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %11) #5
-  %12 = bitcast i12* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %12) #5
+  store i15 %6, ptr %3, align 2, !tbaa !21
+  call void @llvm.lifetime.end.p0(i64 2, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %1) #5
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
 define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10ELi20EEvv_() #3 {
   %1 = alloca i34, align 8
-  %2 = addrspacecast i34* %1 to i34 addrspace(4)*
+  %2 = addrspacecast ptr %1 to ptr addrspace(4)
   %3 = alloca i66, align 8
-  %4 = addrspacecast i66* %3 to i66 addrspace(4)*
-  %5 = bitcast i34* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5)
-  %6 = bitcast i66* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %6)
-  %7 = load i34, i34 addrspace(4)* %2, align 8
-  call spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i34 %7, i32 18, i32 20, i32 0, i32 2, i32 1) #5
+  %4 = addrspacecast ptr %3 to ptr addrspace(4)
+  call void @llvm.lifetime.start.p0(i64 8, ptr %1)
+  call void @llvm.lifetime.start.p0(i64 16, ptr %3)
+  %5 = load i34, ptr addrspace(4) %2, align 8
+  call spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(ptr addrspace(4) sret(i66) align 8 %4, i34 %5, i32 18, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_AId]] 18 20 0 2 1
 ; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
 ; CHECK-LLVM: call void @intel_arbitrary_float_sincos.i66.i34(ptr addrspace(4) sret(i66) %[[#]], i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
-  %8 = load i66, i66 addrspace(4)* %4, align 8
-  store i66 %8, i66 addrspace(4)* %4, align 8
-  %9 = bitcast i34* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %9)
-  %10 = bitcast i66* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %10)
+  %6 = load i66, ptr addrspace(4) %4, align 8
+  store i66 %6, ptr addrspace(4) %4, align 8
+  call void @llvm.lifetime.end.p0(i64 8, ptr %1)
+  call void @llvm.lifetime.end.p0(i64 16, ptr %3)
   ret void
 }
 
@@ -1599,29 +1399,23 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
   %1 = alloca i24, align 4
   %2 = alloca i25, align 4
   %3 = alloca i66, align 8
-  %4 = addrspacecast i66* %3 to i66 addrspace(4)*
-  %5 = bitcast i24* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5
-  %6 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5
-  %7 = bitcast i66* %3 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %7) #5
-  %8 = load i24, i24* %1, align 4, !tbaa !91
-  %9 = load i25, i25* %2, align 4, !tbaa !13
-  call spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i24 signext %8, i32 16, i25 signext %9, i32 17, i32 18, i32 0, i32 2, i32 1) #5
+  %4 = addrspacecast ptr %3 to ptr addrspace(4)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %1) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.start.p0(i64 16, ptr %3) #5
+  %5 = load i24, ptr %1, align 4, !tbaa !91
+  %6 = load i25, ptr %2, align 4, !tbaa !13
+  call spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(ptr addrspace(4) sret(i66) align 8 %4, i24 signext %5, i32 16, i25 signext %6, i32 17, i32 18, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[ATan2_ResultId:[0-9]+]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
 ; CHECK-SPIRV: 3 Store [[#]] [[ATan2_ResultId]]
 ; CHECK-LLVM: call void @intel_arbitrary_float_atan2.i66.i24.i25(ptr addrspace(4) sret(i66) %[[#]], i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
-  %10 = load i66, i66 addrspace(4)* %4, align 8
-  store i66 %10, i66 addrspace(4)* %4, align 8
-  %11 = bitcast i66* %3 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %11) #5
-  %12 = bitcast i25* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #5
-  %13 = bitcast i24* %1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #5
+  %7 = load i66, ptr addrspace(4) %4, align 8
+  store i66 %7, ptr addrspace(4) %4, align 8
+  call void @llvm.lifetime.end.p0(i64 16, ptr %3) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %1) #5
   ret void
 }
 
@@ -1629,35 +1423,29 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
 define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi64ELi7ELi10ELi5ELi9EEvv() #3 {
 entry:
   %A = alloca i72, align 8
-  %A.ascast = addrspacecast i72* %A to i72 addrspace(4)*
+  %A.ascast = addrspacecast ptr %A to ptr addrspace(4)
   %B = alloca i10, align 2
-  %B.ascast = addrspacecast i10* %B to i10 addrspace(4)*
+  %B.ascast = addrspacecast ptr %B to ptr addrspace(4)
   %pown_res = alloca i15, align 2
-  %pown_res.ascast = addrspacecast i15* %pown_res to i15 addrspace(4)*
+  %pown_res.ascast = addrspacecast ptr %pown_res to ptr addrspace(4)
   %indirect-arg-temp = alloca i72, align 8
-  %0 = bitcast i72* %A to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %0) #5
-  %1 = bitcast i10* %B to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
-  %2 = bitcast i15* %pown_res to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %2) #5
-  %3 = load i72, i72 addrspace(4)* %A.ascast, align 8
-  %4 = load i10, i10 addrspace(4)* %B.ascast, align 2
-  store i72 %3, i72* %indirect-arg-temp, align 8
+  call void @llvm.lifetime.start.p0(i64 16, ptr %A) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %B) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %pown_res) #5
+  %0 = load i72, ptr addrspace(4) %A.ascast, align 8
+  %1 = load i10, ptr addrspace(4) %B.ascast, align 2
+  store i72 %0, ptr %indirect-arg-temp, align 8
 ; CHECK-SPIRV: 6 Load [[Ty_72]] [[ResAId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 5 Store [[PtrId:[0-9]+]] [[ResAId]]
 ; CHECK-SPIRV-NEXT: 4 Load [[Ty_72]] [[PowN_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 1 9 0 2 1
 ; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i72.i10(i72 %[[#]], i32 7, i10 %[[#]], i1 true, i32 9, i32 0, i32 2, i32 1)
-  %call = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8 %indirect-arg-temp, i32 7, i10 signext %4, i1 zeroext true, i32 9, i32 0, i32 2, i32 1) #4
-  store i15 %call, i15 addrspace(4)* %pown_res.ascast, align 2
-  %5 = bitcast i15* %pown_res to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %5) #5
-  %6 = bitcast i10* %B to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %6) #5
-  %7 = bitcast i72* %A to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %7) #5
+  %call = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(ptr byval(i72) align 8 %indirect-arg-temp, i32 7, i10 signext %1, i1 zeroext true, i32 9, i32 0, i32 2, i32 1) #4
+  store i15 %call, ptr addrspace(4) %pown_res.ascast, align 2
+  call void @llvm.lifetime.end.p0(i64 2, ptr %pown_res) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %B) #5
+  call void @llvm.lifetime.end.p0(i64 16, ptr %A) #5
   ret void
 }
 
@@ -1788,13 +1576,13 @@ declare dso_local spir_func i56 @_Z31__spirv_ArbitraryFloatPowRINTELILi54ELi55EL
 declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext, i32, i10 signext, i1 zeroext, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i34, i32, i32, i32, i32, i32) #4
+declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(ptr addrspace(4) sret(i66) align 8, i34, i32, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i24 signext, i32, i25 signext, i32, i32, i32, i32, i32) #4
+declare dso_local spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(ptr addrspace(4) sret(i66) align 8, i24 signext, i32, i25 signext, i32, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8, i32, i10 signext, i1 zeroext, i32, i32, i32, i32) #4
+declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(ptr byval(i72) align 8, i32, i10 signext, i1 zeroext, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

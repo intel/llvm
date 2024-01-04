@@ -12,20 +12,20 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-LLVM: [[ZERO_INIT:@[0-9]+]] = {{.*}} addrspace(2) constant [8 x i8] zeroinitializer
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @test_memset(i32 addrspace(1)* %data, i32 %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @test_memset(ptr addrspace(1) %data, i32 %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
 ; CHECK-LLVM: %[[BITCAST_RES:[[:alnum:].]+]] = bitcast ptr addrspace(1) %{{[[:alnum:].]+}} to ptr addrspace(1)
-  %ptr = bitcast i32 addrspace(1)* %data to i8 addrspace(1)*
+  %ptr = bitcast ptr addrspace(1) %data to ptr addrspace(1)
 ; CHECK-LLVM: %[[#ZERO_INIT_BITCAST:]] = bitcast ptr addrspace(2) [[ZERO_INIT]] to ptr addrspace(2)
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p2.i64(ptr addrspace(1) align 8 %[[BITCAST_RES]], ptr addrspace(2) align 8 %[[#ZERO_INIT_BITCAST]], i64 8, i1 false)
-  call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %ptr, i8 0, i64 8, i1 false)
+  call void @llvm.memset.p1.i64(ptr addrspace(1) align 8 %ptr, i8 0, i64 8, i1 false)
 ; CHECK-LLVM: store i8 0, ptr addrspace(1) %[[BITCAST_RES]]
-  store i8 0, i8 addrspace(1)* %ptr
+  store i8 0, ptr addrspace(1) %ptr
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn writeonly
-declare void @llvm.memset.p1i8.i64(i8 addrspace(1)* nocapture writeonly, i8, i64, i1 immarg) #1
+declare void @llvm.memset.p1.i64(ptr addrspace(1) nocapture writeonly, i8, i64, i1 immarg) #1
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn writeonly }

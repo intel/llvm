@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -o %t.out
+// Force -O2 as it currently fails in O0 due to missing VC support
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"

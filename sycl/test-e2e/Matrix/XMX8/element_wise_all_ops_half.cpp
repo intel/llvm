@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-fp16
 // REQUIRES: matrix-xmx8
+// REQUIRES: matrix-fp16
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
@@ -20,5 +21,6 @@ using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_all_ops_half_impl.hpp"

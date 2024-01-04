@@ -7,10 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC SLM atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
-// TODO: esimd_emulator doesn't support xchg operation
-// UNSUPPORTED: esimd_emulator
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -149,10 +146,10 @@ bool test(queue q) {
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
                 for (auto old_val = lsc_slm_atomic_update<op, T>(
-                         offsets, new_val, exp_val, m);
+                         offsets, exp_val, new_val, m);
                      any(old_val < exp_val, !m);
-                     old_val = lsc_slm_atomic_update<op, T>(offsets, new_val,
-                                                            exp_val, m))
+                     old_val = lsc_slm_atomic_update<op, T>(offsets, exp_val,
+                                                            new_val, m))
                   ;
               }
             }
@@ -491,10 +488,8 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad>(q);
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types_and_sizes<ImplStore>(q);
-    passed &= test_fp_types_and_sizes<ImplStore>(q);
-  }
+  passed &= test_int_types_and_sizes<ImplStore>(q);
+  passed &= test_fp_types_and_sizes<ImplStore>(q);
 #else
   passed &= test_int_types_and_sizes<ImplCmpxchg>(q);
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q);

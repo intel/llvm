@@ -102,6 +102,11 @@ Value *BuiltinCallMutator::doConversion() {
   CallInst *NewCall =
       Builder.Insert(addCallInst(CI->getModule(), FuncName, ReturnTy, Args,
                                  &Attrs, nullptr, Mangler.get()));
+  NewCall->copyMetadata(*CI);
+  if (CI->hasFnAttr("fpbuiltin-max-error")) {
+    auto Attr = CI->getFnAttr("fpbuiltin-max-error");
+    NewCall->addFnAttr(Attr);
+  }
   Value *Result = MutateRet ? MutateRet(Builder, NewCall) : NewCall;
   Result->takeName(CI);
   if (!CI->getType()->isVoidTy())
@@ -360,7 +365,7 @@ void BuiltinCallHelper::initialize(llvm::Module &M) {
     if (!Ty->isOpaque() || !Ty->hasName())
       continue;
     StringRef Name = Ty->getName();
-    if (Name.startswith("opencl.") || Name.startswith("spirv.")) {
+    if (Name.starts_with("opencl.") || Name.starts_with("spirv.")) {
       UseTargetTypes = false;
     }
   }

@@ -1337,8 +1337,7 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
   // segments that are used in the output.
 
   unsigned Seg0 = ~0u, Seg1 = ~0u;
-  for (int I = 0, E = SegMap.size(); I != E; ++I) {
-    unsigned X = SegMap[I];
+  for (unsigned X : SegMap) {
     if (X == ~0u)
       continue;
     if (Seg0 == ~0u)
@@ -2003,10 +2002,10 @@ SmallVector<uint32_t, 8> HvxSelector::getPerfectCompletions(ShuffleMask SM,
     if ((unsigned)llvm::popcount(P) < Count) {
       // Reset all occurences of P, if there are more occurrences of P
       // than there are bits in P.
-      for_each(Worklist, [P](unsigned &Q) {
+      for (unsigned &Q : Worklist) {
         if (Q == P)
           Q = 0;
-      });
+      }
     }
   }
 
@@ -2037,8 +2036,7 @@ HvxSelector::completeToPerfect(ArrayRef<uint32_t> Completions, unsigned Width) {
 #ifndef NDEBUG
   // Check that we have generated a valid completion.
   uint32_t OrAll = 0;
-  for (unsigned I = 0, E = Comps.size(); I != E; ++I) {
-    uint32_t C = Comps[I];
+  for (uint32_t C : Comps) {
     assert(isPowerOf2_32(C));
     OrAll |= C;
   }
@@ -2341,7 +2339,7 @@ OpRef HvxSelector::perfect(ShuffleMask SM, OpRef Va, ResultStack &Results) {
   }
 
   auto Comps = getPerfectCompletions(SM, LogLen);
-  if (llvm::any_of(Comps, [](uint32_t P) { return P == 0; }))
+  if (llvm::is_contained(Comps, 0))
     return OpRef::fail();
 
   auto Pick = completeToPerfect(Comps, LogLen);

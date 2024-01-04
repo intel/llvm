@@ -101,13 +101,22 @@ namespace graph {
 
 /// Property passed to command_graph constructor to disable checking for cycles.
 ///
-/// \todo Cycle check not yet implemented.
 class no_cycle_check : public ::sycl::detail::DataLessProperty<
                            ::sycl::detail::GraphNoCycleCheck> {
 public:
   no_cycle_check() = default;
 };
 
+/// Property passed to command_graph constructor to allow buffers to be used
+/// with graphs. Passing this property represents a promise from the user that
+/// the buffer will outlive any graph that it is used in.
+///
+class assume_buffer_outlives_graph
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
+public:
+  assume_buffer_outlives_graph() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -126,6 +135,14 @@ public:
 
 private:
   const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
+};
+
+/// Property used to to add all previous graph leaves as dependencies when
+/// creating a new node with command_graph::add().
+class depends_on_all_leaves : public ::sycl::detail::DataLessProperty<
+                                  ::sycl::detail::GraphDependOnAllLeaves> {
+public:
+  depends_on_all_leaves() = default;
 };
 
 } // namespace node
@@ -150,9 +167,17 @@ public:
   node add(const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return addImpl(Deps.get_dependencies());
+      node Node = addImpl(Deps.get_dependencies());
+      if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+        addGraphLeafDependencies(Node);
+      }
+      return Node;
     }
-    return addImpl({});
+    node Node = addImpl({});
+    if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+      addGraphLeafDependencies(Node);
+    }
+    return Node;
   }
 
   /// Add a command-group node to the graph.
@@ -162,9 +187,17 @@ public:
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return addImpl(CGF, Deps.get_dependencies());
+      node Node = addImpl(CGF, Deps.get_dependencies());
+      if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+        addGraphLeafDependencies(Node);
+      }
+      return Node;
     }
-    return addImpl(CGF, {});
+    node Node = addImpl(CGF, {});
+    if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+      addGraphLeafDependencies(Node);
+    }
+    return Node;
   }
 
   /// Add a dependency between two nodes.
@@ -212,6 +245,14 @@ public:
   /// executing.
   bool end_recording(const std::vector<queue> &RecordingQueues);
 
+  /// Synchronous operation that writes a DOT formatted description of the graph
+  /// to the provided path. By default, this includes the graph topology, node
+  /// types, node id and kernel names.
+  /// @param path The path to write the DOT file to.
+  /// @param verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void print_graph(const std::string path, bool verbose = false) const;
+
 protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
@@ -229,6 +270,11 @@ protected:
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
   node addImpl(const std::vector<node> &Dep);
+
+  /// Adds all graph leaves as dependencies
+  /// @param Node Destination node to which the leaves of the graph will be
+  /// added as dependencies.
+  void addGraphLeafDependencies(node Node);
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -263,7 +309,6 @@ protected:
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
 
-  int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
 } // namespace detail

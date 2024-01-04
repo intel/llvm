@@ -82,7 +82,7 @@ public:
     if (File) {
       auto IncludingFileEntry = SM.getFileEntryRefForID(SM.getFileID(HashLoc));
       if (!IncludingFileEntry) {
-        assert(SM.getBufferName(HashLoc).startswith("<") &&
+        assert(SM.getBufferName(HashLoc).starts_with("<") &&
                "Expected #include location to be a file or <built-in>");
         // Treat as if included from the main file.
         IncludingFileEntry = SM.getFileEntryRefForID(MainFID);
@@ -131,7 +131,7 @@ private:
 };
 
 bool isLiteralInclude(llvm::StringRef Include) {
-  return Include.startswith("<") || Include.startswith("\"");
+  return Include.starts_with("<") || Include.starts_with("\"");
 }
 
 bool HeaderFile::valid() const {
@@ -286,11 +286,11 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   assert(InsertedHeader.valid());
   if (InsertedHeader.Verbatim)
     return InsertedHeader.File;
-  bool IsSystem = false;
+  bool IsAngled = false;
   std::string Suggested;
   if (HeaderSearchInfo) {
     Suggested = HeaderSearchInfo->suggestPathToFileForDiagnostics(
-        InsertedHeader.File, BuildDir, IncludingFile, &IsSystem);
+        InsertedHeader.File, BuildDir, IncludingFile, &IsAngled);
   } else {
     // Calculate include relative to including file only.
     StringRef IncludingDir = llvm::sys::path::parent_path(IncludingFile);
@@ -303,7 +303,7 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   // FIXME: should we allow (some limited number of) "../header.h"?
   if (llvm::sys::path::is_absolute(Suggested))
     return std::nullopt;
-  if (IsSystem)
+  if (IsAngled)
     Suggested = "<" + Suggested + ">";
   else
     Suggested = "\"" + Suggested + "\"";
@@ -316,7 +316,7 @@ IncludeInserter::insert(llvm::StringRef VerbatimHeader,
   std::optional<TextEdit> Edit;
   if (auto Insertion =
           Inserter.insert(VerbatimHeader.trim("\"<>"),
-                          VerbatimHeader.startswith("<"), Directive))
+                          VerbatimHeader.starts_with("<"), Directive))
     Edit = replacementToEdit(Code, *Insertion);
   return Edit;
 }

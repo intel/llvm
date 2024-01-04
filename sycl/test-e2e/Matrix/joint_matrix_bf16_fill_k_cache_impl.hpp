@@ -18,35 +18,39 @@ constexpr unsigned int testIterations = 100;
 // start recording time after X iterations
 constexpr unsigned int recordThresh = 10;
 
+#ifndef MATRIX_SIZE
 #define MATRIX_SIZE 256
+#endif
 
+#ifndef tM
 #define tM 8
-#define tN SG_SZ
+#endif
+#ifndef tN
+#define tN TN
+#endif
+#ifndef tK
 #define tK 16
+#endif
 
+#ifndef MCACHE1
 #define MCACHE1 32
-#define NCACHE1 (SG_SZ * 4)
+#endif
+#ifndef NCACHE1
+#define NCACHE1 (TN * 4)
+#endif
+#ifndef KCACHE1
 #define KCACHE1 16
+#endif
 
+#ifndef MCACHE2
 #define MCACHE2 256
+#endif
+#ifndef NCACHE2
 #define NCACHE2 256
+#endif
+#ifndef KCACHE2
 #define KCACHE2 32
-
-#define BF16_EPSILON 0.00781250
-
-#if ((MATRIX_SIZE < tM) || (MATRIX_SIZE < tK) || (MATRIX_SIZE < tN))
-#error invalid matrix size
 #endif
-
-#if ((MATRIX_SIZE % tM) || (MATRIX_SIZE % tN) || (MATRIX_SIZE % tK))
-#error invalid matrix size detected: not a multiple of <tM,tN,tK>
-#endif
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  return *(reinterpret_cast<float *>(&y));
-}
 
 #ifdef MANUAL_UNROLL
 template <class T, T... inds, class F>
@@ -156,35 +160,27 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
             ;
 
             joint_matrix<sub_group, TOperand, use::b, tK, tN,
-                         ext::intel::experimental::matrix::layout::packed>
+                         layout::ext_intel_packed>
                 tB[NCACHE1 / tN][KCACHE2 / KCACHE1]
 #ifdef INIT_LIST
                 =
                     {
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
-                        joint_matrix<
-                            sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
+                        joint_matrix<sub_group, TOperand, use::b, tK, tN,
+                                     layout::ext_intel_packed>(),
                     }
 #endif
             ;
@@ -236,8 +232,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
                 for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 
 #endif
-                  tC[m][n] =
-                      joint_matrix_mad(sg, tA[m][k1], tB[n][k1], tC[m][n]);
+                  joint_matrix_mad(sg, tC[m][n], tA[m][k1], tB[n][k1],
+                                   tC[m][n]);
 #ifdef MANUAL_UNROLL
                 }); // n
               });   // m
@@ -302,36 +298,13 @@ void native_matmul(bfloat16 *A, bfloat16 *B, float *C) {
   }
 }
 
-int verify_result(float *result, float *ref, float floatTol = BF16_EPSILON) {
-  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
-    for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
-      float a = result[i * MATRIX_SIZE + j];
-      float b = ref[i * MATRIX_SIZE + j];
-      if ((fabs(a - b)) > floatTol) {
-        std::cout << "failed at index " << i << ", " << j << ", res " << a
-                  << " != ref " << b << " difference is " << a - b << "\n";
-        return 1;
-      }
-    }
-  }
-
-  return 0;
-}
-
-template <typename T>
-void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
-                 unsigned int vnniFactor = 2) {
-  for (unsigned int i = 0; i < rows / vnniFactor; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      for (unsigned int k = 0; k < vnniFactor; k++) {
-        dest[i * cols * vnniFactor + j * vnniFactor + k] =
-            src[(i * vnniFactor + k) * cols + j];
-      }
-    }
-  }
-}
-
 int main(void) {
+  assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= tN &&
+         "invalid matrix size");
+  assert((MATRIX_SIZE % tM) == 0 && (MATRIX_SIZE % tN) == 0 &&
+         (MATRIX_SIZE % tK) == 0 &&
+         "invalid matrix size detected: not a multiple of <tM,tN,tK>");
+
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
@@ -356,7 +329,7 @@ int main(void) {
     }
   }
 
-  int ret = verify_result(C, refC);
+  bool result = matrix_compare(MATRIX_SIZE, MATRIX_SIZE, C, refC);
 
   double msecPerMatrixMul =
       totalDuration / static_cast<double>(testIterations - recordThresh);
@@ -372,5 +345,5 @@ int main(void) {
   free(C, q);
   free(refC, q);
 
-  return ret;
+  return !result;
 }

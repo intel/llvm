@@ -87,8 +87,8 @@ class Foo {
       },
       "location": {
         "position": {
-          "character": 7,
-          "line": 1
+          "character": 6,
+          "line": 0
         },
         "uri": "file://INPUT_DIR/input.h"
       },
@@ -137,13 +137,13 @@ class Foo {
         "precise": "c:@S@Foo@F@Foo#"
       },
       "kind": {
-        "displayName": "Constructor",
+        "displayName": "Instance Method",
         "identifier": "c++.method"
       },
       "location": {
         "position": {
-          "character": 3,
-          "line": 2
+          "character": 2,
+          "line": 1
         },
         "uri": "file://INPUT_DIR/input.h"
       },
@@ -193,13 +193,13 @@ class Foo {
         "precise": "c:@S@Foo@F@~Foo#"
       },
       "kind": {
-        "displayName": "Destructor",
+        "displayName": "Instance Method",
         "identifier": "c++.method"
       },
       "location": {
         "position": {
-          "character": 3,
-          "line": 3
+          "character": 2,
+          "line": 2
         },
         "uri": "file://INPUT_DIR/input.h"
       },

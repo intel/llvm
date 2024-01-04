@@ -34,18 +34,24 @@ sycl/doc/design/ @intel/llvm-reviewers-runtime
 sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
-# Level Zero plugin
-sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
+# Unified Runtime 
+sycl/plugins @intel/unified-runtime-reviewers
+sycl/test-e2e/Plugin/ @intel/unified-runtime-reviewers
 
-# Unified Runtime plugin
-sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
-
-# ESIMD CPU emulator plug-in
-sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
+# Win Proxy Loader
+sycl/pi_win_proxy_loader @intel/llvm-reviewers-runtime
+sycl/plugins/common_win_pi_trace @intel/llvm-reviewers-runtime
+sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 
 # CUDA and HIP plugins
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
+
+# CUDA specific runtime implementations
+sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
+
+# CUDA device code tests
+sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -53,6 +59,8 @@ xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
+clang/lib/CodeGen/BackendUtil.cpp @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
+clang/include/clang/CodeGen/BackendUtil.h @intel/dpcpp-cfe-reviewers @intel/dpcpp-tools-reviewers
 
 # OpenCL CPU RT
 opencl-cpu/ @intel/ocl-cpu-rt-write
@@ -70,6 +78,7 @@ llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 clang/**/OffloadBundler.h @intel/dpcpp-tools-reviewers
 clang/**/OffloadBundler.cpp @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
+clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 ESIMD/ @intel/dpcpp-esimd-reviewers
@@ -77,6 +86,7 @@ esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
 sycl/doc/extensions/**/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
+sycl/test-e2e/ESIMD/ @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
 sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
@@ -85,27 +95,30 @@ llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
 llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
 invoke_simd/ @intel/dpcpp-esimd-reviewers
 InvokeSimd/ @intel/dpcpp-esimd-reviewers
+sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
-.github/workflows/ @intel/dpcpp-devops-reviewers
+.github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
-sycl-fusion/ @victor-eds @Naghasan @sommerlukas
-sycl/doc/design/KernelFusionJIT.md @victor-eds @Naghasan @sommerlukas
-sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
-sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
-sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/fusion/ @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
-sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
+sycl-fusion/ @intel/dpcpp-kernel-fusion-reviewers
+sycl/doc/design/KernelFusionJIT.md @intel/dpcpp-kernel-fusion-reviewers
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @intel/dpcpp-kernel-fusion-reviewers
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @intel/dpcpp-kernel-fusion-reviewers
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/fusion/ @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_compiler.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_compiler.cpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_device_binaries.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_device_binaries.cpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 
-# Matrix tests
-sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+# Matrix
+sycl/include/sycl/ext/oneapi/matrix/ @intel/sycl-matrix-reviewers
+sycl/test-e2e/Matrix @intel/sycl-matrix-reviewers
+sycl/test/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
@@ -129,3 +142,18 @@ sycl/doc/extensions/**/sycl_ext_oneapi_graph.asciidoc @intel/sycl-graphs-reviewe
 sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
 sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
 sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
+
+# bindless images
+sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
+sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
+sycl/source/detail/bindless* @intel/bindless-images-reviewers
+sycl/plugins/unified_runtime/ur/adapters/**/image.* @intel/bindless-images-reviewers
+sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+
+# Miscellaneous sycl e2e tests
+sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
+sycl/test-e2e/AOT/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
+sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers

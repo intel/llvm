@@ -43,6 +43,8 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_BINDLESS_IMAGES 1
 #define SYCL_EXT_ONEAPI_GROUP_ALGORITHMS 1
 #define SYCL_EXT_ONEAPI_GROUP_SORT 1
+#define SYCL_EXT_ONEAPI_KERNEL_COMPILER 1
+#define SYCL_EXT_ONEAPI_KERNEL_COMPILER_OPENCL 1
 #define SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY 1
 #define SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS 1
 #define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
@@ -67,6 +69,9 @@ inline namespace _V1 {
 #define SYCL_EXT_INTEL_USM_ADDRESS_SPACES 2
 #define SYCL_EXT_INTEL_RUNTIME_BUFFER_LOCATION 1
 #define SYCL_EXT_INTEL_QUEUE_INDEX 1
+#define SYCL_EXT_INTEL_FPGA_MEM 1
+#define SYCL_EXT_INTEL_FPGA_DATAPATH 1
+#define SYCL_EXT_ONEAPI_AUTO_LOCAL_RANGE 1
 #define SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO 5
 #define SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY 1
 #define SYCL_EXT_ONEAPI_KERNEL_PROPERTIES 1
@@ -78,6 +83,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_ANNOTATED_ARG 1
 #define SYCL_EXT_ONEAPI_ANNOTATED_PTR 1
 #define SYCL_EXT_ONEAPI_COPY_OPTIMIZE 1
+#define SYCL_EXT_ONEAPI_USM_MALLOC_PROPERTIES 1
 #cmakedefine01 SYCL_ENABLE_KERNEL_FUSION
 #if SYCL_ENABLE_KERNEL_FUSION
 #define SYCL_EXT_CODEPLAY_KERNEL_FUSION 1
@@ -87,6 +93,10 @@ inline namespace _V1 {
 #define SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY 1
 #define SYCL_EXT_ONEAPI_DEVICE_GLOBAL 1
 #define SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST 1
+#define SYCL_EXT_ONEAPI_PREFETCH 1
+#define SYCL_EXT_INTEL_CACHE_CONTROLS 1
+#define SYCL_EXT_INTEL_FP_CONTROL 1
+#define SYCL_EXT_ONEAPI_NON_UNIFORM_GROUPS 1
 
 #ifndef __has_include
 #define __has_include(x) 0
@@ -98,10 +108,6 @@ inline namespace _V1 {
 
 #if __has_include("detail/plugins/hip/features.hpp")
 #include "detail/plugins/hip/features.hpp"
-#endif
-
-#if __has_include("detail/plugins/esimd_emulator/features.hpp")
-#include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
 } // namespace _V1

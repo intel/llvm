@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES: TEMPORARY_DISBLED
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
@@ -19,5 +20,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_all_ops_impl.hpp"

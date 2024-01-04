@@ -10,35 +10,42 @@ class [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] Type1WithAspect{}
 class [[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16, sycl::aspect::cpu)]] Type2WithAspect{};
 class [[__sycl_detail__::__uses_aspects__(sycl::aspect::host)]] UnusedType3WithAspect{};
 
-// CHECK: define dso_local spir_func void @{{.*}}func1{{.*}} !sycl_used_aspects ![[ASPECTS1:[0-9]+]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func1
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS1:[0-9]+]]
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func1() {}
 
-// CHECK: define dso_local spir_func void @{{.*}}func2{{.*}} !sycl_used_aspects ![[ASPECTS2:[0-9]+]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func2
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS2:[0-9]+]]
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
-// CHECK: define dso_local spir_func void @{{.*}}func3{{.*}} !sycl_used_aspects ![[EMPTYASPECTS:[0-9]+]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func3
+// CHECK-SAME: !sycl_used_aspects ![[EMPTYASPECTS:[0-9]+]]
 [[__sycl_detail__::__uses_aspects__()]] void func3() {}
 
-// CHECK: define linkonce_odr spir_func void @{{.*}}func4{{.*}} !sycl_used_aspects ![[ASPECTS3:[0-9]+]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func4
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS3:[0-9]+]]
 template <sycl::aspect Aspect>
 [[__sycl_detail__::__uses_aspects__(Aspect)]] void func4() {}
 
-// CHECK: define dso_local spir_func void @{{.*}}func5{{.*}} !sycl_used_aspects ![[ASPECTS1]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func5
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS1]]
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func5();
 void func5() {}
 
+// CHECK: define {{.*}}spir_func void @{{.*}}func6
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS1]]
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func6();
-// CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !sycl_used_aspects ![[ASPECTS1]] {
 void func6() {
   Type1WithAspect TestObj1;
   Type2WithAspect TestObj2;
 }
 
 constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
-// CHECK: define dso_local spir_func void @{{.*}}func7{{.*}} !sycl_used_aspects ![[ASPECTS1]] {
+// CHECK: define {{.*}}spir_func void @{{.*}}func7
+// CHECK-SAME: !sycl_used_aspects ![[ASPECTS1]]
 [[__sycl_detail__::__uses_aspects__(getAspect())]] void func7() {}
 
-// CHECK: declare !sycl_used_aspects ![[ASPECTS1]] spir_func void @{{.*}}func8{{.*}}
+// CHECK: declare !sycl_used_aspects ![[ASPECTS1]] spir_func void @{{.*}}func8
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] SYCL_EXTERNAL void func8();
 
 class KernelFunctor {

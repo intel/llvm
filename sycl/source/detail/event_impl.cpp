@@ -238,7 +238,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
-  uint64_t IId;
+  uint64_t IId = 0;
   std::string Name;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
@@ -464,11 +464,13 @@ void event_impl::setSubmissionTime() {
     if (QueueImplPtr Queue = MQueue.lock()) {
       try {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-      } catch (feature_not_supported &e) {
-        throw sycl::exception(
-            make_error_code(errc::profiling),
-            std::string("Unable to get command group submission time: ") +
-                e.what());
+      } catch (sycl::exception &e) {
+        if (e.code() == sycl::errc::feature_not_supported)
+          throw sycl::exception(
+              make_error_code(errc::profiling),
+              std::string("Unable to get command group submission time: ") +
+                  e.what());
+        std::rethrow_exception(std::current_exception());
       }
     }
   } else {

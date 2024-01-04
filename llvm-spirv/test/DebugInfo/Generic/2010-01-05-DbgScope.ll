@@ -7,11 +7,11 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 ; PR 5942
-define i8* @foo() nounwind {
+define ptr @foo() nounwind {
 entry:
-  %0 = load i32, i32* undef, align 4, !dbg !0          ; <i32> [#uses=1]
-  %1 = inttoptr i32 %0 to i8*, !dbg !0            ; <i8*> [#uses=1]
-  ret i8* %1, !dbg !10
+  %0 = load i32, ptr undef, align 4, !dbg !0          ; <i32> [#uses=1]
+  %1 = inttoptr i32 %0 to ptr, !dbg !0            ; <ptr> [#uses=1]
+  ret ptr %1, !dbg !10
 
 }
 

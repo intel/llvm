@@ -14,9 +14,6 @@
 #endif
 
 #if !defined(__HIPCC_RTC__)
-#if defined(__cplusplus)
-#include <algorithm>
-#endif
 #include <limits.h>
 #include <stdint.h>
 #ifdef __OPENMP_AMDGCN__
@@ -315,18 +312,15 @@ float __tanf(float __x) {
 #if defined(__cplusplus)
 __DEVICE__
 int abs(int __x) {
-  int __sgn = __x >> (sizeof(int) * CHAR_BIT - 1);
-  return (__x ^ __sgn) - __sgn;
+  return __builtin_abs(__x);
 }
 __DEVICE__
 long labs(long __x) {
-  long __sgn = __x >> (sizeof(long) * CHAR_BIT - 1);
-  return (__x ^ __sgn) - __sgn;
+  return __builtin_labs(__x);
 }
 __DEVICE__
 long long llabs(long long __x) {
-  long long __sgn = __x >> (sizeof(long long) * CHAR_BIT - 1);
-  return (__x ^ __sgn) - __sgn;
+  return __builtin_llabs(__x);
 }
 #endif
 
@@ -574,7 +568,7 @@ float normf(int __dim,
     ++__a;
   }
 
-  return __ocml_sqrt_f32(__r);
+  return __builtin_sqrtf(__r);
 }
 
 __DEVICE__
@@ -686,7 +680,7 @@ __DEVICE__
 float sinpif(float __x) { return __ocml_sinpi_f32(__x); }
 
 __DEVICE__
-float sqrtf(float __x) { return __ocml_sqrt_f32(__x); }
+float sqrtf(float __x) { return __builtin_sqrtf(__x); }
 
 __DEVICE__
 float tanf(float __x) { return __ocml_tan_f32(__x); }
@@ -1314,11 +1308,11 @@ double min(double __x, double __y) { return __builtin_fmin(__x, __y); }
 
 #if !defined(__HIPCC_RTC__) && !defined(__OPENMP_AMDGCN__)
 __host__ inline static int min(int __arg1, int __arg2) {
-  return std::min(__arg1, __arg2);
+  return __arg1 < __arg2 ? __arg1 : __arg2;
 }
 
 __host__ inline static int max(int __arg1, int __arg2) {
-  return std::max(__arg1, __arg2);
+  return __arg1 > __arg2 ? __arg1 : __arg2;
 }
 #endif // !defined(__HIPCC_RTC__) && !defined(__OPENMP_AMDGCN__)
 #endif

@@ -1,7 +1,7 @@
 ; Test to ensure that non-prevailing weak aliasee is kept as a weak definition
 ; when the alias is not dead.
 ; RUN: opt -module-summary %s -o %t1.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc \
+; RUN: llvm-lto2 run %t1.bc \
 ; RUN:	 -r=%t1.bc,__a,lx \
 ; RUN:	 -r=%t1.bc,__b,l \
 ; RUN:	 -r=%t1.bc,a,plx \

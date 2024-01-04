@@ -34,7 +34,7 @@ entry:
 ; CHECK-NEXT: [[I4:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I5:%[0-9]]] = insertelement <3 x i64> [[I3]], i64 [[I4]], i32 2, !dbg [[DBG]]
 ; CHECK-NEXT: %call = extractelement <3 x i64> [[I5]], i32 0, !dbg [[DBG]]
-  store i64 %call, i64* %gid, align 8, !dbg !11
+  store i64 %call, ptr %gid, align 8, !dbg !11
   ret void, !dbg !12
 }
 

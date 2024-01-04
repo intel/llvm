@@ -14,8 +14,10 @@
 #define MLIR_UNITTESTS_ANALYSIS_PRESBURGER_UTILS_H
 
 #include "mlir/Analysis/Presburger/IntegerRelation.h"
+#include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Analysis/Presburger/PWMAFunction.h"
 #include "mlir/Analysis/Presburger/PresburgerRelation.h"
+#include "mlir/Analysis/Presburger/QuasiPolynomial.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Support/LLVM.h"
@@ -26,9 +28,22 @@
 namespace mlir {
 namespace presburger {
 
-inline Matrix makeMatrix(unsigned numRow, unsigned numColumns,
-                         ArrayRef<SmallVector<int64_t, 8>> matrix) {
-  Matrix results(numRow, numColumns);
+inline IntMatrix makeIntMatrix(unsigned numRow, unsigned numColumns,
+                               ArrayRef<SmallVector<int, 8>> matrix) {
+  IntMatrix results(numRow, numColumns);
+  assert(matrix.size() == numRow);
+  for (unsigned i = 0; i < numRow; ++i) {
+    assert(matrix[i].size() == numColumns &&
+           "Output expression has incorrect dimensionality!");
+    for (unsigned j = 0; j < numColumns; ++j)
+      results(i, j) = MPInt(matrix[i][j]);
+  }
+  return results;
+}
+
+inline FracMatrix makeFracMatrix(unsigned numRow, unsigned numColumns,
+                                 ArrayRef<SmallVector<Fraction, 8>> matrix) {
+  FracMatrix results(numRow, numColumns);
   assert(matrix.size() == numRow);
   for (unsigned i = 0; i < numRow; ++i) {
     assert(matrix[i].size() == numColumns &&
@@ -37,6 +52,46 @@ inline Matrix makeMatrix(unsigned numRow, unsigned numColumns,
       results(i, j) = matrix[i][j];
   }
   return results;
+}
+
+inline void EXPECT_EQ_INT_MATRIX(IntMatrix a, IntMatrix b) {
+  EXPECT_EQ(a.getNumRows(), b.getNumRows());
+  EXPECT_EQ(a.getNumColumns(), b.getNumColumns());
+
+  for (unsigned row = 0; row < a.getNumRows(); row++)
+    for (unsigned col = 0; col < a.getNumColumns(); col++)
+      EXPECT_EQ(a(row, col), b(row, col));
+}
+
+inline void EXPECT_EQ_FRAC_MATRIX(FracMatrix a, FracMatrix b) {
+  EXPECT_EQ(a.getNumRows(), b.getNumRows());
+  EXPECT_EQ(a.getNumColumns(), b.getNumColumns());
+
+  for (unsigned row = 0; row < a.getNumRows(); row++)
+    for (unsigned col = 0; col < a.getNumColumns(); col++)
+      EXPECT_EQ(a(row, col), b(row, col));
+}
+
+// Check the coefficients (in order) of two quasipolynomials.
+// Note that this is not a true equality check.
+inline void EXPECT_EQ_REPR_QUASIPOLYNOMIAL(QuasiPolynomial a, QuasiPolynomial b) {
+  EXPECT_EQ(a.getNumInputs(), b.getNumInputs());
+
+  SmallVector<Fraction> aCoeffs = a.getCoefficients(),
+                        bCoeffs = b.getCoefficients();
+  EXPECT_EQ(aCoeffs.size(), bCoeffs.size());
+  for (unsigned i = 0, e = aCoeffs.size(); i < e; i++)
+    EXPECT_EQ(aCoeffs[i], bCoeffs[i]);
+
+  std::vector<std::vector<SmallVector<Fraction>>> aAff = a.getAffine(),
+                                                  bAff = b.getAffine();
+  EXPECT_EQ(aAff.size(), bAff.size());
+  for (unsigned i = 0, e = aAff.size(); i < e; i++) {
+    EXPECT_EQ(aAff[i].size(), bAff[i].size());
+    for (unsigned j = 0, f = aAff[i].size(); j < f; j++)
+      for (unsigned k = 0, g = a.getNumInputs(); k <= g; k++)
+        EXPECT_EQ(aAff[i][j][k], bAff[i][j][k]);
+  }
 }
 
 /// lhs and rhs represent non-negative integers or positive infinity. The

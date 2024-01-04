@@ -680,16 +680,7 @@ Symbol *ObjFile::createUndefined(const WasmSymbol &sym, bool isCalledDirectly) {
   llvm_unreachable("unknown symbol kind");
 }
 
-
-StringRef strip(StringRef s) {
-  while (s.starts_with(" ")) {
-    s = s.drop_front();
-  }
-  while (s.ends_with(" ")) {
-    s = s.drop_back();
-  }
-  return s;
-}
+StringRef strip(StringRef s) { return s.trim(' '); }
 
 void StubFile::parse() {
   bool first = true;
@@ -760,7 +751,7 @@ void ArchiveFile::addMember(const Archive::Symbol *sym) {
                 sym->getName());
 
   InputFile *obj = createObjectFile(mb, getName(), c.getChildOffset());
-  symtab->addFile(obj);
+  symtab->addFile(obj, sym->getName());
 }
 
 static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
@@ -826,9 +817,9 @@ BitcodeFile::BitcodeFile(MemoryBufferRef m, StringRef archiveName,
 
 bool BitcodeFile::doneLTO = false;
 
-void BitcodeFile::parse() {
+void BitcodeFile::parse(StringRef symName) {
   if (doneLTO) {
-    error(toString(this) + ": attempt to add bitcode file after LTO.");
+    error(toString(this) + ": attempt to add bitcode file after LTO (" + symName + ")");
     return;
   }
 

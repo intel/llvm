@@ -40,7 +40,7 @@ static unsigned getFlatAddressSpace(Module &Mod) {
   // Ideally, we could get this information from the TargetTransformInfo, but
   // the SPIR-V backend does not yet seem to have an implementation for that.
   llvm::Triple Tri(Mod.getTargetTriple());
-  if (Tri.isNVPTX()) {
+  if (Tri.isNVPTX() || Tri.isAMDGCN()) {
     return 0;
   }
   if (Tri.isSPIRV() || Tri.isSPIR()) {
@@ -53,7 +53,7 @@ static unsigned getFlatAddressSpace(Module &Mod) {
 
 std::unique_ptr<SYCLModuleInfo>
 FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
-                                int BarriersFlags) {
+                                BarrierFlags BarriersFlags) {
   // Perform the actual kernel fusion, i.e., generate a kernel function for the
   // fused kernel from the kernel functions of the input kernels. This is done
   // by the SYCLKernelFusion LLVM pass, which is run here through a custom LLVM
@@ -105,6 +105,9 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
     // Ideally, the static compiler should have performed that job.
     const unsigned FlatAddressSpace = getFlatAddressSpace(Mod);
     FPM.addPass(InferAddressSpacesPass(FlatAddressSpace));
+    // Run CFG simplification to prevent unreachable code from obscuring
+    // internalization opportunities.
+    FPM.addPass(SimplifyCFGPass{});
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   // Run dataflow internalization and runtime constant propagation.

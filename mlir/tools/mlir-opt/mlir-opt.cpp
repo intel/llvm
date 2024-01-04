@@ -19,6 +19,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -43,7 +44,7 @@ void registerSymbolTestPasses();
 void registerRegionTestPasses();
 void registerTestAffineDataCopyPass();
 void registerTestAffineReifyValueBoundsPass();
-void registerTestBytecodeCallbackPasses();
+void registerTestBytecodeRoundtripPasses();
 void registerTestDecomposeAffineOpPass();
 void registerTestAffineLoopUnswitchingPass();
 void registerTestAllReduceLoweringPass();
@@ -79,8 +80,6 @@ void registerTestCallGraphPass();
 void registerTestCfAssertPass();
 void registerTestConstantFold();
 void registerTestControlFlowSink();
-void registerTestGpuSerializeToCubinPass();
-void registerTestGpuSerializeToHsacoPass();
 void registerTestDataLayoutPropagation();
 void registerTestDataLayoutQuery();
 void registerTestDeadCodeAnalysisPass();
@@ -119,6 +118,7 @@ void registerTestMathAlgebraicSimplificationPass();
 void registerTestMathPolynomialApproximationPass();
 void registerTestMemRefDependenceCheck();
 void registerTestMemRefStrideCalculation();
+void registerTestMeshSimplificationsPass();
 void registerTestNextAccessPass();
 void registerTestOneToNTypeConversionPass();
 void registerTestOpaqueLoc();
@@ -168,7 +168,7 @@ void registerTestPasses() {
   registerTestDecomposeAffineOpPass();
   registerTestAffineLoopUnswitchingPass();
   registerTestAllReduceLoweringPass();
-  registerTestBytecodeCallbackPasses();
+  registerTestBytecodeRoundtripPasses();
   registerTestFunc();
   registerTestGpuMemoryPromotionPass();
   registerTestLoopPermutationPass();
@@ -202,13 +202,6 @@ void registerTestPasses() {
   mlir::test::registerTestControlFlowSink();
   mlir::test::registerTestDiagnosticsPass();
   mlir::test::registerTestDialectConversionPasses();
-#if MLIR_CUDA_CONVERSIONS_ENABLED
-  mlir::test::registerTestGpuSerializeToCubinPass();
-  mlir::test::registerTestLowerToNVVM();
-#endif
-#if MLIR_ROCM_CONVERSIONS_ENABLED
-  mlir::test::registerTestGpuSerializeToHsacoPass();
-#endif
   mlir::test::registerTestDecomposeCallGraphTypes();
   mlir::test::registerTestDataLayoutPropagation();
   mlir::test::registerTestDataLayoutQuery();
@@ -243,6 +236,7 @@ void registerTestPasses() {
   mlir::test::registerTestMathPolynomialApproximationPass();
   mlir::test::registerTestMemRefDependenceCheck();
   mlir::test::registerTestMemRefStrideCalculation();
+  mlir::test::registerTestMeshSimplificationsPass();
   mlir::test::registerTestNextAccessPass();
   mlir::test::registerTestOneToNTypeConversionPass();
   mlir::test::registerTestOpaqueLoc();
@@ -269,12 +263,21 @@ void registerTestPasses() {
 
 int main(int argc, char **argv) {
   registerAllPasses();
+#if MLIR_DEPRECATED_GPU_SERIALIZATION_ENABLE == 1
+  registerGpuSerializeToCubinPass();
+  registerGpuSerializeToHsacoPass();
+#endif
 #ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
 #endif
   DialectRegistry registry;
   registerAllDialects(registry);
   registerAllExtensions(registry);
+
+  // TODO: Remove this and the corresponding MLIRToLLVMIRTranslationRegistration
+  // cmake dependency when a safe dialect interface registration mechanism is
+  // implemented, see D157703 (and corresponding note on the declaration).
+  registerAllGPUToLLVMIRTranslations(registry);
 
 #ifdef MLIR_INCLUDE_TESTS
   ::test::registerTestDialect(registry);

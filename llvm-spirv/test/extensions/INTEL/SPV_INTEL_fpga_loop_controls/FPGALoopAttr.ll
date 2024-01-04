@@ -31,7 +31,7 @@ entry:
   %i10 = alloca i32, align 4
   %i19 = alloca i32, align 4
   %i28 = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 ; Per SPIR-V spec, LoopControlDependencyInfiniteMask = 0x00000004
 ; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
@@ -39,25 +39,25 @@ entry:
 ; CHECK-SPIRV-NEGATIVE: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
 ; CHECK-SPIRV-NEGATIVE-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !3
 
 for.end:                                          ; preds = %for.cond
-  store i32 0, i32* %i1, align 4
+  store i32 0, ptr %i1, align 4
   br label %for.cond2
 
 ; Per SPIR-V spec, LoopControlDependencyLengthMask = 0x00000008
@@ -66,25 +66,25 @@ for.end:                                          ; preds = %for.cond
 ; CHECK-SPIRV-NEGATIVE: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 8 2
 ; CHECK-SPIRV-NEGATIVE-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 for.cond2:                                        ; preds = %for.inc7, %for.end
-  %3 = load i32, i32* %i1, align 4
+  %3 = load i32, ptr %i1, align 4
   %cmp3 = icmp ne i32 %3, 10
   br i1 %cmp3, label %for.body4, label %for.end9
 
 for.body4:                                        ; preds = %for.cond2
-  %4 = load i32, i32* %i1, align 4
+  %4 = load i32, ptr %i1, align 4
   %idxprom5 = sext i32 %4 to i64
-  %arrayidx6 = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom5
-  store i32 0, i32* %arrayidx6, align 4
+  %arrayidx6 = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom5
+  store i32 0, ptr %arrayidx6, align 4
   br label %for.inc7
 
 for.inc7:                                         ; preds = %for.body4
-  %5 = load i32, i32* %i1, align 4
+  %5 = load i32, ptr %i1, align 4
   %inc8 = add nsw i32 %5, 1
-  store i32 %inc8, i32* %i1, align 4
+  store i32 %inc8, ptr %i1, align 4
   br label %for.cond2, !llvm.loop !5
 
 for.end9:                                         ; preds = %for.cond2
-  store i32 0, i32* %i10, align 4
+  store i32 0, ptr %i10, align 4
   br label %for.cond11
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
@@ -93,25 +93,25 @@ for.end9:                                         ; preds = %for.cond2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 for.cond11:                                       ; preds = %for.inc16, %for.end9
-  %6 = load i32, i32* %i10, align 4
+  %6 = load i32, ptr %i10, align 4
   %cmp12 = icmp ne i32 %6, 10
   br i1 %cmp12, label %for.body13, label %for.end18
 
 for.body13:                                       ; preds = %for.cond11
-  %7 = load i32, i32* %i10, align 4
+  %7 = load i32, ptr %i10, align 4
   %idxprom14 = sext i32 %7 to i64
-  %arrayidx15 = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom14
-  store i32 0, i32* %arrayidx15, align 4
+  %arrayidx15 = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom14
+  store i32 0, ptr %arrayidx15, align 4
   br label %for.inc16
 
 for.inc16:                                        ; preds = %for.body13
-  %8 = load i32, i32* %i10, align 4
+  %8 = load i32, ptr %i10, align 4
   %inc17 = add nsw i32 %8, 1
-  store i32 %inc17, i32* %i10, align 4
+  store i32 %inc17, ptr %i10, align 4
   br label %for.cond11, !llvm.loop !7
 
 for.end18:                                        ; preds = %for.cond11
-  store i32 0, i32* %i19, align 4
+  store i32 0, ptr %i19, align 4
   br label %for.cond20
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
@@ -120,25 +120,25 @@ for.end18:                                        ; preds = %for.cond11
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 2
 for.cond20:                                       ; preds = %for.inc25, %for.end18
-  %9 = load i32, i32* %i19, align 4
+  %9 = load i32, ptr %i19, align 4
   %cmp21 = icmp ne i32 %9, 10
   br i1 %cmp21, label %for.body22, label %for.end27
 
 for.body22:                                       ; preds = %for.cond20
-  %10 = load i32, i32* %i19, align 4
+  %10 = load i32, ptr %i19, align 4
   %idxprom23 = sext i32 %10 to i64
-  %arrayidx24 = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom23
-  store i32 0, i32* %arrayidx24, align 4
+  %arrayidx24 = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom23
+  store i32 0, ptr %arrayidx24, align 4
   br label %for.inc25
 
 for.inc25:                                        ; preds = %for.body22
-  %11 = load i32, i32* %i19, align 4
+  %11 = load i32, ptr %i19, align 4
   %inc26 = add nsw i32 %11, 1
-  store i32 %inc26, i32* %i19, align 4
+  store i32 %inc26, ptr %i19, align 4
   br label %for.cond20, !llvm.loop !9
 
 for.end27:                                        ; preds = %for.cond20
-  store i32 0, i32* %i28, align 4
+  store i32 0, ptr %i28, align 4
   br label %for.cond29
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
@@ -147,21 +147,21 @@ for.end27:                                        ; preds = %for.cond20
 ; CHECK-SPIRV: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 6 LoopMerge {{[0-9]+}} {{[0-9]+}} 196608 2 2
 for.cond29:                                       ; preds = %for.inc34, %for.end27
-  %12 = load i32, i32* %i28, align 4
+  %12 = load i32, ptr %i28, align 4
   %cmp30 = icmp ne i32 %12, 10
   br i1 %cmp30, label %for.body31, label %for.end36
 
 for.body31:                                       ; preds = %for.cond29
-  %13 = load i32, i32* %i28, align 4
+  %13 = load i32, ptr %i28, align 4
   %idxprom32 = sext i32 %13 to i64
-  %arrayidx33 = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom32
-  store i32 0, i32* %arrayidx33, align 4
+  %arrayidx33 = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom32
+  store i32 0, ptr %arrayidx33, align 4
   br label %for.inc34
 
 for.inc34:                                        ; preds = %for.body31
-  %14 = load i32, i32* %i28, align 4
+  %14 = load i32, ptr %i28, align 4
   %inc35 = add nsw i32 %14, 1
-  store i32 %inc35, i32* %i28, align 4
+  store i32 %inc35, ptr %i28, align 4
   br label %for.cond29, !llvm.loop !11
 
 for.end36:                                        ; preds = %for.cond29
@@ -172,18 +172,16 @@ for.end36:                                        ; preds = %for.cond29
 define linkonce_odr dso_local spir_func void @_Z18loop_count_controlILi12EEvv() #0 {
 entry:
   %a = alloca [10 x i32], align 4
-  %a.ascast = addrspacecast [10 x i32]* %a to [10 x i32] addrspace(4)*
+  %a.ascast = addrspacecast ptr %a to ptr addrspace(4)
   %i = alloca i32, align 4
-  %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*
+  %i.ascast = addrspacecast ptr %i to ptr addrspace(4)
   %cleanup.dest.slot = alloca i32, align 4
   %i1 = alloca i32, align 4
-  %i1.ascast = addrspacecast i32* %i1 to i32 addrspace(4)*
+  %i1.ascast = addrspacecast ptr %i1 to ptr addrspace(4)
   %cleanup.dest.slot5 = alloca i32, align 4
-  %0 = bitcast [10 x i32]* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 40, i8* %0)
-  %1 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1)
-  store i32 0, i32 addrspace(4)* %i.ascast, align 4
+  call void @llvm.lifetime.start.p0(i64 40, ptr %a)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %i)
+  store i32 0, ptr addrspace(4) %i.ascast, align 4
   br label %for.cond
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
 ; LoopControlLoopCountINTELMask = 0x1000000 (16777216)
@@ -191,32 +189,30 @@ entry:
 ; CHECK-SPIRV-NEXT: BranchConditional [[#]] [[#]] [[#]]
 ; CHECK-SPIRV-NEGATIVE-NOT: LoopMerge [[#]] [[#]] 16777216
 for.cond:                                         ; preds = %for.inc, %entry
-  %2 = load i32, i32 addrspace(4)* %i.ascast, align 4
-  %cmp = icmp ne i32 %2, 10
+  %0 = load i32, ptr addrspace(4) %i.ascast, align 4
+  %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %for.cond
-  %3 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3)
+  call void @llvm.lifetime.end.p0(i64 4, ptr %i)
   br label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %4 = load i32, i32 addrspace(4)* %i.ascast, align 4
-  %idxprom = sext i32 %4 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %a.ascast, i64 0, i64 %idxprom
-  store i32 0, i32 addrspace(4)* %arrayidx, align 4
+  %1 = load i32, ptr addrspace(4) %i.ascast, align 4
+  %idxprom = sext i32 %1 to i64
+  %arrayidx = getelementptr inbounds [10 x i32], ptr addrspace(4) %a.ascast, i64 0, i64 %idxprom
+  store i32 0, ptr addrspace(4) %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %5 = load i32, i32 addrspace(4)* %i.ascast, align 4
-  %inc = add nsw i32 %5, 1
-  store i32 %inc, i32 addrspace(4)* %i.ascast, align 4
+  %2 = load i32, ptr addrspace(4) %i.ascast, align 4
+  %inc = add nsw i32 %2, 1
+  store i32 %inc, ptr addrspace(4) %i.ascast, align 4
   br label %for.cond, !llvm.loop !12
 
 for.end:                                          ; preds = %for.cond.cleanup
-  %6 = bitcast i32* %i1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6)
-  store i32 0, i32 addrspace(4)* %i1.ascast, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %i1)
+  store i32 0, ptr addrspace(4) %i1.ascast, align 4
   br label %for.cond2
 
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
@@ -226,37 +222,35 @@ for.end:                                          ; preds = %for.cond.cleanup
 ; CHECK-SPIRV-NEXT: BranchConditional [[#]] [[#]] [[#]]
 ; CHECK-SPIRV-NEGATIVE-NOT: LoopMerge [[#]] [[#]] 16777216
 for.cond2:                                        ; preds = %for.inc9, %for.end
-  %7 = load i32, i32 addrspace(4)* %i1.ascast, align 4
-  %cmp3 = icmp ne i32 %7, 10
+  %3 = load i32, ptr addrspace(4) %i1.ascast, align 4
+  %cmp3 = icmp ne i32 %3, 10
   br i1 %cmp3, label %for.body6, label %for.cond.cleanup4
 
 for.cond.cleanup4:                                ; preds = %for.cond2
-  %8 = bitcast i32* %i1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8)
+  call void @llvm.lifetime.end.p0(i64 4, ptr %i1)
   br label %for.end11
 
 for.body6:                                        ; preds = %for.cond2
-  %9 = load i32, i32 addrspace(4)* %i1.ascast, align 4
-  %idxprom7 = sext i32 %9 to i64
-  %arrayidx8 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %a.ascast, i64 0, i64 %idxprom7
-  store i32 0, i32 addrspace(4)* %arrayidx8, align 4
+  %4 = load i32, ptr addrspace(4) %i1.ascast, align 4
+  %idxprom7 = sext i32 %4 to i64
+  %arrayidx8 = getelementptr inbounds [10 x i32], ptr addrspace(4) %a.ascast, i64 0, i64 %idxprom7
+  store i32 0, ptr addrspace(4) %arrayidx8, align 4
   br label %for.inc9
 
 for.inc9:                                         ; preds = %for.body6
-  %10 = load i32, i32 addrspace(4)* %i1.ascast, align 4
-  %inc10 = add nsw i32 %10, 1
-  store i32 %inc10, i32 addrspace(4)* %i1.ascast, align 4
+  %5 = load i32, ptr addrspace(4) %i1.ascast, align 4
+  %inc10 = add nsw i32 %5, 1
+  store i32 %inc10, ptr addrspace(4) %i1.ascast, align 4
   br label %for.cond2, !llvm.loop !15
 
 for.end11:                                        ; preds = %for.cond.cleanup4
-  %11 = bitcast [10 x i32]* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 40, i8* %11) 
+  call void @llvm.lifetime.end.p0(i64 40, ptr %a) 
   ret void
 }
 
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture)
 
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture)
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 

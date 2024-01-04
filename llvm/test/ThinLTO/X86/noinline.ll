@@ -2,7 +2,7 @@
 ; which, when takes place, causes promotion of its callee.
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/noinline.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t3.o \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t3.o \
 ; RUN:   -save-temps       \
 ; RUN:   -r=%t1.bc,main,px \
 ; RUN:   -r=%t1.bc,foo,    \

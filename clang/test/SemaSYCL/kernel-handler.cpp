@@ -59,7 +59,7 @@ int main() {
 // Kernel body with clones
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
-// NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler':'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
+// NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const kernel_handler':'const sycl::kernel_handler' lvalue
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler':'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler':'sycl::kernel_handler'
 
@@ -128,6 +128,6 @@ int main() {
 // Kernel body with clones
 // NATIVESUPPORT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
 // NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
-// NATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler':'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
+// NATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
 // NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const kernel_handler':'const sycl::kernel_handler' lvalue
 // NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler':'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler':'sycl::kernel_handler'

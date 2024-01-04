@@ -1,16 +1,5 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 32
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -66,7 +55,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK) * N + sg_starty / SG_SZ * TN,
                  N);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,
@@ -76,15 +65,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
          }); // parallel for
    }).wait();
 }
-
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-static constexpr size_t MATRIX_K = TK * 2;
-int8_t A[MATRIX_M][MATRIX_K];
-int8_t B[MATRIX_K][MATRIX_N];
-int8_t Bvnni[MATRIX_K / 4][MATRIX_N * 4];
-int32_t C[MATRIX_M][MATRIX_N];
-int32_t D[MATRIX_M][MATRIX_N];
 
 void int8_row_vnni_reformat(int8_t *_in, int8_t *_out, int K, int N,
                             int stride_in) {
@@ -101,40 +81,22 @@ void int8_row_vnni_reformat(int8_t *_in, int8_t *_out, int K, int N,
   }
 }
 
-void matrix_multiply_ref(int32_t *A_mem, int32_t *B_mem, int32_t *C_mem, int M,
-                         int N, int K) {
-  // tiling
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        char *va = (char *)(A_mem + m * K + k);
-        char *vb = (char *)(B_mem + k * N + n);
-        int acc = *(C_mem + m * N + n);
-        for (int i = 0; i < 4; i++) {
-          acc += (va[i] * vb[i]);
-        }
-        *(C_mem + m * N + n) = acc;
-      }
-    }
-}
-
 int main() {
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = i + j;
-    }
-  }
-  for (int i = 0; i < MATRIX_K; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = i + j * 2;
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 0;
-      D[i][j] = 0;
-    }
-  }
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  int8_t A[MATRIX_M][MATRIX_K];
+  int8_t B[MATRIX_K][MATRIX_N];
+  int8_t Bvnni[MATRIX_K / 4][MATRIX_N * 4];
+  int32_t C[MATRIX_M][MATRIX_N];
+  int32_t D[MATRIX_M][MATRIX_N];
+
+  matrix_fill(MATRIX_M, MATRIX_K, (int8_t *)A,
+              [](int i, int j) { return i + j; });
+  matrix_fill(MATRIX_K, MATRIX_N, (int8_t *)B,
+              [](int i, int j) { return i + j * 2; });
+  matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)C, 0);
+  matrix_fill(MATRIX_M, MATRIX_N, (int32_t *)D, 0);
 
   big_matrix<int32_t, MATRIX_M, MATRIX_N> MC((int32_t *)&C);
   big_matrix<int32_t, MATRIX_M, MATRIX_N> MD((int32_t *)&D);
@@ -143,16 +105,11 @@ int main() {
   matrix_multiply(MC, MA, MB);
   int8_row_vnni_reformat((int8_t *)B, (int8_t *)Bvnni, MATRIX_K, MATRIX_N,
                          MATRIX_N);
-  matrix_multiply_ref((int32_t *)A, (int32_t *)Bvnni, (int32_t *)D, MATRIX_M,
-                      MATRIX_N, MATRIX_K / 4);
+  matrix_multiply_ref<int8_t, int8_t, int32_t, 4>((int8_t *)A, (int8_t *)Bvnni,
+                                                  (int32_t *)D, MATRIX_M,
+                                                  MATRIX_N, MATRIX_K / 4);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if (C[i][j] != D[i][j])
-        res = false;
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (int32_t *)C, (int32_t *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

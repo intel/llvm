@@ -1,6 +1,6 @@
 ; XFAIL: *
 
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
@@ -42,9 +42,9 @@ define spir_func i32 @foo(i32 %x) {
   ret i32 %x
 }
 
-@foo.alias = internal alias i32 (i32), i32 (i32)* @foo
+@foo.alias = internal alias i32 (i32), ptr @foo
 
-define spir_func void @bar(i64* %y) {
-  store i64 ptrtoint (i32 (i32)* @foo.alias to i64), i64* %y
+define spir_kernel void @bar(ptr %y) {
+  store i64 ptrtoint (ptr @foo.alias to i64), ptr %y
   ret void
 }

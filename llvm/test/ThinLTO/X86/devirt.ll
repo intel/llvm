@@ -34,7 +34,7 @@
 ; NOENABLESPLITFLAG-DAG: typeidCompatibleVTable: (name: "1.{{.*}}", summary: ((offset: 16, [[D]])))
 
 ; Index based WPD
-; RUN: llvm-lto2 run -opaque-pointers %t2.o -opaque-pointers -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,px \
@@ -49,7 +49,7 @@
 
 ; Check that we're able to prevent specific function from being
 ; devirtualized when running index based WPD.
-; RUN: llvm-lto2 run -opaque-pointers %t2.o -opaque-pointers -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-skip=_ZN1A1nEi \
 ; RUN:   -o %t3 \
@@ -62,7 +62,7 @@
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=SKIP
 
-; RUN: llvm-lto2 run -opaque-pointers %t.o -opaque-pointers -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \

@@ -15,7 +15,7 @@
 
 ; Use -import-instr-limit=5 so that we don't import _ZL3barv, which would
 ; hide the problem.
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -import-instr-limit=5 -o %t3 %t.bc %t2a.bc %t2b.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2a.bc,_ZL3barv,l -r %t2b.bc,_ZL3barv,pl -print-imports 2>&1 | FileCheck %s --check-prefix=IMPORTS2
+; RUN: llvm-lto2 run -save-temps -import-instr-limit=5 -o %t3 %t.bc %t2a.bc %t2b.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2a.bc,_ZL3barv,l -r %t2b.bc,_ZL3barv,pl -print-imports 2>&1 | FileCheck %s --check-prefix=IMPORTS2
 ; IMPORTS2-NOT: Import _ZL3barv
 ; IMPORTS2: Import _ZL3foov.llvm.0
 ; IMPORTS2-NOT: Import _ZL3barv

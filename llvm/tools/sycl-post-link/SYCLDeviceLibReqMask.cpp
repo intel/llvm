@@ -223,6 +223,22 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fast_log10f", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_fast_powf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_fast_fdividef", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rz", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_rd", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_rn", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_ru", DeviceLibExt::cl_intel_devicelib_imf},
@@ -428,6 +444,22 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fmax", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_fmin", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_copysign", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2float_rd",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2float_rn",
@@ -625,16 +657,16 @@ SYCLDeviceLibFuncMap SDLMap = {
 // is an unsigned int32. getDeviceLibBit checks which fallback device library
 // is required for FuncName and returns the corresponding bit. The corresponding
 // mask for each fallback device library is:
-// fallback-cassert:      0x1
-// fallback-cmath:        0x2
-// fallback-cmath-fp64:   0x4
-// fallback-complex:      0x8
-// fallback-complex-fp64: 0x10
-// fallback-cstring:      0x20
-// fallback-imf:          0x40
-// fallback-imf-fp64:     0x80
-// fallback-imf-bf16:     0x100
-// fallback-bfloat16:     0x200
+// cl_intel_devicelib_assert:        0x1
+// cl_intel_devicelib_math:          0x2
+// cl_intel_devicelib_math_fp64:     0x4
+// cl_intel_devicelib_complex:       0x8
+// cl_intel_devicelib_complex_fp64:  0x10
+// cl_intel_devicelib_cstring :      0x20
+// cl_intel_devicelib_imf:           0x40
+// cl_intel_devicelib_imf_fp64:      0x80
+// cl_intel_devicelib_imf_bf16:      0x100
+// cl_intel_devicelib_bfloat16:      0x200
 uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())

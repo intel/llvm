@@ -44,7 +44,7 @@
 ; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
 ;
 ; CHECK-LLVM-OCL-NOT: @__spirv_BuiltInSubgroupMaxSize
-; CHECK-LLVM-NOT: addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
+; CHECK-LLVM-NOT: addrspacecast ptr addrspace(1) @__spirv_BuiltInSubgroupMaxSize to ptr addrspace(4)
 ; CHECK-LLVM-LABEL: if.then.i
 ; CHECK-LLVM-NOT: load
 ; CHECK-LLVM-OCL: call spir_func i32 @_Z22get_max_sub_group_sizev()
@@ -67,20 +67,19 @@ $_ZTS10sycl_subgrIiLi0EE = comdat any
 
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTS10sycl_subgrIiLi0EE(i32 %_arg_, i32 addrspace(1)* %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_3, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_4, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_5) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define weak_odr dso_local spir_kernel void @_ZTS10sycl_subgrIiLi0EE(i32 %_arg_, ptr addrspace(1) %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_3, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_4, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_5) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_5, i64 0, i32 0, i32 0, i64 0
-  %1 = load i64, i64* %0, align 8
-  %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %1
-  %2 = and i32 %_arg_, 1
-  %tobool.not.i = icmp eq i32 %2, 0
-  %3 = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
+  %0 = load i64, ptr %_arg_5, align 8
+  %add.ptr.i = getelementptr inbounds i32, ptr addrspace(1) %_arg_1, i64 %0
+  %1 = and i32 %_arg_, 1
+  %tobool.not.i = icmp eq i32 %1, 0
+  %2 = addrspacecast ptr addrspace(1) @__spirv_BuiltInSubgroupMaxSize to ptr addrspace(4)
   br i1 %tobool.not.i, label %if.end.i, label %if.then.i
 
 if.then.i:                                        ; preds = %entry
-  %4 = load i32, i32 addrspace(4)* %3, align 4
-  %ptridx.ascast.i14.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
-  store i32 %4, i32 addrspace(4)* %ptridx.ascast.i14.i, align 4
+  %3 = load i32, ptr addrspace(4) %2, align 4
+  %ptridx.ascast.i14.i = addrspacecast ptr addrspace(1) %add.ptr.i to ptr addrspace(4)
+  store i32 %3, ptr addrspace(4) %ptridx.ascast.i14.i, align 4
   br label %if.end.i
 
 if.end.i:                                         ; preds = %if.then.i, %entry
@@ -89,14 +88,14 @@ if.end.i:                                         ; preds = %if.then.i, %entry
   br i1 %tobool4.not.i, label %cond.false.i, label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 cond.false.i:                                     ; preds = %if.end.i
-  %5 = load i32, i32 addrspace(4)* %3, align 4
+  %4 = load i32, ptr addrspace(4) %2, align 4
   br label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 "_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit": ; preds = %cond.false.i, %if.end.i
-  %cond.i = phi i32 [ %5, %cond.false.i ], [ 1, %if.end.i ]
-  %ptridx.i.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 1
-  %ptridx.ascast.i.i = addrspacecast i32 addrspace(1)* %ptridx.i.i to i32 addrspace(4)*
-  store i32 %cond.i, i32 addrspace(4)* %ptridx.ascast.i.i, align 4
+  %cond.i = phi i32 [ %4, %cond.false.i ], [ 1, %if.end.i ]
+  %ptridx.i.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i, i64 1
+  %ptridx.ascast.i.i = addrspacecast ptr addrspace(1) %ptridx.i.i to ptr addrspace(4)
+  store i32 %cond.i, ptr addrspace(4) %ptridx.ascast.i.i, align 4
   ret void
 }
 

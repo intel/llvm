@@ -3,7 +3,9 @@
 // RUN: FileCheck %s --input-file %t.ll --check-prefix=CHECK-SRCLOC
 
 // Tests for IR of device_has(aspect, ...) attribute and
-// !sycl_used_aspects metadata
+// !sycl_used_aspects metadata.
+// We run FileCheck for 2 times to break metadata order dependency since
+// compiler has no guarantee for meta data order.
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -12,35 +14,35 @@ queue q;
 // CHECK-ASPECTS: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] {{.*}}
 // CHECK-SRCLOC: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !srcloc ![[SRCLOC1:[0-9]+]] {{.*}}
 
-// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}func1{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func1{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS1]]
-// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}func1{{.*}} !srcloc ![[SRCLOC2:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func1{{.*}} !srcloc ![[SRCLOC2:[0-9]+]]
 [[sycl::device_has(sycl::aspect::cpu)]] void func1() {}
 
-// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}func2{{.*}} !sycl_declared_aspects ![[ASPECTS2:[0-9]+]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func2{{.*}} !sycl_declared_aspects ![[ASPECTS2:[0-9]+]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS2]]
-// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}func2{{.*}} !srcloc ![[SRCLOC3:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func2{{.*}} !srcloc ![[SRCLOC3:[0-9]+]]
 [[sycl::device_has(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
-// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}func3{{.*}} !sycl_declared_aspects ![[EMPTYASPECTS:[0-9]+]]
-// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}func3{{.*}} !srcloc ![[SRCLOC4:[0-9]+]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func3{{.*}} !sycl_declared_aspects ![[EMPTYASPECTS:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func3{{.*}} !srcloc ![[SRCLOC4:[0-9]+]]
 [[sycl::device_has()]] void func3() {}
 
-// CHECK-ASPECTS: define linkonce_odr dso_local spir_func void @{{.*}}func4{{.*}} !sycl_declared_aspects ![[ASPECTS3:[0-9]+]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func4{{.*}} !sycl_declared_aspects ![[ASPECTS3:[0-9]+]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS3]]
-// CHECK-SRCLOC: define linkonce_odr dso_local spir_func void @{{.*}}func4{{.*}} !srcloc ![[SRCLOC5:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func4{{.*}} !srcloc ![[SRCLOC5:[0-9]+]]
 template <sycl::aspect Aspect> [[sycl::device_has(Aspect)]] void func4() {}
 
-// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}func5{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func5{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS1]]
-// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}func5{{.*}} !srcloc ![[SRCLOC6:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func5{{.*}} !srcloc ![[SRCLOC6:[0-9]+]]
 [[sycl::device_has(sycl::aspect::cpu)]] void func5();
 void func5() {}
 
 constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
-// CHECK-ASPECTS: define dso_local spir_func void @{{.*}}func6{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
+// CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func6{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS1]]
-// CHECK-SRCLOC: define dso_local spir_func void @{{.*}}func6{{.*}} !srcloc ![[SRCLOC7:[0-9]+]]
+// CHECK-SRCLOC: define {{.*}}spir_func void @{{.*}}func6{{.*}} !srcloc ![[SRCLOC7:[0-9]+]]
 [[sycl::device_has(getAspect())]] void func6() {}
 
 class KernelFunctor {

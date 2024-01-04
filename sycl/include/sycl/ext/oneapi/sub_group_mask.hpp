@@ -8,10 +8,12 @@
 #pragma once
 
 #include <sycl/detail/helpers.hpp>     // for Builder
+#include <sycl/detail/memcpy.hpp>      // detail::memcpy
 #include <sycl/detail/type_traits.hpp> // for is_sub_group
 #include <sycl/exception.hpp>          // for errc, exception
 #include <sycl/id.hpp>                 // for id
 #include <sycl/marray.hpp>             // for marray
+#include <sycl/types.hpp>              // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT

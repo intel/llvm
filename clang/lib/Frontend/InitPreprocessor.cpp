@@ -438,9 +438,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   //      value is, are implementation-defined.
   // (Removed in C++20.)
   if (!LangOpts.CPlusPlus) {
-    // FIXME: Use correct value for C23.
-    if (LangOpts.C2x)
-      Builder.defineMacro("__STDC_VERSION__", "202000L");
+    if (LangOpts.C23)
+      Builder.defineMacro("__STDC_VERSION__", "202311L");
     else if (LangOpts.C17)
       Builder.defineMacro("__STDC_VERSION__", "201710L");
     else if (LangOpts.C11)
@@ -598,6 +597,11 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
+    if (LangOpts.HIPStdPar) {
+      Builder.defineMacro("__HIPSTDPAR__");
+      if (LangOpts.HIPStdParInterposeAlloc)
+        Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC__");
+    }
     if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
       if (!TI.hasHIPImageSupport()) {
@@ -619,6 +623,17 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
+  }
+
+  if (LangOpts.OpenACC) {
+    // FIXME: When we have full support for OpenACC, we should set this to the
+    // version we support. Until then, set as '1' by default, but provide a
+    // temporary mechanism for users to override this so real-world examples can
+    // be tested against.
+    if (!LangOpts.OpenACCMacroOverride.empty())
+      Builder.defineMacro("_OPENACC", LangOpts.OpenACCMacroOverride);
+    else
+      Builder.defineMacro("_OPENACC", "1");
   }
 }
 
@@ -812,6 +827,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__ATOMIC_RELEASE", "3");
   Builder.defineMacro("__ATOMIC_ACQ_REL", "4");
   Builder.defineMacro("__ATOMIC_SEQ_CST", "5");
+
+  // Define macros for the clang atomic scopes.
+  Builder.defineMacro("__MEMORY_SCOPE_SYSTEM", "0");
+  Builder.defineMacro("__MEMORY_SCOPE_DEVICE", "1");
+  Builder.defineMacro("__MEMORY_SCOPE_WRKGRP", "2");
+  Builder.defineMacro("__MEMORY_SCOPE_WVFRNT", "3");
+  Builder.defineMacro("__MEMORY_SCOPE_SINGLE", "4");
 
   // Define macros for the OpenCL memory scope.
   // The values should match AtomicScopeOpenCLModel::ID enum.
@@ -1340,6 +1362,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+  } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
+    Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
@@ -1368,6 +1392,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // ELF targets define __ELF__
   if (TI.getTriple().isOSBinFormatELF())
     Builder.defineMacro("__ELF__");
+
+  // Target OS macro definitions.
+  if (PPOpts.DefineTargetOSMacros) {
+    const llvm::Triple &Triple = TI.getTriple();
+#define TARGET_OS(Name, Predicate)                                             \
+  Builder.defineMacro(#Name, (Predicate) ? "1" : "0");
+#include "clang/Basic/TargetOSMacros.def"
+#undef TARGET_OS
+  }
 
   // Get other target #defines.
   TI.getTargetDefines(LangOpts, Builder);

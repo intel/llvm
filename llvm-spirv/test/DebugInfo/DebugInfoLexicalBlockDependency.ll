@@ -15,9 +15,9 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test(i64 %value) #0 !dbg !9 {
 entry:
   %value.addr = alloca i32, align 1, !dbg !17
-  call void @llvm.dbg.declare(metadata i32* %value.addr, metadata !13, metadata !DIExpression()), !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %value.addr, metadata !13, metadata !DIExpression()), !dbg !18
   %value.trunc = trunc i64 %value to i32, !dbg !17
-  store i32 %value.trunc, i32* %value.addr, align 4, !dbg !17
+  store i32 %value.trunc, ptr %value.addr, align 4, !dbg !17
   ret void
 }
 

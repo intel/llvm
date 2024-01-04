@@ -318,6 +318,7 @@ public:
   // TODO - fix all __esimd* intrinsics and table entries according to the rule
   // above.
   ESIMDIntrinDescTable() {
+    // clang-format off
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
         // source
@@ -358,12 +359,6 @@ public:
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
-        // intrinsics to query thread's coordinates:
-        {"group_id_x", {"group.id.x", {}}},
-        {"group_id_y", {"group.id.y", {}}},
-        {"group_id_z", {"group.id.z", {}}},
-        {"local_id", {"local.id", {}}},
-        {"local_size", {"local.size", {}}},
         {"svm_atomic0", {"svm.atomic", {ai1(1), a(0), u(-1)}, bo(0)}},
         {"svm_atomic1", {"svm.atomic", {ai1(2), a(0), a(1), u(-1)}, bo(0)}},
         {"svm_atomic2",
@@ -404,25 +399,6 @@ public:
         // arg1: i32 offset (in owords)
         // arg2: data to write (overloaded)
         {"oword_st", {"oword.st", {aSI(0), a(1), a(2)}}},
-
-        // surface index-based gather/scatter:
-        // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
-        // arg1: i16 scale, CONSTANT
-        // arg2: i32 surface index
-        // arg3: i32 global offset in bytes
-        // arg4: vXi32 element offset in bytes (overloaded)
-        {"gather_scaled2",
-         {"gather.scaled2", {t(3), t(4), aSI(0), a(1), a(2)}}},
-
-        // arg0: vXi1 predicate (overloaded)
-        // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
-        // arg2: i16 scale, CONSTANT
-        // arg3: i32 surface index
-        // arg4: i32 global offset in bytes
-        // arg5: vXi32 element offset in bytes (overloaded)
-        // arg6: old value of the data read
-        {"gather_scaled",
-         {"gather.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), u(-1)}}},
 
         // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
         // arg1: i16 scale, CONSTANT
@@ -534,7 +510,7 @@ public:
         {"lsc_load_merge_bti",
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
-           t8(6), t8(7), c8(0), a(1), aSI(2), a(2)}}},
+           t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
         {"lsc_load_stateless",
          {"lsc.load.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -683,8 +659,10 @@ public:
          {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
-        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
+        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
+        {"srnd", {"srnd", {a(0), a(1)}}}};
   }
+  // clang-format on
 
   const IntrinTable &getTable() { return Table; }
 };
@@ -1860,6 +1838,17 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
+  // The VC backend doesn't support debugging, and trying to use
+  // non-optimized code often produces crashes or wrong answers.
+  // The recommendation from the VC team was always optimize code,
+  // even if the user requested no optimization. We already drop
+  // debugging flags in the SYCL runtime, so also drop optnone and
+  // noinline here.
+  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
+    F.removeFnAttr(Attribute::OptimizeNone);
+    F.removeFnAttr(Attribute::NoInline);
+  }
+
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
@@ -1986,7 +1975,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // Translate all uses of the load instruction from SPIRV builtin global.
       // Replaces the original global load and it is uses and stores the old
-      // instructions to ESIMDToErases.
+      // instructions to ToErase.
       translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
                                ToErase);
     }

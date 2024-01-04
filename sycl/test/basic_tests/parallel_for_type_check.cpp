@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -D__SYCL_INTERNAL_API -O0 -c -emit-llvm -S -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -D__SYCL_INTERNAL_API -c -emit-llvm -S -o - %s | FileCheck %s
 
 // This test performs basic type check for sycl::id that is used in result type.
 // Check that sycl::id is converted from sycl::item.

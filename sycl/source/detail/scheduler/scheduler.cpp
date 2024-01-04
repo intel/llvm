@@ -151,7 +151,7 @@ EventImplPtr Scheduler::addCG(
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
-    for (auto StreamImplPtr : Streams) {
+    for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
 
@@ -259,6 +259,10 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 
 Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
+}
+
+bool Scheduler::isInstanceAlive() {
+  return GlobalHandler::instance().isSchedulerAlive();
 }
 
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
@@ -396,18 +400,18 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
                      detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{}));
+                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
 }
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
-void Scheduler::releaseResources() {
+void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
   cleanupCommands({});
 
-  cleanupAuxiliaryResources(BlockingT::BLOCKING);
+  cleanupAuxiliaryResources(Blocking);
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we
@@ -415,8 +419,9 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isDeferredMemObjectsEmpty())
-    cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  do {
+    cleanupDeferredMemObjects(Blocking);
+  } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -451,8 +456,15 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 
   } else {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
-                                    Cmds.begin(), Cmds.end());
+    // Full cleanup for fusion placeholder commands is handled by the entry
+    // points for fusion (start_fusion, ...). To avoid double free or access to
+    // objects after their lifetime, fusion commands should therefore never be
+    // added to the deferred command list.
+    std::copy_if(Cmds.begin(), Cmds.end(),
+                 std::back_inserter(MDeferredCleanupCommands),
+                 [](const Command *Cmd) {
+                   return Cmd->getType() != Command::CommandType::FUSION;
+                 });
   }
 }
 
@@ -569,13 +581,22 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
   WriteLockT Lock = acquireWriteLock();
+  WriteLockT FusionMapLock = acquireFusionWriteLock();
   MGraphBuilder.startFusion(Queue);
+}
+
+void Scheduler::cleanUpCmdFusion(sycl::detail::queue_impl *Queue) {
+  // No graph lock, we might be called because the graph builder is releasing
+  // resources.
+  WriteLockT FusionMapLock = acquireFusionWriteLock();
+  MGraphBuilder.cleanUpCmdFusion(Queue);
 }
 
 void Scheduler::cancelFusion(QueueImplPtr Queue) {
   std::vector<Command *> ToEnqueue;
   {
     WriteLockT Lock = acquireWriteLock();
+    WriteLockT FusionMapLock = acquireFusionWriteLock();
     MGraphBuilder.cancelFusion(Queue, ToEnqueue);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -587,6 +608,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
   EventImplPtr FusedEvent;
   {
     WriteLockT Lock = acquireWriteLock();
+    WriteLockT FusionMapLock = acquireFusionWriteLock();
     FusedEvent = MGraphBuilder.completeFusion(Queue, ToEnqueue, PropList);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -595,7 +617,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
 }
 
 bool Scheduler::isInFusionMode(QueueIdT queue) {
-  ReadLockT Lock = acquireReadLock();
+  ReadLockT Lock = acquireFusionReadLock();
   return MGraphBuilder.isInFusionMode(queue);
 }
 

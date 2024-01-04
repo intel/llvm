@@ -1,16 +1,5 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 16
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -52,7 +41,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                    sub_a;
                // For B, we assume B has been already VNNIed.
                joint_matrix<sub_group, half, use::b, TK, TN,
-                            ext::intel::experimental::matrix::layout::packed>
+                            layout::ext_intel_packed>
                    sub_b;
                joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
@@ -72,7 +61,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                      accB.template get_multi_ptr<access::decorated::no>() +
                          (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
                      N * 2);
-                 sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+                 joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
                }
                joint_matrix_store(
                    sg, sub_c,
@@ -83,64 +72,31 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
    }).wait();
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-static constexpr size_t MATRIX_K = TK * 2;
-half A[MATRIX_M][MATRIX_K];
-half B[MATRIX_K / 2][MATRIX_N * 2];
-float C[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
-
-void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
-                         int K) {
-  // tiling
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        half *va = (half *)(A_mem + m * K + k);
-        half *vb = (half *)(B_mem + k * N + n);
-        float acc = *(C_mem + m * N + n);
-        for (int i = 0; i < 2; i++) {
-          acc += ((float)va[i] * (float)vb[i]);
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-    }
-}
-
 int main() {
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = i + 2 * j;
-    }
-  }
-  for (int i = 0; i < MATRIX_K / 2; i++) {
-    for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = i + j;
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 1.0;
-      D[i][j] = 1.0;
-    }
-  }
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  half A[MATRIX_M][MATRIX_K];
+  half B[MATRIX_K / 2][MATRIX_N * 2];
+  float C[MATRIX_M][MATRIX_N];
+  float D[MATRIX_M][MATRIX_N];
+
+  matrix_fill(MATRIX_M, MATRIX_K, (half *)A,
+              [](int i, int j) { return i + 2 * j; });
+  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (half *)B,
+              [](int i, int j) { return i + j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<half, MATRIX_M, MATRIX_K> MA((half *)&A);
   big_matrix<half, MATRIX_K / 2, MATRIX_N * 2> MB((half *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref((float *)A, (float *)B, (float *)D, MATRIX_M, MATRIX_N,
-                      MATRIX_K / 2);
+  matrix_multiply_ref<half, half, float, 2>((half *)A, (half *)B, (float *)D,
+                                            MATRIX_M, MATRIX_N, MATRIX_K / 2);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if (C[i][j] != D[i][j])
-        res = false;
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

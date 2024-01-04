@@ -90,6 +90,7 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #include <__availability>
 #include <__config>
 #include <__thread/formatter.h>
+#include <__thread/jthread.h>
 #include <__thread/this_thread.h>
 #include <__thread/thread.h>
 #include <__threading_support>
@@ -105,7 +106,7 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #endif
 
 #ifdef _LIBCPP_HAS_NO_THREADS
-# error "<thread> is not supported since libc++ has been configured without support for threads."
+#  error "<thread> is not supported since libc++ has been configured without support for threads."
 #endif
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES)

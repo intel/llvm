@@ -15,7 +15,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: define spir_func void @_ZN3FooC2Ev(ptr addrspace(4) align 16 %0)
 ; Function Attrs: noinline nounwind
-define spir_func void @_ZN3FooC2Ev(%struct._ZTS6Struct.Struct addrspace(4)* align 16 %0) #0 {
+define spir_func void @_ZN3FooC2Ev(ptr addrspace(4) align 16 %0) #0 {
   ret void
 }
 

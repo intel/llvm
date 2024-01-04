@@ -1,5 +1,5 @@
-; RUN: llvm-link -opaque-pointers %s %p/Inputs/wrong-addrspace-gv-declaration.ll -S | FileCheck %s
-; RUN: llvm-link -opaque-pointers %p/Inputs/wrong-addrspace-gv-declaration.ll %s -S | FileCheck %s
+; RUN: llvm-link %s %p/Inputs/wrong-addrspace-gv-declaration.ll -S | FileCheck %s
+; RUN: llvm-link %p/Inputs/wrong-addrspace-gv-declaration.ll %s -S | FileCheck %s
 
 ; The address space is declared incorrectly here, so an addrspacecast
 ; is needed to link.

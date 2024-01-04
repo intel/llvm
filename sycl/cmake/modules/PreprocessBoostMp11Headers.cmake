@@ -30,7 +30,7 @@ function(preprocess_mp11_header)
 
   # 1) replace `BOOST_*` macros with `SYCL_BOOST_*`.
   string(REGEX REPLACE
-    "([ \t\n\r!])BOOST_"
+    "([ \t\n\r!(])BOOST_"
     "\\1SYCL_DETAIL_BOOST_"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # 2) replace `namespace boost { ... }` with

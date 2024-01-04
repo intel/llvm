@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 define i32 @main() nounwind uwtable !dbg !5 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval
+  store i32 0, ptr %retval
   ret i32 0, !dbg !10
 }
 

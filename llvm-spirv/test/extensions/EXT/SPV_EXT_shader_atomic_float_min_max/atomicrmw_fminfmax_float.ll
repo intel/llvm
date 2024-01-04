@@ -20,9 +20,9 @@ target triple = "spir64"
 ; Function Attrs: nounwind
 define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
- %0 = atomicrmw fmin float addrspace(1)* @f, float 42.000000e+00 seq_cst
+ %0 = atomicrmw fmin ptr addrspace(1) @f, float 42.000000e+00 seq_cst
 ; CHECK: AtomicFMinEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[FPValue]]
- %1 = atomicrmw fmax float addrspace(1)* @f, float 42.000000e+00 seq_cst
+ %1 = atomicrmw fmax ptr addrspace(1) @f, float 42.000000e+00 seq_cst
 ; CHECK: AtomicFMaxEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[FPValue]]
 
   ret void

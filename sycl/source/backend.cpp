@@ -37,6 +37,8 @@ static const PluginPtr &getPlugin(backend Backend) {
     return pi::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
+  case backend::ext_oneapi_hip:
+    return pi::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "getPlugin: Unsupported backend " +
@@ -59,7 +61,7 @@ backend convertBackend(pi_platform_backend PiBackend) {
   case PI_EXT_PLATFORM_BACKEND_ESIMD:
     return backend::ext_intel_esimd_emulator;
   case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
-    return backend::ext_native_cpu;
+    return backend::ext_oneapi_native_cpu;
   }
   throw sycl::runtime_error{"convertBackend: Unsupported backend",
                             PI_ERROR_INVALID_OPERATION};
@@ -172,10 +174,10 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;
-  size_t NumDevices = 0;
+  uint32_t NumDevices = 0;
 
   Plugin->call<PiApiKind::piProgramGetInfo>(
-      PiProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(size_t), &NumDevices,
+      PiProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
       nullptr);
   ProgramDevices.resize(NumDevices);
   Plugin->call<PiApiKind::piProgramGetInfo>(PiProgram, PI_PROGRAM_INFO_DEVICES,

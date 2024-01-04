@@ -2,12 +2,12 @@
 ; RUN: opt -module-summary %p/Inputs/linkonce_aliasee_ref_import.ll -o %t2.bc
 
 ; Import with instr limit to ensure only foo imported.
-; RUN: llvm-lto -thinlto-action=run -opaque-pointers -exported-symbol=main -import-instr-limit=5 %t1.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=run -exported-symbol=main -import-instr-limit=5 %t1.bc %t2.bc
 ; RUN: llvm-nm -o - < %t1.bc.thinlto.o | FileCheck %s --check-prefix=NM1
 ; RUN: llvm-nm -o - < %t2.bc.thinlto.o | FileCheck %s --check-prefix=NM2
 
 ; Import with instr limit to ensure only foo imported.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:    -r=%t1.bc,foo,pxl \
 ; RUN:    -r=%t1.bc,baz,pxl \
 ; RUN:    -r=%t1.bc,baz.clone,pxl \

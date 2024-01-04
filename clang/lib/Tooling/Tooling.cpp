@@ -255,9 +255,7 @@ llvm::Expected<std::string> getAbsolutePath(llvm::vfs::FileSystem &FS,
                                             StringRef File) {
   StringRef RelativePath(File);
   // FIXME: Should '.\\' be accepted on Win32?
-  if (RelativePath.startswith("./")) {
-    RelativePath = RelativePath.substr(strlen("./"));
-  }
+  RelativePath.consume_front("./");
 
   SmallString<1024> AbsolutePath = RelativePath;
   if (auto EC = FS.makeAbsolute(AbsolutePath))
@@ -276,14 +274,14 @@ void addTargetAndModeForProgramName(std::vector<std::string> &CommandLine,
     return;
   const auto &Table = driver::getDriverOptTable();
   // --target=X
-  const std::string TargetOPT =
+  StringRef TargetOPT =
       Table.getOption(driver::options::OPT_target).getPrefixedName();
   // -target X
-  const std::string TargetOPTLegacy =
+  StringRef TargetOPTLegacy =
       Table.getOption(driver::options::OPT_target_legacy_spelling)
           .getPrefixedName();
   // --driver-mode=X
-  const std::string DriverModeOPT =
+  StringRef DriverModeOPT =
       Table.getOption(driver::options::OPT_driver_mode).getPrefixedName();
   auto TargetMode =
       driver::ToolChain::getTargetAndModeFromProgramName(InvokedAs);
@@ -294,16 +292,16 @@ void addTargetAndModeForProgramName(std::vector<std::string> &CommandLine,
   for (auto Token = ++CommandLine.begin(); Token != CommandLine.end();
        ++Token) {
     StringRef TokenRef(*Token);
-    ShouldAddTarget = ShouldAddTarget && !TokenRef.startswith(TargetOPT) &&
+    ShouldAddTarget = ShouldAddTarget && !TokenRef.starts_with(TargetOPT) &&
                       !TokenRef.equals(TargetOPTLegacy);
-    ShouldAddMode = ShouldAddMode && !TokenRef.startswith(DriverModeOPT);
+    ShouldAddMode = ShouldAddMode && !TokenRef.starts_with(DriverModeOPT);
   }
   if (ShouldAddMode) {
     CommandLine.insert(++CommandLine.begin(), TargetMode.DriverMode);
   }
   if (ShouldAddTarget) {
     CommandLine.insert(++CommandLine.begin(),
-                       TargetOPT + TargetMode.TargetPrefix);
+                       (TargetOPT + TargetMode.TargetPrefix).str());
   }
 }
 
@@ -507,7 +505,7 @@ static void injectResourceDir(CommandLineArguments &Args, const char *Argv0,
                               void *MainAddr) {
   // Allow users to override the resource dir.
   for (StringRef Arg : Args)
-    if (Arg.startswith("-resource-dir"))
+    if (Arg.starts_with("-resource-dir"))
       return;
 
   // If there's no override in place add our resource dir.

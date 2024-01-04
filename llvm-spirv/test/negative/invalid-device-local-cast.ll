@@ -8,9 +8,9 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nofree norecurse nounwind writeonly
-define dso_local spir_func void @_Z10kernel_funPi(i32 addrspace(5)* %ptr) {
+define dso_local spir_func void @_Z10kernel_funPi(ptr addrspace(5) %ptr) {
 entry:
-  %0 = addrspacecast i32 addrspace(5)* %ptr to i32 addrspace(3)*
+  %0 = addrspacecast ptr addrspace(5) %ptr to ptr addrspace(3)
   ret void
 }
 

@@ -1,0 +1,308 @@
+= sycl_ext_oneapi_kernel_compiler_opencl
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+  sycl_ext_oneapi_kernel_compiler]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early 
+access to features and gather community feedback. Interfaces defined in 
+this specification are implemented in DPC++, but they are not finalized 
+and may change incompatibly in future versions of DPC++ without prior notice. 
+*Shipping software products should not rely on APIs defined in 
+this specification.*
+
+
+== Overview
+
+This is an extension to
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+sycl_ext_oneapi_kernel_compiler], which allows an application to define a
+kernel in the OpenCL C language when dynamically compiling a kernel from
+source.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_KERNEL_COMPILER_OPENCL`
+to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New source language enumerator
+
+This extension adds the `opencl` enumerator to the `source_language`
+enumeration, which indicates that a kernel bundle defines kernels in the
+OpenCL C language.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+enum class source_language : /*unspecified*/ {
+  // ...
+  opencl
+};
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+=== Source code is text format
+
+Kernels written in the `opencl` language are text format.
+As a result, the application must use the overload of
+`create_kernel_bundle_from_source` taking `std::string` when creating a kernel
+bundle from this language.
+
+=== Build options
+
+The `build_options` property accepts any of the compiler or linker options
+defined by the OpenCL specification, except for those that are specific to
+creating an OpenCL library.
+The kernel compiler can be used to create an OpenCL program, but not an OpenCL
+library.
+
+=== Obtaining a kernel
+
+OpenCL C kernel functions do not support {cpp} features like overloads or
+templates.
+As a result, the function name itself uniquely identifies the kernel function.
+Therefore, the `ext_oneapi_has_kernel` and `ext_oneapi_get_kernel` member
+functions identify a kernel using the function name, exactly as it appears in
+the OpenCL C source code.
+For example, if the kernel is defined this way in OpenCL C:
+
+```
+__kernel
+void foo(__global int *in, __global int *out) {/*...*/}
+```
+
+Then the application's host code can query for the kernel like so:
+
+```
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
+sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
+```
+
+=== Kernel argument restrictions
+
+When a kernel is defined in OpenCL C and invoked from SYCL via a `kernel`
+object, the arguments to the kernel are restricted to certain types.
+In general, the host application passes an argument value via
+`handler::set_arg` using one type and the kernel receives the argument value
+as a corresponding OpenCL C type.
+The following table lists the set of valid types for these kernel arguments:
+
+
+[%header,cols="1,1"]
+|===
+|Type in SYCL host code
+|Type in OpenCL C kernel
+
+|One of the OpenCL scalar types (e.g. `cl_int`, `cl_float`, etc.)
+|The corresponding OpenCL C type (e.g. `int`, `float`, etc.)
+
+|A USM pointer.
+|A `+__global+` pointer of the corresponding type.
+
+|A class (or struct) that is device copyable in SYCL whose elements are
+ composed of OpenCL scalar types or USM pointers.
+|A class (or struct) passed by value whose elements have the corresponding
+ OpenCL C types.
+
+|An `accessor` with `target::device` whose `DataT` is an OpenCL scalar type,
+ a USM pointer, or a device copyable class (or struct) whose elements are
+ composed of these types.
+|A `+__global+` pointer to the first element of the accessor's buffer.
+ The pointer has the corresponding OpenCL C type.
+
+[_Note:_ The accessor's size is not passed as a kernel argument, so the host
+code must pass a separate argument with the size if this is desired.
+_{endnote}_]
+
+|A `local_accessor` whose `DataT` is an OpenCL scalar type, a USM pointer, or a
+ device copyable class (or struct) whose elements are composed of these types.
+|A `+__local+` pointer to the first element of the accessor's local memory.
+ The pointer has the corresponding OpenCL C type.
+|===
+
+
+== Example
+
+The following example shows a simple SYCL program that defines an OpenCL C
+kernel as a string and then compiles and launches it.
+
+```
+#include <sycl/sycl.hpp>
+#include <OpenCL/opencl.h>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+int main() {
+  sycl::queue q;
+
+  // Kernel defined as an OpenCL C string.  This could be dynamically
+  // generated instead of a literal.
+  std::string source = R"""(
+    __kernel void my_kernel(__global int *in, __global int *out) {
+      size_t i = get_global_id(0);
+      out[i] = in[i]*2 + 100;
+    }
+  )""";
+
+  sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
+    syclex::create_kernel_bundle_from_source(
+      q.get_context(),
+      syclex::source_language::opencl,
+      source);
+
+  // Compile and link the kernel from the source definition.
+  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
+    syclex::build(kb_src);
+
+  // Get a "kernel" object representing the kernel defined in the
+  // source string.
+  sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
+
+  constexpr int N = 4;
+  cl_int input[N] = {0, 1, 2, 3};
+  cl_int output[N] = {};
+
+  sycl::buffer inputbuf(input, sycl::range{N});
+  sycl::buffer outputbuf(output, sycl::range{N});
+
+  q.submit([&](sycl::handler &cgh) {
+    sycl::accessor in{inputbuf, cgh, sycl::read_only};
+    sycl::accessor out{outputbuf, cgh, sycl::read_write};
+
+    // Each argument to the kernel is a SYCL accessor.
+    cgh.set_args(in, out);
+
+    // Invoke the kernel over a range.
+    cgh.parallel_for(sycl::range{N}, k);
+  });
+}
+```
+
+
+== Issues
+
+* How should we expose the difference between OpenCL C versions?
+  It seems like there are two aspects to the problem.
+  Applications need some way to query which versions the backend (or device)
+  supports.
+  Applications also need some way to tell the runtime which version the kernel
+  is written in.
++
+--
+One option is to define separate enumerators in `source_language` for each
+version like this:
+
+```
+enum class source_language : /*unspecified*/ {
+  opencl_1_0,
+  opencl_1_1,
+  opencl_2_0,
+  opencl_3_0,
+};
+```
+
+Applications could then query the supported versions via
+`is_source_kernel_bundle_supported`, and applications would identify the
+version of their kernel string via the `lang` parameter to
+`create_kernel_bundle_from_source`.
+
+Alternatively, this extension could define just a single language enumerator
+(`opencl`), but also provide as separate query to get the supported OpenCL C
+versions.
+When building a kernel bundle, applications would be required to pass "-cl-std"
+via the `build_options` property in order to identify the OpenCL C version of
+their source string.
+--
+
+* How can an application determine the OpenCL C optional features that are
+  supported and the extensions that are supported?
+  One option is to require the application to use OpenCL APIs for these
+  queries.
+  This seems better than duplicating these queries into this extension.
+  However, this assumes the application is running with an OpenCL backend.
+  Do we want to support the use of OpenCL C kernels also with the Level Zero
+  backend?
+  Currently, the online_compiler does support this case (but it provides no way
+  to query about optional features or extensions).
+
+* Do we need to document some restrictions on the OpenCL C
+  https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_C.html#work-item-functions[
+  work-item functions] that the kernel can call, which depends on how the
+  kernel was launched?
+  For example, can a kernel launched with the simple `range` form of
+  `parallel_for` call `get_local_size`?
+  In OpenCL, there is only one way to launch kernels
+  (`clEnqueueNDRangeKernel`), so it is always legal to call any of the
+  work-item functions.
+  If an OpenCL kernel is launched with a NULL `local_work_size` (which is
+  roughly equivalent to SYCL's `range` form of `parallel_for`), the
+  `get_local_size` function returns the local work-group size that is chosen by
+  the implementation.
+  Level Zero, similarly, has only one way to launch kernels.
+  Therefore, maybe it is OK to let kernels in this extension call any of the
+  work-item functions, regardless of how they are launched?

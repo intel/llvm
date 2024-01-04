@@ -206,7 +206,7 @@ bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
         std::string(kSPIRVTypeName::PrefixAndDelim) + BaseTyName.str();
     if (FullName != N)
       N = N + kSPIRVTypeName::Delimiter;
-    if (FullName.startswith(N)) {
+    if (FullName.starts_with(N)) {
       if (Postfix)
         *Postfix = FullName.drop_front(N.size());
       return true;
@@ -222,9 +222,9 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::half")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::half")) {
       return true;
     }
   }
@@ -238,9 +238,9 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::bfloat16")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::bfloat16")) {
       return true;
     }
   }
@@ -330,7 +330,7 @@ std::string prefixSPIRVName(const std::string &S) {
 
 StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix) {
   const size_t Start = strlen(kSPIRVName::Prefix);
-  if (!R.startswith(kSPIRVName::Prefix))
+  if (!R.starts_with(kSPIRVName::Prefix))
     return R;
   R = R.drop_front(Start);
   R.split(Postfix, "_", -1, false);
@@ -373,7 +373,7 @@ SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target) {
   if (Postfix == kSPIRVPostfix::Sat)
     return new SPIRVDecorate(spv::DecorationSaturatedConversion, Target);
 
-  if (Postfix.startswith(kSPIRVPostfix::Rt))
+  if (Postfix.starts_with(kSPIRVPostfix::Rt))
     return new SPIRVDecorate(spv::DecorationFPRoundingMode, Target,
                              map<SPIRVFPRoundingModeKind>(Postfix.str()));
 
@@ -413,7 +413,7 @@ std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned,
 // Enqueue kernel, kernel query, pipe and address space cast built-ins
 // are not mangled.
 bool isNonMangledOCLBuiltin(StringRef Name) {
-  if (!Name.startswith("__"))
+  if (!Name.starts_with("__"))
     return false;
 
   return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
@@ -427,7 +427,7 @@ Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   if (!oclIsBuiltin(S, Name))
     Name = S;
   StringRef R(Name);
-  if ((!Name.startswith(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
+  if ((!Name.starts_with(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
       !getByName(dePrefixSPIRVName(R, Postfix).str(), OC)) {
     return OpNop;
   }
@@ -457,13 +457,13 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     DemangledName = Name.drop_front(2);
     return true;
   }
-  if (!Name.startswith("_Z"))
+  if (!Name.starts_with("_Z"))
     return false;
   // OpenCL C++ built-ins are declared in cl namespace.
   // TODO: consider using 'St' abbriviation for cl namespace mangling.
   // Similar to ::std:: in C++.
   if (IsCpp) {
-    if (!Name.startswith("_ZN"))
+    if (!Name.starts_with("_ZN"))
       // Attempt to demangle as C. This is useful for "extern C" functions
       // that have manually mangled names.
       return false;
@@ -578,7 +578,7 @@ bool hasArrayArg(Function *F) {
 /// Convert a struct name from the name given to it in Itanium name mangling to
 /// the name given to it as an LLVM opaque struct.
 static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
-  assert(MangledStructName.startswith("ocl_") &&
+  assert(MangledStructName.starts_with("ocl_") &&
          "Not a valid builtin OpenCL mangled name");
   // Bare structure type that starts with ocl_ is a builtin opencl type.
   // See clang/lib/CodeGen/CGOpenCLRuntime for how these map to LLVM types
@@ -597,7 +597,7 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
   if (LlvmStructName.empty()) {
     LlvmStructName = "opencl.";
     LlvmStructName += MangledStructName.substr(4); // Strip off ocl_
-    if (!MangledStructName.endswith("_t"))
+    if (!MangledStructName.ends_with("_t"))
       LlvmStructName += "_t";
   }
   return LlvmStructName;
@@ -702,7 +702,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     // pointer element types, the only relevant names are those corresponding
     // to the OpenCL special types (which all begin with "ocl_").
     StringRef Arg(stringify(Name));
-    if (Arg.startswith("ocl_")) {
+    if (Arg.starts_with("ocl_")) {
       const std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
       PointeeTy = GetStructType(StructName);
     } else if (Arg.consume_front("__spirv_")) {
@@ -751,9 +751,9 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
           StructName += NameSuffixPair.second;
         }
         PointeeTy = GetStructType(StructName);
-      } else if (MangledStructName.startswith("opencl.")) {
+      } else if (MangledStructName.starts_with("opencl.")) {
         PointeeTy = GetStructType(MangledStructName);
-      } else if (MangledStructName.startswith("ocl_")) {
+      } else if (MangledStructName.starts_with("ocl_")) {
         const std::string StructName =
             demangleBuiltinOpenCLTypeName(MangledStructName);
         PointeeTy = TypedPointerType::get(GetStructType(StructName), 0);
@@ -796,8 +796,8 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
   // If there's no mangled name, we can't do anything. Also, if there's no
   // parameters, do nothing.
   StringRef Name = F->getName();
-  if (!Name.startswith("_Z") || F->arg_empty())
-    return Name.startswith("_Z");
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return Name.starts_with("_Z");
 
   Module *M = F->getParent();
   auto GetStructType = [&](StringRef Name) {
@@ -1031,11 +1031,11 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
 }
 
 Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
-  return ConstantExpr::getBitCast(V, Type::getInt8PtrTy(V->getContext(), Addr));
+  return ConstantExpr::getBitCast(V, PointerType::get(V->getContext(), Addr));
 }
 
 PointerType *getInt8PtrTy(PointerType *T) {
-  return Type::getInt8PtrTy(T->getContext(), T->getAddressSpace());
+  return PointerType::get(T->getContext(), T->getAddressSpace());
 }
 
 Value *castToInt8Ptr(Value *V, Instruction *Pos) {
@@ -1163,15 +1163,15 @@ std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M) {
 
 ConstantInt *mapUInt(Module *M, ConstantInt *I,
                      std::function<unsigned(unsigned)> F) {
-  return ConstantInt::get(I->getType(), F(I->getZExtValue()), false);
+  return ConstantInt::get(I->getIntegerType(), F(I->getZExtValue()), false);
 }
 
 ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
-  return ConstantInt::get(I->getType(), F(I->getSExtValue()), true);
+  return ConstantInt::get(I->getIntegerType(), F(I->getSExtValue()), true);
 }
 
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
-  if (!F->hasName() || !F->getName().startswith(kSPIRVName::Prefix))
+  if (!F->hasName() || !F->getName().starts_with(kSPIRVName::Prefix))
     return false;
   UndecoratedName = F->getName();
   return true;
@@ -1324,9 +1324,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     auto Name = Ty->getStructName();
     std::string Tmp;
 
-    if (Name.startswith(kLLVMTypeName::StructPrefix))
+    if (Name.starts_with(kLLVMTypeName::StructPrefix))
       Name = Name.drop_front(strlen(kLLVMTypeName::StructPrefix));
-    if (Name.startswith(kSPIRVTypeName::PrefixAndDelim)) {
+    if (Name.starts_with(kSPIRVTypeName::PrefixAndDelim)) {
       Name = Name.substr(sizeof(kSPIRVTypeName::PrefixAndDelim) - 1);
       Tmp = Name.str();
       auto Pos = Tmp.find(kSPIRVTypeName::Delimiter); // first dot
@@ -1381,7 +1381,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     } else if (auto *StructTy = dyn_cast<StructType>(ET)) {
       LLVM_DEBUG(dbgs() << "ptr to struct: " << *Ty << '\n');
       auto TyName = StructTy->getStructName();
-      if (TyName.startswith(kSPR2TypeName::OCLPrefix)) {
+      if (TyName.starts_with(kSPR2TypeName::OCLPrefix)) {
         auto DelimPos = TyName.find_first_of(kSPR2TypeName::Delimiter,
                                              strlen(kSPR2TypeName::OCLPrefix));
         if (DelimPos != StringRef::npos)
@@ -1618,7 +1618,7 @@ std::string getImageBaseTypeName(StringRef Name) {
   SmallVector<StringRef, 4> SubStrs;
   const char Delims[] = {kSPR2TypeName::Delimiter, 0};
   Name.split(SubStrs, Delims);
-  if (Name.startswith(kSPR2TypeName::OCLPrefix)) {
+  if (Name.starts_with(kSPR2TypeName::OCLPrefix)) {
     Name = SubStrs[1];
   } else {
     Name = SubStrs[0];
@@ -1814,7 +1814,7 @@ bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp) {
   if (!oclIsBuiltin(CI->getCalledFunction()->getName(), DemangledName))
     return false;
   StringRef S = DemangledName;
-  if (!S.startswith(kSPIRVName::Prefix))
+  if (!S.starts_with(kSPIRVName::Prefix))
     return false;
   S = S.drop_front(strlen(kSPIRVName::Prefix));
   auto Loc = S.find(kSPIRVPostfix::Divider);
@@ -1991,19 +1991,20 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 /// are accumulated in the AccumulatedOffset parameter, which will eventually be
 /// used to figure out which index of a variable is being used.
 static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
-                                    Function *ReplacementFunc) {
+                                    Function *ReplacementFunc,
+                                    GlobalVariable *GV) {
   const DataLayout &DL = ReplacementFunc->getParent()->getDataLayout();
   SmallVector<Instruction *, 4> InstsToRemove;
   for (User *U : V->users()) {
     if (auto *Cast = dyn_cast<CastInst>(U)) {
-      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc);
+      replaceUsesOfBuiltinVar(Cast, AccumulatedOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(Cast);
     } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
       APInt NewOffset = AccumulatedOffset.sextOrTrunc(
           DL.getIndexSizeInBits(GEP->getPointerAddressSpace()));
       if (!GEP->accumulateConstantOffset(DL, NewOffset))
         llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
-      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc);
+      replaceUsesOfBuiltinVar(GEP, NewOffset, ReplacementFunc, GV);
       InstsToRemove.push_back(GEP);
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
@@ -2026,7 +2027,12 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
       } else {
         // The function has an index parameter.
         if (auto *VecTy = dyn_cast<FixedVectorType>(Load->getType())) {
-          if (!Index.isZero())
+          // Reconstruct the original global variable vector because
+          // the load type may not match.
+          // global <3 x i64>, load <6 x i32>
+          VecTy = cast<FixedVectorType>(GV->getValueType());
+          if (!Index.isZero() || DL.getTypeSizeInBits(VecTy) !=
+                                     DL.getTypeSizeInBits(Load->getType()))
             llvm_unreachable("Illegal use of a SPIR-V builtin variable");
           Replacement = UndefValue::get(VecTy);
           for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
@@ -2036,6 +2042,19 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
                     Builder.CreateCall(ReplacementFunc, {Builder.getInt32(I)})),
                 Builder.getInt32(I));
           }
+          // Insert a bitcast from the reconstructed vector to the load vector
+          // type in case they are different.
+          // Input:
+          // %1 = load <6 x i32>, ptr addrspace(1) %0, align 32
+          // %2 = extractelement <6 x i32> %1, i32 0
+          // %3 = add i32 5, %2
+          // Modified:
+          // < reconstruct global vector elements 0 and 1 >
+          // %2 = insertelement <3 x i64> %0, i64 %1, i32 2
+          // %3 = bitcast <3 x i64> %2 to <6 x i32>
+          // %4 = extractelement <6 x i32> %3, i32 0
+          // %5 = add i32 5, %4
+          Replacement = Builder.CreateBitCast(Replacement, Load->getType());
         } else if (Load->getType() == ScalarTy) {
           Replacement = setAttrByCalledFunc(Builder.CreateCall(
               ReplacementFunc, {Builder.getInt32(Index.getZExtValue())}));
@@ -2089,7 +2108,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setDoesNotAccessMemory();
   }
 
-  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func);
+  replaceUsesOfBuiltinVar(GV, APInt(64, 0), Func, GV);
   return true;
 }
 

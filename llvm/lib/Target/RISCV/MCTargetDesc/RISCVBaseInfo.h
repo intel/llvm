@@ -113,6 +113,15 @@ enum {
 
   UsesVXRMShift = HasRoundModeOpShift + 1,
   UsesVXRMMask = 1 << UsesVXRMShift,
+
+  // Indicates whether these instructions can partially overlap between source
+  // registers and destination registers according to the vector spec.
+  // 0 -> not a vector pseudo
+  // 1 -> default value for vector pseudos. not widening or narrowing.
+  // 2 -> narrowing case
+  // 3 -> widening case
+  TargetOverlapConstraintTypeShift = UsesVXRMShift + 1,
+  TargetOverlapConstraintTypeMask = 3ULL << TargetOverlapConstraintTypeShift,
 };
 
 enum VLMUL : uint8_t {
@@ -201,6 +210,35 @@ static inline unsigned getSEWOpNum(const MCInstrDesc &Desc) {
 static inline unsigned getVecPolicyOpNum(const MCInstrDesc &Desc) {
   assert(hasVecPolicyOp(Desc.TSFlags));
   return Desc.getNumOperands() - 1;
+}
+
+/// \returns  the index to the rounding mode immediate value if any, otherwise
+/// returns -1.
+static inline int getFRMOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  if (!hasRoundModeOp(TSFlags) || usesVXRM(TSFlags))
+    return -1;
+
+  // The operand order
+  // --------------------------------------
+  // | n-1 (if any)   | n-2  | n-3 | n-4 |
+  // | policy         | sew  | vl  | frm |
+  // --------------------------------------
+  return getVLOpNum(Desc) - 1;
+}
+
+/// \returns  the index to the rounding mode immediate value if any, otherwise
+/// returns -1.
+static inline int getVXRMOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  if (!hasRoundModeOp(TSFlags) || !usesVXRM(TSFlags))
+    return -1;
+  // The operand order
+  // --------------------------------------
+  // | n-1 (if any)   | n-2  | n-3 | n-4  |
+  // | policy         | sew  | vl  | vxrm |
+  // --------------------------------------
+  return getVLOpNum(Desc) - 1;
 }
 
 // Is the first def operand tied to the first use operand. This is true for
@@ -506,6 +544,8 @@ void printVType(unsigned VType, raw_ostream &OS);
 
 unsigned getSEWLMULRatio(unsigned SEW, RISCVII::VLMUL VLMul);
 
+std::optional<RISCVII::VLMUL>
+getSameRatioLMUL(unsigned SEW, RISCVII::VLMUL VLMUL, unsigned EEW);
 } // namespace RISCVVType
 
 namespace RISCVRVC {

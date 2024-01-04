@@ -3,7 +3,7 @@
 ;; Index based WPD
 ;; Generate unsplit module with summary for ThinLTO index-based WPD.
 ; RUN: opt --thinlto-bc -o %t1a.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t1a.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t1a.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3a \
 ; RUN:   -r=%t1a.o,_start,plx \
@@ -19,7 +19,7 @@
 ;; Hybrid WPD
 ;; Generate split module with summary for hybrid Thin/Regular LTO WPD.
 ; RUN: opt --thinlto-bc --thinlto-split-lto-unit -o %t1b.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t1b.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t1b.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3b \
 ; RUN:   -r=%t1b.o,_start,plx \
@@ -39,7 +39,7 @@
 
 ;; Regular LTO WPD
 ; RUN: opt -o %t1c.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t1c.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t1c.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3c \
 ; RUN:   -r=%t1c.o,_start,plx \

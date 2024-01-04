@@ -7,9 +7,13 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "common.hpp"
+#include <cstddef>
+
 #define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

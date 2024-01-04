@@ -2,12 +2,18 @@
 // and submission of the graph.
 
 #include "../graph_common.hpp"
+#include <thread>
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
+  const unsigned NumThreads = std::thread::hardware_concurrency();
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
 
   std::iota(DataA.begin(), DataA.end(), 1);
@@ -32,14 +38,19 @@ int main() {
   // Add commands to graph
   add_nodes(Graph, Queue, Size, PtrA, PtrB, PtrC);
 
+  Barrier SyncPoint{NumThreads};
+
   auto GraphExec = Graph.finalize();
+
+  auto SubmitGraph = [&]() {
+    SyncPoint.wait();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+  };
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
 
   Queue.wait_and_throw();
@@ -53,9 +64,11 @@ int main() {
   free(PtrB, Queue);
   free(PtrC, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

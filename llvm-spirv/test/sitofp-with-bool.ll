@@ -21,11 +21,11 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64"
 
 ; Function Attrs: nofree norecurse nounwind writeonly
-define dso_local spir_kernel void @K(float addrspace(1)* nocapture %A, i32 %B) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define dso_local spir_kernel void @K(ptr addrspace(1) nocapture %A, i32 %B) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   %cmp = icmp sgt i32 %B, 0
   %conv = sitofp i1 %cmp to float
-  store float %conv, float addrspace(1)* %A, align 4
+  store float %conv, ptr addrspace(1) %A, align 4
   ret void
 }
 

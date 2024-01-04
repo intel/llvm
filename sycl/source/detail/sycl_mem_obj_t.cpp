@@ -31,7 +31,8 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true),
+      MOwnNativeHandle(OwnNativeHandle) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -81,7 +82,8 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true),
+      MOwnNativeHandle(OwnNativeHandle) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -135,7 +137,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const int ElemSize = 1;
 
   Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                  Dims, ElemSize);
+                  Dims, ElemSize, size_t(0));
   Req.MData = Ptr;
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
@@ -219,8 +221,29 @@ void SYCLMemObjT::detachMemoryObject(
   // buffer creation and set to meaningfull
   // value only if any operation on buffer submitted inside addCG call. addCG is
   // called from queue::submit and buffer destruction could not overlap with it.
-  if (MRecord && (!MHostPtrProvided || MIsInternal))
+  // For L0 context could be created with two ownership strategies - keep and
+  // transfer. If user keeps ownership - we could not enable deferred buffer
+  // release due to resource release conflict.
+  bool InteropObjectsUsed =
+      !MOwnNativeHandle ||
+      (MInteropContext && !MInteropContext->isOwnedByRuntime());
+
+  if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
     Scheduler::getInstance().deferMemObjRelease(Self);
+}
+
+void SYCLMemObjT::handleWriteAccessorCreation() {
+  const auto InitialUserPtr = MUserPtr;
+  MCreateShadowCopy();
+  MCreateShadowCopy = []() -> void {};
+  if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
+    for (auto &it : MRecord->MAllocaCommands) {
+      if (it->MMemAllocation == InitialUserPtr) {
+        it->MMemAllocation = MUserPtr;
+      }
+    }
+  }
 }
 
 } // namespace detail

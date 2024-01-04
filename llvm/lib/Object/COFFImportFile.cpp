@@ -91,11 +91,11 @@ static ImportNameType getNameType(StringRef Sym, StringRef ExtName,
   // stdcall function still omits the underscore (IMPORT_NAME_NOPREFIX).
   // See the comment in isDecorated in COFFModuleDefinition.cpp for more
   // details.
-  if (ExtName.startswith("_") && ExtName.contains('@') && !MinGW)
+  if (ExtName.starts_with("_") && ExtName.contains('@') && !MinGW)
     return IMPORT_NAME;
   if (Sym != ExtName)
     return IMPORT_NAME_UNDECORATE;
-  if (Machine == IMAGE_FILE_MACHINE_I386 && Sym.startswith("_"))
+  if (Machine == IMAGE_FILE_MACHINE_I386 && Sym.starts_with("_"))
     return IMPORT_NAME_NOPREFIX;
   return IMPORT_NAME;
 }
@@ -105,7 +105,7 @@ static Expected<std::string> replace(StringRef S, StringRef From,
   size_t Pos = S.find(From);
 
   // From and To may be mangled, but substrings in S may not.
-  if (Pos == StringRef::npos && From.startswith("_") && To.startswith("_")) {
+  if (Pos == StringRef::npos && From.starts_with("_") && To.starts_with("_")) {
     From = From.substr(1);
     To = To.substr(1);
     Pos = S.find(From);
@@ -140,7 +140,7 @@ class ObjectFactory {
 
 public:
   ObjectFactory(StringRef S, MachineTypes M)
-      : Machine(M), ImportName(S), Library(S.drop_back(4)),
+      : Machine(M), ImportName(S), Library(llvm::sys::path::stem(S)),
         ImportDescriptorSymbolName(("__IMPORT_DESCRIPTOR_" + Library).str()),
         NullThunkSymbolName(("\x7f" + Library + "_NULL_THUNK_DATA").str()) {}
 
@@ -578,7 +578,7 @@ Error writeImportLibrary(StringRef ImportName, StringRef Path,
   std::vector<uint8_t> NullThunk;
   Members.push_back(OF.createNullThunk(NullThunk));
 
-  for (COFFShortExport E : Exports) {
+  for (const COFFShortExport &E : Exports) {
     if (E.Private)
       continue;
 
@@ -610,9 +610,10 @@ Error writeImportLibrary(StringRef ImportName, StringRef Path,
         OF.createShortImport(*Name, E.Ordinal, ImportType, NameType));
   }
 
-  return writeArchive(Path, Members, /*WriteSymtab*/ true,
+  return writeArchive(Path, Members, SymtabWritingMode::NormalSymtab,
                       MinGW ? object::Archive::K_GNU : object::Archive::K_COFF,
-                      /*Deterministic*/ true, /*Thin*/ false);
+                      /*Deterministic*/ true, /*Thin*/ false,
+                      /*OldArchiveBuf*/ nullptr, isArm64EC(Machine));
 }
 
 } // namespace object

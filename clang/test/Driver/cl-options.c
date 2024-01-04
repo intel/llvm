@@ -272,10 +272,12 @@
 // RUN: not %clang_cl /vmg /vmm /vms -### -- %s 2>&1 | FileCheck -check-prefix=VMX %s
 // VMX: '/vms' not allowed with '/vmm'
 
-// RUN: %clang_cl /volatile:iso -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-ISO %s
+// RUN: %clang_cl --target=i686-pc-win32 /volatile:iso -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-ISO %s
+// RUN: %clang_cl --target=aarch64-pc-win32 -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-ISO %s
 // VOLATILE-ISO-NOT: "-fms-volatile"
 
-// RUN: %clang_cl /volatile:ms -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-MS %s
+// RUN: %clang_cl --target=aarch64-pc-win32 /volatile:ms -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-MS %s
+// RUN: %clang_cl --target=i686-pc-win32 -### -- %s 2>&1 | FileCheck -check-prefix=VOLATILE-MS %s
 // VOLATILE-MS: "-fms-volatile"
 
 // RUN: %clang_cl /W0 -### -- %s 2>&1 | FileCheck -check-prefix=W0 %s
@@ -564,16 +566,10 @@
 // RUN: %clang_cl /Brepro /Brepro- /c '-###' -- %s 2>&1 | FileCheck -check-prefix=Brepro_ %s
 // Brepro_: "-mincremental-linker-compatible"
 
-// This test was super sneaky: "/Z7" means "line-tables", but "-gdwarf" occurs
-// later on the command line, so it should win. Interestingly the cc1 arguments
-// came out right, but had wrong semantics, because an invariant assumed by
-// CompilerInvocation was violated: it expects that at most one of {gdwarfN,
-// line-tables-only} appear. If you assume that, then you can safely use
-// Args.hasArg to test whether a boolean flag is present without caring
-// where it appeared. And for this test, it appeared to the left of -gdwarf
-// which made it "win". This test could not detect that bug.
+// If We specify both /Z7 and -gdwarf we should get dwarf, not codeview.
 // RUN: %clang_cl /Z7 -gdwarf /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7_gdwarf %s
-// Z7_gdwarf: "-gcodeview"
+// RUN: %clang_cl -gdwarf /Z7 /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7_gdwarf %s
+// Z7_gdwarf-NOT: "-gcodeview"
 // Z7_gdwarf: "-debug-info-kind=constructor"
 // Z7_gdwarf: "-dwarf-version=
 
@@ -753,7 +749,7 @@
 
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
-// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.20.0"
+// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.33.0"
 
 // Validate that built-in include paths are based on the supplied path
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
@@ -793,7 +789,7 @@
 
 // RUN: %clang_cl -vctoolsdir "" /arm64EC /c -### -- %s 2>&1 | FileCheck --check-prefix=ARM64EC %s 
 // ARM64EC-NOT: /arm64EC has been overridden by specified target
-// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.20.0"
+// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.33.0"
 
 // RUN: %clang_cl -vctoolsdir "" /arm64EC /c -target x86_64-pc-windows-msvc  -### -- %s 2>&1 | FileCheck --check-prefix=ARM64EC_OVERRIDE %s
 // ARM64EC_OVERRIDE: warning: /arm64EC has been overridden by specified target: x86_64-pc-windows-msvc; option ignored

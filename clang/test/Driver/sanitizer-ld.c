@@ -23,6 +23,7 @@
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-ASAN-NO-LINK-RUNTIME-LINUX %s
 //
+// CHECK-ASAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.asan_static-x86_64
 // CHECK-ASAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.asan-x86_64
 
 // RUN: %clang -fsanitize=address -fno-sanitize-link-runtime -### %s 2>&1 \
@@ -31,6 +32,7 @@
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-ASAN-NO-LINK-RUNTIME-DARWIN %s
 //
+// CHECK-ASAN-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.asan_static
 // CHECK-ASAN-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.asan
 
 // RUN: %clang -fsanitize=address -### %s 2>&1 \
@@ -258,15 +260,6 @@
 // CHECK-ASAN-ANDROID-SHARED: libclang_rt.asan-arm-android.so"
 // CHECK-ASAN-ANDROID-SHARED-NOT: "-lpthread"
 // CHECK-ASAN-ANDROID-SHARED-NOT: "-lresolv"
-
-// RUN: %clang -### %s 2>&1 \
-// RUN:     --target=sparcel-myriad-rtems-elf -fuse-ld=ld -fsanitize=address \
-// RUN:     --sysroot=%S/Inputs/basic_myriad_tree \
-// RUN:   | FileCheck --check-prefix=CHECK-ASAN-MYRIAD %s
-//
-// CHECK-ASAN-MYRIAD: "{{(.*[^.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-ASAN-MYRIAD-NOT: "-lc"
-// CHECK-ASAN-MYRIAD: libclang_rt.asan-sparcel.a"
 
 // RUN: %clangxx -### %s 2>&1 \
 // RUN:     --target=x86_64-unknown-linux -fuse-ld=ld -stdlib=platform -lstdc++ \

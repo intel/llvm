@@ -12,6 +12,10 @@
 
 #include "BPFSubtarget.h"
 #include "BPF.h"
+#include "BPFTargetMachine.h"
+#include "GISel/BPFCallLowering.h"
+#include "GISel/BPFLegalizerInfo.h"
+#include "GISel/BPFRegisterBankInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/TargetParser/Host.h"
 
@@ -33,6 +37,9 @@ static cl::opt<bool> Disable_sdiv_smod("disable-sdiv-smod", cl::Hidden,
   cl::init(false), cl::desc("Disable sdiv/smod insns"));
 static cl::opt<bool> Disable_gotol("disable-gotol", cl::Hidden, cl::init(false),
   cl::desc("Disable gotol insn"));
+static cl::opt<bool>
+    Disable_StoreImm("disable-storeimm", cl::Hidden, cl::init(false),
+                     cl::desc("Disable BPF_ST (immediate store) insn"));
 
 void BPFSubtarget::anchor() {}
 
@@ -54,6 +61,7 @@ void BPFSubtarget::initializeEnvironment() {
   HasBswap = false;
   HasSdivSmod = false;
   HasGotol = false;
+  HasStoreImm = false;
 }
 
 void BPFSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
@@ -80,6 +88,7 @@ void BPFSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
     HasBswap = !Disable_bswap;
     HasSdivSmod = !Disable_sdiv_smod;
     HasGotol = !Disable_gotol;
+    HasStoreImm = !Disable_StoreImm;
     return;
   }
 }
@@ -88,4 +97,30 @@ BPFSubtarget::BPFSubtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const TargetMachine &TM)
     : BPFGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
       FrameLowering(initializeSubtargetDependencies(CPU, FS)),
-      TLInfo(TM, *this) {}
+      TLInfo(TM, *this) {
+  IsLittleEndian = TT.isLittleEndian();
+
+  CallLoweringInfo.reset(new BPFCallLowering(*getTargetLowering()));
+  Legalizer.reset(new BPFLegalizerInfo(*this));
+  auto *RBI = new BPFRegisterBankInfo(*getRegisterInfo());
+  RegBankInfo.reset(RBI);
+
+  InstSelector.reset(createBPFInstructionSelector(
+      *static_cast<const BPFTargetMachine *>(&TM), *this, *RBI));
+}
+
+const CallLowering *BPFSubtarget::getCallLowering() const {
+  return CallLoweringInfo.get();
+}
+
+InstructionSelector *BPFSubtarget::getInstructionSelector() const {
+  return InstSelector.get();
+}
+
+const LegalizerInfo *BPFSubtarget::getLegalizerInfo() const {
+  return Legalizer.get();
+}
+
+const RegisterBankInfo *BPFSubtarget::getRegBankInfo() const {
+  return RegBankInfo.get();
+}

@@ -116,6 +116,39 @@ struct is_property_key_of<
   restrict_key, annotated_arg<T, PropertyListT>> : std::true_type {};
 } // namespace sycl::ext::oneapi::experimental
 ```
+=== `alignment` property
+
+The `alignment` property defined here is only meaningful on the kernel arguments
+when the kernel argument is a pointer type. It is ignored for other types.
+
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct alignment_key {
+  template <int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr alignment_key::value_t<K> alignment;
+
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::alignment_key> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  alignment_key, annotated_arg<T, PropertyListT>> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::alignment_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+} // namespace sycl::ext::oneapi::experimental
+```
 --
 
 [frame="topbot",options="header"]
@@ -133,8 +166,19 @@ with this property do not alias with one another with the same semantics as the
 C99 `restrict` keyword. The behavior is undefined if these pointer values do
 alias.
 
+a|
+[source,c++]
+----
+alignment
+----
+a|
+This property is an assertion by the application that the associated pointer has
+the given alignment, specified in bytes. The behavior is undefined if the
+pointer value does not have the indicated alignment.
+
 |===
 --
+
 
 === Usage Examples
 
@@ -153,7 +197,7 @@ using sycl::ext::oneapi::experimental;
   int* ptr_b = ...;
 
   // Add properties
-  auto arg_a = annotated_ptr(ptr_a, properties{restrict});
+  auto arg_a = annotated_ptr(ptr_a, properties{restrict, alignment<32>});
   auto arg_n = annotated_arg(ptr_b, properties{restrict});
   ...
 
@@ -177,6 +221,7 @@ None
 [options="header"]
 |========================================
 |Rev|Date       |Author           |Changes
+|2  |2023-08-28 |Brox Chen        |*add alignment property*
 |1  |2022-07-1  |Abhishek Tiwari  |*Initial draft*
 |========================================
 

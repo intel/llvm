@@ -862,7 +862,6 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case BuiltinTemplate:
     case ClassTemplateSpecialization:
     case ClassTemplatePartialSpecialization:
-    case ClassScopeFunctionSpecialization:
     case VarTemplateSpecialization:
     case VarTemplatePartialSpecialization:
     case ObjCImplementation:
@@ -1003,9 +1002,7 @@ bool Decl::AccessDeclContextCheck() const {
       isa<ParmVarDecl>(this) ||
       // FIXME: a ClassTemplateSpecialization or CXXRecordDecl can have
       // AS_none as access specifier.
-      isa<CXXRecordDecl>(this) ||
-      isa<ClassScopeFunctionSpecializationDecl>(this) ||
-      isa<LifetimeExtendedTemporaryDecl>(this))
+      isa<CXXRecordDecl>(this) || isa<LifetimeExtendedTemporaryDecl>(this))
     return true;
 
   assert(Access != AS_none &&
@@ -1041,7 +1038,7 @@ bool Decl::isInAnotherModuleUnit() const {
   if (M->isGlobalModule())
     return false;
 
-  assert(M->isModulePurview() && "New module kind?");
+  assert(M->isNamedModule() && "New module kind?");
   return M != getASTContext().getCurrentNamedModule();
 }
 
@@ -1248,7 +1245,7 @@ bool DeclContext::isTransparentContext() const {
 }
 
 static bool isLinkageSpecContext(const DeclContext *DC,
-                                 LinkageSpecDecl::LanguageIDs ID) {
+                                 LinkageSpecLanguageIDs ID) {
   while (DC->getDeclKind() != Decl::TranslationUnit) {
     if (DC->getDeclKind() == Decl::LinkageSpec)
       return cast<LinkageSpecDecl>(DC)->getLanguage() == ID;
@@ -1258,14 +1255,14 @@ static bool isLinkageSpecContext(const DeclContext *DC,
 }
 
 bool DeclContext::isExternCContext() const {
-  return isLinkageSpecContext(this, LinkageSpecDecl::lang_c);
+  return isLinkageSpecContext(this, LinkageSpecLanguageIDs::C);
 }
 
 const LinkageSpecDecl *DeclContext::getExternCContext() const {
   const DeclContext *DC = this;
   while (DC->getDeclKind() != Decl::TranslationUnit) {
     if (DC->getDeclKind() == Decl::LinkageSpec &&
-        cast<LinkageSpecDecl>(DC)->getLanguage() == LinkageSpecDecl::lang_c)
+        cast<LinkageSpecDecl>(DC)->getLanguage() == LinkageSpecLanguageIDs::C)
       return cast<LinkageSpecDecl>(DC);
     DC = DC->getLexicalParent();
   }
@@ -1273,7 +1270,7 @@ const LinkageSpecDecl *DeclContext::getExternCContext() const {
 }
 
 bool DeclContext::isExternCXXContext() const {
-  return isLinkageSpecContext(this, LinkageSpecDecl::lang_cxx);
+  return isLinkageSpecContext(this, LinkageSpecLanguageIDs::CXX);
 }
 
 bool DeclContext::Encloses(const DeclContext *DC) const {

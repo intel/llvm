@@ -3,14 +3,17 @@
 #include "../graph_common.hpp"
 
 int main() {
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
-  queue Queue;
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *Arr = malloc_device<float>(N, Queue);
-  float ZeroPattern = 0.0f;
+  int *Arr = malloc_device<int>(N, Queue);
+  int ZeroPattern = 0;
   Queue.fill(Arr, ZeroPattern, N).wait();
 
   add_node(Graph, Queue, [&](handler &CGH) {
@@ -20,28 +23,31 @@ int main() {
     });
   });
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
+  int Expected = 0;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   auto ExecGraph = Graph.finalize();
 
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 1);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
+  Expected = 1;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 2);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
+  Expected = 2;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

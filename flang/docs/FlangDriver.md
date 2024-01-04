@@ -8,9 +8,10 @@
 
 # Flang drivers
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 There are two main drivers in Flang:
@@ -60,7 +61,7 @@ Note that similarly to `-Xclang` in `clang`, you can use `-Xflang` to forward a
 frontend specific flag from the _compiler_ directly to the _frontend_ driver,
 e.g.:
 
-```lang=bash
+```bash
 flang-new -Xflang -fdebug-dump-parse-tree input.f95
 ```
 
@@ -68,7 +69,7 @@ In the invocation above, `-fdebug-dump-parse-tree` is forwarded to `flang-new
 -fc1`. Without the forwarding flag, `-Xflang`, you would see the following
 warning:
 
-```lang=bash
+```bash
 flang-new: warning: argument unused during compilation:
 ```
 
@@ -162,6 +163,63 @@ forward compiler options to the frontend driver, `flang-new -fc1`.
 You can read more on the design of `clangDriver` in Clang's [Driver Design &
 Internals](https://clang.llvm.org/docs/DriverInternals.html).
 
+## Linker Driver
+When used as a linker, Flang's frontend driver assembles the command line for an
+external linker command (e.g., LLVM's `lld`) and invokes it to create the final
+executable by linking static and shared libraries together with all the
+translation units supplied as object files.
+
+By default, the Flang linker driver adds several libraries to the linker
+invocation to make sure that all entrypoints for program start
+(Fortran's program unit) and runtime routines can be resolved by the linker.
+
+An abridged example (only showing the Fortran specific linker flags, omission
+indicated by `[...]`) for such a linker invocation on a Linux system would look
+like this:
+
+```
+$ flang -v -o example example.o
+"/usr/bin/ld" [...] example.o [...] "--whole-archive" "-lFortran_main"
+"--no-whole-archive" "-lFortranRuntime" "-lFortranDecimal" [...]
+```
+
+The automatically added libraries are:
+
+* `Fortran_main`: Provides the main entry point `main` that then invokes
+  `_QQmain` with the Fortran program unit.  This library has a dependency to
+  the `FortranRuntime` library.
+* `FortranRuntime`: Provides most of the Flang runtime library.
+* `FortranDecimal`: Provides operations for decimal numbers.
+
+The default is that, when using Flang as the linker, one of the Fortran
+translation units provides the program unit and therefore it is assumed that
+Fortran is the main code part (calling into C/C++ routines via `BIND (C)`
+interfaces).  When composing the linker commandline, Flang uses
+`--whole-archive` and `--no-whole-archive` (Windows: `/WHOLEARCHIVE:`,
+Darwin & AIX: *not implemented yet*) to make sure that all for `Fortran_main`
+is processed by the linker.  This is done to issue a proper error message when
+multiple definitions of `main` occur.  This happens, for instance, when linking
+a code that has a Fortran program unit with a C/C++ code that also defines a
+`main` function.  A user may be required to explicitly provide the C++ runtime
+libraries at link time (e.g., via `-lstdc++` for STL)
+
+If the code is C/C++ based and invokes Fortran routines, one can either use Clang
+or Flang as the linker driver.  If Clang is used, it will automatically all
+required runtime libraries needed by C++ (e.g., for STL) to the linker invocation.
+In this case, one has to explicitly provide the Fortran runtime libraries
+`FortranRuntime` and/or `FortranDecimal`.  An alternative is to use Flang to link
+and use the `-fno-fortran-main` flag.  This flag removes
+`Fortran_main` from the linker stage and hence requires one of the C/C++
+translation units to provide a definition of the `main` function. In this case,
+it may be required to explicitly supply C++ runtime libraries as mentioned above.
+
+When creating shared or static libraries using Flang with `-shared` or `-static`
+flag, Fortran_main is automatically removed from the linker stage (i.e.,
+`-fno-fortran-main` is on by default).  It is assumed that when creating a
+static or shared library, the generated library does not need a `main`
+function, as a final link stage will occur that will provide the `Fortran_main`
+library when creating the final executable.
+
 ## Frontend Driver
 Flang's frontend driver is the main interface between compiler developers and
 the Flang frontend. The high-level design is similar to Clang's frontend
@@ -240,16 +298,14 @@ at times. Sometimes the easiest approach is to find an existing option that has
 similar semantics to your new option and start by copying that.
 
 For every new option, you will also have to define the visibility of the new
-option. This is controlled through the `Flags` field. You can use the following
-Flang specific option flags to control this:
+option. This is controlled through the `Visibility` field. You can use the
+following Flang specific visibility flags to control this:
   * `FlangOption` - this option will be available in the `flang-new` compiler driver,
   * `FC1Option` - this option will be available in the `flang-new -fc1` frontend driver,
-  * `FlangOnlyOption` - this option will not be visible in Clang drivers.
 
-Please make sure that options that you add are only visible in drivers that can
-support it. For example, options that only make sense for Fortran input files
-(e.g. `-ffree-form`) should not be visible in Clang and be marked as
-`FlangOnlyOption`.
+Options that are supported by clang should explicitly specify `ClangOption` in
+`Visibility`, and options that are only supported in Flang should not specify
+`ClangOption`.
 
 When deciding what `OptionGroup` to use when defining a new option in the
 `Options.td` file, many new options fall into one of the following two
@@ -271,12 +327,12 @@ two different places, depending on which driver they belong to:
 The parsing will depend on the semantics encoded in the TableGen definition.
 
 When adding a compiler driver option (i.e. an option that contains
-`FlangOption` among its `Flags`) that you also intend to be understood by the
-frontend, make sure that it is either forwarded to `flang-new -fc1` or translated
-into some other option that is accepted by the frontend driver. In the case of
-options that contain both `FlangOption` and `FC1Option` among its flags, we
-usually just forward from `flang-new` to `flang-new -fc1`. This is then tested in
-`flang/test/Driver/frontend-forward.F90`.
+`FlangOption` among in it's `Visibility`) that you also intend to be understood
+by the frontend, make sure that it is either forwarded to `flang-new -fc1` or
+translated into some other option that is accepted by the frontend driver. In
+the case of options that contain both `FlangOption` and `FC1Option` among its
+flags, we usually just forward from `flang-new` to `flang-new -fc1`. This is
+then tested in `flang/test/Driver/frontend-forward.F90`.
 
 What follows is usually very dependant on the meaning of the corresponding
 option. In general, regular compiler flags (e.g. `-ffree-form`) are mapped to

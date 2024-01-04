@@ -19,6 +19,14 @@
 
 namespace Fortran::evaluate {
 
+// Constant arrays can have non-default lower bounds, but this can't be
+// expressed in Fortran syntax directly, only implied through the use of
+// named constant (PARAMETER) definitions.  For debugging, setting this flag
+// enables a non-standard %LBOUND=[...] argument to the RESHAPE intrinsic
+// calls used to dumy constants.  It's off by default so that this syntax
+// doesn't show up in module files.
+static const bool printLbounds{false};
+
 static void ShapeAsFortran(llvm::raw_ostream &o,
     const ConstantSubscripts &shape, const ConstantSubscripts &lbounds,
     bool hasNonDefaultLowerBound) {
@@ -45,8 +53,8 @@ static void ShapeAsFortran(llvm::raw_ostream &o,
 
 template <typename RESULT, typename VALUE>
 llvm::raw_ostream &ConstantBase<RESULT, VALUE>::AsFortran(
-    llvm::raw_ostream &o) const {
-  bool hasNonDefaultLowerBound{HasNonDefaultLowerBound()};
+    llvm::raw_ostream &o, const parser::CharBlock *derivedTypeRename) const {
+  bool hasNonDefaultLowerBound{printLbounds && HasNonDefaultLowerBound()};
   if (Rank() > 1 || hasNonDefaultLowerBound) {
     o << "reshape(";
   }
@@ -77,7 +85,8 @@ llvm::raw_ostream &ConstantBase<RESULT, VALUE>::AsFortran(
         o << ".false." << '_' << Result::kind;
       }
     } else {
-      StructureConstructor{result_.derivedTypeSpec(), value}.AsFortran(o);
+      StructureConstructor{result_.derivedTypeSpec(), value}.AsFortran(
+          o, derivedTypeRename);
     }
   }
   if (Rank() > 0) {
@@ -90,7 +99,7 @@ llvm::raw_ostream &ConstantBase<RESULT, VALUE>::AsFortran(
 template <int KIND>
 llvm::raw_ostream &Constant<Type<TypeCategory::Character, KIND>>::AsFortran(
     llvm::raw_ostream &o) const {
-  bool hasNonDefaultLowerBound{HasNonDefaultLowerBound()};
+  bool hasNonDefaultLowerBound{printLbounds && HasNonDefaultLowerBound()};
   if (Rank() > 1 || hasNonDefaultLowerBound) {
     o << "reshape(";
   }
@@ -124,6 +133,11 @@ llvm::raw_ostream &ActualArgument::AsFortran(llvm::raw_ostream &o) const {
   if (keyword_) {
     o << keyword_->ToString() << '=';
   }
+  if (isPercentVal()) {
+    o << "%VAL(";
+  } else if (isPercentRef()) {
+    o << "%REF(";
+  }
   common::visit(
       common::visitors{
           [&](const common::CopyableIndirection<Expr<SomeType>> &expr) {
@@ -133,6 +147,9 @@ llvm::raw_ostream &ActualArgument::AsFortran(llvm::raw_ostream &o) const {
           [&](const common::Label &label) { o << '*' << label; },
       },
       u_);
+  if (isPercentVal() || isPercentRef()) {
+    o << ')';
+  }
   return o;
 }
 
@@ -487,8 +504,9 @@ llvm::raw_ostream &ExpressionBase<RESULT>::AsFortran(
   return o;
 }
 
-llvm::raw_ostream &StructureConstructor::AsFortran(llvm::raw_ostream &o) const {
-  o << DerivedTypeSpecAsFortran(result_.derivedTypeSpec());
+llvm::raw_ostream &StructureConstructor::AsFortran(
+    llvm::raw_ostream &o, const parser::CharBlock *derivedTypeRename) const {
+  o << DerivedTypeSpecAsFortran(result_.derivedTypeSpec(), derivedTypeRename);
   if (values_.empty()) {
     o << '(';
   } else {
@@ -550,10 +568,11 @@ std::string SomeDerived::AsFortran() const {
   }
 }
 
-std::string DerivedTypeSpecAsFortran(const semantics::DerivedTypeSpec &spec) {
+std::string DerivedTypeSpecAsFortran(const semantics::DerivedTypeSpec &spec,
+    const parser::CharBlock *derivedTypeRename) {
   std::string buf;
   llvm::raw_string_ostream ss{buf};
-  ss << spec.name().ToString();
+  ss << (derivedTypeRename ? *derivedTypeRename : spec.name()).ToString();
   char ch{'('};
   for (const auto &[name, value] : spec.parameters()) {
     ss << ch << name.ToString() << '=';

@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// TODO: Currently fails and regularly times out on DG2. Re-enable when this has
+//       been addressed.
+// UNSUPPORTED: gpu-intel-dg2
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: gpu
 
 #include <iostream>
 #include <random>
@@ -20,5 +23,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_all_sizes_impl.hpp"

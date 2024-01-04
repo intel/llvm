@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
 #include <sycl/exception.hpp>                 // for runtime_error
@@ -26,10 +27,12 @@ namespace ext::oneapi::experimental {
 template <typename ParentGroup> class tangle_group;
 
 template <typename Group>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle_group)]]
+#endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        tangle_group<Group>>
-get_tangle_group(Group group);
+                        tangle_group<Group>> get_tangle_group(Group group);
 
 template <typename ParentGroup> class tangle_group {
 public:
@@ -147,7 +150,12 @@ get_tangle_group(Group group) {
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, true);
   return tangle_group<sycl::sub_group>(mask);
 #elif defined(__NVPTX__)
-  // TODO: Construct from compiler-generated mask
+  // TODO: Construct from compiler-generated mask. Return an invalid group in
+  //       in the meantime. CUDA devices will report false for the tangle_group
+  //       support aspect so kernels launch should ensure this is never run.
+  return tangle_group<sycl::sub_group>(
+      sycl::detail::Builder::createSubGroupMask<
+          sycl::ext::oneapi::sub_group_mask>(0, 0));
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

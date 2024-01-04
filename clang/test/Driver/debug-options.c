@@ -1,5 +1,4 @@
 // Check to make sure clang is somewhat picky about -g options.
-// rdar://10383444
 
 // Linux.
 // RUN: %clang -### -c -g %s -target x86_64-linux-gnu 2>&1 \
@@ -77,11 +76,13 @@
 // RUN:             | FileCheck -check-prefix=G_STANDALONE %s
 
 // FreeBSD.
-// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd11.0 2>&1 \
+// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_GDB \
-// RUN:                         -check-prefix=G_DWARF2 %s
-// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd12.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_GDB \
+// RUN:                         -check-prefix=G_DWARF4 %s
+
+// Haiku.
+// RUN: %clang -### -c -g %s --target=x86_64-unknown-haiku 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_STANDALONE \
 // RUN:                         -check-prefix=G_DWARF4 %s
 
 // Windows.
@@ -184,18 +185,14 @@
 // RUN:             | FileCheck -check-prefix=GLTO_ONLY %s
 // RUN: %clang -### -c -gline-tables-only %s -target i686-pc-openbsd 2>&1 \
 // RUN:             | FileCheck -check-prefix=GLTO_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-tables-only %s -target x86_64-pc-freebsd10.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=GLTO_ONLY_DWARF2 %s
 // RUN: %clang -### -c -gline-tables-only -g %s -target x86_64-linux-gnu 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_ONLY %s
 // RUN: %clang -### -c -gline-tables-only -g %s -target x86_64-apple-darwin16 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_STANDALONE -check-prefix=G_DWARF4 %s
 // RUN: %clang -### -c -gline-tables-only -g %s -target i686-pc-openbsd 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-tables-only -g %s -target x86_64-pc-freebsd10.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-tables-only -g %s -target i386-pc-solaris 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
+// RUN: %clang -### -c -gline-tables-only -g %s --target=i386-pc-solaris 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_ONLY %s
 // RUN: %clang -### -c -gline-tables-only -g0 %s 2>&1 \
 // RUN:             | FileCheck -check-prefix=GLTO_NO %s
 //
@@ -203,18 +200,14 @@
 // RUN:             | FileCheck -check-prefix=GLIO_ONLY %s
 // RUN: %clang -### -c -gline-directives-only %s -target i686-pc-openbsd 2>&1 \
 // RUN:             | FileCheck -check-prefix=GLIO_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-directives-only %s -target x86_64-pc-freebsd10.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=GLIO_ONLY_DWARF2 %s
 // RUN: %clang -### -c -gline-directives-only -g %s -target x86_64-linux-gnu 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_ONLY %s
 // RUN: %clang -### -c -gline-directives-only -g %s -target x86_64-apple-darwin16 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_STANDALONE -check-prefix=G_DWARF4 %s
 // RUN: %clang -### -c -gline-directives-only -g %s -target i686-pc-openbsd 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-directives-only -g %s -target x86_64-pc-freebsd10.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
-// RUN: %clang -### -c -gline-directives-only -g %s -target i386-pc-solaris 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
+// RUN: %clang -### -c -gline-directives-only -g %s --target=i386-pc-solaris 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_ONLY %s
 // RUN: %clang -### -c -gline-directives-only -g0 %s 2>&1 \
 // RUN:             | FileCheck -check-prefix=GLIO_NO %s
 
@@ -241,8 +234,9 @@
 // RUN: %clang -### -c -ggdb %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 // RUN: %clang -### -c -gpubnames -gno-gnu-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 // RUN: %clang -### -c -gpubnames -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
-//
-// RUN: %clang -### -c -gsplit-dwarf -g -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
+
+/// Specify --target= so that %clang doesn't exit with code 1 even if LLVM_DEFAULT_TARGET_TRIPLE specifies a RISC-V target triple.
+// RUN: %clang -### --target=x86_64 -c -gsplit-dwarf -g -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 //
 // RUN: %clang -### -c -fdebug-ranges-base-address %s 2>&1 | FileCheck -check-prefix=RNGBSE %s
 // RUN: %clang -### -c %s 2>&1 | FileCheck -check-prefix=NORNGBSE %s

@@ -1,5 +1,7 @@
+#include <cmath>
 #include <iostream>
 #include <optional>
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

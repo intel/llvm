@@ -22,6 +22,14 @@ and not recommended to use in production environment.
     You can specify more than one target, comma separated. Default just in time
     (JIT) compilation target can be added to the list to produce a combination
     of AOT and JIT code in the resulting fat binary.
+
+    Normally, '-fsycl-targets' is specified when linking an application, in
+    which case the AOT compiled device binaries are embedded within the
+    application’s fat executable.  However, this option may also be used in
+    combination with '-c' and '-fno-sycl-rdc' when compiling a source file.
+    In this case, the AOT compiled device binaries are embedded within the fat
+    object file.
+
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
@@ -90,7 +98,12 @@ and not recommended to use in production environment.
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -98,7 +111,18 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1033 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1035 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1036 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1100 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1101 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1102 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1103 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1150 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1151 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1200 - GCN GFX12 (RDNA 4) architecture
+    * amd_gpu_gfx1201 - GCN GFX12 (RDNA 4) architecture
 
 ## Language options
 
@@ -426,6 +450,7 @@ and not recommended to use in production environment.
     "stateless" memory accesses.
 
 **`-ftarget-compile-fast`** [EXPERIMENTAL]
+
     Instructs the target backend to reduce compilation time, potentially
     at the cost of runtime performance. Currently only supported on Intel GPUs.
 
@@ -435,6 +460,22 @@ and not recommended to use in production environment.
     visibility to other modules.
 
     NOTE: This flag is only supported for spir64_gen AOT targets.
+
+**`-ftarget-register-alloc-mode=<arg>`**
+
+    Specify a register allocation mode for specific hardware for use by supported
+    target backends. The format of the argument is "Device0:Mode0[,Device1:Mode1...]".
+    Currently the only supported Device is "pvc". The supported modes are
+    "default","small","large", and "auto".
+
+**`-fpreview-breaking-changes`**
+
+    When specified, it informs the compiler driver and compilation phases
+    that it is allowed to break backward compatibility. When this option is
+    specified the compiler will also set the macro
+    __INTEL_PREVIEW_BREAKING_CHANGES.
+    When this option is used in conjunction with -fsycl, the driver will link
+    against an alternate form of libsycl, libsycl-preview.
 
 # Example: SYCL device code compilation
 

@@ -196,6 +196,7 @@ static bool needsGuard(const jit_compiler::NDRange &SrcNDRange,
 }
 
 static FusionInsertPoints addGuard(IRBuilderBase &Builder,
+                                   const TargetFusionInfo &TargetInfo,
                                    const jit_compiler::NDRange &SrcNDRange,
                                    const jit_compiler::NDRange &FusedNDRange,
                                    bool IsLast) {
@@ -221,23 +222,26 @@ static FusionInsertPoints addGuard(IRBuilderBase &Builder,
   auto *Exit = BasicBlock::Create(C, "", F);
   auto *CallInsertion = BasicBlock::Create(C, "", F, Exit); // If
 
-  auto *GlobalLinearID = jit_compiler::getGlobalLinearID(Builder, FusedNDRange);
+  auto *GlobalLinearID =
+      jit_compiler::getGlobalLinearID(Builder, TargetInfo, FusedNDRange);
 
   const auto GI = jit_compiler::NDRange::linearize(SrcNDRange.getGlobalSize());
-  auto *Cond = Builder.CreateICmpULT(GlobalLinearID, Builder.getInt64(GI));
+  auto *Cond = Builder.CreateICmpULT(
+      GlobalLinearID,
+      Builder.getIntN(TargetInfo.getIndexSpaceBuiltinBitwidth(), GI));
 
   Builder.CreateCondBr(Cond, CallInsertion, Exit);
   return {Entry, CallInsertion, Exit};
 }
 
-static Expected<CallInst *>
-createFusionCall(IRBuilderBase &Builder, Function *F,
-                 ArrayRef<Value *> CallArgs,
-                 const jit_compiler::NDRange &SrcNDRange,
-                 const jit_compiler::NDRange &FusedNDRange, bool IsLast,
-                 int BarriersFlags, jit_compiler::Remapper &Remapper,
-                 bool ShouldRemap, TargetFusionInfo &TargetInfo) {
-  const auto IPs = addGuard(Builder, SrcNDRange, FusedNDRange, IsLast);
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast,
+    jit_compiler::BarrierFlags BarriersFlags, jit_compiler::Remapper &Remapper,
+    bool ShouldRemap, TargetFusionInfo &TargetInfo) {
+  const auto IPs =
+      addGuard(Builder, TargetInfo, SrcNDRange, FusedNDRange, IsLast);
 
   if (ShouldRemap) {
     auto FOrErr = Remapper.remapBuiltins(F, SrcNDRange, FusedNDRange);
@@ -250,6 +254,8 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   // Insert call
   Builder.SetInsertPoint(IPs.CallInsertion);
   auto *Res = Builder.CreateCall(F, CallArgs);
+  Res->setCallingConv(F->getCallingConv());
+  Res->setAttributes(F->getAttributes());
   {
     // If we have introduced a guard, branch to barrier.
     auto *BrTarget = IPs.Exit;
@@ -261,7 +267,7 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   Builder.SetInsertPoint(IPs.Exit);
 
   // Insert barrier if needed
-  if (!IsLast && BarriersFlags > 0) {
+  if (!IsLast && !jit_compiler::isNoBarrierFlag(BarriersFlags)) {
     TargetInfo.createBarrierCall(Builder, BarriersFlags);
   }
 
@@ -486,6 +492,8 @@ Error SYCLKernelFusion::fuseKernel(
                ParamMapping, DefaultInternalizationVal);
     copyArgsMD(LLVMCtx, SYCLInternalizer::LocalSizeKey, StubFunction,
                *FusedFunction, ParamMapping);
+    copyArgsMD(LLVMCtx, SYCLInternalizer::ElemSizeKey, StubFunction,
+               *FusedFunction, ParamMapping);
     // and JIT constants
     copyArgsMD(LLVMCtx, SYCLCP::Key, StubFunction, *FusedFunction,
                ParamMapping);
@@ -531,7 +539,7 @@ Error SYCLKernelFusion::fuseKernel(
     const auto BarriersEnd = InputFunctions.size() - 1;
     const auto IsHeterogeneousNDRangesList =
         hasHeterogeneousNDRangesList(InputFunctions);
-    jit_compiler::Remapper Remapper;
+    jit_compiler::Remapper Remapper(TargetInfo);
 
     Error DeferredErrs = Error::success();
     for (auto &KF : InputFunctions) {
@@ -580,11 +588,13 @@ Error SYCLKernelFusion::fuseKernel(
       // InlineFunction(...) will leave the program in a well-defined state
       // in case it fails, and calling the function is still semantically
       // correct, although it might hinder some optimizations across the borders
-      // of the fused functions.
-      FUSION_DEBUG(llvm::dbgs()
-                   << "WARNING: Inlining of "
-                   << InlineCall->getCalledFunction()->getName()
-                   << " failed due to: " << InlineRes.getFailureReason());
+      // of the fused functions. We need to prevent deletion of the called
+      // function, though.
+      auto *Callee = InlineCall->getCalledFunction();
+      FUSION_DEBUG(llvm::dbgs() << "WARNING: Inlining of " << Callee->getName()
+                                << " failed due to: "
+                                << InlineRes.getFailureReason() << '\n');
+      ToCleanUp.erase(Callee);
     }
   }
 

@@ -73,36 +73,39 @@ public:
   void Define(std::string macro, std::string value);
   void Undefine(std::string macro);
   bool IsNameDefined(const CharBlock &);
+  bool IsFunctionLikeDefinition(const CharBlock &);
 
-  std::optional<TokenSequence> MacroReplacement(
-      const TokenSequence &, Prescanner &);
+  // When called with partialFunctionLikeMacro not null, MacroReplacement()
+  // and ReplaceMacros() handle an unclosed function-like macro reference
+  // by terminating macro replacement at the name of the FLM and returning
+  // its index in the result.  This allows the recursive call sites in
+  // MacroReplacement to append any remaining tokens in their inputs to
+  // that result and try again.  All other Fortran preprocessors share this
+  // behavior.
+  std::optional<TokenSequence> MacroReplacement(const TokenSequence &,
+      Prescanner &,
+      std::optional<std::size_t> *partialFunctionLikeMacro = nullptr);
 
   // Implements a preprocessor directive.
   void Directive(const TokenSequence &, Prescanner &);
-
-  bool anyMacroWithUnbalancedParentheses() const {
-    return anyMacroWithUnbalancedParentheses_;
-  }
 
 private:
   enum class IsElseActive { No, Yes };
   enum class CanDeadElseAppear { No, Yes };
 
   CharBlock SaveTokenAsName(const CharBlock &);
-  TokenSequence ReplaceMacros(const TokenSequence &, Prescanner &);
+  TokenSequence ReplaceMacros(const TokenSequence &, Prescanner &,
+      std::optional<std::size_t> *partialFunctionLikeMacro = nullptr);
   void SkipDisabledConditionalCode(
       const std::string &, IsElseActive, Prescanner &, ProvenanceRange);
   bool IsIfPredicateTrue(const TokenSequence &expr, std::size_t first,
       std::size_t exprTokens, Prescanner &);
   void LineDirective(const TokenSequence &, std::size_t, Prescanner &);
-  void CheckForUnbalancedParentheses(
-      const TokenSequence &, std::size_t first, std::size_t tokens);
 
   AllSources &allSources_;
   std::list<std::string> names_;
   std::unordered_map<CharBlock, Definition> definitions_;
   std::stack<CanDeadElseAppear> ifStack_;
-  bool anyMacroWithUnbalancedParentheses_{false};
 };
 } // namespace Fortran::parser
 #endif // FORTRAN_PARSER_PREPROCESSOR_H_

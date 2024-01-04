@@ -45,6 +45,7 @@ enum {
 #include "Options.inc"
 #undef PREFIX
 
+using namespace llvm::opt;
 static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Options.inc"
@@ -170,7 +171,7 @@ int llvm::dlltoolDriverMain(llvm::ArrayRef<const char *> ArgsArr) {
 
   if (!Def) {
     llvm::errs() << "error parsing definition\n"
-                 << errorToErrorCode(Def.takeError()).message();
+                 << errorToErrorCode(Def.takeError()).message() << "\n";
     return 1;
   }
 

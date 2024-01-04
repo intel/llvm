@@ -63,12 +63,7 @@ void verify_op_a(const T l, const T r, const float ref, OP op) {
                         layout::row_major>
                sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
-           auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
-           for (int i = 0; i < wi_slice.length(); i++) {
-             wi_slice[i] = op(wi_slice[i], r);
-           }
-
+           joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_mat,
                accessMat.template get_multi_ptr<access::decorated::no>() +
@@ -104,11 +99,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
            joint_matrix<sub_group, T, use::accumulator, SUB_ROWS, SUB_COLS>
                sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
-           auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
-           for (int i = 0; i < wi_slice.length(); i++) {
-             wi_slice[i] = op(wi_slice[i], r);
-           }
+           joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
 
            joint_matrix_store(
                sg, sub_mat,
@@ -185,7 +176,6 @@ void test_ewops_c() {
 
 int main() {
   static constexpr size_t TM = 8;
-  static constexpr size_t TN = SG_SZ;
   static constexpr size_t TK = 16;
 
   static constexpr size_t MATRIX_M = TM * 2;

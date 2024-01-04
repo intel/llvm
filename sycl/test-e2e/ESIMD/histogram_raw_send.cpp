@@ -12,6 +12,8 @@
 // RUN: %{run} %t1.out
 // RUN: %{build} -DUSE_CONSTEXPR_API -o %t2.out
 // RUN: %{run} %t2.out
+// RUN: %{build} -DUSE_SUPPORTED_API -o %t3.out
+// RUN: %{run} %t3.out
 
 // The test checks raw send functionality with atomic write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
@@ -71,7 +73,7 @@ using namespace sycl::ext::intel::esimd;
 
 template <atomic_op Op, typename T, int n>
 ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
-                               simd<T, n> src0, simd_mask<n> pred) {
+                               simd<T, n> src0) {
   simd<T, n> oldDst;
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(bins));
   simd<uintptr_t, n> vOffset = offset;
@@ -90,11 +92,16 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
 #ifdef USE_CONSTEXPR_API
   experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
                                  isEOT, isSendc>(oldDst, vAddr, src0, exDesc,
-                                                 desc, pred);
+                                                 desc);
+#elif defined(USE_SUPPORTED_API)
+  esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
+                   raw_send_eot::not_eot, raw_send_sendc::not_sendc>(
+      oldDst, vAddr, src0, exDesc, desc);
+
 #else
   experimental::esimd::raw_sends(oldDst, vAddr, src0, exDesc, desc, execSize,
-                                 sfid, numSrc0, numSrc1, numDst, isEOT, isSendc,
-                                 pred);
+                                 sfid, numSrc0, numSrc1, numDst, isEOT,
+                                 isSendc);
 #endif
 }
 
@@ -245,8 +252,8 @@ int main(int argc, char *argv[]) {
 #ifdef __SYCL_DEVICE_ONLY__
                 // flat_atomic<atomic_op::add, unsigned int,
                 // 8>(bins, offset, src, 1);
-                atomic_write<atomic_op::add, unsigned int, 8>(bins, offset, src,
-                                                              1);
+                atomic_write<atomic_op::add, unsigned int, 8>(bins, offset,
+                                                              src);
                 offset += 8 * sizeof(unsigned int);
 #else
                 simd<unsigned int, 8> vals;

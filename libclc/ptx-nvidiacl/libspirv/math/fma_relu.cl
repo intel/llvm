@@ -40,7 +40,11 @@ _CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __clc_fma_relu,
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fma_relu(ushort x, ushort y,
                                                    ushort z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
-    return __nvvm_fma_rn_relu_bf16(x, y, z);
+    ushort res;
+    __asm__("fma.rn.relu.bf16 %0, %1, %2, %3;"
+        : "=h"(res)
+        : "h"(x), "h"(y), "h"(z));
+    return res;
   }
   __builtin_trap();
   __builtin_unreachable();
@@ -50,7 +54,11 @@ _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma_relu,
 
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma_relu(uint x, uint y, uint z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
-    return __nvvm_fma_rn_relu_bf16x2(x, y, z);
+    uint res;
+    __asm__("fma.rn.relu.bf16x2 %0, %1, %2, %3;"
+        : "=r"(res)
+        : "r"(x), "r"(y), "r"(z));
+    return res;
   }
   __builtin_trap();
   __builtin_unreachable();

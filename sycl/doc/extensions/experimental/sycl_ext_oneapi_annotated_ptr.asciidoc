@@ -187,6 +187,31 @@ pointer unless noted otherwise.
 ----
 using sycl::ext::oneapi::experimental;
 struct MyType {
+  MyType(const MyType& otherM) {
+     ...
+  }
+};
+
+struct MyKernel {
+  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type is not allowed
+  annotated_ptr<void, properties<PropB>> b;   //void is legal 
+  ...
+  void operator()() const {
+    ...
+    *b = ...; //deference is not allowed
+  }
+};
+----
+It is ill-formed to instantiate`annotated_ptr` and `annotated_ref` for a non-trivially-copyable
+type `T`. The only exception is that `annotated_ptr` is allowed to be instantiated with `void`.
+
+In the above example, encapsulating `annotated_ptr` within `MyType` is illegal. Encapsulating
+`annotated_ptr` with `void` is legal, but it can not be deferenced.
+
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
   annotated_ptr<int, properties<PropC>> a;
   annotated_ptr<int, properties<PropD>> b;
 };
@@ -211,7 +236,7 @@ allocation `T`, and a list of properties `PropertyListT`.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   ...
 ----
@@ -256,15 +281,15 @@ section following this one.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   public:
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
     template<typename... PropertyValueTs>
-    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
+    explicit annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
       const annotated_ptr<T2, P>&) noexcept;
@@ -288,7 +313,6 @@ class annotated_ptr {
 
     T* get() const noexcept;
 
-    annotated_ptr& operator=(T*) noexcept;
     annotated_ptr& operator=(const annotated_ptr&) noexcept = default;
 
     annotated_ptr& operator++() noexcept;
@@ -451,15 +475,6 @@ annotations.
 a|
 [source,c++]
 ----
-annotated_ptr& operator=(T*) noexcept;
-----
-|
-Allows assignment from a pointer to type `T`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
 annotated_ptr& operator++() noexcept;
 ----
 |
@@ -529,19 +544,37 @@ stores to annotated_ptrs.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    T operator=(const T &) const;
+
+    template <typename O>         //available only if O is not an annotated_ref type
+    T operator=(O&&) const;
     T operator=(const annotated_ref&) const;
+
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(const T &) const;
-    T operator++();
-    T operator++(int);
-    T operator--();
-    T operator--(int);
+    template <typename O>         //available only if O is not an annotated_ref type
+    T operatorOP(O&& a) const;
+    T operatorOP(const annotated_ref &b) const;
+
+    T operator++() const;
+    T operator++(int) const;
+    T operator--() const;
+    T operator--(int) const;
+
+    // OP is: +, -, *, /, %, <<, >>, &, |, ^, <, <=, >, >=, ==, ~=, &&, ||
+    template <typename O>
+    auto friend operatorOP(O&& a, const annotated_ref& b) ->
+               decltype(std::forward<O>(a) OP std::declval<T>());
+    template <typename O>         //available only if O is not an annotated_ref type
+    auto friend operatorOP(const annotated_ref& a, O&& b) ->
+               decltype(std::declval<T>() OP std::forward<O>(b));
+
+    // OP is: +, -, !, ~
+    template <typename O=T>
+    auto operatorOP() -> decltype(OP std::declval<O>());
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -566,24 +599,27 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-T operator=(const T &);
+template <typename O>
+T operator=(O&&) const;
 ----
 |
-Writes an object of type `T` to the location referenced by this wrapper,
+Writes an object of type `O` to the location referenced by this wrapper. 
+`O` cannot be a type of `annotated_ref`.
+
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
 a|
 [source,c++]
 ----
-T operator=(const annotated_ref& other);
+T operator=(const annotated_ref& other) const;
 ----
 a|
 Equivalent to:
 ```c++
-tmp T = other;   // Reads from memory
-                 // with annotations
-*this = T;       // Writes to memory
+T tmp = other.operator T();   // Reads from memory
+                              // with annotations
+*this = tmp;     // Writes to memory
                  // with annotations
 return T;
 ```
@@ -593,18 +629,22 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP(const T &);
+template <typename O>
+T operatorOP(O&& a) const;
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
-Compound assignment operators. Return result by value.
-Available only if the corresponding non-compound operator is available for `T`.
+Compound assignment operators for type `O`. `O` cannot be a type of `annotated_ref`.
+
+Return result by value.
+
+Available only if the corresponding assignment operator OP is available for `T` taking a type of `O`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
-tmp = tmp OP val;
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
+tmp OP std::forward<O>(a);
 *this = tmp;       // Writes to memory
                    // with annotations
 return tmp;
@@ -613,53 +653,100 @@ return tmp;
 a|
 [source,c++]
 ----
-T operator++();
-T operator++(int);
-T operator--();
-T operator--(int);
+T operatorOP(const annotated_ref &b) const;
+----
+a|
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
+
+Compound assignment operators for type `annotated_ref`.
+
+Return result by value.
+
+Available only if the corresponding assignment operator OP is available for `T`.
+Equivalent to:
+```c++
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
+T tmp2 = b;        // Reads from memory
+                   // with annotations
+tmp OP b;
+*this = tmp;       // Writes to memory
+                   // with annotations
+return tmp;
+```
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operator++() const;
+T operator++(int) const;
+T operator--() const;
+T operator--(int) const;
 ----
 |
-increment and decrement operator of annotated_ref. The annotations are applied
-when the object `T` is loaded and stored to the memory.
+Increment and decrement operator of annotated_ref. Increment/Decrement the object `T`
+referenced by this wrapper via ``T``'s Increment/Decrement operator.
+
+The annotations are applied when the object `T` is loaded and stored to the memory.
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(O&& a, const annotated_ref& b) ->
+		   decltype(std::forward<O>(a) OP std::declval<T>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `O` and `annotated_ref`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(O&&, T&&)` and is available only if `operatorOP(O&&, T&&)` is well formed. The value and result
+is the same as the result of `operatorOP(O&&, T&&)` applied to the objects of
+type `O` and `T`.
+
+The annotations from `PropertyListT` are applied when the object `b` is loaded from memory. 
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(const annotated_ref& a, O&& b) ->
+		   decltype(std::declval<T>() OP std::forward<O>(b));
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `annotated_ref` and `O`. `O` cannot be
+a type of `annotated_ref`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(T&&, O&&)` and is available only if `operatorOP(T&&, O&&)` is well formed. The value and result
+is the same as the result of `operatorOP(T&&, O&&)` applied to the objects of
+type `T` and `O`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
+
+a|
+[source,c++]
+----
+template <typename O=T>
+auto operatorOP() -> decltype(OP std::declval<O>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#, [code]#!#, [code]#~#.
+
+Defines a operator `OP` overload for types `O` where the default type is `T`.
+
+Let `operatorOP` denotes the operator used. The overloaded operator
+`operatorOP` utilizes `operatorOP(O)` and is available only if `operatorOP(O)`
+is well formed. The value and result is the same as the result of `operatorOP(O)`
+applied to the objects of type `O`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
+
 |===
-
-=== Properties
-
-Below is a list of compile-time constant properties supported with
-`annotated_ptr`. Other extensions can define additional compile-time constant
-properties that can be supported with `annotated_ptr`. Runtime properties
-are not supported.
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-struct alignment_key {
-  template<int K>
-  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
-};
-
-template<int K>
-inline constexpr alignment_key::value_t<K> alignment;
-
-template<>
-struct is_property_key<alignment_key> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-template<typename T, typename PropertyListT>
-} // namespace sycl::ext::oneapi::experimental
-```
---
-[options="header"]
-|====
-| Property | Description
-|`alignment`
-|
-This property is an assertion by the application that the `annotated_ptr` has
-the given alignment, specified in bytes. The behavior is undefined if the
-pointer value does not have the indicated alignment.
-|====
---
 
 == Issues related to `annotated_ptr`
 
@@ -706,6 +793,7 @@ the alignment is set up.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|5|2023-11-30|Brox Chen|API fixes: operators fowarding for annnotated_ref
 |4|2023-06-28|Roland Schulz|API fixes: constructors and annotated_ref assignment
 |3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
 |2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*

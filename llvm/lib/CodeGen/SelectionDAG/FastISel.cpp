@@ -1000,8 +1000,7 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
   if (!CanLowerReturn)
     return false;
 
-  for (unsigned I = 0, E = RetTys.size(); I != E; ++I) {
-    EVT VT = RetTys[I];
+  for (EVT VT : RetTys) {
     MVT RegisterVT = TLI.getRegisterType(CLI.RetTy->getContext(), VT);
     unsigned NumRegs = TLI.getNumRegisters(CLI.RetTy->getContext(), VT);
     for (unsigned i = 0; i != NumRegs; ++i) {
@@ -1325,6 +1324,14 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       LLVM_DEBUG(dbgs() << "Dropping dbg.value: expression is entry_value but "
                            "couldn't find a physical register\n"
                         << *DI << "\n");
+      return true;
+    }
+    if (auto SI = FuncInfo.StaticAllocaMap.find(dyn_cast<AllocaInst>(V));
+        SI != FuncInfo.StaticAllocaMap.end()) {
+      MachineOperand FrameIndexOp = MachineOperand::CreateFI(SI->second);
+      bool IsIndirect = false;
+      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD.getDL(), II, IsIndirect,
+              FrameIndexOp, Var, Expr);
       return true;
     }
     if (Register Reg = lookUpRegForValue(V)) {

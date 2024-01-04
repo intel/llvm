@@ -3,8 +3,12 @@
 #include "../graph_common.hpp"
 
 int main() {
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
-  queue Queue;
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   if (!Queue.get_device().has(sycl::aspect::usm_host_allocations)) {
     return 0;
   }
@@ -12,9 +16,9 @@ int main() {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *Arr = malloc_host<float>(N, Queue);
+  int *Arr = malloc_host<int>(N, Queue);
 
-  float Pattern = 3.14f;
+  int Pattern = 3;
   auto NodeA =
       add_node(Graph, Queue, [&](handler &CGH) { CGH.fill(Arr, Pattern, N); });
 
@@ -22,8 +26,8 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  for (int i = 0; i < N; i++)
-    assert(Arr[i] == Pattern);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Pattern, Arr[i], "Arr"));
 
   sycl::free(Arr, Queue);
 

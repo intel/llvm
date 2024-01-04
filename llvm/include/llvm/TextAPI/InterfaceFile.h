@@ -15,7 +15,6 @@
 #define LLVM_TEXTAPI_INTERFACEFILE_H
 
 #include "llvm/ADT/BitmaskEnum.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
@@ -188,7 +187,7 @@ public:
 
   /// Determine if target triple slice exists in file.
   ///
-  /// \param Target the value to find.
+  /// \param Targ the value to find.
   bool hasTarget(const Target &Targ) const {
     return llvm::is_contained(Targets, Targ);
   }
@@ -248,11 +247,25 @@ public:
   /// Check if the library uses two-level namespace.
   bool isTwoLevelNamespace() const { return IsTwoLevelNamespace; }
 
+  /// Specify if the library is an OS library but not shared cache eligible.
+  void setOSLibNotForSharedCache(bool V = true) {
+    IsOSLibNotForSharedCache = V;
+  }
+
+  /// Check if the library is an OS library that is not shared cache eligible.
+  bool isOSLibNotForSharedCache() const { return IsOSLibNotForSharedCache; }
+
   /// Specify if the library is application extension safe (or not).
   void setApplicationExtensionSafe(bool V = true) { IsAppExtensionSafe = V; }
 
   /// Check if the library is application extension safe.
   bool isApplicationExtensionSafe() const { return IsAppExtensionSafe; }
+
+  /// Check if the library has simulator support.
+  bool hasSimulatorSupport() const { return HasSimSupport; }
+
+  /// Specify if the library has simulator support.
+  void setSimulatorSupport(bool V = true) { HasSimSupport = V; }
 
   /// Set the Objective-C constraint.
   void setObjCConstraint(ObjCConstraintType Constraint) {
@@ -346,9 +359,8 @@ public:
   }
 
   /// Add a symbol to the symbols list or extend an existing one.
-  template <typename RangeT,
-            typename ElT = typename std::remove_reference<
-                decltype(*std::begin(std::declval<RangeT>()))>::type>
+  template <typename RangeT, typename ElT = std::remove_reference_t<
+                                 decltype(*std::begin(std::declval<RangeT>()))>>
   void addSymbol(SymbolKind Kind, StringRef Name, RangeT &&Targets,
                  SymbolFlags Flags = SymbolFlags::None) {
     SymbolsSet->addGlobal(Kind, Name, Flags, Targets);
@@ -450,7 +462,9 @@ private:
   PackedVersion CompatibilityVersion;
   uint8_t SwiftABIVersion{0};
   bool IsTwoLevelNamespace{false};
+  bool IsOSLibNotForSharedCache{false};
   bool IsAppExtensionSafe{false};
+  bool HasSimSupport{false};
   ObjCConstraintType ObjcConstraint = ObjCConstraintType::None;
   std::vector<std::pair<Target, std::string>> ParentUmbrellas;
   std::vector<InterfaceFileRef> AllowableClients;

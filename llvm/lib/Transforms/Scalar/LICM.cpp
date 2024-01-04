@@ -129,7 +129,7 @@ static cl::opt<uint32_t> MaxNumUsesTraversed(
     cl::desc("Max num uses visited for identifying load "
              "invariance in loop using invariant start (default = 8)"));
 
-cl::opt<unsigned> FPAssociationUpperLimit(
+static cl::opt<unsigned> FPAssociationUpperLimit(
     "licm-max-num-fp-reassociations", cl::init(5U), cl::Hidden,
     cl::desc(
         "Set upper limit for the number of transformations performed "
@@ -193,7 +193,7 @@ static Instruction *cloneInstructionInExitBlock(
 static void eraseInstruction(Instruction &I, ICFLoopSafetyInfo &SafetyInfo,
                              MemorySSAUpdater &MSSAU);
 
-static void moveInstructionBefore(Instruction &I, Instruction &Dest,
+static void moveInstructionBefore(Instruction &I, BasicBlock::iterator Dest,
                                   ICFLoopSafetyInfo &SafetyInfo,
                                   MemorySSAUpdater &MSSAU, ScalarEvolution *SE);
 
@@ -481,12 +481,12 @@ bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI,
     });
 
     if (!HasCatchSwitch) {
-      SmallVector<Instruction *, 8> InsertPts;
+      SmallVector<BasicBlock::iterator, 8> InsertPts;
       SmallVector<MemoryAccess *, 8> MSSAInsertPts;
       InsertPts.reserve(ExitBlocks.size());
       MSSAInsertPts.reserve(ExitBlocks.size());
       for (BasicBlock *ExitBlock : ExitBlocks) {
-        InsertPts.push_back(&*ExitBlock->getFirstInsertionPt());
+        InsertPts.push_back(ExitBlock->getFirstInsertionPt());
         MSSAInsertPts.push_back(nullptr);
       }
 
@@ -993,7 +993,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
   // loop invariant). If so make them unconditional by moving them to their
   // immediate dominator. We iterate through the instructions in reverse order
   // which ensures that when we rehoist an instruction we rehoist its operands,
-  // and also keep track of where in the block we are rehoisting to to make sure
+  // and also keep track of where in the block we are rehoisting to make sure
   // that we rehoist instructions before the instructions that use them.
   Instruction *HoistPoint = nullptr;
   if (ControlFlowHoisting) {
@@ -1011,7 +1011,8 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
         LLVM_DEBUG(dbgs() << "LICM rehoisting to "
                           << HoistPoint->getParent()->getNameOrAsOperand()
                           << ": " << *I << "\n");
-        moveInstructionBefore(*I, *HoistPoint, *SafetyInfo, MSSAU, SE);
+        moveInstructionBefore(*I, HoistPoint->getIterator(), *SafetyInfo, MSSAU,
+                              SE);
         HoistPoint = I;
         Changed = true;
       }
@@ -1039,7 +1040,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
 // invariant.start has no uses.
 static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
                                   Loop *CurLoop) {
-  Value *Addr = LI->getOperand(0);
+  Value *Addr = LI->getPointerOperand();
   const DataLayout &DL = LI->getModule()->getDataLayout();
   const TypeSize LocSizeInBits = DL.getTypeSizeInBits(LI->getType());
 
@@ -1055,36 +1056,6 @@ static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
   if (LocSizeInBits.isScalable())
     return false;
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  // if the type is ptr addrspace(x), we know this is the type of
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  // if the type is i8 addrspace(x)*, we know this is the type of
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  // llvm.invariant.start operand
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PtrASXTy = PointerType::get(LI->getContext(),
-                                    LI->getPointerAddressSpace());
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PtrInt8Ty = PointerType::get(Type::getInt8Ty(LI->getContext()),
-                                     LI->getPointerAddressSpace());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  unsigned BitcastsVisited = 0;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  // Look through bitcasts until we reach the PtrASXTy type (this is
-  // invariant.start operand type).
-  // FIXME: We shouldn't really find such bitcasts with opaque pointers.
-  while (Addr->getType() != PtrASXTy) {
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  // Look through bitcasts until we reach the i8* type (this is invariant.start
-  // operand type).
-  while (Addr->getType() != PtrInt8Ty) {
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-    auto *BC = dyn_cast<BitCastInst>(Addr);
-    // Avoid traversing high number of bitcast uses.
-    if (++BitcastsVisited > MaxNumUsesTraversed || !BC)
-      return false;
-    Addr = BC->getOperand(0);
-  }
   // If we've ended up at a global/constant, bail. We shouldn't be looking at
   // uselists for non-local Values in a loop pass.
   if (isa<Constant>(Addr))
@@ -1504,8 +1475,9 @@ static Instruction *cloneInstructionInExitBlock(
     if (LI->wouldBeOutOfLoopUseRequiringLCSSA(Op.get(), PN.getParent())) {
       auto *OInst = cast<Instruction>(Op.get());
       PHINode *OpPN =
-        PHINode::Create(OInst->getType(), PN.getNumIncomingValues(),
-                        OInst->getName() + ".lcssa", &ExitBlock.front());
+          PHINode::Create(OInst->getType(), PN.getNumIncomingValues(),
+                          OInst->getName() + ".lcssa");
+      OpPN->insertBefore(ExitBlock.begin());
       for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
         OpPN->addIncoming(OInst, PN.getIncomingBlock(i));
       Op = OpPN;
@@ -1520,16 +1492,17 @@ static void eraseInstruction(Instruction &I, ICFLoopSafetyInfo &SafetyInfo,
   I.eraseFromParent();
 }
 
-static void moveInstructionBefore(Instruction &I, Instruction &Dest,
+static void moveInstructionBefore(Instruction &I, BasicBlock::iterator Dest,
                                   ICFLoopSafetyInfo &SafetyInfo,
                                   MemorySSAUpdater &MSSAU,
                                   ScalarEvolution *SE) {
   SafetyInfo.removeInstruction(&I);
-  SafetyInfo.insertInstructionTo(&I, Dest.getParent());
-  I.moveBefore(&Dest);
+  SafetyInfo.insertInstructionTo(&I, Dest->getParent());
+  I.moveBefore(*Dest->getParent(), Dest);
   if (MemoryUseOrDef *OldMemAcc = cast_or_null<MemoryUseOrDef>(
           MSSAU.getMemorySSA()->getMemoryAccess(&I)))
-    MSSAU.moveToPlace(OldMemAcc, Dest.getParent(), MemorySSA::BeforeTerminator);
+    MSSAU.moveToPlace(OldMemAcc, Dest->getParent(),
+                      MemorySSA::BeforeTerminator);
   if (SE)
     SE->forgetBlockAndLoopDispositions(&I);
 }
@@ -1776,10 +1749,11 @@ static void hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
 
   if (isa<PHINode>(I))
     // Move the new node to the end of the phi list in the destination block.
-    moveInstructionBefore(I, *Dest->getFirstNonPHI(), *SafetyInfo, MSSAU, SE);
+    moveInstructionBefore(I, Dest->getFirstNonPHIIt(), *SafetyInfo, MSSAU, SE);
   else
     // Move the new node to the destination block, before its terminator.
-    moveInstructionBefore(I, *Dest->getTerminator(), *SafetyInfo, MSSAU, SE);
+    moveInstructionBefore(I, Dest->getTerminator()->getIterator(), *SafetyInfo,
+                          MSSAU, SE);
 
   I.updateLocationAfterHoist();
 
@@ -1823,7 +1797,7 @@ namespace {
 class LoopPromoter : public LoadAndStorePromoter {
   Value *SomePtr; // Designated pointer to store to.
   SmallVectorImpl<BasicBlock *> &LoopExitBlocks;
-  SmallVectorImpl<Instruction *> &LoopInsertPts;
+  SmallVectorImpl<BasicBlock::iterator> &LoopInsertPts;
   SmallVectorImpl<MemoryAccess *> &MSSAInsertPts;
   PredIteratorCache &PredCache;
   MemorySSAUpdater &MSSAU;
@@ -1847,7 +1821,8 @@ class LoopPromoter : public LoadAndStorePromoter {
     // We need to create an LCSSA PHI node for the incoming value and
     // store that.
     PHINode *PN = PHINode::Create(I->getType(), PredCache.size(BB),
-                                  I->getName() + ".lcssa", &BB->front());
+                                  I->getName() + ".lcssa");
+    PN->insertBefore(BB->begin());
     for (BasicBlock *Pred : PredCache.get(BB))
       PN->addIncoming(I, Pred);
     return PN;
@@ -1856,7 +1831,7 @@ class LoopPromoter : public LoadAndStorePromoter {
 public:
   LoopPromoter(Value *SP, ArrayRef<const Instruction *> Insts, SSAUpdater &S,
                SmallVectorImpl<BasicBlock *> &LEB,
-               SmallVectorImpl<Instruction *> &LIP,
+               SmallVectorImpl<BasicBlock::iterator> &LIP,
                SmallVectorImpl<MemoryAccess *> &MSSAIP, PredIteratorCache &PIC,
                MemorySSAUpdater &MSSAU, LoopInfo &li, DebugLoc dl,
                Align Alignment, bool UnorderedAtomic, const AAMDNodes &AATags,
@@ -1879,7 +1854,7 @@ public:
       Value *LiveInValue = SSA.GetValueInMiddleOfBlock(ExitBlock);
       LiveInValue = maybeInsertLCSSAPHI(LiveInValue, ExitBlock);
       Value *Ptr = maybeInsertLCSSAPHI(SomePtr, ExitBlock);
-      Instruction *InsertPos = LoopInsertPts[i];
+      BasicBlock::iterator InsertPos = LoopInsertPts[i];
       StoreInst *NewSI = new StoreInst(LiveInValue, Ptr, InsertPos);
       if (UnorderedAtomic)
         NewSI->setOrdering(AtomicOrdering::Unordered);
@@ -1958,23 +1933,6 @@ bool isNotVisibleOnUnwindInLoop(const Value *Object, const Loop *L,
          isNotCapturedBeforeOrInLoop(Object, L, DT);
 }
 
-// We don't consider globals as writable: While the physical memory is writable,
-// we may not have provenance to perform the write.
-bool isWritableObject(const Value *Object) {
-  // TODO: Alloca might not be writable after its lifetime ends.
-  // See https://github.com/llvm/llvm-project/issues/51838.
-  if (isa<AllocaInst>(Object))
-    return true;
-
-  // TODO: Also handle sret.
-  if (auto *A = dyn_cast<Argument>(Object))
-    return A->hasByValAttr();
-
-  // TODO: Noalias has nothing to do with writability, this should check for
-  // an allocator function.
-  return isNoAliasCall(Object);
-}
-
 bool isThreadLocalObject(const Value *Object, const Loop *L, DominatorTree *DT,
                          TargetTransformInfo *TTI) {
   // The object must be function-local to start with, and then not captured
@@ -1994,7 +1952,7 @@ bool isThreadLocalObject(const Value *Object, const Loop *L, DominatorTree *DT,
 bool llvm::promoteLoopAccessesToScalars(
     const SmallSetVector<Value *, 8> &PointerMustAliases,
     SmallVectorImpl<BasicBlock *> &ExitBlocks,
-    SmallVectorImpl<Instruction *> &InsertPts,
+    SmallVectorImpl<BasicBlock::iterator> &InsertPts,
     SmallVectorImpl<MemoryAccess *> &MSSAInsertPts, PredIteratorCache &PIC,
     LoopInfo *LI, DominatorTree *DT, AssumptionCache *AC,
     const TargetLibraryInfo *TLI, TargetTransformInfo *TTI, Loop *CurLoop,
@@ -2216,7 +2174,10 @@ bool llvm::promoteLoopAccessesToScalars(
   // violating the memory model.
   if (StoreSafety == StoreSafetyUnknown) {
     Value *Object = getUnderlyingObject(SomePtr);
-    if (isWritableObject(Object) &&
+    bool ExplicitlyDereferenceableOnly;
+    if (isWritableObject(Object, ExplicitlyDereferenceableOnly) &&
+        (!ExplicitlyDereferenceableOnly ||
+         isDereferenceablePointer(SomePtr, AccessTy, MDL)) &&
         isThreadLocalObject(Object, CurLoop, DT, TTI))
       StoreSafety = StoreSafe;
   }
@@ -2535,7 +2496,7 @@ static bool hoistGEP(Instruction &I, Loop &L, ICFLoopSafetyInfo &SafetyInfo,
   // handle both offsets being non-negative.
   const DataLayout &DL = GEP->getModule()->getDataLayout();
   auto NonNegative = [&](Value *V) {
-    return isKnownNonNegative(V, DL, 0, AC, GEP, DT);
+    return isKnownNonNegative(V, SimplifyQuery(DL, DT, AC, GEP));
   };
   bool IsInBounds = Src->isInBounds() && GEP->isInBounds() &&
                     all_of(Src->indices(), NonNegative) &&
@@ -2585,8 +2546,9 @@ static bool hoistAdd(ICmpInst::Predicate Pred, Value *VariantLHS,
   // we want to avoid this.
   auto &DL = L.getHeader()->getModule()->getDataLayout();
   bool ProvedNoOverflowAfterReassociate =
-      computeOverflowForSignedSub(InvariantRHS, InvariantOp, DL, AC, &ICmp,
-                                  DT) == llvm::OverflowResult::NeverOverflows;
+      computeOverflowForSignedSub(InvariantRHS, InvariantOp,
+                                  SimplifyQuery(DL, DT, AC, &ICmp)) ==
+      llvm::OverflowResult::NeverOverflows;
   if (!ProvedNoOverflowAfterReassociate)
     return false;
   auto *Preheader = L.getLoopPreheader();
@@ -2636,15 +2598,16 @@ static bool hoistSub(ICmpInst::Predicate Pred, Value *VariantLHS,
   // we want to avoid this. Likewise, for "C1 - LV < C2" we need to prove that
   // "C1 - C2" does not overflow.
   auto &DL = L.getHeader()->getModule()->getDataLayout();
+  SimplifyQuery SQ(DL, DT, AC, &ICmp);
   if (VariantSubtracted) {
     // C1 - LV < C2 --> LV > C1 - C2
-    if (computeOverflowForSignedSub(InvariantOp, InvariantRHS, DL, AC, &ICmp,
-                                    DT) != llvm::OverflowResult::NeverOverflows)
+    if (computeOverflowForSignedSub(InvariantOp, InvariantRHS, SQ) !=
+        llvm::OverflowResult::NeverOverflows)
       return false;
   } else {
     // LV - C1 < C2 --> LV < C1 + C2
-    if (computeOverflowForSignedAdd(InvariantOp, InvariantRHS, DL, AC, &ICmp,
-                                    DT) != llvm::OverflowResult::NeverOverflows)
+    if (computeOverflowForSignedAdd(InvariantOp, InvariantRHS, SQ) !=
+        llvm::OverflowResult::NeverOverflows)
       return false;
   }
   auto *Preheader = L.getLoopPreheader();
@@ -2711,7 +2674,7 @@ static bool hoistFPAssociation(Instruction &I, Loop &L,
   Value *VariantOp = nullptr, *InvariantOp = nullptr;
 
   if (!match(&I, m_FMul(m_Value(VariantOp), m_Value(InvariantOp))) ||
-      !I.hasAllowReassoc())
+      !I.hasAllowReassoc() || !I.hasNoSignedZeros())
     return false;
   if (L.isLoopInvariant(VariantOp))
     std::swap(VariantOp, InvariantOp);
@@ -2726,7 +2689,7 @@ static bool hoistFPAssociation(Instruction &I, Loop &L,
     Worklist.push_back(VariantBinOp);
   while (!Worklist.empty()) {
     BinaryOperator *BO = Worklist.pop_back_val();
-    if (!BO->hasOneUse() || !BO->hasAllowReassoc())
+    if (!BO->hasOneUse() || !BO->hasAllowReassoc() || !BO->hasNoSignedZeros())
       return false;
     BinaryOperator *Op0, *Op1;
     if (match(BO, m_FAdd(m_BinOp(Op0), m_BinOp(Op1)))) {

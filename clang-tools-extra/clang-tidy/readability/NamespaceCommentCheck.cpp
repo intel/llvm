@@ -27,8 +27,8 @@ NamespaceCommentCheck::NamespaceCommentCheck(StringRef Name,
           "^/[/*] *(end (of )?)? *(anonymous|unnamed)? *"
           "namespace( +(((inline )|([a-zA-Z0-9_:]))+))?\\.? *(\\*/)?$",
           llvm::Regex::IgnoreCase),
-      ShortNamespaceLines(Options.get("ShortNamespaceLines", 1u)),
-      SpacesBeforeComments(Options.get("SpacesBeforeComments", 1u)) {}
+      ShortNamespaceLines(Options.get("ShortNamespaceLines", 1U)),
+      SpacesBeforeComments(Options.get("SpacesBeforeComments", 1U)) {}
 
 void NamespaceCommentCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "ShortNamespaceLines", ShortNamespaceLines);
@@ -160,7 +160,7 @@ void NamespaceCommentCheck::check(const MatchFinder::MatchResult &Result) {
       }
 
       // Otherwise we need to fix the comment.
-      NeedLineBreak = Comment.startswith("/*");
+      NeedLineBreak = Comment.starts_with("/*");
       OldCommentRange =
           SourceRange(AfterRBrace, Loc.getLocWithOffset(Tok.getLength()));
       Message =
@@ -168,7 +168,7 @@ void NamespaceCommentCheck::check(const MatchFinder::MatchResult &Result) {
                "%0 ends with a comment that refers to a wrong namespace '") +
            NamespaceNameInComment + "'")
               .str();
-    } else if (Comment.startswith("//")) {
+    } else if (Comment.starts_with("//")) {
       // Assume that this is an unrecognized form of a namespace closing line
       // comment. Replace it.
       NeedLineBreak = false;

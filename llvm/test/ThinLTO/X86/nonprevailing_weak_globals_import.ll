@@ -3,8 +3,7 @@
 ; RUN: opt -module-summary %t.dir/1.ll -o %t1.bc
 ; RUN: opt -module-summary %t.dir/2.ll -o %t2.bc
 
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t.out \
-; RUN:               -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t.out \
 ; RUN:               -r=%t1.bc,main,plx \
 ; RUN:               -r=%t1.bc,G \
 ; RUN:               -r=%t2.bc,G,pl

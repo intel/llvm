@@ -58,29 +58,28 @@ define dso_local spir_func noundef i32 @_Z3fooii(i32 noundef %0, i32 noundef %1)
   %5 = alloca i32, align 4
   %6 = alloca [1 x %struct.struct_bit_fields1], align 2
   %7 = alloca i32, align 4
-  %8 = addrspacecast i32* %3 to i32 addrspace(4)*
-  %9 = addrspacecast i32* %4 to i32 addrspace(4)*
-  %10 = addrspacecast i32* %5 to i32 addrspace(4)*
-  %11 = addrspacecast [1 x %struct.struct_bit_fields1]* %6 to [1 x %struct.struct_bit_fields1] addrspace(4)*
-  %12 = addrspacecast i32* %7 to i32 addrspace(4)*
-  store i32 %0, i32 addrspace(4)* %9, align 4
-  call void @llvm.dbg.declare(metadata i32* %4, metadata !15, metadata !DIExpression()), !dbg !16
-  store i32 %1, i32 addrspace(4)* %10, align 4
-  call void @llvm.dbg.declare(metadata i32* %5, metadata !17, metadata !DIExpression()), !dbg !18
-  call void @llvm.dbg.declare(metadata [1 x %struct.struct_bit_fields1]* %6, metadata !19, metadata !DIExpression()), !dbg !32
-  %13 = bitcast [1 x %struct.struct_bit_fields1] addrspace(4)* %11 to i8 addrspace(4)*, !dbg !32
-  call void @llvm.memcpy.p4i8.p1i8.i64(i8 addrspace(4)* align 2 %13, i8 addrspace(1)* align 2 getelementptr inbounds ([1 x { i8, i8 }], [1 x { i8, i8 }] addrspace(1)* @__const._Z3fooii.arr_bf1, i32 0, i32 0, i32 0), i64 2, i1 false), !dbg !32
-  call void @llvm.dbg.declare(metadata i32* %7, metadata !33, metadata !DIExpression()), !dbg !34
-  store i32 0, i32 addrspace(4)* %12, align 4, !dbg !34
-  %14 = load i32, i32 addrspace(4)* %12, align 4, !dbg !35
-  ret i32 %14, !dbg !36
+  %8 = addrspacecast ptr %3 to ptr addrspace(4)
+  %9 = addrspacecast ptr %4 to ptr addrspace(4)
+  %10 = addrspacecast ptr %5 to ptr addrspace(4)
+  %11 = addrspacecast ptr %6 to ptr addrspace(4)
+  %12 = addrspacecast ptr %7 to ptr addrspace(4)
+  store i32 %0, ptr addrspace(4) %9, align 4
+  call void @llvm.dbg.declare(metadata ptr %4, metadata !15, metadata !DIExpression()), !dbg !16
+  store i32 %1, ptr addrspace(4) %10, align 4
+  call void @llvm.dbg.declare(metadata ptr %5, metadata !17, metadata !DIExpression()), !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %6, metadata !19, metadata !DIExpression()), !dbg !32
+  call void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) align 2 %11, ptr addrspace(1) align 2 @__const._Z3fooii.arr_bf1, i64 2, i1 false), !dbg !32
+  call void @llvm.dbg.declare(metadata ptr %7, metadata !33, metadata !DIExpression()), !dbg !34
+  store i32 0, ptr addrspace(4) %12, align 4, !dbg !34
+  %13 = load i32, ptr addrspace(4) %12, align 4, !dbg !35
+  ret i32 %13, !dbg !36
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.memcpy.p4i8.p1i8.i64(i8 addrspace(4)* noalias nocapture writeonly, i8 addrspace(1)* noalias nocapture readonly, i64, i1 immarg) #2
+declare void @llvm.memcpy.p4.p1.i64(ptr addrspace(4) noalias nocapture writeonly, ptr addrspace(1) noalias nocapture readonly, i64, i1 immarg) #2
 
 attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "approx-func-fp-math"="true" "frame-pointer"="all" "min-legal-vector-width"="0" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="bitfields-packed.cpp" "unsafe-fp-math"="true" }
 attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

@@ -11,12 +11,20 @@
 
 #include <memory>
 
+#include "mlir/Pass/Pass.h"
+
+#define GEN_PASS_DECL_CONVERTTOLLVMPASS
+#include "mlir/Conversion/Passes.h.inc"
+
 namespace mlir {
-class Pass;
 
 /// Create a pass that performs dialect conversion to LLVM  for all dialects
 /// implementing `ConvertToLLVMPatternInterface`.
 std::unique_ptr<Pass> createConvertToLLVMPass();
+
+/// Register the extension that will load dependent dialects for LLVM
+/// conversion. This is useful to implement a pass similar to "convert-to-llvm".
+void registerConvertToLLVMDependentDialectLoading(DialectRegistry &registry);
 
 } // namespace mlir
 

@@ -24,8 +24,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
 
-#include <set>
-
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
@@ -123,7 +121,7 @@ static std::pair<Type *, bool> computeRecurrenceType(Instruction *Exit,
       // meaning that we will use sext instructions instead of zext
       // instructions to restore the original type.
       IsSigned = true;
-      // Make sure at at least one sign bit is included in the result, so it
+      // Make sure at least one sign bit is included in the result, so it
       // will get properly sign-extended.
       ++MaxBitWidth;
     }

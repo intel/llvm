@@ -9,10 +9,11 @@
 #pragma once
 
 #include <sycl/builtins.hpp>            // for ceil, cos, exp, exp10, exp2
+#include <sycl/detail/memcpy.hpp>       // sycl::detail::memcpy
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
 #include <sycl/marray.hpp>              // for marray
 
-#include <cstring>     // for size_t, memcpy
+#include <cstring>     // for size_t
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for enable_if_t, is_same
 
@@ -24,7 +25,7 @@ namespace detail {
 template <size_t N>
 uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
   uint32_t res;
-  std::memcpy(&res, &x[start], sizeof(uint32_t));
+  sycl::detail::memcpy(&res, &x[start], sizeof(uint32_t));
   return res;
 }
 } // namespace detail
@@ -71,7 +72,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
     (__SYCL_CUDA_ARCH__ >= 800)
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -126,7 +127,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmin(detail::to_uint32_t(x, i * 2),
                                   detail::to_uint32_t(y, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -182,7 +183,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmax(detail::to_uint32_t(x, i * 2),
                                   detail::to_uint32_t(y, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -226,7 +227,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
     auto partial_res =
         __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
                   detail::to_uint32_t(z, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {

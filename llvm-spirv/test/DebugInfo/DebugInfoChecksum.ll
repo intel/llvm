@@ -32,7 +32,7 @@ target triple = "spir"
 define i32 @main() #0 !dbg !10 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !15
 }
 

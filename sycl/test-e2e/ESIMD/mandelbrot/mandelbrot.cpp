@@ -35,10 +35,6 @@ using namespace sycl::ext::intel::esimd;
 #define WIDTH 800
 #define HEIGHT 602
 
-#define EMU_TOTAL_MISMATCH_RATE_TOLERANCE                                      \
-  0.0027 // the observed total mismatch rate (due to inherent divergency in host
-         // vs GPU FP computations)
-
 template <typename ACC>
 ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
                              float xOff, float yOff, float scale) {
@@ -171,11 +167,7 @@ int main(int argc, char *argv[]) {
   fclose(dumpfile);
 
   bool passed = true;
-  if (!esimd_test::cmp_binary_files<unsigned char>(
-          out_file, argv[2], 0,
-          q.get_backend() == sycl::backend::ext_intel_esimd_emulator
-              ? EMU_TOTAL_MISMATCH_RATE_TOLERANCE
-              : 0)) {
+  if (!esimd_test::cmp_binary_files<unsigned char>(out_file, argv[2], 0, 0)) {
     std::cerr << out_file << " does not match the reference file " << argv[2]
               << std::endl;
     passed = false;

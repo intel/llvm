@@ -3,6 +3,7 @@
 //
 // UNSUPPORTED: cuda || hip
 
+#include <complex>
 #include <numeric>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
@@ -144,13 +145,16 @@ void test(queue q, InputContainer input, OutputContainer output,
     });
     q.wait();
   }
-  assert(output[0] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  identity, binary_op));
-  assert(output[1] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  init, binary_op));
+  assert(output[0] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, identity,
+                                      binary_op));
+  assert(output[1] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, init,
+                                      binary_op));
   assert(output[2] ==
-         std::reduce(input.begin(), input.end(), identity, binary_op));
-  assert(output[3] == std::reduce(input.begin(), input.end(), init, binary_op));
+         std::accumulate(input.begin(), input.end(), identity, binary_op));
+  assert(output[3] ==
+         std::accumulate(input.begin(), input.end(), init, binary_op));
 }
 
 int main() {

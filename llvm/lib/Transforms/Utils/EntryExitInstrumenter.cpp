@@ -35,11 +35,7 @@ static void insertCall(Function &CurFn, StringRef Func,
     Triple TargetTriple(M.getTargetTriple());
     if (TargetTriple.isOSAIX() && Func == "__mcount") {
       Type *SizeTy = M.getDataLayout().getIntPtrType(C);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      Type *SizePtrTy = SizeTy->getPointerTo();
-#else
       Type *SizePtrTy = PointerType::getUnqual(C);
-#endif
       GlobalVariable *GV = new GlobalVariable(M, SizeTy, /*isConstant=*/false,
                                               GlobalValue::InternalLinkage,
                                               ConstantInt::get(SizeTy, 0));
@@ -58,7 +54,7 @@ static void insertCall(Function &CurFn, StringRef Func,
   }
 
   if (Func == "__cyg_profile_func_enter" || Func == "__cyg_profile_func_exit") {
-    Type *ArgTypes[] = {Type::getInt8PtrTy(C), Type::getInt8PtrTy(C)};
+    Type *ArgTypes[] = {PointerType::getUnqual(C), PointerType::getUnqual(C)};
 
     FunctionCallee Fn = M.getOrInsertFunction(
         Func, FunctionType::get(Type::getVoidTy(C), ArgTypes, false));
@@ -69,9 +65,7 @@ static void insertCall(Function &CurFn, StringRef Func,
         InsertionPt);
     RetAddr->setDebugLoc(DL);
 
-    Value *Args[] = {ConstantExpr::getBitCast(&CurFn, Type::getInt8PtrTy(C)),
-                     RetAddr};
-
+    Value *Args[] = {&CurFn, RetAddr};
     CallInst *Call =
         CallInst::Create(Fn, ArrayRef<Value *>(Args), "", InsertionPt);
     Call->setDebugLoc(DL);

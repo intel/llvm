@@ -3,6 +3,7 @@
 from mlir.ir import *
 from mlir.dialects import transform
 from mlir.dialects.transform import bufferization
+from mlir.dialects.bufferization import LayoutMapOption
 
 
 def run(f):
@@ -18,7 +19,7 @@ def run(f):
 @run
 def testEmptyTensorToAllocTensorOpCompact():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE,
+        transform.FailurePropagationMode.Propagate,
         [],
         transform.OperationType.get("tensor.empty"),
     )
@@ -33,7 +34,7 @@ def testEmptyTensorToAllocTensorOpCompact():
 @run
 def testEmptyTensorToAllocTensorOpTyped():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE,
+        transform.FailurePropagationMode.Propagate,
         [],
         transform.OperationType.get("tensor.empty"),
     )
@@ -51,7 +52,7 @@ def testEmptyTensorToAllocTensorOpTyped():
 @run
 def testOneShotBufferizeOpCompact():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE, [], transform.AnyOpType.get()
+        transform.FailurePropagationMode.Propagate, [], transform.AnyOpType.get()
     )
     with InsertionPoint(sequence.body):
         bufferization.OneShotBufferizeOp(sequence.bodyTarget)
@@ -64,7 +65,7 @@ def testOneShotBufferizeOpCompact():
 @run
 def testOneShotBufferizeOpTyped():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE, [], transform.AnyOpType.get()
+        transform.FailurePropagationMode.Propagate, [], transform.AnyOpType.get()
     )
     with InsertionPoint(sequence.body):
         bufferization.OneShotBufferizeOp(
@@ -80,16 +81,15 @@ def testOneShotBufferizeOpTyped():
 @run
 def testOneShotBufferizeOpAttributes():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE, [], transform.AnyOpType.get()
+        transform.FailurePropagationMode.Propagate, [], transform.AnyOpType.get()
     )
     with InsertionPoint(sequence.body):
         bufferization.OneShotBufferizeOp(
             sequence.bodyTarget,
-            allow_return_allocs=True,
+            allow_return_allocs_from_loops=True,
             allow_unknown_ops=True,
             bufferize_function_boundaries=True,
-            create_deallocs=False,
-            function_boundary_type_conversion=bufferization.LayoutMapOption.IDENTITY_LAYOUT_MAP,
+            function_boundary_type_conversion=LayoutMapOption.IdentityLayoutMap,
             memcpy_op="linalg.copy",
             print_conflicts=True,
             test_analysis_only=True,
@@ -98,10 +98,9 @@ def testOneShotBufferizeOpAttributes():
     # CHECK-LABEL: TEST: testOneShotBufferizeOpAttributes
     # CHECK: = transform.bufferization.one_shot_bufferize
     # CHECK-SAME: layout{IdentityLayoutMap}
-    # CHECK-SAME: allow_return_allocs = true
+    # CHECK-SAME: allow_return_allocs_from_loops = true
     # CHECK-SAME: allow_unknown_ops = true
     # CHECK-SAME: bufferize_function_boundaries = true
-    # CHECK-SAME: create_deallocs = false
     # CHECK-SAME: memcpy_op = "linalg.copy"
     # CHECK-SAME: print_conflicts = true
     # CHECK-SAME: test_analysis_only = true

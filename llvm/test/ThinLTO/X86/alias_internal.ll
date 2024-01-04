@@ -3,7 +3,7 @@
 
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/alias_internal.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.out -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.out -save-temps \
 ; RUN:   -r %t1.bc,a1,plx \
 ; RUN:   -r %t2.bc,a2,plx
 

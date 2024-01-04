@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
-// TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
-// XFAIL: esimd_emulator
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -o %t1.out
 // RUN: %{run} %t1.out
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -DUSE_CONSTEXPR_API -o %t2.out
 // RUN: %{run} %t2.out
+// RUN: %{build} -fno-sycl-esimd-force-stateless-mem -DUSE_SUPPORTED_API -o %t3.out
+// RUN: %{run} %t3.out
 // The test checks raw send functionality with block read/write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
 
@@ -44,6 +44,9 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
 #ifdef USE_CONSTEXPR_API
   return experimental::esimd::raw_send<execSize, sfid, numSrc0, numDst>(
       oldDst, src0, exDesc, desc);
+#elif defined(USE_SUPPORTED_API)
+  return esimd::raw_send<execSize, sfid, numSrc0, numDst>(oldDst, src0, exDesc,
+                                                          desc);
 #else
   return experimental::esimd::raw_send(oldDst, src0, exDesc, desc, execSize,
                                        sfid, numSrc0, numDst);
@@ -66,6 +69,9 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
 #ifdef USE_CONSTEXPR_API
   return experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1>(
       src0, data, exDesc, desc);
+#elif defined(USE_SUPPORTED_API)
+  return esimd::raw_sends<execSize, sfid, numSrc0, numSrc1>(src0, data, exDesc,
+                                                            desc);
 #else
   return experimental::esimd::raw_sends(src0, data, exDesc, desc, execSize,
                                         sfid, numSrc0, numSrc1);
@@ -91,6 +97,8 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
 #ifdef USE_CONSTEXPR_API
   return experimental::esimd::raw_send<execSize, sfid, numSrc0>(src0, exDesc,
                                                                 desc);
+#elif defined(USE_SUPPORTED_API)
+  return esimd::raw_send<execSize, sfid, numSrc0>(src0, exDesc, desc);
 #else
   return experimental::esimd::raw_send(src0, exDesc, desc, execSize, sfid,
                                        numSrc0);

@@ -21,17 +21,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+
 namespace detail {
 class Builder;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
-
-namespace reduction {
-template <int Dims>
-item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
-} // namespace reduction
 } // namespace detail
 
 /// Identifies an instance of the function object executing at each point
@@ -133,16 +129,6 @@ protected:
   friend class detail::Builder;
 
 private:
-  // Friend to get access to private method set_allowed_range().
-  template <typename, int, typename> friend class detail::RoundedRangeKernel;
-  template <typename, int, typename>
-  friend class detail::RoundedRangeKernelWithKH;
-  void set_allowed_range(const range<Dimensions> rnwi) { MImpl.MExtent = rnwi; }
-
-  template <int Dims>
-  friend item<Dims, false>
-  detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
-
   detail::ItemBase<Dimensions, with_offset> MImpl;
 };
 

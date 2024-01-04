@@ -99,8 +99,10 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
 
     setOperationAction(ISD::SDIVREM, VT, Expand);
     setOperationAction(ISD::UDIVREM, VT, Expand);
-    if (!STI.hasSdivSmod())
-      setOperationAction(ISD::SREM, VT, Expand);
+    if (!STI.hasSdivSmod()) {
+      setOperationAction(ISD::SDIV, VT, Custom);
+      setOperationAction(ISD::SREM, VT, Custom);
+    }
     setOperationAction(ISD::MULHU, VT, Expand);
     setOperationAction(ISD::MULHS, VT, Expand);
     setOperationAction(ISD::UMUL_LOHI, VT, Expand);
@@ -224,6 +226,18 @@ bool BPFTargetLowering::isZExtFree(EVT VT1, EVT VT2) const {
   return NumBits1 == 32 && NumBits2 == 64;
 }
 
+bool BPFTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
+  EVT VT1 = Val.getValueType();
+  if (Val.getOpcode() == ISD::LOAD && VT1.isSimple() && VT2.isSimple()) {
+    MVT MT1 = VT1.getSimpleVT().SimpleTy;
+    MVT MT2 = VT2.getSimpleVT().SimpleTy;
+    if ((MT1 == MVT::i8 || MT1 == MVT::i16 || MT1 == MVT::i32) &&
+        (MT2 == MVT::i32 || MT2 == MVT::i64))
+      return true;
+  }
+  return TargetLoweringBase::isZExtFree(Val, VT2);
+}
+
 BPFTargetLowering::ConstraintType
 BPFTargetLowering::getConstraintType(StringRef Constraint) const {
   if (Constraint.size() == 1) {
@@ -295,8 +309,11 @@ SDValue BPFTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return LowerGlobalAddress(Op, DAG);
   case ISD::SELECT_CC:
     return LowerSELECT_CC(Op, DAG);
+  case ISD::SDIV:
+  case ISD::SREM:
+    return LowerSDIVSREM(Op, DAG);
   case ISD::DYNAMIC_STACKALLOC:
-    report_fatal_error("unsupported dynamic stack allocation");
+    return LowerDYNAMIC_STACKALLOC(Op, DAG);
   }
 }
 
@@ -603,6 +620,21 @@ static void NegateCC(SDValue &LHS, SDValue &RHS, ISD::CondCode &CC) {
     std::swap(LHS, RHS);
     break;
   }
+}
+
+SDValue BPFTargetLowering::LowerSDIVSREM(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  fail(DL, DAG,
+       "unsupported signed division, please convert to unsigned div/mod.");
+  return DAG.getUNDEF(Op->getValueType(0));
+}
+
+SDValue BPFTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  fail(DL, DAG, "unsupported dynamic stack allocation");
+  auto Ops = {DAG.getConstant(0, SDLoc(), Op.getValueType()), Op.getOperand(0)};
+  return DAG.getMergeValues(Ops, SDLoc());
 }
 
 SDValue BPFTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {

@@ -209,11 +209,7 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
     auto GlobalAS = getContext().getTargetAddressSpace(LangAS::cuda_device);
     auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(LTy);
     if (PtrTy && PtrTy->getAddressSpace() == DefaultAS) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       LTy = llvm::PointerType::get(PtrTy->getContext(), GlobalAS);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      LTy = llvm::PointerType::getWithSamePointeeType(PtrTy, GlobalAS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
     }
 
@@ -289,14 +285,14 @@ static llvm::Type *getSPIRVImageType(llvm::LLVMContext &Ctx, StringRef BaseType,
 
   // Choose the dimension of the image--this corresponds to the Dim enum in
   // SPIR-V (first integer parameter of OpTypeImage).
-  if (OpenCLName.startswith("image2d"))
+  if (OpenCLName.starts_with("image2d"))
     IntParams[0] = 1; // 1D
-  else if (OpenCLName.startswith("image3d"))
+  else if (OpenCLName.starts_with("image3d"))
     IntParams[0] = 2; // 2D
   else if (OpenCLName == "image1d_buffer")
     IntParams[0] = 5; // Buffer
   else
-    assert(OpenCLName.startswith("image1d") && "Unknown image type");
+    assert(OpenCLName.starts_with("image1d") && "Unknown image type");
 
   // Set the other integer parameters of OpTypeImage if necessary. Note that the
   // OpenCL image types don't provide any information for the Sampled or

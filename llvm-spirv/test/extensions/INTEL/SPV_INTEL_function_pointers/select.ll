@@ -41,62 +41,57 @@ $_ZTS6kernel = comdat any
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTS6kernel(i32 addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define weak_odr dso_local spir_kernel void @_ZTS6kernel(ptr addrspace(1) %_arg_, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, ptr byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, ptr byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %fptr.alloca = alloca i32 (i32, i32)*, align 8
+  %fptr.alloca = alloca ptr, align 8
   %ref.tmp.i = alloca %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", align 8
   %agg.tmp2.i = alloca %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", align 8
   %agg.tmp3.i = alloca %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", align 8
   %agg.tmp6 = alloca %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", align 8
-  %0 = bitcast %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %agg.tmp2.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %0)
-  %1 = bitcast %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %agg.tmp3.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %1)
-  %2 = addrspacecast %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %agg.tmp2.i to %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" addrspace(4)*
-  %ptrint4.i = ptrtoint %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" addrspace(4)* %2 to i64
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %agg.tmp2.i)
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %agg.tmp3.i)
+  %0 = addrspacecast ptr %agg.tmp2.i to ptr addrspace(4)
+  %ptrint4.i = ptrtoint ptr addrspace(4) %0 to i64
   %maskedptr5.i = and i64 %ptrint4.i, 7
   %maskcond6.i = icmp eq i64 %maskedptr5.i, 0
-  %3 = addrspacecast %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %agg.tmp3.i to %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" addrspace(4)*
-  %ptrint.i = ptrtoint %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" addrspace(4)* %3 to i64
+  %1 = addrspacecast ptr %agg.tmp3.i to ptr addrspace(4)
+  %ptrint.i = ptrtoint ptr addrspace(4) %1 to i64
   %maskedptr.i = and i64 %ptrint.i, 7
   %maskcond.i = icmp eq i64 %maskedptr.i, 0
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %0)
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %1)
-  %4 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
-  %5 = load i64, i64* %4, align 8
-  %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_, i64 %5
-  %6 = addrspacecast %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %agg.tmp6 to %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" addrspace(4)*
-  %ptrint = ptrtoint %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" addrspace(4)* %6 to i64
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %agg.tmp2.i)
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %agg.tmp3.i)
+  %2 = load i64, ptr %_arg_3, align 8
+  %add.ptr.i = getelementptr inbounds i32, ptr addrspace(1) %_arg_, i64 %2
+  %3 = addrspacecast ptr %agg.tmp6 to ptr addrspace(4)
+  %ptrint = ptrtoint ptr addrspace(4) %3 to i64
   %maskedptr = and i64 %ptrint, 7
   %maskcond = icmp eq i64 %maskedptr, 0
-  %7 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !8
-  %8 = extractelement <3 x i64> %7, i64 0
-  %arrayinit.begin.i.i.i.i.i = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" addrspace(4)* %6, i64 0, i32 0, i32 0, i64 0
-  store i64 %8, i64 addrspace(4)* %arrayinit.begin.i.i.i.i.i, align 8, !tbaa !15, !alias.scope !8
-  %9 = bitcast %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %ref.tmp.i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %9) #4
-  %10 = addrspacecast %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %ref.tmp.i to %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" addrspace(4)*
-  %ptrint.i2 = ptrtoint %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" addrspace(4)* %10 to i64
+  %4 = load <3 x i64>, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr addrspace(4)), align 32, !noalias !8
+  %5 = extractelement <3 x i64> %4, i64 0
+  store i64 %5, ptr addrspace(4) %3, align 8, !tbaa !15, !alias.scope !8
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %ref.tmp.i) #4
+  %6 = addrspacecast ptr %ref.tmp.i to ptr addrspace(4)
+  %ptrint.i2 = ptrtoint ptr addrspace(4) %6 to i64
   %maskedptr.i3 = and i64 %ptrint.i2, 7
   %maskcond.i4 = icmp eq i64 %maskedptr.i3, 0
-  %rem.i.i = and i64 %8, 1
+  %rem.i.i = and i64 %5, 1
   %cmp.i.i = icmp eq i64 %rem.i.i, 0
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %9) #4
-  %_Z3barii._Z3bazii.i = select i1 %cmp.i.i, i32 (i32, i32)* @_Z3barii, i32 (i32, i32)* @_Z3bazii
-  store i32 (i32, i32)* %_Z3barii._Z3bazii.i, i32 (i32, i32)** %fptr.alloca, align 8
-  %fptr = load i32 (i32, i32)*, i32 (i32, i32)** %fptr.alloca, align 8
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %ref.tmp.i) #4
+  %_Z3barii._Z3bazii.i = select i1 %cmp.i.i, ptr @_Z3barii, ptr @_Z3bazii
+  store ptr %_Z3barii._Z3bazii.i, ptr %fptr.alloca, align 8
+  %fptr = load ptr, ptr %fptr.alloca, align 8
   %call4.i = call spir_func i32 %fptr(i32 10, i32 10), !callees !19
-  %arrayidx.i3.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 %8
-  %arrayidx.ascast.i.i = addrspacecast i32 addrspace(1)* %arrayidx.i3.i to i32 addrspace(4)*
-  store i32 %call4.i, i32 addrspace(4)* %arrayidx.ascast.i.i, align 4, !tbaa !20
+  %arrayidx.i3.i = getelementptr inbounds i32, ptr addrspace(1) %add.ptr.i, i64 %5
+  %arrayidx.ascast.i.i = addrspacecast ptr addrspace(1) %arrayidx.i3.i to ptr addrspace(4)
+  store i32 %call4.i, ptr addrspace(4) %arrayidx.ascast.i.i, align 4, !tbaa !20
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind readnone
 define dso_local spir_func i32 @_Z3barii(i32 %a, i32 %b) local_unnamed_addr #2 {
@@ -142,6 +137,6 @@ attributes #4 = { nounwind }
 !16 = !{!"long", !17, i64 0}
 !17 = !{!"omnipotent char", !18, i64 0}
 !18 = !{!"Simple C++ TBAA"}
-!19 = !{i32 (i32, i32)* @_Z3barii, i32 (i32, i32)* @_Z3bazii}
+!19 = !{ptr @_Z3barii, ptr @_Z3bazii}
 !20 = !{!21, !21, i64 0}
 !21 = !{!"int", !17, i64 0}

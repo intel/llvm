@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "fold-implementation.h"
+#include "fold-matmul.h"
 #include "fold-reduction.h"
 #include "flang/Evaluate/check-expression.h"
 
@@ -264,6 +265,26 @@ Expr<Type<TypeCategory::Integer, KIND>> UBOUND(FoldingContext &context,
 }
 
 // COUNT()
+template <typename T, int MASK_KIND> class CountAccumulator {
+  using MaskT = Type<TypeCategory::Logical, MASK_KIND>;
+
+public:
+  CountAccumulator(const Constant<MaskT> &mask) : mask_{mask} {}
+  void operator()(Scalar<T> &element, const ConstantSubscripts &at) {
+    if (mask_.At(at).IsTrue()) {
+      auto incremented{element.AddSigned(Scalar<T>{1})};
+      overflow_ |= incremented.overflow;
+      element = incremented.value;
+    }
+  }
+  bool overflow() const { return overflow_; }
+  void Done(Scalar<T> &) const {}
+
+private:
+  const Constant<MaskT> &mask_;
+  bool overflow_{false};
+};
+
 template <typename T, int maskKind>
 static Expr<T> FoldCount(FoldingContext &context, FunctionRef<T> &&ref) {
   using LogicalResult = Type<TypeCategory::Logical, maskKind>;
@@ -274,17 +295,9 @@ static Expr<T> FoldCount(FoldingContext &context, FunctionRef<T> &&ref) {
               : Folder<LogicalResult>{context}.Folding(arg[0])}) {
     std::optional<int> dim;
     if (CheckReductionDIM(dim, context, arg, 1, mask->Rank())) {
-      bool overflow{false};
-      auto accumulator{
-          [&mask, &overflow](Scalar<T> &element, const ConstantSubscripts &at) {
-            if (mask->At(at).IsTrue()) {
-              auto incremented{element.AddSigned(Scalar<T>{1})};
-              overflow |= incremented.overflow;
-              element = incremented.value;
-            }
-          }};
+      CountAccumulator<T, maskKind> accumulator{*mask};
       Constant<T> result{DoReduction<T>(*mask, dim, Scalar<T>{}, accumulator)};
-      if (overflow) {
+      if (accumulator.overflow()) {
         context.messages().Say(
             "Result of intrinsic function COUNT overflows its result type"_warn_en_US);
       }
@@ -352,12 +365,12 @@ public:
     if (mask) {
       if (auto scalarMask{mask->GetScalarValue()}) {
         // Convert into array in case of scalar MASK= (for
-        // MAXLOC/MINLOC/FINDLOC mask should be be conformable)
+        // MAXLOC/MINLOC/FINDLOC mask should be conformable)
         ConstantSubscript n{GetSize(array->shape())};
         std::vector<Scalar<LogicalResult>> mask_elements(
             n, Scalar<LogicalResult>{scalarMask.value()});
         *mask = Constant<LogicalResult>{
-            std::move(mask_elements), ConstantSubscripts{n}};
+            std::move(mask_elements), ConstantSubscripts{array->shape()}};
       }
       mask->SetLowerBoundsToOne();
       maskAt = mask->lbounds();
@@ -513,9 +526,7 @@ static Expr<T> FoldBitReduction(FoldingContext &context, FunctionRef<T> &&ref,
   if (std::optional<Constant<T>> array{
           ProcessReductionArgs<T>(context, ref.arguments(), dim, identity,
               /*ARRAY=*/0, /*DIM=*/1, /*MASK=*/2)}) {
-    auto accumulator{[&](Scalar<T> &element, const ConstantSubscripts &at) {
-      element = (element.*operation)(array->At(at));
-    }};
+    OperationAccumulator<T> accumulator{*array, operation};
     return Expr<T>{DoReduction<T>(*array, dim, identity, accumulator)};
   }
   return Expr<T>{std::move(ref)};
@@ -666,10 +677,16 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     auto *someChar{UnwrapExpr<Expr<SomeCharacter>>(args[0])};
     CHECK(someChar);
     if (auto len{ToInt64(someChar->LEN())}) {
-      if (len.value() != 1) {
+      if (len.value() < 1) {
+        context.messages().Say(
+            "Character in intrinsic function %s must have length one"_err_en_US,
+            name);
+      } else if (len.value() > 1 &&
+          context.languageFeatures().ShouldWarn(
+              common::UsageWarning::Portability)) {
         // Do not die, this was not checked before
         context.messages().Say(
-            "Character in intrinsic function %s must have length one"_warn_en_US,
+            "Character in intrinsic function %s should have length one"_port_en_US,
             name);
       } else {
         return common::visit(
@@ -680,7 +697,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
                   ScalarFunc<T, Char>(
 #ifndef _MSC_VER
                       [&FromInt64](const Scalar<Char> &c) {
-                        return FromInt64(CharacterUtils<Char::kind>::ICHAR(c));
+                        return FromInt64(CharacterUtils<Char::kind>::ICHAR(
+                            CharacterUtils<Char::kind>::Resize(c, 1)));
                       }));
 #else // _MSC_VER
       // MSVC 14 get confused by the original code above and
@@ -690,7 +708,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
       // so remove the FromInt64 error checking lambda that
       // seems to have caused the proble.
                       [](const Scalar<Char> &c) {
-                        return CharacterUtils<Char::kind>::ICHAR(c);
+                        return CharacterUtils<Char::kind>::ICHAR(
+                            CharacterUtils<Char::kind>::Resize(c, 1));
                       }));
 #endif // _MSC_VER
             },
@@ -844,10 +863,22 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "int_ptr_kind") {
     return Expr<T>{8};
   } else if (name == "kind") {
-    if constexpr (common::HasMember<T, IntegerTypes>) {
-      return Expr<T>{args[0].value().GetType()->kind()};
-    } else {
-      DIE("kind() result not integral");
+    // FoldOperation(FunctionRef &&) in fold-implementation.h will not
+    // have folded the argument; in the case of TypeParamInquiry,
+    // try to get the type of the parameter itself.
+    if (const auto *expr{args[0] ? args[0]->UnwrapExpr() : nullptr}) {
+      if (const auto *inquiry{UnwrapExpr<TypeParamInquiry>(*expr)}) {
+        if (const auto *typeSpec{inquiry->parameter().GetType()}) {
+          if (const auto *intrinType{typeSpec->AsIntrinsic()}) {
+            if (auto k{ToInt64(Fold(
+                    context, Expr<SubscriptInteger>{intrinType->kind()}))}) {
+              return Expr<T>{*k};
+            }
+          }
+        }
+      } else if (auto dyType{expr->GetType()}) {
+        return Expr<T>{dyType->kind()};
+      }
     }
   } else if (name == "iparity") {
     return FoldBitReduction(
@@ -1020,6 +1051,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
         ScalarFunc<T, Int4>([&fptr](const Scalar<Int4> &places) -> Scalar<T> {
           return fptr(static_cast<int>(places.ToInt64()));
         }));
+  } else if (name == "matmul") {
+    return FoldMatmul(context, std::move(funcRef));
   } else if (name == "max") {
     return FoldMINorMAX(context, std::move(funcRef), Ordering::Greater);
   } else if (name == "max0" || name == "max1") {
@@ -1038,8 +1071,6 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "maxval") {
     return FoldMaxvalMinval<T>(context, std::move(funcRef),
         RelationalOperator::GT, T::Scalar::Least());
-  } else if (name == "merge") {
-    return FoldMerge<T>(context, std::move(funcRef));
   } else if (name == "merge_bits") {
     return FoldElementalIntrinsic<T, T, T, T>(
         context, std::move(funcRef), &Scalar<T>::MERGE_BITS);
@@ -1153,6 +1184,10 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     if (auto p{ToInt64(args[0])}) {
       return Expr<T>{context.targetCharacteristics().SelectedIntKind(*p)};
     }
+  } else if (name == "selected_logical_kind") {
+    if (auto p{ToInt64(args[0])}) {
+      return Expr<T>{context.targetCharacteristics().SelectedLogicalKind(*p)};
+    }
   } else if (name == "selected_real_kind" ||
       name == "__builtin_ieee_selected_real_kind") {
     if (auto p{GetInt64ArgOr(args[0], 0)}) {
@@ -1255,7 +1290,6 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "ubound") {
     return UBOUND(context, std::move(funcRef));
   }
-  // TODO: dot_product, matmul, sign
   return Expr<T>{std::move(funcRef)};
 }
 

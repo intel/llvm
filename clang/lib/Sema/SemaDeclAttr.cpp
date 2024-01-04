@@ -189,7 +189,7 @@ static inline bool isCFStringType(QualType T, ASTContext &Ctx) {
     return false;
 
   const RecordDecl *RD = RT->getDecl();
-  if (RD->getTagKind() != TTK_Struct)
+  if (RD->getTagKind() != TagTypeKind::Struct)
     return false;
 
   return RD->getIdentifier() == &Ctx.Idents.get("__CFString");
@@ -426,7 +426,7 @@ bool Sema::checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
   if (ArgLocation)
     *ArgLocation = E->getBeginLoc();
 
-  if (!Literal || !Literal->isOrdinary()) {
+  if (!Literal || (!Literal->isUnevaluated() && !Literal->isOrdinary())) {
     Diag(E->getBeginLoc(), diag::err_attribute_argument_type)
         << CI << AANT_ArgumentString;
     return false;
@@ -458,6 +458,16 @@ bool Sema::checkStringLiteralArgumentAttr(const ParsedAttr &AL, unsigned ArgNum,
 
   // Now check for an actual string literal.
   Expr *ArgExpr = AL.getArgAsExpr(ArgNum);
+  const auto *Literal = dyn_cast<StringLiteral>(ArgExpr->IgnoreParenCasts());
+  if (ArgLocation)
+    *ArgLocation = ArgExpr->getBeginLoc();
+
+  if (!Literal || (!Literal->isUnevaluated() && !Literal->isOrdinary())) {
+    Diag(ArgExpr->getBeginLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentString;
+    return false;
+  }
+  Str = Literal->getString();
   return checkStringLiteralArgumentAttr(AL, ArgExpr, Str, ArgLocation);
 }
 
@@ -1116,10 +1126,10 @@ static void handleDiagnoseAsBuiltinAttr(Sema &S, Decl *D,
   FunctionDecl *AttrFD = [&]() -> FunctionDecl * {
     if (!AL.isArgExpr(0))
       return nullptr;
-    auto *F = dyn_cast_or_null<DeclRefExpr>(AL.getArgAsExpr(0));
+    auto *F = dyn_cast_if_present<DeclRefExpr>(AL.getArgAsExpr(0));
     if (!F)
       return nullptr;
-    return dyn_cast_or_null<FunctionDecl>(F->getFoundDecl());
+    return dyn_cast_if_present<FunctionDecl>(F->getFoundDecl());
   }();
 
   if (!AttrFD || !AttrFD->getBuiltinID(true)) {
@@ -1300,7 +1310,7 @@ static void handleConsumableAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static bool checkForConsumableClass(Sema &S, const CXXMethodDecl *MD,
                                     const ParsedAttr &AL) {
-  QualType ThisType = MD->getThisType()->getPointeeType();
+  QualType ThisType = MD->getFunctionObjectParameterType();
 
   if (const CXXRecordDecl *RD = ThisType->getAsCXXRecordDecl()) {
     if (!RD->hasAttr<ConsumableAttr>()) {
@@ -1402,23 +1412,23 @@ static void handleReturnTypestateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // FIXME: This check is currently being done in the analysis.  It can be
   //        enabled here only after the parser propagates attributes at
   //        template specialization definition, not declaration.
-  //QualType ReturnType;
+  // QualType ReturnType;
   //
-  //if (const ParmVarDecl *Param = dyn_cast<ParmVarDecl>(D)) {
+  // if (const ParmVarDecl *Param = dyn_cast<ParmVarDecl>(D)) {
   //  ReturnType = Param->getType();
   //
   //} else if (const CXXConstructorDecl *Constructor =
   //             dyn_cast<CXXConstructorDecl>(D)) {
-  //  ReturnType = Constructor->getThisType()->getPointeeType();
+  //  ReturnType = Constructor->getFunctionObjectParameterType();
   //
   //} else {
   //
   //  ReturnType = cast<FunctionDecl>(D)->getCallResultType();
   //}
   //
-  //const CXXRecordDecl *RD = ReturnType->getAsCXXRecordDecl();
+  // const CXXRecordDecl *RD = ReturnType->getAsCXXRecordDecl();
   //
-  //if (!RD || !RD->hasAttr<ConsumableAttr>()) {
+  // if (!RD || !RD->hasAttr<ConsumableAttr>()) {
   //    S.Diag(Attr.getLoc(), diag::warn_return_state_for_unconsumable_type) <<
   //      ReturnType.getAsString();
   //    return;
@@ -1518,7 +1528,7 @@ static void handlePreferredName(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!T.hasQualifiers() && T->isTypedefNameType()) {
     // Find the template name, if this type names a template specialization.
     const TemplateDecl *Template = nullptr;
-    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+    if (const auto *CTSD = dyn_cast_if_present<ClassTemplateSpecializationDecl>(
             T->getAsCXXRecordDecl())) {
       Template = CTSD->getSpecializedTemplate();
     } else if (const auto *TST = T->getAs<TemplateSpecializationType>()) {
@@ -1875,8 +1885,8 @@ static void handleAssumumptionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 /// Normalize the attribute, __foo__ becomes foo.
 /// Returns true if normalization was applied.
 static bool normalizeName(StringRef &AttrName) {
-  if (AttrName.size() > 4 && AttrName.startswith("__") &&
-      AttrName.endswith("__")) {
+  if (AttrName.size() > 4 && AttrName.starts_with("__") &&
+      AttrName.ends_with("__")) {
     AttrName = AttrName.drop_front(2).drop_back(2);
     return true;
   }
@@ -2120,7 +2130,7 @@ static void handleTLSModelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (S.Context.getTargetInfo().getTriple().isOSAIX() &&
-      Model != "global-dynamic" && Model != "local-exec") {
+      Model == "local-dynamic") {
     S.Diag(LiteralLoc, diag::err_aix_attr_unsupported_tls_model) << Model;
     return;
   }
@@ -2273,13 +2283,13 @@ static void handleNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &Attrs) {
 }
 
 static void handleStandardNoReturnAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  // The [[_Noreturn]] spelling is deprecated in C2x, so if that was used,
+  // The [[_Noreturn]] spelling is deprecated in C23, so if that was used,
   // issue an appropriate diagnostic. However, don't issue a diagnostic if the
   // attribute name comes from a macro expansion. We don't want to punish users
   // who write [[noreturn]] after including <stdnoreturn.h> (where 'noreturn'
   // is defined as a macro which expands to '_Noreturn').
   if (!S.getLangOpts().CPlusPlus &&
-      A.getSemanticSpelling() == CXX11NoReturnAttr::C2x_Noreturn &&
+      A.getSemanticSpelling() == CXX11NoReturnAttr::C23_Noreturn &&
       !(A.getLoc().isMacroID() &&
         S.getSourceManager().isInSystemMacro(A.getLoc())))
     S.Diag(A.getLoc(), diag::warn_deprecated_noreturn_spelling) << A.getRange();
@@ -2712,10 +2722,11 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool IsUnavailable = AL.getUnavailableLoc().isValid();
   bool IsStrict = AL.getStrictLoc().isValid();
   StringRef Str;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getMessageExpr()))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getMessageExpr()))
     Str = SE->getString();
   StringRef Replacement;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getReplacementExpr()))
+  if (const auto *SE =
+          dyn_cast_if_present<StringLiteral>(AL.getReplacementExpr()))
     Replacement = SE->getString();
 
   if (II->isStr("swift")) {
@@ -2932,14 +2943,14 @@ static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
     return;
 
   StringRef Language;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(0)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(0)))
     Language = SE->getString();
   StringRef DefinedIn;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(1)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(1)))
     DefinedIn = SE->getString();
   bool IsGeneratedDeclaration = AL.getArgAsIdent(2) != nullptr;
   StringRef USR;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(3)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(3)))
     USR = SE->getString();
 
   D->addAttr(::new (S.Context) ExternalSourceSymbolAttr(
@@ -3241,18 +3252,18 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
 
     // If this is spelled as the standard C++17 attribute, but not in C++17,
     // warn about using it as an extension. If there are attribute arguments,
-    // then claim it's a C++2a extension instead.
+    // then claim it's a C++20 extension instead.
     // FIXME: If WG14 does not seem likely to adopt the same feature, add an
-    // extension warning for C2x mode.
+    // extension warning for C23 mode.
     const LangOptions &LO = S.getLangOpts();
     if (AL.getNumArgs() == 1) {
       if (LO.CPlusPlus && !LO.CPlusPlus20)
         S.Diag(AL.getLoc(), diag::ext_cxx20_attr) << AL;
 
       // Since this is spelled [[nodiscard]], get the optional string
-      // literal. If in C++ mode, but not in C++2a mode, diagnose as an
+      // literal. If in C++ mode, but not in C++20 mode, diagnose as an
       // extension.
-      // FIXME: C2x should support this feature as well, even as an extension.
+      // FIXME: C23 should support this feature as well, even as an extension.
       if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, nullptr))
         return;
     } else if (LO.CPlusPlus && !LO.CPlusPlus17)
@@ -3733,6 +3744,19 @@ static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
                                      AL.getArgAsExpr(1), AL.getArgAsExpr(2));
 }
 
+// Handles min_work_groups_per_cu attribute.
+static void handleSYCLIntelMinWorkGroupsPerComputeUnit(Sema &S, Decl *D,
+                                                       const ParsedAttr &AL) {
+  S.AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, AL, AL.getArgAsExpr(0));
+}
+
+// Handles max_work_groups_per_mp attribute.
+static void
+handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Sema &S, Decl *D,
+                                              const ParsedAttr &AL) {
+  S.AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, AL, AL.getArgAsExpr(0));
+}
+
 // Handles reqd_work_group_size.
 // If the 'reqd_work_group_size' attribute is specified on a declaration along
 // with 'num_simd_work_items' attribute, the required work group size specified
@@ -3996,9 +4020,25 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*positive*/ 0;
       return;
     }
-    if (Context.getTargetInfo().getTriple().isNVPTX() && ArgVal != 32) {
-      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_cuda_n_32)
-          << ArgVal.getSExtValue();
+    auto &TI = Context.getTargetInfo();
+    if (TI.getTriple().isNVPTX() && ArgVal != 32)
+      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+          << ArgVal.getSExtValue() << TI.getTriple().getArchName() << 32;
+    if (TI.getTriple().isAMDGPU()) {
+      const auto HasWaveFrontSize64 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize64"];
+      const auto HasWaveFrontSize32 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize32"];
+
+      // CDNA supports only 64 wave front size, for those GPUs allow subgroup
+      // size of 64. Some GPUs support both 32 and 64, for those (and the rest)
+      // only allow 32. Warn on incompatible sizes.
+      const auto SupportedWaveFrontSize =
+          HasWaveFrontSize64 && !HasWaveFrontSize32 ? 64 : 32;
+      if (ArgVal != SupportedWaveFrontSize)
+        Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+            << ArgVal.getSExtValue() << TI.getTriple().getArchName()
+            << SupportedWaveFrontSize;
     }
 
     // Check to see if there's a duplicate attribute with different values
@@ -4423,6 +4463,127 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
+// Check that the value is a non-negative integer constant that can fit in
+// 32-bits. Issue correct error message and return false on failure.
+bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
+                          const AttributeCommonInfo &CI) {
+  if (!I.isIntN(32)) {
+    S.Diag(E->getExprLoc(), diag::err_ice_too_large)
+        << llvm::toString(I, 10, false) << 32 << /* Unsigned */ 1;
+    return false;
+  }
+
+  if (I.isSigned() && I.isNegative()) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+        << CI << /* Non-negative */ 1;
+    return false;
+  }
+
+  return true;
+}
+
+void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+    Decl *D, const AttributeCommonInfo &CI, Expr *E) {
+  if (Context.getLangOpts().SYCLIsDevice &&
+      !Context.getTargetInfo().getTriple().isNVPTX()) {
+    Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+        << CI << E->getSourceRange();
+    return;
+  }
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
+    E = Res.get();
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelMinWorkGroupsPerComputeUnitAttr(Context, CI, E));
+}
+
+// Helper to get CudaArch.
+static CudaArch getCudaArch(const TargetInfo &TI) {
+  if (!TI.getTriple().isNVPTX())
+    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
+  auto &TO = TI.getTargetOpts();
+  return StringToCudaArch(TO.CPU);
+}
+
+void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+    Decl *D, const AttributeCommonInfo &CI, Expr *E) {
+  auto &TI = Context.getTargetInfo();
+  if (Context.getLangOpts().SYCLIsDevice) {
+    if (!TI.getTriple().isNVPTX()) {
+      Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+          << CI << E->getSourceRange();
+      return;
+    }
+
+    // Feature '.maxclusterrank' requires .target sm_90 or higher.
+    auto SM = getCudaArch(TI);
+    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+      Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
+          << CudaArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+  }
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
+    E = Res.get();
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Context, CI, E));
+}
+
 SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
     Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
   // Check to see if there's a duplicate attribute with different values
@@ -4460,6 +4621,52 @@ static void handleSYCLIntelMaxGlobalWorkDimAttr(Sema &S, Decl *D,
                                                 const ParsedAttr &AL) {
   Expr *E = AL.getArgAsExpr(0);
   S.AddSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
+}
+
+SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+Sema::MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+    Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+
+  return ::new (Context)
+      SYCLIntelMinWorkGroupsPerComputeUnitAttr(Context, A, A.getValue());
+}
+
+SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+Sema::MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+    Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+
+  return ::new (Context)
+      SYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Context, A, A.getValue());
 }
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
@@ -4747,6 +4954,11 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
            << Unknown << Tune << ParsedAttrs.Tune << Target;
 
+  if (Context.getTargetInfo().getTriple().isRISCV() &&
+      ParsedAttrs.Duplicate != "")
+    return Diag(LiteralLoc, diag::err_duplicate_target_attribute)
+           << Duplicate << None << ParsedAttrs.Duplicate << Target;
+
   if (ParsedAttrs.Duplicate != "")
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
            << Duplicate << None << ParsedAttrs.Duplicate << Target;
@@ -4896,7 +5108,7 @@ bool Sema::checkTargetClonesAttrString(
       }
     } else {
       // Other targets ( currently X86 )
-      if (Cur.startswith("arch=")) {
+      if (Cur.starts_with("arch=")) {
         if (!Context.getTargetInfo().isValidCPUName(
                 Cur.drop_front(sizeof("arch=") - 1)))
           return Diag(CurLoc, diag::warn_unsupported_target_attribute)
@@ -4915,7 +5127,7 @@ bool Sema::checkTargetClonesAttrString(
     }
   }
 
-  if (Str.rtrim().endswith(","))
+  if (Str.rtrim().ends_with(","))
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
            << Unsupported << None << "" << TargetClones;
   return false;
@@ -6159,7 +6371,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   QualType NewTy = NewElemTy;
   if (VectorSize.getBoolValue()) {
     NewTy = Context.getVectorType(NewTy, VectorSize.getZExtValue(),
-                                  VectorType::GenericVector);
+                                  VectorKind::Generic);
   } else if (const auto *OldVT = OldTy->getAs<VectorType>()) {
     // Complex machine mode does not support base vector types.
     if (ComplexMode) {
@@ -6553,7 +6765,8 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Diagnostic is emitted elsewhere: here we store the (valid) AL
   // in the Decl node for syntactic reasoning, e.g., pretty-printing.
   CallingConv CC;
-  if (S.CheckCallingConvAttr(AL, CC, /*FD*/nullptr))
+  if (S.CheckCallingConvAttr(AL, CC, /*FD*/ nullptr,
+                             S.IdentifyCUDATarget(dyn_cast<FunctionDecl>(D))))
     return;
 
   if (!isa<ObjCMethodDecl>(D)) {
@@ -6630,14 +6843,25 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case ParsedAttr::AT_PreserveAll:
     D->addAttr(::new (S.Context) PreserveAllAttr(S.Context, AL));
     return;
+  case ParsedAttr::AT_M68kRTD:
+    D->addAttr(::new (S.Context) M68kRTDAttr(S.Context, AL));
+    return;
   default:
     llvm_unreachable("unexpected attribute kind");
   }
 }
 
 static void handleSuppressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.checkAtLeastNumArgs(S, 1))
+  if (AL.getAttributeSpellingListIndex() == SuppressAttr::CXX11_gsl_suppress) {
+    // Suppression attribute with GSL spelling requires at least 1 argument.
+    if (!AL.checkAtLeastNumArgs(S, 1))
+      return;
+  } else if (!isa<VarDecl>(D)) {
+    // Analyzer suppression applies only to variables and statements.
+    S.Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type_str)
+        << AL << 0 << "variables and statements";
     return;
+  }
 
   std::vector<StringRef> DiagnosticIdentifiers;
   for (unsigned I = 0, E = AL.getNumArgs(); I != E; ++I) {
@@ -6646,8 +6870,6 @@ static void handleSuppressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!S.checkStringLiteralArgumentAttr(AL, I, RuleName, nullptr))
       return;
 
-    // FIXME: Warn if the rule name is unknown. This is tricky because only
-    // clang-tidy knows about available rules.
     DiagnosticIdentifiers.push_back(RuleName);
   }
   D->addAttr(::new (S.Context)
@@ -6738,7 +6960,8 @@ static void handleNoRandomizeLayoutAttr(Sema &S, Decl *D,
 }
 
 bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
-                                const FunctionDecl *FD) {
+                                const FunctionDecl *FD,
+                                CUDAFunctionTarget CFT) {
   if (Attrs.isInvalid())
     return true;
 
@@ -6827,6 +7050,9 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   case ParsedAttr::AT_PreserveAll:
     CC = CC_PreserveAll;
     break;
+  case ParsedAttr::AT_M68kRTD:
+    CC = CC_M68kRTD;
+    break;
   default: llvm_unreachable("unexpected attribute kind");
   }
 
@@ -6837,7 +7063,8 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   // on their host/device attributes.
   if (LangOpts.CUDA) {
     auto *Aux = Context.getAuxTargetInfo();
-    auto CudaTarget = IdentifyCUDATarget(FD);
+    assert(FD || CFT != CFT_InvalidTarget);
+    auto CudaTarget = FD ? IdentifyCUDATarget(FD) : CFT;
     bool CheckHost = false, CheckDevice = false;
     switch (CudaTarget) {
     case CFT_HostDevice:
@@ -7068,34 +7295,51 @@ static Expr *makeLaunchBoundsArgExpr(Sema &S, Expr *E,
 
 CUDALaunchBoundsAttr *
 Sema::CreateLaunchBoundsAttr(const AttributeCommonInfo &CI, Expr *MaxThreads,
-                             Expr *MinBlocks) {
-  CUDALaunchBoundsAttr TmpAttr(Context, CI, MaxThreads, MinBlocks);
+                             Expr *MinBlocks, Expr *MaxBlocks) {
+  CUDALaunchBoundsAttr TmpAttr(Context, CI, MaxThreads, MinBlocks, MaxBlocks);
   MaxThreads = makeLaunchBoundsArgExpr(*this, MaxThreads, TmpAttr, 0);
-  if (MaxThreads == nullptr)
+  if (!MaxThreads)
     return nullptr;
 
   if (MinBlocks) {
     MinBlocks = makeLaunchBoundsArgExpr(*this, MinBlocks, TmpAttr, 1);
-    if (MinBlocks == nullptr)
+    if (!MinBlocks)
       return nullptr;
   }
 
+  if (MaxBlocks) {
+    // '.maxclusterrank' ptx directive requires .target sm_90 or higher.
+    auto SM = getCudaArch(Context.getTargetInfo());
+    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+      Diag(MaxBlocks->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
+          << CudaArchToString(SM) << CI << MaxBlocks->getSourceRange();
+      // Ignore it by setting MaxBlocks to null;
+      MaxBlocks = nullptr;
+    } else {
+      MaxBlocks = makeLaunchBoundsArgExpr(*this, MaxBlocks, TmpAttr, 2);
+      if (!MaxBlocks)
+        return nullptr;
+    }
+  }
+
   return ::new (Context)
-      CUDALaunchBoundsAttr(Context, CI, MaxThreads, MinBlocks);
+      CUDALaunchBoundsAttr(Context, CI, MaxThreads, MinBlocks, MaxBlocks);
 }
 
 void Sema::AddLaunchBoundsAttr(Decl *D, const AttributeCommonInfo &CI,
-                               Expr *MaxThreads, Expr *MinBlocks) {
-  if (auto *Attr = CreateLaunchBoundsAttr(CI, MaxThreads, MinBlocks))
+                               Expr *MaxThreads, Expr *MinBlocks,
+                               Expr *MaxBlocks) {
+  if (auto *Attr = CreateLaunchBoundsAttr(CI, MaxThreads, MinBlocks, MaxBlocks))
     D->addAttr(Attr);
 }
 
 static void handleLaunchBoundsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
 
   S.AddLaunchBoundsAttr(D, AL, AL.getArgAsExpr(0),
-                        AL.getNumArgs() > 1 ? AL.getArgAsExpr(1) : nullptr);
+                        AL.getNumArgs() > 1 ? AL.getArgAsExpr(1) : nullptr,
+                        AL.getNumArgs() > 2 ? AL.getArgAsExpr(2) : nullptr);
 }
 
 static void handleArgumentWithTypeTagAttr(Sema &S, Decl *D,
@@ -7237,7 +7481,16 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
 /// Handle the [[intel::singlepump]] attribute.
 static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelSinglePumpAttr>(S, D, AL);
+  // 'singlepump' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelSinglePumpAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
@@ -7251,7 +7504,16 @@ static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
 /// Handle the [[intel::doublepump]] attribute.
 static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelDoublePumpAttr>(S, D, AL);
+  // 'doublepump' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelDoublePumpAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
@@ -7264,9 +7526,7 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
 
 /// Handle the [[intel::fpga_memory]] attribute.
 /// This is incompatible with the [[intel::fpga_register]] attribute.
-static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
-                                  const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMemoryAttr>(S, D, AL);
+static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<SYCLIntelRegisterAttr>(S, D, AL))
     return;
 
@@ -7287,10 +7547,20 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D,
     }
   }
 
-  // We are adding a user memory attribute, drop any implicit default.
-  if (auto *MA = D->getAttr<SYCLIntelMemoryAttr>())
-    if (MA->isImplicit())
-      D->dropAttr<SYCLIntelMemoryAttr>();
+  if (auto *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
+    // Check to see if there's a duplicate memory attribute with different
+    // values already applied to the declaration.
+    if (!MA->isImplicit()) {
+      if (MA->getKind() != Kind) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << &AL;
+        S.Diag(MA->getLocation(), diag::note_previous_attribute);
+      }
+      // Drop the duplicate attribute.
+      return;
+    }
+    // We are adding a user memory attribute, drop any implicit default.
+    D->dropAttr<SYCLIntelMemoryAttr>();
+  }
 
   D->addAttr(::new (S.Context) SYCLIntelMemoryAttr(S.Context, AL, Kind));
 }
@@ -7312,7 +7582,18 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
 /// This is incompatible with most of the other memory attributes.
 static void handleSYCLIntelRegisterAttr(Sema &S, Decl *D,
 		                        const ParsedAttr &A) {
-  checkForDuplicateAttribute<SYCLIntelRegisterAttr>(S, D, A);
+
+  // 'fpga_register' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelRegisterAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(A.getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
+
   if (checkIntelFPGARegisterAttrCompatibility(S, D, A))
     return;
 
@@ -7491,7 +7772,16 @@ static void handleSYCLIntelNumBanksAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
 static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelSimpleDualPortAttr>(S, D, AL);
+  // 'simple_dual_port' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelSimpleDualPortAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
     D->addAttr(SYCLIntelMemoryAttr::CreateImplicit(
@@ -7575,8 +7865,6 @@ static void handleSYCLIntelMaxReplicatesAttr(Sema &S, Decl *D,
 /// second is a direction.  The direction must be "depth" or "width".
 /// This is incompatible with the register attribute.
 static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMergeAttr>(S, D, AL);
-
   SmallVector<StringRef, 2> Results;
   for (int I = 0; I < 2; I++) {
     StringRef Str;
@@ -7588,6 +7876,19 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
     Results.push_back(Str);
+  }
+
+  // Warn about duplicate attributes if they have different arguments, no
+  // diagnostic is emitted if the arguments match, and drop any duplicate
+  // attributes.
+  if (const auto *Existing = D->getAttr<SYCLIntelMergeAttr>()) {
+    if (Existing && !(Existing->getName() == Results[0] &&
+                      Existing->getDirection() == Results[1])) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+      S.Diag(Existing->getLoc(), diag::note_previous_attribute);
+    }
+    // If there is no mismatch, drop any duplicate attributes.
+    return;
   }
 
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
@@ -7744,10 +8045,9 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
       return;
     E = Res.get();
 
-    // This attribute requires a range of values.
+    // This attribute accepts values 0 and 1 only.
     if (ArgVal < 0 || ArgVal > 1) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-          << CI << 0 << 1 << E->getSourceRange();
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
       return;
     }
 
@@ -8174,11 +8474,11 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               MutableArrayRef<Expr *> Args) {
   if (const auto *FuncD = dyn_cast<FunctionDecl>(D)) {
     if (FuncD->isDefaulted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 1;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 0;
       return;
     }
     if (FuncD->isDeleted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 2;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 1;
       return;
     }
   }
@@ -8312,8 +8612,7 @@ struct IntrinToName {
 static bool ArmBuiltinAliasValid(unsigned BuiltinID, StringRef AliasName,
                                  ArrayRef<IntrinToName> Map,
                                  const char *IntrinNames) {
-  if (AliasName.startswith("__arm_"))
-    AliasName = AliasName.substr(6);
+  AliasName.consume_front("__arm_");
   const IntrinToName *It =
       llvm::lower_bound(Map, BuiltinID, [](const IntrinToName &L, unsigned Id) {
         return L.Id < Id;
@@ -8412,6 +8711,21 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
   }
 
   D->addAttr(::new (S.Context) BuiltinAliasAttr(S.Context, AL, Ident));
+}
+
+static void handlePreferredTypeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.hasParsedType()) {
+    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+    return;
+  }
+
+  TypeSourceInfo *ParmTSI = nullptr;
+  QualType QT = S.GetTypeFromParser(AL.getTypeArg(), &ParmTSI);
+  assert(ParmTSI && "no type source info for attribute argument");
+  S.RequireCompleteType(ParmTSI->getTypeLoc().getBeginLoc(), QT,
+                        diag::err_incomplete_type);
+
+  D->addAttr(::new (S.Context) PreferredTypeAttr(S.Context, AL, ParmTSI));
 }
 
 //===----------------------------------------------------------------------===//
@@ -8678,7 +8992,7 @@ static void handleObjCRequiresSuperAttr(Sema &S, Decl *D,
   const auto *Method = cast<ObjCMethodDecl>(D);
 
   const DeclContext *DC = Method->getDeclContext();
-  if (const auto *PDecl = dyn_cast_or_null<ObjCProtocolDecl>(DC)) {
+  if (const auto *PDecl = dyn_cast_if_present<ObjCProtocolDecl>(DC)) {
     S.Diag(D->getBeginLoc(), diag::warn_objc_requires_super_protocol) << Attrs
                                                                       << 0;
     S.Diag(PDecl->getLocation(), diag::note_protocol_decl);
@@ -9141,10 +9455,10 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
 
   // Check whether this will be mapped to a getter or setter of a property.
   bool IsGetter = false, IsSetter = false;
-  if (Name.startswith("getter:")) {
+  if (Name.starts_with("getter:")) {
     IsGetter = true;
     Name = Name.substr(7);
-  } else if (Name.startswith("setter:")) {
+  } else if (Name.starts_with("setter:")) {
     IsSetter = true;
     Name = Name.substr(7);
   }
@@ -9596,20 +9910,8 @@ static void handleUuidAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleHLSLNumThreadsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  using llvm::Triple;
-  Triple Target = S.Context.getTargetInfo().getTriple();
-  auto Env = S.Context.getTargetInfo().getTriple().getEnvironment();
-  if (!llvm::is_contained({Triple::Compute, Triple::Mesh, Triple::Amplification,
-                           Triple::Library},
-                          Env)) {
-    uint32_t Pipeline =
-        static_cast<uint32_t>(hlsl::getStageFromEnvironment(Env));
-    S.Diag(AL.getLoc(), diag::err_hlsl_attr_unsupported_in_stage)
-        << AL << Pipeline << "Compute, Amplification, Mesh or Library";
-    return;
-  }
-
-  llvm::VersionTuple SMVersion = Target.getOSVersion();
+  llvm::VersionTuple SMVersion =
+      S.Context.getTargetInfo().getTriple().getOSVersion();
   uint32_t ZMax = 1024;
   uint32_t ThreadMax = 1024;
   if (SMVersion.getMajor() <= 4) {
@@ -9668,21 +9970,6 @@ HLSLNumThreadsAttr *Sema::mergeHLSLNumThreadsAttr(Decl *D,
   return ::new (Context) HLSLNumThreadsAttr(Context, AL, X, Y, Z);
 }
 
-static void handleHLSLSVGroupIndexAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  using llvm::Triple;
-  auto Env = S.Context.getTargetInfo().getTriple().getEnvironment();
-  if (Env != Triple::Compute && Env != Triple::Library) {
-    // FIXME: it is OK for a compute shader entry and pixel shader entry live in
-    // same HLSL file. Issue https://github.com/llvm/llvm-project/issues/57880.
-    ShaderStage Pipeline = hlsl::getStageFromEnvironment(Env);
-    S.Diag(AL.getLoc(), diag::err_hlsl_attr_unsupported_in_stage)
-        << AL << (uint32_t)Pipeline << "Compute";
-    return;
-  }
-
-  D->addAttr(::new (S.Context) HLSLSV_GroupIndexAttr(S.Context, AL));
-}
-
 static bool isLegalTypeForHLSLSV_DispatchThreadID(QualType T) {
   if (!T->hasUnsignedIntegerRepresentation())
     return false;
@@ -9693,23 +9980,6 @@ static bool isLegalTypeForHLSLSV_DispatchThreadID(QualType T) {
 
 static void handleHLSLSV_DispatchThreadIDAttr(Sema &S, Decl *D,
                                               const ParsedAttr &AL) {
-  using llvm::Triple;
-  Triple Target = S.Context.getTargetInfo().getTriple();
-  // FIXME: it is OK for a compute shader entry and pixel shader entry live in
-  // same HLSL file.Issue https://github.com/llvm/llvm-project/issues/57880.
-  if (Target.getEnvironment() != Triple::Compute &&
-      Target.getEnvironment() != Triple::Library) {
-    uint32_t Pipeline =
-        (uint32_t)S.Context.getTargetInfo().getTriple().getEnvironment() -
-        (uint32_t)llvm::Triple::Pixel;
-    S.Diag(AL.getLoc(), diag::err_hlsl_attr_unsupported_in_stage)
-        << AL << Pipeline << "Compute";
-    return;
-  }
-
-  // FIXME: report warning and ignore semantic when cannot apply on the Decl.
-  // See https://github.com/llvm/llvm-project/issues/57916.
-
   // FIXME: support semantic on field.
   // See https://github.com/llvm/llvm-project/issues/57889.
   if (isa<FieldDecl>(D)) {
@@ -9735,11 +10005,7 @@ static void handleHLSLShaderAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   HLSLShaderAttr::ShaderType ShaderType;
-  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType) ||
-      // Library is added to help convert HLSLShaderAttr::ShaderType to
-      // llvm::Triple::EnviromentType. It is not a legal
-      // HLSLShaderAttr::ShaderType.
-      ShaderType == HLSLShaderAttr::Library) {
+  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType)) {
     S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported)
         << AL << Str << ArgLoc;
     return;
@@ -9818,7 +10084,7 @@ static void handleHLSLResourceBindingAttr(Sema &S, Decl *D,
     }
   }
 
-  if (!Space.startswith("space")) {
+  if (!Space.starts_with("space")) {
     S.Diag(SpaceArgLoc, diag::err_hlsl_expected_space) << Space;
     return;
   }
@@ -9835,6 +10101,36 @@ static void handleHLSLResourceBindingAttr(Sema &S, Decl *D,
       HLSLResourceBindingAttr::Create(S.getASTContext(), Slot, Space, AL);
   if (NewAttr)
     D->addAttr(NewAttr);
+}
+
+static void handleHLSLParamModifierAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  HLSLParamModifierAttr *NewAttr = S.mergeHLSLParamModifierAttr(
+      D, AL,
+      static_cast<HLSLParamModifierAttr::Spelling>(AL.getSemanticSpelling()));
+  if (NewAttr)
+    D->addAttr(NewAttr);
+}
+
+HLSLParamModifierAttr *
+Sema::mergeHLSLParamModifierAttr(Decl *D, const AttributeCommonInfo &AL,
+                                 HLSLParamModifierAttr::Spelling Spelling) {
+  // We can only merge an `in` attribute with an `out` attribute. All other
+  // combinations of duplicated attributes are ill-formed.
+  if (HLSLParamModifierAttr *PA = D->getAttr<HLSLParamModifierAttr>()) {
+    if ((PA->isIn() && Spelling == HLSLParamModifierAttr::Keyword_out) ||
+        (PA->isOut() && Spelling == HLSLParamModifierAttr::Keyword_in)) {
+      D->dropAttr<HLSLParamModifierAttr>();
+      SourceRange AdjustedRange = {PA->getLocation(), AL.getRange().getEnd()};
+      return HLSLParamModifierAttr::Create(
+          Context, /*MergedSpelling=*/true, AdjustedRange,
+          HLSLParamModifierAttr::Keyword_inout);
+    }
+    Diag(AL.getLoc(), diag::err_hlsl_duplicate_parameter_modifier) << AL;
+    Diag(PA->getLocation(), diag::note_conflicting_attribute);
+    return nullptr;
+  }
+  return HLSLParamModifierAttr::Create(Context, AL);
 }
 
 static void handleMSInheritanceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -9866,6 +10162,28 @@ static void handleDeclspecThreadAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   D->addAttr(::new (S.Context) ThreadAttr(S.Context, AL));
+}
+
+static void handleMSConstexprAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!S.getLangOpts().isCompatibleWithMSVC(LangOptions::MSVC2022_3)) {
+    S.Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored)
+        << AL << AL.getRange();
+    return;
+  }
+  auto *FD = cast<FunctionDecl>(D);
+  if (FD->isConstexprSpecified() || FD->isConsteval()) {
+    S.Diag(AL.getLoc(), diag::err_ms_constexpr_cannot_be_applied)
+        << FD->isConsteval() << FD;
+    return;
+  }
+  if (auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
+    if (!S.getLangOpts().CPlusPlus20 && MD->isVirtual()) {
+      S.Diag(AL.getLoc(), diag::err_ms_constexpr_cannot_be_applied)
+          << /*virtual*/ 2 << MD;
+      return;
+    }
+  }
+  D->addAttr(::new (S.Context) MSConstexprAttr(S.Context, AL));
 }
 
 static void handleAbiTagAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -11052,6 +11370,10 @@ static void handleNoMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(NoMergeAttr::Create(S.Context, AL));
 }
 
+static void handleNoUniqueAddressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  D->addAttr(NoUniqueAddressAttr::Create(S.Context, AL));
+}
+
 static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // The 'sycl_kernel' attribute applies only to function templates.
   const auto *FD = cast<FunctionDecl>(D);
@@ -11590,6 +11912,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_BPFPreserveAccessIndex:
     handleBPFPreserveAccessIndexAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_BPFPreserveStaticOffset:
+    handleSimpleAttribute<BPFPreserveStaticOffsetAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_BTFDeclTag:
     handleBTFDeclTagAttr(S, D, AL);
     break;
@@ -11875,6 +12200,12 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
     handleSYCLIntelMaxWorkGroupSize(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelMinWorkGroupsPerComputeUnit:
+    handleSYCLIntelMinWorkGroupsPerComputeUnit(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelMaxWorkGroupsPerMultiprocessor:
+    handleSYCLIntelMaxWorkGroupsPerMultiprocessor(S, D, AL);
+    break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleIntelReqdSubGroupSize(S, D, AL);
     break;
@@ -12017,6 +12348,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_AArch64VectorPcs:
   case ParsedAttr::AT_AArch64SVEPcs:
   case ParsedAttr::AT_AMDGPUKernelCall:
+  case ParsedAttr::AT_M68kRTD:
     handleCallConvAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Suppress:
@@ -12056,6 +12388,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_NoMerge:
     handleNoMergeAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_NoUniqueAddress:
+    handleNoUniqueAddressAttr(S, D, AL);
+    break;
 
   case ParsedAttr::AT_AvailableOnlyInDefaultEvalMethod:
     handleAvailableOnlyInDefaultEvalMethod(S, D, AL);
@@ -12074,13 +12409,16 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_Thread:
     handleDeclspecThreadAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_MSConstexpr:
+    handleMSConstexprAttr(S, D, AL);
+    break;
 
   // HLSL attributes:
   case ParsedAttr::AT_HLSLNumThreads:
     handleHLSLNumThreadsAttr(S, D, AL);
     break;
   case ParsedAttr::AT_HLSLSV_GroupIndex:
-    handleHLSLSVGroupIndexAttr(S, D, AL);
+    handleSimpleAttribute<HLSLSV_GroupIndexAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_HLSLSV_DispatchThreadID:
     handleHLSLSV_DispatchThreadIDAttr(S, D, AL);
@@ -12090,6 +12428,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_HLSLResourceBinding:
     handleHLSLResourceBindingAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLParamModifier:
+    handleHLSLParamModifierAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AbiTag:
@@ -12342,6 +12683,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     handleBuiltinAliasAttr(S, D, AL);
     break;
 
+  case ParsedAttr::AT_PreferredType:
+    handlePreferredTypeAttr(S, D, AL);
+    break;
+
   case ParsedAttr::AT_UsingIfExists:
     handleSimpleAttribute<UsingIfExistsAttr>(S, D, AL);
     break;
@@ -12392,6 +12737,14 @@ void Sema::ProcessDeclAttributeList(
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {

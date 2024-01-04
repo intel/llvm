@@ -5,7 +5,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
@@ -56,7 +60,7 @@ int main() {
   add_nodes(GraphUpdate, Queue, Size, PtrA, PtrB, PtrC);
 
   event Event;
-  for (unsigned i = 0; i < Iterations; i++) {
+  for (size_t i = 0; i < Iterations; i++) {
     Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(ExecGraph);
@@ -90,13 +94,15 @@ int main() {
   free(PtrB2, Queue);
   free(PtrC2, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
 
-  assert(ReferenceA2 == DataA2);
-  assert(ReferenceB2 == DataB2);
-  assert(ReferenceC2 == DataC2);
+    assert(check_value(i, ReferenceA2[i], DataA2[i], "DataA2"));
+    assert(check_value(i, ReferenceB2[i], DataB2[i], "DataB2"));
+    assert(check_value(i, ReferenceC2[i], DataC2[i], "DataC2"));
+  }
 
   return 0;
 }

@@ -330,6 +330,14 @@ public:
       // Do preorder traversal so that successors are visited after the parent.
       while (Wl.size() > 0) {
         BasicBlock *BB = Wl.pop_back_val();
+
+        // If we have already visited this BB but it
+        // made it into the worklist, that means this BB
+        // has multiple predecessors. We already processed the first one
+        // so just skip it.
+        if (Visited.contains(BB))
+          continue;
+
         Visited.insert(BB);
 
         for (Instruction &I : *BB) {

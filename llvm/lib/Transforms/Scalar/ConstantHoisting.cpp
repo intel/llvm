@@ -523,7 +523,8 @@ void ConstantHoistingPass::collectConstantCandidates(Function &Fn) {
     if (!DT->isReachableFromEntry(&BB))
       continue;
     for (Instruction &Inst : BB)
-      collectConstantCandidates(ConstCandMap, &Inst);
+      if (!TTI->preferToKeepConstantsAttached(Inst, Fn))
+        collectConstantCandidates(ConstCandMap, &Inst);
   }
 }
 
@@ -673,8 +674,7 @@ void ConstantHoistingPass::findBaseConstants(GlobalVariable *BaseGV) {
   llvm::stable_sort(ConstCandVec, [](const ConstantCandidate &LHS,
                                      const ConstantCandidate &RHS) {
     if (LHS.ConstInt->getType() != RHS.ConstInt->getType())
-      return LHS.ConstInt->getType()->getBitWidth() <
-             RHS.ConstInt->getType()->getBitWidth();
+      return LHS.ConstInt->getBitWidth() < RHS.ConstInt->getBitWidth();
     return LHS.ConstInt->getValue().ult(RHS.ConstInt->getValue());
   });
 
@@ -761,11 +761,9 @@ void ConstantHoistingPass::emitBaseConstants(Instruction *Base,
   if (Adj->Offset) {
     if (Adj->Ty) {
       // Constant being rebased is a ConstantExpr.
-      PointerType *Int8PtrTy = Type::getInt8PtrTy(
-          *Ctx, cast<PointerType>(Adj->Ty)->getAddressSpace());
-      Base = new BitCastInst(Base, Int8PtrTy, "base_bitcast", Adj->MatInsertPt);
       Mat = GetElementPtrInst::Create(Type::getInt8Ty(*Ctx), Base, Adj->Offset,
                                       "mat_gep", Adj->MatInsertPt);
+      // Hide it behind a bitcast.
       Mat = new BitCastInst(Mat, Adj->Ty, "mat_bitcast", Adj->MatInsertPt);
     } else
       // Constant being rebased is a ConstantInt.
@@ -891,7 +889,7 @@ bool ConstantHoistingPass::emitBaseConstants(GlobalVariable *BaseGV) {
         Type *Ty = ConstInfo.BaseExpr->getType();
         Base = new BitCastInst(ConstInfo.BaseExpr, Ty, "const", IP);
       } else {
-        IntegerType *Ty = ConstInfo.BaseInt->getType();
+        IntegerType *Ty = ConstInfo.BaseInt->getIntegerType();
         Base = new BitCastInst(ConstInfo.BaseInt, Ty, "const", IP);
       }
 

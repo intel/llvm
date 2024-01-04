@@ -108,7 +108,7 @@ ProcessElfCore::~ProcessElfCore() {
   // make sure all of the broadcaster cleanup goes as planned. If we destruct
   // this class, then Process::~Process() might have problems trying to fully
   // destroy the broadcaster.
-  Finalize();
+  Finalize(true /* destructing */);
 }
 
 lldb::addr_t ProcessElfCore::AddAddressRangeFromLoadSegment(
@@ -131,7 +131,7 @@ lldb::addr_t ProcessElfCore::AddAddressRangeFromLoadSegment(
       m_core_aranges.Append(range_entry);
     }
   }
-  // Keep a separate map of permissions that that isn't coalesced so all ranges
+  // Keep a separate map of permissions that isn't coalesced so all ranges
   // are maintained.
   const uint32_t permissions =
       ((header.p_flags & llvm::ELF::PF_R) ? lldb::ePermissionsReadable : 0u) |
@@ -832,7 +832,7 @@ llvm::Error ProcessElfCore::parseOpenBSDNotes(llvm::ArrayRef<CoreNote> notes) {
   for (const auto &note : notes) {
     // OpenBSD per-thread information is stored in notes named "OpenBSD@nnn" so
     // match on the initial part of the string.
-    if (!llvm::StringRef(note.info.n_name).startswith("OpenBSD"))
+    if (!llvm::StringRef(note.info.n_name).starts_with("OpenBSD"))
       continue;
 
     switch (note.info.n_type) {

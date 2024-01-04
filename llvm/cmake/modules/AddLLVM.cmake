@@ -282,9 +282,9 @@ function(add_link_opts target_name)
         # ld64's implementation of -dead_strip breaks tools that use plugins.
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                      LINK_FLAGS " -Wl,-dead_strip")
-      elseif(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+      elseif(${CMAKE_SYSTEM_NAME} MATCHES "SunOS" AND LLVM_LINKER_IS_SOLARISLD)
         # Support for ld -z discard-unused=sections was only added in
-        # Solaris 11.4.
+        # Solaris 11.4.  GNU ld ignores it, but warns every time.
         include(LLVMCheckLinkerFlag)
         llvm_check_linker_flag(CXX "-Wl,-z,discard-unused=sections" LINKER_SUPPORTS_Z_DISCARD_UNUSED)
         if (LINKER_SUPPORTS_Z_DISCARD_UNUSED)
@@ -726,6 +726,8 @@ function(llvm_add_library name)
     endforeach()
   endif()
 
+  add_custom_linker_flags(${name})
+
   if(ARG_SHARED OR ARG_MODULE)
     llvm_externalize_debuginfo(${name})
     llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
@@ -1019,6 +1021,8 @@ macro(add_llvm_executable name)
     endforeach()
   endif( LLVM_COMMON_DEPENDS )
 
+  add_custom_linker_flags(${name})
+
   if(NOT ARG_IGNORE_EXTERNALIZE_DEBUGINFO)
     llvm_externalize_debuginfo(${name})
   endif()
@@ -1281,7 +1285,10 @@ function(export_executable_symbols target)
     # the size of the exported symbol table, but on other platforms we can do
     # it without any trouble.
     set_target_properties(${target} PROPERTIES ENABLE_EXPORTS 1)
-    if (APPLE)
+    # CMake doesn't set CMAKE_EXE_EXPORTS_${lang}_FLAG on Solaris, so
+    # ENABLE_EXPORTS has no effect.  While Solaris ld defaults to -rdynamic
+    # behaviour, GNU ld needs it.
+    if (APPLE OR ${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
       set_property(TARGET ${target} APPEND_STRING PROPERTY
         LINK_FLAGS " -rdynamic")
     endif()
@@ -1300,9 +1307,11 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-ar
     llvm-cov
     llvm-cxxfilt
+    llvm-dlltool
     llvm-dwp
     llvm-ranlib
     llvm-lib
+    llvm-mca
     llvm-ml
     llvm-nm
     llvm-objcopy
@@ -1520,6 +1529,13 @@ endmacro()
 macro(add_llvm_tool_subdirectory name)
   add_llvm_external_project(${name})
 endmacro(add_llvm_tool_subdirectory)
+
+macro(add_custom_linker_flags name)
+  if (LLVM_${name}_LINKER_FLAGS)
+    message(DEBUG "Applying ${LLVM_${name}_LINKER_FLAGS} to ${name}")
+    target_link_options(${name} PRIVATE ${LLVM_${name}_LINKER_FLAGS})
+  endif()
+endmacro()
 
 function(get_project_name_from_src_var var output)
   string(REGEX MATCH "LLVM_EXTERNAL_(.*)_SOURCE_DIR"
@@ -2363,7 +2379,7 @@ function(llvm_setup_rpath name)
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-z,origin ")
     endif()
-    if(LLVM_LINKER_IS_GNULD)
+    if(LLVM_LINKER_IS_GNULD AND NOT ${LLVM_LIBRARY_OUTPUT_INTDIR} STREQUAL "")
       # $ORIGIN is not interpreted at link time by ld.bfd
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-rpath-link,${LLVM_LIBRARY_OUTPUT_INTDIR} ")

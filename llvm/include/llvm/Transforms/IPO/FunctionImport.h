@@ -10,7 +10,6 @@
 #define LLVM_TRANSFORMS_IPO_FUNCTIONIMPORT_H
 
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
@@ -162,29 +161,6 @@ void ComputeCrossModuleImport(
         isPrevailing,
     DenseMap<StringRef, FunctionImporter::ImportMapTy> &ImportLists,
     DenseMap<StringRef, FunctionImporter::ExportSetTy> &ExportLists);
-
-/// Compute all the imports for the given module using the Index.
-///
-/// \p isPrevailing is a callback that will be called with a global value's GUID
-/// and summary and should return whether the module corresponding to the
-/// summary contains the linker-prevailing copy of that value.
-///
-/// \p ImportList will be populated with a map that can be passed to
-/// FunctionImporter::importFunctions() above (see description there).
-void ComputeCrossModuleImportForModule(
-    StringRef ModulePath,
-    function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
-        isPrevailing,
-    const ModuleSummaryIndex &Index, FunctionImporter::ImportMapTy &ImportList);
-
-/// Mark all external summaries in \p Index for import into the given module.
-/// Used for distributed builds using a distributed index.
-///
-/// \p ImportList will be populated with a map that can be passed to
-/// FunctionImporter::importFunctions() above (see description there).
-void ComputeCrossModuleImportForModuleFromIndex(
-    StringRef ModulePath, const ModuleSummaryIndex &Index,
-    FunctionImporter::ImportMapTy &ImportList);
 
 /// PrevailingType enum used as a return type of callback passed
 /// to computeDeadSymbolsAndUpdateIndirectCalls. Yes and No values used when

@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  Device.cpp
+ *  device.cpp
  *
  *  Description:
  *    Device info and selection tests

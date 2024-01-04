@@ -614,6 +614,34 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static constexpr bool Default = true; // default is true
+  static bool get() { return getCachedValue(); }
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool parseValue() {
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr)
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+    }
+    return ValStr[0] == '1';
+  }
+
+  static bool getCachedValue() {
+    static bool Val = parseValue();
+    return Val;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail

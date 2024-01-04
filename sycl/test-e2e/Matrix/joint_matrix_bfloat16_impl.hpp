@@ -1,18 +1,5 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 16
-
-#define BF16_EPSILON 0.00781250
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-private:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -47,7 +34,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                sub_a;
            // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
@@ -67,7 +54,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
                  N * 2);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,
@@ -78,71 +65,32 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-static constexpr size_t MATRIX_K = TK * 2;
-bfloat16 A[MATRIX_M][MATRIX_K];
-bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
-float C[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
-                         int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        // Because B was assumed VNNIed
-        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
-        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
-        float acc = *((float *)(C_mem + m * N + n));
-        for (int i = 0; i < 2; i++) {
-          acc += (make_fp32(va[i]) * make_fp32(vb[i]));
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-    }
-}
-
 int main() {
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = bfloat16(1.0f * (i + j));
-    }
-  }
-  for (int i = 0; i < MATRIX_K / 2; i++) {
-    for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 1.0;
-      D[i][j] = 1.0;
-    }
-  }
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  bfloat16 A[MATRIX_M][MATRIX_K];
+  bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
+  float C[MATRIX_M][MATRIX_N];
+  float D[MATRIX_M][MATRIX_N];
+
+  matrix_fill(MATRIX_M, MATRIX_K, (bfloat16 *)A,
+              [](int i, int j) { return 1.0f * (i + j); });
+  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (bfloat16 *)B,
+              [](int i, int j) { return 2.0f * i + 3.0f * j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
-                      MATRIX_N, MATRIX_K / 2);
+  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
+      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
+      MATRIX_K / 2);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON)
-        res = false;
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

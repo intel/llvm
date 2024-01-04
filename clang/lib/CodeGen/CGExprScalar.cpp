@@ -1661,9 +1661,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;
 
-  llvm::PointerType *PtrTy = cast<llvm::PointerType>(GlobalConstStr->getType());
-  llvm::PointerType *NewPtrTy =
-      llvm::PointerType::getWithSamePointeeType(PtrTy, ExprAS);
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(VMContext, ExprAS);
   return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
                                      "usid_addr_cast");
 }
@@ -1820,7 +1818,7 @@ Value *ScalarExprEmitter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   // careful, because the base of a vector subscript is occasionally an rvalue,
   // so we can't get it as an lvalue.
   if (!E->getBase()->getType()->isVectorType() &&
-      !E->getBase()->getType()->isVLSTBuiltinType())
+      !E->getBase()->getType()->isSveVLSBuiltinType())
     return EmitLoadOfLValue(E);
 
   // Handle the vector case.  The base must be a vector, the index must be an
@@ -1916,8 +1914,8 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
   // initializer, since LLVM optimizers generally do not want to touch
   // shuffles.
   unsigned CurIdx = 0;
-  bool VIsUndefShuffle = false;
-  llvm::Value *V = llvm::UndefValue::get(VType);
+  bool VIsPoisonShuffle = false;
+  llvm::Value *V = llvm::PoisonValue::get(VType);
   for (unsigned i = 0; i != NumInitElements; ++i) {
     Expr *IE = E->getInit(i);
     Value *Init = Visit(IE);
@@ -1937,16 +1935,16 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
           llvm::ConstantInt *C = cast<llvm::ConstantInt>(EI->getIndexOperand());
           Value *LHS = nullptr, *RHS = nullptr;
           if (CurIdx == 0) {
-            // insert into undef -> shuffle (src, undef)
+            // insert into poison -> shuffle (src, poison)
             // shufflemask must use an i32
             Args.push_back(getAsInt32(C, CGF.Int32Ty));
             Args.resize(ResElts, -1);
 
             LHS = EI->getVectorOperand();
             RHS = V;
-            VIsUndefShuffle = true;
-          } else if (VIsUndefShuffle) {
-            // insert into undefshuffle && size match -> shuffle (v, src)
+            VIsPoisonShuffle = true;
+          } else if (VIsPoisonShuffle) {
+            // insert into poison shuffle && size match -> shuffle (v, src)
             llvm::ShuffleVectorInst *SVV = cast<llvm::ShuffleVectorInst>(V);
             for (unsigned j = 0; j != CurIdx; ++j)
               Args.push_back(getMaskElt(SVV, j, 0));
@@ -1955,7 +1953,7 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
 
             LHS = cast<llvm::ShuffleVectorInst>(V)->getOperand(0);
             RHS = EI->getVectorOperand();
-            VIsUndefShuffle = false;
+            VIsPoisonShuffle = false;
           }
           if (!Args.empty()) {
             V = Builder.CreateShuffleVector(LHS, RHS, Args);
@@ -1966,7 +1964,7 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
       }
       V = Builder.CreateInsertElement(V, Init, Builder.getInt32(CurIdx),
                                       "vecinit");
-      VIsUndefShuffle = false;
+      VIsPoisonShuffle = false;
       ++CurIdx;
       continue;
     }
@@ -1984,9 +1982,9 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
 
       if (OpTy->getNumElements() == ResElts) {
         for (unsigned j = 0; j != CurIdx; ++j) {
-          // If the current vector initializer is a shuffle with undef, merge
+          // If the current vector initializer is a shuffle with poison, merge
           // this shuffle directly into it.
-          if (VIsUndefShuffle) {
+          if (VIsPoisonShuffle) {
             Args.push_back(getMaskElt(cast<llvm::ShuffleVectorInst>(V), j, 0));
           } else {
             Args.push_back(j);
@@ -1996,7 +1994,7 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
           Args.push_back(getMaskElt(SVI, j, Offset));
         Args.resize(ResElts, -1);
 
-        if (VIsUndefShuffle)
+        if (VIsPoisonShuffle)
           V = cast<llvm::ShuffleVectorInst>(V)->getOperand(0);
 
         Init = SVOp;
@@ -2019,12 +2017,12 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
       Args.resize(ResElts, -1);
     }
 
-    // If V is undef, make sure it ends up on the RHS of the shuffle to aid
+    // If V is poison, make sure it ends up on the RHS of the shuffle to aid
     // merging subsequent shuffles into this one.
     if (CurIdx == 0)
       std::swap(V, Init);
     V = Builder.CreateShuffleVector(V, Init, Args, "vecinit");
-    VIsUndefShuffle = isa<llvm::UndefValue>(Init);
+    VIsPoisonShuffle = isa<llvm::PoisonValue>(Init);
     CurIdx += InitElts;
   }
 
@@ -2085,24 +2083,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_LValueBitCast:
   case CK_ObjCObjectLValueCast: {
     Address Addr = EmitLValue(E).getAddress(CGF);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LValue LV = CGF.MakeAddrLValue(Addr, DestTy);
     return EmitLoadOfLValue(LV, CE->getExprLoc());
   }
 
   case CK_LValueToRValueBitCast: {
     LValue SourceLVal = CGF.EmitLValue(E);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address Addr = SourceLVal.getAddress(CGF).withElementType(
         CGF.ConvertTypeForMem(DestTy));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Address Addr = Builder.CreateElementBitCast(SourceLVal.getAddress(CGF),
-                                                CGF.ConvertTypeForMem(DestTy));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
     DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
     return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -2120,12 +2109,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
       Src = Builder.CreateAddrSpaceCast(
           Src,
-          llvm::PointerType::getWithSamePointeeType(
-              cast<llvm::PointerType>(SrcTy), DstTy->getPointerAddressSpace()));
-    else if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
-             SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
-      llvm_unreachable("wrong cast for pointers in different address spaces"
-                       "(must be an address space cast)!");
+          llvm::PointerType::get(VMContext, DstTy->getPointerAddressSpace()));
+    assert(
+        (!SrcTy->isPtrOrPtrVectorTy() || !DstTy->isPtrOrPtrVectorTy() ||
+         SrcTy->getPointerAddressSpace() == DstTy->getPointerAddressSpace()) &&
+        "Address-space cast must be used to convert address spaces");
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
       if (auto *PT = DestTy->getAs<PointerType>()) {
@@ -2231,12 +2219,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       Address Addr = CGF.CreateDefaultAlignTempAlloca(SrcTy, "saved-value");
       LValue LV = CGF.MakeAddrLValue(Addr, E->getType());
       CGF.EmitStoreOfScalar(Src, LV);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
-#else
-      Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy),
-                                          "castFixedSve");
-#endif
       LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
       DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
       return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -2267,16 +2250,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return Visit(const_cast<Expr*>(E));
 
   case CK_NoOp: {
-    llvm::Value *V = Visit(const_cast<Expr *>(E));
-    if (V) {
-      // CK_NoOp can model a pointer qualification conversion, which can remove
-      // an array bound and change the IR type.
-      // FIXME: Once pointee types are removed from IR, remove this.
-      llvm::Type *T = ConvertType(DestTy);
-      if (T != V->getType())
-        V = Builder.CreateBitCast(V, T);
-    }
-    return V;
+    return CE->changesVolatileQualification() ? EmitLoadOfLValue(CE)
+                                              : Visit(const_cast<Expr *>(E));
   }
 
   case CK_BaseToDerived: {
@@ -2622,7 +2597,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       // For atomic bool increment, we just store true and return it for
       // preincrement, do an atomic swap with true for postincrement
       return Builder.CreateAtomicRMW(
-          llvm::AtomicRMWInst::Xchg, LV.getPointer(CGF), True,
+          llvm::AtomicRMWInst::Xchg, LV.getAddress(CGF), True,
           llvm::AtomicOrdering::SequentiallyConsistent);
     }
     // Special case for atomic increment / decrement on integers, emit
@@ -2640,7 +2615,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       llvm::Value *amt = CGF.EmitToMemory(
           llvm::ConstantInt::get(ConvertType(type), 1, true), type);
       llvm::Value *old =
-          Builder.CreateAtomicRMW(aop, LV.getPointer(CGF), amt,
+          Builder.CreateAtomicRMW(aop, LV.getAddress(CGF), amt,
                                   llvm::AtomicOrdering::SequentiallyConsistent);
       return isPre ? Builder.CreateBinOp(op, old, amt) : old;
     }
@@ -2748,7 +2723,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     } else if (type->isFunctionType()) {
       llvm::Value *amt = Builder.getInt32(amount);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       if (CGF.getLangOpts().isSignedOverflowDefined())
         value = Builder.CreateGEP(CGF.Int8Ty, value, amt, "incdec.funcptr");
       else
@@ -2756,18 +2730,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
             CGF.EmitCheckedInBoundsGEP(CGF.Int8Ty, value, amt,
                                        /*SignedIndices=*/false, isSubtraction,
                                        E->getExprLoc(), "incdec.funcptr");
-
-#else
-      value = CGF.EmitCastToVoidPtr(value);
-      if (CGF.getLangOpts().isSignedOverflowDefined())
-        value = Builder.CreateGEP(CGF.Int8Ty, value, amt, "incdec.funcptr");
-      else
-        value = CGF.EmitCheckedInBoundsGEP(CGF.Int8Ty, value, amt,
-                                           /*SignedIndices=*/false,
-                                           isSubtraction, E->getExprLoc(),
-                                           "incdec.funcptr");
-      value = Builder.CreateBitCast(value, input->getType());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // For everything else, we can just do a simple increment.
     } else {
@@ -2880,9 +2842,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   // Objective-C pointer types.
   } else {
     const ObjCObjectPointerType *OPT = type->castAs<ObjCObjectPointerType>();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    value = CGF.EmitCastToVoidPtr(value);
-#endif
 
     CharUnits size = CGF.getContext().getTypeSizeInChars(OPT->getObjectType());
     if (!isInc) size = -size;
@@ -2988,7 +2947,7 @@ Value *ScalarExprEmitter::VisitUnaryLNot(const UnaryOperator *E) {
   // Perform vector logical not on comparison with zero vector.
   if (E->getType()->isVectorType() &&
       E->getType()->castAs<VectorType>()->getVectorKind() ==
-          VectorType::GenericVector) {
+          VectorKind::Generic) {
     Value *Oper = Visit(E->getSubExpr());
     Value *Zero = llvm::Constant::getNullValue(Oper->getType());
     Value *Result;
@@ -3110,9 +3069,10 @@ Value *
 ScalarExprEmitter::VisitUnaryExprOrTypeTraitExpr(
                               const UnaryExprOrTypeTraitExpr *E) {
   QualType TypeToSize = E->getTypeOfArgument();
-  if (E->getKind() == UETT_SizeOf) {
+  if (auto Kind = E->getKind();
+      Kind == UETT_SizeOf || Kind == UETT_DataSizeOf) {
     if (const VariableArrayType *VAT =
-          CGF.getContext().getAsVariableArrayType(TypeToSize)) {
+            CGF.getContext().getAsVariableArrayType(TypeToSize)) {
       if (E->isArgumentType()) {
         // sizeof(type) - make sure to emit the VLA size.
         CGF.EmitVariablyModifiedType(TypeToSize);
@@ -3139,6 +3099,9 @@ ScalarExprEmitter::VisitUnaryExprOrTypeTraitExpr(
                 E->getTypeOfArgument()->getPointeeType()))
             .getQuantity();
     return llvm::ConstantInt::get(CGF.SizeTy, Alignment);
+  } else if (E->getKind() == UETT_VectorElements) {
+    auto *VecTy = cast<llvm::VectorType>(ConvertType(E->getTypeOfArgument()));
+    return Builder.CreateElementCount(CGF.SizeTy, VecTy->getElementCount());
   }
 
   // If this isn't sizeof(vla), the result must be constant; use the constant
@@ -3377,7 +3340,7 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
                                  E->getExprLoc()),
             LHSTy);
         Value *OldVal = Builder.CreateAtomicRMW(
-            AtomicOp, LHSLV.getPointer(CGF), Amt,
+            AtomicOp, LHSLV.getAddress(CGF), Amt,
             llvm::AtomicOrdering::SequentiallyConsistent);
 
         // Since operation is atomic, the result type is guaranteed to be the
@@ -3748,13 +3711,8 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
 
     index = CGF.Builder.CreateMul(index, objectSize);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Value *result =
         CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Value *result = CGF.Builder.CreateBitCast(pointer, CGF.VoidPtrTy);
-    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return CGF.Builder.CreateBitCast(result, pointer->getType());
   }
 
@@ -3784,18 +3742,12 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   // Explicitly handle GNU void* and function pointer arithmetic extensions. The
   // GNU void* casts amount to no-ops since our void* type is i8*, but this is
   // future proof.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Type *elemTy;
   if (elementType->isVoidType() || elementType->isFunctionType())
-    return CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
-#else
-  if (elementType->isVoidType() || elementType->isFunctionType()) {
-    Value *result = CGF.EmitCastToVoidPtr(pointer);
-    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
-    return CGF.Builder.CreateBitCast(result, pointer->getType());
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+    elemTy = CGF.Int8Ty;
+  else
+    elemTy = CGF.ConvertTypeForMem(elementType);
 
-  llvm::Type *elemTy = CGF.ConvertTypeForMem(elementType);
   if (CGF.getLangOpts().isSignedOverflowDefined())
     return CGF.Builder.CreateGEP(elemTy, pointer, index, "add.ptr");
 
@@ -3945,6 +3897,14 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     }
   }
 
+  // For vector and matrix adds, try to fold into a fmuladd.
+  if (op.LHS->getType()->isFPOrFPVectorTy()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+    // Try to form an fmuladd.
+    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
+      return FMulAdd;
+  }
+
   if (op.Ty->isConstantMatrixType()) {
     llvm::MatrixBuilder MB(Builder);
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -3958,10 +3918,6 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
 
   if (op.LHS->getType()->isFPOrFPVectorTy()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-    // Try to form an fmuladd.
-    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
-      return FMulAdd;
-
     return Builder.CreateFAdd(op.LHS, op.RHS, "add");
   }
 
@@ -4095,6 +4051,14 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
       }
     }
 
+    // For vector and matrix subs, try to fold into a fmuladd.
+    if (op.LHS->getType()->isFPOrFPVectorTy()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+      // Try to form an fmuladd.
+      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
+        return FMulAdd;
+    }
+
     if (op.Ty->isConstantMatrixType()) {
       llvm::MatrixBuilder MB(Builder);
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -4108,9 +4072,6 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
 
     if (op.LHS->getType()->isFPOrFPVectorTy()) {
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-      // Try to form an fmuladd.
-      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
-        return FMulAdd;
       return Builder.CreateFSub(op.LHS, op.RHS, "sub");
     }
 
@@ -4929,7 +4890,7 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   }
 
   if (condExpr->getType()->isVectorType() ||
-      condExpr->getType()->isVLSTBuiltinType()) {
+      condExpr->getType()->isSveVLSBuiltinType()) {
     CGF.incrementProfileCounter(E);
 
     llvm::Value *CondV = CGF.EmitScalarExpr(condExpr);
@@ -5213,11 +5174,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
   }
 
   // Cast the address to Class*.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Addr = Addr.withElementType(ConvertType(E->getType()));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Addr = Builder.CreateElementBitCast(Addr, ConvertType(E->getType()));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return MakeAddrLValue(Addr, E->getType());
 }
 

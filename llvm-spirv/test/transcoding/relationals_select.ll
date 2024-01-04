@@ -39,7 +39,7 @@ declare spir_func <4 x i32> @_Z5isinfDv4_f(<4 x float> noundef) local_unnamed_ad
 declare spir_func <4 x i32> @_Z7signbitDv4_f(<4 x float> noundef) local_unnamed_addr #1
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn memory(argmem: readwrite)
-define dso_local spir_kernel void @math_kernel_scalar(i32 addrspace(4)* nocapture writeonly %out, float %f) local_unnamed_addr #0 {
+define dso_local spir_kernel void @math_kernel_scalar(ptr addrspace(4) nocapture writeonly %out, float %f) local_unnamed_addr #0 {
 entry:
 ; CHECK: [[DATA0:%.*]] = call spir_func i32 @_Z8isfinitef(float [[ARG0:%.*]])
 ; CHECK-NEXT: [[DATA1:%.*]] = trunc i32 [[DATA0]] to i1
@@ -71,7 +71,7 @@ entry:
   %add7 = add nsw i32 %add5, %call6
 
   %arg1 = alloca <4 x float>, align 16
-  %v = load <4 x float>, <4 x float>* %arg1, align 16
+  %v = load <4 x float>, ptr %arg1, align 16
 ; CHECK: [[DATA10:%.*]] = call spir_func <4 x i32> @_Z8isnormalDv4_f(<4 x float> [[ARG1:%.*]]) #0
 ; CHECK-NEXT: [[DATA11:%.*]] = trunc <4 x i32> [[DATA10]] to <4 x i8>
 ; CHECK-NEXT: [[DATA12:%.*]] = trunc <4 x i8> [[DATA11]] to <4 x i1>

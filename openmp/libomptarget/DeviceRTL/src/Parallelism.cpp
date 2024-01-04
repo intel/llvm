@@ -68,8 +68,9 @@ uint32_t determineNumberOfThreads(int32_t NumThreadsClause) {
 }
 
 // Invoke an outlined parallel function unwrapping arguments (up to 32).
-void invokeMicrotask(int32_t global_tid, int32_t bound_tid, void *fn,
-                     void **args, int64_t nargs) {
+[[clang::always_inline]] void invokeMicrotask(int32_t global_tid,
+                                              int32_t bound_tid, void *fn,
+                                              void **args, int64_t nargs) {
   switch (nargs) {
 #include "generated_microtask_cases.gen"
   default:
@@ -82,9 +83,10 @@ void invokeMicrotask(int32_t global_tid, int32_t bound_tid, void *fn,
 
 extern "C" {
 
-void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
-                        int32_t num_threads, int proc_bind, void *fn,
-                        void *wrapper_fn, void **args, int64_t nargs) {
+[[clang::always_inline]] void
+__kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
+                   int32_t num_threads, int proc_bind, void *fn,
+                   void *wrapper_fn, void **args, int64_t nargs) {
   uint32_t TId = mapping::getThreadIdInBlock();
 
   // Assert the parallelism level is zero if disabled by the user.
@@ -259,8 +261,7 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
     __kmpc_end_sharing_variables();
 }
 
-__attribute__((noinline)) bool
-__kmpc_kernel_parallel(ParallelRegionFnTy *WorkFn) {
+[[clang::noinline]] bool __kmpc_kernel_parallel(ParallelRegionFnTy *WorkFn) {
   // Work function and arguments for L1 parallel region.
   *WorkFn = state::ParallelRegionFn;
 
@@ -274,7 +275,7 @@ __kmpc_kernel_parallel(ParallelRegionFnTy *WorkFn) {
   return ThreadIsActive;
 }
 
-__attribute__((noinline)) void __kmpc_kernel_end_parallel() {
+[[clang::noinline]] void __kmpc_kernel_end_parallel() {
   // In case we have modified an ICV for this thread before a ThreadState was
   // created. We drop it now to not contaminate the next parallel region.
   ASSERT(!mapping::isSPMDMode(), nullptr);

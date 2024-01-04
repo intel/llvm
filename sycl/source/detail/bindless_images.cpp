@@ -49,21 +49,12 @@ detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,
                                        const device &syclDevice,
                                        const context &syclContext)
     : descriptor(desc), syclDevice(syclDevice), syclContext(syclContext) {
-  if (desc.type == image_type::mipmap) {
-    handle = alloc_mipmap_mem(desc, syclDevice, syclContext);
-  } else {
-    handle = alloc_image_mem(desc, syclDevice, syclContext);
-  }
+  handle = alloc_image_mem(desc, syclDevice, syclContext);
 }
 
 detail::image_mem_impl::~image_mem_impl() {
-  if (handle.raw_handle != nullptr) {
-    if (descriptor.type == image_type::mipmap) {
-      free_mipmap_mem(handle, syclDevice, syclContext);
-    } else {
-      free_image_mem(handle, syclDevice, syclContext);
-    }
-  }
+  free_image_mem(this->get_handle(), this->get_descriptor().type,
+                 this->get_device(), this->get_context());
 }
 
 __SYCL_EXPORT
@@ -163,10 +154,21 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  // Non-mipmap images must have only 1 level
-  if (desc.num_levels != 1)
+  if (desc.type == image_type::mipmap) {
+    // Mipmaps must have more than one level
+    if (desc.num_levels <= 1)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Mipmap number of levels must be 2 or more");
+  } else if (desc.type == image_type::standard) {
+    // Non-mipmap images must have only 1 level
+    if (desc.num_levels != 1)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Image number of levels must be 1");
+  } else {
+    // Not an image to allocate
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Image number of levels must be 1");
+                          "Invalid image type to allocate");
+  }
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -187,9 +189,11 @@ __SYCL_EXPORT image_mem_handle alloc_image_mem(const image_descriptor &desc,
   return alloc_image_mem(desc, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT image_mem_handle
-alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
-                 const sycl::context &syclContext) {
+__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
+                         "Instead use alloc_image_mem().")
+image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
+                                  const sycl::device &syclDevice,
+                                  const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -216,8 +220,10 @@ alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   return retHandle;
 }
 
-__SYCL_EXPORT image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                                const sycl::queue &syclQueue) {
+__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
+                         "Instead use alloc_image_mem().")
+image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
+                                  const sycl::queue &syclQueue) {
   return alloc_mipmap_mem(desc, syclQueue.get_device(),
                           syclQueue.get_context());
 }
@@ -251,6 +257,7 @@ get_mip_level_mem_handle(const image_mem_handle mipMem, unsigned int level,
 }
 
 __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
+                                  image_type imageType,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -261,19 +268,49 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  Plugin->call<sycl::errc::memory_allocation,
-               sycl::detail::PiApiKind::piextMemImageFree>(
-      C, Device, memHandle.raw_handle);
+  if (memHandle.raw_handle != nullptr) {
+    if (imageType == image_type::mipmap) {
+      Plugin->call<sycl::errc::memory_allocation,
+                   sycl::detail::PiApiKind::piextMemMipmapFree>(
+          C, Device, memHandle.raw_handle);
+    } else if (imageType == image_type::standard) {
+      Plugin->call<sycl::errc::memory_allocation,
+                   sycl::detail::PiApiKind::piextMemImageFree>(
+          C, Device, memHandle.raw_handle);
+    } else {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Invalid image type to free");
+    }
+  }
 }
 
 __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
+                                  image_type imageType,
                                   const sycl::queue &syclQueue) {
+  free_image_mem(memHandle, imageType, syclQueue.get_device(),
+                 syclQueue.get_context());
+}
+
+__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
+                         "Instead use overload that accepts image_type.")
+void free_image_mem(image_mem_handle memHandle, const sycl::device &syclDevice,
+                    const sycl::context &syclContext) {
+  return free_image_mem(memHandle, image_type::standard, syclDevice,
+                        syclContext);
+}
+
+__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
+                         "Instead use overload that accepts image_type.")
+void free_image_mem(image_mem_handle memHandle, const sycl::queue &syclQueue) {
   free_image_mem(memHandle, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT void free_mipmap_mem(image_mem_handle memoryHandle,
-                                   const sycl::device &syclDevice,
-                                   const sycl::context &syclContext) {
+__SYCL_EXPORT_DEPRECATED(
+    "Distinct mipmap frees are deprecated. "
+    "Instead use free_image_mem() that accepts image_type.")
+void free_mipmap_mem(image_mem_handle memoryHandle,
+                     const sycl::device &syclDevice,
+                     const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -287,8 +324,11 @@ __SYCL_EXPORT void free_mipmap_mem(image_mem_handle memoryHandle,
       C, Device, memoryHandle.raw_handle);
 }
 
-__SYCL_EXPORT void free_mipmap_mem(image_mem_handle memoryHandle,
-                                   const sycl::queue &syclQueue) {
+__SYCL_EXPORT_DEPRECATED(
+    "Distinct mipmap frees are deprecated. "
+    "Instead use free_image_mem() that accepts image_type.")
+void free_mipmap_mem(image_mem_handle memoryHandle,
+                     const sycl::queue &syclQueue) {
   free_mipmap_mem(memoryHandle, syclQueue.get_device(),
                   syclQueue.get_context());
 }
@@ -486,9 +526,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
       externalMem, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::device &syclDevice, const sycl::context &syclContext) {
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -511,9 +553,28 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
   return image_mem_handle{retHandle};
 }
 
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::queue &syclQueue) {
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue) {
+  return map_external_image_memory(memHandle, desc, syclQueue.get_device(),
+                                   syclQueue.get_context());
+}
+
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext) {
+  return map_external_image_memory(memHandle, desc, syclDevice, syclContext);
+}
+
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue) {
   return map_external_memory_array(memHandle, desc, syclQueue.get_device(),
                                    syclQueue.get_context());
 }

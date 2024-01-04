@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
@@ -537,6 +538,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelMinWorkGroupsPerComputeUnitAttr,
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
     });
   }
@@ -1039,7 +1042,7 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
 
-  MC.mangleTypeName(KernelNameType, Out);
+  MC.mangleCanonicalTypeName(KernelNameType, Out);
   std::string MangledName(Out.str());
 
   std::string StableName =
@@ -4089,7 +4092,7 @@ void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
   FunctionDecl *KernelBody = nullptr;
 
   CallGraph SYCLCG;
-  SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+  SYCLCG.addToCallGraph(CallOperator);
   while (!WorkList.empty()) {
     FunctionDecl *FD = WorkList.back().first;
     FunctionDecl *ParentFD = WorkList.back().second;
@@ -4488,6 +4491,8 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelNumSimdWorkItems:
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
+  case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
+  case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
   case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelMaxConcurrency:

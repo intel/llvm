@@ -190,7 +190,7 @@ template bool test_format_1d_read<int, short>() SYCL_ESIMD_FUNCTION;
 template bool test_format_1d_read<sycl::half, uint8_t>() SYCL_ESIMD_FUNCTION;
 
 template <class T1, class T2> bool test_format_1d_write() SYCL_ESIMD_FUNCTION {
-  simd<T1, 8> r;
+  simd<T1, 32> r;
   auto rl = r.template bit_cast_view<T2>();
   auto rl2 = rl.template select<8, 2>(0);
   auto rh = r.template bit_cast_view<T2>();

@@ -1,10 +1,11 @@
-// UNSUPPORTED: hip
 // RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
+#include "../helpers.hpp"
 #include "support.h"
 #include <algorithm>
 #include <cassert>
+#include <complex>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -14,24 +15,6 @@ using namespace sycl;
 
 template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
-
-// std::exclusive_scan isn't implemented yet, so use serial implementation
-// instead
-// TODO: use std::exclusive_scan when it will be supported
-namespace emu {
-template <typename InputIterator, typename OutputIterator,
-          class BinaryOperation, typename T>
-OutputIterator exclusive_scan(InputIterator first, InputIterator last,
-                              OutputIterator result, T init,
-                              BinaryOperation binary_op) {
-  T partial = init;
-  for (InputIterator it = first; it != last; ++it) {
-    *(result++) = partial;
-    partial = binary_op(partial, *it);
-  }
-  return result;
-}
-} // namespace emu
 
 queue q;
 

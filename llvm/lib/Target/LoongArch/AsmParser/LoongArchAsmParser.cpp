@@ -43,10 +43,9 @@ class LoongArchAsmParser : public MCTargetAsmParser {
   using InstSeq = SmallVector<Inst>;
 
   /// Parse a register as used in CFI directives.
-  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
-                     SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
-                                        SMLoc &EndLoc) override;
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                               SMLoc &EndLoc) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -86,7 +85,7 @@ class LoongArchAsmParser : public MCTargetAsmParser {
   // "emitLoadAddress*" functions.
   void emitLAInstSeq(MCRegister DestReg, MCRegister TmpReg,
                      const MCExpr *Symbol, SmallVectorImpl<Inst> &Insts,
-                     SMLoc IDLoc, MCStreamer &Out);
+                     SMLoc IDLoc, MCStreamer &Out, bool RelaxHint = false);
 
   // Helper to emit pseudo instruction "la.abs $rd, sym".
   void emitLoadAddressAbs(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out);
@@ -549,14 +548,14 @@ static bool matchRegisterNameHelper(MCRegister &RegNo, StringRef Name) {
   return RegNo == LoongArch::NoRegister;
 }
 
-bool LoongArchAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+bool LoongArchAsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
                                        SMLoc &EndLoc) {
   return Error(getLoc(), "invalid register number");
 }
 
-OperandMatchResultTy LoongArchAsmParser::tryParseRegister(MCRegister &RegNo,
-                                                          SMLoc &StartLoc,
-                                                          SMLoc &EndLoc) {
+ParseStatus LoongArchAsmParser::tryParseRegister(MCRegister &Reg,
+                                                 SMLoc &StartLoc,
+                                                 SMLoc &EndLoc) {
   llvm_unreachable("Unimplemented function.");
 }
 
@@ -749,12 +748,14 @@ bool LoongArchAsmParser::ParseInstruction(ParseInstructionInfo &Info,
 void LoongArchAsmParser::emitLAInstSeq(MCRegister DestReg, MCRegister TmpReg,
                                        const MCExpr *Symbol,
                                        SmallVectorImpl<Inst> &Insts,
-                                       SMLoc IDLoc, MCStreamer &Out) {
+                                       SMLoc IDLoc, MCStreamer &Out,
+                                       bool RelaxHint) {
   MCContext &Ctx = getContext();
   for (LoongArchAsmParser::Inst &Inst : Insts) {
     unsigned Opc = Inst.Opc;
     LoongArchMCExpr::VariantKind VK = Inst.VK;
-    const LoongArchMCExpr *LE = LoongArchMCExpr::create(Symbol, VK, Ctx);
+    const LoongArchMCExpr *LE =
+        LoongArchMCExpr::create(Symbol, VK, Ctx, RelaxHint);
     switch (Opc) {
     default:
       llvm_unreachable("unexpected opcode");
@@ -855,7 +856,7 @@ void LoongArchAsmParser::emitLoadAddressPcrel(MCInst &Inst, SMLoc IDLoc,
   Insts.push_back(
       LoongArchAsmParser::Inst(ADDI, LoongArchMCExpr::VK_LoongArch_PCALA_LO12));
 
-  emitLAInstSeq(DestReg, DestReg, Symbol, Insts, IDLoc, Out);
+  emitLAInstSeq(DestReg, DestReg, Symbol, Insts, IDLoc, Out, true);
 }
 
 void LoongArchAsmParser::emitLoadAddressPcrelLarge(MCInst &Inst, SMLoc IDLoc,
@@ -901,7 +902,7 @@ void LoongArchAsmParser::emitLoadAddressGot(MCInst &Inst, SMLoc IDLoc,
   Insts.push_back(
       LoongArchAsmParser::Inst(LD, LoongArchMCExpr::VK_LoongArch_GOT_PC_LO12));
 
-  emitLAInstSeq(DestReg, DestReg, Symbol, Insts, IDLoc, Out);
+  emitLAInstSeq(DestReg, DestReg, Symbol, Insts, IDLoc, Out, true);
 }
 
 void LoongArchAsmParser::emitLoadAddressGotLarge(MCInst &Inst, SMLoc IDLoc,

@@ -1,8 +1,22 @@
+//===--- Attributes.cpp ---------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements the AttributeCommonInfo interface.
+//
+//===----------------------------------------------------------------------===//
+
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/AttrSubjectMatchRules.h"
-#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/ParsedAttrInfo.h"
+#include "clang/Basic/TargetInfo.h"
+
 using namespace clang;
 
 static int hasAttributeImpl(AttributeCommonInfo::Syntax Syntax, StringRef Name,
@@ -24,7 +38,7 @@ int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax, const IdentifierInfo
   // __sycl_detail__ namespace. Should normalization work for
   // attributes not in gnu and clang namespace?
   if (ScopeName != "__sycl_detail__" && Name.size() >= 4 &&
-      Name.startswith("__") && Name.endswith("__"))
+      Name.starts_with("__") && Name.ends_with("__"))
     Name = Name.substr(2, Name.size() - 4);
 
   // Normalize the scope name, but only for gnu and clang attributes.
@@ -72,7 +86,7 @@ normalizeAttrScopeName(const IdentifierInfo *Scope,
   // to be "clang".
   StringRef ScopeName = Scope->getName();
   if (SyntaxUsed == AttributeCommonInfo::AS_CXX11 ||
-      SyntaxUsed == AttributeCommonInfo::AS_C2x) {
+      SyntaxUsed == AttributeCommonInfo::AS_C23) {
     if (ScopeName == "__gnu__")
       ScopeName = "gnu";
     else if (ScopeName == "_Clang")
@@ -89,12 +103,12 @@ static StringRef normalizeAttrName(const IdentifierInfo *Name,
   bool ShouldNormalize =
       SyntaxUsed == AttributeCommonInfo::AS_GNU ||
       ((SyntaxUsed == AttributeCommonInfo::AS_CXX11 ||
-        SyntaxUsed == AttributeCommonInfo::AS_C2x) &&
+        SyntaxUsed == AttributeCommonInfo::AS_C23) &&
        (NormalizedScopeName.empty() || NormalizedScopeName == "gnu" ||
         NormalizedScopeName == "clang"));
   StringRef AttrName = Name->getName();
-  if (ShouldNormalize && AttrName.size() >= 4 && AttrName.startswith("__") &&
-      AttrName.endswith("__"))
+  if (ShouldNormalize && AttrName.size() >= 4 && AttrName.starts_with("__") &&
+      AttrName.ends_with("__"))
     AttrName = AttrName.slice(2, AttrName.size() - 2);
 
   return AttrName;
@@ -119,7 +133,7 @@ static SmallString<64> normalizeName(const IdentifierInfo *Name,
   SmallString<64> FullName = ScopeName;
   if (!ScopeName.empty()) {
     assert(SyntaxUsed == AttributeCommonInfo::AS_CXX11 ||
-           SyntaxUsed == AttributeCommonInfo::AS_C2x);
+           SyntaxUsed == AttributeCommonInfo::AS_C23);
     FullName += "::";
   }
   FullName += AttrName;

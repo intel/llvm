@@ -29,6 +29,7 @@ int main() {
   result = zeDriverGet(&driver_handle_count, nullptr);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeDriverGet failed\n";
+    return 1;
   }
   std::cout << "Found " << driver_handle_count << " driver(s)\n";
   if (driver_handle_count == 0)
@@ -53,10 +54,11 @@ int main() {
   }
 
   // Create Devices
-  uint32_t device_count;
+  uint32_t device_count = 0;
   result = zeDeviceGet(ZeDriver, &device_count, nullptr);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeDeviceGet failed to get count of devices\n";
+    return 1;
   }
 
   std::vector<ze_device_handle_t> ZeDevices(device_count);
@@ -79,6 +81,7 @@ int main() {
                                 &ZeCommand_queue);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandQueueCreate failed\n";
+    return 1;
   }
   std::cout << "Commandqueue created: " << ZeCommand_queue << std::endl;
 
@@ -88,6 +91,7 @@ int main() {
                                         &ZeCommand_list);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeCommandListCreate failed\n";
+    return 1;
   }
   std::cout << "Commandlist created: " << ZeCommand_list << std::endl;
 
@@ -127,6 +131,7 @@ int main() {
     std::cout << "Test failed, queue created using command queue returns a "
                  "command list type handle"
               << std::endl;
+    return 1;
   } else {
     auto Queue =
         std::get_if<ze_command_queue_handle_t>(&InteropQueueCQ_NewHandle);
@@ -159,6 +164,7 @@ int main() {
     std::cout << "Test failed, queue created using command list returns a "
                  "command queue type handle"
               << std::endl;
+    return 1;
   }
 
   int data[3] = {7, 8, 0};

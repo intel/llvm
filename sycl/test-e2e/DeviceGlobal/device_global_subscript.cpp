@@ -5,10 +5,6 @@
 // backend calls.
 // UNSUPPORTED: hip || (opencl && gpu)
 //
-// Temporarily disabled for OpenCL CPU while we wait for CPU driver bump. Same
-// applies to the FPGA emulator.
-// UNSUPPORTED: opencl
-//
 // Tests operator[] on device_global.
 
 #include "device_global_subscript.hpp"

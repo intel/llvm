@@ -185,7 +185,7 @@ INITIALIZE_PASS_BEGIN(AMDGPUPromoteAlloca, DEBUG_TYPE,
                       "AMDGPU promote alloca to vector or LDS", false, false)
 // Move LDS uses from functions to kernels before promote alloca for accurate
 // estimation of LDS available
-INITIALIZE_PASS_DEPENDENCY(AMDGPULowerModuleLDS)
+INITIALIZE_PASS_DEPENDENCY(AMDGPULowerModuleLDSLegacy)
 INITIALIZE_PASS_END(AMDGPUPromoteAlloca, DEBUG_TYPE,
                     "AMDGPU promote alloca to vector or LDS", false, false)
 
@@ -386,7 +386,6 @@ static Value *promoteAllocaUserToVector(
   };
 
   Type *VecEltTy = VectorTy->getElementType();
-  const unsigned NumVecElts = VectorTy->getNumElements();
 
   switch (Inst->getOpcode()) {
   case Instruction::Load: {
@@ -419,11 +418,12 @@ static Value *promoteAllocaUserToVector(
       auto *SubVecTy = FixedVectorType::get(VecEltTy, NumLoadedElts);
       assert(DL.getTypeStoreSize(SubVecTy) == DL.getTypeStoreSize(AccessTy));
 
-      unsigned IndexVal = cast<ConstantInt>(Index)->getZExtValue();
       Value *SubVec = PoisonValue::get(SubVecTy);
       for (unsigned K = 0; K < NumLoadedElts; ++K) {
+        Value *CurIdx =
+            Builder.CreateAdd(Index, ConstantInt::get(Index->getType(), K));
         SubVec = Builder.CreateInsertElement(
-            SubVec, Builder.CreateExtractElement(CurVal, IndexVal + K), K);
+            SubVec, Builder.CreateExtractElement(CurVal, CurIdx), K);
       }
 
       if (AccessTy->isPtrOrPtrVectorTy())
@@ -469,6 +469,7 @@ static Value *promoteAllocaUserToVector(
       assert(AccessSize.isKnownMultipleOf(DL.getTypeStoreSize(VecEltTy)));
       const unsigned NumWrittenElts =
           AccessSize / DL.getTypeStoreSize(VecEltTy);
+      const unsigned NumVecElts = VectorTy->getNumElements();
       auto *SubVecTy = FixedVectorType::get(VecEltTy, NumWrittenElts);
       assert(DL.getTypeStoreSize(SubVecTy) == DL.getTypeStoreSize(AccessTy));
 
@@ -479,12 +480,13 @@ static Value *promoteAllocaUserToVector(
 
       Val = Builder.CreateBitOrPointerCast(Val, SubVecTy);
 
-      unsigned IndexVal = cast<ConstantInt>(Index)->getZExtValue();
       Value *CurVec = GetOrLoadCurrentVectorValue();
-      for (unsigned K = 0; K < NumWrittenElts && ((IndexVal + K) < NumVecElts);
-           ++K) {
+      for (unsigned K = 0, NumElts = std::min(NumWrittenElts, NumVecElts);
+           K < NumElts; ++K) {
+        Value *CurIdx =
+            Builder.CreateAdd(Index, ConstantInt::get(Index->getType(), K));
         CurVec = Builder.CreateInsertElement(
-            CurVec, Builder.CreateExtractElement(Val, K), IndexVal + K);
+            CurVec, Builder.CreateExtractElement(Val, K), CurIdx);
       }
       return CurVec;
     }
@@ -526,6 +528,15 @@ static Value *promoteAllocaUserToVector(
       }
 
       return Builder.CreateVectorSplat(VectorTy->getElementCount(), Elt);
+    }
+
+    if (auto *Intr = dyn_cast<IntrinsicInst>(Inst)) {
+      if (Intr->getIntrinsicID() == Intrinsic::objectsize) {
+        Intr->replaceAllUsesWith(
+            Builder.getIntN(Intr->getType()->getIntegerBitWidth(),
+                            DL.getTypeAllocSize(VectorTy)));
+        return nullptr;
+      }
     }
 
     llvm_unreachable("Unsupported call when promoting alloca to vector");
@@ -679,6 +690,12 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToVector(AllocaInst &Alloca) {
         return RejectUser(Inst, "unsupported load/store as aggregate");
       assert(!AccessTy->isAggregateType() || AccessTy->isArrayTy());
 
+      // Check that this is a simple access of a vector element.
+      bool IsSimple = isa<LoadInst>(Inst) ? cast<LoadInst>(Inst)->isSimple()
+                                          : cast<StoreInst>(Inst)->isSimple();
+      if (!IsSimple)
+        return RejectUser(Inst, "not a simple load or store");
+
       Ptr = Ptr->stripPointerCasts();
 
       // Alloca already accessed as vector.
@@ -688,11 +705,6 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToVector(AllocaInst &Alloca) {
         continue;
       }
 
-      // Check that this is a simple access of a vector element.
-      bool IsSimple = isa<LoadInst>(Inst) ? cast<LoadInst>(Inst)->isSimple()
-                                          : cast<StoreInst>(Inst)->isSimple();
-      if (!IsSimple)
-        return RejectUser(Inst, "not a simple load or store");
       if (!isSupportedAccessType(VectorTy, AccessTy, *DL))
         return RejectUser(Inst, "not a supported access type");
 
@@ -770,8 +782,17 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToVector(AllocaInst &Alloca) {
       continue;
     }
 
+    if (auto *Intr = dyn_cast<IntrinsicInst>(Inst)) {
+      if (Intr->getIntrinsicID() == Intrinsic::objectsize) {
+        WorkList.push_back(Inst);
+        continue;
+      }
+    }
+
     // Ignore assume-like intrinsics and comparisons used in assumes.
     if (isAssumeLikeIntrinsic(Inst)) {
+      if (!Inst->use_empty())
+        return RejectUser(Inst, "assume-like intrinsic cannot have any users");
       UsersToRemove.push_back(Inst);
       continue;
     }
@@ -1386,13 +1407,7 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
     CallInst *Call = dyn_cast<CallInst>(V);
     if (!Call) {
       if (ICmpInst *CI = dyn_cast<ICmpInst>(V)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         PointerType *NewTy = PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-        Value *Src0 = CI->getOperand(0);
-        PointerType *NewTy = PointerType::getWithSamePointeeType(
-            cast<PointerType>(Src0->getType()), AMDGPUAS::LOCAL_ADDRESS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
         if (isa<ConstantPointerNull>(CI->getOperand(0)))
           CI->setOperand(0, ConstantPointerNull::get(NewTy));
@@ -1408,12 +1423,7 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
       if (isa<AddrSpaceCastInst>(V))
         continue;
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PointerType *NewTy = PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-      PointerType *NewTy = PointerType::getWithSamePointeeType(
-          cast<PointerType>(V->getType()), AMDGPUAS::LOCAL_ADDRESS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
       // FIXME: It doesn't really make sense to try to do this for all
       // instructions.
@@ -1473,12 +1483,7 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
       Function *ObjectSize = Intrinsic::getDeclaration(
           Mod, Intrinsic::objectsize,
           {Intr->getType(),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
            PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS)});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-           PointerType::getWithSamePointeeType(
-               cast<PointerType>(Src->getType()), AMDGPUAS::LOCAL_ADDRESS)});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
       CallInst *NewCall = Builder.CreateCall(
           ObjectSize,

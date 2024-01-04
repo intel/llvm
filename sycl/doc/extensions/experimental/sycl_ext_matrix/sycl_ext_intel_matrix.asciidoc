@@ -1,0 +1,337 @@
+= sycl_ext_intel_matrix
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
+
+== Status
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+This document describes the extra features and details for the
+implementation of `joint_matrix` extension on Intel AMX and Intel
+XMX.
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_intel_matrix`. The application must check that the device
+has this aspect before submitting a kernel using any of the APIs in
+this extension. If the application fails to do this, the
+implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted to
+the queue.
+
+== Overview
+This extension provides additional APIs related to the `joint_matrix`
+type that can be used only on Intel devices that have Intel AMX or
+Intel XMX technology. These Intel devices also support all of the
+generic matrix APIs specified in `sycl_ext_oneapi_matrix`, but
+applications can make use of the extended Intel specific APIs in this
+extension to gain additional performance and capabilities.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must
+predefine the macro `SYCL_EXT_INTEL_MATRIX` to one of the values
+defined in the table below. Applications can test for the existence of
+this macro to determine if the implementation supports this feature,
+or applications can test the macro's value to determine which of the
+extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New Aspect for Intel-Specific Matrix APIs
+This extension adds a new device aspect:
+```c++
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_intel_matrix
+};
+
+} // namespace sycl
+```
+The `ext_intel_matrix` aspect indicates that the device is capable of
+using the extended joint matrix APIs that are defined in the sections
+that follow.
+
+=== New Layout Type
+This extension adds a new layout type named `ext_intel_packed` which
+an application can use to indicate that the matrix data is loaded or
+stored in VNNI "packed" format.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix::layout {
+
+enum class layout {
+  ext_intel_packed
+};
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+Consequently, the layout argument `layout` in `joint_matrix_load` can
+take `ext_intel_packed` as argument to specify that the data has
+already been transformed into VNNI format. In this case, the `stride`
+argument of `joint_matrix_load` describes the number of elements
+between consecutive rows for packed layouts.
+
+In order to get maximum performance on Intel AMX and Intel XMX,
+prepacking data in the memory is necessary. If users did not specify
+the packed layouts, transforms done by the implementation may be slow
+due to extra scatter/gather operations. Hence, we expose the
+`ext_intel_packed` layout to the user to specify that A or B have
+already been VNNIed. The packed or VNNI layout is introduced in the
+`VNNI layout` section below.
+
+=== Additional Store Operations
+Besides store of matrix `accumulator`, the Intel implementation allows
+store on matrix `a` and `b` as well.
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+
+=== Per-element Access with Coordinates
+The function `joint_matrix_apply` in `sycl_ext_oneapi_matrix` provides
+a way for the application to apply the same operation on every element
+of the matrix. However, some algorithms require the application to
+know the coordinates of each element as it operates on them. In this
+case, the joint matrix index must be known in order to reason about
+the matrix view and extract the relevant piece such as a sum of all
+elements in a row for example. For instance, quantization that is
+needed for conversion between low precision types like `int8_t` and `fp32`
+uses such logic.
+
+This extension adds a new form of the `joint_matrix_apply` function in
+the `sycl::ext::intel::matrix` namespace that allows the application
+to perform an operation on each element of the matrix. This function
+is similar to the form in `sycl_ext_oneapi_joint_matrix`, but it also
+provides the matrix coordinates of each element to the callback
+function:
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+template<typename Group, typename T, use Use, size_t Rows, size_t
+         Cols, layout Layout, typename F>
+void joint_matrix_apply(Group g, joint_matrix<Group, T, Use, Rows,
+                        Cols, Layout>& C, F&& func);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+The `func` callback is invoked with three parameters `(T& element,
+size_t row, size_t col)`, where `row` and `col` tell the coordinates
+of element in the joint matrix. To illustrate, the following example
+shows how you can use this API to sum the rows of a matrix:
+
+```c++
+joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
+   sum_local_rows[row] += val;
+});
+```
+
+In the case of `ext_intel_packed` matrix memory layout, `row` and
+`col` represent the coordinates in the logical matrix before VNNI
+transformation.
+
+=== New Device Information Descriptor
+Besides the query we provide in
+link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
+some device descriptors are Intel hardware specific. These are
+provided as part of `ext::intel::experimental::info::device::matrix`
+namespace:
+
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::intel::experimental::info::device::matrix::numtiles`| `int`
+|If the matrix hardware in the device has separate storage (register
+files or tiles) from the rest of the processing units (e.g. Intel
+AMX), returns the number of tiles. For other devices, returns 0.
+|======================
+
+=== Packed Layout Format
+The `ext_intel_packed` layout (aka VNNI) is a special layout for
+matrix data that allows Intel AMX and Intel XMX devices to load
+matrices more efficiently (packing in 32 bits). This layout applies
+only to the A and B matrices, and may not be used with the accumulator
+matrix. The layout is different depending on whether the matrix
+element type is 8 bits or 16 bits, which are the only two element
+sizes supported for the A and B matrices on Intel AMX and Intel XMX
+devices.
+
+For an 8-bit element, the first four elements of column 0 are stored
+contiguously in memory, followed by the first four elements of column
+1, etc. This continues until the end of the row. After all the
+elements for rows 0 - 3 have been stored this way, the process
+repeats, starting with the next four elements of column 0. The diagram
+below illustrates this layout for a 8 x 4 matrix.
+
+==== Example 1: 8-bit elements
+
+      // Example of a 8 row x 4 column matrix using a 8-bit data
+      // element, in row-major layout, rows are shown horizontally.
+      // Element a1 is contiguous in memory with element b1, etc.
+      // ---------------------------------
+      // a1, b1, c1, d1
+      // a2, b2, c2, d2
+      // a3, b3, c3, d3
+      // a4, b4, c4, d4
+      // a5, b5, c5, d5
+      // a6, b6, c6, d6
+      // a7, b7, c7, d7
+      // a8, b8, c8, d8
+      // ---------------------------------
+      // The same matrix reformatted in packed layout.
+      // Here, packing of 4 elements is needed to form 32 bits.
+      // Elements a1, a2, a3, a4 are contiguous in memory, etc.
+      // ---------------------------------
+      // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
+      // a5, a6, a7, a8, b5, b6, b7, b8, c5, c6, c7, c8, d5, d6, d7, d8
+
+For a 16-bit element, the first two elements of column 0 are stored
+contiguously in memory, followed by the first two elements of column
+1, etc. This continues until the end of the row. After all the
+elements for rows 0 - 1 have been stored this way, the process
+repeats, starting with the next two elements of column 0. The diagram
+below illustrates this layout for a 4 x 4 matrix.
+
+==== Example 2: 16-bit elements
+      // Example of a 4 row x 4 column matrix using a 16-bit data
+      // element, in row-major layout.
+      // Element a1 is contiguous in memory with element b1, etc.
+      // ---------------------------------
+      // a1, b1, c1, d1
+      // a2, b2, c2, d2
+      // a3, b3, c3, d3
+      // a4, b4, c4, d4
+      // ---------------------------------
+      // The same matrix reformatted in packed layout.
+      // Here, packing of 2 elements is needed to form 32 bits.
+      // Element a1 is contiguous in memory with element a2, etc.
+      // ---------------------------------
+      // a1, a2, b1, b2, c1, c2, d1, d2
+      // a3, a4, b3, b4, c3, c4, d3, d4
+
+=== Example using int8_t type
+```c++
+using namespace sycl::ext::oneapi::experimental::matrix;
+
+queue q;
+range<2> G = {M/tM, N};
+range<2> L = {1, SG_SIZE};
+auto bufA = sycl::buffer{memA, sycl::range{M*K}};
+auto bufB = sycl::buffer{memB, sycl::range{K*N}};
+auto bufC = sycl::buffer{memC, sycl::range{M*N}};
+q.submit([&](sycl::handler& cgh) {
+  auto accA = sycl::accessor{bufA, cgh, sycl::read_only};
+  auto accB = sycl::accessor{bufB, cgh, sycl::read_only};
+  auto accC = sycl::accessor{bufC, cgh, sycl::read_write};
+  cgh.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
+  [[sycl::reqd_sub_group_size(SG_SIZE)]] {
+    const auto global_idx = item.get_global_id(0);
+    const auto global_idy = item.get_global_id(1);
+    const auto sg_startx = global_idx - item.get_local_id(0);
+    const auto sg_starty = global_idy - item.get_local_id(1);
+    sub_group sg = item.get_sub_group();
+    joint_matrix<sub_group, int8_t, use::a, tM, tK, layout::row_major> tA;
+    joint_matrix<sub_group, int8_t, use::b, tK, tN,
+                 layout::ext_intel_packed> tB;
+    joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
+    joint_matrix_fill(sg, tC, 0);
+    for (int k = 0; k < K; k += tK) {
+      joint_matrix_load(sg, tA,
+          accA.template get_multi_ptr<sycl::access::decorated::no>() +
+          sg_startx * tM * K + k, K);
+      joint_matrix_load(sg, tB,
+          accB.template get_multi_ptr<sycl::access::decorated::no>() +
+          k * N*4 + sg_starty/SG_SIZE*tN*4, N*4);
+      joint_matrix_mad(sg, tC, tA, tB, tC);
+    }
+    joint_matrix_apply(sg, tC, [=](int8_t x) {
+      x *= alpha;
+    });
+    joint_matrix_store(sg, tC,
+        accC.template get_multi_ptr<sycl::access::decorated::no>()
+        + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+  });
+});
+q.wait();
+```
+== Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author     |Changes
+|1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
+layout information, and `joint_matrix_apply` with coordinates API
+|======================

@@ -17,9 +17,7 @@
 
 #include <type_traits> // for is_same
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include <cstring>
-#else
+#ifndef __SYCL_DEVICE_ONLY__
 #include <atomic> // for atomic, memory_order
 #endif
 

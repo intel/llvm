@@ -97,7 +97,6 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::FriendTemplate:
   case Decl::Block:
   case Decl::Captured:
-  case Decl::ClassScopeFunctionSpecialization:
   case Decl::UsingShadow:
   case Decl::ConstructorUsingShadow:
   case Decl::ObjCTypeParam:
@@ -203,7 +202,7 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
       return;
 
     llvm::GlobalValue::LinkageTypes Linkage =
-        CGM.getLLVMLinkageVarDefinition(&D, /*IsConstant=*/false);
+        CGM.getLLVMLinkageVarDefinition(&D);
 
     // FIXME: We need to force the emission/use of a guard variable for
     // some variables even if we can constant-evaluate them because
@@ -296,12 +295,8 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   if (AS != ExpectedAS) {
     Addr = getTargetCodeGenInfo().performAddrSpaceCast(
         *this, GV, AS, ExpectedAS,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         llvm::PointerType::get(getLLVMContext(),
                                getContext().getTargetAddressSpace(ExpectedAS)));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-        LTy->getPointerTo(getContext().getTargetAddressSpace(ExpectedAS)));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   setStaticLocalDeclAddress(&D, Addr);
@@ -419,9 +414,7 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
     GV->takeName(OldGV);
 
     // Replace all uses of the old global with the new global
-    llvm::Constant *NewPtrForOldDecl =
-    llvm::ConstantExpr::getBitCast(GV, OldGV->getType());
-    OldGV->replaceAllUsesWith(NewPtrForOldDecl);
+    OldGV->replaceAllUsesWith(GV);
 
     // Erase the old global, since it is no longer used.
     OldGV->eraseFromParent();
@@ -430,7 +423,8 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
   bool NeedsDtor =
       D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
 
-  GV->setConstant(CGM.isTypeConstant(D.getType(), true, !NeedsDtor));
+  GV->setConstant(
+      D.getType().isConstantStorage(getContext(), true, !NeedsDtor));
   GV->setInitializer(Init);
 
   emitter.finalize(GV);
@@ -615,8 +609,7 @@ namespace {
     bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
-      llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
-      CGF.Builder.CreateCall(F, V);
+      CGF.Builder.CreateStackRestore(V);
     }
   };
 
@@ -776,13 +769,8 @@ static bool tryEmitARCCopyWeakInit(CodeGenFunction &CGF,
       // Handle a formal type change to avoid asserting.
       auto srcAddr = srcLV.getAddress(CGF);
       if (needsCast) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         srcAddr =
             srcAddr.withElementType(destLV.getAddress(CGF).getElementType());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-        srcAddr = CGF.Builder.CreateElementBitCast(
-            srcAddr, destLV.getAddress(CGF).getElementType());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       }
 
       // If it was an l-value, use objc_copyWeak.
@@ -1227,11 +1215,7 @@ static Address createUnnamedGlobalForMemcpyFrom(CodeGenModule &CGM,
                                                 llvm::Constant *Constant,
                                                 CharUnits Align) {
   Address SrcPtr = CGM.createUnnamedGlobalFrom(D, Constant, Align);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return SrcPtr.withElementType(CGM.Int8Ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  return Builder.CreateElementBitCast(SrcPtr, CGM.Int8Ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
@@ -1265,11 +1249,7 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
     bool valueAlreadyCorrect =
         constant->isNullValue() || isa<llvm::UndefValue>(constant);
     if (!valueAlreadyCorrect) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Loc = Loc.withElementType(Ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Loc = Builder.CreateElementBitCast(Loc, Ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder,
                                   IsAutoInit);
     }
@@ -1296,29 +1276,24 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
   // If the initializer is small, use a handful of stores.
   if (shouldSplitConstantStore(CGM, ConstantSize)) {
     if (auto *STy = dyn_cast<llvm::StructType>(Ty)) {
-      // FIXME: handle the case when STy != Loc.getElementType().
-      if (STy == Loc.getElementType()) {
-        for (unsigned i = 0; i != constant->getNumOperands(); i++) {
-          Address EltPtr = Builder.CreateStructGEP(Loc, i);
-          emitStoresForConstant(
-              CGM, D, EltPtr, isVolatile, Builder,
-              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)),
-              IsAutoInit);
-        }
-        return;
+      const llvm::StructLayout *Layout =
+          CGM.getDataLayout().getStructLayout(STy);
+      for (unsigned i = 0; i != constant->getNumOperands(); i++) {
+        CharUnits CurOff = CharUnits::fromQuantity(Layout->getElementOffset(i));
+        Address EltPtr = Builder.CreateConstInBoundsByteGEP(
+            Loc.withElementType(CGM.Int8Ty), CurOff);
+        emitStoresForConstant(CGM, D, EltPtr, isVolatile, Builder,
+                              constant->getAggregateElement(i), IsAutoInit);
       }
+      return;
     } else if (auto *ATy = dyn_cast<llvm::ArrayType>(Ty)) {
-      // FIXME: handle the case when ATy != Loc.getElementType().
-      if (ATy == Loc.getElementType()) {
-        for (unsigned i = 0; i != ATy->getNumElements(); i++) {
-          Address EltPtr = Builder.CreateConstArrayGEP(Loc, i);
-          emitStoresForConstant(
-              CGM, D, EltPtr, isVolatile, Builder,
-              cast<llvm::Constant>(Builder.CreateExtractValue(constant, i)),
-              IsAutoInit);
-        }
-        return;
+      for (unsigned i = 0; i != ATy->getNumElements(); i++) {
+        Address EltPtr = Builder.CreateConstGEP(
+            Loc.withElementType(ATy->getElementType()), i);
+        emitStoresForConstant(CGM, D, EltPtr, isVolatile, Builder,
+                              constant->getAggregateElement(i), IsAutoInit);
       }
+      return;
     }
   }
 
@@ -1412,7 +1387,6 @@ llvm::Value *CodeGenFunction::EmitLifetimeStart(llvm::TypeSize Size,
          "Pointer should be in alloca address space");
   llvm::Value *SizeV = llvm::ConstantInt::get(
       Int64Ty, Size.isScalable() ? -1 : Size.getFixedValue());
-  Addr = Builder.CreateBitCast(Addr, AllocaInt8PtrTy);
   llvm::CallInst *C =
       Builder.CreateCall(CGM.getLLVMLifetimeStartFn(), {SizeV, Addr});
   C->setDoesNotThrow();
@@ -1423,7 +1397,6 @@ void CodeGenFunction::EmitLifetimeEnd(llvm::Value *Size, llvm::Value *Addr) {
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&
          "Pointer should be in alloca address space");
-  Addr = Builder.CreateBitCast(Addr, AllocaInt8PtrTy);
   llvm::CallInst *C =
       Builder.CreateCall(CGM.getLLVMLifetimeEndFn(), {Size, Addr});
   C->setDoesNotThrow();
@@ -1552,7 +1525,8 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       if ((!getLangOpts().OpenCL ||
            Ty.getAddressSpace() == LangAS::opencl_constant) &&
           (CGM.getCodeGenOpts().MergeAllConstants && !NRVO &&
-           !isEscapingByRef && CGM.isTypeConstant(Ty, true, !NeedsDtor))) {
+           !isEscapingByRef &&
+           Ty.isConstantStorage(getContext(), true, !NeedsDtor))) {
         EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
 
         // Signal this condition to later callbacks.
@@ -1586,8 +1560,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           // applied.
           llvm::Value *Zero = Builder.getFalse();
           Address NRVOFlag =
-              CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo",
-                               /*ArraySize=*/nullptr, &AllocaAddr);
+              CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo");
           EnsureInsertPoint();
           Builder.CreateStore(Zero, NRVOFlag);
 
@@ -1682,10 +1655,10 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       if (!DidCallStackSave) {
         // Save the stack.
         Address Stack =
-            CreateTempAlloca(Int8PtrTy, getPointerAlign(), "saved_stack");
+            CreateDefaultAlignTempAlloca(AllocaInt8PtrTy, "saved_stack");
 
-        llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::stacksave);
-        llvm::Value *V = Builder.CreateCall(F);
+        llvm::Value *V = Builder.CreateStackSave();
+        assert(V->getType() == AllocaInt8PtrTy);
         Builder.CreateStore(V, Stack);
 
         DidCallStackSave = true;
@@ -1734,7 +1707,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
       llvm::Value *V = address.getPointer();
-      llvm::Type *DestPtrTy = llvm::PointerType::getInt8PtrTy(
+      llvm::Type *DestPtrTy = llvm::PointerType::get(
           CGM.getLLVMContext(), address.getAddressSpace());
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
       if (address.getAddressSpace() != 0)
@@ -1905,11 +1878,7 @@ void CodeGenFunction::emitZeroOrPatternForAutoVarInit(QualType type,
       SizeVal = Builder.CreateNUWMul(SizeVal, CGM.getSize(EltSize));
     llvm::Value *BaseSizeInChars =
         llvm::ConstantInt::get(IntPtrTy, EltSize.getQuantity());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address Begin = Loc.withElementType(Int8Ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Address Begin = Builder.CreateElementBitCast(Loc, Int8Ty, "vla.begin");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *End = Builder.CreateInBoundsGEP(
         Begin.getElementType(), Begin.getPointer(), SizeVal, "vla.end");
     llvm::BasicBlock *OriginBB = Builder.GetInsertBlock();
@@ -2040,11 +2009,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
     return EmitStoreThroughLValue(RValue::get(constant), lv, true);
   }
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   emitStoresForConstant(CGM, D, Loc.withElementType(CGM.Int8Ty),
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  emitStoresForConstant(CGM, D, Builder.CreateElementBitCast(Loc, CGM.Int8Ty),
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                         type.isVolatileQualified(), Builder, constant,
                         /*IsAutoInit=*/false);
 }
@@ -2602,7 +2567,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     // Suppressing debug info for ThreadPrivateVar parameters, else it hides
     // debug info of TLS variables.
     NoDebugInfo =
-        (IPD->getParameterKind() == ImplicitParamDecl::ThreadPrivateVar);
+        (IPD->getParameterKind() == ImplicitParamKind::ThreadPrivateVar);
   }
 
   Address DeclPtr = Address::invalid();
@@ -2614,13 +2579,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   // If we already have a pointer to the argument, reuse the input pointer.
   if (Arg.isIndirect()) {
     DeclPtr = Arg.getIndirectAddress();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     DeclPtr = DeclPtr.withElementType(ConvertTypeForMem(Ty));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    // If we have a prettier pointer type at this point, bitcast to that.
-    DeclPtr = Builder.CreateElementBitCast(DeclPtr, ConvertTypeForMem(Ty),
-                                           D.getName());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     // Indirect argument is in alloca address space, which may be different
     // from the default address space.
     auto AllocaAS = CGM.getASTAllocaAddressSpace();
@@ -2634,11 +2593,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       assert(getContext().getTargetAddressSpace(SrcLangAS) ==
              CGM.getDataLayout().getAllocaAddrSpace());
       auto DestAS = getContext().getTargetAddressSpace(DestLangAS);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       auto *T = llvm::PointerType::get(getLLVMContext(), DestAS);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      auto *T = DeclPtr.getElementType()->getPointerTo(DestAS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       DeclPtr =
           DeclPtr.withPointer(getTargetHooks().performAddrSpaceCast(
                                   *this, V, SrcLangAS, DestLangAS, T, true),

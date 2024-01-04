@@ -111,7 +111,7 @@ struct CGRecordLowering {
 
   /// Helper function to check if we are targeting AAPCS.
   bool isAAPCS() const {
-    return Context.getTargetInfo().getABI().startswith("aapcs");
+    return Context.getTargetInfo().getABI().starts_with("aapcs");
   }
 
   /// Helper function to check if the target machine is BigEndian.
@@ -658,18 +658,13 @@ void CGRecordLowering::computeVolatileBitfields() {
 
 void CGRecordLowering::accumulateVPtrs() {
   if (Layout.hasOwnVFPtr())
-    Members.push_back(MemberInfo(CharUnits::Zero(), MemberInfo::VFPtr,
-        llvm::FunctionType::get(getIntNType(32), /*isVarArg=*/true)->
-            getPointerTo()->getPointerTo()));
+    Members.push_back(
+        MemberInfo(CharUnits::Zero(), MemberInfo::VFPtr,
+                   llvm::PointerType::getUnqual(Types.getLLVMContext())));
   if (Layout.hasOwnVBPtr())
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Members.push_back(
         MemberInfo(Layout.getVBPtrOffset(), MemberInfo::VBPtr,
                    llvm::PointerType::getUnqual(Types.getLLVMContext())));
-#else
-    Members.push_back(MemberInfo(Layout.getVBPtrOffset(), MemberInfo::VBPtr,
-        llvm::Type::getInt32PtrTy(Types.getLLVMContext())));
-#endif
 }
 
 void CGRecordLowering::accumulateVBases() {

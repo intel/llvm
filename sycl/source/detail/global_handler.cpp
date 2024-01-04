@@ -52,13 +52,11 @@ public:
     if (!MModifyCounter)
       return;
 
+    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
     MCounter--;
-    if (!MCounter) {
-      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease();
-      }
+    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+    if (RTGlobalObjHandler) {
+      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
     }
   }
 
@@ -142,7 +140,7 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // The method is used in unit tests only. Do not protect with lock since
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
-    prepareSchedulerToRelease();
+    prepareSchedulerToRelease(true);
   MScheduler.Inst.reset(Scheduler);
 }
 
@@ -167,6 +165,8 @@ Scheduler &GlobalHandler::getScheduler() {
   enableOnCrashStackPrinting();
   return *MScheduler.Inst;
 }
+
+bool GlobalHandler::isSchedulerAlive() const { return MScheduler.Inst.get(); }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
   thread_local ObjectUsageCounter SchedulerCounter(ModifyCounter);
@@ -259,11 +259,11 @@ void GlobalHandler::unloadPlugins() {
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
     for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter is reserved for future use that can control
-      // some parameters in the plugin tear-down process.
-      // Currently, it is not used.
-      void *PluginParameter = nullptr;
-      Plugin->call<PiApiKind::piTearDown>(PluginParameter);
+      // PluginParameter for Teardown is the boolean tracking if a
+      // given plugin has been teardown successfully.
+      // This tracking prevents usage of this plugin after teardown
+      // has been completed to avoid invalid resource access.
+      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
       Plugin->unload();
     }
   }
@@ -271,11 +271,13 @@ void GlobalHandler::unloadPlugins() {
   getPlugins().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease() {
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
-  drainThreadPool();
+  if (Blocking)
+    drainThreadPool();
   if (MScheduler.Inst)
-    MScheduler.Inst->releaseResources();
+    MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
+                                               : BlockingT::NON_BLOCKING);
 #endif
 }
 
@@ -304,7 +306,7 @@ void shutdown() {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease();
+  Handler->prepareSchedulerToRelease(true);
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
@@ -322,10 +324,11 @@ void shutdown() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
-  Handler->MXPTIRegistry.Inst.reset(nullptr);
   Handler->unloadPlugins();
   if (Handler->MPlugins.Inst)
     Handler->MPlugins.Inst.reset(nullptr);
+
+  Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
   delete Handler;

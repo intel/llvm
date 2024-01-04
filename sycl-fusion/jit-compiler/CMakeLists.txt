@@ -1,13 +1,16 @@
 
 add_llvm_library(sycl-fusion
    lib/KernelFusion.cpp
-   lib/JITContext.cpp
    lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
+   lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
+
+   DEPENDS
+   intrinsics_gen
 
    LINK_COMPONENTS
    BitReader
@@ -48,6 +51,10 @@ target_link_libraries(sycl-fusion
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
+
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(sycl-fusion PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
 endif()
 
 if (BUILD_SHARED_LIBS)

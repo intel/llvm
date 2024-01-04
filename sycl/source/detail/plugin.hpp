@@ -28,6 +28,8 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
 extern xpti::trace_event_data_t *GPIArgCallEvent;
+extern uint8_t PiCallStreamID;
+extern uint8_t PiDebugCallStreamID;
 #endif
 
 template <PiApiKind Kind, size_t Idx, typename... Args>
@@ -173,46 +175,76 @@ public:
   sycl::detail::pi::PiResult call_nocheck(ArgsT... Args) const {
     sycl::detail::pi::PiFuncInfo<PiApiOffset> PiCallInfo;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+    bool CorrelationIDAvailable = false, CorrelationIDWithArgsAvailable = false;
     // Emit a function_begin trace for the PI API before the call is executed.
     // If arguments need to be captured, then a data structure can be sent in
     // the per_instance_user_data field.
     const char *PIFnName = PiCallInfo.getFuncName();
-    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
-    uint64_t CorrelationIDWithArgs = 0;
+    uint64_t CorrelationIDWithArgs = 0, CorrelationID = 0;
+
+    if (xptiCheckTraceEnabled(
+            PiCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_begin)) {
+      CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
+      CorrelationIDAvailable = true;
+    }
     unsigned char *ArgsDataPtr = nullptr;
-    using PackCallArgumentsTy =
-        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
-    auto ArgsData =
-        xptiTraceEnabled()
-            ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-            : PackCallArgumentsTy{};
-    // TODO check if stream is observed when corresponding API is present.
-    if (xptiTraceEnabled()) {
+    // If subscribers are listening to Pi debug call stream, only then prepare
+    // the data for the notifications and emit notifications. Even though the
+    // function emitFunctionWithArgsBeginTrace() checks for the trqace typoe
+    // using xptiTraceCheckEnabled(), we add a guard here before we prepare the
+    // data for the notification, as it comes with a cost
+    if (xptiCheckTraceEnabled(
+            PiDebugCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
+      using PackCallArgumentsTy = decltype(packCallArguments<PiApiOffset>(
+          std::forward<ArgsT>(Args)...));
+      auto ArgsData =
+          xptiTraceEnabled()
+              ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
+              : PackCallArgumentsTy{};
+      // TODO check if stream is observed when corresponding API is present.
       ArgsDataPtr = ArgsData.data();
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+      CorrelationIDWithArgsAvailable = true;
     }
 #endif
-    sycl::detail::pi::PiResult R;
+    sycl::detail::pi::PiResult R = PI_SUCCESS;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       sycl::detail::pi::printArgs(Args...);
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-      std::cout << ") ---> ";
-      sycl::detail::pi::printArgs(R);
-      sycl::detail::pi::printOuts(Args...);
-      std::cout << std::endl;
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+        std::cout << ") ---> ";
+        sycl::detail::pi::printArgs(R);
+        sycl::detail::pi::printOuts(Args...);
+        std::cout << std::endl;
+      } else {
+        std::cout << ") ---> ";
+        std::cout << "API Called After Plugin Teardown, Functon Call ignored.";
+        std::cout << std::endl;
+      }
     } else {
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      }
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Close the function begin with a call to function end
-    pi::emitFunctionEndTrace(CorrelationID, PIFnName);
-    pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
-                                     static_cast<uint32_t>(PiApiOffset),
-                                     PIFnName, ArgsDataPtr, R, *MPlugin);
+    // Close the function begin with a call to function end; we do not need to
+    // check th xptiTraceCheckEnbled() here as it is performed within the
+    // function
+    if (CorrelationIDAvailable) {
+      // Only send function_end notification if function_begin is subscribed to
+      pi::emitFunctionEndTrace(CorrelationID, PIFnName);
+    }
+    if (CorrelationIDWithArgsAvailable) {
+      pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
+                                       static_cast<uint32_t>(PiApiOffset),
+                                       PIFnName, ArgsDataPtr, R, *MPlugin);
+    }
 #endif
     return R;
   }
@@ -240,7 +272,10 @@ public:
 
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
-  int unload() { return sycl::detail::pi::unloadPlugin(MLibraryHandle); }
+  int unload() {
+    this->pluginReleased = true;
+    return sycl::detail::pi::unloadPlugin(MLibraryHandle);
+  }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
@@ -290,6 +325,7 @@ public:
   }
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  bool pluginReleased = false;
 
 private:
   std::shared_ptr<sycl::detail::pi::PiPlugin> MPlugin;

@@ -53,9 +53,32 @@ public:
         MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
         MIsPlaceH(false) {}
 
+  // TODO: Remove when ABI break is allowed.
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {})
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(IsPlaceH) {}
+
+  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, size_t OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {})
+      : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
+        MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(false) {}
+
+  AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
@@ -110,7 +133,7 @@ public:
 
   unsigned int MDims;
   unsigned int MElemSize;
-  unsigned int MOffsetInBytes;
+  size_t MOffsetInBytes;
   bool MIsSubBuffer;
 
   void *&MData = MAccData.MData;

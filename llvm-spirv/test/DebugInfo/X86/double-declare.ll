@@ -17,22 +17,22 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: DW_TAG_formal_parameter
 ; CHECK: DW_AT_location [DW_FORM_exprloc]
 ; CHECK-NOT: DW_AT_location
-@g = external global i32
-@h = external global i32
+@g = external addrspace(1) global i32
+@h = external addrspace(1) global i32
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
-define void @f(i32* byval(i32) %p, i1 %c) !dbg !5 {
+define void @f(ptr byval(i32) %p, i1 %c) !dbg !5 {
   br i1 %c, label %x, label %y
 
 x:
-  call void @llvm.dbg.declare(metadata i32* %p, metadata !10, metadata !DIExpression()), !dbg !12
-  store i32 42, i32* @g, !dbg !12
+  call void @llvm.dbg.declare(metadata ptr %p, metadata !10, metadata !DIExpression()), !dbg !12
+  store i32 42, ptr addrspace(1) @g, !dbg !12
   br label %done
 
 y:
-  call void @llvm.dbg.declare(metadata i32* %p, metadata !10, metadata !DIExpression()), !dbg !12
-  store i32 42, i32* @h, !dbg !12
+  call void @llvm.dbg.declare(metadata ptr %p, metadata !10, metadata !DIExpression()), !dbg !12
+  store i32 42, ptr addrspace(1) @h, !dbg !12
   br label %done
 
 done:

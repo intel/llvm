@@ -47,6 +47,15 @@ add_gen_header(
 )
 
 add_gen_header(
+  features
+  DEF_FILE features.h.def
+  GEN_HDR features.h
+  DEPENDS
+    .llvm_libc_common_h
+    .llvm-libc-macros.features_macros
+)
+
+add_gen_header(
   fenv
   DEF_FILE fenv.h.def
   GEN_HDR fenv.h
@@ -78,7 +87,7 @@ add_gen_header(
 )
 
 # TODO: This should be conditional on POSIX networking being included.
-file(MAKE_DIRECTORY "arpa")
+file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/arpa)
 
 add_gen_header(
   arpa_inet
@@ -121,6 +130,18 @@ add_gen_header(
   GEN_HDR strings.h
   DEPENDS
     .llvm_libc_common_h
+    .llvm-libc-types.size_t
+)
+
+add_gen_header(
+  search
+  DEF_FILE search.h.def
+  GEN_HDR search.h
+  DEPENDS
+    .llvm_libc_common_h
+    .llvm-libc-types.ACTION
+    .llvm-libc-types.ENTRY
+    .llvm-libc-types.struct_hsearch_data
     .llvm-libc-types.size_t
 )
 
@@ -280,7 +301,7 @@ add_gen_header(
 # TODO: Not all platforms will have a include/sys directory. Add the sys
 # directory and the targets for sys/*.h files conditional to the OS requiring
 # them.
-file(MAKE_DIRECTORY "sys")
+file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/sys)
 
 add_gen_header(
   sys_auxv
@@ -396,8 +417,10 @@ add_gen_header(
   DEPENDS
     .llvm_libc_common_h
     .llvm-libc-macros.sys_socket_macros
-    .llvm-libc-types.struct_sockaddr
     .llvm-libc-types.sa_family_t
+    .llvm-libc-types.socklen_t
+    .llvm-libc-types.struct_sockaddr
+    .llvm-libc-types.struct_sockaddr_un
 )
 
 add_gen_header(
@@ -497,7 +520,7 @@ add_gen_header(
 )
 
 if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
-  file(MAKE_DIRECTORY "gpu")
+  file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/gpu)
 
   add_gen_header(
     gpu_rpc
@@ -540,7 +563,7 @@ foreach(target IN LISTS all_install_header_targets)
     message(FATAL_ERROR "Installable header file '${target}' does not have the "
                         "HEADER_FILE_PATH property set.")
   endif()
-  file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_BINARY_DIR} ${header_file})
+  file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_DIR} ${header_file})
   get_filename_component(nested_dir ${relative_path} DIRECTORY)
   install(FILES ${header_file}
           DESTINATION ${LIBC_INSTALL_INCLUDE_DIR}/${nested_dir}
@@ -554,7 +577,7 @@ foreach(target IN LISTS all_install_header_targets)
       continue()
     endif()
     get_clang_resource_dir(resource_dir SUBDIR include)
-    file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_BINARY_DIR} ${decls_file})
+    file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_DIR} ${decls_file})
     get_filename_component(nested_dir ${relative_path} DIRECTORY)
     set(install_dir
         ${CMAKE_INSTALL_PREFIX}/${resource_dir}/llvm_libc_wrappers/${nested_dir})

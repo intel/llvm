@@ -12,6 +12,7 @@
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
@@ -53,7 +54,8 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device &Dev,
-                                  const RTDeviceBinaryImage &BinImages);
+                                  const RTDeviceBinaryImage &BinImages,
+                                  const NDRDescT &NDRDesc = {});
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -94,11 +96,6 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  // TODO: remove this function when m_UniversalKernelSet is removed
-  RTDeviceBinaryImage &
-  getDeviceImage(const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
-                 const context &Context, const device &Device,
-                 bool JITCompilationIsRequired = false);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
@@ -138,16 +135,13 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  /// \param Prg provides build context information, such as
-  ///        current specialization constants settings; can be nullptr.
-  ///        Passing as a raw pointer is OK, since it is not captured anywhere
-  ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
-  sycl::detail::pi::PiProgram getBuiltPIProgram(
-      const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, const program_impl *Prg = nullptr,
-      bool JITCompilationIsRequired = false);
+  sycl::detail::pi::PiProgram
+  getBuiltPIProgram(const ContextImplPtr &ContextImpl,
+                    const DeviceImplPtr &DeviceImpl,
+                    const std::string &KernelName, const NDRDescT &NDRDesc = {},
+                    bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
@@ -159,7 +153,8 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName, const program_impl *Prg);
+                    const std::string &KernelName,
+                    const NDRDescT &NDRDesc = {});
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
@@ -301,6 +296,8 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  bool kernelUsesAsan() const { return m_AsanFoundInImage; }
+
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
@@ -348,11 +345,6 @@ private:
   std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
-
-  /// Keeps images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::vector<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
@@ -413,6 +405,9 @@ private:
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
+
+  // True iff there is a device image compiled with AddressSanitizer
+  bool m_AsanFoundInImage;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>

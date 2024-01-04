@@ -1,5 +1,4 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 16
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -42,11 +41,8 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] + static_cast<half>(2);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [=](T &x) { x = x + static_cast<half>(2); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -77,11 +73,8 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] - static_cast<half>(2);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [=](T &x) { x = x - static_cast<half>(2); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -112,11 +105,8 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] * static_cast<half>(3.0);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [=](T &x) { x = x * static_cast<half>(3.0); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -147,11 +137,8 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 4);
 
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] / static_cast<half>(2.0);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [=](T &x) { x = x / static_cast<half>(2.0); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -182,30 +169,25 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             if (wi_slice_a[i]) {
-               if (wi_slice_a[i] > static_cast<half>(2.0) ||
-                   wi_slice_a[i] >= static_cast<half>(2.0) ||
-                   wi_slice_a[i] < static_cast<half>(2.0) ||
-                   wi_slice_a[i] <= static_cast<half>(2.0)) {
-                 T val = (wi_slice_a[i] != static_cast<half>(2.0))
-                             ? wi_slice_a[i]
-                             : static_cast<half>(2.0);
+           joint_matrix_apply(sg, sub_a, [](T &x) {
+             if (x) {
+               if (x > static_cast<half>(2.0) || x >= static_cast<half>(2.0) ||
+                   x < static_cast<half>(2.0) || x <= static_cast<half>(2.0)) {
+                 T val =
+                     (x != static_cast<half>(2.0)) ? x : static_cast<half>(2.0);
                  val--;
                  val++;
-                 if (wi_slice_a[i] == static_cast<half>(2.0)) {
+                 if (x == static_cast<half>(2.0)) {
                    val -= 2;
                    val *= 3;
                    val /= 2;
                  } else {
                    val += 2;
                  }
-                 wi_slice_a[i] = val;
+                 x = val;
                }
              }
-           }
+           });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +

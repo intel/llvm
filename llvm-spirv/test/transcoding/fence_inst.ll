@@ -14,6 +14,7 @@
 ; 0x0 CrossDevice
 ; CHECK-SPIRV: Constant [[#UINT]] [[#CD:]] 0
 
+; 0x2 Workgroup
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID1:]] 2
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID2:]] 4
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID3:]] 8
@@ -23,6 +24,7 @@
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID2]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID3]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID4]]
+; CHECK-SPIRV: MemoryBarrier [[#ID1]] [[#ID2]]
 
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel1{{.*}} #0 {{.*}}
@@ -42,26 +44,31 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64"
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel1(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel1(ptr addrspace(1) noalias %s.ascast) {
   fence acquire
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel2(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel2(ptr addrspace(1) noalias %s.ascast) {
   fence release
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel3(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel3(ptr addrspace(1) noalias %s.ascast) {
   fence acq_rel
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel4(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel4(ptr addrspace(1) noalias %s.ascast) {
   fence syncscope("singlethread") seq_cst
+  ret void
+}
+
+define spir_kernel void @fence_test_kernel5(ptr addrspace(1) noalias %s.ascast) {
+  fence syncscope("workgroup") release
   ret void
 }
 

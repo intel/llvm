@@ -1,8 +1,7 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for leaks in Level Zero using ZE_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
@@ -11,28 +10,35 @@
 #include "../graph_common.hpp"
 
 int main() {
+  property_list Properties{
+      property::queue::in_order{},
+      sycl::ext::intel::property::queue::no_immediate_command_list{}};
+  queue QueueA{Properties};
 
-  property_list properties{property::queue::in_order()};
-  queue QueueA{properties};
-  queue QueueB{QueueA.get_context(), QueueA.get_device(), properties};
+  if (!are_graphs_supported(QueueA)) {
+    return 0;
+  }
+
+  queue QueueB{QueueA.get_context(), QueueA.get_device(), Properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
 
-  float *Dotp = malloc_device<float>(1, QueueA);
+  int *Dotp = malloc_device<int>(1, QueueA);
+  QueueA.memset(Dotp, 0, sizeof(int)).wait();
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, QueueA);
-  float *Y = malloc_device<float>(N, QueueA);
-  float *Z = malloc_device<float>(N, QueueA);
+  int *X = malloc_device<int>(N, QueueA);
+  int *Y = malloc_device<int>(N, QueueA);
+  int *Z = malloc_device<int>(N, QueueA);
 
   Graph.begin_recording(QueueA);
   Graph.begin_recording(QueueB);
 
   QueueA.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      X[it] = 1.0f;
-      Y[it] = 2.0f;
-      Z[it] = 3.0f;
+      X[it] = 1;
+      Y[it] = 2;
+      Z[it] = 3;
     });
   });
 
@@ -61,8 +67,8 @@ int main() {
 
   QueueA.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  float Output;
-  QueueA.memcpy(&Output, Dotp, sizeof(float)).wait();
+  int Output;
+  QueueA.memcpy(&Output, Dotp, sizeof(int)).wait();
 
   assert(Output == dotp_reference_result(N));
 
