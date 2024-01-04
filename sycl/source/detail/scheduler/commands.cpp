@@ -1757,7 +1757,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE" << "\\n";
+  Stream << "EMPTY NODE"
+         << "\\n";
 
   Stream << "\"];" << std::endl;
 
