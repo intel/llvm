@@ -5450,10 +5450,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
-    if (IsSYCL &&
-        !Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                      options::OPT_fno_sycl_esimd_force_stateless_mem, true))
-      CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
     for (const auto &Arg : DeviceTraitsMacrosArgs) {
