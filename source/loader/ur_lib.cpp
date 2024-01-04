@@ -294,10 +294,11 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     // with `std::queue<std::pair<key_type_t, value_type_t>>` or something similar.)
     auto maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false);
     std::cout
-        << "DEBUG: " << (maybeEnvVarMap.has_value()
-        ? "getenv_to_map parsed env var and produced a map"
-        : "getenv_to_map parsed env var and failed to produce a map")
-              << std::endl;
+        << "DEBUG: "
+        << (maybeEnvVarMap.has_value()
+                ? "getenv_to_map parsed env var and produced a map"
+                : "getenv_to_map parsed env var and failed to produce a map")
+        << std::endl;
 
     // if the ODS env var is not set at all, then pretend it was set to the default
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
@@ -426,7 +427,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
 
     for (auto &termPair : mapODS) {
         std::string backend = termPair.first;
-        if (backend.empty()) { // FIXME: never true because getenv_to_map rejects this case
+        if (backend
+                .empty()) { // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing backend -- output ERROR, then continue
             // TODO: replace std::cout with URT message output mechanism
             std::cout << "ERROR: missing backend, format of filter = "
@@ -452,13 +454,14 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         // Note the hPlatform -> platformBackend -> platformBackendName conversion above
         // guarantees minimal sanity for the comparison with backend from the ODS string
         if (backend.front() != '*' &&
-            !std::equal(platformBackendName.cbegin(), platformBackendName.cend(),
-                       backend.cbegin(), backend.cend(),
-                       [](const auto &a, const auto &b) {
-                           // case-insensitive comparison by converting both tolower
-                           return std::tolower(static_cast<unsigned char>(a)) ==
-                                  std::tolower(static_cast<unsigned char>(b));
-                       })) {
+            !std::equal(platformBackendName.cbegin(),
+                        platformBackendName.cend(), backend.cbegin(),
+                        backend.cend(), [](const auto &a, const auto &b) {
+                            // case-insensitive comparison by converting both tolower
+                            return std::tolower(
+                                       static_cast<unsigned char>(a)) ==
+                                   std::tolower(static_cast<unsigned char>(b));
+                        })) {
             // irrelevant term for current request: different backend -- silently ignore
             // TODO: replace std::cout with URT message output mechanism
             std::cout << "WARNING: ignoring term with irrelevant backend"
@@ -475,7 +478,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         }
         if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
                          [](const auto &s) { return s.empty(); }) !=
-            termPair.second.cend()) { // FIXME: never true because getenv_to_map rejects this case
+            termPair.second
+                .cend()) { // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing filterString -- output warning, then continue
             // TODO: replace std::cout with URT message output mechanism
             std::cout << "WARNING: empty filterString, format of filterStrings "
@@ -528,7 +532,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                 const auto firstDeviceId = getDeviceId(firstPart);
                 // first dot found, look for another
                 std::string::size_type locationDot2 =
-                    filterString.find('.', locationDot1+1);
+                    filterString.find('.', locationDot1 + 1);
                 std::string secondPart = filterString.substr(
                     locationDot1 + 1, locationDot2 == std::string::npos
                                           ? std::string::npos
@@ -571,7 +575,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         acceptDeviceList.push_back(DeviceSpec{
             DevicePartLevel::ROOT, ::UR_DEVICE_TYPE_ALL, DeviceIdTypeALL});
     }
-    
+
     std::cout << "DEBUG: size of acceptDeviceList = " << acceptDeviceList.size()
               << std::endl
               << "DEBUG: size of discardDeviceList = "
@@ -816,8 +820,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
             std::cout << "WARNING: an accept term was ignored because it "
                          "does not select any additional devices"
                          "selectedDevices.size() = "
-                      << selectedDevices.size()
-                      << std::endl;
+                      << selectedDevices.size() << std::endl;
         }
     }
 
