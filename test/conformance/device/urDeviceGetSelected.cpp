@@ -3,8 +3,8 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <uur/fixtures.h>
 #include "helpers.h"
+#include <uur/fixtures.h>
 
 using urDeviceGetSelectedTest = uur::urPlatformTest;
 
@@ -61,7 +61,7 @@ TEST_F(urDeviceGetSelectedTest, SuccessSelected_StarColonStar) {
     ASSERT_EQ(countAll, count);
     std::vector<ur_device_handle_t> devicesAll(countAll);
     ASSERT_SUCCESS(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, countAll,
-                                       devicesAll.data(), nullptr));
+                               devicesAll.data(), nullptr));
     for (auto &device : devicesAll) {
         ASSERT_NE(nullptr, device);
     }
@@ -115,7 +115,8 @@ TEST_F(urDeviceGetSelectedTest, SuccessSelected_SelectAndDiscard) {
     ASSERT_EQ(count, 0);
 }
 
-TEST_F(urDeviceGetSelectedTest, SuccessSelected_SelectSomethingAndDiscardSomethingElse) {
+TEST_F(urDeviceGetSelectedTest,
+       SuccessSelected_SelectSomethingAndDiscardSomethingElse) {
     setenv("ONEAPI_DEVICE_SELECTOR", "*:0;!*:1", 1);
     uint32_t count = 0;
     ASSERT_SUCCESS(
@@ -178,7 +179,8 @@ TEST_F(urDeviceGetSelectedTest, InvalidGarbageBackendString) {
 TEST_F(urDeviceGetSelectedTest, InvalidMissingFilterStrings) {
     setenv("ONEAPI_DEVICE_SELECTOR", "*", 1);
     uint32_t count = 0;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
         urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
     ASSERT_EQ(count, 0);
     setenv("ONEAPI_DEVICE_SELECTOR", "*:", 1);
