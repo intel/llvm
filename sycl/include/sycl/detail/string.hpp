@@ -13,8 +13,8 @@ inline namespace _V1 {
 namespace detail {
 
 class string {
-  const char *str; // used to send existing std::string to libsycl
-  char *ret_str = nullptr;   // set from libsycl
+  const char *str;         // used to send existing std::string to libsycl
+  char *ret_str = nullptr; // set from libsycl
 
 public:
   string() : str(nullptr), ret_str(nullptr) {}
