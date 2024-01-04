@@ -335,9 +335,9 @@ checkForInfNan(char *Buf, T Val) {
     return append(Buf, "nan");
 
   // Extract the sign from the bits
-  const uint16_t Sign = reinterpret_cast<uint16_t &>(Val) & 0x8000;
+  const uint16_t Sign = sycl::bit_cast<uint16_t>(Val) & 0x8000;
   // Extract the exponent from the bits
-  const uint16_t Exp16 = (reinterpret_cast<uint16_t &>(Val) & 0x7c00) >> 10;
+  const uint16_t Exp16 = (sycl::bit_cast<uint16_t>(Val) & 0x7c00) >> 10;
 
   if (Exp16 == 0x1f) {
     if (Sign)
@@ -355,9 +355,9 @@ checkForInfNan(char *Buf, T Val) {
     return append(Buf, "nan");
 
   // Extract the sign from the bits
-  const uint16_t Sign = reinterpret_cast<uint16_t &>(Val) & 0x8000;
+  const uint16_t Sign = sycl::bit_cast<uint16_t>(Val) & 0x8000;
   // Extract the exponent from the bits
-  const uint16_t Exp16 = (reinterpret_cast<uint16_t &>(Val) & 0x7f80) >> 7;
+  const uint16_t Exp16 = (sycl::bit_cast<uint16_t>(Val) & 0x7f80) >> 7;
 
   if (Exp16 == 0x7f) {
     if (Sign)
