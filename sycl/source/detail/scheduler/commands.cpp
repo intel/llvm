@@ -3062,18 +3062,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
         getPiEventsBlocking(Events);
-    if (MQueue->getDeviceImplPtr()->is_host()) {
+    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
       // NOP for host device.
+      // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    // This should not be skipped even for in order queue, we need a proper
-    // event to wait for.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(),
-        PiEvents.empty() ? nullptr : &PiEvents[0], Event);
+        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
     return PI_SUCCESS;
   }
