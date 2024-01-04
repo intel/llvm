@@ -39,20 +39,17 @@ getPIEvents(const std::vector<sycl::event> &DepEvents,
   };
   if (ExtraDepEvent)
     AddEvent(ExtraDepEvent);
-  for_each(DepEvents.begin(), DepEvents.end(),
-           [&RetPiEvents, &AddEvent](const sycl::event &Event) {
-             auto EventImpl = detail::getSyclObjImpl(Event);
-             return AddEvent(EventImpl);
-           });
+  for (const sycl::event &Event : DepEvents)
+    AddEvent(detail::getSyclObjImpl(Event));
   return RetPiEvents;
 }
 
-static bool isEventsReady(const std::vector<sycl::event> &DepEvents,
-                          const EventImplPtr &ExtraDepEventPtr,
-                          ContextImplPtr Context) {
+static bool canBypassScheduler(const std::vector<sycl::event> &DepEvents,
+                               const EventImplPtr &ExtraDepEventPtr,
+                               ContextImplPtr Context) {
   auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
-    // throwaway events created with empty constructor will not have a
-    // context (which is set lazily) calling getContextImpl() would set that
+    // Throwaway events created with empty constructor will not have a
+    // context (it is set lazily). Calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
     if (!SyclEventImplPtr->isContextInitialized() &&
         !SyclEventImplPtr->is_host()) {
@@ -61,13 +58,12 @@ static bool isEventsReady(const std::vector<sycl::event> &DepEvents,
     if (SyclEventImplPtr->is_host()) {
       return SyclEventImplPtr->isCompleted();
     }
-    // Cross-context dependencies can't be passed directly.
+    // Cross-context dependencies can't be passed to the backend directly.
     if (SyclEventImplPtr->getContextImpl() != Context)
       return false;
 
     // A nullptr here means that the commmand does not produce a PI event or it
-    // hasn't been enqueued yet. Either way, this dependency needs to be handled
-    // by the scheduler.
+    // hasn't been enqueued yet.
     return SyclEventImplPtr->getHandleRef() != nullptr;
   };
 
@@ -151,7 +147,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::fill_usm(Ptr, Self, Count, Value,
                                 getPIEvents(DepEvents, ExtraEventToWait),
@@ -248,7 +244,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_usm(Src, Self, Count, Dest,
                                 getPIEvents(DepEvents, ExtraEventToWait),
@@ -294,7 +290,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                                   getPIEvents(DepEvents, ExtraEventToWait),
@@ -342,7 +338,7 @@ event queue_impl::memcpyToDeviceGlobal(
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_to_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
@@ -390,7 +386,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_from_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
@@ -438,9 +434,9 @@ void queue_impl::addEvent(const event &Event) {
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
-    // if there is no command on the event, we cannot track it with
-    // MEventsWeak as that will leave it with no owner. Track in MEventsShared
-    // only if we're unable to call piQueueFinish during wait.
+    // if there is no command on the event, we cannot track it with MEventsWeak
+    // as that will leave it with no owner. Track in MEventsShared only if we're
+    // unable to call piQueueFinish during wait.
     if (is_host() || MEmulateOOO)
       addSharedEvent(Event);
   }
@@ -462,18 +458,18 @@ void queue_impl::addSharedEvent(const event &Event) {
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
   // make, and ~queue_impl(). If the number of events grows large enough,
-  // there's a good chance that most of them are already completed and
-  // ownership of them can be released.
+  // there's a good chance that most of them are already completed and ownership
+  // of them can be released.
   const size_t EventThreshold = 128;
   if (MEventsShared.size() >= EventThreshold) {
     // Generally, the vector is ordered so that the oldest events are in the
-    // front and the newer events are in the end.  So, search to find the
-    // first event that isn't yet complete.  All the events prior to that can
-    // be erased. This could leave some few events further on that have
-    // completed not yet erased, but that is OK.  This cleanup doesn't have to
-    // be perfect. This also keeps the algorithm linear rather than quadratic
-    // because it doesn't continually recheck things towards the back of the
-    // list that really haven't had time to complete.
+    // front and the newer events are in the end.  So, search to find the first
+    // event that isn't yet complete.  All the events prior to that can be
+    // erased. This could leave some few events further on that have completed
+    // not yet erased, but that is OK.  This cleanup doesn't have to be perfect.
+    // This also keeps the algorithm linear rather than quadratic because it
+    // doesn't continually recheck things towards the back of the list that
+    // really haven't had time to complete.
     MEventsShared.erase(
         MEventsShared.begin(),
         std::find_if(
@@ -598,9 +594,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
-  // directly. Otherwise, only wait for unenqueued or host task events,
-  // starting from the latest submitted task in order to minimize total amount
-  // of calls, then handle the rest with piQueueFinish.
+  // directly. Otherwise, only wait for unenqueued or host task events, starting
+  // from the latest submitted task in order to minimize total amount of calls,
+  // then handle the rest with piQueueFinish.
   const bool SupportsPiFinish = !is_host() && !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
