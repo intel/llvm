@@ -122,6 +122,39 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t, const void *, size_t,
+    ur_usm_migration_flags_t, uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t, const void *, size_t, ur_usm_advice_flags_t,
+    uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t, ur_mem_handle_t, const void *, size_t,
+    size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  detail::ur::die("Experimental Command-buffer feature is not "
+                  "implemented for HIP adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t, void *, const void *, size_t, size_t,
+    uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  detail::ur::die("Experimental Command-buffer feature is not "
+                  "implemented for HIP adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t, ur_queue_handle_t, uint32_t,
     const ur_event_handle_t *, ur_event_handle_t *) {

@@ -33,6 +33,14 @@ struct urEnqueueUSMFill2DTestWithParam
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
+        bool memfill2d_support = false;
+        ASSERT_SUCCESS(urContextGetInfo(
+            context, UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,
+            sizeof(memfill2d_support), &memfill2d_support, nullptr));
+        if (!memfill2d_support) {
+            GTEST_SKIP() << "2D USM mem fill is not supported";
+        }
+
         pitch = std::get<1>(GetParam()).pitch;
         width = std::get<1>(GetParam()).width;
         height = std::get<1>(GetParam()).height;
