@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1d7863601e9ecfffadf0617236a472a3b00fddbe
-  # Merge: cf87428c 3ee71a71
+  # commit c311fe82256a7bc7f6ddd19cb86c8d555ce401bc
+  # Merge: eee75a29 d398d4ae
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 4 11:03:26 2024 +0000
-  #     Merge pull request #938 from Bensuo/cmdbuf-fill-memset-l0
-  #     [EXP][CMDBUF] Implement Fill commands for L0 adapter
-  set(UNIFIED_RUNTIME_TAG 1d7863601e9ecfffadf0617236a472a3b00fddbe)
+  # Date:   Thu Jan 4 15:12:54 2024 +0000
+  #     Merge pull request #1222 from sommerlukas/lukas/comgr-include-rocm4
+  #     [UR][HIP] Fix include for AMD COMGR
+  set(UNIFIED_RUNTIME_TAG c311fe82256a7bc7f6ddd19cb86c8d555ce401bc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
