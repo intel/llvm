@@ -1,6 +1,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
+// This test is a dependency of its neighbor 'win_host_compile.cpp'
+
 #include <sycl/sycl.hpp>
 
 #include <iostream>
@@ -53,7 +55,15 @@ int test(sycl::queue Queue, const From &Value) {
   return 0;
 }
 
+template <typename T> constexpr bool is_constexpr_evaluable(T value) {
+  return value != T{};
+}
+
 int main() {
+  constexpr float pi = 3.14159f;
+  static_assert(is_constexpr_evaluable(sycl::bit_cast<uint32_t>(pi)),
+                "not constexpr");
+
   sycl::queue Queue;
   int ReturnCode = 0;
 
