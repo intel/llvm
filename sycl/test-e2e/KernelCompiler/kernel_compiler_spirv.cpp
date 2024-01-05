@@ -6,46 +6,82 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc
-
-// RUN: ocloc -spv_only -file %S/Kernels/my_kernel.cl -o %t.spv
+// RUN: %clang -c -target spir64 -O0 -emit-llvm %S/Kernels/spirv_tests.cl -o %t.bc
+// RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.spv
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
-// loads a pre-compiled kernel from a SPIR-V file and runs it.
+// loads pre-compiled kernels from a SPIR-V file and runs them.
 
+#include <array>
 #include <cassert>
 #include <fstream>
+#include <string>
 #include <sycl/sycl.hpp>
 
-using namespace sycl;
-
-void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
-                    int added) {
-  const auto NumArgs = Kernel.get_info<sycl::info::kernel::num_args>();
-  assert(NumArgs == 2 && "kernel should take 2 args");
+void testSimpleKernel(sycl::queue &q, const sycl::kernel &kernel,
+                      int multiplier, int added) {
+  const auto num_args = kernel.get_info<sycl::info::kernel::num_args>();
+  assert(num_args == 2 && "kernel should take 2 args");
 
   constexpr int N = 4;
-  cl_int InputArray[N] = {0, 1, 2, 3};
-  cl_int OutputArray[N] = {};
+  std::array<int, N> input_array{0, 1, 2, 3};
+  std::array<int, N> output_array{};
 
-  sycl::buffer InputBuf(InputArray, sycl::range<1>(N));
-  sycl::buffer OutputBuf(OutputArray, sycl::range<1>(N));
+  sycl::buffer input_buffer(input_array.data(), sycl::range<1>(N));
+  sycl::buffer output_buffer(output_array.data(), sycl::range<1>(N));
 
-  Q.submit([&](sycl::handler &CGH) {
-    CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
-    CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
-    CGH.parallel_for(sycl::range<1>{N}, Kernel);
+  q.submit([&](sycl::handler &cgh) {
+    cgh.set_arg(0, input_buffer.get_access<sycl::access::mode::read>(cgh));
+    cgh.set_arg(1, output_buffer.get_access<sycl::access::mode::write>(cgh));
+    cgh.parallel_for(sycl::range<1>{N}, kernel);
   });
 
-  sycl::host_accessor Out{OutputBuf};
-  for (int I = 0; I < N; I++) {
-    assert(Out[I] == ((I * multiplier) + added));
+  sycl::host_accessor out{output_buffer};
+  for (int i = 0; i < N; i++) {
+    assert(out[i] == ((i * multiplier) + added));
   }
 }
 
-void testKernelFromSpvFile(std::string file_name) {
+template <typename T>
+void testParam(sycl::queue &q, const sycl::kernel &kernel) {
+  const auto num_args = kernel.get_info<sycl::info::kernel::num_args>();
+  assert(num_args == 4 && "kernel should take 4 args");
+
+  // Kernel computes sum of squared inputs.
+  const T a = 2;
+  const T b = 5;
+  const T expected = (a * a) + (b * b);
+
+  sycl::buffer a_buffer(&a, sycl::range<1>(1));
+
+  T *const b_ptr = sycl::malloc_shared<T>(1, q);
+  b_ptr[0] = b;
+
+  T output{};
+  sycl::buffer output_buffer(&output, sycl::range<1>(1));
+
+  q.submit([&](sycl::handler &cgh) {
+    sycl::local_accessor<T, 1> local(1, cgh);
+    // Pass T for scalar parameter.
+    cgh.set_arg(0, a);
+    // Pass USM pointer for OpTypePointer(CrossWorkgroup) parameter.
+    cgh.set_arg(1, b_ptr);
+    // Pass sycl::accessor for OpTypePointer(CrossWorkgroup) parameter.
+    cgh.set_arg(
+        2, output_buffer.template get_access<sycl::access::mode::write>(cgh));
+    // Pass sycl::local_accessor for OpTypePointer(Workgroup) parameter.
+    cgh.set_arg(3, local);
+    cgh.parallel_for(sycl::range<1>{1}, kernel);
+  });
+
+  sycl::host_accessor out{output_buffer};
+  assert(out[0] == expected);
+  sycl::free(b_ptr, q);
+}
+
+void testKernelsFromSpvFile(std::string file_name) {
   namespace syclex = sycl::ext::oneapi::experimental;
 
   sycl::queue q;
@@ -67,11 +103,27 @@ void testKernelFromSpvFile(std::string file_name) {
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
       syclex::build(kb_src);
 
-  // Get a "kernel" object representing the kernel from the SPIR-V module.
-  sycl::kernel my_kernel = kb_exe.ext_oneapi_get_kernel("my_kernel");
+  const auto getKernel = [&](const std::string &name) {
+    return kb_exe.ext_oneapi_get_kernel(name);
+  };
 
-  // Test the kernel
-  testSyclKernel(q, my_kernel, 2, 100);
+  // Test simple kernel
+  testSimpleKernel(q, getKernel("my_kernel"), 2, 100);
+
+  // Test OpTypeIntN parameters
+  testParam<std::int8_t>(q, getKernel("OpTypeInt8"));
+  testParam<std::int16_t>(q, getKernel("OpTypeInt16"));
+  testParam<std::int32_t>(q, getKernel("OpTypeInt32"));
+  testParam<std::int64_t>(q, getKernel("OpTypeInt64"));
+
+  // Test OpTypeFloatN parameters
+  if (q.get_device().has(sycl::aspect::fp16)) {
+    testParam<sycl::half>(q, getKernel("OpTypeFloat16"));
+  }
+  testParam<float>(q, getKernel("OpTypeFloat32"));
+  if (q.get_device().has(sycl::aspect::fp64)) {
+    testParam<double>(q, getKernel("OpTypeFloat64"));
+  }
 }
 
 int main(int argc, char **argv) {
@@ -80,8 +132,8 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  assert(argc == 2 && "Usage: ./%t.out <kernel-spv-file>");
-  testKernelFromSpvFile(argv[1]);
+  assert(argc == 2 && "Usage: ./%t.out <kernels-spv-file>");
+  testKernelsFromSpvFile(argv[1]);
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
