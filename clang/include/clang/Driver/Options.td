@@ -1452,7 +1452,7 @@ def extract_api_ignores_EQ: CommaJoined<["--"], "extract-api-ignores=">,
   Visibility<[ClangOption, CC1Option]>,
     HelpText<"Comma separated list of files containing a new line separated list of API symbols to ignore when extracting API information.">,
     MarshallingInfoStringVector<FrontendOpts<"ExtractAPIIgnoresFileList">>;
-def e : JoinedOrSeparate<["-"], "e">, Flags<[LinkerInput]>, Group<Link_Group>;
+def e : Separate<["-"], "e">, Flags<[LinkerInput]>, Group<Link_Group>;
 def fmax_tokens_EQ : Joined<["-"], "fmax-tokens=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Max total number of preprocessed tokens for -Wmax-tokens.">,
@@ -4721,9 +4721,9 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
 
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
   HelpText<"Specify code object ABI version. Defaults to 4. (AMDGPU only)">,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, FlangOption, CC1Option, FC1Option]>,
   Values<"none,4,5">,
-  NormalizedValuesScope<"TargetOptions">,
+  NormalizedValuesScope<"llvm::CodeObjectVersionKind">,
   NormalizedValues<["COV_None", "COV_4", "COV_5"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_4">;
 
@@ -5169,7 +5169,7 @@ def nodriverkitlib : Flag<["-"], "nodriverkitlib">;
 def nofixprebinding : Flag<["-"], "nofixprebinding">;
 def nolibc : Flag<["-"], "nolibc">;
 def nomultidefs : Flag<["-"], "nomultidefs">;
-def nopie : Flag<["-"], "nopie">, Visibility<[ClangOption, FlangOption]>;
+def nopie : Flag<["-"], "nopie">, Visibility<[ClangOption, FlangOption]>, Flags<[TargetSpecific]>; // OpenBSD
 def no_pie : Flag<["-"], "no-pie">, Visibility<[ClangOption, FlangOption]>;
 def noprebind : Flag<["-"], "noprebind">;
 def noprofilelib : Flag<["-"], "noprofilelib">;

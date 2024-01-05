@@ -30,7 +30,7 @@
 #ifdef _WIN32
 #define MLIR_CUDA_WRAPPERS_EXPORT __declspec(dllexport)
 #else
-#define MLIR_CUDA_WRAPPERS_EXPORT
+#define MLIR_CUDA_WRAPPERS_EXPORT __attribute__((visibility("default")))
 #endif // _WIN32
 
 #define CUDA_REPORT_IF_ERROR(expr)                                             \
@@ -226,17 +226,17 @@ extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuEventDestroy(CUevent event) {
   CUDA_REPORT_IF_ERROR(cuEventDestroy(event));
 }
 
-extern MLIR_CUDA_WRAPPERS_EXPORT "C" void mgpuEventSynchronize(CUevent event) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuEventSynchronize(CUevent event) {
   CUDA_REPORT_IF_ERROR(cuEventSynchronize(event));
 }
 
-extern MLIR_CUDA_WRAPPERS_EXPORT "C" void mgpuEventRecord(CUevent event,
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuEventRecord(CUevent event,
                                                           CUstream stream) {
   CUDA_REPORT_IF_ERROR(cuEventRecord(event, stream));
 }
 
-extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, CUstream /*stream*/,
-                              bool /*isHostShared*/) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *
+mgpuMemAlloc(uint64_t sizeBytes, CUstream /*stream*/, bool /*isHostShared*/) {
   ScopedContext scopedContext;
   CUdeviceptr ptr = 0;
   if (sizeBytes != 0)
@@ -244,25 +244,26 @@ extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, CUstream /*stream*/,
   return reinterpret_cast<void *>(ptr);
 }
 
-extern "C" void mgpuMemFree(void *ptr, CUstream /*stream*/) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuMemFree(void *ptr,
+                                                      CUstream /*stream*/) {
   CUDA_REPORT_IF_ERROR(cuMemFree(reinterpret_cast<CUdeviceptr>(ptr)));
 }
 
-extern "C" void mgpuMemcpy(void *dst, void *src, size_t sizeBytes,
-                           CUstream stream) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpuMemcpy(void *dst, void *src, size_t sizeBytes, CUstream stream) {
   CUDA_REPORT_IF_ERROR(cuMemcpyAsync(reinterpret_cast<CUdeviceptr>(dst),
                                      reinterpret_cast<CUdeviceptr>(src),
                                      sizeBytes, stream));
 }
 
-extern "C" void mgpuMemset32(void *dst, unsigned int value, size_t count,
-                             CUstream stream) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpuMemset32(void *dst, unsigned int value, size_t count, CUstream stream) {
   CUDA_REPORT_IF_ERROR(cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(dst),
                                         value, count, stream));
 }
 
-extern "C" void mgpuMemset16(void *dst, unsigned short value, size_t count,
-                             CUstream stream) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpuMemset16(void *dst, unsigned short value, size_t count, CUstream stream) {
   CUDA_REPORT_IF_ERROR(cuMemsetD16Async(reinterpret_cast<CUdeviceptr>(dst),
                                         value, count, stream));
 }
@@ -328,6 +329,60 @@ extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuSetDefaultDevice(int32_t device) {
 ///
 
 #if (CUDA_VERSION >= 12000)
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuLaunchClusterKernel(
+    CUfunction function, intptr_t clusterX, intptr_t clusterY,
+    intptr_t clusterZ, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
+    intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
+    CUstream stream, void **params, void **extra, size_t /*paramsCount*/) {
+  ScopedContext scopedContext;
+  if (smem > 0) {
+    // Avoid checking driver as it's more expensive than if statement
+    int32_t maxShmem = 0;
+    CUdevice device = getDefaultCuDevice();
+    CUDA_REPORT_IF_ERROR(cuDeviceGet(&device, /*ordinal=*/defaultDevice));
+    CUDA_REPORT_IF_ERROR(cuDeviceGetAttribute(
+        &maxShmem, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
+        device));
+    if (maxShmem < smem) {
+      fprintf(stderr,
+              "Requested shared memory (%dkb) is larger than maximum allowed "
+              "shared memory (%dkb) for this device\n",
+              smem, maxShmem);
+    }
+    CUDA_REPORT_IF_ERROR(cuFuncSetAttribute(
+        function, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, smem));
+  }
+  CUlaunchConfig config;
+  config.gridDimX = gridX;
+  config.gridDimY = gridY;
+  config.gridDimZ = gridZ;
+  config.blockDimX = blockX;
+  config.blockDimY = blockY;
+  config.blockDimZ = blockZ;
+  config.sharedMemBytes = smem;
+  config.hStream = stream;
+  CUlaunchAttribute launchAttr[2];
+  launchAttr[0].id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
+  launchAttr[0].value.clusterDim.x = clusterX;
+  launchAttr[0].value.clusterDim.y = clusterY;
+  launchAttr[0].value.clusterDim.z = clusterZ;
+  launchAttr[1].id = CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE;
+  launchAttr[1].value.clusterSchedulingPolicyPreference =
+      CU_CLUSTER_SCHEDULING_POLICY_SPREAD;
+  config.numAttrs = 2;
+  config.attrs = launchAttr;
+
+  debug_print("Launching kernel,"
+              "cluster: %ld, %ld, %ld, "
+              "grid=%ld,%ld,%ld, "
+              "threads: %ld, %ld, %ld, "
+              "smem: %dkb\n",
+              clusterX, clusterY, clusterZ, gridX, gridY, gridZ, blockX, blockY,
+              blockZ, smem);
+
+  CUDA_REPORT_IF_ERROR(cuLaunchKernelEx(&config, function, params, extra));
+}
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuTensorMapEncodeTiled(
     CUtensorMap *tensorMap,             // Tensor map object
