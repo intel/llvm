@@ -32,6 +32,8 @@ namespace ext::oneapi::experimental {
 struct unsampled_image_handle {
   using raw_image_handle_type = pi_uint64;
 
+  unsampled_image_handle() : raw_handle(~0) {}
+
   unsampled_image_handle(raw_image_handle_type raw_image_handle)
       : raw_handle(raw_image_handle) {}
 
@@ -41,6 +43,8 @@ struct unsampled_image_handle {
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
   using raw_image_handle_type = pi_uint64;
+
+  sampled_image_handle() : raw_handle(~0) {}
 
   sampled_image_handle(raw_image_handle_type raw_image_handle)
       : raw_handle(raw_image_handle) {}
