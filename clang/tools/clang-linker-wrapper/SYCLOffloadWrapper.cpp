@@ -329,10 +329,8 @@ struct Wrapper {
   addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
                          StringRef TargetTriple) {
     // Create global variable for the image data.
-    return addArrayToModule(
-        Buf, Name,
-        TargetTriple.empty() ? ""
-                             : "__CLANG_OFFLOAD_BUNDLE__sycl-" + TargetTriple);
+    return addArrayToModule(Buf, Name,
+                            TargetTriple.empty() ? "" : TargetTriple);
   }
 
   /// Creates a global variable of const char* type and creates an

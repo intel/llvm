@@ -35,12 +35,9 @@ struct SYCLImage {
   // Offload target triple.
   std::string Target;
 
-  // TODO: remove it as not used.
   // Format of the image data - SPIRV, LLVMIR bitcode, etc
   SYCLBinaryImageFormat Format = SYCLBinaryImageFormat::BIF_None;
 };
-
-SYCLImage getSYCLImage();
 
 struct SYCLWrappingOptions {
   bool EmitRegistrationFunctions = true;
