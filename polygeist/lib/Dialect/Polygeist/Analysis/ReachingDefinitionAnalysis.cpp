@@ -91,8 +91,10 @@ ReachingDefinition::ReachingDefinition(ProgramPoint p)
       return;
     if (auto funcOp = dyn_cast<FunctionOpInterface>(block->getParentOp())) {
       for (Value arg : funcOp.getArguments()) {
-        if (isa<MemRefType, LLVM::LLVMPointerType>(arg.getType()))
-          setModifier(arg, Definition());
+        if (isa<MemRefType, LLVM::LLVMPointerType>(arg.getType())) {
+          ChangeResult modified = setModifier(arg, Definition());
+          assert(modified == ChangeResult::Change);
+        }
       }
     }
   }

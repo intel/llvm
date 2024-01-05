@@ -1094,7 +1094,7 @@ parseOptimizationLevel(llvm::StringRef Arg) {
     return llvm::OptimizationLevel::O1;
   }
 
-  if (Arg.startswith("fast")) {
+  if (Arg.starts_with("fast")) {
     // We handle -Ofast like -O3.
     return llvm::OptimizationLevel::O3;
   }
@@ -1158,23 +1158,23 @@ void Options::splitCommandLineOptions(int argc, char **argv) {
       continue;
     }
 
-    if (Ref == "-fPIC" || Ref == "-c" || Ref.startswith("-fsanitize"))
+    if (Ref == "-fPIC" || Ref == "-c" || Ref.starts_with("-fsanitize"))
       LinkOpts.push_back(argv[I]);
     else if (Ref == "-L" || Ref == "-l") {
       LinkOpts.push_back(argv[I]);
       I++;
       LinkOpts.push_back(argv[I]);
-    } else if (Ref.startswith("-L") || Ref.startswith("-l") ||
-               Ref.startswith("-Wl"))
+    } else if (Ref.starts_with("-L") || Ref.starts_with("-l") ||
+               Ref.starts_with("-Wl"))
       LinkOpts.push_back(argv[I]);
     else if (Ref == "-D" || Ref == "-I") {
       MLIROpts.push_back(argv[I]);
       I++;
       MLIROpts.push_back(argv[I]);
-    } else if (Ref.startswith("-D")) {
+    } else if (Ref.starts_with("-D")) {
       MLIROpts.push_back("-D");
       MLIROpts.push_back(&argv[I][2]);
-    } else if (Ref.startswith("-I")) {
+    } else if (Ref.starts_with("-I")) {
       MLIROpts.push_back("-I");
       MLIROpts.push_back(&argv[I][2]);
     } else if (Ref == "-fsycl-is-device") {

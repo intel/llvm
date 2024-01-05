@@ -99,17 +99,17 @@ public:
   }
   Offset(AffineExpr op, unsigned numDims, unsigned numSymbols,
          mlir::OperandRange vals) {
-    if (auto opc = op.dyn_cast<AffineConstantExpr>()) {
+    if (auto opc = dyn_cast<AffineConstantExpr>(op)) {
       idx = opc.getValue();
       type = Type::Index;
       return;
     }
-    if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+    if (auto opd = dyn_cast<AffineDimExpr>(op)) {
       val = vals[opd.getPosition()];
       type = Type::Value;
       return;
     }
-    if (auto ops = op.dyn_cast<AffineSymbolExpr>()) {
+    if (auto ops = dyn_cast<AffineSymbolExpr>(op)) {
       val = vals[numDims + ops.getPosition()];
       type = Type::Value;
       return;
