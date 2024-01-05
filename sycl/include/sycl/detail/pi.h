@@ -146,9 +146,10 @@
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 39
+#define _PI_H_VERSION_MINOR 40
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
