@@ -61,6 +61,8 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
@@ -71,6 +73,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.hpp
 )
@@ -98,6 +101,21 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     )
 
     if(UR_ENABLE_COMGR)
+        set(UR_COMGR_VERSION5_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")
+        set(UR_COMGR_VERSION4_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr.h")
+        # The COMGR header changed location between ROCm versions 4 and 5.
+        # Check for existence in the version 5 location or fallback to version 4
+        if(NOT EXISTS "${UR_COMGR_VERSION5_HEADER}")
+            if(NOT EXISTS "${UR_COMGR_VERSION4_HEADER}")
+                message(FATAL_ERROR "Could not find AMD COMGR header at "
+                                    "${UR_COMGR_VERSION5_HEADER} or"
+                                    "${UR_COMGR_VERSION4_HEADER}, "
+                                    "check ROCm installation")
+            else()
+                target_compile_definitions(${TARGET_NAME} PRIVATE UR_COMGR_VERSION4_INCLUDE)
+            endif()
+        endif()
+
         add_library(amd_comgr SHARED IMPORTED GLOBAL)
         set_target_properties(
         amd_comgr PROPERTIES
@@ -105,8 +123,8 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
             INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
             INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
         )
-        target_link_libraries(pi_hip PUBLIC amd_comgr)
-        target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+        target_link_libraries(${TARGET_NAME} PUBLIC amd_comgr)
+        target_compile_definitions(${TARGET_NAME} PRIVATE SYCL_ENABLE_KERNEL_FUSION)
     endif(UR_ENABLE_COMGR)
 
     target_link_libraries(${TARGET_NAME} PRIVATE

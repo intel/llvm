@@ -16,6 +16,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -40,7 +41,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
                                                     void *pPropValue,
-                                                    size_t *pPropSizeRet) {
+                                                    size_t *pPropSizeRet) try {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -1017,6 +1018,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO: Investigate if this information is available on CUDA.
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
@@ -1026,13 +1029,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 /// \return PI_SUCCESS if the function is executed successfully
