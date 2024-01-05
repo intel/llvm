@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/al42and/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG "ext_oneapi_queue_priority-hip")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 46a886df656c98a4bde7b778c27f8bcb4e78c351
+  # Merge: c311fe82 b65f9d78
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Jan 5 15:46:56 2024 +0000
+  #     Merge pull request #984 from al42and/ext_oneapi_queue_priority-hip
+  #     [HIP] Implement ext_oneapi_queue_priority
+  set(UNIFIED_RUNTIME_TAG 46a886df656c98a4bde7b778c27f8bcb4e78c351)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
