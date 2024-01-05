@@ -363,10 +363,10 @@ public:
             Language == syclex::source_language::spirv) &&
            "TODO: add other Languages. Must be OpenCL or SPIR-V");
 
-    // if successful, the log is empty. if failed, throws an error with the
-    // compilation log.
     const auto spirv = [&]() -> std::vector<uint8_t> {
       if (Language == syclex::source_language::opencl) {
+        // if successful, the log is empty. if failed, throws an error with the
+        // compilation log.
         const auto &SourceStr = std::get<std::string>(this->Source);
         return syclex::detail::OpenCLC_to_SPIRV(SourceStr, BuildOptions,
                                                 LogPtr);
