@@ -322,7 +322,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
         {
             static const size_t PageSize = [Context, Device]() {
                 size_t Size;
-                auto Result =
+                [[maybe_unused]] auto Result =
                     context.urDdiTable.VirtualMem.pfnGranularityGetInfo(
                         Context, Device,
                         UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
