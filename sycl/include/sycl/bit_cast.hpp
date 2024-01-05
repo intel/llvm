@@ -35,12 +35,11 @@ namespace sycl {
 inline namespace _V1 {
 
 template <typename To, typename From>
-constexpr
-    std::enable_if_t<sizeof(To) == sizeof(From) &&
-                         std::is_trivially_copyable<From>::value &&
-                         std::is_trivially_copyable<To>::value,
-                     To>
-    bit_cast(const From &from) noexcept {
+constexpr std::enable_if_t<sizeof(To) == sizeof(From) &&
+                               std::is_trivially_copyable<From>::value &&
+                               std::is_trivially_copyable<To>::value,
+                           To>
+bit_cast(const From &from) noexcept {
 #if __cpp_lib_bit_cast
   // first choice std::bit_cast
   return std::bit_cast<To>(from);
