@@ -286,6 +286,7 @@ void zoo() {
   [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::max_interleaving(1)]] // expected-note {{previous attribute is here}}
+  [[intel::max_interleaving(1)]] // OK.
   // expected-error@+2 {{conflicting loop attribute 'max_interleaving'}}
   [[intel::speculated_iterations(1)]]
   [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
@@ -293,6 +294,12 @@ void zoo() {
   [[intel::speculated_iterations(1)]] // expected-note {{previous attribute is here}}
   // expected-error@+2 {{conflicting loop attribute 'speculated_iterations'}}
   [[intel::loop_coalesce]]
+  [[intel::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::speculated_iterations(1)]] // expected-note {{previous attribute is here}}
+  [[intel::speculated_iterations(1)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'speculated_iterations'}}
   [[intel::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -360,6 +367,12 @@ void zoo() {
 
   [[intel::max_reinvocation_delay(1)]]
   [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  [[intel::max_reinvocation_delay(10)]] // expected-note {{previous attribute is here}}
+  [[intel::max_reinvocation_delay(10)]] // OK
+  // expected-error@+1 {{conflicting loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(20)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
   [[intel::enable_loop_pipelining]]
