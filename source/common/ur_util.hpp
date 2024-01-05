@@ -22,6 +22,8 @@
 #include <vector>
 
 #ifdef _WIN32
+#define NOMINMAX
+
 #include <windows.h>
 inline int ur_getpid(void) { return static_cast<int>(GetCurrentProcessId()); }
 #else
@@ -59,7 +61,6 @@ inline int ur_getpid(void) { return static_cast<int>(getpid()); }
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #if defined(_WIN32)
-#include <Windows.h>
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
 #else
 #define HMODULE void *
@@ -288,6 +289,8 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
         return UR_RESULT_SUCCESS;
     } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (const ur_result_t &e) {
+        return e;
     } catch (...) {
         return UR_RESULT_ERROR_UNKNOWN;
     }

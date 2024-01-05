@@ -24,6 +24,8 @@ add_ur_adapter(${TARGET_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_state.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
@@ -34,6 +36,7 @@ add_ur_adapter(${TARGET_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.hpp
