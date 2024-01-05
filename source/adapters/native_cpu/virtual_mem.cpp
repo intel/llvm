@@ -10,7 +10,6 @@
 
 #include "common.hpp"
 #include "context.hpp"
-#include "event.hpp"
 #include "physical_mem.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(

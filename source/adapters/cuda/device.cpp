@@ -16,6 +16,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -40,7 +41,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
                                                     void *pPropValue,
-                                                    size_t *pPropSizeRet) {
+                                                    size_t *pPropSizeRet) try {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -1038,6 +1039,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     break;
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 /// \return PI_SUCCESS if the function is executed successfully
