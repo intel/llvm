@@ -11,7 +11,11 @@
 #include "program.hpp"
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
+#ifdef UR_COMGR_VERSION4_INCLUDE
+#include <amd_comgr.h>
+#else
 #include <amd_comgr/amd_comgr.h>
+#endif
 namespace {
 template <typename ReleaseType, ReleaseType Release, typename T>
 struct COMgrObjCleanUp {
