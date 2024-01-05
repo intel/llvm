@@ -158,12 +158,11 @@ void joint_matrix_store(Group g,
     multi_ptr<T, Space, IsDecorated> src, size_t stride);
 
 // Only available when Layout != layout::dynamic
-template <typename Group, typename T1, typename T2,
-          size_t Rows, size_t Cols, use Use, layout Layout,
-          typename PropertyListT>
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout, typename PropertyListT>
 void joint_matrix_store(Group g,
-    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+    joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
     size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
