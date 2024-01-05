@@ -21,12 +21,12 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 62
+#define TEST_NUM 61
 
-float ref[TEST_NUM] = {1, 1, 0, 1,   1,   0,   0,   0, 0, 0, 1, 1, 0.5, 0, 0, 1,
-                       0, 2, 0, 0,   0,   0,   0,   1, 0, 1, 2, 0, 1,   2, 5, 0,
-                       0, 0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,   0, 0, 0,
-                       0, 0, 0, 0,   0,   0,   0,   0, 0, 0, 0, 0, 0,   0};
+float ref[TEST_NUM] = {1, 0, 1,   1,   0,   0,   0, 0, 0, 1, 1, 0.5, 0, 0, 1, 0,
+                       2, 0, 0,   0,   0,   0,   1, 0, 1, 2, 0, 1,   2, 5, 0, 0,
+                       0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,   0, 0, 0, 0,
+                       0, 0, 0,   0,   0,   0,   0, 0, 0, 0, 0, 0,   0};
 
 float refIptr = 1;
 
@@ -56,7 +56,6 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
-        res_access[i++] = std::fabs(-1.0f);
         res_access[i++] = std::cos(0.0f);
         res_access[i++] = std::sin(0.0f);
         res_access[i++] = std::round(1.0f);
@@ -144,15 +143,15 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
   assert(quo == 0);
 }
 
-// MSVC implements std::ldexp<float> and std::frexp<float> by invoking the
-// 'double' version of corresponding C math functions(ldexp and frexp). Those
-// 2 functions can only work on Windows with fp64 extension support from
-// underlying device.
+// MSVC implements std::ldexp<float>, std::fabs<float> and std::frexp<float> by
+// invoking the 'double' version of corresponding C math functions(ldexp, fabs
+// and frexp). Those functions can only work on Windows with fp64 extension
+// support from underlying device.
 #ifndef _WIN32
 template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
   s::range<1> numOfItems{2};
   T result[2] = {-1};
-  T ref[2] = {0, 2};
+  T ref[3] = {0, 2, 1};
   // Variable exponent is an integer value to store the exponent in frexp
   // function
   int exponent = -1;
@@ -167,6 +166,7 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
         int i = 0;
         res_access[i++] = std::frexp(0.0f, &exp_access[0]);
         res_access[i++] = std::ldexp(1.0f, 1);
+        res_access[i++] = std::fabs(-1.0f);
       });
     });
   }
