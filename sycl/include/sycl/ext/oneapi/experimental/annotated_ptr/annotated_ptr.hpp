@@ -71,22 +71,24 @@ private:
   using annotation_filter = propagateToPtrAnnotation<typename p::key_t>;
 
   // filter properties that are applied on annotations
-  using annotation_props = PropertiesFilter<property_list_t, annotation_filter>;
+  using property_tuple_t = std::tuple<Props...>;
+  using annotation_props =
+      properties<PropertiesFilter<property_tuple_t, annotation_filter>>;
+
+  template <typename I, typename P> struct annotationHelper {};
 
   // unpack properties to varadic template
-  template <typename I, typename... P> struct annotationHelper {};
-
   template <typename I, typename... P>
   struct annotationHelper<I, detail::properties_t<P...>> {
-    I load(I *m_Ptr) const {
+    static I load(I *ptr) {
       return *__builtin_intel_sycl_ptr_annotation(
-          m_Ptr, detail::PropertyMetaInfo<P>::name...,
+          ptr, detail::PropertyMetaInfo<P>::name...,
           detail::PropertyMetaInfo<P>::value...);
     }
 
-    template <class O> I store(I *m_Ptr, O &&Obj) const {
+    template <class O> static I store(I *ptr, O &&Obj) {
       return *__builtin_intel_sycl_ptr_annotation(
-                 m_Ptr, detail::PropertyMetaInfo<P>::name...,
+                 ptr, detail::PropertyMetaInfo<P>::name...,
                  detail::PropertyMetaInfo<P>::value...) = std::forward<O>(Obj);
     }
   };
@@ -97,7 +99,7 @@ public:
   // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<annotation_props>::load(m_Ptr);
+    return annotationHelper<T, annotation_props>::load(m_Ptr);
 #else
     return *m_Ptr;
 #endif
@@ -107,7 +109,7 @@ public:
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
   T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<annotation_properties>::store(m_Ptr, Obj);
+    return annotationHelper<T, annotation_props>::store(m_Ptr, Obj);
 #else
     return *m_Ptr = std::forward<O>(Obj);
 #endif
@@ -273,7 +275,7 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #define OP_NOT_SUPPORTED(op, property)                                         \
   "operator" op " is not available when " property " is specified!"
 
-  static constexpr void operatorAvailablityCheck(unsigned op_id) {
+  static constexpr void operatorAvailablityCheck(op op_id) {
     constexpr bool hasAlign =
         detail::ContainsProperty<alignment_key, std::tuple<Props...>>::value;
     switch (op_id) {
