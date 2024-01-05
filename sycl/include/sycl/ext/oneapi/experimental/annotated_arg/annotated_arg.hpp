@@ -70,11 +70,22 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
+#ifdef __ENABLE_USM_ADDR_SPACE__
+  using global_pointer_t = std::conditional_t<
+      detail::IsUsmKindDevice<property_list_t>::value,
+      typename sycl::ext::intel::decorated_device_ptr<T>::pointer,
+      std::conditional_t<
+          detail::IsUsmKindHost<property_list_t>::value,
+          typename sycl::ext::intel::decorated_host_ptr<T>::pointer,
+          typename decorated_global_ptr<T>::pointer>>;
+#else  // __ENABLE_USM_ADDR_SPACE__
+  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
+#endif // __ENABLE_USM_ADDR_SPACE__
+
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]]
-              typename decorated_global_ptr<T>::pointer _obj) {
+      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t _obj) {
     obj = _obj;
   }
 #endif

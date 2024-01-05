@@ -10,8 +10,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:cpu
-
 #include "../common.hpp"
 
 using namespace sycl;
