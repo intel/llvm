@@ -61,6 +61,38 @@ enum class ParameterKind : uint32_t {
 /// Different binary formats supported as input to the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
+/// Unique ID for each supported architecture in the SYCL implementation.
+///
+/// Values of this type will only be used in the kernel fusion non-persistent
+/// JIT. There is no guarantee for backwards compatibility, so this should not
+/// be used in persistent caches.
+using DeviceArchitecture = unsigned;
+
+class TargetInfo {
+public:
+  static constexpr TargetInfo get(BinaryFormat Format,
+                                  DeviceArchitecture Arch) {
+    if (Format == BinaryFormat::SPIRV) {
+      /// As an exception, SPIR-V targets have a single common ID (-1), as fused
+      /// kernels will be reused across SPIR-V devices.
+      return {Format, DeviceArchitecture(-1)};
+    }
+    return {Format, Arch};
+  }
+
+  TargetInfo() = default;
+
+  constexpr BinaryFormat getFormat() const { return Format; }
+  constexpr DeviceArchitecture getArch() const { return Arch; }
+
+private:
+  constexpr TargetInfo(BinaryFormat Format, DeviceArchitecture Arch)
+      : Format(Format), Arch(Arch) {}
+
+  BinaryFormat Format;
+  DeviceArchitecture Arch;
+};
+
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
 struct SYCLKernelBinaryInfo {
@@ -79,8 +111,6 @@ struct SYCLKernelBinaryInfo {
 struct SYCLKernelAttribute {
   using AttributeValueList = std::vector<std::string>;
 
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelAttribute() : Values{} {};
   SYCLKernelAttribute(std::string Name)
       : AttributeName{std::move(Name)}, Values{} {}
 
@@ -103,18 +133,11 @@ enum ArgUsage : uint8_t {
 
 ///
 /// Encode usage of parameters for the actual kernel function.
-// This is a vector of unsigned char, because std::vector<bool> is a weird
-// construct and unlike all other std::vectors, and LLVM YAML I/O is having a
-// hard time coping with it.
 using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
 
 ///
 /// Describe the list of arguments by their kind.
 struct SYCLArgumentDescriptor {
-
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLArgumentDescriptor() : Kinds{}, UsageMask{} {}
-
   std::vector<ParameterKind> Kinds;
 
   ArgUsageMask UsageMask;
@@ -244,9 +267,6 @@ struct SYCLKernelInfo {
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
-
-  //// Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
   SYCLKernelInfo(const std::string &KernelName,
                  const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,

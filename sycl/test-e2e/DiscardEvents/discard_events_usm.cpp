@@ -33,10 +33,6 @@
 // CHECK: ) --->  pi_result : PI_SUCCESS
 // CHECK-NEXT:         [out]pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
-// CHECK: ---> piEnqueueEventsWaitWithBarrier(
-// CHECK: ) --->  pi_result : PI_SUCCESS
-// CHECK-NEXT:         [out]pi_event * : {{0|0000000000000000}}[ nullptr ]
-//
 // CHECK: ---> piEnqueueKernelLaunch(
 // CHECK:        pi_event * :
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
@@ -79,10 +75,6 @@
 // CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
-// CHECK: ) --->  pi_result : PI_SUCCESS
-// CHECK-NEXT:         [out]pi_event * : {{0|0000000000000000}}[ nullptr ]
-//
-// CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK: ) --->  pi_result : PI_SUCCESS
 // CHECK-NEXT:         [out]pi_event * : {{0|0000000000000000}}[ nullptr ]
 //

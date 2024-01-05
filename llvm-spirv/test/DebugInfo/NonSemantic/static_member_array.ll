@@ -47,8 +47,8 @@ source_filename = "static_member_array.cpp"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@_ZN1A15fully_specifiedE = global i32 0, align 4, !dbg !0
-@_ZN1A4smemE = global [4 x i32] [i32 0, i32 1, i32 2, i32 3], align 16, !dbg !6
+@_ZN1A15fully_specifiedE = addrspace(1) global i32 0, align 4, !dbg !0
+@_ZN1A4smemE = addrspace(1) global [4 x i32] [i32 0, i32 1, i32 2, i32 3], align 16, !dbg !6
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!19, !20, !21}
@@ -66,10 +66,10 @@ target triple = "spir64-unknown-unknown"
 !9 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 !10 = !{!11}
 !11 = !DISubrange(count: 4)
-!12 = !DIDerivedType(tag: DW_TAG_variable, name: "smem", scope: !13, file: !3, line: 4, baseType: !16, flags: DIFlagStaticMember)
+!12 = !DIDerivedType(tag: DW_TAG_member, name: "smem", scope: !13, file: !3, line: 4, baseType: !16, flags: DIFlagStaticMember)
 !13 = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "A", file: !3, line: 1, size: 8, elements: !14, identifier: "_ZTS1A")
 !14 = !{!15, !12}
-!15 = !DIDerivedType(tag: DW_TAG_variable, name: "fully_specified", scope: !13, file: !3, line: 3, baseType: !9, flags: DIFlagStaticMember)
+!15 = !DIDerivedType(tag: DW_TAG_member, name: "fully_specified", scope: !13, file: !3, line: 3, baseType: !9, flags: DIFlagStaticMember)
 !16 = !DICompositeType(tag: DW_TAG_array_type, baseType: !9, elements: !17)
 !17 = !{!18}
 !18 = !DISubrange(count: -1)

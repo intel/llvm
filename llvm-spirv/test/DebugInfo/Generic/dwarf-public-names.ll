@@ -60,18 +60,18 @@ source_filename = "test/DebugInfo/Generic/dwarf-public-names.ll"
 
 %struct.C = type { i8 }
 
-@_ZN1C22static_member_variableE = global i32 0, align 4, !dbg !0
-@global_variable = global %struct.C zeroinitializer, align 1, !dbg !15
-@_ZN2ns25global_namespace_variableE = global i32 1, align 4, !dbg !17
+@_ZN1C22static_member_variableE = addrspace(1) global i32 0, align 4, !dbg !0
+@global_variable = addrspace(1) global %struct.C zeroinitializer, align 1, !dbg !15
+@_ZN2ns25global_namespace_variableE = addrspace(1) global i32 1, align 4, !dbg !17
 
 ; Function Attrs: nounwind uwtable
-define void @_ZN1C15member_functionEv(ptr %this) #0 align 2 !dbg !23 {
+define void @_ZN1C15member_functionEv(ptr addrspace(1) %this) #0 align 2 !dbg !23 {
 entry:
   %this.addr = alloca ptr, align 8
-  store ptr %this, ptr %this.addr, align 8
+  store ptr addrspace(1) %this, ptr %this.addr, align 8
   call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !24, metadata !26), !dbg !27
   %this1 = load ptr, ptr %this.addr
-  store i32 0, ptr @_ZN1C22static_member_variableE, align 4, !dbg !28
+  store i32 0, ptr addrspace(1) @_ZN1C22static_member_variableE, align 4, !dbg !28
   ret void, !dbg !29
 }
 
@@ -81,7 +81,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 ; Function Attrs: nounwind uwtable
 define i32 @_ZN1C22static_member_functionEv() #0 align 2 !dbg !30 {
 entry:
-  %0 = load i32, ptr @_ZN1C22static_member_variableE, align 4, !dbg !31
+  %0 = load i32, ptr addrspace(1) @_ZN1C22static_member_variableE, align 4, !dbg !31
   ret i32 %0, !dbg !31
 }
 
@@ -94,7 +94,7 @@ entry:
 ; Function Attrs: nounwind uwtable
 define void @_ZN2ns25global_namespace_functionEv() #0 !dbg !34 {
 entry:
-  call void @_ZN1C15member_functionEv(ptr @global_variable), !dbg !37
+  call void @_ZN1C15member_functionEv(ptr addrspace(1) @global_variable), !dbg !37
   ret void, !dbg !38
 }
 
@@ -109,7 +109,7 @@ attributes #1 = { nounwind readnone }
 !2 = !DICompositeType(tag: DW_TAG_structure_type, name: "C", file: !3, line: 1, size: 8, align: 8, elements: !4)
 !3 = !DIFile(filename: "dwarf-public-names.cpp", directory: "/usr2/kparzysz/s.hex/t")
 !4 = !{!5, !7, !12}
-!5 = !DIDerivedType(tag: DW_TAG_variable, name: "static_member_variable", scope: !2, file: !3, line: 4, baseType: !6, flags: DIFlagStaticMember)
+!5 = !DIDerivedType(tag: DW_TAG_member, name: "static_member_variable", scope: !2, file: !3, line: 4, baseType: !6, flags: DIFlagStaticMember)
 !6 = !DIBasicType(name: "int", size: 32, align: 32, encoding: DW_ATE_signed)
 !7 = !DISubprogram(name: "member_function", linkageName: "_ZN1C15member_functionEv", scope: !2, file: !3, line: 2, type: !8, isLocal: false, isDefinition: false, scopeLine: 2, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: false, retainedNodes: !11)
 !8 = !DISubroutineType(types: !9)

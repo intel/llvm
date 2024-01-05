@@ -448,5 +448,11 @@ int main() {
     size_t StreamMaxStatementSize = Stream.get_max_statement_size();
   });
 
+  // expected-warning@+1 {{'fast_distance<double, double>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore = sycl::fast_distance(double{1.0}, double{2.0});
+  // expected-warning@+2 {{'fast_distance<sycl::vec<double, 2>, sycl::vec<double, 2>>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore =
+      sycl::fast_distance(sycl::vec<double, 2>{0.0}, sycl::vec<double, 2>{1.0});
+
   return 0;
 }
