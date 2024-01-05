@@ -11,9 +11,10 @@
 #include <type_traits> // for is_trivially_copyable, enable_if_t
 
 // std::bit_cast is first choice, __builtin_bit_cast second.
-// memcpy fallback of last resort, not constexpr :-(
+// no fallback.
 
-#if defined(_MSC_VER) && _MSC_VER >= 1928 // MSVC 2019 Update 9 or later
+// MSVC 2019 Update 9 or later (aka Visual Studio 2019 v 16.8.1)
+#if defined(_MSC_VER) && _MSC_VER >= 1928 
 #define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #elif defined(__has_builtin)
 #define __SYCL_HAS_BUILTIN_BIT_CAST __has_builtin(__builtin_bit_cast)
@@ -28,21 +29,13 @@
 #if __cpp_lib_bit_cast
 // first choice std::bit_cast
 #include <bit>
-#define __SYCL_BC_CONSTEXPR constexpr
-#elif __SYCL_HAS_BUILTIN_BIT_CAST
-// second choice __builtin_bit_cast
-#define __SYCL_BC_CONSTEXPR constexpr
-#elif
-// fallback memcpy
-#include <sycl/detail/memcpy.hpp>
-#define __SYCL_BC_CONSTEXPR
 #endif
 
 namespace sycl {
 inline namespace _V1 {
 
 template <typename To, typename From>
-__SYCL_BC_CONSTEXPR
+constexpr
     std::enable_if_t<sizeof(To) == sizeof(From) &&
                          std::is_trivially_copyable<From>::value &&
                          std::is_trivially_copyable<To>::value,
@@ -55,12 +48,7 @@ __SYCL_BC_CONSTEXPR
   // second choice __builtin_bit_cast
   return __builtin_bit_cast(To, from);
 #else
-  // fallback memcpy
-  static_assert(std::is_trivially_default_constructible<To>::value,
-                "To must be trivially default constructible");
-  To to;
-  sycl::detail::memcpy(&to, &from, sizeof(To));
-  return to;
+#error "compiler missing builtin bit_cast support."
 #endif
 }
 
