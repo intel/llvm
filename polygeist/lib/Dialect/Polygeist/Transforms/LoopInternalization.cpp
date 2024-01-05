@@ -497,7 +497,7 @@ bool hasZeroIndex(const affine::MemRefAccess &access) {
   if (accessValueMap.getNumDims() != 0)
     return false;
 
-  auto index = accessValueMap.getResult(0).dyn_cast<AffineConstantExpr>();
+  auto index = dyn_cast<AffineConstantExpr>(accessValueMap.getResult(0));
   return (index && index.getValue() == 0);
 }
 

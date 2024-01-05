@@ -1969,13 +1969,13 @@ void MLIRASTConsumer::HandleDeclContext(clang::DeclContext *DC) {
     std::string Name = MLIRScanner::getMangledFuncName(*FD, CGM);
 
     // Don't create std functions unless necessary
-    if (StringRef(Name).startswith("_ZNKSt"))
+    if (StringRef(Name).starts_with("_ZNKSt"))
       continue;
-    if (StringRef(Name).startswith("_ZSt"))
+    if (StringRef(Name).starts_with("_ZSt"))
       continue;
-    if (StringRef(Name).startswith("_ZNSt"))
+    if (StringRef(Name).starts_with("_ZNSt"))
       continue;
-    if (StringRef(Name).startswith("_ZN9__gnu"))
+    if (StringRef(Name).starts_with("_ZN9__gnu"))
       continue;
     if (Name == "cudaGetDevice" || Name == "cudaMalloc")
       continue;
@@ -2028,13 +2028,13 @@ bool MLIRASTConsumer::HandleTopLevelDecl(clang::DeclGroupRef DG) {
     std::string Name = MLIRScanner::getMangledFuncName(*FD, CGM);
 
     // Don't create std functions unless necessary
-    if (StringRef(Name).startswith("_ZNKSt"))
+    if (StringRef(Name).starts_with("_ZNKSt"))
       continue;
-    if (StringRef(Name).startswith("_ZSt"))
+    if (StringRef(Name).starts_with("_ZSt"))
       continue;
-    if (StringRef(Name).startswith("_ZNSt"))
+    if (StringRef(Name).starts_with("_ZNSt"))
       continue;
-    if (StringRef(Name).startswith("_ZN9__gnu"))
+    if (StringRef(Name).starts_with("_ZN9__gnu"))
       continue;
     if (Name == "cudaGetDevice" || Name == "cudaMalloc")
       continue;

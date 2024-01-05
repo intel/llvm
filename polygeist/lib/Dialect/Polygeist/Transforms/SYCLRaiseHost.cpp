@@ -717,7 +717,7 @@ public:
 
     StringRef declContext = static_cast<StringRef>(*demangled);
     // Can't use `isMemberFunction` because `sycl::buffer` is a template.
-    return declContext.startswith("sycl::_V1::buffer") &&
+    return declContext.starts_with("sycl::_V1::buffer") &&
            functionNameMatches(demangler, "get_access");
   }
 };

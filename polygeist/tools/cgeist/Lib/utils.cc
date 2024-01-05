@@ -47,7 +47,7 @@ Operation *replaceFuncByOperation(func::FuncOp F, llvm::StringRef OpName,
   assert(Ctx->isOperationRegistered(OpName) &&
          "Provided lower_to opName should be registered.");
 
-  if (OpName.startswith("memref"))
+  if (OpName.starts_with("memref"))
     return buildLinalgOp(OpName, B, Input, Output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.

@@ -456,7 +456,7 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 
 static bool isNormalized(affine::AffineParallelOp op) {
   auto isZero = [](AffineExpr v) {
-    if (auto ce = v.dyn_cast<AffineConstantExpr>())
+    if (auto ce = dyn_cast<AffineConstantExpr>(v))
       return ce.getValue() == 0;
     return false;
   };

@@ -519,8 +519,7 @@ AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
   if (inserted) {
     reorderedDims.push_back(v);
   }
-  return getAffineDimExpr(iterPos->second, v.getContext())
-      .cast<AffineDimExpr>();
+  return cast<AffineDimExpr>(getAffineDimExpr(iterPos->second, v.getContext()));
 }
 
 static void composeAffineMapAndOperands(AffineMap *map,
