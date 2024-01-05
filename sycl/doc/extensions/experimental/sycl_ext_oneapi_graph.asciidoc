@@ -54,6 +54,7 @@ Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Maxime France-Pillois, Codeplay +
 Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
 
 == Dependencies
 
