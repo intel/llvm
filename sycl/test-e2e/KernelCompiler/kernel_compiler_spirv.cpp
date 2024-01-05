@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// REQUIRES: ocloc
+
 // RUN: %clang -c -target spir64 -O0 -emit-llvm %S/Kernels/spirv_tests.cl -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: %{build} -o %t.out
