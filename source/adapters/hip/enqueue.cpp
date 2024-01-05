@@ -1000,7 +1000,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     hipArray_Format Format;
     size_t NumChannels;
-    getArrayDesc(Array, Format, NumChannels);
+    UR_CHECK_ERROR(getArrayDesc(Array, Format, NumChannels));
 
     int ElementByteSize = imageElementByteSize(Format);
 
@@ -1061,7 +1061,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     hipArray_Format Format;
     size_t NumChannels;
-    getArrayDesc(Array, Format, NumChannels);
+    UR_CHECK_ERROR(getArrayDesc(Array, Format, NumChannels));
 
     int ElementByteSize = imageElementByteSize(Format);
 
@@ -1124,13 +1124,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
         std::get<SurfaceMem>(hImageSrc->Mem).getArray(hQueue->getDevice());
     hipArray_Format SrcFormat;
     size_t SrcNumChannels;
-    getArrayDesc(SrcArray, SrcFormat, SrcNumChannels);
+    UR_CHECK_ERROR(getArrayDesc(SrcArray, SrcFormat, SrcNumChannels));
 
     hipArray *DstArray =
         std::get<SurfaceMem>(hImageDst->Mem).getArray(hQueue->getDevice());
     hipArray_Format DstFormat;
     size_t DstNumChannels;
-    getArrayDesc(DstArray, DstFormat, DstNumChannels);
+    UR_CHECK_ERROR(getArrayDesc(DstArray, DstFormat, DstNumChannels));
 
     UR_ASSERT(SrcFormat == DstFormat,
               UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
