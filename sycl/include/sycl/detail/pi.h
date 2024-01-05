@@ -149,9 +149,11 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 42
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 43
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
