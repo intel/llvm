@@ -442,6 +442,32 @@ private:
   mutable Location loc;
 };
 
+template <typename T>
+T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
+                          mlir::ValueRange iterationCounts) {
+  using namespace mlir;
+  SmallVector<int64_t> bufferSize(iterationCounts.size(), ShapedType::kDynamic);
+  mlir::Type ty = value.getType();
+  if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
+    auto mt = allocaOp.getType();
+    bool hasDynamicSize = false;
+    for (auto s : mt.getShape()) {
+      if (s == ShapedType::kDynamic) {
+        hasDynamicSize = true;
+        break;
+      }
+    }
+    if (!hasDynamicSize) {
+      for (auto s : mt.getShape()) {
+        bufferSize.push_back(s);
+      }
+      ty = mt.getElementType();
+    }
+  }
+  auto type = MemRefType::get(bufferSize, ty);
+  return rewriter.create<T>(value.getLoc(), type, iterationCounts);
+}
+
 } // namespace polygeist
 } // namespace mlir
 

@@ -25,7 +25,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
-#include "mlir/Dialect/Polygeist/Utils/BarrierUtils.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include <mlir/Dialect/Arith/IR/Arith.h>
 
@@ -687,8 +687,8 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
     if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
       allocations.push_back(cl.getMemref());
     } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
-      allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
-          rewriter, v, iterCounts, true, &DLI));
+      allocations.push_back(
+          allocateTemporaryBuffer<LLVM::AllocaOp>(rewriter, v, iterCounts));
     } else {
       allocations.push_back(
           allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));

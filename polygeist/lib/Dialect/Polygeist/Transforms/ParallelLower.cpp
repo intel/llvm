@@ -20,6 +20,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
@@ -155,46 +156,6 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 // TODO: Handle scf.parallel
-
-// TODO
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
-  static std::mutex _mutex;
-  std::unique_lock<std::mutex> lock(_mutex);
-
-  mlir::OpBuilder builder(module.getContext());
-  SymbolTableCollection symbolTable;
-  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc"))))
-    return fn;
-  auto *ctx = module->getContext();
-  mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto VoidPtrTy = builder.getType<LLVM::LLVMPointerType>();
-  auto llvmFnType = LLVM::LLVMFunctionType::get(VoidPtrTy, types, false);
-
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  builder.setInsertionPointToStart(module.getBody());
-  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
-                                          lnk);
-}
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
-  static std::mutex _mutex;
-  std::unique_lock<std::mutex> lock(_mutex);
-
-  mlir::OpBuilder builder(module.getContext());
-  SymbolTableCollection symbolTable;
-  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
-    return fn;
-  auto *ctx = module->getContext();
-  auto VoidPtrTy = builder.getType<LLVM::LLVMPointerType>();
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMVoidType::get(ctx), ArrayRef<mlir::Type>(VoidPtrTy), false);
-
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  builder.setInsertionPointToStart(module.getBody());
-  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "free", llvmFnType,
-                                          lnk);
-}
 
 void ParallelLower::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
@@ -485,8 +446,9 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee().value() == "cudaMalloc" ||
                call.getCallee().value() == "cudaMallocHost") {
-      auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
+      LLVM::LLVMFuncOp mf =
+          LLVM::lookupOrCreateMallocFn(getOperation(), bz.getI64Type());
       Value args[] = {call.getOperand(1)};
       if (cast<IntegerType>(args[0].getType()).getWidth() < 64)
         args[0] =
@@ -504,7 +466,7 @@ void ParallelLower::runOnOperation() {
       }
     } else if (call.getCallee().value() == "cudaFree" ||
                call.getCallee().value() == "cudaFreeHost") {
-      auto mf = GetOrCreateFreeFunction(getOperation());
+      LLVM::LLVMFuncOp mf = LLVM::lookupOrCreateFreeFn(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
       bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args);
