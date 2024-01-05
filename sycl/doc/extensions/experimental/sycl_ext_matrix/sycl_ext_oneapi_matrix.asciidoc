@@ -234,8 +234,7 @@ template <typename Group, typename T1, typename T2,
           typename PropertyListT>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
-    size_t stride, layout Layout);
+    annotated_ptr<T2, PropertyListT> src, size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -244,8 +243,7 @@ template <typename Group, typename T1, typename T2,
           typename PropertyListT>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
-    size_t stride);
+    annotated_ptr<T2, PropertyListT> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -308,8 +306,7 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           typename PropertyListT>
 void joint_matrix_store(Group g,
    const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
-   size_t stride, layout Layout);
+   annotated_ptr<T, PropertyListT> dest, size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -543,16 +540,14 @@ template <typename Group, size_t Rows, size_t Cols,
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, use::accumulator,
                  Rows, Cols, layout::dynamic> &res,
-    ext::oneapi::experimental::annotated_ptr<float, PropertyListT> src,
-    size_t stride, layout Layout);
+    annotated_ptr<float, PropertyListT> src, size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols, use Use,
           layout Layout, typename PropertyListT>
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    ext::oneapi::experimental::annotated_ptr<float, PropertyListT> src,
-    size_t stride);
+    annotated_ptr<float, PropertyListT> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -575,8 +570,7 @@ template <typename Group, size_t Rows, size_t Cols, typename PropertyListT>
 void joint_matrix_store(Group g,
    const joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
    layout::dynamic> &res,
-   ext::oneapi::experimental::annotated_ptr<float, PropertyListT> dest,
-   size_t stride, layout Layout);
+   annotated_ptr<float, PropertyListT> dest, size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
