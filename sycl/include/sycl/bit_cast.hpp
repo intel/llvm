@@ -20,6 +20,9 @@
 #define __SYCL_HAS_BUILTIN_BIT_CAST __has_builtin(__builtin_bit_cast)
 #elif defined(__GNUC__)
 #define __SYCL_HAS_BUILTIN_BIT_CAST 1 // available in GCC
+#elif (__GXX__ > 6) || (__GXX__ == 6 && __GXX_MINOR__ >= 1)
+// Built-in available in G++ 6.1 or later
+#define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #else
 #define __SYCL_HAS_BUILTIN_BIT_CAST 0
 #endif
