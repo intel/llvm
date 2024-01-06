@@ -11,18 +11,13 @@
 #include <type_traits> // for is_trivially_copyable, enable_if_t
 
 // std::bit_cast is first choice, __builtin_bit_cast second.
-// no fallback.
+// memcpy fallback of last resort, not constexpr :-(
 
 // MSVC 2019 Update 9 or later (aka Visual Studio 2019 v 16.8.1)
 #if defined(_MSC_VER) && _MSC_VER >= 1928
 #define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #elif defined(__has_builtin)
 #define __SYCL_HAS_BUILTIN_BIT_CAST __has_builtin(__builtin_bit_cast)
-#elif defined(__GNUC__)
-#define __SYCL_HAS_BUILTIN_BIT_CAST 1 // available in GCC
-#elif (__GXX__ > 6) || (__GXX__ == 6 && __GXX_MINOR__ >= 1)
-// Built-in available in G++ 6.1 or later
-#define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #else
 #define __SYCL_HAS_BUILTIN_BIT_CAST 0
 #endif
@@ -34,17 +29,26 @@
 #if __cpp_lib_bit_cast
 // first choice std::bit_cast
 #include <bit>
+#define __SYCL_BC_CONSTEXPR constexpr
+#elif __SYCL_HAS_BUILTIN_BIT_CAST
+// second choice __builtin_bit_cast
+#define __SYCL_BC_CONSTEXPR constexpr
+#elif
+// fallback memcpy
+#include <sycl/detail/memcpy.hpp>
+#define __SYCL_BC_CONSTEXPR
 #endif
 
 namespace sycl {
 inline namespace _V1 {
 
 template <typename To, typename From>
-constexpr std::enable_if_t<sizeof(To) == sizeof(From) &&
-                               std::is_trivially_copyable<From>::value &&
-                               std::is_trivially_copyable<To>::value,
-                           To>
-bit_cast(const From &from) noexcept {
+__SYCL_BC_CONSTEXPR
+    std::enable_if_t<sizeof(To) == sizeof(From) &&
+                         std::is_trivially_copyable<From>::value &&
+                         std::is_trivially_copyable<To>::value,
+                     To>
+    bit_cast(const From &from) noexcept {
 #if __cpp_lib_bit_cast
   // first choice std::bit_cast
   return std::bit_cast<To>(from);
@@ -52,7 +56,12 @@ bit_cast(const From &from) noexcept {
   // second choice __builtin_bit_cast
   return __builtin_bit_cast(To, from);
 #else
-#error "compiler missing builtin bit_cast support."
+  // fallback memcpy
+  static_assert(std::is_trivially_default_constructible<To>::value,
+                "To must be trivially default constructible");
+  To to;
+  sycl::detail::memcpy(&to, &from, sizeof(To));
+  return to;
 #endif
 }
 
