@@ -1723,6 +1723,20 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
   return __ESIMD_NS::bfn<FuncControl>(src0, src1, src2);
 }
 
+/// sr0 - get the lower 64 bit value of sr0 register.
+/// \return the current value of lower 64 bit  of sr0 register
+ESIMD_INLINE uint64_t sr0() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_sr0();
+  return retv.template bit_cast_view<uint64_t>()[0];
+}
+
+/// rdtsc - get the value of rdtsc register.
+/// \return the current value of rdtsc
+ESIMD_INLINE uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
+}
+
 /// @} sycl_esimd_logical
 
 } // namespace ext::intel::experimental::esimd
