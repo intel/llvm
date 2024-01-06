@@ -14,7 +14,7 @@
 // no fallback.
 
 // MSVC 2019 Update 9 or later (aka Visual Studio 2019 v 16.8.1)
-#if defined(_MSC_VER) && _MSC_VER >= 1928 
+#if defined(_MSC_VER) && _MSC_VER >= 1928
 #define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #elif defined(__has_builtin)
 #define __SYCL_HAS_BUILTIN_BIT_CAST __has_builtin(__builtin_bit_cast)
