@@ -18,6 +18,8 @@
 #define __SYCL_HAS_BUILTIN_BIT_CAST 1
 #elif defined(__has_builtin)
 #define __SYCL_HAS_BUILTIN_BIT_CAST __has_builtin(__builtin_bit_cast)
+#elif defined(__GNUC__)
+#define __SYCL_HAS_BUILTIN_BIT_CAST 1 // available in GCC
 #else
 #define __SYCL_HAS_BUILTIN_BIT_CAST 0
 #endif
