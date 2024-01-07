@@ -1,3 +1,19 @@
+// This test is to exercise the option -ffp-accuracy. It is testing several
+// scenarios combining various accuracy requests for single and double precision
+// math functions.
+
+// The list of values of the attribute 'fpbuiltin-max-error' is listed in
+// IR/FPAccuracy.cpp or IR/FPAccuracy.def for Sycl and Cuda. Here is the meaning
+// of a few here:
+// "fpbuiltin-max-error"="1.0" is generated when using -ffp-accuracy=high.
+// "fpbuiltin-max-error"="4.0" is generated when using -ffp-accuracy=medium.
+// "fpbuiltin-max-error"="67108864.0" is generated when using
+// -ffp-accuracy=low.
+// "fpbuiltin-max-error"="4.0" is generated when using -ffp-accuracy=sycl
+// (for sin*, cos* ... etc).
+// "fpbuiltin-max-error"="2.0" is generated when using -ffp-accuracy=cuda
+// (for sinc*, cos*, ... etc).
+
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-builtin-accuracy=high \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK %s
@@ -58,7 +74,6 @@ float frem(float, float);
 float fsub(float, float);
 double rsqrt(double);
 #endif
-
 
 // CHECK-LABEL: define dso_local void @f1
 // CHECK: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_HIGH:[0-9]+]]
@@ -396,7 +411,7 @@ void f1(float a, float b) {
 // CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_HIGH]]
-// CHECK: call float @tanf(float {{.*}})
+// CHECK: call float @llvm.fpbuiltin.tan.f32(float {{.*}}  #[[ATTR_HIGH]]
 //
 // CHECK-F1-LABEL: define dso_local void @f2
 // CHECK-F1: call float @llvm.cos.f32(float {{.*}})
@@ -412,7 +427,7 @@ void f1(float a, float b) {
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH]]
 // CHECK-F2: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
-// CHECK-F2: call float @tanf(float noundef {{.*}})
+// CHECK-F2: call float @llvm.fpbuiltin.tan.f32(float {{.*}})  #[[ATTR_F2_MEDIUM]]
 //
 // CHECK-LABEL-F4: define dso_local void @f2
 // CHECK-F4: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
@@ -420,7 +435,7 @@ void f1(float a, float b) {
 // CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F4_MEDIUM]]
-// CHECK-F4: call float @tanf(float {{.*}})
+// CHECK-F4: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 //
 // CHECK-F5-LABEL: define dso_local void @f2(
 // CHECK-F5: call float @llvm.cos.f32(float {{.*}})
@@ -439,7 +454,7 @@ void f1(float a, float b) {
 // CHECK-F6: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F6_MEDIUM]]
-// CHECK-F6: call float @tanf(float noundef {{.*}}) #[[ATTR8:[0-9]+]]
+// CHECK-F6: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F6_MEDIUM]]
 //
 // CHECK-F6: attributes #[[ATTR_F6_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F6: attributes #[[ATTR_F6_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
@@ -450,7 +465,7 @@ void f1(float a, float b) {
 // CHECK-SPIR: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_SYCL2]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_SYCL5]]
 // CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
-// CHECK-SPIR: call spir_func float @tanf(float noundef {{.*}})
+// CHECK-SPIR: call float @llvm.fpbuiltin.tan.f32(float {{.*}})  #[[ATTR_SYCL2]]
 
 // CHECK-LABEL: define dso_local void @f3
 // CHECK: call float @fake_exp10(float {{.*}})
