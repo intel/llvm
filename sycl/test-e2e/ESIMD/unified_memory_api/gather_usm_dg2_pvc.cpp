@@ -1,18 +1,18 @@
-//==------- gather_usm_pvc.cpp - DPC++ ESIMD on-device test ----------------==//
+//==------- gather_usm_dg2_pvc.cpp - DPC++ ESIMD on-device test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// RUN: %{build} -o %t.out
+// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies esimd::gather() functions accepting USM pointer
 // and optional compile-time esimd::properties.
 // The gather() calls in this test use either cache-hint properties
-// or VS > 1 (number of loads per offset) and require PVC to run.
+// or VS > 1 (number of loads per offset) and require DG2 or PVC to run.
 
 #include "Inputs/gather.hpp"
 
@@ -20,7 +20,10 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  constexpr auto TestFeatures = TestFeatures::PVC;
+  // DG2 and PVC support same gather() configurations. If some gather call 
+  // has corresponding instructions in PVC and does not have it in DG2, then
+  // GPU RT emulates it for DG2.
+  constexpr auto TestFeatures = TestFeatures::DG2;
   bool Passed = true;
 
   Passed &= testUSM<int8_t, TestFeatures>(Q);

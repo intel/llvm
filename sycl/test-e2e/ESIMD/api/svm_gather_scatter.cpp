@@ -123,7 +123,6 @@ int main(void) {
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 #endif
-
   if (Dev.has(aspect::fp16)) {
     Pass &= test<half, 1>(Q);
 #ifndef USE_SCALAR_OFFSET
@@ -134,6 +133,7 @@ int main(void) {
     Pass &= test<half, 32>(Q);
 #endif
   }
+
   Pass &= test<bfloat16, 1>(Q);
 #ifndef USE_SCALAR_OFFSET
   Pass &= test<bfloat16, 2>(Q);
@@ -152,6 +152,7 @@ int main(void) {
   Pass &= test<tfloat32, 32>(Q);
 #endif
 #endif
+
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;
 }

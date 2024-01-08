@@ -205,9 +205,9 @@ constexpr bool isMaskedGatherScatterLLVMAvailable() {
 /// simd<T, N> gather(const T *p, simd<OffsetT, N / VS> byte_offsets,
 ///                   PropertyListT props = {});                   // (usm-ga-3)
 ///
-/// The next 3 functions are similar to the above and added for convenience.
-/// They assume the VS parameter is set to 1 and do not require specifying
-/// the template parameters <T, N, VS> at function calls.
+/// The next 3 functions are similar to the above and were added for
+/// convenience. They assume the VS parameter is set to 1 and do not require
+/// specifying the template parameters <T, N, VS> at function calls.
 /// template <typename T, int N, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(const T *p, simd<OffsetT, N> byte_offsets,
@@ -218,8 +218,8 @@ constexpr bool isMaskedGatherScatterLLVMAvailable() {
 /// simd<T, N> gather(const T *p, simd<OffsetT, N> byte_offsets,
 ///                   PropertyListT props = {});                   // (usm-ga-6)
 ///
-/// The next 5 functions are variations of the first 3 above (usm-ga-1,2,3)
-/// and added only to support simd_view instead of simd for byte_offsets
+/// The next 3 functions are variations of the first 3 above (usm-ga-1,2,3)
+/// and were added only to support simd_view instead of simd for byte_offsets
 /// and/or pass_thru operands.
 /// template <typename T, int N, int VS = 1, typename OffsetObjT,
 ///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
@@ -243,7 +243,7 @@ constexpr bool isMaskedGatherScatterLLVMAvailable() {
 /// Supported platforms: DG2, PVC only - Temporary restriction for the variant
 /// with pass_thru operand.
 #endif // __ESIMD_GATHER_SCATTER_LLVM_IR
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -286,8 +286,8 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
 
-  // Use LSC lowering if L1/L2 or VS > 1 requires that. Also, if masked
-  // gather is not available, then LSC is the only lowering option.
+  // Use LSC lowering if L1/L2 or VS > 1. Also, if masked gather is
+  // not available, then LSC is the only lowering option.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 VS > 1 || !detail::isMaskedGatherScatterLLVMAvailable()) {
     static_assert(VS == 1 || sizeof(T) >= 4,
@@ -311,7 +311,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 /// simd<T, N> gather(const T *p, simd<OffsetT, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask,
 ///                   PropertyListT props = {});                   // (usm-ga-2)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -380,7 +380,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(const T *p, simd<OffsetT, N / VS> byte_offsets,
 ///                   PropertyListT props = {});                   // (usm-ga-3)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// @tparam T Element type.
@@ -410,7 +410,7 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets,
 /// simd<T, N> gather(const T *p, simd<OffsetT, N> byte_offsets,
 ///                   simd_mask<N> mask, simd<T, N> pass_thru,
 ///                   PropertyListT props = {});                   // (usm-ga-4)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -444,7 +444,7 @@ gather(const T *p, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(const T *p, simd<OffsetT, N> byte_offsets,
 ///                   simd_mask<N> mask, PropertyListT props = {});// (usm-ga-5)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -476,7 +476,7 @@ gather(const T *p, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(const T *p, simd<OffsetT, N> byte_offsets,
 ///                   PropertyListT props = {});                   // (usm-ga-6)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// @tparam T Element type.
@@ -503,7 +503,7 @@ gather(const T *p, simd<OffsetT, N> byte_offsets, PropertyListT props = {}) {
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///             PropertyListT props = {});                         // (usm-ga-7)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -533,15 +533,13 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
        simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {}) {
-  static_assert(std::is_integral_v<typename OffsetRegionT::element_type>,
-                "Unsupported offset type");
   return gather<T, N, VS>(p, byte_offsets.read(), mask, pass_thru, props);
 }
 
 /// simd <T, N> gather(const T *p,
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-ga-8)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// Access to any element's memory location can be disabled via the input vector
@@ -575,7 +573,7 @@ gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 /// simd <T, N> gather(const T *p,
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 ///             PropertyListT props = {});                         // (usm-ga-9)
-/// Loads ("gathers") elements ov the type 'T' from memory locations addressed
+/// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the base pointer \p p and byte offsets \p byte_offsets, and returns
 /// the loaded elements.
 /// @tparam T Element type.
