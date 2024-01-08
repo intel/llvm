@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_70 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
@@ -99,6 +99,8 @@ int main() {
   } else if (ComputeCapability >= 7.0) {
     std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
               std::back_inserter(expected_combinations));
+  } else {
+    return 0;
   }
 
   std::vector<combination> actual_combinations =
