@@ -71,7 +71,6 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
-  return {};
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

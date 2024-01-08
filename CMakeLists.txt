@@ -48,6 +48,9 @@ option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace 
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
+option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
+
+include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

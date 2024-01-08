@@ -24,7 +24,7 @@ constexpr auto operator""_GB(unsigned long long x) -> size_t {
     return x * 1024 * 1024 * 1024;
 }
 
-DisjointPoolAllConfigs::DisjointPoolAllConfigs() {
+DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
     Configs[DisjointPoolMemType::Host].name = "Host";
     Configs[DisjointPoolMemType::Device].name = "Device";
     Configs[DisjointPoolMemType::Shared].name = "Shared";
@@ -58,10 +58,14 @@ DisjointPoolAllConfigs::DisjointPoolAllConfigs() {
     Configs[DisjointPoolMemType::SharedReadOnly].MaxPoolableSize = 4_MB;
     Configs[DisjointPoolMemType::SharedReadOnly].Capacity = 4;
     Configs[DisjointPoolMemType::SharedReadOnly].SlabMinSize = 2_MB;
+
+    for (auto &Config : Configs) {
+        Config.PoolTrace = trace;
+    }
 }
 
 DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
-                                               bool trace) {
+                                               int trace) {
     DisjointPoolAllConfigs AllConfigs;
 
     // TODO: replace with UR ENV var parser and avoid creating a copy of 'config'
