@@ -1005,7 +1005,7 @@ public:
   }
 
 private:
-  /// Rewrite sycl.cast() to a LLVM bitcast operation.
+  /// Rewrite sycl.cast() to a NOP.
   LogicalResult rewriteCast(SYCLCastOp op, OpAdaptor opAdaptor,
                             ConversionPatternRewriter &rewriter) const {
     LLVM_DEBUG(llvm::dbgs() << "CastPattern: Rewriting op: "; op.dump();

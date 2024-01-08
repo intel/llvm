@@ -108,10 +108,6 @@ LLVM::AllocaOp LLVMBuilder::genAlloca(Type type, Type elemType, Value size,
   return create<LLVM::AllocaOp>(type, elemType, size, align);
 }
 
-LLVM::BitcastOp LLVMBuilder::genBitcast(Type type, Value val) const {
-  return create<LLVM::BitcastOp>(type, val);
-}
-
 LLVM::ExtractValueOp
 LLVMBuilder::genExtractValue(Type type, Value container,
                              ArrayRef<int64_t> position) const {

@@ -1137,10 +1137,6 @@ bool Mem2Reg::forwardStoreToLoad(
         list.emplace_back((Value)co, true);
         continue;
       }
-      if (auto co = dyn_cast<mlir::LLVM::BitcastOp>(user)) {
-        list.emplace_back((Value)co, modified);
-        continue;
-      }
       if (auto co = dyn_cast<mlir::LLVM::AddrSpaceCastOp>(user)) {
         list.emplace_back((Value)co, modified);
         continue;
@@ -1315,8 +1311,6 @@ bool Mem2Reg::forwardStoreToLoad(
                   else if (auto co =
                                val.getDefiningOp<polygeist::Pointer2MemrefOp>())
                     val = co.getSource();
-                  else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
-                    val = co.getArg();
                   else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
                     val = co.getArg();
                   else if (auto co = val.getDefiningOp<LLVM::GEPOp>())

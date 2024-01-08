@@ -74,7 +74,6 @@ public:
 
   LLVM::AllocaOp genAlloca(Type type, Type elemType, Value size,
                            int64_t align) const;
-  LLVM::BitcastOp genBitcast(Type type, Value val) const;
   LLVM::ExtractValueOp genExtractValue(Type type, Value container,
                                        ArrayRef<int64_t> pos) const;
   LLVM::CallOp genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,

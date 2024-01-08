@@ -496,38 +496,11 @@ ValueCategory ValueCategory::IntToPtr(OpBuilder &Builder, Location Loc,
   return Cast<LLVM::IntToPtrOp>(Builder, Loc, DestTy, ElemTy);
 }
 
-ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
-                                     Type DestTy, Type ElemTy) const {
-  assert(mlirclang::isFirstClassType(val.getType()) &&
-         "Expecting first class type");
-  assert(mlirclang::isFirstClassType(DestTy) && "Expecting first class type");
-  assert(!mlirclang::isAggregateType(val.getType()) &&
-         "Not expecting aggregate type");
-  assert(!mlirclang::isAggregateType(DestTy) && "Not expecting aggregate type");
-  assert((!mlirclang::isPointerOrMemRefTy(val.getType()) ||
-          mlirclang::isPointerOrMemRefTy(DestTy)) &&
-         "Cannot cast pointers to anything but pointers");
-  assert((mlirclang::isPointerOrMemRefTy(val.getType()) ||
-          mlirclang::getPrimitiveSizeInBits(val.getType()) ==
-              mlirclang::getPrimitiveSizeInBits(DestTy)) &&
-         "Expecting equal bitwidth");
-  assert((!mlirclang::isPointerOrMemRefTy(val.getType()) ||
-          mlirclang::getAddressSpace(val.getType()) ==
-              mlirclang::getAddressSpace(DestTy)) &&
-         "Expecting equal address spaces");
-  assert((!(isa<mlir::VectorType>(val.getType()) &&
-            isa<mlir::VectorType>(DestTy)) ||
-          cast<mlir::VectorType>(val.getType()).getNumElements() ==
-              cast<mlir::VectorType>(DestTy).getNumElements()) &&
-         "Expecting same number of elements");
-  assert((!isa<mlir::VectorType>(val.getType()) ||
-          cast<mlir::VectorType>(val.getType()).getNumElements() == 1) &&
-         "Expecting single-element vector");
-  assert((!isa<mlir::VectorType>(DestTy) ||
-          cast<mlir::VectorType>(DestTy).getNumElements() == 1) &&
-         "Expecting single-element vector");
-
-  return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy, ElemTy);
+ValueCategory ValueCategory::BitCast(Type ElemTy) const {
+  assert(isa<LLVM::LLVMPointerType>(val.getType()) && "Expecting pointer type");
+  // No operation is needed in an opaque pointer world, so we simply change the
+  // element type.
+  return {val, isReference, ElemTy};
 }
 
 ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
