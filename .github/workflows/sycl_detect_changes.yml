@@ -47,15 +47,30 @@ jobs:
               - *libclc
               - 'sycl/*'
               - 'sycl/!(test-e2e|doc)/**'
-            mlir_sycl: &mlir_sycl
+            mlir: &mlir
+              - *llvm
               - 'mlir/**'
-              - 'mlir-sycl/**'
-              - 'polygeist/**'
+            polygeist_dialect: &polygeist_dialect
+              - 'polygeist/include/**'
+              - 'polygeist/lib/**'
+            sycl_dialect: &sycl_dialect
+              - 'mlir-sycl/include/**'
+              - 'mlir-sycl/lib/**'
             polygeist: &polygeist
-              - *mlir_sycl
+              - *mlir
+              - *polygeist_dialect
+              - *sycl_dialect
+              - 'polygeist/test/**'
+              - 'polygeist/unittests/**'
+            mlir_sycl: &mlir_sycl
+              - *mlir
+              - *sycl_dialect
+              - *polygeist_dialect
+              - 'mlir-sycl/**'
             cgeist: &cgeist
-              - *polygeist
+              - *mlir_sycl
               - *sycl
+              - 'polygeist/tools/cgeist/**'
             ci:
               - .github/workflows/**
               # devops/* contains config files, including drivers versions.
@@ -76,6 +91,6 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "mlir_sycl", "polygeist", "cgeist", "ci"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "mlir", "mlir_sycl", "polygeist", "cgeist", "ci"];
 
       - run: echo '${{ steps.result.outputs.result }}'

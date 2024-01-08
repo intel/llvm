@@ -38,7 +38,7 @@ on:
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
-        default: '[mlir_sycl, polygeist, cgeist, clang]'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice, mlir, polygeist, mlir_sycl, cgeist]'
         required: false
       merge_ref:
         description: |
@@ -66,7 +66,7 @@ on:
         type: choice
         options:
           - "[]"
-          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice, mlir, polygeist, mlir_sycl, cgeist]'
       build_image:
         type: choice
         options:
@@ -180,6 +180,11 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target polygeist-doc
     # TODO allow to optionally disable in-tree checks
+    - name: check-mlir
+      shell: bash
+      if: always() && !cancelled() && contains(inputs.changes, 'mlir')
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-mlir
     - name: check-mlir-sycl
       shell: bash
       if: always() && !cancelled() && contains(inputs.changes, 'mlir_sycl')
