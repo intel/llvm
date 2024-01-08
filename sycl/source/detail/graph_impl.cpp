@@ -414,13 +414,13 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
     return Handler.MSubgraphNode;
   }
 
-  node_type NodeType;
-  if (auto UserFacingType = Handler.MImpl->MUserFacingNodeType;
-      UserFacingType != node_type::empty) {
-    NodeType = UserFacingType;
-  } else {
-    NodeType = getNodeTypeFromCG(Handler.MCGType);
-  }
+  node_type NodeType =
+      Handler.MImpl->MUserFacingNodeType !=
+              ext::oneapi::experimental::node_type::empty
+          ? Handler.MImpl->MUserFacingNodeType
+          : ext::oneapi::experimental::detail::getNodeTypeFromCG(
+                Handler.MCGType);
+
   auto NodeImpl = this->add(NodeType, std::move(Handler.MGraphNodeCG), Dep);
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
