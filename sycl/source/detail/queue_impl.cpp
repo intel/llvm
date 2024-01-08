@@ -423,10 +423,13 @@ event queue_impl::memcpyFromDeviceGlobal(
       Self, {});
 }
 
-event queue_impl::getLastEvent() const {
+event queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
-  return MDiscardEvents ? createDiscardedEvent()
-                        : detail::createSyclObjFromImpl<event>(MLastEventPtr);
+  if (MDiscardEvents)
+    return createDiscardedEvent();
+  if (!MLastEventPtr)
+    MLastEventPtr = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(MLastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {

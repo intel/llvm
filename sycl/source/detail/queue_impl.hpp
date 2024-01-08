@@ -211,7 +211,7 @@ public:
 #endif
   }
 
-  event getLastEvent() const;
+  event getLastEvent();
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
