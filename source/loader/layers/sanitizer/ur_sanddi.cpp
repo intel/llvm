@@ -222,6 +222,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                                  LaunchInfo, numWork));
     if (hPreEvent) {
         hEvents.push_back(hPreEvent);
+    }
 
     ur_event_handle_t hEvent{};
     ur_result_t result = pfnKernelLaunch(
