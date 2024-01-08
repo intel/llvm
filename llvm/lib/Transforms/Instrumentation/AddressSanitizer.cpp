@@ -1301,7 +1301,7 @@ static void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
     auto *FileNameGV =
         GetOrCreateGlobalString(*M, "__asan_file", FileName, ConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, I8PtrTy));
-    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), DB.getLine()));
+    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
     Args.push_back(ConstantPointerNull::get(I8PtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
@@ -1897,7 +1897,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *, 5> Args;
+        SmallVector<Value *> Args;
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
         IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex],
@@ -1969,7 +1969,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *, 6> Args;
+        SmallVector<Value *> Args;
         Args.push_back(AddrLong);
         Args.push_back(Size);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
