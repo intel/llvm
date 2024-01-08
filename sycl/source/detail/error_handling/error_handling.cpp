@@ -1,4 +1,4 @@
-//===------------------- enqueue_kernel.cpp ---------------------*- C++ -*-===//
+//===------------------- error_handling.cpp ---------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -54,9 +54,15 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       sizeof(size_t) * 3, CompileWGSize, nullptr);
 
   size_t MaxWGSize = 0;
-  Plugin->call<PiApiKind::piDeviceGetInfo>(Device,
-                                           PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                           sizeof(size_t), &MaxWGSize, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          Device, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t),
+          &MaxWGSize, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
 
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -97,9 +103,14 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
+    Result = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
         MaxThreadsPerBlock, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
     for (size_t I = 0; I < 3; ++I) {
       if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
@@ -191,17 +202,42 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           // given by local_work_size
 
           pi_program Program = nullptr;
-          Plugin->call<PiApiKind::piKernelGetInfo>(
-              Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(pi_program), &Program,
-              nullptr);
+          sycl::detail::pi::PiResult Result =
+              Plugin->call_nocheck<PiApiKind::piKernelGetInfo>(
+                  Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(pi_program), &Program,
+                  nullptr);
+          if (Result == PI_ERROR_INVALID_OPERATION) {
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::feature_not_supported),
+                "Kernel get info command not supported by backend.");
+          } else {
+            Plugin->checkPiResult(Result);
+          }
           size_t OptsSize = 0;
-          Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+
+          Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
               Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr,
               &OptsSize);
+          if (Result == PI_ERROR_INVALID_OPERATION) {
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::feature_not_supported),
+                "Program get build info command not supported by backend.");
+          } else {
+            Plugin->checkPiResult(Result);
+          }
+
           std::string Opts(OptsSize, '\0');
-          Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+          Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
               Program, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, OptsSize,
               &Opts.front(), nullptr);
+          if (Result == PI_ERROR_INVALID_OPERATION) {
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::feature_not_supported),
+                "Program get build info command not supported by backend.");
+          } else {
+            Plugin->checkPiResult(Result);
+          }
+
           const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;
           const bool RequiresUniformWGSize =
               Opts.find("-cl-uniform-work-group-size") != std::string::npos;
@@ -309,16 +345,24 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
   size_t MaxWISize[] = {0, 0, 0};
 
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
-      Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
-      nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          Device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize),
+          &MaxWISize, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
+
   for (unsigned I = 0; I < NDRDesc.Dims; I++) {
-    if (NDRDesc.LocalSize[I] > MaxWISize[I])
+    if (NDRDesc.LocalSize[I] > MaxWISize[I]) {
       throw sycl::nd_range_error(
           "Number of work-items in a work-group exceed limit for dimension " +
               std::to_string(I) + " : " + std::to_string(NDRDesc.LocalSize[I]) +
               " > " + std::to_string(MaxWISize[I]),
           PI_ERROR_INVALID_WORK_ITEM_SIZE);
+    }
   }
 }
 
@@ -328,17 +372,25 @@ void handleInvalidValue(const device_impl &DeviceImpl,
   sycl::detail::pi::PiDevice Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
-      Device, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(MaxNWGs),
-      &MaxNWGs, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          Device, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(MaxNWGs),
+          &MaxNWGs, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
+
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
-    if (NWgs > MaxNWGs[I])
+    if (NWgs > MaxNWGs[I]) {
       throw sycl::nd_range_error(
           "Number of work-groups exceed limit for dimension " +
               std::to_string(I) + " : " + std::to_string(NWgs) + " > " +
               std::to_string(MaxNWGs[I]),
           PI_ERROR_INVALID_VALUE);
+    }
   }
 
   // fallback

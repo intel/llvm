@@ -42,16 +42,38 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   sycl::detail::pi::PiContext Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
-  Plugin->call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
-      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
-      &MInteropMemObject);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+          MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
+          &MInteropMemObject);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   // Get the size of the buffer in bytes
-  Plugin->call<detail::PiApiKind::piMemGetInfo>(
+  Result = Plugin->call_nocheck<detail::PiApiKind::piMemGetInfo>(
       MInteropMemObject, PI_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
-  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
-                                        sizeof(Context), &Context, nullptr);
+  Result = Plugin->call_nocheck<PiApiKind::piMemGetInfo>(
+      MInteropMemObject, PI_MEM_CONTEXT, sizeof(Context), &Context, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
@@ -106,12 +128,28 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   Desc.num_samples = 0;
   Desc.buffer = nullptr;
 
-  Plugin->call<detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
+  sycl::detail::pi::PiResult Result = Plugin->call_nocheck<
+      detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), OwnNativeHandle, &Format,
       &Desc, &MInteropMemObject);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem image create with native handle command not supported by "
+        "backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
-  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
-                                        sizeof(Context), &Context, nullptr);
+  Result = Plugin->call_nocheck<PiApiKind::piMemGetInfo>(
+      MInteropMemObject, PI_MEM_CONTEXT, sizeof(Context), &Context, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
@@ -177,9 +215,17 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   size_t BufSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin->call<detail::PiApiKind::piMemGetInfo>(
-      detail::pi::cast<sycl::detail::pi::PiMem>(MemObject), PI_MEM_SIZE,
-      sizeof(size_t), &BufSize, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piMemGetInfo>(
+          detail::pi::cast<sycl::detail::pi::PiMem>(MemObject), PI_MEM_SIZE,
+          sizeof(size_t), &BufSize, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return BufSize;
 }
 

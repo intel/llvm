@@ -67,16 +67,31 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
   // Manual invocation of plugin API to avoid using deprecated
   // info::platform::extensions call.
   size_t ResultSize = 0;
-  Plugin->call<PiApiKind::piPlatformGetInfo>(
-      PluginPlatform, PI_PLATFORM_INFO_EXTENSIONS, /*param_value_size=*/0,
-      /*param_value_size=*/nullptr, &ResultSize);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+          PluginPlatform, PI_PLATFORM_INFO_EXTENSIONS, /*param_value_size=*/0,
+          /*param_value_size=*/nullptr, &ResultSize);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   if (ResultSize == 0)
     return false;
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call<PiApiKind::piPlatformGetInfo>(PluginPlatform,
-                                             PI_PLATFORM_INFO_EXTENSIONS,
-                                             ResultSize, Result.get(), nullptr);
+  PiResult = Plugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+      PluginPlatform, PI_PLATFORM_INFO_EXTENSIONS, ResultSize, Result.get(),
+      nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;
@@ -98,16 +113,28 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
   // Manual invocation of plugin API to avoid using deprecated
   // info::device::extensions call.
   size_t ResultSize = 0;
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
-      PluginDevice, PI_DEVICE_INFO_EXTENSIONS, /*param_value_size=*/0,
-      /*param_value_size=*/nullptr, &ResultSize);
-  if (ResultSize == 0)
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          PluginDevice, PI_DEVICE_INFO_EXTENSIONS, /*param_value_size=*/0,
+          /*param_value_size=*/nullptr, &ResultSize);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
+  if (ResultSize == 0) {
     return false;
+  }
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call<PiApiKind::piDeviceGetInfo>(PluginDevice,
-                                           PI_DEVICE_INFO_EXTENSIONS,
-                                           ResultSize, Result.get(), nullptr);
+  PiResult = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+      PluginDevice, PI_DEVICE_INFO_EXTENSIONS, ResultSize, Result.get(),
+      nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;

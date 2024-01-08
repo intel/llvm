@@ -266,8 +266,16 @@ static void getImageInfo(const ContextImplPtr Context,
   const PluginPtr &Plugin = Context->getPlugin();
   sycl::detail::pi::PiMem Mem =
       pi::cast<sycl::detail::pi::PiMem>(InteropMemObject);
-  Plugin->call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                             nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T),
+                                                         &Dest, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem image get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -281,8 +289,16 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
       pi::cast<sycl::detail::pi::PiMem>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
-                                        &(BaseT::MSizeInBytes), nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piMemGetInfo>(
+          Mem, PI_MEM_SIZE, sizeof(size_t), &(BaseT::MSizeInBytes), nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   sycl::detail::pi::PiMemImageFormat Format;
   getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format, Mem);

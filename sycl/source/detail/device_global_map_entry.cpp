@@ -31,7 +31,15 @@ OwnedPiEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
             *MInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call<PiApiKind::piEventRelease>(*MInitEvent);
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piEventRelease>(*MInitEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Event release command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
       MInitEvent = {};
       return OwnedPiEvent(Plugin);
     } else {
@@ -98,9 +106,18 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
-      if (USMMem.MInitEvent.has_value())
-        CtxImpl->getPlugin()->call<PiApiKind::piEventRelease>(
-            *USMMem.MInitEvent);
+      if (USMMem.MInitEvent.has_value()) {
+        sycl::detail::pi::PiResult Result =
+            CtxImpl->getPlugin()->call_nocheck<PiApiKind::piEventRelease>(
+                *USMMem.MInitEvent);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Event release command not supported by backend.");
+        } else {
+          CtxImpl->getPlugin()->checkPiResult(Result);
+        }
+      }
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.

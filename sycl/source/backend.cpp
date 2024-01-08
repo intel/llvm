@@ -72,8 +72,16 @@ platform make_platform(pi_native_handle NativeHandle, backend Backend) {
 
   // Create PI platform first.
   pi::PiPlatform PiPlatform = nullptr;
-  Plugin->call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
-                                                               &PiPlatform);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextPlatformCreateWithNativeHandle>(
+          NativeHandle, &PiPlatform);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   return detail::createSyclObjFromImpl<platform>(
       platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin));
@@ -84,8 +92,16 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiDevice PiDevice = nullptr;
-  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-      NativeHandle, nullptr, &PiDevice);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextDeviceCreateWithNativeHandle>(
+          NativeHandle, nullptr, &PiDevice);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   // Construct the SYCL device from PI device.
   return detail::createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(PiDevice, Plugin));
@@ -97,8 +113,16 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiContext PiContext = nullptr;
-  Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
-      NativeHandle, 0, nullptr, false, &PiContext);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextContextCreateWithNativeHandle>(
+          NativeHandle, 0, nullptr, false, &PiContext);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Context create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
@@ -130,9 +154,18 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
-  Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
-      !KeepOwnership, Properties, &PiQueue);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextQueueCreateWithNativeHandle>(
+          NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
+          !KeepOwnership, Properties, &PiQueue);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Queue create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler, PropList));
@@ -150,8 +183,16 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   pi::PiEvent PiEvent = nullptr;
-  Plugin->call<PiApiKind::piextEventCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextEventCreateWithNativeHandle>(
+          NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
@@ -168,27 +209,60 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   pi::PiProgram PiProgram = nullptr;
-  Plugin->call<PiApiKind::piextProgramCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiProgram);
-  if (ContextImpl->getBackend() == backend::opencl)
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextProgramCreateWithNativeHandle>(
+          NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership,
+          &PiProgram);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+  if (ContextImpl->getBackend() == backend::opencl) {
     Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
+  }
 
   std::vector<pi::PiDevice> ProgramDevices;
   uint32_t NumDevices = 0;
 
-  Plugin->call<PiApiKind::piProgramGetInfo>(
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
       PiProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
       nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   ProgramDevices.resize(NumDevices);
-  Plugin->call<PiApiKind::piProgramGetInfo>(PiProgram, PI_PROGRAM_INFO_DEVICES,
-                                            sizeof(pi::PiDevice) * NumDevices,
-                                            ProgramDevices.data(), nullptr);
+
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+      PiProgram, PI_PROGRAM_INFO_DEVICES, sizeof(pi::PiDevice) * NumDevices,
+      ProgramDevices.data(), nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   for (const auto &Dev : ProgramDevices) {
     size_t BinaryType = 0;
-    Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+    Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
         PiProgram, Dev, PI_PROGRAM_BUILD_INFO_BINARY_TYPE, sizeof(size_t),
         &BinaryType, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get build info command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
+
     switch (BinaryType) {
     case (PI_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object)
@@ -280,12 +354,21 @@ kernel make_kernel(const context &TargetContext,
 
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
-  Plugin->call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), PiProgram, !KeepOwnership,
-      &PiKernel);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextKernelCreateWithNativeHandle>(
+          NativeHandle, ContextImpl->getHandleRef(), PiProgram, !KeepOwnership,
+          &PiKernel);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel create with native handle not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
-  if (Backend == backend::opencl)
+  if (Backend == backend::opencl) {
     Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
+  }
 
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<kernel>(

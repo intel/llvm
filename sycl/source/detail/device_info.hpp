@@ -138,9 +138,15 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 template <typename ReturnT, typename Param> struct get_device_info_impl {
   static ReturnT get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<ReturnT>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result),
+            &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return ReturnT(result);
   }
 };
@@ -149,9 +155,15 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 template <typename Param> struct get_device_info_impl<platform, Param> {
   static platform get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<platform>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result),
+            &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     // TODO: Change PiDevice to device_impl.
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
@@ -165,14 +177,26 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 inline std::string device_impl::get_device_info_string(
     sycl::detail::pi::PiDeviceInfo InfoCode) const {
   size_t resultSize = 0;
-  getPlugin()->call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                                nullptr, &resultSize);
+  sycl::detail::pi::PiResult PiResult =
+      getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          getHandleRef(), InfoCode, 0, nullptr, &resultSize);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
   if (resultSize == 0) {
     return std::string();
   }
+
   std::unique_ptr<char[]> result(new char[resultSize]);
-  getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+  getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
       getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
 
   return std::string(result.get());
 }
@@ -201,9 +225,15 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
       return {};
     }
     cl_device_fp_config result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result),
+            &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return read_fp_bitfield(result);
   }
 };
@@ -222,9 +252,16 @@ struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
     pi_device_fp_config result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::single_fp_config>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::single_fp_config>::value, sizeof(result),
+            &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return read_fp_bitfield(result);
   }
 };
@@ -235,9 +272,16 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_queue_properties Properties;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::queue_profiling>::value,
+            sizeof(Properties), &Properties, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
@@ -248,10 +292,16 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     pi_memory_order_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
+            sizeof(pi_memory_order_capabilities), &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return readMemoryOrderBitfield(result);
   }
 };
@@ -262,10 +312,16 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     pi_memory_order_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
+            sizeof(pi_memory_order_capabilities), &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return readMemoryOrderBitfield(result);
   }
 };
@@ -276,10 +332,16 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     pi_memory_scope_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
+            sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return readMemoryScopeBitfield(result);
   }
 };
@@ -290,10 +352,16 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     pi_memory_scope_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
+            sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     return readMemoryScopeBitfield(result);
   }
 };
@@ -305,13 +373,15 @@ struct get_device_info_impl<bool,
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
 
-    sycl::detail::pi::PiResult Err =
+    sycl::detail::pi::PiResult PiResult =
         Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
             Dev->getHandleRef(),
             PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
             sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
     }
     return result;
   }
@@ -323,10 +393,17 @@ struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
     pi_device_exec_capabilities result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::execution_capabilities>::value, sizeof(result),
-        &result, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::execution_capabilities>::value,
+            sizeof(result), &result, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return read_execution_bitfield(result);
   }
 };
@@ -392,18 +469,30 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     const auto &Plugin = Dev->getPlugin();
 
     size_t resultSize;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
+    sycl::detail::pi::PiResult PiResult =
+        Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
     if (arrayLength == 0) {
       return {};
     }
+
     std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    Plugin->call<PiApiKind::piDeviceGetInfo>(Dev->getHandleRef(),
-                                             info_partition, resultSize,
-                                             arrayResult.get(), nullptr);
+    PiResult = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), info_partition, resultSize, arrayResult.get(),
+        nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
     std::vector<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
@@ -425,10 +514,17 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
     pi_device_affinity_domain result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::partition_affinity_domains>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::partition_affinity_domains>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return read_domain_bitfield(result);
   }
 };
@@ -440,18 +536,31 @@ struct get_device_info_impl<info::partition_affinity_domain,
                             info::device::partition_type_affinity_domain> {
   static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
     size_t resultSize;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::partition_type_affinity_domain>::value, 0,
-        nullptr, &resultSize);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::partition_type_affinity_domain>::value, 0,
+            nullptr, &resultSize);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     if (resultSize != 1) {
       return info::partition_affinity_domain::not_applicable;
     }
+
     cl_device_partition_property result;
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::partition_type_affinity_domain>::value,
         sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     if (result == PI_DEVICE_AFFINITY_DOMAIN_NUMA ||
         result == PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
         result == PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
@@ -470,21 +579,36 @@ struct get_device_info_impl<info::partition_property,
                             info::device::partition_type_property> {
   static info::partition_property get(const DeviceImplPtr &Dev) {
     size_t resultSize;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
-        &resultSize);
-    if (!resultSize)
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
+            &resultSize);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+    if (!resultSize) {
       return info::partition_property::no_partition;
+    }
 
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
 
     std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, resultSize,
         arrayResult.get(), nullptr);
-    if (!arrayResult[0])
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
+    if (!arrayResult[0]) {
       return info::partition_property::no_partition;
+#
+    }
     return info::partition_property(arrayResult[0]);
   }
 };
@@ -494,14 +618,27 @@ struct get_device_info_impl<std::vector<size_t>,
                             info::device::sub_group_sizes> {
   static std::vector<size_t> get(const DeviceImplPtr &Dev) {
     size_t resultSize = 0;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
-        0, nullptr, &resultSize);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::sub_group_sizes>::value, 0, nullptr,
+            &resultSize);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
     std::vector<size_t> result(resultSize / sizeof(size_t));
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    PiResult = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         resultSize, result.data(), nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return result;
   }
 };
@@ -549,10 +686,17 @@ struct get_device_info_impl<range<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
   static range<Dimensions> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return construct_range<Dimensions>(result);
   }
 };
@@ -652,6 +796,8 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::architecture> {
   static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
     backend CurrentBackend = Dev->getBackend();
+    sycl::detail::pi::PiResult Result = PI_SUCCESS;
+
     if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
                           backend::opencl == CurrentBackend)) {
       auto MapArchIDToArchName = [](const int arch) {
@@ -664,12 +810,19 @@ struct get_device_info_impl<
             "The current device architecture is not supported by "
             "sycl_ext_oneapi_device_architecture.");
       };
+
       uint32_t DeviceIp;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+      Result = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(),
           PiInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Device get info command not supported by backend.");
+      }
+
       return MapArchIDToArchName(DeviceIp);
     } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                                  backend::ext_oneapi_hip == CurrentBackend)) {
@@ -683,17 +836,31 @@ struct get_device_info_impl<
             "The current device architecture is not supported by "
             "sycl_ext_oneapi_device_architecture.");
       };
+
       size_t ResultSize = 0;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+      Result = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
           nullptr, &ResultSize);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Device get info command not supported by backend.");
+      }
+
       std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+      Result = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Device get info command not supported by backend.");
+      }
+
       std::string DeviceArchCopy(DeviceArch.get());
       std::string DeviceArchSubstr =
           DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+
       return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       auto MapArchIDToArchName = [](const int arch) {
@@ -703,12 +870,19 @@ struct get_device_info_impl<
         }
         return sycl::ext::oneapi::experimental::architecture::x86_64;
       };
+
       uint32_t DeviceIp;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+      Result = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(),
           PiInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Device get info command not supported by backend.");
+      }
+
       return MapArchIDToArchName(DeviceIp);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
@@ -826,11 +1000,18 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<ext::oneapi::experimental::info::device::max_work_groups<
+                3>>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return id<1>(std::min(Limit, result[0]));
   }
 };
@@ -843,11 +1024,18 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<ext::oneapi::experimental::info::device::max_work_groups<
+                3>>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
   }
 };
@@ -860,11 +1048,18 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<ext::oneapi::experimental::info::device::max_work_groups<
+                3>>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
                  std::min(Limit, result[0]));
   }
@@ -922,9 +1117,16 @@ struct get_device_info_impl<id<3>,
 template <> struct get_device_info_impl<device, info::device::parent_device> {
   static device get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<device>::type result;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::parent_device>::value,
-        sizeof(result), &result, nullptr);
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<info::device::parent_device>::value,
+            sizeof(result), &result, nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     if (result == nullptr)
       throw invalid_object_error(
           "No parent for device because it is not a subdevice",
@@ -951,12 +1153,18 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_device_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_device_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::usm_device_allocations>::value,
+            sizeof(pi_usm_capabilities), &caps, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    return (Result != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -965,12 +1173,18 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_host_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_host_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::usm_host_allocations>::value,
+            sizeof(pi_usm_capabilities), &caps, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    return (Result != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -979,11 +1193,18 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_shared_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::usm_shared_allocations>::value,
+            sizeof(pi_usm_capabilities), &caps, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
+    return (Result != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -993,12 +1214,19 @@ struct get_device_info_impl<bool,
                             info::device::usm_restricted_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_restricted_shared_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::usm_restricted_shared_allocations>::value,
+            sizeof(pi_usm_capabilities), &caps, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     // Check that we don't support any cross device sharing
-    return (Err != PI_SUCCESS)
+    return (Result != PI_SUCCESS)
                ? false
                : !(caps & (PI_USM_ACCESS | PI_USM_CONCURRENT_ACCESS));
   }
@@ -1009,11 +1237,18 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<info::device::usm_system_allocations>::value,
-        sizeof(pi_usm_capabilities), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<info::device::usm_system_allocations>::value,
+            sizeof(pi_usm_capabilities), &caps, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
+    return (Result != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
 
@@ -1048,11 +1283,19 @@ struct get_device_info_impl<
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
   static uint32_t get(const DeviceImplPtr &Dev) {
     uint32_t maxRegsPerWG;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<ext::codeplay::experimental::info::device::
-                       max_registers_per_work_group>::value,
-        sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
+
+    sycl::detail::pi::PiResult Result =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<ext::codeplay::experimental::info::device::
+                           max_registers_per_work_group>::value,
+            sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     return maxRegsPerWG;
   }
 };
@@ -1065,16 +1308,28 @@ struct get_device_info_impl<
   static ext::oneapi::experimental::graph_support_level
   get(const DeviceImplPtr &Dev) {
     size_t ResultSize = 0;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-        &ResultSize);
-    if (ResultSize == 0)
+    sycl::detail::pi::PiResult PiResult =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+            &ResultSize);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+    if (ResultSize == 0) {
       return ext::oneapi::experimental::graph_support_level::unsupported;
+    }
 
     std::unique_ptr<char[]> Result(new char[ResultSize]);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    PiResult = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
         Result.get(), nullptr);
+    if (PiResult == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
 
     std::string_view ExtensionsString(Result.get());
     bool CmdBufferSupport =
