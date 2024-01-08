@@ -413,20 +413,42 @@ public:
 
     // Get the number of kernels in the program.
     size_t NumKernels;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
-        nullptr);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+            PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
+            nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get info command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
 
     // Get the kernel names.
     size_t KernelNamesSize;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
+    Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
         PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get info command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');
-    Plugin->call<PiApiKind::piProgramGetInfo>(
+    Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
         PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
         &KernelNamesStr[0], nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get info command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
 

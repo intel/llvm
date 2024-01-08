@@ -67,8 +67,14 @@ platform_impl::getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
   sycl::detail::pi::PiPlatform Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Plugin->call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
-                                           sizeof(Plt), &Plt, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          PiDevice, PI_DEVICE_INFO_PLATFORM, sizeof(Plt), &Plt, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
   return getOrMakePlatformImpl(Plt, Plugin);
 }
 
@@ -244,9 +250,17 @@ std::vector<int> platform_impl::filterDeviceFilter(
 
   // Find out backend of the platform
   sycl::detail::pi::PiPlatformBackend PiBackend;
-  MPlugin->call<PiApiKind::piPlatformGetInfo>(
-      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND,
-      sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
+  sycl::detail::pi::PiResult Result =
+      MPlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+          MPlatform, PI_EXT_PLATFORM_INFO_BACKEND,
+          sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get info command not supported by backend.");
+  } else {
+    MPlugin->checkPiResult(Result);
+  }
   backend Backend = convertBackend(PiBackend);
 
   int InsertIDx = 0;
@@ -256,9 +270,15 @@ std::vector<int> platform_impl::filterDeviceFilter(
   int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
   for (sycl::detail::pi::PiDevice Device : PiDevices) {
     sycl::detail::pi::PiDeviceType PiDevType;
-    MPlugin->call<PiApiKind::piDeviceGetInfo>(
-        Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
-        &PiDevType, nullptr);
+    sycl::detail::pi::PiResult Result =
+        MPlugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
+            &PiDevType, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
@@ -579,8 +599,16 @@ bool platform_impl::supports_usm() const {
 pi_native_handle platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
   pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(),
-                                                        &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextPlatformGetNativeHandle>(
+          getHandleRef(), &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 

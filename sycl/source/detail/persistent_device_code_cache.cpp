@@ -106,14 +106,29 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   unsigned int DeviceNum = 0;
 
-  Plugin->call<PiApiKind::piProgramGetInfo>(
-      NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
-      nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+          NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+          nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin->call<PiApiKind::piProgramGetInfo>(
+  PiResult = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 
   std::vector<std::vector<char>> Result;
   std::vector<char *> Pointers;
@@ -122,9 +137,17 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
-                                            sizeof(char *) * Pointers.size(),
-                                            Pointers.data(), nullptr);
+  PiResult = Plugin->call<PiApiKind::piProgramGetInfo>(
+      NativePrg, PI_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
+      Pointers.data(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
+
   size_t i = 0;
   std::string FileName;
   do {

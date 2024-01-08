@@ -125,7 +125,16 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
                    [](const EventImplPtr &EventImpl) {
                      return EventImpl->getHandleRef();
                    });
-    Plugin->call<PiApiKind::piEventsWait>(PiEvents.size(), &PiEvents[0]);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEventsWait>(PiEvents.size(),
+                                                      &PiEvents[0]);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Event wait command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -150,15 +159,32 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
       // When doing buffer interop we don't know what device the memory should
       // be resident on, so pass nullptr for Device param. Buffer interop may
       // not be supported by all backends.
-      Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(
-          *RetMem, /*Dev*/ nullptr, &Ptr);
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(
+              *RetMem, /*Dev*/ nullptr, &Ptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Mem buffer get native handle command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
 #endif
-    if (Size)
-      Plugin->call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr,
-                                                 RetMem, Props);
+    if (Size) {
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piMemBufferCreate>(
+              Ctx, Flags, Size, HostPtr, RetMem, Props);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Mem buffer create command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
+    }
   }
 }
 
@@ -177,8 +203,16 @@ void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem) {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
-                                                     &PtrHandle);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(
+            Mem, /*Dev*/ nullptr, &PtrHandle);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Mem get native handle command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
@@ -235,7 +269,15 @@ void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
-      Plugin->call_nocheck<PiApiKind::piEventsWait>(1, Event);
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piEventsWait>(1, Event);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Event wait command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
 #endif
@@ -338,9 +380,17 @@ void *MemoryManager::allocateImageObject(
 
   sycl::detail::pi::PiMem NewMem;
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  Plugin->call<PiApiKind::piMemImageCreate>(TargetContext->getHandleRef(),
-                                            CreationFlags, &Format, &Desc,
-                                            UserPtr, &NewMem);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piMemImageCreate>(
+          TargetContext->getHandleRef(), CreationFlags, &Format, &Desc, UserPtr,
+          &NewMem);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem image create command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return NewMem;
 }
 
@@ -443,21 +493,26 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   for (size_t I = 0; I < 3; ++I)
     SizeInBytes *= Range[I];
 
-  sycl::detail::pi::PiResult Error = PI_SUCCESS;
   pi_buffer_region_struct Region{Offset, SizeInBytes};
   sycl::detail::pi::PiMem NewMem;
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  Error = Plugin->call_nocheck<PiApiKind::piMemBufferPartition>(
-      pi::cast<sycl::detail::pi::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
-      PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
-  if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piMemBufferPartition>(
+          pi::cast<sycl::detail::pi::PiMem>(ParentMemObj),
+          PI_MEM_FLAGS_ACCESS_RW, PI_BUFFER_CREATE_TYPE_REGION, &Region,
+          &NewMem);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem bnuffer partition command not supported by backend.");
+  } else if (Result == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
         "multiple of the memory base address alignment",
         PI_ERROR_INVALID_VALUE);
 
-  if (Error != PI_SUCCESS) {
-    Plugin->reportPiError(Error, "allocateMemSubBuffer()");
+  if (Result != PI_SUCCESS) {
+    Plugin->reportPiError(Result, "allocateMemSubBuffer()");
   }
 
   return NewMem;
@@ -564,10 +619,19 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                                   DstAccessRange[DstPos.ZTerm]};
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueMemImageWrite>(
-        Queue, DstMem,
-        /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
-        InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEnqueueMemImageWrite>(
+            Queue, DstMem,
+            /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
+            InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue mem image buffer write command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -627,13 +691,24 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
                                             SrcAccessRange[SrcPos.YTerm],
                                             SrcAccessRange[SrcPos.ZTerm]};
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call<PiApiKind::piEnqueueMemBufferReadRect>(
-          Queue, SrcMem,
-          /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
-          BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-          DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piEnqueueMemBufferReadRect>(
+              Queue, SrcMem,
+              /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset,
+              &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
+              HostSlicePitch, DstMem, DepEvents.size(), DepEvents.data(),
+              &OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue mem image buffer read rect command not supported by "
+            "backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
     }
   } else {
     size_t RowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
@@ -646,11 +721,20 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    if (OutEventImpl != nullptr)
+    if (OutEventImpl != nullptr) {
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueMemImageRead>(
-        Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
-        DepEvents.size(), DepEvents.data(), &OutEvent);
+    }
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEnqueueMemImageRead>(
+            Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch,
+            DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue mem image buffer read command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -724,11 +808,20 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    if (OutEventImpl != nullptr)
+    if (OutEventImpl != nullptr) {
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueMemImageCopy>(
-        Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
-        DepEvents.size(), DepEvents.data(), &OutEvent);
+    }
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEnqueueMemImageCopy>(
+            Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
+            DepEvents.size(), DepEvents.data(), &OutEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue mem image buffer copy command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -949,11 +1042,20 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      SrcQueue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-          SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
-          OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          SrcQueue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+              OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        SrcQueue->getPlugin()->checkPiResult(Result);
+      }
     }
     return;
   }
@@ -990,10 +1092,20 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          Queue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              Queue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+              OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        Queue->getPlugin()->checkPiResult(Result);
+      }
     }
     return;
   }
@@ -1027,11 +1139,20 @@ void MemoryManager::prefetch_usm(
          "Host queue not supported in prefetch_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  if (OutEventImpl != nullptr)
+  if (OutEventImpl != nullptr) {
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call<PiApiKind::piextUSMEnqueuePrefetch>(
-      Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
-      DepEvents.size(), DepEvents.data(), OutEvent);
+  }
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextUSMEnqueuePrefetch>(
+          Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
+          DepEvents.size(), DepEvents.data(), OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue USM prefetch command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1051,10 +1172,19 @@ void MemoryManager::advise_usm(
          "Host queue not supported in advise_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  if (OutEventImpl != nullptr)
+  if (OutEventImpl != nullptr) {
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                    Length, Advice, OutEvent);
+  }
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextUSMEnqueueMemAdvise>(
+          Queue->getHandleRef(), Mem, Length, Advice, OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue USM advise command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1078,10 +1208,20 @@ void MemoryManager::copy_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          Queue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              Queue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+              OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        Queue->getPlugin()->checkPiResult(Result);
+      }
     }
     return;
   }
@@ -1102,9 +1242,19 @@ void MemoryManager::copy_2d_usm(
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // Direct memcpy2D is supported so we use this function.
-    Plugin->call<PiApiKind::piextUSMEnqueueMemcpy2D>(
-        Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
-        SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextUSMEnqueueMemcpy2D>(
+            Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch,
+            SrcMem, SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(),
+            OutEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue USM mem copy 2D command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
+
     return;
   }
 
@@ -1137,11 +1287,21 @@ void MemoryManager::copy_2d_usm(
     CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
                                    /*TakeOwnership=*/true);
   }
-  if (OutEventImpl != nullptr)
+  if (OutEventImpl != nullptr) {
     OutEventImpl->setHostEnqueueTime();
+  }
   // Then insert a wait to coalesce the copy events.
-  Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-      Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
+  sycl::detail::pi::PiResult Result =
+      Queue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+          Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(),
+          OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue events wait command not supported by backend.");
+  } else {
+    Queue->getPlugin()->checkPiResult(Result);
+  }
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1166,23 +1326,45 @@ void MemoryManager::fill_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          Queue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              Queue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+              OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        Queue->getPlugin()->checkPiResult(Result);
+      }
     }
     return;
   }
 
-  if (!DstMem)
+  if (!DstMem) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory fill operation.");
-  if (OutEventImpl != nullptr)
+  }
+
+  if (OutEventImpl != nullptr) {
     OutEventImpl->setHostEnqueueTime();
+  }
+
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextUSMEnqueueFill2D>(
-      Queue->getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
-      Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextUSMEnqueueFill2D>(
+          Queue->getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
+          Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue USM fill 2D command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 // TODO: This function will remain until ABI-breaking change
@@ -1206,10 +1388,20 @@ void MemoryManager::memset_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
+      if (OutEventImpl != nullptr) {
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+      }
+      sycl::detail::pi::PiResult Result =
+          Queue->getPlugin()->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              Queue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+              OutEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        Queue->getPlugin()->checkPiResult(Result);
+      }
     }
     return;
   }
@@ -1346,10 +1538,19 @@ static void memcpyToDeviceGlobalDirect(
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
-      false, NumBytes, Offset, Src, DepEvents.size(), DepEvents.data(),
-      OutEvent);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+          Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
+          false, NumBytes, Offset, Src, DepEvents.size(), DepEvents.data(),
+          OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue device global variable write command not supported by "
+        "backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 static void memcpyFromDeviceGlobalDirect(
@@ -1360,10 +1561,19 @@ static void memcpyFromDeviceGlobalDirect(
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
-      false, NumBytes, Offset, Dest, DepEvents.size(), DepEvents.data(),
-      OutEvent);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
+          Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
+          false, NumBytes, Offset, Dest, DepEvents.size(), DepEvents.data(),
+          OutEvent);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue device global variable read command not supported by "
+        "backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 void MemoryManager::copy_to_device_global(
@@ -1465,11 +1675,20 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferCopy>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), SrcXOffBytes,
-        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(),
-        OutSyncPoint);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferCopy>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+            SrcXOffBytes, DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(),
+            Deps.data(), OutSyncPoint);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Mem buffer copy command buffer command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   } else {
     // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
     // calculate both src and dest pitch using region[0], which is not correct
@@ -1491,11 +1710,21 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
                                       SrcAccessRange[SrcPos.YTerm],
                                       SrcAccessRange[SrcPos.ZTerm]};
 
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferCopyRect>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), &SrcOrigin,
-        &DstOrigin, &Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
-        DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferCopyRect>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem), &SrcOrigin,
+            &DstOrigin, &Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
+            DstSlicePitch, Deps.size(), Deps.data(), OutSyncPoint);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Mem buffer rect copy command buffer command not supported by "
+          "backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 

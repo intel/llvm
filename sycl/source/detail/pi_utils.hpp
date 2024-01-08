@@ -32,8 +32,15 @@ struct OwnedPiEvent {
   }
   ~OwnedPiEvent() {
     // Release the event if the ownership was not transferred.
-    if (MEvent.has_value())
-      MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
+    if (MEvent.has_value()) {
+      sycl::detail::pi::PiResult Result =
+          MPlugin->call_nocheck<PiApiKind::piEventRelease>(*MEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        assert(!"Event release command not supported by backend.");
+      } else {
+        MPlugin->checkPiResult(Result);
+      }
+    }
   }
 
   OwnedPiEvent(OwnedPiEvent &&Other)

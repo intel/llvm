@@ -87,8 +87,16 @@ buffer_impl::getNativeVector(backend BackendName) const {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
-                                                     &Handle);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(NativeMem,
+                                                                 &Handle);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Mem get native handle command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     Handles.push_back(Handle);
   }
 

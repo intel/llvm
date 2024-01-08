@@ -22,21 +22,53 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
       MFiltMode(filteringMode), MPropList(propList) {}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
-
   sycl::detail::pi::PiSampler Sampler =
       pi::cast<sycl::detail::pi::PiSampler>(clSampler);
   MContextToSampler[syclContext] = Sampler;
   const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
-  Plugin->call<PiApiKind::piSamplerRetain>(Sampler);
-  Plugin->call<PiApiKind::piSamplerGetInfo>(
+
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piSamplerRetain>(Sampler);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Sampler retain command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
+  Result = Plugin->call_nocheck<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(pi_bool),
       &MCoordNormMode, nullptr);
-  Plugin->call<PiApiKind::piSamplerGetInfo>(
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Sampler get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
+  Result = Plugin->call_nocheck<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_ADDRESSING_MODE,
       sizeof(pi_sampler_addressing_mode), &MAddrMode, nullptr);
-  Plugin->call<PiApiKind::piSamplerGetInfo>(
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Sampler get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
+  Result = Plugin->call_nocheck<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_FILTER_MODE, sizeof(pi_sampler_filter_mode),
       &MFiltMode, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Sampler get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 sampler_impl::~sampler_impl() {
@@ -44,7 +76,13 @@ sampler_impl::~sampler_impl() {
   for (auto &Iter : MContextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
     const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
-    Plugin->call<PiApiKind::piSamplerRelease>(Iter.second);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piSamplerRelease>(Iter.second);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      assert(!"Sampler release command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -66,18 +104,20 @@ sampler_impl::getOrCreateSampler(const context &Context) {
       static_cast<pi_sampler_properties>(MFiltMode),
       0};
 
-  sycl::detail::pi::PiResult errcode_ret = PI_SUCCESS;
   sycl::detail::pi::PiSampler resultSampler = nullptr;
   const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
-  errcode_ret = Plugin->call_nocheck<PiApiKind::piSamplerCreate>(
-      getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piSamplerCreate>(
+          getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Sampler create command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
-  if (errcode_ret == PI_ERROR_UNSUPPORTED_FEATURE)
-    throw sycl::exception(sycl::errc::feature_not_supported,
-                          "Images are not supported by this device.");
-
-  Plugin->checkPiResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
   MContextToSampler[Context] = resultSampler;
 

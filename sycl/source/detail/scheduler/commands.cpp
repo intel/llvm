@@ -338,8 +338,16 @@ class DispatchHostTask {
       std::vector<sycl::detail::pi::PiEvent> RawEvents =
           MThisCmd->getPiEvents(PluginWithEvents.second);
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        sycl::detail::pi::PiResult Result =
+            PluginWithEvents.first->call_nocheck<PiApiKind::piEventsWait>(
+                RawEvents.size(), RawEvents.data());
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Event wait command not supported by backend.");
+        } else {
+          PluginWithEvents.first->checkPiResult(Result);
+        }
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
@@ -481,8 +489,17 @@ void Command::waitForEvents(QueueImplPtr Queue,
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
         std::vector<sycl::detail::pi::PiEvent> RawEvents =
             getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin()->call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
+        sycl::detail::pi::PiResult Result =
+            CtxWithEvents.first->getPlugin()
+                ->call_nocheck<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                        RawEvents.data());
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Event wait command not supported by backend.");
+        } else {
+          CtxWithEvents.first->getPlugin()->checkPiResult(Result);
+        }
       }
     } else {
 #ifndef NDEBUG
@@ -496,10 +513,19 @@ void Command::waitForEvents(QueueImplPtr Queue,
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const PluginPtr &Plugin = Queue->getPlugin();
 
-      if (MEvent != nullptr)
+      if (MEvent != nullptr) {
         MEvent->setHostEnqueueTime();
-      Plugin->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      }
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piEnqueueEventsWait>(
+              Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue events wait command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
     }
   }
 }
@@ -2326,8 +2352,16 @@ void SetArgBasedOnType(
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     sycl::detail::pi::PiSampler Sampler =
         detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
-    Plugin->call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                      &Sampler);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextKernelSetArgSampler>(
+            Kernel, NextTrueIndex, &Sampler);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Kernel set arg sampler command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
@@ -2423,6 +2457,15 @@ static pi_result SetKernelParamsAndLaunch(
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue kernel launch handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   return Error;
 }
 
@@ -2534,7 +2577,7 @@ pi_int32 enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  pi_result Res = Plugin->call_nocheck<
+  pi_result Result = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
@@ -2546,13 +2589,17 @@ pi_int32 enqueueImpCommandBufferKernel(
     Plugin->call<PiApiKind::piProgramRelease>(PiProgram);
   }
 
-  if (Res != pi_result::PI_SUCCESS) {
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Enqueue command buffer command not supported by backend.");
+  } else if (Result != pi_result::PI_SUCCESS) {
     const device_impl &DeviceImplem = *(DeviceImpl);
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Result, DeviceImplem,
                                                         PiKernel, NDRDesc);
   }
 
-  return Res;
+  return Result;
 }
 
 pi_int32 enqueueImpKernel(
@@ -2706,26 +2753,37 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
   const PluginPtr &Plugin = Queue->getPlugin();
 
   pi_queue pi_q = Queue->getHandleRef();
-  pi_result Error;
+  pi_result Result;
+  std::string ResultString =
+      "Enqueue read host pipe command not supported by backend.";
 
   auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (read) {
-    Error =
+    Result =
         Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
             pi_q, Program, PipeName.c_str(), blocking, ptr, size,
             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEvent);
   } else {
-    Error =
+    Result =
         Plugin
             ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueWriteHostPipe>(
                 pi_q, Program, PipeName.c_str(), blocking, ptr, size,
                 RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
                 OutEvent);
+    ResultString = "Enqueue write host pipe command not supported by backend.";
   }
-  return Error;
+
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported), ResultString);
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
+  return Result;
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
@@ -2740,7 +2798,16 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   if (!RawEvents.empty()) {
     const PluginPtr &Plugin = MQueue->getPlugin();
-    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                      &RawEvents[0]);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Event wait command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 
   sycl::detail::pi::PiEvent *Event =
@@ -2987,7 +3054,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       if (!RawEvents.empty()) {
         // Assuming that the events are for devices to the same Plugin.
         const PluginPtr &Plugin = EventImpls[0]->getPlugin();
-        Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+        sycl::detail::pi::PiResult Result =
+            Plugin->call_nocheck<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                          &RawEvents[0]);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Event wait command not supported by backend.");
+        } else {
+          Plugin->checkPiResult(Result);
+        }
       }
 
       if (MQueue->is_host()) {
@@ -2996,13 +3072,22 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
-        if (MEvent != nullptr)
+        if (MEvent != nullptr) {
           MEvent->setHostEnqueueTime();
-        MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+        }
+        sycl::detail::pi::PiResult Result =
+            MQueue->getPlugin()->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+                nullptr,
+                reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
+                NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+                &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Enqueue kernel launch command not supported by backend.");
+        } else {
+          MQueue->getPlugin()->checkPiResult(Result);
+        }
       }
       return PI_SUCCESS;
     }
@@ -3159,10 +3244,19 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    if (MEvent != nullptr)
+    if (MEvent != nullptr) {
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
+    }
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(), 0, nullptr, Event);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue events wait with barrier command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
 
     return PI_SUCCESS;
   }
@@ -3177,10 +3271,19 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    if (MEvent != nullptr)
+    if (MEvent != nullptr) {
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+    }
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue events wait with barrier command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
 
     return PI_SUCCESS;
   }
@@ -3221,13 +3324,23 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    if (MEvent != nullptr)
+    if (MEvent != nullptr) {
       MEvent->setHostEnqueueTime();
-    return MQueue->getPlugin()
-        ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-            CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-            Event);
+    }
+    sycl::detail::pi::PiResult Result =
+        MQueue->getPlugin()
+            ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+                CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+                RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+                Event);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enqueue command buffer command not supported by backend.");
+    } else {
+      MQueue->getPlugin()->checkPiResult(Result);
+    }
+    return Result;
   }
   case CG::CGTYPE::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();

@@ -34,8 +34,16 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   auto Plugin = MQueue->getPlugin();
   pi_native_handle Handle;
-  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(
-      Iter->second, MDevice->getHandleRef(), &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextMemGetNativeHandle>(
+          Iter->second, &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Mem get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 

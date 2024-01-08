@@ -131,21 +131,47 @@ program_impl::program_impl(ContextImplPtr Context,
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin->call<PiApiKind::piextProgramCreateWithNativeHandle>(
-        InteropProgram, MContext->getHandleRef(), false, &MProgram);
-  } else
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextProgramCreateWithNativeHandle>(
+            InteropProgram, MContext->getHandleRef(), false, &MProgram);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program create with native handle command not supported by "
+          "backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
+  } else {
     Plugin->call<PiApiKind::piProgramRetain>(Program);
+  }
 
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
-  Plugin->call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
-      nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+          MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
+          nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   std::vector<sycl::detail::pi::PiDevice> PiDevices(NumDevices);
-  Plugin->call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
-                                            sizeof(sycl::detail::pi::PiDevice) *
-                                                NumDevices,
-                                            PiDevices.data(), nullptr);
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_DEVICES,
+      sizeof(sycl::detail::pi::PiDevice) * NumDevices, PiDevices.data(),
+      nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   std::vector<device> PlatformDevices =
       MContext->getPlatformImpl()->get_devices();
@@ -162,26 +188,52 @@ program_impl::program_impl(ContextImplPtr Context,
   PlatformDevices.erase(NewEnd, PlatformDevices.end());
   MDevices = PlatformDevices;
   assert(!MDevices.empty() && "No device found for this program");
+
   sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
   cl_program_binary_type BinaryType = PI_PROGRAM_BINARY_TYPE_NONE;
-  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get build info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   if (BinaryType == PI_PROGRAM_BINARY_TYPE_NONE) {
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
         PI_ERROR_INVALID_PROGRAM);
   }
+
   size_t Size = 0;
-  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &Size);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get build info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   std::vector<char> OptionsVector(Size);
-  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, Size,
       OptionsVector.data(), nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get build info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   std::string Options(OptionsVector.begin(), OptionsVector.end());
+
   switch (BinaryType) {
   case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
@@ -278,18 +330,26 @@ bool program_impl::has_kernel(std::string KernelName,
   pi_uint64 function_ptr;
   const PluginPtr &Plugin = getPlugin();
 
-  sycl::detail::pi::PiResult Err = PI_SUCCESS;
   for (sycl::detail::pi::PiDevice Device : Devices) {
-    Err = Plugin->call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
-        Device, MProgram, KernelName.c_str(), &function_ptr);
-    if (Err != PI_SUCCESS &&
-        Err != PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
-        Err != PI_ERROR_INVALID_KERNEL_NAME)
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
+            Device, MProgram, KernelName.c_str(), &function_ptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program create with native handle command not supported by "
+          "backend.");
+    } else if (Result != PI_SUCCESS &&
+               Result != PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
+               Result != PI_ERROR_INVALID_KERNEL_NAME) {
       throw runtime_error(
           "Error from piextGetDeviceFunctionPointer when called by program",
-          Err);
-    if (Err == PI_SUCCESS || Err == PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+          Result);
+    }
+    if (Result == PI_SUCCESS ||
+        Result == PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE) {
       return true;
+    }
   }
 
   return false;
@@ -320,18 +380,36 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
   std::vector<std::vector<char>> Result;
   const PluginPtr &Plugin = getPlugin();
   std::vector<size_t> BinarySizes(MDevices.size());
-  Plugin->call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
-      sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+          MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
+          sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 
   std::vector<char *> Pointers;
   for (size_t I = 0; I < BinarySizes.size(); ++I) {
     Result.emplace_back(BinarySizes[I]);
     Pointers.push_back(Result[I].data());
   }
-  Plugin->call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
-                                            sizeof(char *) * Pointers.size(),
-                                            Pointers.data(), nullptr);
+
+  PiResult = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
+      Pointers.data(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
+
   return Result;
 }
 
@@ -389,24 +467,24 @@ std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piKernelCreate>(
-            MProgram, KernelName.c_str(), &Result.first);
-    if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
-      throw invalid_object_error(
-          "This instance of program does not contain the kernel requested",
-          Err);
-    }
-    Plugin->checkPiResult(Err);
+  const PluginPtr &Plugin = getPlugin();
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piKernelCreate>(
+          MProgram, KernelName.c_str(), &Result.first);
+  if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
+    throw invalid_object_error(
+        "This instance of program does not contain the kernel requested", Err);
+  }
+  Plugin->checkPiResult(Err);
 
-    // Some PI Plugins (like OpenCL) require this call to enable USM
-    // For others, PI will turn this into a NOP.
-    if (getContextImplPtr()->getPlatformImpl()->supports_usm())
-      Plugin->call<PiApiKind::piKernelSetExecInfo>(
-          Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-
-    return Result;
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  if (getContextImplPtr()->getPlatformImpl()->supports_usm()) {
+  Plugin->call<PiApiKind::piKernelSetExecInfo>(
+      Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  }
+  
+  return Result;
 }
 
 std::vector<device>
@@ -476,8 +554,18 @@ void program_impl::flush_spec_constants(
       auto [Id, Offset, Size] =
           Descriptors.consume<uint32_t, uint32_t, uint32_t>();
 
-      Ctx->getPlugin()->call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, Id, Size, SC.getValuePtr() + Offset);
+      sycl::detail::pi::PiResult Result =
+          Ctx->getPlugin()
+              ->call_nocheck<PiApiKind::piextProgramSetSpecializationConstant>(
+                  NativePrg, Id, Size, SC.getValuePtr() + Offset);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Program set specialization constant command not supported by "
+            "backend.");
+      } else {
+        Ctx->getPlugin()->checkPiResult(Result);
+      }
     }
   }
 }
@@ -487,7 +575,16 @@ pi_native_handle program_impl::getNative() const {
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                                   &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 

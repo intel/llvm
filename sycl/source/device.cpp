@@ -36,8 +36,18 @@ device::device(cl_device_id DeviceId) {
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   sycl::detail::pi::PiDevice Device;
   auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
-  Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
-      detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
+  sycl::detail::pi::PiResult Result =
+      Plugin
+          ->call_nocheck<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+              detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
@@ -223,7 +233,16 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    Plugin->call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<detail::PiApiKind::piextEnablePeerAccess>(Device,
+                                                                       Peer);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Enable peer access command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -232,7 +251,16 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    Plugin->call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<detail::PiApiKind::piextDisablePeerAccess>(Device,
+                                                                        Peer);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Disable peer access command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -258,9 +286,18 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");
   }();
+
   auto Plugin = impl->getPlugin();
-  Plugin->call<detail::PiApiKind::piextPeerAccessGetInfo>(
-      Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextPeerAccessGetInfo>(
+          Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Peer access get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   return value == 1;
 }

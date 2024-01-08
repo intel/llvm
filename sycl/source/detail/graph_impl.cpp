@@ -702,11 +702,15 @@ void exec_graph_impl::createCommandBuffers(
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-  pi_result Res =
+  pi_result Result =
       Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferCreate>(
           ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
           &OutCommandBuffer);
-  if (Res != pi_result::PI_SUCCESS) {
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Create command buffer command not supported by backend.");
+  } else if (Result != pi_result::PI_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create PI command-buffer");
   }
 
@@ -745,10 +749,14 @@ void exec_graph_impl::createCommandBuffers(
                       Node->MCommandGroup->getAccStorage().end());
   }
 
-  Res =
+  Result =
       Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferFinalize>(
           OutCommandBuffer);
-  if (Res != pi_result::PI_SUCCESS) {
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Finalize command buffer command not supported by backend.");
+  } else if (Result != pi_result::PI_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize PI command-buffer");
   }
@@ -789,10 +797,12 @@ exec_graph_impl::~exec_graph_impl() {
     Partition->MSchedule.clear();
     for (const auto &Iter : Partition->MPiCommandBuffers) {
       if (auto CmdBuf = Iter.second; CmdBuf) {
-        pi_result Res = Plugin->call_nocheck<
+        pi_result Result = Plugin->call_nocheck<
             sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
-        (void)Res;
-        assert(Res == pi_result::PI_SUCCESS);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          assert(!"Release command buffer command not supported by backend.");
+        }
+        assert(Result == pi_result::PI_SUCCESS);
       }
     }
   }
@@ -910,6 +920,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               "immediate command lists. Use "
               "sycl::ext::intel::property::queue::no_immediate_"
               "command_list to disable them.");
+        } else if (Res == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Enqueue command buffer command not supported by backend.");
         } else if (Res != pi_result::PI_SUCCESS) {
           throw sycl::exception(
               errc::event,

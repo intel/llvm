@@ -31,15 +31,30 @@ get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
   size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value, 0,
-                                           nullptr, &ResultSize);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piKernelGetInfo>(
+          Kernel, PiInfoCode<Param>::value, 0, nullptr, &ResultSize);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   if (ResultSize == 0) {
     return "";
   }
   std::vector<char> Result(ResultSize);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
-                                           ResultSize, Result.data(), nullptr);
+  PiResult = Plugin->call_nocheck<PiApiKind::piKernelGetInfo>(
+      Kernel, PiInfoCode<Param>::value, ResultSize, Result.data(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   return std::string(Result.data());
 }
 
@@ -50,8 +65,16 @@ get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
   uint32_t Result = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
-                                           sizeof(uint32_t), &Result, nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piKernelGetInfo>(
+          Kernel, PiInfoCode<Param>::value, sizeof(uint32_t), &Result, nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   return Result;
 }
 
@@ -62,9 +85,17 @@ get_kernel_device_specific_info_helper(sycl::detail::pi::PiKernel Kernel,
                                        sycl::detail::pi::PiDevice Device,
                                        const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  Plugin->call<PiApiKind::piKernelGetSubGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, 0, nullptr, Size, Result,
-      nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piKernelGetSubGroupInfo>(
+          Kernel, Device, PiInfoCode<Param>::value, 0, nullptr, Size, Result,
+          nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get sub group info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 }
 
 template <typename Param>
@@ -130,9 +161,17 @@ uint32_t get_kernel_device_specific_info_with_input(
   size_t Input[3] = {In[0], In[1], In[2]};
   uint32_t Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piKernelGetSubGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, sizeof(size_t) * 3, Input,
-      sizeof(uint32_t), &Result, nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piKernelGetSubGroupInfo>(
+          Kernel, Device, PiInfoCode<Param>::value, sizeof(size_t) * 3, Input,
+          sizeof(uint32_t), &Result, nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get sub group info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
 
   return Result;
 }

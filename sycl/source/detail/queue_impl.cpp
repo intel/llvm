@@ -42,10 +42,19 @@ getPIEvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
-  if (!is_host())
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+  if (!is_host()) {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<PiApiKind::piQueueGetInfo>(
+            MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+            nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Queue get info command not supported by backend.");
+    } else {
+      getPlugin()->checkPiResult(Result);
+    }
+  }
   return result;
 }
 
@@ -573,8 +582,16 @@ pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
-                                                     &NativeHandleDesc);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextQueueGetNativeHandle>(
+          MQueues[0], &Handle, &NativeHandleDesc);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Queue get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 
@@ -597,11 +614,20 @@ bool queue_impl::ext_oneapi_empty() const {
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
     pi_bool IsReady = false;
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
-        nullptr);
-    if (!IsReady)
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<PiApiKind::piQueueGetInfo>(
+            MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool),
+            &IsReady, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Queue get info command not supported by backend.");
+    } else {
+      getPlugin()->checkPiResult(Result);
+    }
+    if (!IsReady) {
       return false;
+    }
   }
 
   // We may have events like host tasks which are not submitted to the backend

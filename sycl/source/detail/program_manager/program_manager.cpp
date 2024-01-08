@@ -60,8 +60,17 @@ enableITTAnnotationsIfNeeded(const sycl::detail::pi::PiProgram &Prog,
                              const PluginPtr &Plugin) {
   if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get() != nullptr) {
     constexpr char SpecValue = 1;
-    Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
-        Prog, ITTSpecConstId, sizeof(char), &SpecValue);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextProgramSetSpecializationConstant>(
+            Prog, ITTSpecConstId, sizeof(char), &SpecValue);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program set specialization constant command not supported by "
+          "backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -88,9 +97,17 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   const sycl::detail::pi::PiDevice PiDevice =
       getSyclObjImpl(Device)->getHandleRef();
   pi_int32 BinaryStatus = CL_SUCCESS;
-  Plugin->call<PiApiKind::piProgramCreateWithBinary>(
-      Context->getHandleRef(), 1 /*one binary*/, &PiDevice, &DataLen, &Data,
-      Metadata.size(), Metadata.data(), &BinaryStatus, &Program);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piProgramCreateWithBinary>(
+          Context->getHandleRef(), 1 /*one binary*/, &PiDevice, &DataLen, &Data,
+          Metadata.size(), Metadata.data(), &BinaryStatus, &Program);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program create with binary command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   if (BinaryStatus != CL_SUCCESS) {
     throw runtime_error("Creating program with binary failed.", BinaryStatus);
@@ -546,9 +563,15 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   }
 
   pi_bool MustBuildOnSubdevice = PI_TRUE;
-  ContextImpl->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_BUILD_ON_SUBDEVICE,
-      sizeof(pi_bool), &MustBuildOnSubdevice, nullptr);
+  sycl::detail::pi::PiResult Result =
+      ContextImpl->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          RootDevImpl->getHandleRef(), PI_DEVICE_INFO_BUILD_ON_SUBDEVICE,
+          sizeof(pi_bool), &MustBuildOnSubdevice, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
 
   DeviceImplPtr Dev =
       (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
@@ -737,9 +760,18 @@ ProgramManager::getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
                                          const ContextImplPtr Context) {
   sycl::detail::pi::PiProgram Program;
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PI_KERNEL_INFO_PROGRAM,
-                                           sizeof(sycl::detail::pi::PiProgram),
-                                           &Program, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piKernelGetInfo>(
+          Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(sycl::detail::pi::PiProgram),
+          &Program, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   return Program;
 }
 
@@ -748,38 +780,85 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
                                    const ContextImplPtr Context) {
   size_t PIDevicesSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
-                                            nullptr, &PIDevicesSize);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+          Program, PI_PROGRAM_INFO_DEVICES, 0, nullptr, &PIDevicesSize);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   std::vector<sycl::detail::pi::PiDevice> PIDevices(
       PIDevicesSize / sizeof(sycl::detail::pi::PiDevice));
-  Plugin->call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
-                                            PIDevicesSize, PIDevices.data(),
-                                            nullptr);
+  Result = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
+      Program, PI_PROGRAM_INFO_DEVICES, PIDevicesSize, PIDevices.data(),
+      nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Program get info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   std::string Log = "The program was built for " +
                     std::to_string(PIDevices.size()) + " devices";
   for (sycl::detail::pi::PiDevice &Device : PIDevices) {
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
-    Plugin->call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, PI_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
-        &DeviceBuildInfoStrSize);
+
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
+            Program, Device, PI_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
+            &DeviceBuildInfoStrSize);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get build info command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
+
     if (DeviceBuildInfoStrSize > 0) {
       std::vector<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
-      Plugin->call<PiApiKind::piProgramGetBuildInfo>(
-          Program, Device, PI_PROGRAM_BUILD_INFO_LOG, DeviceBuildInfoStrSize,
-          DeviceBuildInfo.data(), nullptr);
+
+      sycl::detail::pi::PiResult Result =
+          Plugin->call_nocheck<PiApiKind::piProgramGetBuildInfo>(
+              Program, Device, PI_PROGRAM_BUILD_INFO_LOG,
+              DeviceBuildInfoStrSize, DeviceBuildInfo.data(), nullptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Program get build info command not supported by backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
       DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
     }
 
     std::string DeviceNameString;
     size_t DeviceNameStrSize = 0;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
-                                             nullptr, &DeviceNameStrSize);
+    Result = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+        Device, PI_DEVICE_INFO_NAME, 0, nullptr, &DeviceNameStrSize);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     if (DeviceNameStrSize > 0) {
       std::vector<char> DeviceName(DeviceNameStrSize);
-      Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME,
-                                               DeviceNameStrSize,
-                                               DeviceName.data(), nullptr);
+      Result = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          Device, PI_DEVICE_INFO_NAME, DeviceNameStrSize, DeviceName.data(),
+          nullptr);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Device get info command not supported by backend.");
+      }
       DeviceNameString = std::string(DeviceName.data());
     }
     Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
@@ -2006,9 +2085,18 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
     std::ignore = SpecConstNames;
     for (const device_image_impl::SpecConstDescT &SpecIDDesc : SpecConstDescs) {
       if (SpecIDDesc.IsSet) {
-        Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
+        sycl::detail::pi::PiResult Result = Plugin->call_nocheck<
+            PiApiKind::piextProgramSetSpecializationConstant>(
             Prog, SpecIDDesc.ID, SpecIDDesc.Size,
             SpecConsts.data() + SpecIDDesc.BlobOffset);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Program set specialization constant command not supported by "
+              "backend.");
+        } else {
+          Plugin->checkPiResult(Result);
+        }
       }
     }
   }

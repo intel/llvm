@@ -48,12 +48,22 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
 
   sycl::detail::pi::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
-  getPlugin()->call<PiApiKind::piKernelGetInfo>(
-      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getHandleRef() != Context)
+  sycl::detail::pi::PiResult Result =
+      getPlugin()->call_nocheck<PiApiKind::piKernelGetInfo>(
+          MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Kernel get info command not supported by backend.");
+  } else {
+    getPlugin()->checkPiResult(Result);
+  }
+
+  if (ContextImpl->getHandleRef() != Context) {
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
+  }
 
   MIsInterop = ProgramImpl->isInterop();
 }

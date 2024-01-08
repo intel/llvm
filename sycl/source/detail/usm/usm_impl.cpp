@@ -587,17 +587,19 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   // query type using PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  sycl::detail::pi::PiResult Err =
+  sycl::detail::pi::PiResult Result =
       Plugin->call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
           PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy,
           nullptr);
-
-  // PI_ERROR_INVALID_VALUE means USM doesn't know about this ptr
-  if (Err == PI_ERROR_INVALID_VALUE)
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM get mem alloc info command not supported by backend.");
+  } else if (Result == PI_ERROR_INVALID_VALUE) {
     return alloc::unknown;
-  // otherwise PI_SUCCESS is expected
-  if (Err != PI_SUCCESS) {
-    Plugin->reportPiError(Err, "get_pointer_type()");
+  } else if (Result != PI_SUCCESS) {
+    // otherwise PI_SUCCESS is expected
+    Plugin->reportPiError(Result, "get_pointer_type()");
   }
 
   alloc ResultAlloc;
@@ -651,8 +653,17 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // query device using PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
+          PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId,
+          nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM get mem alloc info command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
@@ -673,7 +684,15 @@ static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
   pi_context PICtx = CtxImpl->getHandleRef();
   // Call the PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call<detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM import command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
@@ -681,7 +700,15 @@ static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
   pi_context PICtx = CtxImpl->getHandleRef();
   // Call the PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call<detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM release command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 namespace ext::oneapi::experimental {

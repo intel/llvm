@@ -46,9 +46,17 @@ public:
 
     // Find out backend of the platform
     sycl::detail::pi::PiPlatformBackend PiBackend;
-    APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
-        APlatform, PI_EXT_PLATFORM_INFO_BACKEND,
-        sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
+    sycl::detail::pi::PiResult Result =
+        APlugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+            APlatform, PI_EXT_PLATFORM_INFO_BACKEND,
+            sizeof(sycl::detail::pi::PiPlatformBackend), &PiBackend, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Platform get info command not supported by backend.");
+    } else {
+      APlugin->checkPiResult(Result);
+    }
     MBackend = convertBackend(PiBackend);
   }
 
@@ -99,10 +107,16 @@ public:
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
     const auto &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
+    sycl::detail::pi::PiResult Result =
         Plugin->call_nocheck<PiApiKind::piPluginGetBackendOption>(
             MPlatform, frontend_option, backend_option);
-    Plugin->checkPiResult(Err);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Platform get backend option command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 
   /// \return an instance of OpenCL cl_platform_id.

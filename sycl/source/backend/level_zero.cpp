@@ -32,8 +32,16 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
-  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-      NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextDeviceCreateWithNativeHandle>(
+          NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 
   return detail::createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
@@ -51,9 +59,18 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   for (auto Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
-  Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
-      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
-      &PiContext);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextContextCreateWithNativeHandle>(
+          NativeHandle, DeviceHandles.size(), DeviceHandles.data(),
+          !KeepOwnership, &PiContext);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Context create with native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, detail::defaultAsyncHandler,

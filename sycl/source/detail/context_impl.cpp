@@ -327,10 +327,20 @@ DeviceImplPtr context_impl::findMatchingDeviceImpl(
 
 pi_native_handle context_impl::getNative() const {
   const auto &Plugin = getPlugin();
-  if (getBackend() == backend::opencl)
+  if (getBackend() == backend::opencl) {
     Plugin->call<PiApiKind::piContextRetain>(getHandleRef());
+  }
   pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextContextGetNativeHandle>(
+          getHandleRef(), &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Context get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 
@@ -388,8 +398,17 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
                        Event, Plugin) == info::event_command_status::complete;
           });
       // Release the removed events.
-      for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
-        Plugin->call<PiApiKind::piEventRelease>(*EventIt);
+      for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt) {
+        sycl::detail::pi::PiResult Result =
+            Plugin->call_nocheck<PiApiKind::piEventRelease>(*EventIt);
+        if (Result == PI_ERROR_INVALID_OPERATION) {
+          throw sycl::exception(
+              sycl::make_error_code(sycl::errc::feature_not_supported),
+              "Event release command not supported by backend.");
+        } else {
+          Plugin->checkPiResult(Result);
+        }
+      }
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
@@ -446,10 +465,20 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
       // initialize events list.
       sycl::detail::pi::PiEvent InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
-      Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-          QueueImpl->getHandleRef(), NativePrg,
-          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
-          &USMPtr, 0, nullptr, &InitEvent);
+      sycl::detail::pi::PiResult Result =
+          Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+                  QueueImpl->getHandleRef(), NativePrg,
+                  DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *),
+                  0, &USMPtr, 0, nullptr, &InitEvent);
+      if (Result == PI_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::feature_not_supported),
+            "Enqueue device global variable write command not supported by "
+            "backend.");
+      } else {
+        Plugin->checkPiResult(Result);
+      }
 
       InitEventsRef.push_back(InitEvent);
     }
@@ -459,8 +488,17 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
 
 void context_impl::DeviceGlobalInitializer::ClearEvents(
     const PluginPtr &Plugin) {
-  for (const sycl::detail::pi::PiEvent &Event : MDeviceGlobalInitEvents)
-    Plugin->call<PiApiKind::piEventRelease>(Event);
+  for (const sycl::detail::pi::PiEvent &Event : MDeviceGlobalInitEvents) {
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piEventRelease>(Event);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Event release command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
+  }
   MDeviceGlobalInitEvents.clear();
 }
 
