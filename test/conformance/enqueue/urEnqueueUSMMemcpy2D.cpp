@@ -6,14 +6,24 @@
 #include "helpers.h"
 #include <uur/fixtures.h>
 
+using TestParametersMemcpy2D =
+    std::tuple<uur::TestParameters2D, uur::USMKind, uur::USMKind>;
+
 struct urEnqueueUSMMemcpy2DTestWithParam
-    : uur::urQueueTestWithParam<uur::TestParameters2D> {
+    : uur::urQueueTestWithParam<TestParametersMemcpy2D> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urQueueTestWithParam<uur::TestParameters2D>::SetUp());
+            uur::urQueueTestWithParam<TestParametersMemcpy2D>::SetUp());
+
+        const auto [in2DParams, inSrcKind, inDstKind] = getParam();
+        std::tie(pitch, width, height, src_kind, dst_kind) =
+            std::make_tuple(in2DParams.pitch, in2DParams.width,
+                            in2DParams.height, inSrcKind, inDstKind);
+
         ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
-        if (!device_usm) {
+        if (!device_usm && (src_kind == uur::USMKind::Device ||
+                            dst_kind == uur::USMKind::Device)) {
             GTEST_SKIP() << "Device USM is not supported";
         }
 
@@ -25,15 +35,13 @@ struct urEnqueueUSMMemcpy2DTestWithParam
             GTEST_SKIP() << "2D USM memcpy is not supported";
         }
 
-        const auto [inPitch, inWidth, inHeight] = getParam();
-        std::tie(pitch, width, height) =
-            std::make_tuple(inPitch, inWidth, inHeight);
-
         const size_t num_elements = pitch * height;
-        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                        num_elements, &pSrc));
-        ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                        num_elements, &pDst));
+        ASSERT_SUCCESS(uur::MakeUSMAllocationByType(
+            src_kind, context, device, nullptr, nullptr, num_elements, &pSrc));
+
+        ASSERT_SUCCESS(uur::MakeUSMAllocationByType(
+            dst_kind, context, device, nullptr, nullptr, num_elements, &pDst));
+
         ur_event_handle_t memset_event = nullptr;
 
         ASSERT_SUCCESS(urEnqueueUSMFill(queue, pSrc, sizeof(memset_value),
@@ -52,17 +60,22 @@ struct urEnqueueUSMMemcpy2DTestWithParam
         if (pDst) {
             ASSERT_SUCCESS(urUSMFree(context, pDst));
         }
-        uur::urQueueTestWithParam<uur::TestParameters2D>::TearDown();
+        uur::urQueueTestWithParam<TestParametersMemcpy2D>::TearDown();
     }
 
     void verifyMemcpySucceeded() {
         std::vector<uint8_t> host_mem(pitch * height);
-        ASSERT_SUCCESS(urEnqueueUSMMemcpy2D(queue, true, host_mem.data(), pitch,
-                                            pDst, pitch, width, height, 0,
-                                            nullptr, nullptr));
+        const uint8_t *host_ptr = nullptr;
+        if (dst_kind == uur::USMKind::Device) {
+            ASSERT_SUCCESS(urEnqueueUSMMemcpy2D(queue, true, host_mem.data(),
+                                                pitch, pDst, pitch, width,
+                                                height, 0, nullptr, nullptr));
+            host_ptr = host_mem.data();
+        } else {
+            host_ptr = static_cast<const uint8_t *>(pDst);
+        }
         for (size_t w = 0; w < width; ++w) {
             for (size_t h = 0; h < height; ++h) {
-                const auto *host_ptr = host_mem.data();
                 const size_t index = (pitch * h) + w;
                 ASSERT_TRUE(*(host_ptr + index) == memset_value);
             }
@@ -75,9 +88,11 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     size_t pitch = 0;
     size_t width = 0;
     size_t height = 0;
+    uur::USMKind src_kind;
+    uur::USMKind dst_kind;
 };
 
-static std::vector<uur::TestParameters2D> test_cases{
+static std::vector<uur::TestParameters2D> test_sizes{
     /* Everything set to 1 */
     {1, 1, 1},
     /* Height == 1 && Pitch > width */
@@ -92,7 +107,13 @@ static std::vector<uur::TestParameters2D> test_cases{
     {234, 233, 1}};
 
 UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DTestWithParam,
-                 ::testing::ValuesIn(test_cases),
+                 ::testing::Combine(::testing::ValuesIn(test_sizes),
+                                    ::testing::Values(uur::USMKind::Device,
+                                                      uur::USMKind::Host,
+                                                      uur::USMKind::Shared),
+                                    ::testing::Values(uur::USMKind::Device,
+                                                      uur::USMKind::Host,
+                                                      uur::USMKind::Shared)),
                  uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessBlocking) {
@@ -119,7 +140,8 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
 
 using urEnqueueUSMMemcpy2DNegativeTest = urEnqueueUSMMemcpy2DTestWithParam;
 UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DNegativeTest,
-                 ::testing::Values(uur::TestParameters2D{1, 1, 1}),
+                 ::testing::Values(TestParametersMemcpy2D{
+                     {1, 1, 1}, uur::USMKind::Device, uur::USMKind::Device}),
                  uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidNullHandleQueue) {
