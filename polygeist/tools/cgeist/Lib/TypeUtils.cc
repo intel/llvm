@@ -19,6 +19,7 @@
 #include "mlir/IR/Types.h"
 
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/ADT/identity.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -166,10 +167,8 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
         return mlir::MemRefType::get(Ty.getShape(), NewElementType,
                                      Ty.getLayout(), Ty.getMemorySpace());
       })
-      .Case<mlir::LLVM::LLVMPointerType>([NewElementType](auto Ty) {
-        return mlir::LLVM::LLVMPointerType::get(NewElementType.getContext(),
-                                                Ty.getAddressSpace());
-      });
+      .Case<mlir::LLVM::LLVMPointerType>(
+          llvm::identity<mlir::LLVM::LLVMPointerType>());
 }
 
 template <typename F>
