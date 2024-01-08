@@ -424,7 +424,7 @@ Returns an `annotated_ref` reference wrapper which can be used to read or write
 to the underlying pointer. Reads/Writes using the reference will retain the
 annotations.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -435,7 +435,7 @@ reference operator[](std::ptrdiff_t Index) const;
 |
 Returns an `annotated_ref` reference wrapper to the object at offset `Index`.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -446,7 +446,7 @@ annotated_ptr operator+(size_t Offset) const;
 |
 Returns an `annotated_ptr` that points to `this[Offset]`.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -458,7 +458,7 @@ std::ptrdiff_t operator-(annotated_ptr FromPtr) const;
 Returns the distance between the underlying pointer and the pointer encapsulated
 by `FromPtr`.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -488,7 +488,7 @@ annotated_ptr& operator++() noexcept;
 |
 Prefix increment operator.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -499,7 +499,7 @@ annotated_ptr operator++(int) noexcept;
 |
 Postfix increment operator.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -510,7 +510,7 @@ annotated_ptr& operator--() noexcept;
 |
 Prefix decrement operator.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -521,7 +521,7 @@ annotated_ptr operator--(int) noexcept;
 |
 Postfix decrement operator.
 
-Operator might be disabled when certain properties are applied. Please check the property specification.
+Operator might be ill-formed when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
