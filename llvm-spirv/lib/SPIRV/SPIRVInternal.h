@@ -405,6 +405,7 @@ const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
 const static char NumSIMD[] = "num_simd_work_items";
 const static char StallEnable[] = "stall_enable";
+const static char StallFree[] = "stall_free";
 const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
 const static char LoopFuse[] = "loop_fuse";
 const static char PreferDSP[] = "prefer_dsp";
