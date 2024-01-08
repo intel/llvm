@@ -1819,8 +1819,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
             simd<T, N> vals, PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1902,8 +1901,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',
   // and add alignment<16> as it is usable and most favourable in this case.
@@ -1958,8 +1956,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
             simd<T, N> vals, simd_mask<1> pred, PropertyListT props = {}) {
   constexpr auto L1Hint =
@@ -2010,8 +2007,7 @@ template <typename T, int N, typename AccessorT,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
     detail::is_device_accessor_with_v<AccessorT,
-                                      detail::accessor_mode_cap::can_write> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+                                      detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
             PropertyListT props = {}) {
   // Create new properties without the alignment property passed in 'props',

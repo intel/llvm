@@ -42,7 +42,6 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
-#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/usm.hpp>
 

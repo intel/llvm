@@ -2086,6 +2086,25 @@ TEST_F(CommandGraphTest, GetNodeFromEvent) {
   auto GraphExec = Graph.finalize();
 }
 
+TEST_F(CommandGraphTest, ProfilingException) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Event2 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  try {
+    Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (exception &Exception) {
+    ASSERT_FALSE(
+        std::string(Exception.what())
+            .find("Profiling information is unavailable for events returned "
+                  "from a submission to a queue in the recording state.") ==
+        std::string::npos);
+  }
+}
+
 class MultiThreadGraphTest : public CommandGraphTest {
 public:
   MultiThreadGraphTest()

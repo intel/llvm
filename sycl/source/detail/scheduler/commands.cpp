@@ -2549,7 +2549,7 @@ pi_int32 enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName);
+            ContextImpl, DeviceImpl, KernelName, NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.

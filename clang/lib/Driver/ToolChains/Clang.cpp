@@ -1633,7 +1633,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
         << Triple.getArchName();
 
   StringRef Scope, Key;
-  bool IndirectBranches;
+  bool IndirectBranches, BranchProtectionPAuthLR;
 
   if (A->getOption().matches(options::OPT_msign_return_address_EQ)) {
     Scope = A->getValue();
@@ -1642,6 +1642,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << A->getSpelling() << Scope;
     Key = "a_key";
     IndirectBranches = false;
+    BranchProtectionPAuthLR = false;
   } else {
     StringRef DiagMsg;
     llvm::ARM::ParsedBranchProtection PBP;
@@ -1653,6 +1654,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << "b-key" << A->getAsString(Args);
     Scope = PBP.Scope;
     Key = PBP.Key;
+    BranchProtectionPAuthLR = PBP.BranchProtectionPAuthLR;
     IndirectBranches = PBP.BranchTargetEnforcement;
   }
 
@@ -1661,6 +1663,9 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
   if (!Scope.equals("none"))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-msign-return-address-key=") + Key));
+  if (BranchProtectionPAuthLR)
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-mbranch-protection-pauth-lr")));
   if (IndirectBranches)
     CmdArgs.push_back("-mbranch-target-enforce");
 }
@@ -2203,12 +2208,9 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
     StringRef Arch = riscv::getRISCVArch(Args, Triple);
     auto ISAInfo = llvm::RISCVISAInfo::parseArchString(
         Arch, /*EnableExperimentalExtensions*/ true);
-    if (!ISAInfo) {
-      // Ignore parsing error.
-      consumeError(ISAInfo.takeError());
-    } else {
+    // Ignore parsing error.
+    if (!errorToBool(ISAInfo.takeError()))
       MinVLen = (*ISAInfo)->getMinVLen();
-    }
 
     // If the value is "zvl", use MinVLen from march. Otherwise, try to parse
     // as integer as long as we have a MinVLen.
@@ -3348,13 +3350,13 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                    options::OPT_fstrict_float_cast_overflow, false))
     CmdArgs.push_back("-fno-strict-float-cast-overflow");
 
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_limited_range))
+  if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_fortran_rules))
+  if (Args.hasArg(options::OPT_fcx_fortran_rules))
     CmdArgs.push_back("-fcx-fortran-rules");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_limited_range))
+  if (Args.hasArg(options::OPT_fno_cx_limited_range))
     CmdArgs.push_back("-fno-cx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_fortran_rules))
+  if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
 }
 
@@ -10283,7 +10285,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
-      !T.isNVPTX() && !T.isAMDGPU())
+      !T.isNVPTX() && !T.isAMDGPU() &&
+      !isSYCLNativeCPU(getToolChain(), C.getDefaultToolChain()))
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to

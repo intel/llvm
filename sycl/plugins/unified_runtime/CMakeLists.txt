@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Mon Dec 18 13:15:43 2023 +0000
-  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
-  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
+  # commit c311fe82256a7bc7f6ddd19cb86c8d555ce401bc
+  # Merge: eee75a29 d398d4ae
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Jan 4 15:12:54 2024 +0000
+  #     Merge pull request #1222 from sommerlukas/lukas/comgr-include-rocm4
+  #     [UR][HIP] Fix include for AMD COMGR
+  set(UNIFIED_RUNTIME_TAG c311fe82256a7bc7f6ddd19cb86c8d555ce401bc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

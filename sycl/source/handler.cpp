@@ -1465,5 +1465,12 @@ std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   return {};
 }
 
+std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
+  auto ImmRess = getMaxWorkGroups();
+  if (ImmRess)
+    return {*ImmRess, true};
+  return {std::array<size_t, 3>{0, 0, 0}, false};
+}
+
 } // namespace _V1
 } // namespace sycl
