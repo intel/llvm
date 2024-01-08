@@ -119,15 +119,15 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     unsigned int Flags = 0;
     ur_queue_flags_t URFlags = 0;
-    int Priority = 0; // Not guaranteed, but, in ROCm 5.7, 0 is the default
+    int Priority = 0; // Not guaranteed, but, in ROCm 5.0-6.0, 0 is the default
 
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
       URFlags = pProps->flags;
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedContext Active(hContext->getDevice());
+        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-        ScopedContext Active(hContext->getDevice());
+        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(&Priority, nullptr));
       }
     }
