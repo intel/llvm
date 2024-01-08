@@ -218,6 +218,12 @@ public:
   friend bfloat16 operator op(const unsigned int &lhs, const bfloat16 &rhs) {  \
     return lhs op to_float(rhs.value);                                         \
   }                                                                            \
+  friend bfloat16 operator op(const bfloat16 &lhs, const half &rhs) {          \
+    return to_float(lhs.value) op rhs;                                         \
+  }                                                                            \
+  friend bfloat16 operator op(const half &lhs, const bfloat16 &rhs) {          \
+    return lhs op to_float(rhs.value);                                         \
+  }                                                                            \
   friend bfloat16 operator op(const bfloat16 &lhs, const unsigned long &rhs) { \
     return to_float(lhs.value) op rhs;                                         \
   }                                                                            \
@@ -284,6 +290,12 @@ public:
     return to_float(lhs.value) op rhs;                                         \
   }                                                                            \
   friend bool operator op(const unsigned long &lhs, const bfloat16 &rhs) {     \
+    return lhs op to_float(rhs.value);                                         \
+  }                                                                            \
+  friend bool operator op(const bfloat16 &lhs, const half &rhs) {              \
+    return to_float(lhs.value) op rhs;                                         \
+  }                                                                            \
+  friend bool operator op(const half &lhs, const bfloat16 &rhs) {              \
     return lhs op to_float(rhs.value);                                         \
   }                                                                            \
   friend bool operator op(const bfloat16 &lhs,                                 \
