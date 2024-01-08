@@ -22872,6 +22872,10 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     // only if it has an fpbuiltin intrinsic.
     unsigned BuiltinID = getCurrentBuiltinID();
     Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
+    if (!FD->getNameInfo().getName().isIdentifier() ||
+        (FD->getNameInfo().getName().isIdentifier() &&
+         Name != FD->getNameInfo().getName().getAsString()))
+      return nullptr;
     switch (BuiltinID) {
     default:
       // If the function has a clang builtin but doesn't have an
