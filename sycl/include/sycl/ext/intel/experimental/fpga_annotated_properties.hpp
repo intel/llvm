@@ -374,6 +374,11 @@ template <typename... Args> struct checkValidFPGAPropertySet {
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
 
+template <typename... Args> struct checkHasAlignment {
+  using list = std::tuple<Args...>;
+  static constexpr bool value = ContainsProperty<alignment_key, list>::value;
+};
+
 template <typename... Args> struct checkHasConduitAndRegisterMap {
   using list = std::tuple<Args...>;
   static constexpr bool has_Conduit =

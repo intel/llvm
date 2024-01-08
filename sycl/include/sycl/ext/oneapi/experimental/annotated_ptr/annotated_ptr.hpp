@@ -455,6 +455,11 @@ public:
       check_property_list<T *, Props...>::value;
   static_assert(contains_valid_properties,
                 "The property list contains invalid property.");
+  // Disable alignment as it is not supported in 2024.1
+  static constexpr bool hasAlignment =
+      detail::checkHasAlignment<Props...>::value;
+  static_assert(!hasAlignment, "The alignment property is not supported in "
+                               "annotated_ptr class in oneAPI 2024.1.");
   // check the set if FPGA specificed properties are used
   static constexpr bool hasValidFPGAProperties =
       detail::checkValidFPGAPropertySet<Props...>::value;

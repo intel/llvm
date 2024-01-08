@@ -42,6 +42,10 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
                         const propertyListA &propList = properties{}) {
   detail::ValidAllocPropertyList<void, propertyListA>::value;
 
+  static constexpr bool hasAlignment = detail::HasAlign<propertyListA>::value;
+  static_assert(!hasAlignment, "The alignment property is not supported by "
+                               "annotated malloc functions in oneAPI 2024.1.");
+
   // The input argument `propList` is useful when propertyListA contains valid
   // runtime properties. While such case is not defined yet, suppress unused
   // variables warning
@@ -83,6 +87,10 @@ aligned_alloc_annotated(size_t alignment, size_t count,
                         sycl::usm::alloc kind,
                         const propertyListA &propList = properties{}) {
   detail::ValidAllocPropertyList<T, propertyListA>::value;
+
+  static constexpr bool hasAlignment = detail::HasAlign<propertyListA>::value;
+  static_assert(!hasAlignment, "The alignment property is not supported by "
+                               "annotated malloc functions in oneAPI 2024.1.");
 
   // The input argument `propList` is useful when propertyListA contains valid
   // runtime properties. While such case is not defined yet, suppress unused

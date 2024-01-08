@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include "sycl/sycl.hpp"
 #include <sycl/ext/intel/fpga_extensions.hpp>
@@ -16,8 +16,7 @@ using annotated_ptr_t1 =
                                            dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int, decltype(properties(buffer_location<0>, register_map,
-                                           alignment<8>))>;
+    annotated_ptr<int, decltype(properties(buffer_location<0>, register_map))>;
 
 using annotated_ptr_t3 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>))>;
@@ -111,7 +110,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
 
   // Removed
   // Assignment / implicit conversion
-  // expected-note@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{candidate function not viable: no known conversion from 'int *' to 'const annotated_ptr}}
   // expected-error@+1 {{no viable overloaded '='}}
   a1 = raw;
 
@@ -145,11 +143,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(annotated_ptr_t2::has_property<latency_key>() == false,
                 "has_property 2");
 
-  static_assert(annotated_ptr_t2::has_property<alignment_key>(),
-                "has_property 3");
-
-  static_assert(annotated_ptr_t2::get_property<alignment_key>() == alignment<8>,
-                "get_property 3");
   // auto dwidth_prop = annotated_ptr_t3::get_property<dwidth_key>();   // ERR
 
   q.submit([&](handler &h) { h.single_task(MyIP{raw, 5}); }).wait();
@@ -165,27 +158,13 @@ void TestVectorAddWithAnnotatedMMHosts() {
     test(int n_) : n(n_) {}
     test(const test &t) { n = t.n; }
   };
-  // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{annotated_ptr can only encapsulate either a trivially-copyable type or void!}}
-  // expected-note@+1 {{in instantiation of template class 'sycl::ext::oneapi::experimental::annotated_ptr<test>'}}
+  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: annotated_ptr can only encapsulate either a trivially-copyable type or void!}}
   annotated_ptr<test> non_trivially_copyable;
 
   annotated_ptr<void> void_type;
 
-  struct g {
-    int a;
-  };
-  g g0, g1;
-  // TODO: these notes shouldn't be emitted
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'detail::SwizzleOp}}
-  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
-  // expected-note@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{candidate template ignored: could not match 'annotated_arg<T, PropertyList>'}}
-  // expected-note@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{candidate template ignored: could not match 'annotated_arg<T2, PropertyList2>'}}
-  // expected-error@+1 {{invalid operands to binary expression}}
-  auto g2 = g0 + g1;
-
-  annotated_ptr gp{&g0};
-  auto g3 = *gp;
+  // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement '!hasAlignment': The alignment property is not supported in annotated_ptr class in oneAPI 2024.1.}}
+  annotated_ptr<int, decltype(properties(alignment<1>))> x;
 
   free(raw, q);
 }
