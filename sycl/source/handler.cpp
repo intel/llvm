@@ -504,13 +504,12 @@ event handler::finalize() {
     ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
         GraphImpl->MMutex);
 
-    ext::oneapi::experimental::node_type NodeType;
-    if (auto UserFacingType = MImpl->MUserFacingNodeType;
-        UserFacingType != ext::oneapi::experimental::node_type::empty) {
-      NodeType = UserFacingType;
-    } else {
-      NodeType = ext::oneapi::experimental::detail::getNodeTypeFromCG(MCGType);
-    }
+    ext::oneapi::experimental::node_type NodeType =
+        MImpl->MUserFacingNodeType !=
+                ext::oneapi::experimental::node_type::empty
+            ? MImpl->MUserFacingNodeType
+            : ext::oneapi::experimental::detail::getNodeTypeFromCG(MCGType);
+
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.

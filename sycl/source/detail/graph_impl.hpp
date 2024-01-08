@@ -131,7 +131,7 @@ public:
   node_impl() {}
 
   /// Construct a node representing a command-group.
-  /// @param CGType Type of the command-group.
+  /// @param NodeType Type of the command-group.
   /// @param CommandGroup The CG which stores the command information for this
   /// node.
   node_impl(node_type NodeType,

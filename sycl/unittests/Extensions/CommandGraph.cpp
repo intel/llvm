@@ -1992,6 +1992,16 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
   ASSERT_EQ(NodeA.get_successors().size(), 0lu);
   ASSERT_EQ(NodeB.get_predecessors().size(), 1lu);
   ASSERT_EQ(NodeB.get_successors().size(), 0lu);
+
+  // List of nodesthat we've added in the order they were added.
+  std::vector<experimental::node> NodeList{RootA, RootB, NodeA, NodeB, RootC};
+  auto GraphNodes = Graph.get_nodes();
+
+  // Check all nodes
+  for (size_t i = 0; i < GraphNodes.size(); i++) {
+    ASSERT_EQ(sycl::detail::getSyclObjImpl(GraphNodes[i]),
+              sycl::detail::getSyclObjImpl(NodeList[i]));
+  }
 }
 
 TEST_F(CommandGraphTest, NodeTypeQueries) {
@@ -2042,6 +2052,30 @@ TEST_F(CommandGraphTest, NodeTypeQueries) {
   ASSERT_EQ(NodeEmpty.get_type(), experimental::node_type::empty);
 
   // TODO: Test subgraph case once changes have been implemented.
+}
+
+TEST_F(CommandGraphTest, GetNodeFromEvent) {
+  // Test getting a node from a recorded event and using that as a dependency
+  // for an explicit node
+  Graph.begin_recording(Queue);
+  auto EventKernel = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording();
+
+  experimental::node NodeKernelA =
+      experimental::node::get_node_from_event(EventKernel);
+
+  // Add node as a dependency with the property
+  auto NodeKernelB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      experimental::property::node::depends_on(NodeKernelA));
+
+  // Test adding a dependency through make_edge
+  auto NodeKernelC = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  ASSERT_NO_THROW(Graph.make_edge(NodeKernelA, NodeKernelC));
+
+  auto GraphExec = Graph.finalize();
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {
