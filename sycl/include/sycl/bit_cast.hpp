@@ -33,7 +33,7 @@
 #elif __SYCL_HAS_BUILTIN_BIT_CAST
 // second choice __builtin_bit_cast
 #define __SYCL_BC_CONSTEXPR constexpr
-#elif
+#else
 // fallback memcpy
 #include <sycl/detail/memcpy.hpp>
 #define __SYCL_BC_CONSTEXPR
