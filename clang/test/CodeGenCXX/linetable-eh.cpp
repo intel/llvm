@@ -33,12 +33,12 @@ class Foo
     bool bar();
     virtual shared_ptr<Context> GetContext () = 0;
 };
-# 253 "Foo.cpp"
+# 253 "Foo.cpp" 3
 bool
 Foo::bar ()
 {
   uint64_t current_address = GetContext()->GetIt();
   bool found_it = false;
-# 267 "Foo.cpp"
+# 267 "Foo.cpp" 3
   return found_it;
 }
