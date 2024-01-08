@@ -93,6 +93,7 @@ add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/foo.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/image_copy.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/mean.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/spec_constant.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/usm_ll.cpp)
 
 set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}
