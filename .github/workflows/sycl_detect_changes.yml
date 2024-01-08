@@ -51,19 +51,19 @@ jobs:
               - *llvm
               - 'mlir/**'
             polygeist_dialect: &polygeist_dialect
-              - *mlir
               - 'polygeist/include/**'
               - 'polygeist/lib/**'
             sycl_dialect: &sycl_dialect
-              - *mlir
               - 'mlir-sycl/include/**'
               - 'mlir-sycl/lib/**'
             polygeist: &polygeist
+              - *mlir
               - *polygeist_dialect
               - *sycl_dialect
               - 'polygeist/test/**'
               - 'polygeist/unittests/**'
             mlir_sycl: &mlir_sycl
+              - *mlir
               - *sycl_dialect
               - *polygeist_dialect
               - 'mlir-sycl/**'
