@@ -184,9 +184,8 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
-    powr(marray<T, N> x, marray<T, N> y) {
-  __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)
-}
+    powr(marray<T, N> x,
+         marray<T, N> y){__SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)}
 
 #undef __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL
 
@@ -209,7 +208,7 @@ inline __SYCL_ALWAYS_INLINE
   }
 
 __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmax)
-// clang-format off
+    // clang-format off
 __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmin)
 
 #undef __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD
@@ -254,8 +253,9 @@ inline __SYCL_ALWAYS_INLINE
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<detail::is_sgenfloat_v<T>, marray<T, N>>
-    rootn(marray<T, N> x, marray<int, N> y){
-        __SYCL_MATH_FUNCTION_2_GENINT_Y_OVERLOAD_IMPL(rootn)}
+    rootn(marray<T, N> x, marray<int, N> y) {
+  __SYCL_MATH_FUNCTION_2_GENINT_Y_OVERLOAD_IMPL(rootn)
+}
 
 #undef __SYCL_MATH_FUNCTION_2_GENINT_Y_OVERLOAD_IMPL
 
@@ -267,18 +267,17 @@ inline __SYCL_ALWAYS_INLINE
   return res;
 
 template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<detail::is_sgenfloat_v<T>,
-                                             marray<T, N>> pown(marray<T, N> x,
-                                                                int y) {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<detail::is_sgenfloat_v<T>, marray<T, N>>
+    pown(marray<T, N> x, int y) {
   __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(pown)
 }
 
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<detail::is_sgenfloat_v<T>, marray<T, N>>
-    rootn(marray<T, N> x, int y) {
-  __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)
-}
+    rootn(marray<T, N> x,
+          int y){__SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)}
 
 #undef __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL
 
@@ -301,16 +300,15 @@ inline __SYCL_ALWAYS_INLINE
     return res;                                                                \
   }
 
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mad)
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
-__SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
+    __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-// svgenfloat fmax (svgenfloat x, sgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_vgenfloat_v<T>, T>
-fmax(T x, typename T::element_type y) {
+    // svgenfloat fmax (svgenfloat x, sgenfloat y)
+    template <typename T>
+    std::enable_if_t<detail::is_vgenfloat_v<T>, T> fmax(
+        T x, typename T::element_type y) {
   return __sycl_std::__invoke_fmax<T>(x, T(y));
 }
 
