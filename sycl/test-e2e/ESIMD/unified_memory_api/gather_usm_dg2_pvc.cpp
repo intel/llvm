@@ -20,7 +20,7 @@ int main() {
   auto Q = queue{gpu_selector_v};
   esimd_test::printTestLabel(Q);
 
-  // DG2 and PVC support same gather() configurations. If some gather call 
+  // DG2 and PVC support same gather() configurations. If some gather call
   // has corresponding instructions in PVC and does not have it in DG2, then
   // GPU RT emulates it for DG2.
   constexpr auto TestFeatures = TestFeatures::DG2;
