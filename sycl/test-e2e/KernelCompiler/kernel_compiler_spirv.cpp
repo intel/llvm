@@ -112,7 +112,7 @@ void testKernelsFromSpvFile(std::string kernels_file,
                             std::string fp64_kernel_file) {
   const auto getKernel =
       [](sycl::kernel_bundle<sycl::bundle_state::executable> &bundle,
-          const std::string &name) {
+         const std::string &name) {
         return bundle.ext_oneapi_get_kernel(name);
       };
 
