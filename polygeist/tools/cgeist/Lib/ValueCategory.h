@@ -116,8 +116,8 @@ public:
                          mlir::Type DestTy) const;
   ValueCategory IntToPtr(mlir::OpBuilder &Builder, mlir::Location Loc,
                          mlir::Type DestTy, mlir::Type ElemType) const;
-  ValueCategory BitCast(mlir::OpBuilder &Builder, mlir::Location Loc,
-                        mlir::Type DestTy, mlir::Type ElemTy) const;
+  // Performs a cast between values of `llvm.ptr` type
+  ValueCategory BitCast(mlir::Type ElemTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
   ValueCategory
   Ptr2MemRef(mlir::OpBuilder &Builder, mlir::Location Loc,
