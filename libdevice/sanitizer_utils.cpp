@@ -166,10 +166,10 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
     // The size of SLM is 128KB on PVC
     constexpr unsigned slm_size = 128 * 1024;
     const auto wg_lid =
-        __spirv_BuiltInWorkgroupId.x +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInWorkgroupSize.x +
-        __spirv_BuiltInWorkgroupId.z * __spirv_BuiltInWorkgroupSize.x *
-            __spirv_BuiltInWorkgroupSize.y;
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
 
     shadow_ptr = __AsanShadowMemoryLocalStart + ((wg_lid * slm_size) >> 3) +
                  ((addr & (slm_size - 1)) >> 3);
