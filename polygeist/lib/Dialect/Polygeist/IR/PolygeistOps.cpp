@@ -336,9 +336,6 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
       if (auto sub = dyn_cast<LLVM::GEPOp>(u)) {
         todo.push_back(sub);
       }
-      if (auto sub = dyn_cast<LLVM::BitcastOp>(u)) {
-        todo.push_back(sub);
-      }
       if (auto sub = dyn_cast<LLVM::AddrSpaceCastOp>(u)) {
         todo.push_back(sub);
       }
@@ -389,10 +386,6 @@ Value getBase(Value v) {
     }
     if (auto s = v.getDefiningOp<LLVM::GEPOp>()) {
       v = s.getBase();
-      continue;
-    }
-    if (auto s = v.getDefiningOp<LLVM::BitcastOp>()) {
-      v = s.getArg();
       continue;
     }
     if (auto s = v.getDefiningOp<LLVM::AddrSpaceCastOp>()) {
@@ -1160,15 +1153,10 @@ public:
                                                  rewriter.getI64Type(), idx[0]);
 
     auto PtrTy = cast<LLVM::LLVMPointerType>(op.getType());
-
-    Value GEP = rewriter.create<LLVM::GEPOp>(
-        op->getLoc(), PtrTy, MET,
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, PtrTy, MET,
         rewriter.create<Memref2PointerOp>(op.getLoc(), PtrTy, src.getSource()),
         idx);
-    if (PtrTy != op.getType()) {
-      GEP = rewriter.create<LLVM::BitcastOp>(op->getLoc(), op.getType(), GEP);
-    }
-    rewriter.replaceOp(op, GEP);
     return success();
   }
 };
@@ -1447,8 +1435,7 @@ public:
     if (!src)
       return failure();
 
-    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(),
-                                                 src.getSource());
+    rewriter.replaceOp(op, src);
     return success();
   }
 };
@@ -1900,11 +1887,6 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 OpFoldResult Pointer2MemrefOp::fold(FoldAdaptor operands) {
-  /// Simplify pointer2memref(bitcast(x)) to pointer2memref(x)
-  if (auto mc = getSource().getDefiningOp<LLVM::BitcastOp>()) {
-    getSourceMutable().assign(mc.getArg());
-    return getResult();
-  }
   if (auto mc = getSource().getDefiningOp<LLVM::GEPOp>()) {
     const LLVM::GEPIndicesAdaptor<ValueRange> &indices = mc.getIndices();
     for (const auto &iter : llvm::enumerate(indices)) {

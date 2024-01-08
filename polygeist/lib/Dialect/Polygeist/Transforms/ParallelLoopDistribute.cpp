@@ -726,8 +726,6 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
     } else if (auto ao = dyn_cast<LLVM::AllocaOp>(o)) {
       Value sz = ao.getArraySize();
       rewriter.setInsertionPointAfter(alloc.getDefiningOp());
-      alloc =
-          rewriter.create<LLVM::BitcastOp>(ao.getLoc(), ao.getType(), alloc);
       for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
         rewriter.setInsertionPoint(u.getOwner());
         Value idx = nullptr;

@@ -354,18 +354,6 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
           Loc, Builder.getIndexType(), TypeAttr::get(ThisVal.getElemTy()));
       TypeSize = Builder.create<arith::IndexCastOp>(Loc, Builder.getI64Type(),
                                                     TypeSize);
-      V = Builder.create<LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(
-              Builder.getI8Type(),
-              cast<LLVM::LLVMPointerType>(V.getType()).getAddressSpace()),
-          V);
-      Src = Builder.create<LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(
-              Builder.getI8Type(),
-              cast<LLVM::LLVMPointerType>(Src.getType()).getAddressSpace()),
-          Src);
       Builder.create<LLVM::MemcpyOp>(Loc, V, Src, TypeSize,
                                      /*isVolatile*/ false);
     }
@@ -415,10 +403,6 @@ Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
           Alloc = Builder.create<LLVM::AllocaOp>(
               VarLoc, Glob.getTypes().getPointerType(T, MemSpace), T, Len);
           Builder.create<polygeist::TrivialUseOp>(VarLoc, Alloc);
-          Alloc = Builder.create<LLVM::BitcastOp>(
-              VarLoc,
-              Glob.getTypes().getPointerType(LLVM::LLVMArrayType::get(T, 0)),
-              Alloc);
         }
 
       if (!Alloc) {
@@ -625,10 +609,9 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
 
   mlir::Type ET = MT.getElementType();
   if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ET)) {
-    // In-house bitcast from `memref<- x array<N x Ty>>` to `memref<? x Ty>`
-    Scalar = Scalar.MemRef2Ptr(Builder, Loc);
-    Scalar.ElementType = AT.getElementType();
-    return Scalar.Ptr2MemRef(Builder, Loc);
+    return Scalar.MemRef2Ptr(Builder, Loc)
+        .BitCast(Builder, Loc, Scalar.val.getType(), AT.getElementType())
+        .Ptr2MemRef(Builder, Loc);
   }
 
   auto Shape = std::vector<int64_t>(MT.getShape());
@@ -1193,9 +1176,6 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
       auto SubType = TypeTranslator.translateType(
           mlirclang::getLLVMType(FD->getType(), Glob.getCGM()));
       ElemTy = SubType;
-      CommonGep = Builder.create<LLVM::BitcastOp>(
-          Loc, Glob.getTypes().getPointerType(SubType, PT.getAddressSpace()),
-          CommonGep);
     }
 
     if (IsLValue) {
@@ -1345,17 +1325,11 @@ Value MLIRScanner::GetAddressOfDerivedClass(
     }
 
     Value Ptr = Val;
-    if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Ptr.getType()))
-      Ptr = Builder.create<LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(Builder.getI8Type(),
-                                         PT.getAddressSpace()),
-          Ptr);
-    else
+    if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
       Ptr = Builder.create<polygeist::Memref2PointerOp>(
           Loc,
           Glob.getTypes().getPointerType(Builder.getI8Type(),
-                                         PT.getAddressSpace()),
+                                         MT.getMemorySpaceAsInt()),
           Ptr);
 
     Ptr = Builder.create<LLVM::GEPOp>(Loc, Ptr.getType(), Builder.getI8Type(),

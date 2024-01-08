@@ -792,8 +792,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
                    cast<LLVM::LLVMPointerType>(T).getAddressSpace() &&
                "val does not have the same memory space as T");
         Val = Builder.create<polygeist::Memref2PointerOp>(Loc, T, Val);
-      } else if (T != Val.getType())
-        Val = Builder.create<LLVM::BitcastOp>(Loc, T, Val);
+      }
       return ValueCategory(Val, /*isRef*/ false);
     }
     assert(isa<MemRefType>(T));

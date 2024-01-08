@@ -526,8 +526,9 @@ ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
   assert((!isa<mlir::VectorType>(DestTy) ||
           cast<mlir::VectorType>(DestTy).getNumElements() == 1) &&
          "Expecting single-element vector");
-
-  return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy, ElemTy);
+  // No operation is needed in an opaque pointer world, so we simply change the
+  // element type.
+  return {val, isReference, ElemTy};
 }
 
 ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,

@@ -824,16 +824,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
           Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, Val);
       ElemTy = MT.getElementType();
     } else {
-      ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(Loc, Ty, Val);
-      if (Expr->isArray()) {
-        auto PT = cast<LLVM::LLVMPointerType>(Ty);
-        ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
-            Loc,
-            Glob.getTypes().getPointerType(
-                LLVM::LLVMArrayType::get(ElemTy.value(), 0),
-                PT.getAddressSpace()),
-            Alloc);
-      }
+      ArrayCons = Alloc = Val;
     }
   } else {
     MemRefType MT =
@@ -983,13 +974,6 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
           Glob.getTypes().getPointerType(
               Builder.getI8Type(),
               cast<MemRefType>(Val.getType()).getMemorySpaceAsInt()),
-          Val);
-    else
-      Val = Builder.create<LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(
-              Builder.getI8Type(),
-              cast<LLVM::LLVMPointerType>(Val.getType()).getAddressSpace()),
           Val);
 
     mlir::Value Size = getTypeSize(Cons->getType());
@@ -1811,7 +1795,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (NeedsPtrConversion)
       Addr = Addr.MemRef2Ptr(Builder, Loc);
     Addr = Addr.BitCast(Builder, Loc, DestTy, DestElemTy);
-    Addr.ElementType = DestElemTy;
     if (NeedsPtrConversion) {
       auto MT = cast<MemRefType>(SrcTy);
       Addr = Addr.Ptr2MemRef(Builder, Loc, MT.getShape(), MT.getLayout());
