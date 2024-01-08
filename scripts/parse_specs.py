@@ -327,6 +327,9 @@ def _validate_doc(f, d, tags, line_num, meta):
                 __validate_struct_range_members(item['name'], member_members,
                                                 meta)
 
+            if type_traits.is_handle(item['type']) and param_traits.is_output(item):
+                raise Exception(prefix + f"struct member {item['name']} is an object handle, so it must not be have the [out] tag")
+
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
                 raise Exception(prefix+"'version' must be increasing: %s"%item['version'])

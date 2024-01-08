@@ -175,7 +175,8 @@ namespace ur_loader
             size_t sizeret = 0;
             if (pPropSizeRet == NULL)
                 pPropSizeRet = &sizeret;
-        
+        %endif
+
         ## Here we deal with handles buried inside struct type parameters. First
         ## we create a local copy of the struct, then we convert all the handles
         ## in that local copy and set the parameter to point to it before forwarding

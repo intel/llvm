@@ -226,6 +226,8 @@ following:
   ``[optional]`` tag if that struct (or any of its members, recursively) has
   an object handle member in its definition.
 
+* A struct member which is an object handle must not have the ``[out]`` tag.
+
 Forks and Pull Requests
 =======================
 
