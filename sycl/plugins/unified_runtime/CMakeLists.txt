@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Fri Jan 5 15:46:56 2024 +0000
   #     Merge pull request #984 from al42and/ext_oneapi_queue_priority-hip
   #     [HIP] Implement ext_oneapi_queue_priority
-  set(UNIFIED_RUNTIME_TAG 46a886df656c98a4bde7b778c27f8bcb4e78c351)
+  set(UNIFIED_RUNTIME_TAG 2a960bafb0f0bfe3d2d8fb8be842bf02f6d02943)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
