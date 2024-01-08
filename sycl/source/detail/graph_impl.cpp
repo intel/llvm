@@ -767,11 +767,6 @@ void exec_graph_impl::createCommandBuffers(
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  WriteLock LockImpl(MGraphImpl->MMutex);
-
-  // clear all recording queue if not done before (no call to end_recording)
-  MGraphImpl->clearQueues();
-
   const sycl::detail::PluginPtr &Plugin =
       sycl::detail::getSyclObjImpl(MContext)->getPlugin();
   MSchedule.clear();

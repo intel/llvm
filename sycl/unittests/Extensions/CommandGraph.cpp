@@ -1527,7 +1527,15 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
 }
 
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  queue Q{ext::codeplay::experimental::property::queue::enable_fusion{}};
+  device D;
+  if (!D.get_info<
+          ext::codeplay::experimental::info::device::supports_fusion>()) {
+    // Skip this test if the device does not support fusion. Otherwise, the
+    // queue construction in the next step would fail.
+    GTEST_SKIP();
+  }
+
+  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
 
   experimental::command_graph<experimental::graph_state::modifiable> Graph{
       Q.get_context(), Q.get_device()};
