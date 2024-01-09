@@ -25,7 +25,6 @@ constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
 constexpr int kUsmHostRedzoneMagic = (char)0x82;
 constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
-constexpr int kUnkownRedzoneMagic = (char)0x8F;
 
 constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
