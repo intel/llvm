@@ -781,6 +781,8 @@ def gcc_install_dir_EQ : Joined<["--"], "gcc-install-dir=">,
 def gcc_toolchain : Joined<["--"], "gcc-toolchain=">, Flags<[NoXarchOption]>,
   HelpText<"Specify a directory where Clang can find 'include' and 'lib{,32,64}/gcc{,-cross}/$triple/$version'. "
   "Clang will use the GCC installation with the largest version">;
+def gcc_triple_EQ : Joined<["--"], "gcc-triple=">,
+  HelpText<"Search for the GCC installation with the specified triple.">;
 def CC : Flag<["-"], "CC">, Visibility<[ClangOption, CC1Option]>,
   Group<Preprocessor_Group>,
     HelpText<"Include comments from within macros in preprocessed output">,
@@ -1766,6 +1768,12 @@ defm coverage_mapping : BoolFOption<"coverage-mapping",
           "Generate coverage mapping to enable code coverage analysis">,
   NegFlag<SetFalse, [], [ClangOption], "Disable code coverage analysis">, BothFlags<
           [], [ClangOption, CLOption]>>;
+defm mcdc_coverage : BoolFOption<"coverage-mcdc",
+  CodeGenOpts<"MCDCCoverage">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable MC/DC criteria when generating code coverage">,
+  NegFlag<SetFalse, [], [ClangOption], "Disable MC/DC coverage criteria">,
+          BothFlags<[], [ClangOption, CLOption]>>;
 def fprofile_generate : Flag<["-"], "fprofile-generate">,
     Group<f_Group>, Visibility<[ClangOption, CLOption]>,
     HelpText<"Generate instrumented code to collect execution counts into default.profraw (overridden by LLVM_PROFILE_FILE env var)">;

@@ -317,8 +317,8 @@ added in the future:
     not be used lightly but only for specific situations such as an
     alternative to the *register pinning* performance technique often
     used when implementing functional programming languages. At the
-    moment only X86 and AArch64 support this convention. The following
-    limitations exist:
+    moment only X86, AArch64, and RISCV support this convention. The 
+    following limitations exist:
 
     -  On *X86-32* only up to 4 bit type parameters are supported. No
        floating-point types are supported.
@@ -327,6 +327,9 @@ added in the future:
     -  On *AArch64* only up to 4 32-bit floating-point parameters,
        4 64-bit floating-point parameters, and 10 bit type parameters
        are supported.
+    -  *RISCV64* only supports up to 11 bit type parameters, 4
+       32-bit floating-point parameters, and 4 64-bit floating-point
+       parameters.
 
     This calling convention supports `tail call
     optimization <CodeGenerator.html#tail-call-optimization>`_ but requires
@@ -12250,7 +12253,7 @@ This instruction requires several arguments:
    #. Arguments with the :ref:`inalloca <attr_inalloca>` or
       :ref:`preallocated <attr_preallocated>` attribute are forwarded in place.
    #. If the musttail call appears in a function with the ``"thunk"`` attribute
-      and the caller and callee both have varargs, than any unprototyped
+      and the caller and callee both have varargs, then any unprototyped
       arguments in register or memory are forwarded to the callee. Similarly,
       the return value of the callee is returned to the caller's caller, even
       if a void return type is in use.
