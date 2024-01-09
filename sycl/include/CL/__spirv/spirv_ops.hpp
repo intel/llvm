@@ -25,6 +25,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
+
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -43,6 +44,39 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
     T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
+
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_CompositeConstructCheckedINTEL(const T Value, size_t Height,
+                                           size_t Stride, size_t Width,
+                                           size_t CoordX, size_t CoordY);
+
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_JointMatrixLoadCheckedINTEL(T *Ptr, std::size_t Stride,
+                                        size_t Height, size_t Width,
+                                        size_t CoordX, size_t CoordY,
+                                        __spv::MatrixLayout Layout = L,
+                                        __spv::Scope::Flag Sc = S,
+                                        int MemOperand = 0);
+
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
+    std::size_t Stride, size_t Height, size_t Width, size_t CoordX,
+    size_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
+    int MemOperand = 0);
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           __spv::MatrixUse UA, __spv::MatrixUse UB, __spv::MatrixUse UC,
@@ -138,6 +172,11 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
+
+template <typename T, std::size_t NumRows, std::size_t NumCols>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixPrefetchINTEL(
+    T *Ptr, std::size_t coordX, std::size_t coordY, unsigned int CacheLevel,
+    __spv::MatrixLayout Layout, std::size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
