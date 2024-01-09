@@ -13,26 +13,24 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
-  ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice);
     UR_CHECK_ERROR(hipDeviceEnablePeerAccess(peerDevice->get(), 0));
   } catch (ur_result_t err) {
-    result = err;
+    return err;
   }
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
-  ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice);
     UR_CHECK_ERROR(hipDeviceDisablePeerAccess(peerDevice->get()));
   } catch (ur_result_t err) {
-    result = err;
+    return err;
   }
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
@@ -42,16 +40,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   int value;
-  hipDeviceP2PAttr hip_attr;
+  hipDeviceP2PAttr hipAttr;
   try {
     ScopedContext active(commandDevice);
     switch (propName) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
-      hip_attr = hipDevP2PAttrAccessSupported;
+      hipAttr = hipDevP2PAttrAccessSupported;
       break;
     }
     case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
-      hip_attr = hipDevP2PAttrNativeAtomicSupported;
+      hipAttr = hipDevP2PAttrNativeAtomicSupported;
       break;
     }
     default: {
@@ -59,7 +57,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     }
     }
     UR_CHECK_ERROR(hipDeviceGetP2PAttribute(
-        &value, hip_attr, commandDevice->get(), peerDevice->get()));
+        &value, hipAttr, commandDevice->get(), peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
   }
