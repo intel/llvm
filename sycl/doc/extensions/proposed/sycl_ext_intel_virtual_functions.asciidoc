@@ -117,15 +117,21 @@ be used:
 
 === New properties
 
-Due to the indirect nature of virtual member functions, compiler may not be able
-to understand which exact virtual member function is being called (i.e. which
-class it belongs to).  Moreover, when code is distributed over several
-translation units, compiler may not be able to even see definitions of all
-virtual member functions which may be called in a kernel.
+Under the hood virtual functions are essentially function pointers which are
+stored in a global variable and managed by compiler-generated code. Therefore,
+each call to a virtual member function is an indirect call and compiler may not
+be able to understand which exact virtual function is being called (i.e. which
+class it belongs to).
 
-Therefore, to provide a mechanism for an implementation to help detect virtual
-member functions, which are going to be used from kernels and enforce necessary
-restrictions on them, new compile-time-constant properties are proposed.
+Without any knowledge about which virtual function can be called from which
+kernels compiler will have to make all virtual functions available to all
+kernels. That may not be desirable because some of those virtual functions could
+use optional kernel features and thus would propagate their use into kernels
+designed to be submitted to devices without support for those optional features.
+
+In order to help compiler to build a mapping between kernels and virtual
+functions they may call, the extension introduces new compile-time-constant
+properties.
 
 [source,dpcpp]
 ----
