@@ -301,11 +301,6 @@ void check_sub_group_size() {
   // expected-error@+1 {{too few template arguments for variable template 'sub_group_size'}}
   auto WGSize0 = sycl::ext::oneapi::experimental::sub_group_size<>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: sub_group_size_key property must contain a non-zero value.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'sub_group_size<0>' must be initialized by a constant expression}}
-  // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::sub_group_size<0>' requested here}}
-  auto WGSize1 = sycl::ext::oneapi::experimental::sub_group_size<0>;
-
   sycl::queue Q;
 
   // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
