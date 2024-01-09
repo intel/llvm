@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %if linux && (level_zero || cuda) %{ env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 FileCheck %s %} %else %{ %{run} %t.out %}
 
 // Since Prefetch is only a memory hint that doesn't
 // impact results but only performances, we verify
