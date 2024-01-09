@@ -75,7 +75,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef CHECK_RESULTS
-#if defined(__WIN32) || defined(__WIN64)
+#if defined(_WIN32) || defined(_WIN64)
 // vector::pop_back and vector::insert must both not be found
 ; CHECK-NO-DEBUG-NOT:                               ?pop_back@?$vector@HV?$allocator@H@std@@@std@@QEAAXXZ
 ; CHECK-NO-DEBUG-NOT:                               ?insert@?$vector@HV?$allocator@H@std@@@std@@QEAA?AV?$_Vector_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@V?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@H@std@@@std@@@2@$$QEAH@Z
