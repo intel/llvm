@@ -116,9 +116,8 @@ public:
 
 private:
   /// Returns true if \p func is a candidate.
-  bool isCandidateFunction(
-      FunctionOpInterface func,
-      const polygeist::FunctionKernelInfo &funcKernelInfo) const;
+  bool isCandidateFunction(FunctionOpInterface func,
+                           polygeist::FunctionKernelInfo &funcKernelInfo) const;
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
@@ -176,8 +175,8 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 
 bool KernelDisjointSpecializationPass::isCandidateFunction(
     FunctionOpInterface func,
-    const polygeist::FunctionKernelInfo &funcKernelInfo) const {
-  if (!funcKernelInfo.isPotentialKernelBodyFunction(func)) {
+    polygeist::FunctionKernelInfo &funcKernelInfo) const {
+  if (!funcKernelInfo.isKernelFuncObjFunction(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: not a potential kernel body function\n");
     return false;

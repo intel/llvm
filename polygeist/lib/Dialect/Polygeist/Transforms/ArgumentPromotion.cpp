@@ -216,7 +216,7 @@ private:
 
   /// Return true is the callee is a candidate, and false otherwise.
   bool isCandidateCallable(CallableOpInterface callableOp,
-                           const polygeist::FunctionKernelInfo &funcKernelInfo);
+                           polygeist::FunctionKernelInfo &funcKernelInfo);
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.
@@ -591,7 +591,7 @@ bool ArgumentPromotionPass::isCandidateOperand(
 
 bool ArgumentPromotionPass::isCandidateCallable(
     CallableOpInterface callableOp,
-    const polygeist::FunctionKernelInfo &funcKernelInfo) {
+    polygeist::FunctionKernelInfo &funcKernelInfo) {
   Operation *op = callableOp;
   auto funcOp = cast<FunctionOpInterface>(op);
   // The function must be defined, and private or with linkonce_odr linkage.
@@ -609,16 +609,18 @@ bool ArgumentPromotionPass::isCandidateCallable(
     return false;
   }
 
+  // Check candidate is a SYCL KernelObjFunction.
+  if (!funcKernelInfo.isKernelFuncObjFunction(funcOp)) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "not a candidate: not a SYCL KernelObjFunction\n");
+    return false;
+  }
+
   // Ensure all the call sites for this function are either in a GPU kernel or
   // in a function that is called directly by a GPU kernel.
   // TODO: Could generalize by checking that the call chain from the GPU kernel
   // are all candidates.
-  Optional<unsigned> maxDepth =
-      funcKernelInfo.getMaxDepthFromAnyGPUKernel(funcOp);
-  assert(maxDepth.has_value() &&
-         "Expecting func to be called from a GPU kernel");
-  assert(maxDepth.value() != 0 && "Expecting func is not itself a GPU kernel");
-  if (maxDepth.value() > 2) {
+  if (!funcKernelInfo.isCalledDirectlyFromKernel(callableOp)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: found call site that is called by a GPU "
                   "kernel with depth more than 2.\n");

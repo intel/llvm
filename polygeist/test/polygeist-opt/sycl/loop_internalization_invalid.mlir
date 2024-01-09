@@ -16,7 +16,7 @@
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
 gpu.module @device_func {
-func.func private @callee1(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @callee1(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) attributes {sycl.kernel_func_obj = [@caller1]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -35,7 +35,7 @@ gpu.func @caller1(%arg0: memref<?xi32, #sycl.access.address_space<local>>, %arg1
   gpu.return
 }
 
-func.func private @callee2(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @callee2(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) attributes {sycl.kernel_func_obj = [@caller2]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -74,7 +74,7 @@ gpu.func @caller2(%arg0: memref<?xi32, 3>, %arg1: memref<?x!sycl_accessor_2_f32_
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
 gpu.module @device_func {
-func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -118,7 +118,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
 gpu.module @device_func {
-func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -162,7 +162,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 !sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
 
 gpu.module @device_func {
-func.func private @affine(%alloca_cond: memref<1xi1>, %arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) {
+func.func private @affine(%alloca_cond: memref<1xi1>, %arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %id = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
   %c0_i32 = arith.constant 0 : i32

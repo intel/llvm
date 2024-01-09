@@ -109,68 +109,27 @@ SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
 /// the function, and its associated depth from the kernel to the function.
 class FunctionKernelInfo {
 public:
-  FunctionKernelInfo() = delete;
-  FunctionKernelInfo(gpu::GPUModuleOp);
-
-  struct KernelInfo {
-    gpu::GPUFuncOp kernel;
-    unsigned depth; // Depth from the associated kernel
-  };
+  explicit FunctionKernelInfo(gpu::GPUModuleOp module) : ST(module) {}
 
   /// Returns true if the given function is potentially a SYCL kernel body
   /// function. The SYCL kernel body function is created by SemaSYCL in clang
-  /// for the body of the SYCL kernel, e.g., code in parallel_for.
-  /// TODO: add an attribute to the call operator of the SYCL kernel functor in
-  /// SemaSYCL in clang, to identify SYCL kernel body function accurately.
-  bool isPotentialKernelBodyFunction(FunctionOpInterface func) const;
+  /// for the body of the SYCL kernel, e.g., code in parallel_for. The cgeist
+  /// frontend attaches a `sycl.kernel_func_obj` attribute to these functions.
+  bool isKernelFuncObjFunction(FunctionOpInterface func);
 
-  /// Returns the maximum depth from any GPU kernel.
-  /// Returns std::nullopt if the call is not called from a GPU kernel.
-  /// For example:
-  /// Call chains:
-  ///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
-  ///   GPUKernel2 -> func2 (depth 1)
-  /// =>
-  ///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
-  ///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
-  Optional<unsigned>
-  getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) const;
-
-  /// Returns the maximum depth from \p kernel to \p func.
-  /// For example:
-  /// Call chains:
-  ///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
-  ///   GPUKernel1 -> func2 (depth 1)
-  ///   GPUKernel2 -> func0 (depth 1) -> func1 (depth 2) -> func2 (depth 3)
-  /// =>
-  ///   getMaxDepthFromGPUKernel(func2, GPUKernel1) returns 2.
-  ///   getMaxDepthFromGPUKernel(func2, GPUKernel2) returns 3.
-  ///   getMaxDepthFromAnyGPUKernel(func2) returns 3.
-  Optional<unsigned> getMaxDepthFromGPUKernel(FunctionOpInterface func,
-                                              gpu::GPUFuncOp kernel) const;
+  llvm::SmallSet<FunctionOpInterface, 4>
+  getKernelFuncObjFunctions(gpu::GPUFuncOp kernel);
 
   /// Populates \p kernels with GPU kernels that can reach \p func.
   void getKernelCallers(FunctionOpInterface func,
-                        SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
+                        SmallVectorImpl<gpu::GPUFuncOp> &kernels);
 
-  /// Returns the potential 'kernel body functions' of \p kernel. A 'kernel body
-  /// function' is the lambda/functor associated with the SYCL kernel construct
-  /// (e.g., parallel_for). Note that transformation passes might have cloned
-  /// the kernel body to specialize it. This function returns all possible
-  /// kernel body functions, including specializations.
-  llvm::SmallSet<FunctionOpInterface, 4>
-  getPotentialKernelBodyFunctions(gpu::GPUFuncOp kernel) const;
+  /// Returns whether \p CallableOp is a KernelFuncObj function called from the
+  /// body of a SYCL kernel.
+  bool isCalledDirectlyFromKernel(CallableOpInterface callableOp);
 
 private:
-  /// Populate funcKernelInfosMap with the list of GPU kernels that can reach
-  /// \p func and their associated depth.
-  void populateGPUKernelInfo(FunctionOpInterface func);
-
-  /// Map from a function to all kernels that can reach it and their
-  /// corresponding depths.
-  DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelInfosMap;
-  /// Map from a kernel to all functions that can be reached from it.
-  DenseMap<gpu::GPUFuncOp, std::set<FunctionOpInterface>> kernelFuncsMap;
+  SymbolTable ST;
 };
 
 //===----------------------------------------------------------------------===//

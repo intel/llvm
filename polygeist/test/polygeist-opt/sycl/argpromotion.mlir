@@ -2,9 +2,10 @@
 
 gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
-  func.func private @callee1(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
+  func.func private @callee1(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 attributes {sycl.kernel_func_obj = [@test1, @test2]} {
     // CHECK-LABEL: func.func private @callee1
-    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias}) -> i64 {
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias}) -> i64
+    // CHECK-SAME:    attributes {sycl.kernel_func_obj = [@test1, @test2]}
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xi64>
@@ -65,9 +66,10 @@ gpu.module @device_func {
   }
 
   // COM: Test that multiple peelable arguments are peeled correctly.
-  func.func private @callee3(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+  func.func private @callee3(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) attributes {sycl.kernel_func_obj = [@test3]} {
     // CHECK-LABEL: func.func private @callee3
-    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xf32>) {
+    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xf32>)
+    // CHECK-SAME:    attributes {sycl.kernel_func_obj = [@test3]}
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xf32>
@@ -97,9 +99,10 @@ gpu.module @device_func {
   // COM: Test that a peelable argument can be peeled when another argument with the expected type 
   // COM: cannot be peeled (because used in the callee by an invalid instruction).
   // COM: The first argument in this function can be peeled but the second cannot.
-  func.func private @callee4(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+  func.func private @callee4(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) attributes {sycl.kernel_func_obj = [@test4]} {
     // CHECK-LABEL: func.func private @callee4
-    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?x!llvm.struct<(f32)>>) {
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?x!llvm.struct<(f32)>>)
+    // CHECK-SAME:    attributes {sycl.kernel_func_obj = [@test4]}
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = memref.memory_space_cast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     // CHECK-NEXT:    {{.*}} = affine.load %arg0[0] : memref<?xi32>
@@ -123,9 +126,10 @@ gpu.module @device_func {
   }
 
   // COM: The second argument in this function can be peeled but the first cannot.
-  func.func private @callee5(%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?x!llvm.struct<(i32)>>) {
+  func.func private @callee5(%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?x!llvm.struct<(i32)>>) attributes {sycl.kernel_func_obj = [@test5]} {
     // CHECK-LABEL: func.func private @callee5
-    // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?xi32> {llvm.noalias}) {
+    // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?xi32> {llvm.noalias})
+    // CHECK-SAME:    attributes {sycl.kernel_func_obj = [@test5]}
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = memref.memory_space_cast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xi32>
@@ -150,10 +154,10 @@ gpu.module @device_func {
 
   // COM: Test that the a call to a linkonce_odr function is modified.
   // COM: This function is a candidate, check that it is transformed correctly.
-  func.func @callee6(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+  func.func @callee6(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>, sycl.kernel_func_obj = [@test6]} {
     // CHECK-LABEL: func.func private @callee6
     // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias})
-    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<private>} {
+    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<private>, sycl.kernel_func_obj = [@test6]} {
     func.return
   }
   gpu.func @test6() kernel {

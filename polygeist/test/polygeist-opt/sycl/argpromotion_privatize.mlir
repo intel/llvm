@@ -3,10 +3,10 @@
 gpu.module @device_func {
 
   // COM: Test that both @callee and @wrapper are privatized.
-  // CHECK-DAG: func.func private @callee(%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias}) -> i64 attributes {llvm.linkage = #llvm.linkage<private>}
+  // CHECK-DAG: func.func private @callee(%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias}) -> i64 attributes {llvm.linkage = #llvm.linkage<private>, sycl.kernel_func_obj = [@caller1, @caller2]}
   // CHECK-DAG: func.func private @wrapper(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 attributes {llvm.linkage = #llvm.linkage<private>}
 
-  func.func @callee(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+  func.func @callee(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>, sycl.kernel_func_obj = [@caller1, @caller2]} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi32>

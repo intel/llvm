@@ -1027,8 +1027,7 @@ private:
                     DataFlowSolver &solver) const;
 
   /// Transform a candidate kernel body function.
-  void transform(FunctionOpInterface func,
-                 const FunctionKernelInfo &funcKernelInfo,
+  void transform(FunctionOpInterface func, FunctionKernelInfo &funcKernelInfo,
                  const unsigned sharedMemoryRemaining, DataFlowSolver &solver);
 
   /// Transform a candidate loop.
@@ -1082,7 +1081,7 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
       return;
 
     llvm::SmallSet<FunctionOpInterface, 4> bodyFuncs =
-        funcKernelInfo.getPotentialKernelBodyFunctions(kernel);
+        funcKernelInfo.getKernelFuncObjFunctions(kernel);
     kernelBodyFuncs.insert(bodyFuncs.begin(), bodyFuncs.end());
   });
 
@@ -1276,7 +1275,7 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop,
 }
 
 void LoopInternalization::transform(FunctionOpInterface func,
-                                    const FunctionKernelInfo &funcKernelInfo,
+                                    FunctionKernelInfo &funcKernelInfo,
                                     const unsigned sharedMemoryRemaining,
                                     DataFlowSolver &solver) {
   // Calculate the total amount of shared memory needed to promote the memory
