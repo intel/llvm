@@ -448,11 +448,11 @@ other optional kernel features, because it requires to compile a kernel in a
 certain way, which may require special handling for all functions which are
 called from it.
 
-When the same helper function is called from two or more kernels
-with different `reqd_sub_group_size` attribute, it may be required for the
-implementation to duplicate that helper function to create different versions
-of it tailored to different sub-group sizes. It can be done in a straightforward
-manner when operating on a static call graph.
+When the same function is called from two or more kernels with different
+`reqd_sub_group_size` attribute, it may be required for the implementation to
+duplicate that function to create different versions of it tailored to different
+sub-group sizes. It can be done in a straightforward manner when operating on a
+static call graph.
 
 Virtual member functions are essentially called indirectly and pointers to them
 are initialized just once when an object of a polymorhpic class is being
