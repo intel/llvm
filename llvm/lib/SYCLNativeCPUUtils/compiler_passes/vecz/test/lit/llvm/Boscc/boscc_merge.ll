@@ -122,6 +122,7 @@ if.else6:                                             ; preds = %if.then6, %if.e
 ; CHECK:  br i1 %[[CMP1]], label %[[IFTHEN:.+]], label %[[IFELSE:.+]]
 
 ; CHECK: [[IFTHEN]]:
+; CHECK: %[[CMP2:.+]] = icmp
 ; CHECK: br i1 %{{.+}}, label %[[IFTHEN2UNIFORM:.+]], label %[[IFTHENBOSCCINDIR:.+]]
 
 ; CHECK: [[IFELSE2PREHEADERUNIFORM:.+]]:
@@ -220,7 +221,11 @@ if.else6:                                             ; preds = %if.then6, %if.e
 
 ; CHECK: [[IFTHEN2:.+]]:
 ; CHECK: %[[CMP3:.+]] = icmp
-; CHECK: br i1 %[[CMP3]], label %[[IFTHEN3PREHEADER:.+]], label %[[IFELSE3PREHEADER:.+]]
+; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
+; on inactive lanes.
+; CHECK: %[[CMP3_ACTIVE:.+]] = and i1 %[[CMP3]], %[[CMP2]]
+; CHECK: %[[CMP3_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[CMP3_ACTIVE]])
+; CHECK: br i1 %[[CMP3_ACTIVE_ANY]], label %[[IFTHEN3PREHEADER:.+]], label %[[IFELSE3PREHEADER:.+]]
 
 ; CHECK: [[IFELSE3PREHEADER]]:
 ; CHECK: br label %[[IFELSE3]]
