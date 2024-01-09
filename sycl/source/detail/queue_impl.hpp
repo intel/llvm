@@ -802,11 +802,16 @@ protected:
       bool KernelUsesAssert = false;
 
       if (IsKernel)
-        // Kernel only uses assert if it's non interop one
+      // Kernel only uses assert if it's non interop one
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MKernelName.marshall());
-
+#else
+        KernelUsesAssert =
+            !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+            ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
+#endif
       finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);

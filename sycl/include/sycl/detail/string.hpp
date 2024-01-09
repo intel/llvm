@@ -35,6 +35,8 @@ public:
 
   const char *getPtr() { return str; }
 
+  const char *getPtr() const { return str; }
+
   char *getRetPtr() { return ret_str; }
 };
 

@@ -549,7 +549,11 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::string getKernelName();
+#else
+  std::string getKernelName();
+#endif
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -559,8 +563,13 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::string KernelName = getKernelName();
     return LambdaName == KernelName.marshall();
+#else
+    const std::string KernelName = getKernelName();
+    return LambdaName == KernelName;
+#endif
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -843,11 +852,15 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
     detail::string Name = detail::string(KernelName);
     verifyUsedKernelBundleInternal(Name);
   }
   void verifyUsedKernelBundleInternal(detail::string &KernelName);
+#else
+  void verifyUsedKernelBundle(const std::string &KernelName);
+#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -3299,7 +3312,11 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::string MKernelName;
+#else
+  std::string MKernelName;
+#endif
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
@@ -3401,12 +3418,17 @@ private:
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false) {
     ext_intel_read_host_pipe(detail::string(Name), Ptr, Size, Block);
   }
-  void ext_intel_read_host_pipe(detail::string Name, void *Ptr, size_t Size,
+  void ext_intel_read_host_pipe(const detail::string &Name, void *Ptr,
+                                size_t Size, bool Block = false);
+#else
+  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
+#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
@@ -3414,12 +3436,17 @@ private:
   /// expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(detail::string(Name), Ptr, Size, Block);
   }
-  void ext_intel_write_host_pipe(detail::string Name, void *Ptr, size_t Size,
-                                 bool Block = false);
+  void ext_intel_write_host_pipe(const detail::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false);
+#else
+  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false);
+#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
 
   bool DisableRangeRounding();

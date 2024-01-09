@@ -182,8 +182,12 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().getSYCLKernelID(
                 MKernelName.getPtr());
+#else
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -242,7 +246,11 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           StreamID, MKernel, MCodeLoc, MKernelName.getPtr(), MQueue, MNDRDesc,
+#else
+          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -275,8 +283,13 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
                                  MKernel, MKernelName.getPtr(), RawEvents,
                                  NewEvent, nullptr, MImpl->MKernelCacheConfig);
+#else
+                                 MKernel, MKernelName, RawEvents, NewEvent,
+                                 nullptr, MImpl->MKernelCacheConfig);
+#endif
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -297,8 +310,12 @@ event handler::finalize() {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().kernelUsesAssert(
                 MKernelName.getPtr());
+#else
+            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
+#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -333,7 +350,11 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         MKernelName.getPtr(), std::move(MStreamStorage),
+#else
+        MKernelName, std::move(MStreamStorage),
+#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
@@ -839,12 +860,22 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
+#else
+std::string handler::getKernelName() {
+  return MKernel->get_info<info::kernel::function_name>();
+}
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyUsedKernelBundleInternal(detail::string &Name) {
   std::string KernelName = Name.getPtr();
+#else
+void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -1295,9 +1326,15 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-void handler::ext_intel_read_host_pipe(detail::string Name, void *Ptr,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_read_host_pipe(const detail::string &Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.getPtr();
+#else
+void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
+                                       size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1305,9 +1342,15 @@ void handler::ext_intel_read_host_pipe(detail::string Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-void handler::ext_intel_write_host_pipe(detail::string Name, void *Ptr,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_write_host_pipe(const detail::string &Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name.getPtr();
+#else
+void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                        size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;

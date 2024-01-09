@@ -127,11 +127,16 @@ protected:
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string
   // &what_arg);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
             const std::string &what_arg)
       : exception(ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
+#else
+  exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg);
+#endif
 };
 
 class __SYCL2020_DEPRECATED(

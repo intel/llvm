@@ -122,7 +122,11 @@ public:
           std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(MImpl->MKernelBundle),
           std::move(CGH->CGData), std::move(CGH->MArgs),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           std::move(CGH->MKernelName.getPtr()), std::move(CGH->MStreamStorage),
+#else
+          std::move(CGH->MKernelName), std::move(CGH->MStreamStorage),
+#endif
           std::move(MImpl->MAuxiliaryResources), CGH->MCGType, {},
           CGH->MCodeLoc));
       break;

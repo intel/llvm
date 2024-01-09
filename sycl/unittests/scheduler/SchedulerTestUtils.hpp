@@ -258,7 +258,11 @@ public:
     return CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::string getKernelName() { return MKernelName.getPtr(); }
+#else
+  std::string &getKernelName() { return MKernelName; }
+#endif
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
   std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }

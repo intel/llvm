@@ -145,6 +145,7 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     // For C++11_ABI compatibility, we handle these string Param types
@@ -163,7 +164,10 @@ public:
     }
     return get_info_internal<Param>();
   }
-
+#else
+  template <typename Param>
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+#endif
   /// Returns all available SYCL platforms in the system.
   ///
   /// The resulting vector always contains a single SYCL host platform instance.
@@ -222,11 +226,13 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
   void get_platform_info(detail::string &Type) const;
+#endif
 }; // class platform
 } // namespace _V1
 } // namespace sycl

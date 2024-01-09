@@ -56,6 +56,7 @@ std::vector<platform> platform::get_platforms() {
 
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type
 platform::get_info_internal() const {
@@ -78,6 +79,13 @@ void platform::get_platform_info(detail::string &Type) const {
   }
   Type.unmarshall(Info);
 }
+#else
+template <typename Param>
+typename detail::is_platform_info_desc<Param>::return_type
+platform::get_info() const {
+  return impl->get_info<Param>();
+}
+#endif
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 

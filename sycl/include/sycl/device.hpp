@@ -216,6 +216,7 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
     // For C++11_ABI compatibility, we handle these string Param types
@@ -235,6 +236,10 @@ public:
     }
     return get_info_internal<Param>();
   }
+#else
+  template <typename Param>
+  typename detail::is_device_info_desc<Param>::return_type get_info() const;
+#endif
 
   /// Check SYCL extension support by device
   ///
@@ -311,11 +316,13 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
   void get_device_info(detail::string &Type) const;
+#endif
 };
 
 } // namespace _V1
