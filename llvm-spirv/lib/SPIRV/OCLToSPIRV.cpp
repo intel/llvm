@@ -1079,8 +1079,9 @@ void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
     Info.UniqName = kOCLBuiltinName::ReadImage;
     unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
     if (ImgOpMask) {
-      Info.PostProc = [&](BuiltinCallMutator &Mutator) {
-        Mutator.appendArg(getInt32(M, ImgOpMask));
+      Module *Mod = M;
+      Info.PostProc = [ImgOpMask, Mod](BuiltinCallMutator &Mutator) {
+        Mutator.appendArg(getInt32(Mod, ImgOpMask));
       };
     }
   }

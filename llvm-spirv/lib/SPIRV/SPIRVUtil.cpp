@@ -309,21 +309,6 @@ Scope getArgAsScope(CallInst *CI, unsigned I) {
   return static_cast<Scope>(getArgAsInt(CI, I));
 }
 
-Decoration getArgAsDecoration(CallInst *CI, unsigned I) {
-  return static_cast<Decoration>(getArgAsInt(CI, I));
-}
-
-std::string decorateSPIRVFunction(const std::string &S) {
-  return std::string(kSPIRVName::Prefix) + S + kSPIRVName::Postfix;
-}
-
-StringRef undecorateSPIRVFunction(StringRef S) {
-  assert(S.find(kSPIRVName::Prefix) == 0);
-  const size_t Start = strlen(kSPIRVName::Prefix);
-  auto End = S.rfind(kSPIRVName::Postfix);
-  return S.substr(Start, End - Start);
-}
-
 std::string prefixSPIRVName(const std::string &S) {
   return std::string(kSPIRVName::Prefix) + S;
 }
@@ -558,11 +543,6 @@ bool containsUnsignedAtomicType(StringRef Name) {
     return false;
   return isMangledTypeUnsigned(
       Name[Loc + strlen(kMangledName::AtomicPrefixIncoming)]);
-}
-
-Constant *castToVoidFuncPtr(Function *F) {
-  auto *T = getVoidFuncPtrType(F->getParent());
-  return ConstantExpr::getBitCast(F, T);
 }
 
 bool hasArrayArg(Function *F) {
@@ -1030,10 +1010,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
   Ops.push_back(Vec);
 }
 
-Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
-  return ConstantExpr::getBitCast(V, PointerType::get(V->getContext(), Addr));
-}
-
 PointerType *getInt8PtrTy(PointerType *T) {
   return PointerType::get(T->getContext(), T->getAddressSpace());
 }
@@ -1159,15 +1135,6 @@ std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M) {
         .setQuiet(true)
         .get(std::get<2>(Tup));
   return Tup;
-}
-
-ConstantInt *mapUInt(Module *M, ConstantInt *I,
-                     std::function<unsigned(unsigned)> F) {
-  return ConstantInt::get(I->getIntegerType(), F(I->getZExtValue()), false);
-}
-
-ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
-  return ConstantInt::get(I->getIntegerType(), F(I->getSExtValue()), true);
 }
 
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
@@ -1629,6 +1596,18 @@ std::string getImageBaseTypeName(StringRef Name) {
     ImageTyName.erase(ImageTyName.size() - 5, 3);
 
   return ImageTyName;
+}
+
+size_t getImageOperandsIndex(Op OpCode) {
+  switch (OpCode) {
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+    return 2;
+  case OpImageWrite:
+    return 3;
+  default:
+    return ~0U;
+  }
 }
 
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
@@ -2306,8 +2285,9 @@ bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp) {
 namespace {
 class SPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
-  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys)
-      : OC(OC), ArgTys(ArgTys) {}
+  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys,
+                            ArrayRef<SPIRVValue *> Ops)
+      : OC(OC), ArgTys(ArgTys), Ops(Ops) {}
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
@@ -2467,6 +2447,15 @@ public:
     case OpSUDotAccSatKHR:
       addUnsignedArg(1);
       break;
+    case OpImageWrite: {
+      size_t Idx = getImageOperandsIndex(OC);
+      if (Ops.size() > Idx) {
+        auto ImOp = static_cast<SPIRVConstant *>(Ops[Idx])->getZExtIntValue();
+        if (ImOp & ImageOperandsMask::ImageOperandsZeroExtendMask)
+          addUnsignedArg(2);
+      }
+      break;
+    }
     default:;
       // No special handling is needed
     }
@@ -2475,6 +2464,7 @@ public:
 private:
   spv::Op OC;
   ArrayRef<Type *> ArgTys;
+  ArrayRef<SPIRVValue *> Ops;
 };
 class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
@@ -2544,9 +2534,9 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 }
 
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC,
-                                           ArrayRef<Type *> ArgTys) {
-  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<SPIRVValue *> Ops) {
+  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
 

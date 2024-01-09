@@ -142,9 +142,6 @@ SPIRVType *SPIRVType::getScalarType() const {
     return getVectorComponentType();
   case OpTypeMatrix:
     return getMatrixColumnType()->getVectorComponentType();
-  case OpTypeCooperativeMatrixKHR:
-    return static_cast<const SPIRVTypeCooperativeMatrixKHR *>(this)
-        ->getCompType();
   case OpTypeInt:
   case OpTypeFloat:
   case OpTypeBool:
