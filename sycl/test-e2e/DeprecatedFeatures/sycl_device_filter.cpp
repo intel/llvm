@@ -28,8 +28,7 @@ int main() {
   }
   assert(!devices.empty());
   auto expected_type = std::getenv("SYCL_DEVICE_FILTER");
-  assert(std::all_of(devices.begin(), devices.end(), [=](auto d) {
-    return expected_type == device_type(d);
-  }));
+  assert(std::all_of(devices.begin(), devices.end(),
+                     [=](auto d) { return expected_type == device_type(d); }));
   return 0;
 }
