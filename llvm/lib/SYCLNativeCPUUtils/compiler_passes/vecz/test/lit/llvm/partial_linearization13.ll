@@ -198,7 +198,11 @@ attributes #2 = { nobuiltin nounwind readonly }
 ; CHECK: [[IFTHEN4]]:
 ; CHECK: %[[TMP:.+]] = and i64 %call1, 1
 ; CHECK: %[[TRUNC:.+]] = icmp eq i64 %[[TMP]], 0
-; CHECK: br i1 %[[TRUNC]], label %[[SWBB8:.+]], label %[[SWBB:.+]]
+; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
+; on inactive lanes.
+; CHECK: %[[TRUNC_ACTIVE:.+]] = and i1 %[[TRUNC]], {{%.*}}
+; CHECK: %[[TRUNC_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[TRUNC_ACTIVE]])
+; CHECK: br i1 %[[TRUNC_ACTIVE_ANY]], label %[[SWBB8:.+]], label %[[SWBB:.+]]
 
 ; CHECK: [[SWBB]]:
 ; CHECK: br label %[[SWBB8]]

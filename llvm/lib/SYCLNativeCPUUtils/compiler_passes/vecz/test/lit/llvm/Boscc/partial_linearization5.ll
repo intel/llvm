@@ -227,7 +227,11 @@ attributes #2 = { nobuiltin nounwind readonly }
 
 ; CHECK: [[IFELSE5]]:
 ; CHECK: %[[CMP7:.+]] = icmp
-; CHECK: br i1 %[[CMP7]], label %[[IFTHEN]], label %[[FORCOND14PREHEADER:.+]]
+; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
+; on inactive lanes.
+; CHECK: %[[CMP7_ACTIVE:.+]] = and i1 %[[CMP7]], {{%.*}}
+; CHECK: %[[CMP7_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[CMP7_ACTIVE]])
+; CHECK: br i1 %[[CMP7_ACTIVE_ANY]], label %[[IFTHEN]], label %[[FORCOND14PREHEADER:.+]]
 
 ; CHECK: [[FORCOND14PREHEADER]]:
 ; CHECK: br label %[[FORCOND14:.+]]

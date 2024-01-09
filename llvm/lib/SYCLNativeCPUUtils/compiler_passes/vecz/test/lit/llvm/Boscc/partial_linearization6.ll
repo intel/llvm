@@ -168,7 +168,11 @@ attributes #2 = { nobuiltin nounwind readonly }
 
 ; CHECK: [[WHILEBODY]]:
 ; CHECK: %[[CMP:.+]] = icmp
-; CHECK: br i1 %[[CMP]], label %[[IFTHEN:.+]], label %[[IFELSE:.+]]
+; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
+; on inactive lanes.
+; CHECK: %[[CMP_ACTIVE:.+]] = and i1 %[[CMP]], {{%.*}}
+; CHECK: %[[CMP_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[CMP_ACTIVE]])
+; CHECK: br i1 %[[CMP_ACTIVE_ANY]], label %[[IFTHEN:.+]], label %[[IFELSE:.+]]
 
 ; CHECK: [[IFTHEN]]:
 ; CHECK: %[[CMP2:.+]] = icmp
