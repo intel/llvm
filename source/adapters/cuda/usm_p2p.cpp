@@ -58,8 +58,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     }
     }
 
-    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(
-        &value, cuAttr, commandDevice->get(), peerDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(&value, cuAttr, commandDevice->get(),
+                                           peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
   }
