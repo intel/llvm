@@ -1019,8 +1019,6 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeOpenCL(const DIDerivedType *MT) {
       Ops.push_back(Val->getId());
     }
   }
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
   return BM->addDebugInfo(SPIRVDebug::TypeMember, getVoidTy(), Ops);
 }
 
