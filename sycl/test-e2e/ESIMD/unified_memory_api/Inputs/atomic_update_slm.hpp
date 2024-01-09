@@ -395,16 +395,19 @@ template <class T, int N, class C, C Op> struct ImplLoadBase {
 template <class T, int N, class C, C Op> struct ImplStoreBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(2 + FPDELTA);
 
   static T init(int i) { return 0; }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(2 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }
 
-  static T arg0(int i) { return base; }
+  static T arg0(int i) {
+    T base = (T)(2 + FPDELTA);
+    return base;
+  }
 };
 
 template <class T, int N, class C, C Op> struct ImplAdd {
@@ -426,13 +429,14 @@ template <class T, int N, class C, C Op> struct ImplAdd {
 template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i) {
+    T base = (T)(5 + FPDELTA);
     return (T)(repeat * threads_per_group * n_groups * (T)(1 + FPDELTA) + base);
   }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(5 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }

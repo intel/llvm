@@ -65,6 +65,11 @@ inline custom_type operator+(const custom_type &lhs, const custom_type &rhs) {
   return custom_type(lhs.n.i + rhs.n.i, lhs.n.f + rhs.n.f, lhs.ull + rhs.ull);
 }
 
+inline std::ostream &operator<<(std::ostream &os, const custom_type &v) {
+  os << "custom_type { .n = " << v.n << ", .ull = " << v.ull << "}";
+  return os;
+}
+
 struct custom_type_wo_default_ctor {
   static constexpr unsigned long long default_ull_value = 42;
 
@@ -92,6 +97,13 @@ template <typename T, std::size_t... Is>
 constexpr std::array<T, sizeof...(Is)> init_array(T value,
                                                   std::index_sequence<Is...>) {
   return {{(static_cast<void>(Is), value)...}};
+}
+
+inline std::ostream &operator<<(std::ostream &os,
+                                const custom_type_wo_default_ctor &v) {
+  os << "custom_type_wo_default_ctor { .n = " << v.n << ", .ull = " << v.ull
+     << "}";
+  return os;
 }
 
 using namespace sycl;

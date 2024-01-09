@@ -1,41 +1,41 @@
 // REQUIRES: gpu
 // RUN: %{build} -o %t.out
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO read %t.txt
 //
 
 //==------------ select_device.cpp - SYCL_DEVICE_ALLOWLIST test ------------==//
