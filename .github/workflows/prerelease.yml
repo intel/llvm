@@ -6,6 +6,9 @@ on:
     # At 23:00 on Friday, GitHub actions schedule is in UTC time.
     - cron: 0 23 * * 5
 
+permissions:
+  contents: read
+
 jobs:
   weekly-prerelease:
     runs-on: ubuntu-latest
