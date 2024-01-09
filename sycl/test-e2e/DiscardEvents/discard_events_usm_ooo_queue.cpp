@@ -40,7 +40,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
@@ -97,7 +97,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
