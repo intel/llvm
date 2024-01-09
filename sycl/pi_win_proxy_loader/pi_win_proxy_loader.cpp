@@ -133,25 +133,23 @@ void preloadLibraries() {
 
   MapT &dllMap = getDllMap();
 
-  // When searching for dependencies of the OpenCL and Level Zero plugins
-  // (including ICD loader and the Level Zero loader respectively) limit the
+  // When searching for dependencies of the plugins limit the
   // list of directories to %windows%\system32 and the directory that contains
-  // the loaded DLL (the plugin). ICD loader is located in the same directory as
-  // OpenCL plugin, the Level Zero loader is in the system directory. Standard
-  // library dependencies are in the system directory.
+  // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
+  // current directory and some other directories which are considered unsafe.
   auto flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
 
-  auto loadPlugin = [&](auto plugin_name, DWORD flags = NULL) {
-    auto path = LibSYCLDir / plugin_name;
+  auto loadPlugin = [&](auto pluginName, DWORD flags = NULL) {
+    auto path = LibSYCLDir / pluginName;
     dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
   };
   loadPlugin(__SYCL_OPENCL_PLUGIN_NAME, flags);
   loadPlugin(__SYCL_LEVEL_ZERO_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_CUDA_PLUGIN_NAME);
-  loadPlugin(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME);
-  loadPlugin(__SYCL_HIP_PLUGIN_NAME);
-  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME);
-  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME);
+  loadPlugin(__SYCL_CUDA_PLUGIN_NAME, flags);
+  loadPlugin(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME, flags);
+  loadPlugin(__SYCL_HIP_PLUGIN_NAME, flags);
+  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME, flags);
+  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME, flags);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
