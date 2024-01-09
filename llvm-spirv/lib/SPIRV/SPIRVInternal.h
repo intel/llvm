@@ -717,12 +717,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
 /// Get size_t type.
 IntegerType *getSizetType(Module *M);
 
-/// Get void(void) function type.
-Type *getVoidFuncType(Module *M);
-
-/// Get void(void) function pointer type.
-Type *getVoidFuncPtrType(Module *M, unsigned AddrSpace = 0);
-
 /// Get a 64 bit integer constant.
 ConstantInt *getInt64(Module *M, int64_t Value);
 
@@ -779,10 +773,6 @@ std::set<std::string> getNamedMDAsStringSet(Module *M,
 /// Get SPIR-V language by SPIR-V metadata spirv.Source
 std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M);
 
-/// Get postfix for given decoration.
-/// The returned postfix does not include "_" at the beginning.
-std::string getPostfix(Decoration Dec, unsigned Value = 0);
-
 /// Get postfix _R{ReturnType} for return type
 /// The returned postfix does not includ "_" at the beginning
 std::string getPostfixForReturnType(CallInst *CI, bool IsSigned = false);
@@ -812,10 +802,6 @@ std::string getSPIRVTypeName(StringRef BaseTyName, StringRef Postfixes = "");
 
 /// Checks if given type name is either ConstantSampler or ConsantPipeStorage.
 bool isSPIRVConstantName(StringRef TyName);
-
-/// Get the sampled type name used in postfix of image type in SPIR-V
-/// friendly LLVM IR.
-std::string getSPIRVImageSampledTypeName(SPIRVType *Ty);
 
 /// Get LLVM type for sampled type of SPIR-V image type by postfix.
 Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
@@ -847,8 +833,6 @@ bool eraseUselessFunctions(Module *M);
 
 /// Erase a function if it is declaration, has internal linkage and has no use.
 bool eraseIfNoUse(Function *F);
-
-void eraseIfNoUse(Value *V);
 
 // Check if a mangled type name is unsigned
 bool isMangledTypeUnsigned(char Mangled);
@@ -1005,8 +989,6 @@ bool postProcessBuiltinsReturningStruct(Module *M, bool IsCpp = false);
 
 bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp = false);
 
-template <typename T>
-MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V);
 } // namespace SPIRV
 
 #endif // SPIRV_SPIRVINTERNAL_H
