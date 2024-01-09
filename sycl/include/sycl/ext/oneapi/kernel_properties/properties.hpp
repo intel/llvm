@@ -95,9 +95,6 @@ struct property_value<work_group_size_hint_key,
 template <uint32_t Size>
 struct property_value<sub_group_size_key,
                       std::integral_constant<uint32_t, Size>> {
-  static_assert(Size != 0,
-                "sub_group_size_key property must contain a non-zero value.");
-
   using key_t = sub_group_size_key;
   using value_t = std::integral_constant<uint32_t, Size>;
   static constexpr uint32_t value = Size;

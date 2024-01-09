@@ -86,6 +86,7 @@
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/named_sub_group_sizes.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
