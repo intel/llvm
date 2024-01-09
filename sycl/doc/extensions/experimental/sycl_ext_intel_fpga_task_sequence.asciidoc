@@ -71,9 +71,10 @@ specification.*
 The APIs in this extension may be used only on a device that has
 `aspect::ext_intel_fpga_task_sequence`.  The application must check that the
 device has this aspect before submitting a kernel using any of the APIs in this
-extension.  If the application fails to do this, the implementation throws
-a synchronous exception with the `errc::kernel_not_supported` error code
-when the kernel is submitted to the queue.
+extension.  If the application tries to use one of these APIs on a device
+without this aspect, the implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted to the
+queue.
 
 This extension is currently implemented in `icpx` only for FPGA devices and
 only when using either the Level Zero backend or the Intel FPGA OpenCL backend.
@@ -112,7 +113,8 @@ int vectorSum(float *v, size_t s, size_t sz) {
   ...
 }
 
-{
+...
+
   sycl::queue q{...};
 
   constexpr int kCount = ...;
@@ -128,8 +130,9 @@ int vectorSum(float *v, size_t s, size_t sz) {
     secondHalf.async(in, halfCount+1, kCount-1);
     *out = firstHalf.get() + secondHalf.get();
   }).wait();
-  ...
-}
+
+...
+
 ```
 
 == Specification
@@ -238,8 +241,8 @@ retrieved by a `get` call. The result of each completed invocation is stored in
 a results data structure until the appropriate `get` call retrieves it. This
 results data structure will keep the results in the same order in which their
 corresponding `async` invocations were invoked. The `get` call retrieves results
-from this results data structure. The `get` call blocks if there is no result to
-retrieve.
+from this results data structure. The `get` call blocks if the result for the
+oldest `async` is not in the results data structure.
 
 Both `async` and `get` functions may only be invoked on the device on which a
 `task_sequence` object has been instantiated. Calling `async` or `get` on a
@@ -250,24 +253,17 @@ different device results in undefined behavior.
 `task_sequence` objects should retire all outstanding `async` invocations before
 exiting scope. This is performed by the `task_sequence` destructor, by calling
 `get` on all outstanding invocations and blocking destruction of the object
-until all invocations are completed. The exception to this case is if the
-`balanced` property was specified, in which case it is the programmer's
-responsibility to ensure that corresponding `get` has been called for all
-invocations launched using `async` before the lifetime of the `task_sequence`
-object ends.
+until all invocations are completed.
 
-It is expected that many common coding patterns will guarantee that the number
-of `async` and `get` calls match (are balanced) before a `task_sequence` object
-is destroyed. To provide more information to the compiler and to relax the
-requirement for `get` to be invoked implicitly, the property `balanced` may be
-specified on a `task_sequence` object, which guarantees that a user will not
-allow a destructor on that `task_sequence` object to be called when there are
-outstanding `async` invocations that have not been balanced by a matching `get`
-call. On spatial architectures, in the presence of this property, potentially
-expensive hardware may be elided. It is undefined behavior to specify the
-`balanced` property on `task_sequence` and then to allow the `task_sequence`
-object to be destroyed while there are any `async` invocations for which `get`
-has not been called.
+To provide more information to the compiler and to relax the requirement for
+`get` to be invoked implicitly, the property `balanced` may be specified on a
+`task_sequence` object, which guarantees that a user will not allow a destructor
+on that `task_sequence` object to be called when there are outstanding `async`
+invocations that have not been balanced by a matching `get` call. On spatial
+architectures, in the presence of this property, potentially expensive hardware
+may be elided. It is undefined behavior to specify the `balanced` property on
+`task_sequence` and then to allow the `task_sequence` object to be destroyed
+while there are any `async` invocations for which `get` has not been called.
 
 == `task_sequence` Properties
 
@@ -327,19 +323,20 @@ destructor is invoked).
 
 | invocation_capacity | The `async` invocations are guaranteed to not block the
 caller as long as the number of outstanding invocations are less than or equal
-to `invocation_capacity`. An outstanding invocation is an inflight task sequence
-invocation that has not yet completed.
+to `invocation_capacity`. An outstanding invocation is an inflight
+`task_sequence` invocation that has not yet completed.
 
 A default value is chosen by the implementation.
 
-| response_capacity | Any task sequence invocation is allowed to write its
-results and completion status to the results data structure of the task sequence
-as long as the number of completed invocations in the results data structure is
-less than `response_capacity`. When an invocation is able to write its result to
-the results data structure, it can transition from an outstanding state to a
-completed state. At least one outstanding `async` call will make progress as
-long as the number of stored results is less than or equal to
-`response_capacity`.
+| response_capacity | A `task_sequence` invocation is allowed to write its
+results and completion status to the results data structure of the
+`task_sequence` if there is sufficient capacity to accommodate it. A
+`response_capacity` of N indicates the minimum capacity required for the results
+data structure such that the oldest N invocations of the `task_sequence` can be
+successfully written to the results data structure. When an invocation is able
+to write its result to the results data structure, it can transition from an
+outstanding state to a completed state. At least one outstanding `async` call
+will make progress as long as the results data structure is not full.
 
 A default value is chosen by the implementation.
 |===
@@ -347,7 +344,7 @@ A default value is chosen by the implementation.
 
 === Compatibility with FPGA Kernel Interface Properties
 
-A `task_sequence` may be declared with the following FPGA Kernel Interface
+A `task_sequence` may also be declared with the following FPGA Kernel Interface
 properties:
 
  - `pipelined`
@@ -363,13 +360,13 @@ supports applying the properties to task sequences.
 
 The progress guarantees for task threads are defined as follows:
 
- - When a task sequence object _O_ is constructed, a task sequence object thread
- _P_, is also created.
+ - When a `task_sequence` object _O_ is constructed, a `task_sequence` object
+ thread _P_, is also created.
 
- - At any point in time, the progress guarantee of all task sequence object
+ - At any point in time, the progress guarantee of all `task_sequence` object
  threads created by a work-item _WI_ matches that of _WI_. For example,
  if _WI_ is strengthened to have a stronger progress guarantee than its
- initial guarantee, all of the task sequence object threads created by _WI_
+ initial guarantee, all of the `task_sequence` object threads created by _WI_
  are also strengthened.
 
   - An `O.async(...)` call will result in creation of a task thread.
@@ -391,7 +388,7 @@ The two examples below, respectively, show the following:
 1. How strengthening of a work item strengthens the task threads.
 
 2. How a task thread delegates its progress guarantee to other task threads in
-the same task sequence object.
+the same `task_sequence` object.
 
 Example 1 uses the following program:
 
@@ -436,7 +433,7 @@ generated.
 At some initial stage, all task threads have weakly parallel forward progress
 guarantee. If _WI_ is strengthened to have concurrent forward progress
 guarantee, then all of the object threads are also strengthened. Next, in this
-example one task thread for each task sequence is also strengthened. This is
+example one task thread for each `task_sequence` is also strengthened. This is
 depicted in the table below (progress guarantee for each thread is in
 parenthesis):
 
@@ -490,7 +487,10 @@ threads go through the following execution flow:
 
 === Memory Order Semantics
 
-- `async`` is a *Release* operation scoped to include the kernel/task function
+These rules were chosen to provide the same guarantees as std::thread and match
+most programmers' intuition about how launching new threads should behave.
+
+- `async` is a *Release* operation scoped to include the kernel/task function
 that called it and the task thread that is created from it; No reads or writes
 in the kernel can be reordered after the creation of the task thread
 
