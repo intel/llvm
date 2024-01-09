@@ -12,6 +12,7 @@ option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" O
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
 
+add_definitions(-g -O0)
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()

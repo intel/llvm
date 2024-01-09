@@ -427,7 +427,8 @@ event queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
-  EventImplPtr &LastEvent = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+  EventImplPtr &LastEvent =
+      MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
   if (!LastEvent)
     LastEvent = std::make_shared<event_impl>(std::nullopt);
   return detail::createSyclObjFromImpl<event>(LastEvent);
