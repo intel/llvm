@@ -24,7 +24,14 @@ else()
 endif()
 
 if("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "")
-  set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+  # pre v6 versions of ROCM prefix their include directory with /hsa but this
+  # was fixed in v6 to act like a well-behaved package
+  foreach (SUF hsa/include include)
+    if (EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}/${SUF}")
+      set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/${SUF}")
+      break()
+    endif()
+  endforeach()
 else()
   set(PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
 endif()
@@ -98,7 +105,6 @@ add_sycl_plugin(hip
   SOURCES
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     ${UR_HIP_ADAPTER_SOURCES}
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
@@ -128,6 +134,21 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   target_link_libraries(pi_hip PUBLIC rocmdrv)
 
   if(SYCL_ENABLE_COMGR)
+    set(PI_COMGR_VERSION5_HEADER "${PI_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")
+    set(PI_COMGR_VERSION4_HEADER "${PI_HIP_INCLUDE_DIR}/amd_comgr.h")
+    # The COMGR header changed location between ROCm version 4 and 5.
+    # Check for the existence in the version 5 location or fallback to version 4
+    if(NOT EXISTS "${PI_COMGR_VERSION5_HEADER}")
+      if(NOT EXISTS "${PI_COMGR_VERSION4_HEADER}")
+        message(FATAL_ERROR "Could not find AMD COMGR header at "
+                            "${PI_COMGR_VERSION5_HEADER} or "
+                            "${PI_COMGR_VERSION4_HEADER}, "
+                            "check ROCm installation")
+      else()
+        target_compile_definitions(pi_hip PRIVATE UR_COMGR_VERSION4_INCLUDE)
+      endif()
+    endif()  
+
     add_library(amd_comgr SHARED IMPORTED GLOBAL)
     set_target_properties(
       amd_comgr PROPERTIES

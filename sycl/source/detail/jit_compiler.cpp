@@ -22,10 +22,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
-
-jit_compiler::~jit_compiler() = default;
-
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   switch (Type) {
@@ -54,6 +50,13 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Backend unsupported by kernel fusion");
   }
+}
+
+::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  return ::jit_compiler::TargetInfo::get(
+      Format, static_cast<::jit_compiler::DeviceArchitecture>(
+                  Queue->getDeviceImplPtr()->getDeviceArch()));
 }
 
 std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
@@ -824,11 +827,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
-  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
+      std::move(JITConfig), InputKernelInfo, InputKernelNames,
       FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 

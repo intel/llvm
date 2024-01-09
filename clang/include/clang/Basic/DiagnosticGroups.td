@@ -40,6 +40,7 @@ def : DiagGroup<"auto-import">;
 def FrameworkHdrQuotedInclude : DiagGroup<"quoted-include-in-framework-header">;
 def FrameworkIncludePrivateFromPublic :
   DiagGroup<"framework-include-private-from-public">;
+def DeprecatedModuleDotMap : DiagGroup<"deprecated-module-dot-map">;
 def FrameworkHdrAtImport : DiagGroup<"atimport-in-framework-header">;
 def CXX14BinaryLiteral : DiagGroup<"c++14-binary-literal">;
 def CXXPre14CompatBinaryLiteral : DiagGroup<"c++98-c++11-compat-binary-literal">;
@@ -352,7 +353,8 @@ def CXX98CompatPedantic : DiagGroup<"c++98-compat-pedantic",
                                      CXXPre20CompatPedantic,
                                      CXXPre23CompatPedantic]>;
 
-def CXX11Narrowing : DiagGroup<"c++11-narrowing">;
+def CXX11NarrowingConstReference : DiagGroup<"c++11-narrowing-const-reference">;
+def CXX11Narrowing : DiagGroup<"c++11-narrowing", [CXX11NarrowingConstReference]>;
 
 def CXX11WarnInconsistentOverrideDestructor :
   DiagGroup<"inconsistent-missing-destructor-override">;
@@ -637,7 +639,7 @@ def ShadowAll : DiagGroup<"shadow-all", [Shadow, ShadowFieldInConstructor,
 def Shorten64To32 : DiagGroup<"shorten-64-to-32">;
 def : DiagGroup<"sign-promo">;
 def SignCompare : DiagGroup<"sign-compare">;
-def : DiagGroup<"switch-default">;
+def SwitchDefault  : DiagGroup<"switch-default">;
 def : DiagGroup<"synth">;
 def SizeofArrayArgument : DiagGroup<"sizeof-array-argument">;
 def SizeofArrayDecay : DiagGroup<"sizeof-array-decay">;
@@ -1137,6 +1139,8 @@ def FutureAttrs : DiagGroup<"future-attribute-extensions", [CXX14Attrs,
                                                             CXX17Attrs,
                                                             CXX20Attrs]>;
 
+def CXX23AttrsOnLambda : DiagGroup<"c++23-lambda-attributes">;
+
 // A warning group for warnings about using C++11 features as extensions in
 // earlier C++ versions.
 def CXX11 : DiagGroup<"c++11-extensions", [CXX11ExtraSemi, CXX11InlineNamespace,
@@ -1156,7 +1160,7 @@ def CXX20 : DiagGroup<"c++20-extensions", [CXX20Designator, CXX20Attrs]>;
 
 // A warning group for warnings about using C++23 features as extensions in
 // earlier C++ versions.
-def CXX23 : DiagGroup<"c++23-extensions">;
+def CXX23 : DiagGroup<"c++23-extensions", [CXX23AttrsOnLambda]>;
 
 // A warning group for warnings about using C++26 features as extensions in
 // earlier C++ versions.
@@ -1511,4 +1515,5 @@ def DXILValidation : DiagGroup<"dxil-validation">;
 def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 
 // Warnings and fixes to support the "safe buffers" programming model.
-def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage">;
+def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
+def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
