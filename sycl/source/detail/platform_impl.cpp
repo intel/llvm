@@ -282,7 +282,8 @@ std::vector<int> platform_impl::filterDeviceFilter(
       if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
         continue;
 
-      if (FilterDevType != info::device_type::all && FilterDevType != DeviceType)
+      if (FilterDevType != info::device_type::all &&
+          FilterDevType != DeviceType)
         continue;
 
       if constexpr (is_ods_target) {
