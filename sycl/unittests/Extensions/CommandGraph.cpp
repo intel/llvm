@@ -2001,11 +2001,11 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
   ASSERT_EQ(NodeB.get_predecessors().size(), 1lu);
   ASSERT_EQ(NodeB.get_successors().size(), 0lu);
 
-  // List of nodesthat we've added in the order they were added.
+  // List of nodes that we've added in the order they were added.
   std::vector<experimental::node> NodeList{RootA, RootB, NodeA, NodeB, RootC};
   auto GraphNodes = Graph.get_nodes();
 
-  // Check all nodes
+  // Check ordering of all nodes is correct
   for (size_t i = 0; i < GraphNodes.size(); i++) {
     ASSERT_EQ(sycl::detail::getSyclObjImpl(GraphNodes[i]),
               sycl::detail::getSyclObjImpl(NodeList[i]));
