@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86 (HEAD -> main, gitlab-orion-origin/main)
-  # Author: Weronika Lewandowska <weronika.lewandowska@intel.com>
-  # Date:   Fri Dec 22 10:11:47 2023 +0100
-  #     Merge pull request #1207 from PietroGhg/pietro/remove_event_hpp
-  #     [NATIVECPU] Remove event.hpp inclusion
-  set(UNIFIED_RUNTIME_TAG 8c2d93dd12856dc699cb5b38fe3bd91bd6298a86)
+  # commit 2d42d77d5b931b4558842bad32cf9dad80e17b3c
+  # Merge: 9f14fedb 2a960baf
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jan 8 13:40:40 2024 +0000
+  #     Merge pull request #1229 from oneapi-src/revert-1228-revert-984-ext_oneapi_queue_priority-hip
+  #     Revert "Revert "[HIP] Implement ext_oneapi_queue_priority""
+  set(UNIFIED_RUNTIME_TAG 2d42d77d5b931b4558842bad32cf9dad80e17b3c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
