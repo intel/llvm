@@ -37,14 +37,14 @@ with the following entry-points:
 | `urCommandBufferFinalizeExp`                 | No more commands can be appended, makes command-buffer ready to enqueue on a command-queue. |
 | `urCommandBufferAppendKernelLaunchExp`       | Append a kernel execution command to command-buffer. |
 | `urCommandBufferAppendUSMMemcpyExp`          | Append a USM memcpy command to the command-buffer. |
-| `urCommandBufferAppendUSMFillExp`          | Append a USM fill command to the command-buffer. |
+| `urCommandBufferAppendUSMFillExp`            | Append a USM fill command to the command-buffer. |
 | `urCommandBufferAppendMemBufferCopyExp`      | Append a mem buffer copy command to the command-buffer. |
 | `urCommandBufferAppendMemBufferWriteExp`     | Append a memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadExp`      | Append a memory read command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferCopyRectExp`  | Append a rectangular memory copy command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferFillExp`  | Append a memory fill command to a command-buffer object. |
+| `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
 | `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
 
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)

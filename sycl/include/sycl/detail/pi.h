@@ -2466,7 +2466,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
 
 /// API to append a mem buffer fill command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
-/// \param buffer is the location to fill the data
+/// \param buffer is the location to fill the data.
 /// \param pattern pointer to the pattern to fill the buffer with.
 /// \param pattern_size size of the pattern in bytes.
 /// \param offset Offset into the buffer to fill from.
