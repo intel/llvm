@@ -133,23 +133,21 @@ void preloadLibraries() {
 
   MapT &dllMap = getDllMap();
 
+  // When searching for dependencies of the OpenCL and Level Zero plugins
+  // (including ICD loader and the Level Zero loader respectively) limit the
+  // list of directories to %windows%\system32 and the directory that contains
+  // the loaded DLL (the plugin). ICD loader is located in the same directory as
+  // OpenCL plugin, the Level Zero loader is in the system directory. Standard
+  // library dependencies are in the system directory.
   auto ocl_path = LibSYCLDir / __SYCL_OPENCL_PLUGIN_NAME;
-  // When searching for dependencies of the OpenCL plugin (which includes ICD
-  // loader) limit the list of directories to %windows%\system32 and the
-  // directory that contains the loaded DLL (OpenCL plugin). ICD loader is
-  // located in the same directory as OpenCL plugin. Standard library
-  // dependencies are in the system directory.
   dllMap.emplace(ocl_path, LoadLibraryEx(ocl_path.wstring().c_str(), NULL,
                                          LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
                                              LOAD_LIBRARY_SEARCH_SYSTEM32));
 
-  // When searching for dependencies of the Level Zero plugin (which includes
-  // level zero loader) limit the list of directories to %windows%\system32.
-  // In this case we know that the Level Zero Loader is located in the system
-  // directory. Standard library dependencies are in the system directory.
   auto l0_path = LibSYCLDir / __SYCL_LEVEL_ZERO_PLUGIN_NAME;
   dllMap.emplace(l0_path, LoadLibraryEx(l0_path.wstring().c_str(), NULL,
-                                        LOAD_LIBRARY_SEARCH_SYSTEM32));
+                                        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                                            LOAD_LIBRARY_SEARCH_SYSTEM32));
 
   auto cuda_path = LibSYCLDir / __SYCL_CUDA_PLUGIN_NAME;
   dllMap.emplace(cuda_path,
