@@ -31,7 +31,8 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
                         " please check ROCm installation.")
     endif()
 
-    # Check if HSA include path exists
+    # Check if HSA include path exists. In rocm-6.0.0 the layout of HSA
+    # directory has changed, check for the new location as well.
     foreach(D IN LISTS UR_HIP_HSA_INCLUDE_DIRS)
         if(EXISTS "${D}")
             set(UR_HIP_HSA_INCLUDE_DIR "${D}")
