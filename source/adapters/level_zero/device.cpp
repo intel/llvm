@@ -88,7 +88,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
     if (!isCombinedMode) {
       ze_device_handle_t RootDev = nullptr;
       // Query Root Device
-      ZE2UR_CALL(zeDeviceGetRootDevice, (D->ZeDevice, &RootDev));
+      // We cannot use ZE2UR_CALL because under some circumstances this call may
+      // return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, and ZE2UR_CALL will abort
+      // because it's not UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and
+      // we check manually that the result is either ZE_RESULT_SUCCESS or
+      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+      auto errc =
+          ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (D->ZeDevice, &RootDev));
+      if (errc != ZE_RESULT_SUCCESS &&
+          errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+        return ze2urResult(errc);
       // For COMPOSITE and FLAT modes, RootDev will always be nullptr. Thus a
       // single device returning RootDev != nullptr means we are in COMBINED
       // mode.
