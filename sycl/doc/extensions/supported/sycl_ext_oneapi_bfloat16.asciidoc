@@ -145,18 +145,48 @@ public:
   // OP is +, -, *, /
   friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
   { /* ... */ }
-  template <typename T>
-  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
-  template <typename T>
-  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend double operatorOP(const bfloat16 &lhs, const double &rhs) { /* ... */ }
+  friend float operatorOP(const bfloat16 &lhs, const float &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const int &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const long &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const long long &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const unsigned int &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const half &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const unsigned long &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const unsigned long long &rhs) { /* ... */ }
+  
+  friend double operatorOP(const double &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend float operatorOP(const float &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const int &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const long long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const unsigned int &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const half &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const unsigned long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bfloat16 operatorOP(const unsigned long long &lhs, const bfloat16 &rhs) { /* ... */ }
 
   // OP is ==,!=, <, >, <=, >=
   friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
   { /* ... */ }
-  template <typename T>
-  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
-  template <typename T>
-  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const double &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const float &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const int &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const long &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const long long &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const unsigned int &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const half &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const unsigned long &rhs) { /* ... */ }
+  friend bool operatorOP(const bfloat16 &lhs, const unsigned long long &rhs) { /* ... */ }
+  
+  friend bool operatorOP(const double &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const float &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const int &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const long long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const unsigned int &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const half &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const unsigned long &lhs, const bfloat16 &rhs) { /* ... */ }
+  friend bool operatorOP(const unsigned long long &lhs, const bfloat16 &rhs) { /* ... */ }
 };
 
 } // namespace oneapi
@@ -221,21 +251,21 @@ Table 1. Member functions of `bfloat16` class.
 
   OP is `+, -, *, /`
 
-| `template <typename T>
-  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| `friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
 | Construct a new instance of the `bfloat16` class with the value of the new
   `bfloat16` instance being the result of an OP arithmetic operation between
-  the `lhs` `bfloat16` value and `rhs` of template type `T`. Type `T` must be
-  convertible to `float`.
+  the `lhs` `bfloat16` value and `rhs` of type `T`, where 'T' is one of the 
+  following types: `double`, `float`, `int`, `long`, `long long`, `unsigned int`, 
+  `half`, `unsigned long` or `unsigned long long`.
 
   OP is `+, -, *, /`
 
-| `template <typename T>
-  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| `friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
 | Construct a new instance of the `bfloat16` class with the value of the new
   `bfloat16` instance being the result of an OP arithmetic operation between
-  the `lhs` of template type `T` and `rhs` `bfloat16` value. Type `T` must be
-  convertible to `float`.
+  the `lhs` of type `T` and `rhs` `bfloat16` value. Type `T` is one of the 
+  following types: `double`, `float`, `int`, `long`, `long long`, `unsigned int`, 
+  `half`, `unsigned long` or `unsigned long long`.
 
   OP is `+, -, *, /`
 
@@ -246,19 +276,19 @@ Table 1. Member functions of `bfloat16` class.
 
 OP is `+==, !=, <, >, <=, >=+`
 
-| `template <typename T>
-  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| `friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
 | Perform comparison operation OP between `lhs` `bfloat16` and `rhs` of
-  template type `T` and return the result as a boolean value. Type `T` must be
-  convertible to `float`.
+  type `T` and return the result as a boolean value. Type `T` must be
+  one of the  following types: `double`, `float`, `int`, `long`, `long long`,
+  `unsigned int`, `half`, `unsigned long` or `unsigned long long`.
 
 OP is `+==, !=, <, >, <=, >=+`
 
-| `template <typename T>
-  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
-| Perform comparison operation OP between `lhs` of template type `T` and `rhs`
+| `friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` of type `T` and `rhs`
   `bfloat16` value and return the result as a boolean value. Type `T` must be
-  convertible to `float`.
+  one of the  following types: `double`, `float`, `int`, `long`, `long long`,
+  `unsigned int`, `half`, `unsigned long` or `unsigned long long`.
 
 OP is `+==, !=, <, >, <=, >=+`
 |===
@@ -320,4 +350,5 @@ int main(int argc, char *argv[]) {
 |5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
 |6|2022-09-15|Rajiv Deodhar |Move bfloat16 from experimental to supported
 and leave math functions as experimental
+|7|2024-01-08|Gregory Fine |Update documentation with new operator implementation
 |========================================
