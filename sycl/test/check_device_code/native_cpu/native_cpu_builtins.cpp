@@ -16,7 +16,7 @@
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins.
 
-// CHECK: %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
+// CHECK: %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], i32, i32, i32, i32 }
 #include "sycl.hpp"
 class Test1;
 class Test2;
