@@ -36,6 +36,7 @@ int main() {
     add_node(
         Graph, Queue,
         [&](handler &CGH) {
+          depends_on_helper(CGH, Init);
           CGH.single_task<class double_dest>([=]() {
             for (int i = 0; i < Count; i++)
               Dest[i] = 2 * Src[i];
@@ -52,35 +53,6 @@ int main() {
       assert(Dest[i] == i * 2);
     }
   }
-
-#ifdef GRAPH_E2E_RECORD_REPLAY
-  exp_ext::command_graph Graph2{Queue.get_context(), Queue.get_device()};
-
-  // Test queue::mem_advise
-  {
-    Graph2.begin_recording(Queue);
-
-    event InitQ = Queue.mem_advise(Src, sizeof(T) * Count, 0);
-
-    Queue.submit([&](handler &CGH) {
-      CGH.depends_on(InitQ);
-      CGH.single_task<class double_dest3>([=]() {
-        for (int i = 0; i < Count; i++)
-          Dest[i] = 3 * Src[i];
-      });
-    });
-    Graph2.end_recording();
-
-    auto ExecGraph2 = Graph2.finalize();
-
-    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph2); });
-    Queue.wait_and_throw();
-
-    for (int i = 0; i < Count; i++) {
-      assert(Dest[i] == i * 3);
-    }
-  }
-#endif
 
   free(Src, Queue);
   free(Dest, Queue);
