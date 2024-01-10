@@ -62,7 +62,7 @@ template <typename T> struct GetIntFromMD {
 static jit_compiler::Indices getIdxFromMD(const Metadata *MD) {
   constexpr unsigned IndicesBitWidth{64};
 
-  jit_compiler::Indices Res;
+  jit_compiler::Indices Res{0, 0, 0};
   const auto *NMD = cast<MDNode>(MD);
   const GetIntFromMD<std::size_t> Trans{IndicesBitWidth};
   std::transform(NMD->op_begin(), NMD->op_end(), Res.begin(),

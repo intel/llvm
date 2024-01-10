@@ -147,7 +147,27 @@ struct SYCLArgumentDescriptor {
 /// List of SYCL/OpenCL kernel attributes.
 using AttributeList = std::vector<SYCLKernelAttribute>;
 
-using Indices = std::array<size_t, 3>;
+///
+/// Class to model a three-dimensional index.
+class Indices {
+public:
+  constexpr Indices(size_t V1, size_t V2, size_t V3) : Values{V1, V2, V3} {}
+
+  const size_t *begin() const { return Values; }
+  const size_t *end() const { return Values + 3; }
+  size_t *begin() { return Values; }
+  size_t *end() { return Values + 3; }
+
+  const size_t &operator[](int Idx) const { return Values[Idx]; }
+
+  bool operator==(const Indices &Other) const;
+  bool operator!=(const Indices &Other) const;
+  bool operator<(const Indices &Other) const;
+  bool operator>(const Indices &Other) const;
+
+private:
+  size_t Values[3];
+};
 
 ///
 /// Class to model SYCL nd_range
