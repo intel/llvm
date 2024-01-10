@@ -118,10 +118,10 @@ event ext_oneapi_get_last_event() const;
 | Returns an event representing the execution of the last command submitted to
 the queue.
 
-Calls to this member function throws a `sycl::exception` with `errc::invalid` if
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
 
-Calls to this member function throws a `sycl::exception` with `errc::invalid` if
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue has the `ext::oneapi::property::queue::discard_events` property from
 the
 link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
@@ -140,12 +140,12 @@ This is equivalent to calling `handler::depends_on()` in a command submission
 with the `externalEvent` from the most recent call to this member function since
 the previous command submission to the same queue.
 
-Calls to this member function throws a `sycl::exception` with `errc::invalid` if
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
 
-Calls to this member function throws a `sycl::exception` with `errc::invalid` if
-the queue does has the `ext::oneapi::property::queue::discard_events` property
-from the
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
+the queue has the `ext::oneapi::property::queue::discard_events` property from
+the
 link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
 |====
 --
