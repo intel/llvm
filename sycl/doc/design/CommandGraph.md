@@ -241,20 +241,18 @@ There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
 This WaitEvent is reset in the suffix.
 
-A command-buffer is expected to be submitted multiple times. Consequently, 
-we need to ensure that L0 events associated with graph commands have not 
-been signaled by a previous execution.
-These events are therefore reset to the unsignaled state before running 
-the actual graph associated commands.
-Note that this reset is performed in the prefix and not in the suffix 
-to avoid additional sychronization w.r.t profiling data extraction. 
+A command-buffer is expected to be submitted multiple times. Consequently,
+we need to ensure that L0 events associated with graph commands have not
+been signalled by a previous execution. These events are therefore reset to the
+unsignalled state before running the actual graph associated commands. Note
+that this reset is performed in the prefix and not in the suffix to avoid
+additional synchronization w.r.t profiling data extraction.
 
-If a command-buffer is about to be submitted to a queue with the profiling 
-property enabled, an extra command that copies timestamps of L0 events 
-associated with graph commands into a dedicated memory which is attached 
-to the returned UR event.
-This memory stores the profiling information that corresponds to the current 
-submission of the command-buffer.
+If a command-buffer is about to be submitted to a queue with the profiling
+property enabled, an extra command that copies timestamps of L0 events
+associated with graph commands into a dedicated memory which is attached to the
+returned UR event. This memory stores the profiling information that
+corresponds to the current submission of the command-buffer.
 
 ![L0 command-buffer diagram](images/L0_UR_command-buffer-v3.jpg)
 

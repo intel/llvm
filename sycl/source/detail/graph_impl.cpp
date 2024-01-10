@@ -839,7 +839,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
             std::move(CommandGroup), Queue);
       }
-
+      NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
                 sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
@@ -855,37 +855,45 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           .MQueue = Queue;
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          std::move(CommandGroup), Queue);
-    }
-    NewEvent->setEventFromSubmittedExecCommandBuffer(true);
-  } else {
-    std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
-    for (auto &NodeImpl : MSchedule) {
-      std::vector<sycl::detail::pi::PiEvent> RawEvents;
+          NodeImpl->getCGCopy(), Queue);
+    } else {
+      std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
+      for (auto &NodeImpl : CurrentPartition->MSchedule) {
+        std::vector<sycl::detail::pi::PiEvent> RawEvents;
 
-      // If the node has no requirements for accessors etc. then we skip the
-      // scheduler and enqueue directly.
-      if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
-          NodeImpl->MCommandGroup->getRequirements().size() +
-                  static_cast<sycl::detail::CGExecKernel *>(
-                      NodeImpl->MCommandGroup.get())
-                      ->MStreams.size() ==
-              0) {
-        sycl::detail::CGExecKernel *CG =
-            static_cast<sycl::detail::CGExecKernel *>(
-                NodeImpl->MCommandGroup.get());
-        auto OutEvent = CreateNewEvent();
-        pi_int32 Res = sycl::detail::enqueueImpKernel(
-            Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle, CG->MSyclKernel,
-            CG->MKernelName, RawEvents, OutEvent,
-            // TODO: Pass accessor mem allocations
-            nullptr,
-            // TODO: Extract from handler
-            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
-        if (Res != pi_result::PI_SUCCESS) {
-          throw sycl::exception(
-              sycl::make_error_code(sycl::errc::kernel),
-              "Error during emulated graph command group submission.");
+        // If the node has no requirements for accessors etc. then we skip the
+        // scheduler and enqueue directly.
+        if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
+            NodeImpl->MCommandGroup->getRequirements().size() +
+                    static_cast<sycl::detail::CGExecKernel *>(
+                        NodeImpl->MCommandGroup.get())
+                        ->MStreams.size() ==
+                0) {
+          sycl::detail::CGExecKernel *CG =
+              static_cast<sycl::detail::CGExecKernel *>(
+                  NodeImpl->MCommandGroup.get());
+          auto OutEvent = CreateNewEvent();
+          pi_int32 Res = sycl::detail::enqueueImpKernel(
+              Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
+              CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
+              // TODO: Pass accessor mem allocations
+              nullptr,
+              // TODO: Extract from handler
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+          if (Res != pi_result::PI_SUCCESS) {
+            throw sycl::exception(
+                sycl::make_error_code(sycl::errc::kernel),
+                "Error during emulated graph command group submission.");
+          }
+          ScheduledEvents.push_back(NewEvent);
+        } else if (!NodeImpl->isEmpty()) {
+          // Empty nodes are node processed as other nodes, but only their
+          // dependencies are propagated in findRealDeps
+          sycl::detail::EventImplPtr EventImpl =
+              sycl::detail::Scheduler::getInstance().addCG(
+                  NodeImpl->getCGCopy(), Queue);
+
+          ScheduledEvents.push_back(EventImpl);
         }
       }
       // Create an event which has all kernel events as dependencies

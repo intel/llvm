@@ -1,16 +1,14 @@
 // REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 2>&1
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
-//
-// CHECK-NOT: LEAK
+// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
 
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
 // The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
+// UR_LO_LEAKS_DEBUG testing capability.
 
 #include "graph_common.hpp"
 
