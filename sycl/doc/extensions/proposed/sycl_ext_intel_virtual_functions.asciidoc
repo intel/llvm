@@ -290,9 +290,11 @@ public:
 });
 ----
 
-NOTE: `void` typename is explicitly reserved as identifier of the default
-virtual functions set. It can still be used, but with the expectation that it
-is also implicitly used by the extension implementation.
+NOTE: By convention, the type `void` is used to denote the default set of
+virtual functions. When the typename is omitted from the
+`SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY` macro, the type `void` is used by
+default. Applications may also explicitly use the type `void` to denote this
+default set of virtual functions.
 
 === Optional kernel features handling
 
