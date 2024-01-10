@@ -49,6 +49,8 @@ int main() {
 
   Failed += Check(Q, "copy", [&]() { return Q.memcpy(Data1, Data2, N); });
 
+  Q.wait_and_throw();
+
   sycl::free(Data1, Q);
   sycl::free(Data2, Q);
 
