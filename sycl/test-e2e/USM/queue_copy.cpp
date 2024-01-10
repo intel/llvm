@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out %}
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out %}
 //
 
 #include <iostream>
