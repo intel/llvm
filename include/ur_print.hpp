@@ -6277,6 +6277,12 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value) {
     case UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST:
         os << "UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST";
         break;
+    case UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY";
+        break;
+    case UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -6440,6 +6446,26 @@ inline ur_result_t printFlag<ur_usm_advice_flag_t>(std::ostream &os, uint32_t fl
             first = false;
         }
         os << UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
