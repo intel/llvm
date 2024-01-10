@@ -1026,15 +1026,18 @@ The following builtins are replaced:
 * ``__mux_usefast`` - Whether to use faster, less accurate maths algorithms.
 * ``__mux_isembeddedprofile`` - Whether the mux target implements OpenCL
   embedded profile.
+* ``__mux_hasnativefma`` - Whether the mux target supports a fused multiply-add
+  instruction.
 
 Declarations matching each of these function names are searched for by
 ``ReplaceMuxMathDeclsPass``, and if found, a function body is created returning
 a constant value. These constant return values are set from ``bool`` parameters
 passed by the runtime on pass creation, and may be derived from hardware
-features like denormal support, or from compilation flags like fast-math. Later
-generic optimization passes, such as Dead Code Elimination, should be able
-remove the unused control-flow in kernel code once the definitions of these
-builtins have been inlined.
+features like denormal support, or from compilation flags like fast-math. These
+functions must not be declared with the ``noinline`` attribute: later generic
+optimization passes, such as Dead Code Elimination, should be able remove the
+unused control-flow in kernel code once the definitions of these builtins have
+been inlined.
 
 UniqueOpaqueStructsPass
 -----------------------
