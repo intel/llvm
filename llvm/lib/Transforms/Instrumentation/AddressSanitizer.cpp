@@ -2796,20 +2796,22 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
   // Put the constructor and destructor in comdat if both
   // (1) global instrumentation is not TU-specific
   // (2) target is ELF.
-  if (UseCtorComdat && TargetTriple.isOSBinFormatELF() && CtorComdat) {
-    if (AsanCtorFunction) {
-      AsanCtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleCtorName));
-      appendToGlobalCtors(M, AsanCtorFunction, Priority, AsanCtorFunction);
+  if (!TargetTriple.isSPIR()) { // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
+    if (UseCtorComdat && TargetTriple.isOSBinFormatELF() && CtorComdat) {
+      if (AsanCtorFunction) {
+        AsanCtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleCtorName));
+        appendToGlobalCtors(M, AsanCtorFunction, Priority, AsanCtorFunction);
+      }
+      if (AsanDtorFunction) {
+        AsanDtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleDtorName));
+        appendToGlobalDtors(M, AsanDtorFunction, Priority, AsanDtorFunction);
+      }
+    } else {
+      if (AsanCtorFunction)
+        appendToGlobalCtors(M, AsanCtorFunction, Priority);
+      if (AsanDtorFunction)
+        appendToGlobalDtors(M, AsanDtorFunction, Priority);
     }
-    if (AsanDtorFunction) {
-      AsanDtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleDtorName));
-      appendToGlobalDtors(M, AsanDtorFunction, Priority, AsanDtorFunction);
-    }
-  } else {
-    if (AsanCtorFunction)
-      appendToGlobalCtors(M, AsanCtorFunction, Priority);
-    if (AsanDtorFunction)
-      appendToGlobalDtors(M, AsanDtorFunction, Priority);
   }
 
   return true;
