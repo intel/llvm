@@ -62,7 +62,7 @@ template <typename T> struct GetIntFromMD {
 static jit_compiler::Indices getIdxFromMD(const Metadata *MD) {
   constexpr unsigned IndicesBitWidth{64};
 
-  jit_compiler::Indices Res{0, 0, 0};
+  jit_compiler::Indices Res;
   const auto *NMD = cast<MDNode>(MD);
   const GetIntFromMD<std::size_t> Trans{IndicesBitWidth};
   std::transform(NMD->op_begin(), NMD->op_end(), Res.begin(),
@@ -693,7 +693,7 @@ void SYCLKernelFusion::attachKernelAttributeMD(
         KernelAttr.AttributeName == "work_group_size_hint") {
       // 'reqd_work_group_size' and 'work_group_size_hint' get attached as
       // metadata with their three values as constant integer metadata.
-      SmallVector<Metadata *, 3> MDValues;
+      SmallVector<Metadata *, jit_compiler::Indices::size()> MDValues;
       for (std::string &Val : KernelAttr.Values) {
         MDValues.push_back(ConstantAsMetadata::get(
             ConstantInt::get(Type::getInt32Ty(LLVMCtx), std::stoi(Val))));
