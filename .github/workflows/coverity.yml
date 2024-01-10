@@ -23,6 +23,8 @@ env:
   COVERITY_SCAN_BRANCH_PATTERN:      "main"
   TRAVIS_BRANCH:                     ${{ github.ref_name }}
 
+permissions:
+  contents: read
 
 jobs:
   linux:
