@@ -3146,9 +3146,16 @@ slm_gather(simd<uint32_t, N> byte_offsets, simd_mask<N> mask,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "slm_gather() requires at least element-size alignment");
-  simd<MsgT, N> PassThru; // it is intentionally undefined
-  return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-      byte_offsets.data(), mask.data(), PassThru.data());
+  if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    simd<MsgT, N> PassThru; // it is intentionally undefined
+    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+        byte_offsets.data(), mask.data(), PassThru.data());
+  } else {
+    static_assert(N == 1 || N == 8 || N == 16 || N == 32,
+                  "Unsupported vector length");
+    detail::LocalAccessorMarker acc;
+    return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
+  }
 }
 
 template <typename T, int N,
