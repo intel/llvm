@@ -1323,6 +1323,13 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
+==== sycl_ext_oneapi_free_function_kernels
+
+The new traits for kernel functions, and new kernel bundle member functions, defined by
+link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
+
 == Examples
 
 [NOTE]
