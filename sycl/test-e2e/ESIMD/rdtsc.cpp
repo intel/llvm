@@ -28,7 +28,7 @@ int test_rdtsc() {
   shared_allocator<uint64_t> Allocator(Queue);
   constexpr int32_t SIZE = 32;
 
-  shared_vector<uint64_t> VectorOutputRDTSC(SIZE, -1, Allocator);
+  shared_vector<uint64_t> VectorOutputRDTSC(SIZE, 0, Allocator);
 
   auto GlobalRange = sycl::range<1>(SIZE);
   sycl::range<1> LocalRange{1};
@@ -44,7 +44,7 @@ int test_rdtsc() {
         uint64_t StartCounter = sycl::ext::intel::experimental::esimd::rdtsc();
         simd<uint64_t, 1> VectorResultRDTSC(VectorOutputRDTSCPtr + Idx);
         uint64_t EndCounter = sycl::ext::intel::experimental::esimd::rdtsc();
-        VectorResultRDTSC = EndCounter > StartCounter;
+        VectorResultRDTSC += EndCounter > StartCounter;
 
         VectorResultRDTSC.copy_to(VectorOutputRDTSCPtr + Idx);
       });
@@ -54,13 +54,8 @@ int test_rdtsc() {
     Queue.wait();
   }
 
-  int Result = 0;
-
-  // Check if returned values are positive
-  Result |= std::any_of(VectorOutputRDTSC.begin(), VectorOutputRDTSC.end(),
-                        [](uint64_t v) { return v == 0; });
-
-  return Result;
+  return std::any_of(VectorOutputRDTSC.begin(), VectorOutputRDTSC.end(),
+                     [](uint64_t v) { return v == 0; });
 }
 
 int main() {
