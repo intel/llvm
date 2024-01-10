@@ -139,7 +139,7 @@ void preloadLibraries() {
   // current directory and some other directories which are considered unsafe.
   auto flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
 
-  auto loadPlugin = [&](auto pluginName, DWORD flags = NULL) {
+  auto loadPlugin = [&](auto pluginName, DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32) {
     auto path = LibSYCLDir / pluginName;
     dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
   };
