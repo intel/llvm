@@ -661,7 +661,8 @@ public:
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
         {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
-        {"srnd", {"srnd", {a(0), a(1)}}}};
+        {"srnd", {"srnd", {a(0), a(1)}}},
+        {"timestamp",{"timestamp",{}}}};
   }
   // clang-format on
 
