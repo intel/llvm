@@ -18,20 +18,22 @@ template <typename KernelFuncObjArg>
 class KernelImpl {
 public:
   KernelImpl(float *in, float *out) : in(in), out(out) {}
-  void operator()(KernelFuncObjArg i) const;
+
+  void operator()(KernelFuncObjArg i) const {
+    std::size_t index = get_index(i);
+    out[index] = in[index];
+  }
+
 private:
+  static std::size_t get_index(KernelFuncObjArg i) { return i; }
+
   float *in;
   float *out;
 };
 
-template<>
-void KernelImpl<sycl::nd_item<1>>::operator()(sycl::nd_item<1> i) const {
-  out[i.get_global_id()] = in[i.get_global_id()];
-}
-
-template <typename KernelFuncObjArg>
-void KernelImpl<KernelFuncObjArg>::operator()(KernelFuncObjArg i) const {
-  out[i] = in[i];
+template <>
+std::size_t KernelImpl<sycl::nd_item<1>>::get_index(sycl::nd_item<1> i) {
+  return i.get_global_id();
 }
 
 template <typename Range, typename KernelFuncObjArg>
