@@ -47,7 +47,7 @@ endif()
 # Set up defaults for UR
 set(UR_HIP_INCLUDE_DIR ${PI_HIP_INCLUDE_DIR} CACHE PATH
   "Custom ROCm HIP include dir")
-set(UR_HIP_HSA_INCLUDE_DIR ${PI_HIP_HSA_INCLUDE_DIR} CACHE PATH
+set(UR_HIP_HSA_INCLUDE_DIRS ${PI_HIP_HSA_INCLUDE_DIR} CACHE PATH
   "Custom ROCm HSA include dir")
 set(UR_HIP_LIB_DIR ${PI_HIP_LIB_DIR} CACHE PATH
   "Custom ROCm HIP library dir")
