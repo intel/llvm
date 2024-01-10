@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1d7863601e9ecfffadf0617236a472a3b00fddbe
-  # Merge: cf87428c 3ee71a71
+  # commit 12a67f56c3c5d08cfac0852d552b4e5fe0452d04
+  # Merge: 2b7b827c c10968f5
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 4 11:03:26 2024 +0000
-  #     Merge pull request #938 from Bensuo/cmdbuf-fill-memset-l0
-  #     [EXP][CMDBUF] Implement Fill commands for L0 adapter
-  set(UNIFIED_RUNTIME_TAG 1d7863601e9ecfffadf0617236a472a3b00fddbe)
+  # Date:   Tue Jan 9 10:53:32 2024 +0000
+  #     Merge pull request #1027 from GeorgeWeb/georgi/hip_memadvise
+  #     [SYCL][HIP] Implement mem_advise for HIP
+  set(UNIFIED_RUNTIME_TAG 12a67f56c3c5d08cfac0852d552b4e5fe0452d04)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

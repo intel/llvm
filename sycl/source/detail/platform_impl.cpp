@@ -272,53 +272,36 @@ std::vector<int> platform_impl::filterDeviceFilter(
 
     for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend.value_or(backend::all);
-      // First, match the backend entry
-      if (FilterBackend == Backend || FilterBackend == backend::all) {
-        info::device_type FilterDevType =
-            Filter.DeviceType.value_or(info::device_type::all);
-        // Next, match the device_type entry
-        if (FilterDevType == info::device_type::all) {
-          // Last, match the device_num entry
-          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            if constexpr (is_ods_target) {      // dealing with ODS filters
-              if (!Blacklist[DeviceNum]) {      // ensure it is not blacklisted
-                if (!Filter.IsNegativeTarget) { // is filter positive?
-                  PiDevices[InsertIDx++] = Device;
-                  original_indices.push_back(DeviceNum);
-                } else {
-                  // Filter is negative and the device matches the filter so
-                  // blacklist the device.
-                  Blacklist[DeviceNum] = true;
-                }
-              }
-            } else { // dealing with SYCL_DEVICE_FILTER
-              PiDevices[InsertIDx++] = Device;
-              original_indices.push_back(DeviceNum);
-            }
-            break;
-          }
+      // First, match the backend entry.
+      if (FilterBackend != Backend && FilterBackend != backend::all)
+        continue;
+      info::device_type FilterDevType =
+          Filter.DeviceType.value_or(info::device_type::all);
 
-        } else if (FilterDevType == DeviceType) {
-          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            if constexpr (is_ods_target) {
-              if (!Blacklist[DeviceNum]) {
-                if (!Filter.IsNegativeTarget) {
-                  PiDevices[InsertIDx++] = Device;
-                  original_indices.push_back(DeviceNum);
-                } else {
-                  // Filter is negative and the device matches the filter so
-                  // blacklist the device.
-                  Blacklist[DeviceNum] = true;
-                }
-              }
-            } else {
-              PiDevices[InsertIDx++] = Device;
-              original_indices.push_back(DeviceNum);
-            }
-            break;
-          }
+      // Match the device_num entry.
+      if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
+        continue;
+
+      if (FilterDevType != info::device_type::all &&
+          FilterDevType != DeviceType)
+        continue;
+
+      if constexpr (is_ods_target) {
+        // Dealing with ONEAPI_DEVICE_SELECTOR - check for negative filters.
+        if (Blacklist[DeviceNum]) // already blacklisted.
+          break;
+
+        if (Filter.IsNegativeTarget) {
+          // Filter is negative and the device matches the filter so
+          // blacklist the device now.
+          Blacklist[DeviceNum] = true;
+          break;
         }
       }
+
+      PiDevices[InsertIDx++] = Device;
+      original_indices.push_back(DeviceNum);
+      break;
     }
     DeviceNum++;
   }
@@ -392,116 +375,101 @@ static std::vector<device> amendDeviceAndSubDevices(
     bool deviceAdded = false;
     for (ods_target target : OdsTargetList->get()) {
       backend TargetBackend = target.Backend.value_or(backend::all);
-      if (PlatformBackend == TargetBackend || TargetBackend == backend::all) {
-        bool deviceMatch = target.HasDeviceWildCard; // opencl:*
-        if (target.DeviceType) {                     // opencl:gpu
-          deviceMatch = ((target.DeviceType == info::device_type::all) ||
-                         (dev.get_info<info::device::device_type>() ==
-                          target.DeviceType));
+      if (PlatformBackend != TargetBackend && TargetBackend != backend::all)
+        continue;
 
-        } else if (target.DeviceNum) { // opencl:0
-          deviceMatch = (target.DeviceNum.value() == original_indices[i]);
+      bool deviceMatch = target.HasDeviceWildCard; // opencl:*
+      if (target.DeviceType) {                     // opencl:gpu
+        deviceMatch =
+            ((target.DeviceType == info::device_type::all) ||
+             (dev.get_info<info::device::device_type>() == target.DeviceType));
+
+      } else if (target.DeviceNum) { // opencl:0
+        deviceMatch = (target.DeviceNum.value() == original_indices[i]);
+      }
+
+      if (!deviceMatch)
+        continue;
+
+      // Top level matches. Do we add it, or subdevices, or sub-sub-devices?
+      bool wantSubDevice = target.SubDeviceNum || target.HasSubDeviceWildCard;
+      bool supportsSubPartitioning =
+          (supportsPartitionProperty(dev, partitionProperty) &&
+           supportsAffinityDomain(dev, partitionProperty, affinityDomain));
+      bool wantSubSubDevice =
+          target.SubSubDeviceNum || target.HasSubSubDeviceWildCard;
+
+      if (!wantSubDevice) {
+        // -- Add top level device only.
+        if (!deviceAdded) {
+          FinalResult.push_back(dev);
+          deviceAdded = true;
+        }
+        continue;
+      }
+
+      if (!supportsSubPartitioning) {
+        if (target.DeviceNum ||
+            (target.DeviceType &&
+             (target.DeviceType.value() != info::device_type::all))) {
+          // This device was specifically requested and yet is not
+          // partitionable.
+          std::cout << "device is not partitionable: " << target << std::endl;
+        }
+        continue;
+      }
+
+      auto subDevices = dev.create_sub_devices<
+          info::partition_property::partition_by_affinity_domain>(
+          affinityDomain);
+      if (target.SubDeviceNum) {
+        if (subDevices.size() <= target.SubDeviceNum.value()) {
+          std::cout << "subdevice index out of bounds: " << target << std::endl;
+          continue;
+        }
+        subDevices[0] = subDevices[target.SubDeviceNum.value()];
+        subDevices.resize(1);
+      }
+
+      if (!wantSubSubDevice) {
+        // -- Add sub device(s) only.
+        FinalResult.insert(FinalResult.end(), subDevices.begin(),
+                           subDevices.end());
+        continue;
+      }
+
+      // -- Add sub sub device(s).
+      for (device subDev : subDevices) {
+        bool supportsSubSubPartitioning =
+            (supportsPartitionProperty(subDev, partitionProperty) &&
+             supportsAffinityDomain(subDev, partitionProperty, affinityDomain));
+        if (!supportsSubSubPartitioning) {
+          if (target.SubDeviceNum) {
+            // Parent subdevice was specifically requested, yet is not
+            // partitionable.
+            std::cout << "sub-device is not partitionable: " << target
+                      << std::endl;
+          }
+          continue;
         }
 
-        if (deviceMatch) {
-          // Top level matches. Do we add it, or subdevices, or sub-sub-devices?
-          bool wantSubDevice =
-              target.SubDeviceNum || target.HasSubDeviceWildCard;
-          bool supportsSubPartitioning =
-              (supportsPartitionProperty(dev, partitionProperty) &&
-               supportsAffinityDomain(dev, partitionProperty, affinityDomain));
-          bool wantSubSubDevice =
-              target.SubSubDeviceNum || target.HasSubSubDeviceWildCard;
-
-          // -- Add top level device.
-          if (!wantSubDevice) {
-            if (!deviceAdded) {
-              FinalResult.push_back(dev);
-              deviceAdded = true;
-            }
-          } else {
-            if (!supportsSubPartitioning) {
-              if (target.DeviceNum ||
-                  (target.DeviceType &&
-                   (target.DeviceType.value() != info::device_type::all))) {
-                // This device was specifically requested and yet is not
-                // partitionable.
-                std::cout << "device is not partitionable: " << target
-                          << std::endl;
-              }
-              continue;
-            }
-            // -- Add sub sub device.
-            if (wantSubSubDevice) {
-
-              auto subDevicesToPartition =
-                  dev.create_sub_devices<partitionProperty>(affinityDomain);
-              if (target.SubDeviceNum) {
-                if (subDevicesToPartition.size() >
-                    target.SubDeviceNum.value()) {
-                  subDevicesToPartition[0] =
-                      subDevicesToPartition[target.SubDeviceNum.value()];
-                  subDevicesToPartition.resize(1);
-                } else {
-                  std::cout << "subdevice index out of bounds: " << target
-                            << std::endl;
-                  continue;
-                }
-              }
-              for (device subDev : subDevicesToPartition) {
-                bool supportsSubSubPartitioning =
-                    (supportsPartitionProperty(subDev, partitionProperty) &&
-                     supportsAffinityDomain(subDev, partitionProperty,
-                                            affinityDomain));
-                if (!supportsSubSubPartitioning) {
-                  if (target.SubDeviceNum) {
-                    // Parent subdevice was specifically requested, yet is not
-                    // partitionable.
-                    std::cout << "sub-device is not partitionable: " << target
-                              << std::endl;
-                  }
-                  continue;
-                }
-                // Allright, lets get them sub-sub-devices.
-                auto subSubDevices =
-                    subDev.create_sub_devices<partitionProperty>(
-                        affinityDomain);
-                if (target.HasSubSubDeviceWildCard) {
-                  FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
-                                     subSubDevices.end());
-                } else {
-                  if (subSubDevices.size() > target.SubSubDeviceNum.value()) {
-                    FinalResult.push_back(
-                        subSubDevices[target.SubSubDeviceNum.value()]);
-                  } else {
-                    std::cout
-                        << "sub-sub-device index out of bounds: " << target
-                        << std::endl;
-                  }
-                }
-              }
-            } else if (wantSubDevice) {
-              auto subDevices = dev.create_sub_devices<
-                  info::partition_property::partition_by_affinity_domain>(
-                  affinityDomain);
-              if (target.HasSubDeviceWildCard) {
-                FinalResult.insert(FinalResult.end(), subDevices.begin(),
-                                   subDevices.end());
-              } else {
-                if (subDevices.size() > target.SubDeviceNum.value()) {
-                  FinalResult.push_back(
-                      subDevices[target.SubDeviceNum.value()]);
-                } else {
-                  std::cout << "subdevice index out of bounds: " << target
-                            << std::endl;
-                }
-              }
-            }
+        // Allright, lets get them sub-sub-devices.
+        auto subSubDevices =
+            subDev.create_sub_devices<partitionProperty>(affinityDomain);
+        if (target.SubSubDeviceNum) {
+          if (subSubDevices.size() <= target.SubSubDeviceNum.value()) {
+            std::cout << "sub-sub-device index out of bounds: " << target
+                      << std::endl;
+            continue;
           }
-        } // /if deviceMatch
+          subSubDevices[0] = subSubDevices[target.SubSubDeviceNum.value()];
+          subSubDevices.resize(1);
+        }
+        FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
+                           subSubDevices.end());
       }
-    } // /for
-  }   // /for
+    }
+  }
   return FinalResult;
 }
 
