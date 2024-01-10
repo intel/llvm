@@ -59,6 +59,9 @@ additional APIs for controlling in-order queues: Getting the event from the last
 command submission into the queue and setting an external event as an implicit
 dependence on the next command submitted to the queue.
 
+> This extension exists to solve a specific problem, and a general solution is
+> still being evaluated.  It is not recommended for general usage.
+
 
 == Specification
 
@@ -119,8 +122,8 @@ Calls to this member function throws a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
 
 Calls to this member function throws a `sycl::exception` with `errc::invalid` if
-the queue does not have the `ext::oneapi::property::queue::discard_events`
-property from the
+the queue has the `ext::oneapi::property::queue::discard_events` property from
+the
 link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
   
 a| 
@@ -141,8 +144,8 @@ Calls to this member function throws a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
 
 Calls to this member function throws a `sycl::exception` with `errc::invalid` if
-the queue does not have the `ext::oneapi::property::queue::discard_events`
-property from the
+the queue does has the `ext::oneapi::property::queue::discard_events` property
+from the
 link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
 |====
 --
