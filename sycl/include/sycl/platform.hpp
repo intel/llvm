@@ -148,7 +148,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    // For C++11_ABI compatibility, we handle these string Param types
+    // For C++11-ABI compatibility, we handle these string Param types
     // separately.
     if constexpr (std::is_same_v<Param, info::platform::name> ||
                   std::is_same_v<Param, info::platform::vendor> ||
