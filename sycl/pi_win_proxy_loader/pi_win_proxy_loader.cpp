@@ -137,19 +137,17 @@ void preloadLibraries() {
   // list of directories to %windows%\system32 and the directory that contains
   // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
   // current directory and some other directories which are considered unsafe.
-  auto flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
-
   auto loadPlugin = [&](auto pluginName, DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32) {
     auto path = LibSYCLDir / pluginName;
     dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
   };
-  loadPlugin(__SYCL_OPENCL_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_LEVEL_ZERO_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_CUDA_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_HIP_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME, flags);
-  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME, flags);
+  loadPlugin(__SYCL_OPENCL_PLUGIN_NAME);
+  loadPlugin(__SYCL_LEVEL_ZERO_PLUGIN_NAME);
+  loadPlugin(__SYCL_CUDA_PLUGIN_NAME);
+  loadPlugin(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME);
+  loadPlugin(__SYCL_HIP_PLUGIN_NAME);
+  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME);
+  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
