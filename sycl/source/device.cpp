@@ -16,7 +16,9 @@
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <typeinfo>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
