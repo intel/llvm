@@ -177,8 +177,8 @@ the given alignment, specified in bytes. The behavior is undefined if the
 pointer value does not have the indicated alignment.
 
 
-When alignment is specified on `annotated_ptr`, the `operator+`, `operator-`, `operator[]`,
-`operator++`,`operator++(int)`,`operator--` and `operator--(int)` are disabled.
+When alignment is specified on `annotated_ptr`, the operators `+`, `[]`,
+`++`, and `--` (both post- and prefix) are disabled.
 
 |===
 --

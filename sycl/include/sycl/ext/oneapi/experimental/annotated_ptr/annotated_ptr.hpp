@@ -368,30 +368,6 @@ public:
 
   reference operator*() const noexcept { return reference(m_Ptr); }
 
-  template <bool has_alignment = detail::contains_alignment<Props...>::value,
-            class = std::enable_if_t<!has_alignment>>
-  reference operator[](std::ptrdiff_t idx) const noexcept {
-    return reference(m_Ptr + idx);
-  }
-
-  template <bool has_alignment = detail::contains_alignment<Props...>::value,
-            class = std::enable_if_t<has_alignment>>
-  auto operator[](std::ptrdiff_t idx) const noexcept
-      -> decltype("operator[] is not available when alignment is specified!") =
-             delete;
-
-  template <bool has_alignment = detail::contains_alignment<Props...>::value,
-            class = std::enable_if_t<!has_alignment>>
-  annotated_ptr operator+(size_t offset) const noexcept {
-    return annotated_ptr(m_Ptr + offset);
-  }
-
-  template <bool has_alignment = detail::contains_alignment<Props...>::value,
-            class = std::enable_if_t<has_alignment>>
-  auto operator+(size_t offset) const noexcept
-      -> decltype("operator+ is not available when alignment is specified!") =
-             delete;
-
   std::ptrdiff_t operator-(annotated_ptr other) const noexcept {
     return m_Ptr - other.m_Ptr;
   }
@@ -402,6 +378,32 @@ public:
 
   T *get() const noexcept { return m_Ptr; }
 
+  // When the properties contain alignment, operator '[]', '+', '++' and '--'
+  // (both post- and prefix) are disabled. Calling these operators when
+  // alignment is present causes a compile error. Note that clang format is
+  // turned off for these operators to make sure the complete error notes are
+  // printed
+  // clang-format off
+  template <bool has_alignment = detail::contains_alignment<Props...>::value,
+            class = std::enable_if_t<!has_alignment>>
+  reference operator[](std::ptrdiff_t idx) const noexcept {
+    return reference(m_Ptr + idx);
+  }
+
+  template <bool has_alignment = detail::contains_alignment<Props...>::value,
+            class = std::enable_if_t<has_alignment>>
+  auto operator[](std::ptrdiff_t idx) const noexcept -> decltype("operator[] is not available when alignment is specified!") = delete;
+
+  template <bool has_alignment = detail::contains_alignment<Props...>::value,
+            class = std::enable_if_t<!has_alignment>>
+  annotated_ptr operator+(size_t offset) const noexcept {
+    return annotated_ptr(m_Ptr + offset);
+  }
+
+  template <bool has_alignment = detail::contains_alignment<Props...>::value,
+            class = std::enable_if_t<has_alignment>>
+  auto operator+(size_t offset) const noexcept -> decltype("operator+ is not available when alignment is specified!") = delete;
+
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<!has_alignment>>
   annotated_ptr &operator++() noexcept {
@@ -411,13 +413,11 @@ public:
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<has_alignment>>
-  auto operator++() noexcept
-      -> decltype("operator++ is not available when alignment is specified!") =
-             delete;
+  auto operator++() noexcept -> decltype("operator++ is not available when alignment is specified!") = delete;
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<!has_alignment>>
-  annotated_ptr &operator++(int) noexcept {
+  annotated_ptr operator++(int) noexcept {
     auto tmp = *this;
     m_Ptr += 1;
     return tmp;
@@ -425,9 +425,7 @@ public:
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<has_alignment>>
-  auto operator++(int) noexcept
-      -> decltype("operator++ is not available when alignment is specified!") =
-             delete;
+  auto operator++(int) noexcept -> decltype("operator++ is not available when alignment is specified!") = delete;
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<!has_alignment>>
@@ -438,13 +436,11 @@ public:
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<has_alignment>>
-  auto operator--() noexcept
-      -> decltype("operator-- is not available when alignment is specified!") =
-             delete;
+  auto operator--() noexcept -> decltype("operator-- is not available when alignment is specified!") = delete;
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<!has_alignment>>
-  annotated_ptr &operator--(int) noexcept {
+  annotated_ptr operator--(int) noexcept {
     auto tmp = *this;
     m_Ptr -= 1;
     return tmp;
@@ -452,11 +448,9 @@ public:
 
   template <bool has_alignment = detail::contains_alignment<Props...>::value,
             class = std::enable_if_t<has_alignment>>
-  auto operator--(int) noexcept
-      -> decltype("operator-- is not available when alignment is specified!") =
-             delete;
+  auto operator--(int) noexcept -> decltype("operator-- is not available when alignment is specified!") = delete;
 
-#undef MSG_OP_NOT_SUPPORTED
+  // clang-format on
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
