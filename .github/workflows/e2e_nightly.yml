@@ -29,12 +29,12 @@ jobs:
         rm -rf ./* || true
 
     - name: Checkout UR
-      uses: actions/checkout@v4
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         path: ur-repo
 
     - name: Checkout SYCL
-      uses: actions/checkout@v4
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         repository: intel/llvm
         ref: sycl
