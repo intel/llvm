@@ -1499,6 +1499,16 @@ def SYCLAccessorReadonly : Attr {
   let Documentation = [InternalOnly];
 }
 
+// Used to mark SYCL kernel object functions implementing SYCL kernels.
+// The Kernels arguments corresponds to the kernels this function implements.
+def SYCLKernelObjFunc : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let Args = [VariadicStringArgument<"Kernels">];
+  let SemaHandler = 0;
+  let Documentation = [InternalOnly];
+}
+
 // The attribute denotes that it is a function written in a scalar fashion, which
 // is used in ESIMD context and needs to be vectorized by a vector backend compiler.
 // For now, this attribute will be used only in internal implementation of

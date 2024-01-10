@@ -846,6 +846,26 @@ class SingleDeviceFunctionTracker {
     llvm::SmallVector<FunctionDecl *> CallStack;
     VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
 
+    // Mark kernel body function as such. Note a single function might have
+    // several kernel callers, e.g., when a range rounding kernel is added.
+    // Note the calling kernel name is already mangled.
+    if (KernelBody) {
+      llvm::SmallVector<llvm::StringRef, 2> KernelNames;
+      if (auto *Attr = KernelBody->getAttr<SYCLKernelObjFuncAttr>()) {
+        KernelNames.assign(Attr->kernels_begin(), Attr->kernels_end());
+      }
+      std::string KernelName = SYCLKernel->getNameAsString();
+      // Sorted insert to keep duplicates
+      auto *Pos = llvm::upper_bound(KernelNames, KernelName);
+      if (Pos == KernelNames.end() || *Pos != KernelName) {
+        KernelNames.insert(Pos, KernelName);
+        KernelBody->dropAttr<SYCLKernelObjFuncAttr>();
+        KernelBody->addAttr(SYCLKernelObjFuncAttr::CreateImplicit(
+            KernelBody->getASTContext(), KernelNames.data(),
+            KernelNames.size()));
+      }
+    }
+
     // Always inline the KernelBody in the kernel entry point. For ESIMD
     // inlining is handled later down the pipeline.
     if (KernelBody &&

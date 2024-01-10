@@ -18,6 +18,12 @@ int main() {
   });
 }
 
+// Check kernel body function has SYCLKernelObjFuncAttr attribute attached
+
+// CHECK: CXXMethodDecl {{.*}} used constexpr operator() 'void () const'
+// CHECK: SYCLKernelObjFuncAttr
+// CHECK-SAME: Implicit _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E14kernel_wrapper
+
 // Check declaration of the kernel
 
 // CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
