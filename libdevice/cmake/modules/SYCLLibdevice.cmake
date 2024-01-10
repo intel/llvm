@@ -46,6 +46,11 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib")
 endif()
 
+option(LIBDEVICE_NATIVE_CPU "temp option for native cpu" On)
+if(LIBDEVICE_NATIVE_CPU)
+  string(APPEND sycl_targets_opt ",native_cpu")
+endif()
+
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)

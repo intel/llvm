@@ -8,7 +8,7 @@
 
 #include "device_complex.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SYCL_NATIVE_CPU__)
 #include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the
