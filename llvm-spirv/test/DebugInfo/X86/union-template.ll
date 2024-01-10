@@ -26,7 +26,7 @@ source_filename = "test/DebugInfo/X86/union-template.ll"
 
 %"union.PR15637::Value" = type { i32 }
 
-@_ZN7PR156371fE = global %"union.PR15637::Value" zeroinitializer, align 4, !dbg !0
+@_ZN7PR156371fE = addrspace(1) global %"union.PR15637::Value" zeroinitializer, align 4, !dbg !0
 
 ; Function Attrs: nounwind
 define void @_ZN7PR156371gEf(float %value) #0 !dbg !19 {

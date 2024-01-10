@@ -20,67 +20,67 @@ using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
-int main() {
-  constexpr uint32_t BlockWidth = 16;
-  constexpr uint32_t BlockHeight = 4;
+template <typename T> bool test() {
+  constexpr uint32_t BlockWidth = 8;
+  constexpr uint32_t BlockHeight = 8;
   constexpr uint32_t NumBlocks = 1;
-  constexpr uint32_t SurfaceHeight = 16;
-  constexpr uint32_t SurfaceWidth = 16;
-  constexpr uint32_t SurfacePitch = 16;
+  constexpr uint32_t SurfaceHeight = BlockHeight;
+  constexpr uint32_t SurfaceWidth = BlockWidth * NumBlocks;
+  constexpr uint32_t SurfacePitch = BlockWidth;
   constexpr uint32_t x = 0;
   constexpr uint32_t y = 0;
 
-  constexpr uint32_t Size = SurfacePitch * SurfaceHeight * NumBlocks;
+  constexpr uint32_t Size = SurfaceWidth * SurfaceHeight;
 
   queue q;
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto *A = malloc_shared<float>(Size, q);
-  auto *B = malloc_shared<float>(Size, q);
-  auto *C = malloc_shared<float>(Size, q);
-  auto *C1 = malloc_shared<float>(Size, q);
+  auto *A = malloc_shared<T>(Size, q);
+  auto *B = malloc_shared<T>(Size, q);
+  auto *C = malloc_shared<T>(Size, q);
+  auto *C1 = malloc_shared<T>(Size, q);
 
   for (auto i = 0; i != Size; i++) {
-    A[i] = B[i] = 7;
+    A[i] = B[i] = i;
     C[i] = C1[i] = 0;
   }
 
   auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test>(range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-      constexpr uint32_t width = SurfaceWidth * sizeof(float) - 1;
+    cgh.parallel_for(range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
+      constexpr uint32_t width = SurfaceWidth * sizeof(T) - 1;
       constexpr uint32_t height = SurfaceHeight - 1;
-      constexpr uint32_t pitch = SurfacePitch * sizeof(float) - 1;
-      auto data_a = lsc_load_2d<float, BlockWidth, BlockHeight, NumBlocks>(
+      constexpr uint32_t pitch = SurfacePitch * sizeof(T) - 1;
+      simd<T, Size> data_a = lsc_load_2d<T, BlockWidth, BlockHeight, NumBlocks>(
           A, width, height, pitch, x, y);
-      auto data_b = lsc_load_2d<float, BlockWidth, BlockHeight, NumBlocks>(
+      simd<T, Size> data_b = lsc_load_2d<T, BlockWidth, BlockHeight, NumBlocks>(
           B, width, height, pitch, x, y);
 
-      auto data_c = data_a + data_b;
+      simd<T, Size> data_c = data_a + data_b;
 
-      lsc_store_2d<float, BlockWidth, BlockHeight>(C, width, height, pitch, x,
-                                                   y, data_c);
+      lsc_store_2d<T, BlockWidth, BlockHeight>(C, width, height, pitch, x, y,
+                                               data_c);
     });
   });
   e.wait();
 
   auto e1 = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test1>(range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
-      constexpr uint32_t width = SurfaceWidth * sizeof(float) - 1;
+    cgh.parallel_for(range<1>{1}, [=](id<1> i) SYCL_ESIMD_KERNEL {
+      constexpr uint32_t width = SurfaceWidth * sizeof(T) - 1;
       constexpr uint32_t height = SurfaceHeight - 1;
-      constexpr uint32_t pitch = SurfacePitch * sizeof(float) - 1;
+      constexpr uint32_t pitch = SurfacePitch * sizeof(T) - 1;
 
-      config_2d_mem_access<float, BlockWidth, BlockHeight, NumBlocks> payload(
+      config_2d_mem_access<T, BlockWidth, BlockHeight, NumBlocks> payload(
           A, width, height, pitch, 0, 0);
-      lsc_prefetch_2d<float, BlockWidth, BlockHeight, NumBlocks, false, false,
+      lsc_prefetch_2d<T, BlockWidth, BlockHeight, NumBlocks, false, false,
                       cache_hint::cached, cache_hint::cached>(payload);
-      auto data_a = lsc_load_2d(payload);
+      simd<T, Size> data_a = lsc_load_2d(payload);
 
       payload.set_data_pointer(B);
-      lsc_prefetch_2d<float, BlockWidth, BlockHeight, NumBlocks, false, false,
+      lsc_prefetch_2d<T, BlockWidth, BlockHeight, NumBlocks, false, false,
                       cache_hint::cached, cache_hint::cached>(payload);
-      auto data_b = lsc_load_2d(payload);
+      simd<T, Size> data_b = lsc_load_2d(payload);
 
-      auto data_c = data_a + data_b;
+      simd<T, Size> data_c = data_a + data_b;
 
       payload.set_data_pointer(C1);
 
@@ -89,14 +89,27 @@ int main() {
   });
   e1.wait();
 
-  auto error = 0;
+  bool error = false;
   for (auto i = 0; i < Size; ++i)
-    error += std::abs(C[i] - C1[i]);
+    error |= C[i] != C1[i];
 
   free(A, q);
   free(B, q);
   free(C, q);
   free(C1, q);
-  std::cout << (error != 0 ? "FAILED" : "passed") << std::endl;
+  return error;
+}
+
+int main() {
+  bool result = false;
+  result |= test<float>();
+  result |= test<uint32_t>();
+  result |= test<uint16_t>();
+  result |= test<uint64_t>();
+  result |= test<double>();
+  result |= test<uint8_t>();
+  result |= test<sycl::half>();
+
+  std::cout << (result ? "FAILED" : "passed") << std::endl;
   return 0;
 }

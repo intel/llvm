@@ -37,13 +37,13 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.
+This extension is written against the SYCL 2020 revision 8 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
+* link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
   sycl_ext_oneapi_kernel_compiler]
 
 
@@ -60,7 +60,7 @@ this specification.*
 == Overview
 
 This is an extension to
-link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
 sycl_ext_oneapi_kernel_compiler], which allows an application to define a
 kernel in the OpenCL C language when dynamically compiling a kernel from
 source.
@@ -107,6 +107,13 @@ enum class source_language : /*unspecified*/ {
 } // namespace sycl::ext::oneapi::experimental
 ```
 
+=== Source code is text format
+
+Kernels written in the `opencl` language are text format.
+As a result, the application must use the overload of
+`create_kernel_bundle_from_source` taking `std::string` when creating a kernel
+bundle from this language.
+
 === Build options
 
 The `build_options` property accepts any of the compiler or linker options
@@ -136,10 +143,6 @@ Then the application's host code can query for the kernel like so:
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
 ```
-
-There is no mechanism to decorate an OpenCL C kernel with a type-name, so the
-forms of `kernel_bundle::has_kernel` or `kernel_bundle::get_kernel` that take a
-type-name are not useful for kernels defined in OpenCL C.
 
 === Kernel argument restrictions
 

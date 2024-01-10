@@ -8,9 +8,6 @@
 // FIXME: enable opaque pointers support on CPU.
 // UNSUPPORTED: cpu
 
-// https://github.com/intel/llvm/issues/11434
-// XFAIL: gpu-intel-dg2
-
 #include <cassert>
 #include <cstdint>
 #include <cstring>
