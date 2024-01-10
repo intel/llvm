@@ -158,7 +158,7 @@ public:
   size_t *begin() { return Values; }
   size_t *end() { return Values + 3; }
 
-  const size_t &operator[](int Idx) const { return Values[Idx]; }
+  constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
 
   bool operator==(const Indices &Other) const;
   bool operator!=(const Indices &Other) const;
