@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.
@@ -645,6 +645,8 @@ For example, if the kernel is defined like this in the source code string:
 
 ```
 std::string source = R"""(
+  #include <sycl/sycl.hpp>
+
   extern "C"
   SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
   void foo(int *in, int *out) {/*...*/}
@@ -671,6 +673,8 @@ To illustrate, consider source code that defines a kernel like this:
 
 ```
 std::string source = R"""(
+  #include <sycl/sycl.hpp>
+
   namespace mykernels {
 
   SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
@@ -725,6 +729,8 @@ this:
 
 ```
 std::string source = R"""(
+  #include <sycl/sycl.hpp>
+
   template<typename T>
   SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
   void bartmpl(T *in, T *out) {/*...*/}
@@ -764,6 +770,8 @@ int main() {
 
   // The source code for a kernel, defined as a SYCL "free function kernel".
   std::string source = R"""(
+    #include <sycl/sycl.hpp>
+
     extern "C"
     SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
     void iota(float start, float *ptr) {
@@ -814,6 +822,8 @@ int main() {
 
   // The source code for two kernels defined as overloaded functions.
   std::string source = R"""(
+    #include <sycl/sycl.hpp>
+
     SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
     void iota(float start, float *ptr) {
       size_t id = syclex::this_kernel::get_id();
