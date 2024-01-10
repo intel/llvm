@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 12a67f56c3c5d08cfac0852d552b4e5fe0452d04
-  # Merge: 2b7b827c c10968f5
+  # commit c2d78257ba7e7bbc230333f291282d16145aaac7
+  # Merge: 8bb539c5 b3a1d52d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 9 10:53:32 2024 +0000
-  #     Merge pull request #1027 from GeorgeWeb/georgi/hip_memadvise
-  #     [SYCL][HIP] Implement mem_advise for HIP
-  set(UNIFIED_RUNTIME_TAG 12a67f56c3c5d08cfac0852d552b4e5fe0452d04)
+  # Date:   Wed Jan 10 11:24:12 2024 +0000
+  #     Merge pull request #1129 from sarnex/adapters
+  #     [UR][L0] Make urPlatformGetBackendOption return -ze-opt-level=2 for -O1 and -O2
+  set(UNIFIED_RUNTIME_TAG c2d78257ba7e7bbc230333f291282d16145aaac7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

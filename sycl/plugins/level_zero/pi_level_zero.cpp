@@ -58,8 +58,7 @@ pi_result piPluginGetLastError(char **message) {
 
 // Returns plugin specific backend option.
 // Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
+// Return '-ze-opt-level=2' for frontend_option = -O1, O2 or -O3.
 // Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
 // frontend_option = -ftarget-compile-fast.
 pi_result piPluginGetBackendOption(pi_platform platform,
