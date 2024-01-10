@@ -74,12 +74,11 @@ buffer_impl::getNativeVector(backend BackendName) const {
     auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that
     // doesn't have platform
-    if (!Platform)
+    if (!Platform || (Platform->getBackend() != BackendName))
       continue;
+
     auto Plugin = Platform->getPlugin();
 
-    if (Platform->getBackend() != BackendName)
-      continue;
     if (Platform->getBackend() == backend::opencl) {
       Plugin->call<PiApiKind::piMemRetain>(NativeMem);
     }

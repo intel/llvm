@@ -791,10 +791,6 @@ inline pi_result piTearDown(void *PluginParameter) {
   });
   HANDLE_ERRORS(Ret);
 
-  // TODO: Dont check for errors in urTearDown, since
-  // when using Level Zero plugin, the second urTearDown
-  // will fail as ur_loader.so has already been unloaded,
-  urTearDown(nullptr);
   return PI_SUCCESS;
 }
 
@@ -803,7 +799,6 @@ inline pi_result piTearDown(void *PluginParameter) {
 inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                                 pi_uint32 *NumPlatforms) {
 
-  urInit(0, nullptr);
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.
@@ -2702,12 +2697,28 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
 inline pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
                                    pi_usm_mem_properties *Properties,
                                    size_t Size, pi_uint32 Alignment) {
-
-  std::ignore = Properties;
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
   ur_usm_desc_t USMDesc{};
   USMDesc.align = Alignment;
+
+  ur_usm_alloc_location_desc_t UsmLocationDesc{};
+  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+
+  if (Properties) {
+    uint32_t Next = 0;
+    while (Properties[Next]) {
+      if (Properties[Next] == PI_MEM_USM_ALLOC_BUFFER_LOCATION) {
+        UsmLocationDesc.location = static_cast<uint32_t>(Properties[Next + 1]);
+        USMDesc.pNext = &UsmLocationDesc;
+      } else {
+        return PI_ERROR_INVALID_VALUE;
+      }
+      Next += 2;
+    }
+  }
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
   ur_usm_pool_handle_t Pool{};
   HANDLE_ERRORS(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, ResultPtr));
   return PI_SUCCESS;
@@ -3136,14 +3147,29 @@ inline pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                                      pi_device Device,
                                      pi_usm_mem_properties *Properties,
                                      size_t Size, pi_uint32 Alignment) {
-
-  std::ignore = Properties;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_usm_desc_t USMDesc{};
   USMDesc.align = Alignment;
+
+  ur_usm_alloc_location_desc_t UsmLocDesc{};
+  UsmLocDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+
+  if (Properties) {
+    uint32_t Next = 0;
+    while (Properties[Next]) {
+      if (Properties[Next] == PI_MEM_USM_ALLOC_BUFFER_LOCATION) {
+        UsmLocDesc.location = static_cast<uint32_t>(Properties[Next + 1]);
+        USMDesc.pNext = &UsmLocDesc;
+      } else {
+        return PI_ERROR_INVALID_VALUE;
+      }
+      Next += 2;
+    }
+  }
+
   ur_usm_pool_handle_t Pool{};
   HANDLE_ERRORS(
       urUSMDeviceAlloc(UrContext, UrDevice, &USMDesc, Pool, Size, ResultPtr));
@@ -3176,42 +3202,58 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                      pi_device Device,
                                      pi_usm_mem_properties *Properties,
                                      size_t Size, pi_uint32 Alignment) {
-
-  std::ignore = Properties;
-  if (Properties && *Properties != 0) {
-    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
-              PI_ERROR_INVALID_VALUE);
-  }
-
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_usm_desc_t USMDesc{};
+  USMDesc.align = Alignment;
   ur_usm_device_desc_t UsmDeviceDesc{};
   UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
   ur_usm_host_desc_t UsmHostDesc{};
   UsmHostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+  ur_usm_alloc_location_desc_t UsmLocationDesc{};
+  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+
+  // One properties bitfield can correspond to a host_desc and a device_desc
+  // struct, since having `0` values in these is harmless we can set up this
+  // pNext chain in advance.
+  USMDesc.pNext = &UsmDeviceDesc;
+  UsmDeviceDesc.pNext = &UsmHostDesc;
+
   if (Properties) {
-    if (Properties[0] == PI_MEM_ALLOC_FLAGS) {
-      if (Properties[1] == PI_MEM_ALLOC_WRTITE_COMBINED) {
-        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
+    uint32_t Next = 0;
+    while (Properties[Next]) {
+      switch (Properties[Next]) {
+      case PI_MEM_ALLOC_FLAGS: {
+        if (Properties[Next + 1] & PI_MEM_ALLOC_WRTITE_COMBINED) {
+          UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
+        }
+        if (Properties[Next + 1] & PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
+          UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT;
+        }
+        if (Properties[Next + 1] & PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
+          UsmHostDesc.flags |= UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT;
+        }
+        if (Properties[Next + 1] & PI_MEM_ALLOC_DEVICE_READ_ONLY) {
+          UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+        }
+        break;
       }
-      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
-        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT;
+      case PI_MEM_USM_ALLOC_BUFFER_LOCATION: {
+        UsmLocationDesc.location = static_cast<uint32_t>(Properties[Next + 1]);
+        // We wait until we've seen a BUFFER_LOCATION property to tack this
+        // onto the end of the chain, a `0` here might be valid as far as we
+        // know so we must exclude it unless we've been given a value.
+        UsmHostDesc.pNext = &UsmLocationDesc;
+        break;
       }
-      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
-        UsmHostDesc.flags |= UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT;
+      default:
+        return PI_ERROR_INVALID_VALUE;
       }
-      if (Properties[1] == PI_MEM_ALLOC_DEVICE_READ_ONLY) {
-        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-      }
+      Next += 2;
     }
   }
-  UsmDeviceDesc.pNext = &UsmHostDesc;
-  USMDesc.pNext = &UsmDeviceDesc;
-
-  USMDesc.align = Alignment;
 
   ur_usm_pool_handle_t Pool{};
   HANDLE_ERRORS(
@@ -3315,6 +3357,18 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   }
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
   }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
@@ -4376,7 +4430,7 @@ inline pi_result piextCommandBufferMemcpyUSM(
   ur_exp_command_buffer_handle_t UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
 
-  HANDLE_ERRORS(urCommandBufferAppendMemcpyUSMExp(
+  HANDLE_ERRORS(urCommandBufferAppendUSMMemcpyExp(
       UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
 
@@ -4394,7 +4448,7 @@ inline pi_result piextCommandBufferMemBufferCopy(
   ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
   ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
 
@@ -4422,7 +4476,7 @@ inline pi_result piextCommandBufferMemBufferCopyRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyRectExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
       SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
@@ -4452,7 +4506,7 @@ inline pi_result piextCommandBufferMemBufferReadRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferReadRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferReadRectExp(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
@@ -4470,7 +4524,7 @@ inline pi_result piextCommandBufferMemBufferRead(
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Src);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferReadExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferReadExp(
       UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
 
@@ -4499,7 +4553,7 @@ inline pi_result piextCommandBufferMemBufferWriteRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferWriteRectExp(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
       const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
@@ -4519,7 +4573,7 @@ inline pi_result piextCommandBufferMemBufferWrite(
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferWriteExp(
       UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
 

@@ -11,7 +11,7 @@ declare ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: llvm.amdgcn.implicit.offset
 
 define weak_odr dso_local i64 @_ZTS14other_function() !dbg !11 {
-; CHECK: define weak_odr dso_local i64 @_ZTS14other_function(ptr addrspace(5) %0) !dbg !11 {
+; CHECK: define weak_odr dso_local i64 @_ZTS14other_function() !dbg !11 {
   %1 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
   %2 = getelementptr inbounds i32, ptr addrspace(5) %1, i64 2
   %3 = load i32, ptr addrspace(5) %2, align 4
@@ -19,20 +19,19 @@ define weak_odr dso_local i64 @_ZTS14other_function() !dbg !11 {
   ret i64 %4
 }
 
+; CHECK:  weak_odr dso_local i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %0) !dbg !14 {
+
 ; Function Attrs: noinline
 define weak_odr dso_local void @_ZTS14example_kernel() !dbg !14 {
-; CHECK: define weak_odr dso_local void @_ZTS14example_kernel() !dbg !14 {
+; CHECK: define weak_odr dso_local void @_ZTS14example_kernel() !dbg !15 {
 entry:
   %0 = call i64 @_ZTS14other_function(), !dbg !15
-; CHECK: %2 = call i64 @_ZTS14other_function(ptr addrspace(5) %1), !dbg !15
+; CHECK: %0 = call i64 @_ZTS14other_function(), !dbg !16
   ret void
 }
 
-; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byref([3 x i32]) %0) !dbg !16 {
-; CHECK:  %1 = alloca [3 x i32], align 4, addrspace(5), !dbg !17
-; CHECK:  %2 = addrspacecast ptr %0 to ptr addrspace(4), !dbg !17
-; CHECK:  call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 4 %1, ptr addrspace(4) align 1 %2, i64 12, i1 false), !dbg !17
-; CHECK:  %3 = call i64 @_ZTS14other_function(ptr addrspace(5) %1), !dbg !17
+; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byref([3 x i32]) %0) !dbg !17 {
+; CHECK: call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %1), !dbg !18
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}
@@ -53,5 +52,8 @@ entry:
 !13 = !{null}
 !14 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !12, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
 !15 = !DILocation(line: 1, column: 2, scope: !14)
-; CHECK: !16 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !12, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
-; CHECK: !17 = !DILocation(line: 1, column: 2, scope: !16)
+; CHECK: !14 = distinct !DISubprogram(name: "other_function", scope: !1, file: !1, line: 3, type: !12, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2) 
+; CHECK: !15 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !12, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+; CHECK: !16 = !DILocation(line: 1, column: 2, scope: !15)
+; CHECK: !17 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !12, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+; CHECK: !18 = !DILocation(line: 1, column: 2, scope: !17)

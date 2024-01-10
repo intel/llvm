@@ -2753,5 +2753,5 @@ declare <32 x half> @llvm.fpbuiltin.sqrt.v32f16(<32 x half>)
 attributes #0 = { "fpbuiltin-max-error"="0.6" }
 attributes #1 = { "fpbuiltin-max-error"="4.0" }
 attributes #2 = { "fpbuiltin-max-error"="4096.0" }
-attributes #3 = { "fpbuiltin-max-error"="6.71089e+07" }
+attributes #3 = { "fpbuiltin-max-error"="67108864.0" }
 attributes #4 = { "fpbuiltin-max-error"="32" }

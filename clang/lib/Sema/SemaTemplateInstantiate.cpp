@@ -810,6 +810,10 @@ void Sema::PrintInstantiationStack() {
         Diags.Report(Active->PointOfInstantiation,
                      diag::note_template_nsdmi_here)
             << FD << Active->InstantiationRange;
+      } else if (ClassTemplateDecl *CTD = dyn_cast<ClassTemplateDecl>(D)) {
+        Diags.Report(Active->PointOfInstantiation,
+                     diag::note_template_class_instantiation_here)
+            << CTD << Active->InstantiationRange;
       } else {
         Diags.Report(Active->PointOfInstantiation,
                      diag::note_template_type_alias_instantiation_here)
@@ -1186,6 +1190,7 @@ namespace {
     const MultiLevelTemplateArgumentList &TemplateArgs;
     SourceLocation Loc;
     DeclarationName Entity;
+    // Whether to evaluate the C++20 constraints or simply substitute into them.
     bool EvaluateConstraints = true;
 
   public:
@@ -1397,7 +1402,7 @@ namespace {
     const AlwaysInlineAttr *
     TransformStmtAlwaysInlineAttr(const Stmt *OrigS, const Stmt *InstS,
                                   const AlwaysInlineAttr *A);
-
+    const CodeAlignAttr *TransformCodeAlignAttr(const CodeAlignAttr *CA);
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
     ExprResult TransformCXXDefaultArgExpr(CXXDefaultArgExpr *E);
@@ -2005,6 +2010,12 @@ TemplateInstantiator::TransformSYCLIntelMaxReinvocationDelayAttr(
                                                               TransformedExpr);
 }
 
+const CodeAlignAttr *
+TemplateInstantiator::TransformCodeAlignAttr(const CodeAlignAttr *CA) {
+  Expr *TransformedExpr = getDerived().TransformExpr(CA->getAlignment()).get();
+  return getSema().BuildCodeAlignAttr(*CA, TransformedExpr);
+}
+
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
     Decl *AssociatedDecl, const NonTypeTemplateParmDecl *parm,
     SourceLocation loc, TemplateArgument arg,
@@ -2588,6 +2599,17 @@ TemplateInstantiator::TransformNestedRequirement(
       Req->getConstraintExpr()->getBeginLoc(), Req,
       Sema::InstantiatingTemplate::ConstraintsCheck{},
       Req->getConstraintExpr()->getSourceRange());
+  if (!getEvaluateConstraints()) {
+    ExprResult TransConstraint = TransformExpr(Req->getConstraintExpr());
+    if (TransConstraint.isInvalid() || !TransConstraint.get())
+      return nullptr;
+    if (TransConstraint.get()->isInstantiationDependent())
+      return new (SemaRef.Context)
+          concepts::NestedRequirement(TransConstraint.get());
+    ConstraintSatisfaction Satisfaction;
+    return new (SemaRef.Context) concepts::NestedRequirement(
+        SemaRef.Context, TransConstraint.get(), Satisfaction);
+  }
 
   ExprResult TransConstraint;
   ConstraintSatisfaction Satisfaction;
@@ -4182,13 +4204,19 @@ Sema::SubstExpr(Expr *E, const MultiLevelTemplateArgumentList &TemplateArgs) {
 ExprResult
 Sema::SubstConstraintExpr(Expr *E,
                           const MultiLevelTemplateArgumentList &TemplateArgs) {
+  // FIXME: should call SubstExpr directly if this function is equivalent or
+  //        should it be different?
+  return SubstExpr(E, TemplateArgs);
+}
+
+ExprResult Sema::SubstConstraintExprWithoutSatisfaction(
+    Expr *E, const MultiLevelTemplateArgumentList &TemplateArgs) {
   if (!E)
     return E;
 
-  // This is where we need to make sure we 'know' constraint checking needs to
-  // happen.
   TemplateInstantiator Instantiator(*this, TemplateArgs, SourceLocation(),
                                     DeclarationName());
+  Instantiator.setEvaluateConstraints(false);
   return Instantiator.TransformExpr(E);
 }
 

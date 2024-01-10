@@ -352,7 +352,12 @@ template <typename T>
 inline constexpr bool is_nan_type_v = is_contained_v<T, gtl::nan_list>;
 
 // nan_types
-template <typename T, typename Enable = void> struct nan_types;
+template <typename T, typename Enable = void> struct nan_types {
+  // Nonsensical case for types implicitly convertible to scalar to avoid
+  // templated overloads which are SFINAE'd out to cause compilation errors.
+  using ret_type = void;
+  using arg_type = int;
+};
 
 template <typename T>
 struct nan_types<
