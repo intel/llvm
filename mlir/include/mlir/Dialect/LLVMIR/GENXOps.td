@@ -70,7 +70,12 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
   : GENX_Op<mnemonic, !listconcat(traits, [Pure])>,
     Results<(outs LLVM_Type:$res)>, Arguments<(ins)> {
   string llvmBuilder = [{
-    llvm::Type *retType = builder.getInt64Ty();
+    llvm::Type *retType = nullptr;
+    if ("}] # fnName # [{" == "__builtin_IB_get_global_size") {
+      retType = builder.getInt32Ty();
+    } else {
+      retType = builder.getInt64Ty();
+    }
     llvm::Type *argType = builder.getInt32Ty();
     llvm::Value *val = llvm::ConstantInt::get(argType, }] # arg # [{);
     llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{",
@@ -115,11 +120,11 @@ def GENX_BlockDimYOp : GENX_DeviceFunctionOp<"workgroup.dim.y",
 def GENX_BlockDimZOp : GENX_DeviceFunctionOp<"workgroup.dim.z",
                         "_Z12get_local_sizej", 2>;
 def GENX_GridDimXOp : GENX_DeviceFunctionOp<"grid.dim.x",
-                        "_Z12get_global_sizej", 0>;
+                        "__builtin_IB_get_global_size", 0>;
 def GENX_GridDimYOp : GENX_DeviceFunctionOp<"grid.dim.y",
-                        "_Z12get_global_sizej", 1>;
+                        "__builtin_IB_get_global_size", 1>;
 def GENX_GridDimZOp : GENX_DeviceFunctionOp<"grid.dim.z",
-                        "_Z12get_global_sizej", 2>;
+                        "__builtin_IB_get_global_size", 2>;
 
 //===----------------------------------------------------------------------===//
 // Synchronization
