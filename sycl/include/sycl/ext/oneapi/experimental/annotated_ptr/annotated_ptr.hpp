@@ -408,7 +408,15 @@ public:
 
   operator T *() const noexcept = delete;
 
-  T *get() const noexcept { return m_Ptr; }
+  inline T *get() const noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_intel_sycl_ptr_annotation(
+          m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+          detail::PropertyMetaInfo<Props>::value...);
+#else
+    return m_Ptr;
+#endif
+  }
 
   annotated_ptr &operator++() noexcept {
     m_Ptr += 1;
