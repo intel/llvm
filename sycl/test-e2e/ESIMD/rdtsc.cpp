@@ -23,7 +23,7 @@ using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
 template <typename DataT>
 using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 
-int test_rdtsc_sr0() {
+int test_rdtsc() {
   sycl::queue Queue;
   shared_allocator<uint64_t> Allocator(Queue);
   constexpr int32_t SIZE = 32;
@@ -41,12 +41,10 @@ int test_rdtsc_sr0() {
       auto Kernel = ([=](sycl::nd_item<1> ndi) [[intel::sycl_explicit_simd]] {
         using namespace sycl::ext::intel::esimd;
         auto Idx = ndi.get_global_id(0);
-        simd<uint64_t, SIZE> DummyVector;
         uint64_t StartCounter = sycl::ext::intel::experimental::esimd::rdtsc();
-        DummyVector.copy_from(VectorOutputRDTSCPtr);
+        simd<uint64_t, 1> VectorResultRDTSC(VectorOutputRDTSCPtr + Idx);
         uint64_t EndCounter = sycl::ext::intel::experimental::esimd::rdtsc();
-
-        simd<uint64_t, 1> VectorResultRDTSC = EndCounter - StartCounter;
+        VectorResultRDTSC = EndCounter > StartCounter;
 
         VectorResultRDTSC.copy_to(VectorOutputRDTSCPtr + Idx);
       });
@@ -60,16 +58,14 @@ int test_rdtsc_sr0() {
 
   // Check if returned values are positive
   Result |= std::any_of(VectorOutputRDTSC.begin(), VectorOutputRDTSC.end(),
-                        [](uint64_t v) { return v <= 0; });
+                        [](uint64_t v) { return v == 0; });
 
   return Result;
 }
 
 int main() {
 
-  int TestResult = 0;
-
-  TestResult |= test_rdtsc_sr0();
+  int TestResult = test_rdtsc();
 
   if (!TestResult) {
     std::cout << "Pass" << std::endl;
