@@ -105,7 +105,7 @@ private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
   std::shared_ptr<std::string> MMsg;
-  pi_int32 MPIErr;
+  pi_int32 MPIErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 

@@ -2823,9 +2823,6 @@ public:
 
 protected:
   void setOpWords(const std::vector<SPIRVWord> &OpsArg) override;
-
-private:
-  size_t getImageOperandsIndex() const;
 };
 
 #define _SPIRV_OP(x, ...)                                                      \
@@ -3441,7 +3438,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 6, true, 3)
 #undef _SPIRV_OP
 
 class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase

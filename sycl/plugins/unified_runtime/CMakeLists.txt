@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Mon Dec 18 13:15:43 2023 +0000
-  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
-  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 8d1486a607666763413fea3c70b74a3dd8f73c0d)
+  # commit 2d42d77d5b931b4558842bad32cf9dad80e17b3c
+  # Merge: 9f14fedb 2a960baf
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Jan 8 13:40:40 2024 +0000
+  #     Merge pull request #1229 from oneapi-src/revert-1228-revert-984-ext_oneapi_queue_priority-hip
+  #     Revert "Revert "[HIP] Implement ext_oneapi_queue_priority""
+  set(UNIFIED_RUNTIME_TAG 2d42d77d5b931b4558842bad32cf9dad80e17b3c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

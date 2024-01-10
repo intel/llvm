@@ -91,6 +91,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -198,8 +199,8 @@ std::string Driver::GetResourcesPath(StringRef BinaryPath,
 Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
-    : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
-      SaveTemps(SaveTempsNone), DumpDeviceCode(false), BitcodeEmbed(EmbedNone),
+    : Diags(Diags), VFS(std::move(VFS)), DumpDeviceCode(false), Mode(GCCMode),
+      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
       ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
@@ -710,10 +711,15 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     if (Args.hasArg(options::OPT_march_EQ) ||
         Args.hasArg(options::OPT_mcpu_EQ)) {
       StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
-      if (ArchName.starts_with_insensitive("rv32"))
-        Target.setArch(llvm::Triple::riscv32);
-      else if (ArchName.starts_with_insensitive("rv64"))
-        Target.setArch(llvm::Triple::riscv64);
+      auto ISAInfo = llvm::RISCVISAInfo::parseArchString(
+          ArchName, /*EnableExperimentalExtensions=*/true);
+      if (!llvm::errorToBool(ISAInfo.takeError())) {
+        unsigned XLen = (*ISAInfo)->getXLen();
+        if (XLen == 32)
+          Target.setArch(llvm::Triple::riscv32);
+        else if (XLen == 64)
+          Target.setArch(llvm::Triple::riscv64);
+      }
     }
   }
 

@@ -116,8 +116,8 @@ bool run_test() {
             size_t dim1 = it.get_local_id(1);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
 
             // Extension: read mipmap level 1 with LOD
             MyType pixel =
