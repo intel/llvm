@@ -2,6 +2,9 @@ name: Coverage
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   ubuntu-build:
     name: Build - Ubuntu
@@ -16,7 +19,7 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
     - name: Install apt packages
       run: |
@@ -72,7 +75,7 @@ jobs:
       run: ctest -T Coverage
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # v3.1.4
       with:
         gcov: true
         gcov_include: source
