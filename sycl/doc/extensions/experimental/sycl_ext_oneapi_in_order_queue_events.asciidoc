@@ -59,8 +59,8 @@ additional APIs for controlling in-order queues: Getting the event from the last
 command submission into the queue and setting an external event as an implicit
 dependence on the next command submitted to the queue.
 
-> This extension exists to solve a specific problem, and a general solution is
-> still being evaluated.  It is not recommended for general usage.
+This extension exists to solve a specific problem, and a general solution is
+still being evaluated.  It is not recommended for general usage.
 
 
 == Specification
