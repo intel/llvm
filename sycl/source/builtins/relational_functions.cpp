@@ -16,6 +16,14 @@
 namespace sycl {
 inline namespace _V1 {
 
+#if defined(__GNUC__) && !defined(__clang__)
+// sycl::vec has UB in operator[] (aliasing violation) that causes the following
+// warning here. Note that the way this #pragma works is that we have to put it
+// around the macro definition, not where the macro is instantiated.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 #define REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, ...)                                \
   template <typename... Ts> static auto NAME##_host_impl(Ts... xs) {           \
     using namespace detail;                                                    \
@@ -29,6 +37,10 @@ inline namespace _V1 {
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, FP_TYPES)
 #define REL_BUILTIN(NUM_ARGS, NAME)                                            \
   REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, std::NAME)
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 REL_BUILTIN_CUSTOM(TWO_ARGS, isequal, ([](auto x, auto y) { return x == y; }))
 REL_BUILTIN_CUSTOM(TWO_ARGS, isnotequal,
@@ -49,19 +61,16 @@ REL_BUILTIN_CUSTOM(TWO_ARGS, isordered,
                    ([](auto x, auto y) { return !std::isunordered(x, y); }))
 REL_BUILTIN_CUSTOM(TWO_ARGS, isunordered,
                    ([](auto x, auto y) { return std::isunordered(x, y); }))
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112816
 #pragma GCC push_options
 #pragma GCC optimize("-O2")
-// sycl::vec has UB in operator[] (aliasing violation) that causes the following
-// warning here.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
+
 REL_BUILTIN(ONE_ARG, signbit)
-#ifdef __GNUC__
+
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC pop_options
-#pragma GCC diagnostic pop
 #endif
 
 HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
