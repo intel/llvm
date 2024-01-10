@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   # DO NOT MERGE
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/cppchedy/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG 0b41fddee88ff2e919b1f6719222a98c392fabc1)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
