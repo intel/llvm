@@ -760,6 +760,7 @@ The following example demonstrates how to define a free function kernel and then
 enqueue it on a device.
 
 ```
+#include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 static constexpr size_t NUM = 1024;
@@ -801,6 +802,7 @@ The following example demonstrates how to get a kernel identifier in such
 cases.
 
 ```
+#include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template<typename T>
