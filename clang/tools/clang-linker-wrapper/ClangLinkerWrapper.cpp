@@ -712,8 +712,10 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
   return Images;
 }
 
-// Run clang-offload-wrapper's functionality
-// TODO: this function should be removed in favor of community flow
+/// Reads device images from the given \p InputFile and wraps them
+/// in one LLVM IR Module as a constant data.
+///
+/// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
                                              const ArgList &Args) {
   auto OutputFileOrErr = createOutputFile(

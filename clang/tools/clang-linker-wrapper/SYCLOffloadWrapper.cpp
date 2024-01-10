@@ -533,7 +533,7 @@ struct Wrapper {
     // DeviceImageStructVersion change log:
     // -- version 2: updated to PI 1.2 binary image format
     constexpr uint16_t DeviceImageStructVersion = 2;
-    constexpr uint8_t SYCLOffloadKind = 4;
+    constexpr uint8_t SYCLOffloadKind = 4; // Corresponds to SYCL
     auto *Version =
         ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
     auto *Kind = ConstantInt::get(Type::getInt8Ty(C), SYCLOffloadKind);
