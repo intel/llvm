@@ -53,10 +53,15 @@ REL_BUILTIN_CUSTOM(TWO_ARGS, isunordered,
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112816
 #pragma GCC push_options
 #pragma GCC optimize("-O2")
+// sycl::vec has UB in operator[] (aliasing violation) that causes the following
+// warning here.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 REL_BUILTIN(ONE_ARG, signbit)
 #ifdef __GNUC__
 #pragma GCC pop_options
+#pragma GCC diagnostic pop
 #endif
 
 HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
