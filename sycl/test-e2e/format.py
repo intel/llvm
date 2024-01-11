@@ -109,7 +109,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             driver_ok = True
             (backend, dev) = d.split(":")
-            if dev == "gpu" and backend not in ["cuda", "hip"] and test.intel_gpu_driver_req:
+            if (
+                dev == "gpu"
+                and backend not in ["cuda", "hip"]
+                and test.intel_gpu_driver_req
+            ):
                 for fmt in ["lin", "win"]:
                     if (
                         fmt in test.intel_gpu_driver_req
