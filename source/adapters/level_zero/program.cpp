@@ -161,7 +161,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
     ZeBuildOptions += pOptions;
   }
 
-  if (phDevices[0]->useOptimized32bitAccess() == 0) {
+  if (phDevices[0]->useRelaxedAllocationLimits()) {
     ZeBuildOptions += " -ze-opt-greater-than-4GB-buffer-required";
   }
 
@@ -256,7 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
     // ze-opt-greater-than-4GB-buffer-required to disable
     // stateful optimizations and be able to use larger than
     // 4GB allocations on these kernels.
-    if (Context->Devices[0]->useOptimized32bitAccess() == 0) {
+    if (Context->Devices[0]->useRelaxedAllocationLimits()) {
       Program->BuildFlags += " -ze-opt-greater-than-4GB-buffer-required";
     }
   }
