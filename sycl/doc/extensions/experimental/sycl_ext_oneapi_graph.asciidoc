@@ -169,9 +169,10 @@ Each of these mechanisms for constructing a graph have their own advantages, so
 having both APIs available allows the user to pick the one which is most
 suitable for them. The queue recording API allows quicker porting of existing
 applications, and can capture external work that is submitted to a queue, for
-example via library function calls. While the explicit API can better express
-what data is internal to the graph for optimization, and dependencies don't need
-to be inferred.
+example via library function calls. A warmup is required before the recording
+if the existing code does some extra work, which is not targeted for recording,
+in the first call. The explicit API can better express what data is internal to
+the graph for optimization, and dependencies don't need to be inferred.
 
 It is valid to combine these two mechanisms, however it is invalid to modify
 a graph using the explicit API while that graph is currently recording commands
