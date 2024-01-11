@@ -111,11 +111,17 @@ bool needsInstantiation(const VectorizationContext &Ctx, Instruction &I) {
   if (CallInst *CI = dyn_cast<CallInst>(&I)) {
     return analyzeCall(Ctx, CI);
   } else if (LoadInst *Load = dyn_cast<LoadInst>(&I)) {
-    MemOp Op = *MemOp::get(Load);
-    return analyzeMemOp(Op);
+    if (auto Op = MemOp::get(Load)) {
+      return analyzeMemOp(*Op);
+    }
+    // If it's not a MemOp, assume we don't need to instantiate.
+    return false;
   } else if (StoreInst *Store = dyn_cast<StoreInst>(&I)) {
-    MemOp Op = *MemOp::get(Store);
-    return analyzeMemOp(Op);
+    if (auto Op = MemOp::get(Store)) {
+      return analyzeMemOp(*Op);
+    }
+    // If it's not a MemOp, assume we don't need to instantiate.
+    return false;
   } else if (AllocaInst *Alloca = dyn_cast<AllocaInst>(&I)) {
     return analyzeAlloca(Ctx, Alloca);
   } else if (isa<AtomicRMWInst>(&I) || isa<AtomicCmpXchgInst>(&I)) {

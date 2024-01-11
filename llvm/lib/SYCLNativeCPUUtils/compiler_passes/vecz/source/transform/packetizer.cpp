@@ -2443,13 +2443,17 @@ Value *Packetizer::Impl::vectorizeInstruction(Instruction *Ins) {
 }
 
 ValuePacket Packetizer::Impl::packetizeLoad(LoadInst *Load) {
-  auto Op = *MemOp::get(Load);
-  return packetizeMemOp(Op);
+  if (auto Op = MemOp::get(Load)) {
+    return packetizeMemOp(*Op);
+  }
+  return ValuePacket{};
 }
 
 ValuePacket Packetizer::Impl::packetizeStore(StoreInst *Store) {
-  auto Op = *MemOp::get(Store);
-  return packetizeMemOp(Op);
+  if (auto Op = MemOp::get(Store)) {
+    return packetizeMemOp(*Op);
+  }
+  return ValuePacket{};
 }
 
 ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {

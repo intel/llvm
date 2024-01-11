@@ -49,6 +49,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Pass.h>
+#include <llvm/Support/InstructionCost.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
@@ -80,9 +81,9 @@ bool isTrivialBlock(const llvm::BasicBlock &BB) {
 // This assumes sequential execution (no Instruction Level Parallelism)
 // and takes no account of Data Hazards &c so is not guaranteed to be
 // entirely accurate.
-unsigned calculateBlockCost(const BasicBlock &BB,
-                            const TargetTransformInfo &TTI) {
-  unsigned cost = 0;
+InstructionCost calculateBlockCost(const BasicBlock &BB,
+                                   const TargetTransformInfo &TTI) {
+  InstructionCost cost;
   for (const auto &I : BB) {
     if (I.isTerminator()) {
       break;
@@ -100,16 +101,16 @@ unsigned calculateBlockCost(const BasicBlock &BB,
       inst_cost *= multi_llvm::getVectorNumElements(I.getType());
     }
 
-    cost += *inst_cost.getValue();
+    cost += inst_cost;
   }
   return cost;
 }
 
 // It creates a temporary function in order to build a target-dependent
 // vector AND reduction inside it, in order to calculate the cost of it.
-unsigned calculateBoolReductionCost(LLVMContext &context, Module *module,
-                                    const TargetTransformInfo &TTI,
-                                    llvm::ElementCount width) {
+InstructionCost calculateBoolReductionCost(LLVMContext &context, Module *module,
+                                           const TargetTransformInfo &TTI,
+                                           llvm::ElementCount width) {
   Type *cond_ty = VectorType::get(Type::getInt1Ty(context), width);
 
   FunctionType *new_fty =
@@ -122,7 +123,7 @@ unsigned calculateBoolReductionCost(LLVMContext &context, Module *module,
   IRBuilder<> B(BB);
   multi_llvm::createSimpleTargetReduction(B, &TTI, &*F->arg_begin(),
                                           RecurKind::And);
-  unsigned cost = calculateBlockCost(*BB, TTI);
+  InstructionCost cost = calculateBlockCost(*BB, TTI);
 
   // We don't really need that function in the module anymore because it's
   // only purpose was to be used for analysis, so we go ahead and remove it.
@@ -227,7 +228,7 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
   bool div_exceptions =
       VU.choices().isEnabled(VectorizationChoices::eDivisionExceptions);
 
-  unsigned boscc_cost = 0;
+  InstructionCost boscc_cost;
   UniformValueResult *UVR = nullptr;
   if (VU.choices().linearizeBOSCC()) {
     boscc_cost = calculateBoolReductionCost(F.getContext(), F.getParent(), TTI,
@@ -279,13 +280,14 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
 
       // The cost of a "bypass" branch is essentially zero. This occurs in a
       // "triangle" type control struct (i.e. if with no else).
-      unsigned min_cost = new_succs.empty() ? ~0 : 0;
+      InstructionCost min_cost = new_succs.empty() ? InstructionCost::getMax()
+                                                   : InstructionCost::getMin();
 
       // The total cost of executing every successor sequentially
       InstructionCost total_cost = 0;
 
       for (auto *succ : hoistable) {
-        unsigned block_cost = calculateBlockCost(*succ, TTI);
+        InstructionCost block_cost = calculateBlockCost(*succ, TTI);
         if (block_cost < min_cost) {
           min_cost = block_cost;
         }
