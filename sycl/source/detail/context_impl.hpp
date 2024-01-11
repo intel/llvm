@@ -192,7 +192,7 @@ public:
 
   // Returns the backend of this context
   backend getBackend() const {
-    assert(MPlatform && "MPlatorm must be not null");
+    assert(MPlatform && "MPlatform must be not null");
     return MPlatform->getBackend();
   }
 

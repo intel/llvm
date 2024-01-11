@@ -412,8 +412,8 @@ public:
   T *get() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_intel_sycl_ptr_annotation(
-          m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...);
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
 #else
     return m_Ptr;
 #endif
