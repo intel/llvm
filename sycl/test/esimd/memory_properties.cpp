@@ -1,8 +1,8 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
@@ -30,6 +30,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
                  size_t byte_offset64);
 
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &, float *, int byte_offset32,
+                    size_t byte_offset64);
+
 class EsimdFunctor {
 public:
   AccType acc;
@@ -42,6 +46,7 @@ public:
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, local_acc_int, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
+    test_gather_scatter(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -927,4 +932,90 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
   // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store<int, N>(local_acc, byte_offset32, valsi, mask, store_props_c);
   block_store<int, N>(local_acc, byte_offset32, viewi, mask, store_props_c);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z19test_gather_scatter{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
+                    size_t byte_offset64) {
+  properties props_cache_load{cache_hint_L1<cache_hint::uncached>,
+                              cache_hint_L2<cache_hint::uncached>,
+                              alignment<8>};
+
+  properties props_align4{alignment<4>};
+  properties props_align8{alignment<8>};
+  properties props_align16{alignment<16>};
+
+  int *ptri = reinterpret_cast<int *>(ptrf);
+
+  simd<uint32_t, 32> ioffset_n32(byte_offset32, 8);
+  simd<uint64_t, 32> loffset_n32(byte_offset64, 16);
+  auto ioffset_n32_view = ioffset_n32.select<32, 1>();
+  auto loffset_n32_view = loffset_n32.select<32, 1>();
+
+  simd<uint32_t, 16> ioffset_n16(byte_offset32, 8);
+  simd<uint64_t, 16> loffset_n16(byte_offset64, 16);
+  auto ioffset_n16_view = ioffset_n16.select<16, 1>();
+  auto loffset_n16_view = loffset_n16.select<16, 1>();
+
+  simd_mask<32> mask_n32 = 1;
+  simd_mask<16> mask_n16 = 1;
+
+  simd<float, 32> usm;
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view);
+
+  usm = gather(ptrf, loffset_n32);
+  usm = gather<float, 32>(ptrf, loffset_n32_view);
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, props_align8);
+
+  usm = gather(ptrf, loffset_n32, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, props_align8);
+
+  // Same as above, but with 'mask' operand.
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32);
+
+  usm = gather(ptrf, loffset_n32, mask_n32);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32);
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, props_align8);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, props_align8);
+
+  // CHECK-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  // check VS > 1. no 'mask' operand first.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, props_align4);
+
+  // check VS > 1. Pass the 'mask' operand this time.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_align4);
 }
