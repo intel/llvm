@@ -53,6 +53,7 @@ jobs:
           -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so
           -DUR_BUILD_ADAPTER_NATIVE_CPU=ON
           -DUR_BUILD_ADAPTER_HIP=ON
+          -DUR_BUILD_ADAPTER_OPENCL=ON
 
       - name: Run Coverity
         run: |
