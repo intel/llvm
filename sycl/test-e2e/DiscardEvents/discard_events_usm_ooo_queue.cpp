@@ -5,10 +5,11 @@
 // The test checks that the last parameter is not `nullptr` for all PI calls
 // that should discard events.
 // {{0|0000000000000000}} is required for various output on Linux and Windows.
-// NOTE: piextUSMEnqueuePrefetch in the CUDA backend may return a warning
-//       result on Windows with error-code -996
-//       (PI_ERROR_PLUGIN_SPECIFIC_ERROR). Since it is a warning it is safe to
-//       ignore for this test.
+// NOTE: piextUSMEnqueuePrefetch and piextUSMEnqueueMemAdvise in the CUDA and
+//       HIP backends may return a warning result on Windows with error-code
+//       -996 (PI_ERROR_PLUGIN_SPECIFIC_ERROR) if USM managed memory is not
+//       supported or if unsupported advice flags are used for the latter API.
+//       Since it is a warning it is safe to ignore for this test.
 //
 // Everything that follows TestQueueOperations()
 // CHECK: ---> piextUSMEnqueueMemset(
@@ -40,7 +41,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
@@ -97,7 +98,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
