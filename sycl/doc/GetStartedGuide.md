@@ -261,6 +261,17 @@ variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
+If further customization is required — for instance when the layout of
+individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
+it is possible to specify the location of HIP include, HSA include and HIP
+library directories, using the following CMake variables:
+* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_LIB_DIR`.
+Please note that a similar customization would also be required for Unified
+Runtime, see [the list of options provided by its
+CMake](https://github.com/oneapi-src/unified-runtime#cmake-standard-options)
+for details.
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code

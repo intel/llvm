@@ -19,19 +19,22 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(C);
-
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
+           auto pA =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(A);
+           auto pB =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(B);
+           auto pC =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(C);
+
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
