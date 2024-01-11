@@ -263,8 +263,8 @@ python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
 ```
 If further customization is required — for instance when the layout of
 individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
-it is possible to specify the location of HIP include, HSA include and,
-finally, HIP library directories, using the following CMake variables:
+it is possible to specify the location of HIP include, HSA include and HIP
+library directories, using the following CMake variables:
 * `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
 * `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
 * `SYCL_BUILD_PI_HIP_LIB_DIR`.
