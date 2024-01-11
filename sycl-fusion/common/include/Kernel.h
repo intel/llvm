@@ -153,34 +153,31 @@ class Indices {
 public:
   static constexpr size_t size() { return Size; }
 
-  constexpr Indices() : Values{0, 0, 0} {}
   constexpr Indices(size_t V1, size_t V2, size_t V3) : Values{V1, V2, V3} {}
 
   constexpr const size_t *begin() const { return Values; }
   constexpr const size_t *end() const { return Values + Size; }
-  constexpr size_t *begin() { return Values; }
-  constexpr size_t *end() { return Values + Size; }
 
   constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
 
-  friend constexpr bool operator==(const Indices &A, const Indices &B) {
+  friend bool operator==(const Indices &A, const Indices &B) {
     return std::equal(A.begin(), A.end(), B.begin());
   }
-  friend constexpr bool operator!=(const Indices &A, const Indices &B) {
+  friend bool operator!=(const Indices &A, const Indices &B) {
     return !(A == B);
   }
-  friend constexpr bool operator<(const Indices &A, const Indices &B) {
+  friend bool operator<(const Indices &A, const Indices &B) {
     return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
                                         std::less<size_t>{});
   }
-  friend constexpr bool operator>(const Indices &A, const Indices &B) {
+  friend bool operator>(const Indices &A, const Indices &B) {
     return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
                                         std::greater<size_t>{});
   }
 
 private:
   static const auto Size = 3;
-  size_t Values[Size];
+  const size_t Values[Size];
 };
 
 ///
