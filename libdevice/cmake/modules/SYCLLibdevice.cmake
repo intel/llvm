@@ -117,6 +117,10 @@ if (NOT MSVC)
   set(sanitizer_obj_deps device.h sycl-compiler)
 endif()
 
+##if(LIBDEVICE_NATIVE_CPU)
+add_devicelib_obj(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps})
+##endif()
+
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-user-wrappers SRC itt_user_wrappers.cpp DEP ${itt_obj_deps})
