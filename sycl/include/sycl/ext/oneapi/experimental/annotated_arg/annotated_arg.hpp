@@ -344,7 +344,7 @@ public:
   }                                                                            \
   template <class O, typename = std::enable_if_t<!detail::is_ann_arg_v<O>>>    \
   friend auto operator op(const annotated_arg &a, O &&b)                       \
-      ->decltype(std::declval<T>() op std::forward<O>(b)) {                    \
+      -> decltype(std::declval<T>() op std::forward<O>(b)) {                   \
     return a.operator T() op std::forward<O>(b);                               \
   }
   PROPAGATE_OP(+)
@@ -371,7 +371,7 @@ public:
 // by setting a default template we get SFINAE to kick in
 #define PROPAGATE_OP(op)                                                       \
   template <typename O = T>                                                    \
-  auto operator op() const->decltype(op std::declval<O>()) {                   \
+  auto operator op() const -> decltype(op std::declval<O>()) {                 \
     return op this->operator O();                                              \
   }
   PROPAGATE_OP(+)
