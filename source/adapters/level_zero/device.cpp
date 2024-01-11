@@ -66,9 +66,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
                     // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
                     auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
                                                 (D->ZeDevice, &RootDev));
-                    assert(errc == ZE_RESULT_SUCCESS ||
-                           errc == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
-                    return RootDev != nullptr;
+                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
                   });
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
