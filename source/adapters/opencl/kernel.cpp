@@ -376,6 +376,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, uint32_t *pGroupCountRet) {
+  (void)hKernel;
+  *pGroupCountRet = 1;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ur_context_handle_t, ur_program_handle_t,
     const ur_kernel_native_properties_t *pProperties,
