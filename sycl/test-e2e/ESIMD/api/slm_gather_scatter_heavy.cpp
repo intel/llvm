@@ -12,7 +12,7 @@
 // GPU driver had an error in handling of SLM aligned block_loads/stores,
 // which has been fixed only in "1.3.26816", and in win/opencl version going
 // _after_ 101.4575.
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+// REQUIRES-INTEL-GPU-DRIVER: lin: 26816, win: 101.4576
 //
 // The test checks functionality of the slm gather/scatter ESIMD intrinsics.
 // It varies element type, vector length and stride of gather/scatter operation.

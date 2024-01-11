@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || gpu-intel-dg2
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-INTEL-GPU-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

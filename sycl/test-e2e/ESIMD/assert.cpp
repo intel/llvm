@@ -1,4 +1,4 @@
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+// REQUIRES-INTEL-GPU-DRIVER: lin: 26816, win: 101.4576
 // REQUIRES: linux && level_zero
 
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out

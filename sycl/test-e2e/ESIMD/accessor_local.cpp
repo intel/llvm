@@ -1,4 +1,4 @@
-// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
+// REQUIRES-INTEL-GPU-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // This test verifies usage of local_accessor methods operator[]

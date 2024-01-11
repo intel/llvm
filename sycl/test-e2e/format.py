@@ -25,9 +25,9 @@ def get_triple(test, backend):
     return "spir64"
 
 
-def parse_min_intel_driver_req(line_number, line, output):
+def parse_min_intel_gpu_driver_req(line_number, line, output):
     """
-    Driver version looks like this for Intel devices:
+    Driver version looks like this for Intel GPU devices:
           Linux/L0:       [1.3.26370]
           Linux/opencl:   [23.22.26370.18]
           Windows/L0:     [1.3.26370]
@@ -66,9 +66,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 test.getSourcePath(),
                 additional_parsers=[
                     IntegratedTestKeywordParser(
-                        "REQUIRES-INTEL-DRIVER:",
+                        "REQUIRES-INTEL-GPU-DRIVER:",
                         ParserKind.CUSTOM,
-                        parse_min_intel_driver_req,
+                        parse_min_intel_gpu_driver_req,
                     )
                 ],
                 require_script=True,
@@ -85,7 +85,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed["UNSUPPORTED:"] or []
 
-        test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
+        test.intel_gpu_driver_req = parsed["REQUIRES-INTEL-GPU-DRIVER:"]
 
         return script
 
@@ -108,13 +108,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             driver_ok = True
-            if test.intel_driver_req:
+            (backend, dev) = d.split(":")
+            if dev == "gpu" and backend not in ["cuda", "hip"] and test.intel_gpu_driver_req:
                 for fmt in ["lin", "win"]:
                     if (
-                        fmt in test.intel_driver_req
-                        and fmt in test.config.intel_driver_ver[d]
-                        and test.config.intel_driver_ver[d][fmt]
-                        < test.intel_driver_req[fmt]
+                        fmt in test.intel_gpu_driver_req
+                        and fmt in test.config.intel_gpu_driver_ver[d]
+                        and test.config.intel_gpu_driver_ver[d][fmt]
+                        < test.intel_gpu_driver_req[fmt]
                     ):
                         driver_ok = False
             if not driver_ok:

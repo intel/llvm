@@ -584,8 +584,8 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
-# Version of the driver for a given device. Empty for non-Intel devices.
-config.intel_driver_ver = {}
+# Version of the Intel gpu driver for a given device. Empty for non-Intel non-gpu devices.
+config.intel_gpu_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
@@ -613,7 +613,7 @@ for sycl_device in config.sycl_devices:
     dev_sg_sizes = []
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
-    intel_driver_ver = {}
+    intel_gpu_driver_ver = {}
     for line in sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
@@ -622,12 +622,12 @@ for sycl_device in config.sycl_devices:
             driver_str = driver_str.strip()
             lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
             if lin:
-                intel_driver_ver["lin"] = int(lin.group(1))
+                intel_gpu_driver_ver["lin"] = int(lin.group(1))
             win = re.match(
                 r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
             )
             if win:
-                intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+                intel_gpu_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -672,10 +672,10 @@ for sycl_device in config.sycl_devices:
     features.add(be)
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
-    if is_intel_driver:
-        config.intel_driver_ver[sycl_device] = intel_driver_ver
+    if is_intel_driver and sycl_device.split(":")[1] == "gpu":
+        config.intel_gpu_driver_ver[sycl_device] = intel_gpu_driver_ver
     else:
-        config.intel_driver_ver[sycl_device] = {}
+        config.intel_gpu_driver_ver[sycl_device] = {}
 
 # Set timeout for a single test
 try:

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks DWORD local accessor atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES-INTEL-GPU-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
