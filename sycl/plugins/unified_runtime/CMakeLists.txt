@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c2d78257ba7e7bbc230333f291282d16145aaac7
-  # Merge: 8bb539c5 b3a1d52d
+  # commit c53953ae492587698d5adbab8ffee254d97b6a4e
+  # Merge: 9f88cf88 66d52ace
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 10 11:24:12 2024 +0000
-  #     Merge pull request #1129 from sarnex/adapters
-  #     [UR][L0] Make urPlatformGetBackendOption return -ze-opt-level=2 for -O1 and -O2
-  set(UNIFIED_RUNTIME_TAG c2d78257ba7e7bbc230333f291282d16145aaac7)
+  # Date:   Wed Jan 10 14:50:23 2024 +0000
+  #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
+  #     [HIP] Allow custom location of ROCm components
+  set(UNIFIED_RUNTIME_TAG c53953ae492587698d5adbab8ffee254d97b6a4e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
