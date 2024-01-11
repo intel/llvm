@@ -227,8 +227,8 @@ public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
          std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src),
-        MDst(Dst), MAuxiliaryResources{AuxiliaryResources} {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
 
