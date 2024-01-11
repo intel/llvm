@@ -56,12 +56,13 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e31ef293e1e0a4ed0df351b8b11b03c6dd0967eb 
+  set(UNIFIED_RUNTIME_REPO "https://github.com/maarquitos14/unified-runtime.git")
+  # commit a9746c217adbbe2adcd739261a00ea8a60da5807
   # Author: Maronas, Marcos <marcos.maronas@intel.com>
-  # Date:   Wed Dec 6 03:41:39 2023 -0800
-  #     Initial support for ext_oneapi_composite_device
-  set(UNIFIED_RUNTIME_TAG e31ef293e1e0a4ed0df351b8b11b03c6dd0967eb)
+  # Date:   Thu Jan 11 04:05:54 2024 -0800
+  #    Address more code review issues.
+  #    Signed-off-by: Maronas, Marcos <marcos.maronas@intel.com>
+  set(UNIFIED_RUNTIME_TAG a9746c217adbbe2adcd739261a00ea8a60da5807)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
