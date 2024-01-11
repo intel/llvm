@@ -311,6 +311,19 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (SanitizeVal == "address")
         addLibraries(SYCLDeviceSanitizerLibs);
     }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    for (auto *A : Args) {
+      if (A->getOption().matches(options::OPT_Xsycl_frontend) ||
+          A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
+        if (A->containsValue("-fsanitize=address")) {
+          addLibraries(SYCLDeviceSanitizerLibs);
+          break;
+        }
+      }
+    }
   }
 #endif
   return LibraryList;
