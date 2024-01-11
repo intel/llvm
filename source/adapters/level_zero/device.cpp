@@ -40,7 +40,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
   std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
-  bool isCombinedMode = false;
+  // We need to filter out composite devices when
+  // ZE_FLAT_DEVICE_HIERARCHY=COMBINED. We can know if we are in combined
+  // mode depending on the return value of zeDeviceGetRootDevice:
+  //   - If COMPOSITE, L0 returns cards as devices. Since we filter out
+  //     subdevices early, zeDeviceGetRootDevice must return nullptr, because we
+  //     only query for root-devices and they don't have any device higher up in
+  //     the hierarchy.
+  //   - If FLAT,  according to L0 spec, zeDeviceGetRootDevice always returns
+  //     nullptr in this mode.
+  //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
+  //     returns the card containing a given tile.
+  bool isCombinedMode =
+      std::any_of(Platform->URDevicesCache.begin(),
+                  Platform->URDevicesCache.end(), [](const auto &D) {
+                    if (D->isSubDevice())
+                      return false;
+                    ze_device_handle_t RootDev = nullptr;
+                    // Query Root Device for root-devices.
+                    // We cannot use ZE2UR_CALL because under some circumstances
+                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
+                    // and ZE2UR_CALL will abort because it's not
+                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
+                    // check manually that the result is either
+                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
+                                                (D->ZeDevice, &RootDev));
+                    assert(errc == ZE_RESULT_SUCCESS ||
+                           errc == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
+                    return RootDev != nullptr;
+                  });
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -71,56 +100,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       break;
     }
 
-    // We need to filter out composite devices depending on
-    // ZE_FLAT_DEVICE_HIERARCHY value:
-    //   - If COMPOSITE, L0 returns cards as devices. Thus, zeGetRootDevice must
-    //     return nullptr, because they don't have any device higher up in the
-    //     hierarchy.
-    //   - If FLAT,  according to L0 spec, zeGetRootDevice always returns
-    //     nullptr in this mode.
-    //   - If COMBINED, L0 returns tiles as devices, and zeGetRootdevice returns
-    //     the card containing a given tile.
-    //
-    // NOTE: We cannot directly filter out the composite devices here because we
-    // might have the composite device appear earlier than we know we are in
-    // combined mode, so we simply try and infer here if we are in combined
-    // mode, and then, if so, remove composite devices from MatchedDevices.
-    if (!isCombinedMode) {
-      ze_device_handle_t RootDev = nullptr;
-      // Query Root Device
-      // We cannot use ZE2UR_CALL because under some circumstances this call may
-      // return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, and ZE2UR_CALL will abort
-      // because it's not UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and
-      // we check manually that the result is either ZE_RESULT_SUCCESS or
-      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-      auto errc =
-          ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (D->ZeDevice, &RootDev));
-      if (errc != ZE_RESULT_SUCCESS &&
-          errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-        return ze2urResult(errc);
-      // For COMPOSITE and FLAT modes, RootDev will always be nullptr. Thus a
-      // single device returning RootDev != nullptr means we are in COMBINED
-      // mode.
-      isCombinedMode = (RootDev != nullptr);
-    }
-
     if (Matched) {
-      MatchedDevices.push_back(D.get());
-    }
-  }
-
-  if (isCombinedMode) {
-    // Effectively filter out composite devices.
-    std::vector<std::vector<ur_device_handle_t>::iterator> toDelete;
-    for (auto it = MatchedDevices.begin(); it != MatchedDevices.end(); ++it) {
-      const auto &D = *it;
-      bool isComposite = (D->ZeDeviceProperties->flags &
-                          ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (isComposite)
-        toDelete.push_back(it);
-    }
-    for (const auto D : toDelete) {
-      MatchedDevices.erase(D);
+      bool isComposite =
+          isCombinedMode && (D->ZeDeviceProperties->flags &
+                             ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
+      if (!isComposite)
+        MatchedDevices.push_back(D.get());
     }
   }
 
@@ -888,7 +873,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
                (DevHandle, &SubDeviceCount, SubDevs.data()));
 
     size_t SubDeviceCount_s{SubDeviceCount};
-    auto ResSize = std::min(SubDeviceCount_s, propSize);
+    auto ResSize =
+        std::min(SubDeviceCount_s, propSize / sizeof(ur_device_handle_t));
     std::vector<ur_device_handle_t> Res;
     for (const auto &d : SubDevs) {
       // We can only reach this code if ZE_FLAT_DEVICE_HIERARCHY != FLAT,
@@ -920,9 +906,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t UrRootDev = nullptr;
     ze_device_handle_t DevHandle = Device->ZeDevice;
     ze_device_handle_t RootDev;
-    // Query Root Device
-    ZE2UR_CALL(zeDeviceGetRootDevice, (DevHandle, &RootDev));
+    // Query Root Device.
+    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
     UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
+    if (errc != ZE_RESULT_SUCCESS &&
+        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      return ze2urResult(errc);
     return ReturnValue(UrRootDev);
   }
 
