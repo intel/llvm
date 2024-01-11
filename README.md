@@ -137,6 +137,10 @@ List of options provided by CMake:
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
+| UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |
+| UR_HIP_INCLUDE_DIR | Path of the ROCm HIP include directory | Directory path | `${UR_HIP_ROCM_DIR}/include` |
+| UR_HIP_HSA_INCLUDE_DIRS | Path of the ROCm HSA include directory | Directory path | `${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include` |
+| UR_HIP_LIB_DIR | Path of the ROCm HIP library directory | Directory path | `${UR_HIP_ROCM_DIR}/lib` |
 
 ### Additional make targets
 
