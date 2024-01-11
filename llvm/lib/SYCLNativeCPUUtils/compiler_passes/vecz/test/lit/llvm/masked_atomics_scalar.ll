@@ -28,6 +28,10 @@ declare i32 @__vecz_b_v1_masked_atomicrmw_add_align4_acquire_1_u3ptrjb(ptr %p, i
 
 ; CHECK: define i32 @__vecz_b_v1_masked_atomicrmw_add_align4_acquire_1_u3ptrjb(ptr %p, i32 %val, i1 %mask) {
 ; CHECK: entry:
+; CHECK: br label %loopIR
+
+; CHECK: loopIR:
+; CHECK: [[RET_PREV:%.*]] = phi i32 [ poison, %entry ], [ [[RET:%.*]], %if.else ]
 ; CHECK: [[MASKCMP:%.*]] = icmp ne i1 %mask, false
 ; CHECK: br i1 [[MASKCMP]], label %if.then, label %if.else
 
@@ -36,8 +40,9 @@ declare i32 @__vecz_b_v1_masked_atomicrmw_add_align4_acquire_1_u3ptrjb(ptr %p, i
 ; CHECK: br label %if.else
 
 ; CHECK: if.else:
-; CHECK: [[RET:%.*]] = phi i32 [ poison, %entry ], [ [[ATOM]], %if.then ]
-; CHECK: br label %exit
+; CHECK: [[RET]] = phi i32 [ [[RET_PREV]], %loopIR ], [ [[ATOM]], %if.then ]
+; CHECK: [[CMP:%.*]] = icmp ult i32 %{{.*}}, 1
+; CHECK: br i1 [[CMP]], label %loopIR, label %exit
 
 ; CHECK: exit:
 ; CHECK: ret i32 [[RET]]

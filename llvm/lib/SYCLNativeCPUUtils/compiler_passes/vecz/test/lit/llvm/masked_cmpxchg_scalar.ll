@@ -28,6 +28,11 @@ declare { i32, i1 } @__vecz_b_v1_masked_cmpxchg_align4_acquire_monotonic_1_u3ptr
 
 ; CHECK: define { i32, i1 } @__vecz_b_v1_masked_cmpxchg_align4_acquire_monotonic_1_u3ptrjjb(ptr %p, i32 %cmp, i32 %newval, i1 %mask) {
 ; CHECK: entry:
+; CHECK: br label %loopIR
+
+; CHECK: loopIR:
+; CHECK: [[RETVAL_PREV:%.*]] = phi i32 [ poison, %entry ], [ [[RETVAL:%.*]], %if.else ]
+; CHECK: [[RETSUCC_PREV:%.*]] = phi i1 [ poison, %entry ], [ [[RETSUCC:%.*]], %if.else ]
 ; CHECK: [[MASKCMP:%.*]] = icmp ne i1 %mask, false
 ; CHECK: br i1 [[MASKCMP]], label %if.then, label %if.else
 
@@ -38,9 +43,10 @@ declare { i32, i1 } @__vecz_b_v1_masked_cmpxchg_align4_acquire_monotonic_1_u3ptr
 ; CHECK: br label %if.else
 
 ; CHECK: if.else:
-; CHECK: [[RETVAL:%.*]] = phi i32 [ poison, %entry ], [ [[EXT0]], %if.then ]
-; CHECK: [[RETSUCC:%.*]] = phi i1 [ poison, %entry ], [ [[EXT1]], %if.then ]
-; CHECK: br label %exit
+; CHECK: [[RETVAL]] = phi i32 [ [[RETVAL_PREV]], %loopIR ], [ [[EXT0]], %if.then ]
+; CHECK: [[RETSUCC]] = phi i1 [ [[RETSUCC_PREV]], %loopIR ], [ [[EXT1]], %if.then ]
+; CHECK: [[CMP:%.*]] = icmp ult i32 %{{.*}}, 1
+; CHECK: br i1 [[CMP]], label %loopIR, label %exit
 
 ; CHECK: exit:
 ; CHECK: [[INS0:%.*]] = insertvalue { i32, i1 } poison, i32 [[RETVAL]], 0
