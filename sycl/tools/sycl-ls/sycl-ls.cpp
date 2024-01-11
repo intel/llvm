@@ -123,10 +123,9 @@ int main(int argc, char **argv) {
   if (filter) {
     std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
               << filter << "." << std::endl;
-    std::cerr
-        << "To see device ids, please unset SYCL_DEVICE_FILTER."
-        << std::endl
-        << std::endl;
+    std::cerr << "To see device ids, please unset SYCL_DEVICE_FILTER."
+              << std::endl
+              << std::endl;
     SuppressNumberPrinting = true;
   }
 
@@ -135,10 +134,9 @@ int main(int argc, char **argv) {
     std::cerr
         << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
         << ods_targets << "." << std::endl;
-    std::cerr
-        << "To see device ids, please unset ONEAPI_DEVICE_SELECTOR."
-        << std::endl
-        << std::endl;
+    std::cerr << "To see device ids, please unset ONEAPI_DEVICE_SELECTOR."
+              << std::endl
+              << std::endl;
     SuppressNumberPrinting = true;
   }
 

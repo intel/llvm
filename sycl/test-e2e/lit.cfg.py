@@ -413,7 +413,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
             continue
-        (backend, device) = line[1:].split(']')[0].split(":")
+        (backend, device) = line[1:].split("]")[0].split(":")
         devices.add("{}:{}".format(backend, device))
     config.sycl_devices = list(devices)
 
