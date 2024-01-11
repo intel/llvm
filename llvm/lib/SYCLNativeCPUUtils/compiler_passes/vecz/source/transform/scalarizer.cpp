@@ -21,6 +21,7 @@
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Analysis/InstructionSimplify.h>
 #include <llvm/IR/DIBuilder.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
@@ -727,10 +728,14 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
         // aggregate variable, our vector, which is fragmented across multiple
         // values. First argument takes the offset of the piece, and the second
         // takes the piece size.
-        auto DIExpr = *DIExpression::createFragmentExpression(
-            DIB.createExpression(), lane * bitSize, bitSize);
-        DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc, Original);
-        VectorElements.insert(LaneVal);
+        std::optional<DIExpression *> DIExpr =
+            DIExpression::createFragmentExpression(DIB.createExpression(),
+                                                   lane * bitSize, bitSize);
+        if (DIExpr) {
+          DIB.insertDbgValueIntrinsic(LaneVal, DILocal, *DIExpr, DILoc,
+                                      Original);
+          VectorElements.insert(LaneVal);
+        }
       }
     }
   }
