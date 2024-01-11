@@ -217,6 +217,7 @@ namespace sycl::ext::oneapi::experimental {
             template <class C, class T> friend std::basic_ostream<C, T> &operator<<(std::basic_ostream<C, T> &os, const complex<value_type> &);
             /// Streams the complex number z in the format "(real,imaginary)" into `sycl::stream` x and return the result.
             friend const sycl::stream &operator<<(const sycl::stream &x, const complex<value_type> &z);
+    };
 
 } // namespace sycl::ext::oneapi::experimental
 ```
