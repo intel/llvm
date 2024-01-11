@@ -179,7 +179,7 @@ public:
 
 private:
   static const auto Size = 3;
-  const size_t Values[Size];
+  size_t Values[Size];
 };
 
 ///
