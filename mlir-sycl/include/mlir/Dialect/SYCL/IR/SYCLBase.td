@@ -30,6 +30,7 @@ def SYCL_Dialect : Dialect {
     static constexpr llvm::StringRef getFunctionNameAttrName() { return "FunctionName"; }
     static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
     static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }
+    static constexpr llvm::StringRef getKernelFuncObjAttrName() { return "sycl.kernel_func_obj"; }
 
     /// In the example below, %p0 and %p1 are not aliased.
     /// void func(%arg0 : memref<?x!sycl.accessor> {sycl.inner.disjoint},

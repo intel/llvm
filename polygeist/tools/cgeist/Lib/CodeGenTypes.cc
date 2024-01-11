@@ -801,6 +801,20 @@ void CodeGenTypes::constructAttributeList(
                                                RawArgs);
     }
 
+    // Function is a SYCL KernelObjFunc implementing a SYCL kernel
+    if (auto *KernelBodyAttr = TargetDecl->getAttr<SYCLKernelObjFuncAttr>()) {
+      // Note the calling kernel name is already mangled in the Clang attribute.
+      SmallVector<mlir::Attribute> KernelNames;
+      llvm::transform(KernelBodyAttr->kernels(),
+                      std::back_inserter(KernelNames),
+                      [Ctx](StringRef KernelName) {
+                        return FlatSymbolRefAttr::get(Ctx, KernelName);
+                      });
+      FuncAttrsBuilder.addAttribute(
+          sycl::SYCLDialect::getKernelFuncObjAttrName(),
+          ArrayAttr::get(Ctx, KernelNames));
+    }
+
     if (TargetDecl->hasAttr<OpenCLKernelAttr>()) {
       if (CGM.getLangOpts().OpenCLVersion <= 120) {
         // OpenCL v1.2 Work groups are always uniform
