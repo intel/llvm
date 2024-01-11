@@ -157,19 +157,21 @@ public:
 
   constexpr const size_t *begin() const { return Values; }
   constexpr const size_t *end() const { return Values + Size; }
-
   constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
 
   friend bool operator==(const Indices &A, const Indices &B) {
     return std::equal(A.begin(), A.end(), B.begin());
   }
+
   friend bool operator!=(const Indices &A, const Indices &B) {
     return !(A == B);
   }
+
   friend bool operator<(const Indices &A, const Indices &B) {
     return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
                                         std::less<size_t>{});
   }
+
   friend bool operator>(const Indices &A, const Indices &B) {
     return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
                                         std::greater<size_t>{});
