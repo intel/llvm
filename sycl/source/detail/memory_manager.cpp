@@ -1692,6 +1692,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  (void)Size;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Context->getPlugin();
