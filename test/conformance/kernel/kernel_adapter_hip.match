@@ -1,4 +1,4 @@
-{{OPT}}Segmentation Fault
+{{OPT}}{{Segmentation fault|Aborted}}
 {{OPT}}urKernelGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
 {{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_FUNCTION_NAME
 {{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_ARGS

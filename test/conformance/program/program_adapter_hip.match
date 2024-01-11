@@ -1,4 +1,4 @@
-{{OPT}}Segmentation Fault
+{{OPT}}{{Segmentation fault|Aborted}}
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullHandleContext/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullPointerProgram/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramGetBuildInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_BINARY_TYPE

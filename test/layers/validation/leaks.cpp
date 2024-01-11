@@ -11,6 +11,19 @@ TEST_F(urTest, testUrAdapterGetLeak) {
     ASSERT_NE(nullptr, adapter);
 }
 
+TEST_F(urTest, testUrAdapterRetainLeak) {
+    ur_adapter_handle_t adapter = nullptr;
+    ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
+    ASSERT_NE(nullptr, adapter);
+    ASSERT_EQ(urAdapterRetain(adapter), UR_RESULT_SUCCESS);
+}
+
+TEST_F(urTest, testUrAdapterRetainNonexistent) {
+    ur_adapter_handle_t adapter = (ur_adapter_handle_t)0xBEEF;
+    ASSERT_EQ(urAdapterRetain(adapter), UR_RESULT_SUCCESS);
+    ASSERT_NE(nullptr, adapter);
+}
+
 TEST_F(valDeviceTest, testUrContextCreateLeak) {
     ur_context_handle_t context = nullptr;
     ASSERT_EQ(urContextCreate(1, &device, nullptr, &context),

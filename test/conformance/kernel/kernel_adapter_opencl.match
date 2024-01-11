@@ -1,5 +1,5 @@
-urKernelSetArgValueTest.InvalidKernelArgumentSize/Intel_R__OpenCL___{{.*}}_
-urKernelSetSpecializationConstantsTest.Success/Intel_R__OpenCL___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/Intel_R__OpenCL___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/Intel_R__OpenCL___{{.*}}_
-urKernelSetSpecializationConstantsTest.InvalidSizeCount/Intel_R__OpenCL___{{.*}}_
+urKernelSetArgValueTest.InvalidKernelArgumentSize/Intel_R__OpenCL___{{.*}}
+urKernelSetSpecializationConstantsTest.Success/Intel_R__OpenCL___{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/Intel_R__OpenCL___{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/Intel_R__OpenCL___{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidSizeCount/Intel_R__OpenCL___{{.*}}
