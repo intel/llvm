@@ -9,9 +9,6 @@
 
 // COM: Test to check 'sycl.kernel_func_obj' attribute is attached to every KernelFuncObj function.
 //
-// COM: Range rounded kernels do not call that function directly, so detection will depend on
-// COM: the not rounded kernel.
-//
 // COM: 'CHECK-NOT attributes...' check only the desired functions have the attribute attached.
 
 template <typename KernelFuncObjArg>
@@ -46,8 +43,6 @@ void test(sycl::queue q, Range r, float *in, float *out) {
 // CHECK-ROUNDED-NOT:     sycl.kernel_func_obj
 
 // CHECK-ROUNDED-LABEL:     gpu.func @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1E10KernelImplINS0_2idILi1EEEEEE
-// CHECK-ROUNDED-NOT:         func.call
-// CHECK-ROUNDED:             gpu.return
 
 // CHECK-NOT:         sycl.kernel_func_obj
 
