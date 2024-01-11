@@ -316,6 +316,24 @@ public:
       void *DstMem, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
       sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
+  static void ext_oneapi_fill_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+      size_t Len, int Pattern,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void
+  ext_oneapi_fill_cmd_buffer(sycl::detail::ContextImplPtr Context,
+                             sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                             SYCLMemObjI *SYCLMemObj, void *Mem,
+                             size_t PatternSize, const char *Pattern,
+                             unsigned int Dim, sycl::range<3> Size,
+                             sycl::range<3> AccessRange,
+                             sycl::id<3> AccessOffset, unsigned int ElementSize,
+                             std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+                             sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
   static void ext_oneapi_prefetch_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,

@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 12a67f56c3c5d08cfac0852d552b4e5fe0452d04
-  # Merge: 2b7b827c c10968f5
+  # commit c53953ae492587698d5adbab8ffee254d97b6a4e
+  # Merge: 9f88cf88 66d52ace
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 9 10:53:32 2024 +0000
-  #     Merge pull request #1027 from GeorgeWeb/georgi/hip_memadvise
-  #     [SYCL][HIP] Implement mem_advise for HIP
-  set(UNIFIED_RUNTIME_TAG 12a67f56c3c5d08cfac0852d552b4e5fe0452d04)
+  # Date:   Wed Jan 10 14:50:23 2024 +0000
+  #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
+  #     [HIP] Allow custom location of ROCm components
+  set(UNIFIED_RUNTIME_TAG c53953ae492587698d5adbab8ffee254d97b6a4e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
