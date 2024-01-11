@@ -663,6 +663,10 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto &CG = KernelCmd->getCG();
     assert(CG.getType() == CG::Kernel);
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
+    if (KernelCG->MKernelIsCooperative) {
+      printPerformanceWarning("Cannot fuse cooperative kernel");
+      return nullptr;
+    }
 
     auto KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
@@ -894,7 +898,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig));
+      CG::CGTYPE::Kernel, KernelCacheConfig, false));
   return FusedCG;
 }
 

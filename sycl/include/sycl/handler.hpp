@@ -37,6 +37,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -939,6 +940,10 @@ private:
     } else {
       std::ignore = Props;
     }
+
+    constexpr bool UsesRootSync = PropertiesT::template has_property<
+        sycl::ext::oneapi::experimental::use_root_sync_key>();
+    setKernelIsCooperative(UsesRootSync);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -3618,6 +3623,8 @@ private:
 
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  // Set value of the kernel is cooperative flag
+  void setKernelIsCooperative(bool);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>

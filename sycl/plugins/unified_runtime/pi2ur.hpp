@@ -2581,6 +2581,19 @@ inline pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   return PI_SUCCESS;
 }
 
+inline pi_result
+piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
+                                           pi_uint32 *GroupCountRet) {
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(GroupCountRet, PI_ERROR_INVALID_VALUE);
+
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  HANDLE_ERRORS(
+      urKernelSuggestMaxCooperativeGroupCountExp(UrKernel, GroupCountRet));
+
+  return PI_SUCCESS;
+}
+
 /// API for writing data from host to a device global variable.
 ///
 /// \param Queue is the queue
@@ -3604,6 +3617,30 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueKernelLaunch(
+      UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueCooperativeKernelLaunchExp(
       UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
       LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
 

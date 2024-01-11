@@ -629,7 +629,8 @@ pi_int32 enqueueImpKernel(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    bool KernelIsCooperative);
 
 class KernelFusionCommand;
 

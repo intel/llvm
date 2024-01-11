@@ -265,17 +265,44 @@ event handler::finalize() {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
-            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
-                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
-                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
-                nullptr);
+            if (MImpl->MKernelIsCooperative) {
+              MQueue->getPlugin()
+                  ->call<
+                      detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                      /* queue */
+                      nullptr,
+                      /* kernel */
+                      reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+                      /* work_dim */
+                      MNDRDesc.Dims,
+                      /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
+                      /* global_work_size */ &MNDRDesc.GlobalSize[0],
+                      /* local_work_size */ &MNDRDesc.LocalSize[0],
+                      /* num_events_in_wait_list */ 0,
+                      /* event_wait_list */ nullptr,
+                      /* event */ nullptr);
+            } else {
+              MQueue->getPlugin()
+                  ->call<detail::PiApiKind::piEnqueueKernelLaunch>(
+                      /* queue */
+                      nullptr,
+                      /* kernel */
+                      reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+                      /* work_dim */
+                      MNDRDesc.Dims,
+                      /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
+                      /* global_work_size */ &MNDRDesc.GlobalSize[0],
+                      /* local_work_size */ &MNDRDesc.LocalSize[0],
+                      /* num_events_in_wait_list */ 0,
+                      /* event_wait_list */ nullptr,
+                      /* event */ nullptr);
+            }
             Result = PI_SUCCESS;
           } else {
-            Result =
-                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, NewEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                MKernelName, RawEvents, NewEvent, nullptr,
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -333,7 +360,7 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -1384,6 +1411,10 @@ handler::getContextImplPtr() const {
 void handler::setKernelCacheConfig(
     sycl::detail::pi::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
+}
+
+void handler::setKernelIsCooperative(bool KernelIsCooperative) {
+  MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
 void handler::ext_oneapi_graph(

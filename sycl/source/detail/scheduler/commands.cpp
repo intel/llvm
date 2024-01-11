@@ -2317,7 +2317,8 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    bool IsCooperative) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2355,12 +2356,22 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-      Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-  return Error;
+  if (IsCooperative) {
+    pi_result Error =
+        Plugin->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+    return Error;
+  } else {
+    pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+    return Error;
+  }
 }
 
 // The function initialize accessors and calls lambda.
@@ -2499,7 +2510,8 @@ pi_int32 enqueueImpKernel(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    const bool KernelIsCooperative) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2590,7 +2602,8 @@ pi_int32 enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc);
+                                     EliminatedArgMask, getMemAllocationFunc,
+                                     KernelIsCooperative);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2944,7 +2957,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
