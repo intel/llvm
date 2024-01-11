@@ -690,7 +690,7 @@ void SYCLKernelFusion::attachKernelAttributeMD(
         KernelAttr.AttributeName == "work_group_size_hint") {
       // 'reqd_work_group_size' and 'work_group_size_hint' get attached as
       // metadata with their three values as constant integer metadata.
-      SmallVector<Metadata *, jit_compiler::Indices::size()> MDValues;
+      SmallVector<Metadata *, 3> MDValues;
       for (std::string &Val : KernelAttr.Values) {
         MDValues.push_back(ConstantAsMetadata::get(
             ConstantInt::get(Type::getInt32Ty(LLVMCtx), std::stoi(Val))));

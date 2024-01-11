@@ -178,7 +178,7 @@ public:
   }
 
 private:
-  static const auto Size = 3;
+  static constexpr auto Size = 3;
   size_t Values[Size];
 };
 
