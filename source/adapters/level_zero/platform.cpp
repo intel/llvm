@@ -433,8 +433,7 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
+// Return '-ze-opt-level=2' for frontend_option = -O1, -O2 or -O3.
 // Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
 // frontend_option=-ftarget-compile-fast.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
@@ -457,11 +456,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     *PlatformOption = "-ze-opt-disable";
     return UR_RESULT_SUCCESS;
   }
-  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv) {
-    *PlatformOption = "-ze-opt-level=1";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-O3"sv) {
+  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv ||
+      FrontendOption == "-O3"sv) {
     *PlatformOption = "-ze-opt-level=2";
     return UR_RESULT_SUCCESS;
   }
