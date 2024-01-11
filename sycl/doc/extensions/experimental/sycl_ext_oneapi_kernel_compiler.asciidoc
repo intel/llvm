@@ -878,7 +878,7 @@ int main() {
 * Do we want to add an API similar to `nvrtcGetTypeName`?
   This does seem useful in some advanced cases, and it is not specific to CUDA.
   The implementation is fairly straightforward.
-  You use `typeid` to get an `std::type_info`.
+  You use `typeid` to get a `std::type_info`.
   You can then call `type_info::name` to get an implementation-defined name for
   the type.
   For clang on Linux, this returns the type's mangled name.
