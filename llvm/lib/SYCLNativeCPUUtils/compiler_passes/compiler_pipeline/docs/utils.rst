@@ -1026,8 +1026,6 @@ The following builtins are replaced:
 * ``__mux_usefast`` - Whether to use faster, less accurate maths algorithms.
 * ``__mux_isembeddedprofile`` - Whether the mux target implements OpenCL
   embedded profile.
-* ``__mux_hasnativefma`` - Whether the mux target supports a fused multiply-add
-  instruction.
 
 Declarations matching each of these function names are searched for by
 ``ReplaceMuxMathDeclsPass``, and if found, a function body is created returning
