@@ -1755,7 +1755,9 @@ void MemoryManager::copy_image_bindless(
   assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
                        ext::oneapi::experimental::image_copy_flags::HtoD ||
           Flags == (sycl::detail::pi::PiImageCopyFlags)
-                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+                       ext::oneapi::experimental::image_copy_flags::DtoH ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoD) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

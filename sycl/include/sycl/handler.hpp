@@ -3227,6 +3227,18 @@ public:
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
 
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  ext::oneapi::experimental::image_mem_handle Dest,
+                  const ext::oneapi::experimental::image_descriptor &ImageDesc);
+
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
   /// \p DestOffset , and \p Extent are used to determine the sub-region.

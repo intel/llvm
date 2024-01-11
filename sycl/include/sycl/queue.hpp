@@ -1917,6 +1917,74 @@ public:
         CodeLoc);
   }
 
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  /// \param DepEvent is an events that specifies the kernel dependency.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles.
+  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param ImageDesc is the source image descriptor
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, ImageDesc); },
+        CodeLoc);
+  }
+
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
   /// \p DestOffset , and \p Extent are used to determine the sub-region.

@@ -1059,6 +1059,42 @@ void handler::ext_oneapi_copy(
 }
 
 void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = ImageDesc.width;
+  PiDesc.image_height = ImageDesc.height;
+  PiDesc.image_depth = ImageDesc.depth;
+  PiDesc.image_type =
+      ImageDesc.depth > 0
+          ? PI_MEM_TYPE_IMAGE3D
+          : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(ImageDesc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MHostExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,

@@ -749,6 +749,12 @@ public:
     size_t DeviceRowPitch,
     sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent);
+
+  // Simple device to device copy
+  void ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc);
 };
 
 class queue {
@@ -874,6 +880,22 @@ public:
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
+  
+  // Simple device to device copy
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      event DepEvent);
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
@@ -881,7 +903,9 @@ public:
 To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
 method of the queue and handler. It can be used to copy image memory, whether 
 allocated through USM or using an `image_mem_handle`, from host to 
-device, or device to host. For the `ext_oneapi_copy` variants that do not take 
+device, or device to host. Device to device copies are currently supported only 
+through `image_mem_handle` allocations. 
+For the `ext_oneapi_copy` variants that do not take 
 offsets and extents, the image descriptor passed to the `ext_oneapi_copy` API 
 is used to determine the pixel size, dimensions, and extent in memory of the 
 image to copy. If performing sub-region copy, the size of the memory region is 
@@ -2060,4 +2084,6 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2024-01-17| - Added overload for `ext_oneapi_copy` enabling device to device
+                   copies using `image_mem_handle`.
 |======================
