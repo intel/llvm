@@ -8,7 +8,7 @@
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
 // The second run is to check that there are no leaks reported with the embedded
-// UR_LO_LEAKS_DEBUG testing capability.
+// UR_L0_LEAKS_DEBUG testing capability.
 
 #include "graph_common.hpp"
 

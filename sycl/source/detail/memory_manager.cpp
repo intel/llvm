@@ -1666,6 +1666,50 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
   }
 }
 
+void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+
+  if (!DstMem)
+    throw runtime_error("NULL pointer argument in memory fill operation.",
+                        PI_ERROR_INVALID_VALUE);
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  // Pattern is interpreted as an unsigned char so pattern size is always 1.
+  size_t PatternSize = 1;
+  Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
+      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_fill_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
+    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+    unsigned int ElementSize,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  if (SYCLMemObj->getType() != detail::SYCLMemObjI::MemObjType::Buffer) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Images are not supported in Graphs");
+  }
+  if (Dim <= 1) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferFill>(
+        CommandBuffer, pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
+        PatternSize, AccessOffset[0] * ElementSize,
+        AccessRange[0] * ElementSize, Deps.size(), Deps.data(), OutSyncPoint);
+    return;
+  }
+  throw runtime_error("Not supported configuration of fill requested",
+                      PI_ERROR_INVALID_OPERATION);
+}
+
 void MemoryManager::copy_image_bindless(
     void *Src, QueueImplPtr Queue, void *Dst,
     const sycl::detail::pi::PiMemImageDesc &Desc,
