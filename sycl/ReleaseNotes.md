@@ -25,15 +25,15 @@ Release notes for commit range f4e0d3177338db8be4bd9e9b280f7b733c2f15f8..f4ed132
 - Added `ext_oneapi_non_uniform_groups` aspect [de92299c2c09d626dcbc633c83e259d828220d03]
 
 ### Documentation
-- Update and Move sycl::complex's extension from proposed to experimental [ea6aea37c6dd777ef8df68e45a93646be2ad9558]
+- Update `sycl_ext_oneapi_complex` from proposed to experimental [ea6aea37c6dd777ef8df68e45a93646be2ad9558]
 - Add SYCLcompat documentation [180a92ad707bd35df9e98c1474dc52a1e9b3dead]
 - Add draft forward progress extension [67461148b16938a318796f639ee857b02831c38d]
-- Add kernel compiler extension spec [5e64f96d20c22a6c2a1600515160ddf248637641]
-- Add sycl_ext_oneapi_enqueue_functions [ebc3ddb9a60bad6f1f0e331da4044000e3a7fb60]
-- Design Doc for SYCL-Graph Extension [1713ed19f71c4401b2ff62dcbc32a8e71b336701]
-- Graph fusion extension proposal [8c4cad45faba815ad252de895a2a1434d8c0bd1a]
-- Add new SYCL language spec for fpga_mem [a162179381fd1b0ebab5cab8978e7cef9dfdac8c]
-- Proposed cache control properties for annotated_ptr [deb020bf740b1d34d71189f5900b1558934a09d7]
+- Add `sycl_ext_oneapi_kernel_compiler` extension spec [5e64f96d20c22a6c2a1600515160ddf248637641]
+- Add `sycl_ext_oneapi_enqueue_functions` extension spec [ebc3ddb9a60bad6f1f0e331da4044000e3a7fb60]
+- Add `sycl_ext_oneapi_graph_fusion` extension spec [8c4cad45faba815ad252de895a2a1434d8c0bd1a]
+- Add `sycl_ext_intel_fpga_datapath` extension spec [a162179381fd1b0ebab5cab8978e7cef9dfdac8c]
+- Add `sycl_ext_intel_cache_controls` extension spec [deb020bf740b1d34d71189f5900b1558934a09d7]
+- Add design doc for SYCL-Graph Extension [1713ed19f71c4401b2ff62dcbc32a8e71b336701]
 
 ## Improvements
 ### SYCL Compiler
@@ -55,7 +55,7 @@ Release notes for commit range f4e0d3177338db8be4bd9e9b280f7b733c2f15f8..f4ed132
 - Move BFN function from experimental namespace [c9da5c7ff7e80b193491932ebd9c66ee0777d1f2]
 - Report source code info(file/line number) where null pointer exception occurred in memcpy [626c4b5078c14e90a66a692ac306d98065ece035]
 - Improve accuracy of double tanpi host implementation [041a74c0cbda14fc8e03e3944367a8b0107656b6]
-- AMD subgroup support [288aeaef03a9100bfd927aab641730da6832241d]
+- Add more support for AMD subgroup functions [288aeaef03a9100bfd927aab641730da6832241d]
 - annotated_ptr API fixes [954730e7a8232087f9bca19b26a7c2f8d5bf08f3] [fbad42a398efca3aa04bdba6504885abc9b333f7] [43336a15fcafec1b3c3e94753023304ec6ef0ed3]
 - Implement fallback path for profiling info support [7cfa951303eb828836637c21518ed0f1d27ad753]
 - Fix require alignment in buffers [093dae1f72146ef0f640d2e667576811245eb078]
@@ -91,7 +91,7 @@ Release notes for commit range f4e0d3177338db8be4bd9e9b280f7b733c2f15f8..f4ed132
 
 ### Documentation
 - Update sycl_ext_oneapi_local_memory [457251feceb81845de962383f227e14522d4cf96]
-- clarify coodinates of packed matrix and fix joint_matrix_copy requirements [579f1dec0b5b2ecd177dfb95c3d1522f57079cc6]
+- Add get-coord API and general query example to `sycl_ext_intel_matric` [579f1dec0b5b2ecd177dfb95c3d1522f57079cc6] [38ac2124c1e8034c37056256f9864e475128ad49]
 - Update design doc for new offloading model [115808f5128f33321c68b9dead4fcd25f6a2ed49]
 - Update immediate command list usage [ad973f3383e265a1e209b61559e24cec37c5d111]
 - Add overloads with sycl::queue for some functions in `sycl_ext_oneapi_bindless_images` [4d0c552985bd0e4fc16740a0fc89393ef7fe3d04]
@@ -102,6 +102,7 @@ Release notes for commit range f4e0d3177338db8be4bd9e9b280f7b733c2f15f8..f4ed132
 - Fix backend option passing issues with multiple targets [12ca2db0e30b155c7d6bf14320dd1ba468ac9294]
 - Fix -fgpu-rdc option for CUDA [f7595ac7527e67a59e33550851366db7d886ac3f]
 - Fix triple in offload mismatch warning [0fd9a4eb17a2db0fed151ba9d975804322966bcc]
+- Fix a bug when -enable-global-offset=false for AMDGU and NVPTX targets [00cf4c29740b2ec8d027e59e49e376a211599a58]
 
 ### SYCL Library
 - Fix stack corruption in sycl::modf for sycl::half type [7c6541dc18e324e36853b473a15e8df4edf97755]
@@ -124,13 +125,15 @@ Release notes for commit range f4e0d3177338db8be4bd9e9b280f7b733c2f15f8..f4ed132
 - Fix issues with sycl_ext_oneapi_graph subgraphs [92ddf8d562d736f6c556976dce2c099e6aef591e]
 - Fix ambiguous log2 call in host code
 - Add device copyable trait for annotated_arg [9f65e61a2dbf9e9b631159a5ac2ec92137996f62]
+
 ### Documentation
-- device_global: device_image_scope Update [be8e031cd078ea0298a773aa5fc743c18e50fe97]
+- Update `device_image_scope` property  in `sycl_ext_oneapi_device_global` [be8e031cd078ea0298a773aa5fc743c18e50fe97]
 
 ## API/ABI breakages
 - Deprecate experimental functions: quot,div,mod,dp*,line,lrp [76976a22ba2e86059d655aa7d5f71250160f4864]
 - Remove ESIMD Emulator plugin [1ece6da6b1139ad29d1ed44a05759e9b5974d3e8]
 - Deprecate `sycl::abs(genfloat)` [d15d4409b2cf7e023bf6f462fac5630699f1c0a7]
+- Don't include `<complex>/<cmath>` from `sycl.hpp`, unless `-fpreview-breaking-changes` [6ed0ab887d18b18209a7d1c31b8bb8240a820f79] [d22c9c58d2e7c4936158dde6056281ef2cf0cdf2]
 
 ## Known Issues
 - Having MESA OpenCL implementation which provides no devices on a
