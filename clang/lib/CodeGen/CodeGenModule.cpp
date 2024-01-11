@@ -236,9 +236,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
     StringRef ABIStr = Target.getABI();
     unsigned XLen = Target.getPointerWidth(LangAS::Default);
     unsigned ABIFLen = 0;
-    if (ABIStr.endswith("f"))
+    if (ABIStr.ends_with("f"))
       ABIFLen = 32;
-    else if (ABIStr.endswith("d"))
+    else if (ABIStr.ends_with("d"))
       ABIFLen = 64;
     return createRISCVTargetCodeGenInfo(CGM, XLen, ABIFLen);
   }
@@ -319,9 +319,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
   case llvm::Triple::loongarch64: {
     StringRef ABIStr = Target.getABI();
     unsigned ABIFRLen = 0;
-    if (ABIStr.endswith("f"))
+    if (ABIStr.ends_with("f"))
       ABIFRLen = 32;
-    else if (ABIStr.endswith("d"))
+    else if (ABIStr.ends_with("d"))
       ABIFRLen = 64;
     return createLoongArchTargetCodeGenInfo(
         CGM, Target.getPointerWidth(LangAS::Default), ABIFRLen);
@@ -1038,12 +1038,7 @@ void CodeGenModule::Release() {
                               uint32_t(CLANG_VERSION_MINOR));
     getModule().addModuleFlag(llvm::Module::Warning, "zos_product_patchlevel",
                               uint32_t(CLANG_VERSION_PATCHLEVEL));
-    std::string ProductId;
-#ifdef CLANG_VENDOR
-    ProductId = #CLANG_VENDOR;
-#else
-    ProductId = "clang";
-#endif
+    std::string ProductId = getClangVendor() + "clang";
     getModule().addModuleFlag(llvm::Module::Error, "zos_product_id",
                               llvm::MDString::get(VMContext, ProductId));
 
@@ -1153,6 +1148,9 @@ void CodeGenModule::Release() {
       Arch == llvm::Triple::aarch64_be) {
     if (LangOpts.BranchTargetEnforcement)
       getModule().addModuleFlag(llvm::Module::Min, "branch-target-enforcement",
+                                1);
+    if (LangOpts.BranchProtectionPAuthLR)
+      getModule().addModuleFlag(llvm::Module::Min, "branch-protection-pauth-lr",
                                 1);
     if (LangOpts.hasSignReturnAddress())
       getModule().addModuleFlag(llvm::Module::Min, "sign-return-address", 1);
@@ -1815,7 +1813,7 @@ static void AppendTargetMangling(const CodeGenModule &CGM,
   llvm::sort(Info.Features, [&Target](StringRef LHS, StringRef RHS) {
     // Multiversioning doesn't allow "no-${feature}", so we can
     // only have "+" prefixes here.
-    assert(LHS.startswith("+") && RHS.startswith("+") &&
+    assert(LHS.starts_with("+") && RHS.starts_with("+") &&
            "Features should always have a prefix.");
     return Target.multiVersionSortPriority(LHS.substr(1)) >
            Target.multiVersionSortPriority(RHS.substr(1));
@@ -1869,7 +1867,7 @@ static void AppendTargetClonesMangling(const CodeGenModule &CGM,
   } else {
     Out << '.';
     StringRef FeatureStr = Attr->getFeatureStr(VersionIndex);
-    if (FeatureStr.startswith("arch="))
+    if (FeatureStr.starts_with("arch="))
       Out << "arch_" << FeatureStr.substr(sizeof("arch=") - 1);
     else
       Out << FeatureStr;
@@ -4259,7 +4257,7 @@ namespace {
       if (!BuiltinID || !BI.isLibFunction(BuiltinID))
         return false;
       StringRef BuiltinName = BI.getName(BuiltinID);
-      if (BuiltinName.startswith("__builtin_") &&
+      if (BuiltinName.starts_with("__builtin_") &&
           Name == BuiltinName.slice(strlen("__builtin_"), StringRef::npos)) {
         return true;
       }
@@ -4595,7 +4593,7 @@ void CodeGenModule::emitMultiVersionFunctions() {
               Feature.push_back(CurFeat.trim());
           }
         } else {
-          if (Version.startswith("arch="))
+          if (Version.starts_with("arch="))
             Architecture = Version.drop_front(sizeof("arch=") - 1);
           else if (Version != "default")
             Feature.push_back(Version);
@@ -5332,6 +5330,10 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty,
         D->getType().isConstant(Context) &&
         isExternallyVisible(D->getLinkageAndVisibility().getLinkage()))
       GV->setSection(".cp.rodata");
+
+    // Handle code model attribute
+    if (const auto *CMA = D->getAttr<CodeModelAttr>())
+      GV->setCodeModel(CMA->getModel());
 
     // Check if we a have a const declaration with an initializer, we may be
     // able to emit it as available_externally to expose it's value to the
@@ -7085,7 +7087,7 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
       VD, E->getManglingNumber(), Out);
 
   APValue *Value = nullptr;
-  if (E->getStorageDuration() == SD_Static && VD && VD->evaluateValue()) {
+  if (E->getStorageDuration() == SD_Static && VD->evaluateValue()) {
     // If the initializer of the extending declaration is a constant
     // initializer, we should have a cached constant initializer for this
     // temporary. Note that this might have a different value from the value
@@ -7100,8 +7102,7 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
       !EvalResult.hasSideEffects())
     Value = &EvalResult.Val;
 
-  LangAS AddrSpace =
-      VD ? GetGlobalVarAddressSpace(VD) : MaterializedType.getAddressSpace();
+  LangAS AddrSpace = GetGlobalVarAddressSpace(VD);
 
   std::optional<ConstantEmitter> emitter;
   llvm::Constant *InitialValue = nullptr;

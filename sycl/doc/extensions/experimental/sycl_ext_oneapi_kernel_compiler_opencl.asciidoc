@@ -107,6 +107,13 @@ enum class source_language : /*unspecified*/ {
 } // namespace sycl::ext::oneapi::experimental
 ```
 
+=== Source code is text format
+
+Kernels written in the `opencl` language are text format.
+As a result, the application must use the overload of
+`create_kernel_bundle_from_source` taking `std::string` when creating a kernel
+bundle from this language.
+
 === Build options
 
 The `build_options` property accepts any of the compiler or linker options

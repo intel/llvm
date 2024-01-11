@@ -67,13 +67,12 @@ bool CurrentCodeLocationValid() {
 
 void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
-                                const char *Txt) {
+                                const void *Addr) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
     return;
   // Trace event notifier that emits a Type event
   xptiNotifySubscribers(StreamID, Type, detail::GSYCLGraphEvent,
-                        static_cast<xpti_td *>(TraceEvent), InstanceID,
-                        static_cast<const void *>(Txt));
+                        static_cast<xpti_td *>(TraceEvent), InstanceID, Addr);
 }
 #endif
 
@@ -788,22 +787,18 @@ Command *Command::addDep(EventImplPtr Event,
 
 void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType = xpti::trace_signal;
-  if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
-        MTraceEvent && PiEventAddr))
-    return;
-  // Asynchronous call, so send a signal with the event information as
-  // user_data
-  xptiNotifySubscribers(
-      MStreamID, NotificationTraceType, detail::GSYCLGraphEvent,
-      static_cast<xpti_td *>(MTraceEvent), MInstanceID, (void *)PiEventAddr);
+  emitInstrumentationGeneral(
+      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent),
+      xpti::trace_signal, static_cast<const void *>(PiEventAddr));
 #endif
+  std::ignore = PiEventAddr;
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  return emitInstrumentationGeneral(
-      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent), Type, Txt);
+  return emitInstrumentationGeneral(MStreamID, MInstanceID,
+                                    static_cast<xpti_td *>(MTraceEvent), Type,
+                                    static_cast<const void *>(Txt));
 #else
   std::ignore = Type;
   std::ignore = Txt;
@@ -2554,7 +2549,7 @@ pi_int32 enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName);
+            ContextImpl, DeviceImpl, KernelName, NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2766,6 +2761,28 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::Fill: {
+    CGFill *Fill = (CGFill *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)(Fill->getReqToFill());
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_fill_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        AllocaCmd->getMemAllocation(), Fill->MPattern.size(),
+        Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
+        Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::FillUSM: {
+    CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
+        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+        &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }

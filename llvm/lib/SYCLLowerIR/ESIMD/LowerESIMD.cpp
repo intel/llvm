@@ -22,6 +22,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
@@ -659,7 +660,9 @@ public:
          {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
-        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
+        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
+        {"srnd", {"srnd", {a(0), a(1)}}},
+        {"timestamp",{"timestamp",{}}}};
   }
   // clang-format on
 
@@ -967,6 +970,38 @@ static void translateBlockStore(CallInst &CI, bool IsSLM) {
 
   auto SI = Builder.CreateAlignedStore(Op1, Op0, Align);
   SI->setDebugLoc(CI.getDebugLoc());
+}
+
+static void translateGatherLoad(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  Align AlignValue(Val.getZExtValue());
+
+  auto OffsetsOp = CI.getArgOperand(0);
+  auto MaskOp = CI.getArgOperand(1);
+  auto PassThroughOp = CI.getArgOperand(2);
+  auto DataType = CI.getType();
+
+  // Convert the mask from <N x i16> to <N x i1>.
+  Value *Zero = ConstantInt::get(MaskOp->getType(), 0);
+  MaskOp = Builder.CreateICmp(ICmpInst::ICMP_NE, MaskOp, Zero);
+
+  // The address space may be 3-SLM, 1-global or private.
+  // At the moment of calling 'gather()' operation the pointer passed to it
+  // is already 4-generic. Thus, simply use 4-generic for global and private
+  // and let GPU BE deduce the actual address space from the use-def graph.
+  unsigned AS = IsSLM ? 3 : 4;
+  auto ElemType = DataType->getScalarType();
+  auto NumElems = (cast<VectorType>(DataType))->getElementCount();
+  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
+
+  auto LI = Builder.CreateMaskedGather(DataType, VPtrOp, AlignValue, MaskOp,
+                                       PassThroughOp);
+  LI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(LI);
 }
 
 // TODO Specify document behavior for slm_init and nbarrier_init when:
@@ -1909,6 +1944,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
+      if (Name.startswith("__esimd_gather_ld") ||
+          Name.startswith("__esimd_slm_gather_ld")) {
+        translateGatherLoad(*CI, Name.startswith("__esimd_slm_gather_ld"));
+        ToErase.push_back(CI);
+        continue;
+      }
+
       if (Name.startswith("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);

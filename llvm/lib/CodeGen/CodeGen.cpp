@@ -30,7 +30,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeCFIFixupPass(Registry);
   initializeCFIInstrInserterPass(Registry);
   initializeCheckDebugMachineModulePass(Registry);
-  initializeCodeGenPreparePass(Registry);
+  initializeCodeGenPrepareLegacyPassPass(Registry);
   initializeDeadMachineInstructionElimPass(Registry);
   initializeDebugifyMachineModulePass(Registry);
   initializeDetectDeadLanesPass(Registry);
@@ -41,7 +41,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeEarlyTailDuplicatePass(Registry);
   initializeExpandLargeDivRemLegacyPassPass(Registry);
   initializeExpandLargeFpConvertLegacyPassPass(Registry);
-  initializeExpandMemCmpPassPass(Registry);
+  initializeExpandMemCmpLegacyPassPass(Registry);
   initializeExpandPostRAPass(Registry);
   initializeFEntryInserterPass(Registry);
   initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
@@ -54,7 +54,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeHardwareLoopsLegacyPass(Registry);
   initializeIfConverterPass(Registry);
   initializeImplicitNullChecksPass(Registry);
-  initializeIndirectBrExpandPassPass(Registry);
+  initializeIndirectBrExpandLegacyPassPass(Registry);
   initializeInterleavedLoadCombinePass(Registry);
   initializeInterleavedAccessPass(Registry);
   initializeJMCInstrumenterPass(Registry);

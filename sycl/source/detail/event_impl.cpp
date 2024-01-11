@@ -238,7 +238,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
-  uint64_t IId;
+  uint64_t IId = 0;
   std::string Name;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);

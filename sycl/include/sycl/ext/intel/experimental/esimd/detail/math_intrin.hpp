@@ -146,6 +146,15 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __esimd_bfn(__ESIMD_raw_vec_t(T, N) src0, __ESIMD_raw_vec_t(T, N) src1,
                 __ESIMD_raw_vec_t(T, N) src2) __ESIMD_INTRIN_END;
 
+template <int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
+    __esimd_srnd(__ESIMD_DNS::vector_type_t<float, N> src1,
+                 __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
+        __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
+    __esimd_timestamp() __ESIMD_INTRIN_END;
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 

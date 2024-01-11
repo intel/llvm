@@ -12,7 +12,6 @@
 #include "device.h"
 #include "imf_bf16.hpp"
 #include "imf_half.hpp"
-#include "imf_rounding_op.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <limits>

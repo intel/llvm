@@ -1,0 +1,53 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s
+
+; CHECK: define spir_func [4 x i8] @non_constant_array_elements(i8 %[[#ARG0:]], i8 %[[#ARG1:]])
+; CHECK: %[[#ArrayPtr:]] = alloca [4 x i8]
+; CHECK: %[[GEP:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 0
+; CHECK: store i8 %[[#ARG1]], ptr %[[GEP]]
+; CHECK: %[[GEP1:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 1
+; CHECK: store i8 %[[#ARG0]], ptr %[[GEP1]]
+; CHECK: %[[GEP2:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 2
+; CHECK: store i8 0, ptr %[[GEP2]]
+; CHECK: %[[GEP3:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 3
+; CHECK: store i8 10, ptr %[[GEP3]]
+
+; CHECK: %[[LoadArr:[0-9a-z.]+]] = load [4 x i8], ptr %[[#ArrayPtr]]
+; CHECK: ret [4 x i8] %[[LoadArr]]
+
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 23
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpSource Unknown 0
+               OpName %_arr_uchar_uint_4 "arrtype"
+               OpName %non_constant_array_elements "non_constant_array_elements"
+               OpDecorate %non_constant_array_elements LinkageAttributes "non_constant_array_elements" Export
+      %uchar = OpTypeInt 8 0
+       %uint = OpTypeInt 32 0
+   %uchar_10 = OpConstant %uchar 10
+    %uchar_0 = OpConstant %uchar 0
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+     %uint_4 = OpConstant %uint 4
+    %_arr_uchar_uint_4 = OpTypeArray %uchar %uint_4
+          %5 = OpTypeFunction %_arr_uchar_uint_4 %uchar %uchar
+%_ptr_Function_uint = OpTypePointer Function %uint
+%non_constant_array_elements = OpFunction %_arr_uchar_uint_4 None %5
+        %484 = OpFunctionParameter %uchar
+        %485 = OpFunctionParameter %uchar
+          %7 = OpLabel
+         %14 = OpCompositeConstruct %_arr_uchar_uint_4 %485 %484 %uchar_0 %uchar_10
+               OpReturnValue %14
+               OpFunctionEnd
