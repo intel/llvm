@@ -116,7 +116,9 @@ void testKernelsFromSpvFile(std::string kernels_file,
         return bundle.ext_oneapi_get_kernel(name);
       };
 
-  sycl::queue q;
+  sycl::device d;
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
   auto bundle = loadKernelsFromFile(q, kernels_file);
 
   // Test simple kernel
