@@ -279,17 +279,20 @@ event handler::finalize() {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
             // Capture the host timestamp for profiling (queue time)
-            if (NewEvent != nullptr) {
+            if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelIsCooperative) {
-                Result = MQueue->getPlugin()
-                    ->call_nocheck<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
+                Result =
+                    MQueue->getPlugin()
+                        ->call_nocheck<detail::PiApiKind::
+                                           piextEnqueueCooperativeKernelLaunch>(
+                            Args...);
               } else {
-                Result =  MQueue->getPlugin()
-                    ->call_nocheck<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+                Result =
+                    MQueue->getPlugin()
+                        ->call_nocheck<
+                            detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
               }
             }(/* queue */
               nullptr,

@@ -295,8 +295,6 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Peer access get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   return value == 1;

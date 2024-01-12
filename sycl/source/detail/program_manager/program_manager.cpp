@@ -768,8 +768,6 @@ ProgramManager::getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   return Program;
@@ -787,8 +785,6 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::vector<sycl::detail::pi::PiDevice> PIDevices(
@@ -800,8 +796,6 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::string Log = "The program was built for " +
@@ -818,8 +812,6 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Program get build info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
 
     if (DeviceBuildInfoStrSize > 0) {
@@ -833,8 +825,6 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::feature_not_supported),
             "Program get build info command not supported by backend.");
-      } else {
-        Plugin->checkPiResult(Result);
       }
       DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
     }

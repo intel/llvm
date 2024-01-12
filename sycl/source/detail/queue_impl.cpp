@@ -51,8 +51,6 @@ uint32_t queue_impl::get_info<info::queue::reference_count>() const {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Queue get info command not supported by backend.");
-    } else {
-      getPlugin()->checkPiResult(Result);
     }
   }
   return result;
@@ -622,8 +620,6 @@ bool queue_impl::ext_oneapi_empty() const {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Queue get info command not supported by backend.");
-    } else {
-      getPlugin()->checkPiResult(Result);
     }
     if (!IsReady) {
       return false;

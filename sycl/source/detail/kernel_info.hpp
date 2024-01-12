@@ -38,8 +38,6 @@ get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   if (ResultSize == 0) {
     return "";
@@ -52,8 +50,6 @@ get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   return std::string(Result.data());
 }
@@ -72,8 +68,6 @@ get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   return Result;
 }
@@ -93,8 +87,6 @@ get_kernel_device_specific_info_helper(sycl::detail::pi::PiKernel Kernel,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get sub group info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 }
 
@@ -169,8 +161,6 @@ uint32_t get_kernel_device_specific_info_with_input(
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get sub group info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   return Result;

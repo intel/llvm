@@ -114,8 +114,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   std::vector<size_t> BinarySizes(DeviceNum);
@@ -126,8 +124,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   std::vector<std::vector<char>> Result;
@@ -137,15 +133,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  PiResult = Plugin->call<PiApiKind::piProgramGetInfo>(
+  PiResult = Plugin->call_nocheck<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
       Pointers.data(), nullptr);
   if (PiResult == PI_ERROR_INVALID_OPERATION) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   size_t i = 0;

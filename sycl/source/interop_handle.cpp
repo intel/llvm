@@ -36,7 +36,7 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
   pi_native_handle Handle;
   sycl::detail::pi::PiResult Result =
       Plugin->call_nocheck<detail::PiApiKind::piextMemGetNativeHandle>(
-          Iter->second, &Handle);
+          Iter->second, MDevice->getHandleRef(), &Handle);
   if (Result == PI_ERROR_INVALID_OPERATION) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),

@@ -421,8 +421,6 @@ public:
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Program get info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
 
     // Get the kernel names.
@@ -433,8 +431,6 @@ public:
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Program get info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
 
     // semi-colon delimited list of kernel names.
@@ -446,8 +442,6 @@ public:
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Program get info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');

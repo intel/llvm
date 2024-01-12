@@ -258,8 +258,6 @@ std::vector<int> platform_impl::filterDeviceFilter(
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Platform get info command not supported by backend.");
-  } else {
-    MPlugin->checkPiResult(Result);
   }
   backend Backend = convertBackend(PiBackend);
 

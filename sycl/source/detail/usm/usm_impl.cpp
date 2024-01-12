@@ -661,8 +661,6 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "USM get mem alloc info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   // The device is not necessarily a member of the context, it could be a

@@ -77,7 +77,7 @@ void event_impl::waitInternal(bool *Success) {
         (Error == PI_ERROR_UNKNOWN ||
          Error == PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST)) {
       *Success = false;
-    } else if (Success == PI_ERROR_INVALID_OPERATION) {
+    } else if (Error == PI_ERROR_INVALID_OPERATION) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Event wait command not supported by backend.");

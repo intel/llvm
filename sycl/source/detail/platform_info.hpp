@@ -32,8 +32,6 @@ get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Platform get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   if (ResultSize == 0) {
     return "";
@@ -47,8 +45,6 @@ get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Platform get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   return Result.get();
 }

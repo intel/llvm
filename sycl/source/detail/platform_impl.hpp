@@ -54,8 +54,6 @@ public:
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Platform get info command not supported by backend.");
-    } else {
-      APlugin->checkPiResult(Result);
     }
     MBackend = convertBackend(PiBackend);
   }

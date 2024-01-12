@@ -55,8 +55,6 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Kernel get info command not supported by backend.");
-  } else {
-    getPlugin()->checkPiResult(Result);
   }
 
   if (ContextImpl->getHandleRef() != Context) {

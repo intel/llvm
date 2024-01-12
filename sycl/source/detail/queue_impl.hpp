@@ -238,8 +238,6 @@ private:
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Queue get info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
 
     MDevice = MContext->findMatchingDeviceImpl(DevicePI);

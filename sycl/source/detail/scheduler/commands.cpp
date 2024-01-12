@@ -2445,7 +2445,7 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error =
+  pi_result Result =
       [&](auto... Args) {
         if (IsCooperative) {
           return Plugin
@@ -2466,7 +2466,7 @@ static pi_result SetKernelParamsAndLaunch(
     Plugin->checkPiResult(Result);
   }
 
-  return Error;
+  return Result;
 }
 
 // The function initialize accessors and calls lambda.
