@@ -55,6 +55,8 @@ jobs:
             drivers:
               - devops/dependencies.json
               - devops/scripts/install_drivers.sh
+            perf-tests:
+              - sycl/test-e2e/PerformanceTests/**
 
       - name: Set output
         id: result
