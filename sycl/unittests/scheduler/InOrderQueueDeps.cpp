@@ -107,14 +107,14 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
 }
 
-bool barrierCalled = false;
-pi_event expectedEvent = nullptr;
+bool BarrierCalled = false;
+pi_event ExpectedEvent = nullptr;
 pi_result redefinedEnqueueEventsWaitWithBarrier(
     pi_queue command_queue, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
   EXPECT_EQ(num_events_in_wait_list, 1u);
-  EXPECT_EQ(expectedEvent, *event_wait_list);
-  barrierCalled = true;
+  EXPECT_EQ(ExpectedEvent, *event_wait_list);
+  BarrierCalled = true;
   *event = reinterpret_cast<pi_event>(1);
   return PI_SUCCESS;
 }
@@ -137,15 +137,15 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   {
     event E = submitKernel(Q1);
     Q1.ext_oneapi_submit_barrier({E});
-    EXPECT_FALSE(barrierCalled);
+    EXPECT_FALSE(BarrierCalled);
   }
   queue Q2{Ctx, default_selector_v, property::queue::in_order()};
   {
     event E1 = submitKernel(Q1);
     event E2 = submitKernel(Q2);
-    expectedEvent = detail::getSyclObjImpl(E2)->getHandleRef();
+    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandleRef();
     Q1.ext_oneapi_submit_barrier({E1, E2});
-    EXPECT_TRUE(barrierCalled);
+    EXPECT_TRUE(BarrierCalled);
   }
 }
 } // anonymous namespace
