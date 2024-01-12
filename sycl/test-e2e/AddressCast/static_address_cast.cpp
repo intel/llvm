@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// OpGenericCastToPtr* intrinsics not implemented on AMD
+// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <sycl/sycl.hpp>
