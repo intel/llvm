@@ -213,6 +213,14 @@ static Type *getStateType(Module &M) {
   // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
   // __nativecpu_state type
   auto Types = M.getIdentifiedStructTypes();
+  auto str = llvm::find_if(Types, [](auto T) { return T->getName() == StateTypeName; });
+  if (str == Types.end()) {
+    //report_fatal_error("Native CPU state unexpectedly found in the module.");
+  } else if (llvm::StructType *stype = dyn_cast<llvm::StructType>(*str)) {
+    // state struct should come from linked builtin bc file
+    return *str;
+  }
+  // old code, to be removed
   bool HasStateT =
       llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
   if (HasStateT)
