@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
-// OpGenericCastToPtr* intrinsics not implemented on AMD
-// UNSUPPORTED: cpu, hip
+// OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
+// UNSUPPORTED: cpu, hip, cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <sycl/sycl.hpp>
