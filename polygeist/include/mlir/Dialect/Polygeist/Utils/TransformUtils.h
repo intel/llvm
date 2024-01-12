@@ -111,11 +111,11 @@ class FunctionKernelInfo {
 public:
   explicit FunctionKernelInfo(gpu::GPUModuleOp module) : ST(module) {}
 
-  /// Returns true if the given function is potentially a SYCL kernel body
+  /// Returns true if the given function is a SYCL kernel body
   /// function. The SYCL kernel body function is created by SemaSYCL in clang
   /// for the body of the SYCL kernel, e.g., code in parallel_for. The cgeist
   /// frontend attaches a `sycl.kernel_func_obj` attribute to these functions.
-  bool isKernelFuncObjFunction(FunctionOpInterface func);
+  bool isKernelFuncObjFunction(FunctionOpInterface func) const;
 
   llvm::SmallSet<FunctionOpInterface, 4>
   getKernelFuncObjFunctions(gpu::GPUFuncOp kernel);

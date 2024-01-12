@@ -258,7 +258,8 @@ namespace polygeist {
 // FunctionKernelInfo
 //===----------------------------------------------------------------------===//
 
-bool FunctionKernelInfo::isKernelFuncObjFunction(FunctionOpInterface func) {
+bool FunctionKernelInfo::isKernelFuncObjFunction(
+    FunctionOpInterface func) const {
   return func->hasAttr(sycl::SYCLDialect::getKernelFuncObjAttrName());
 }
 
