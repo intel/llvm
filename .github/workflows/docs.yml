@@ -63,7 +63,7 @@ jobs:
           fetch-depth: 1
       - name: Get subprojects that have doc changes
         id: docs-changed-subprojects
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v41
         with:
           files_yaml: |
             llvm:
@@ -167,4 +167,3 @@ jobs:
         run: |
           cmake -B flang-build -GNinja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;mlir;flang" -DLLVM_ENABLE_SPHINX=ON -DSPHINX_WARNINGS_AS_ERRORS=OFF ./llvm
           TZ=UTC ninja -C flang-build docs-flang-html docs-flang-man
-

@@ -42,7 +42,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/enum.ll"
 
-@a = global i64 0, align 8, !dbg !0
+@a = addrspace(1) global i64 0, align 8, !dbg !0
 
 ; Function Attrs: nounwind uwtable
 define void @_Z4funcv() #0 !dbg !17 {

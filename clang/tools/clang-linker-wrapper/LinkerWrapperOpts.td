@@ -140,6 +140,16 @@ def sycl_device_library_location_EQ : Joined<["-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
 
+// Options for SYCL backends and linker options for shared libraries.
+def sycl_backend_compile_options_EQ :
+  Joined<["-"], "sycl-backend-compile-options">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler">;
+def sycl_target_link_options_EQ :
+  Joined<["-"], "sycl-target-link-options">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to target linker during a linking of shared device code.">;
+
 // Special option to pass in sycl-post-link options
 def sycl_post_link_options_EQ : Joined<["-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>,

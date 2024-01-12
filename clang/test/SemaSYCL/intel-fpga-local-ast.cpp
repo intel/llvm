@@ -265,6 +265,46 @@ void check_ast()
   [[intel::merge("mrg6", "depth")]]
   [[intel::merge("mrg6", "depth")]] unsigned int mrg_mrg6[4];
 
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_block_ram
+  // CHECK: SYCLIntelMemoryAttr{{.*}}MLAB
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("MLAB")]]
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_block_ram[32];
+
+  // Check to see if there's a duplicate attribute with same Default values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_memory
+  // CHECK: SYCLIntelMemoryAttr{{.*}}Default
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory]]
+  [[intel::fpga_memory]] unsigned int mem_memory[64];
+
+  // Check to see if there's a duplicate attribute with same values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_memory_block
+  // CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("BLOCK_RAM")]]
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_memory_block[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_mlabs
+  // CHECK: SYCLIntelMemoryAttr{{.*}}Default
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory]]
+  [[intel::fpga_memory("MLAB")]] unsigned int mem_mlabs[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_mlabs_block_ram
+  // CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("BLOCK_RAM")]]
+  [[intel::fpga_memory]] unsigned int mem_mlabs_block_ram[64];
+
   // FIXME: Duplicate attribute should be ignored.
   // Both are applied at the moment.
   //CHECK: VarDecl{{.*}}bb_bb
