@@ -1622,6 +1622,7 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
       // separate path inside 'linkDevice' call seen above.
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
+      std::scoped_lock Guard(ImageMtx);
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 
