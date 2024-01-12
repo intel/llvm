@@ -74,8 +74,10 @@ filter create_filter(const std::string &Input) {
       Result.Backend = backend::ext_oneapi_cuda;
     } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     } else if (Token == "esimd_emulator" && !Result.Backend) {
       Result.Backend = backend::ext_intel_esimd_emulator;
+#endif
     } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
@@ -129,6 +131,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
     }
+    #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (Filter.DeviceNum) {
       // Only check device number if we're good on the previous matches
       if (BackendOK && DeviceTypeOK) {
@@ -138,6 +141,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
         Filter.MatchesSeen++;
       }
     }
+    #endif
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
       Score = default_selector_v(Dev);
       mMatchFound = true;
@@ -156,11 +160,13 @@ int filter_selector_impl::operator()(const device &Dev) const {
 }
 
 void filter_selector_impl::reset() const {
+  #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This is a bit of an abuse of "const" method...
   // Reset state if you want to reuse this selector.
   for (auto &Filter : mFilters) {
     Filter.MatchesSeen = 0;
   }
+  #endif
   mMatchFound = false;
   mNumDevicesSeen = 0;
 }

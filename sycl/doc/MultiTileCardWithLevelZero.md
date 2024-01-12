@@ -19,9 +19,9 @@ by SYCL runtime. Thus in the example above there is CPU (managed by OpenCL backe
 GPUs corresponding to the single physical GPU (managed by either OpenCL or Level-Zero backend).
 There are few ways to filter observable root-devices.
 	
-One is using environment variable SYCL_DEVICE_FILTER described in [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md)
+One is using environment variable ONEAPI_DEVICE_SELECTOR described in [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md)
 ```
-$ SYCL_DEVICE_FILTER=level_zero sycl-ls
+$ ONEAPI_DEVICE_SELECTOR=level_zero:* sycl-ls
 [level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 ```
 Another way is to use similar SYCL API described in [sycl\_ext\_oneapi\_filter\_selector](extensions/supported/sycl_ext_oneapi_filter_selector.asciidoc)
@@ -33,7 +33,7 @@ On Windows these would appear as root-devices of multiple different SYCL platfor
 
 `CreateMultipleRootDevices=N NEOReadDebugKeys=1` evironment variables can be used to emulate multiple GPU cards, e.g.
 ```
-$ CreateMultipleRootDevices=2 NEOReadDebugKeys=1 SYCL_DEVICE_FILTER=level_zero sycl-ls
+$ CreateMultipleRootDevices=2 NEOReadDebugKeys=1 ONEAPI_DEVICE_SELECTOR=level_zero:* sycl-ls
 [level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 [level_zero:1] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 ```

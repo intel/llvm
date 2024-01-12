@@ -66,6 +66,7 @@ public:
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
 std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -127,6 +128,7 @@ inline std::ostream &operator<<(std::ostream &Out,
   }
   return Out;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace detail
 } // namespace _V1

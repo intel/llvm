@@ -292,9 +292,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // env only.
   //
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+#endif
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
   // We do NOT attempt to support both simultaneously.
   if (OdsTargetList && FilterList) {
@@ -302,6 +305,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                           "ONEAPI_DEVICE_SELECTOR cannot be used in "
                           "conjunction with SYCL_DEVICE_FILTER");
   } else if (!FilterList && !OdsTargetList) {
+#else
+  if (!OdsTargetList) {
+#endif
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
@@ -310,6 +316,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
                              backend::ext_oneapi_native_cpu);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -355,6 +362,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       }
       PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   } else {
     ods_target_list &list = *OdsTargetList;
     if (list.backendCompatible(backend::opencl)) {
@@ -368,10 +377,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
       PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
                                backend::ext_intel_esimd_emulator);
     }
+#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }

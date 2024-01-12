@@ -29,7 +29,7 @@ inline namespace _V1 {
 
 namespace detail {
 
-// SYCL_DEVICE_FILTER doesn't need to be considered in the device preferences
+// ONEAPI_DEVICE_SELECTOR doesn't need to be considered in the device preferences
 // as it filters the device list returned by device::get_devices itself, so
 // only matching devices will be scored.
 static int getDevicePreference(const device &Device) {
