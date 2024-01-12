@@ -458,9 +458,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
   return UR_RESULT_SUCCESS;
 }
 
-inline ur_result_t
-allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
-                               const ur_device_handle_t hDevice) {
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
+                                           const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
