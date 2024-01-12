@@ -117,14 +117,16 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  bool SuppressNumberPrinting = false;
+
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
     std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
               << filter << "." << std::endl;
-    std::cerr
-        << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
-        << std::endl
-        << std::endl;
+    std::cerr << "To see device ids, please unset SYCL_DEVICE_FILTER."
+              << std::endl
+              << std::endl;
+    SuppressNumberPrinting = true;
   }
 
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
@@ -132,10 +134,10 @@ int main(int argc, char **argv) {
     std::cerr
         << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
         << ods_targets << "." << std::endl;
-    std::cerr
-        << "To see the correct device id, please unset ONEAPI_DEVICE_SELECTOR."
-        << std::endl
-        << std::endl;
+    std::cerr << "To see device ids, please unset ONEAPI_DEVICE_SELECTOR."
+              << std::endl
+              << std::endl;
+    SuppressNumberPrinting = true;
   }
 
   try {
@@ -156,9 +158,13 @@ int main(int argc, char **argv) {
 
       for (const auto &Device : Devices) {
         std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
-                  << getDeviceTypeName(Device) << ":" << DeviceNums[Backend]
-                  << "] ";
-        ++DeviceNums[Backend];
+                  << getDeviceTypeName(Device) << "]";
+        if (!SuppressNumberPrinting) {
+          std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+                    << DeviceNums[Backend] << "]";
+          ++DeviceNums[Backend];
+        }
+        std::cout << " ";
         // Verbose parameter is set to false to print regular devices output
         // first
         printDeviceInfo(Device, false, PlatformName);
@@ -168,7 +174,8 @@ int main(int argc, char **argv) {
     if (verbose) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       uint32_t PlatformNum = 0;
-      DeviceNums.clear();
+      if (!SuppressNumberPrinting)
+        DeviceNums.clear();
       for (const auto &Platform : Platforms) {
         backend Backend = Platform.get_backend();
         ++PlatformNum;
@@ -183,9 +190,11 @@ int main(int argc, char **argv) {
         const auto &Devices = Platform.get_devices();
         std::cout << "    Devices  : " << Devices.size() << std::endl;
         for (const auto &Device : Devices) {
-          std::cout << "        Device [#" << DeviceNums[Backend]
-                    << "]:" << std::endl;
-          ++DeviceNums[Backend];
+          if (!SuppressNumberPrinting) {
+            std::cout << "        Device [#" << DeviceNums[Backend]
+                      << "]:" << std::endl;
+            ++DeviceNums[Backend];
+          }
           printDeviceInfo(Device, true, "        ");
         }
       }
