@@ -616,17 +616,6 @@ bool ArgumentPromotionPass::isCandidateCallable(
     return false;
   }
 
-  // Ensure all the call sites for this function are either in a GPU kernel or
-  // in a function that is called directly by a GPU kernel.
-  // TODO: Could generalize by checking that the call chain from the GPU kernel
-  // are all candidates.
-  if (!funcKernelInfo.isCalledDirectlyFromKernel(callableOp)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "not a candidate: found call site that is called by a GPU "
-                  "kernel with depth more than 2.\n");
-    return false;
-  }
-
   return true;
 }
 

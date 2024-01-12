@@ -124,10 +124,6 @@ public:
   void getKernelCallers(FunctionOpInterface func,
                         SmallVectorImpl<gpu::GPUFuncOp> &kernels);
 
-  /// Returns whether \p CallableOp is a KernelFuncObj function called from the
-  /// body of a SYCL kernel.
-  bool isCalledDirectlyFromKernel(CallableOpInterface callableOp);
-
 private:
   SymbolTable ST;
 };

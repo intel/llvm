@@ -296,21 +296,6 @@ FunctionKernelInfo::getKernelFuncObjFunctions(gpu::GPUFuncOp kernel) {
   return kernelBodyFunctions;
 }
 
-bool FunctionKernelInfo::isCalledDirectlyFromKernel(
-    CallableOpInterface callableOp) {
-  // Early exit if this is not a KernelFuncObj function
-  if (!isKernelFuncObjFunction(static_cast<FunctionOpInterface>(callableOp))) {
-    return false;
-  }
-  std::optional<SymbolTable::UseRange> optUses =
-      ST.getSymbolUses(callableOp, ST.getOp());
-  assert(optUses && "Expecting valid symbol table");
-  SymbolTable::UseRange uses = *optUses;
-  return llvm::any_of(uses, [](SymbolTable::SymbolUse use) {
-    return use.getUser()->getParentOfType<gpu::GPUFuncOp>();
-  });
-}
-
 namespace {
 
 struct SCFIfBuilder {
