@@ -44,8 +44,6 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Sampler get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   Result = Plugin->call_nocheck<PiApiKind::piSamplerGetInfo>(
@@ -55,8 +53,6 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Sampler get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   Result = Plugin->call_nocheck<PiApiKind::piSamplerGetInfo>(
@@ -66,8 +62,6 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Sampler get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 }
 

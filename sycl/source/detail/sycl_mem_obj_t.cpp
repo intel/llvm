@@ -61,8 +61,6 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   Result = Plugin->call_nocheck<PiApiKind::piMemGetInfo>(
@@ -71,8 +69,6 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   if (MInteropContext->getHandleRef() != Context)
@@ -147,8 +143,6 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   if (MInteropContext->getHandleRef() != Context)
@@ -223,8 +217,6 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
   return BufSize;
 }

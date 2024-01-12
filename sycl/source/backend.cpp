@@ -234,8 +234,6 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
   ProgramDevices.resize(NumDevices);
 
@@ -246,8 +244,6 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   for (const auto &Dev : ProgramDevices) {
@@ -259,8 +255,6 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Program get build info command not supported by backend.");
-    } else {
-      Plugin->checkPiResult(Result);
     }
 
     switch (BinaryType) {

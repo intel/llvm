@@ -156,8 +156,6 @@ program_impl::program_impl(ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::vector<sycl::detail::pi::PiDevice> PiDevices(NumDevices);
@@ -169,8 +167,6 @@ program_impl::program_impl(ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::vector<device> PlatformDevices =
@@ -199,8 +195,6 @@ program_impl::program_impl(ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get build info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
   if (BinaryType == PI_PROGRAM_BINARY_TYPE_NONE) {
     throw invalid_object_error(
@@ -216,8 +210,6 @@ program_impl::program_impl(ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get build info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::vector<char> OptionsVector(Size);
@@ -228,8 +220,6 @@ program_impl::program_impl(ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get build info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   std::string Options(OptionsVector.begin(), OptionsVector.end());
@@ -389,8 +379,6 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   std::vector<char *> Pointers;
@@ -406,8 +394,6 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Program get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   return Result;

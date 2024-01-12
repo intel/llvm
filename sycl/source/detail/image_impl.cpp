@@ -273,8 +273,6 @@ static void getImageInfo(const ContextImplPtr Context,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem image get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 }
 
@@ -296,8 +294,6 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Mem get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(Result);
   }
 
   sycl::detail::pi::PiMemImageFormat Format;

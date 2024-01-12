@@ -210,8 +210,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::feature_not_supported),
                 "Kernel get info command not supported by backend.");
-          } else {
-            Plugin->checkPiResult(Result);
           }
           size_t OptsSize = 0;
 
@@ -222,8 +220,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::feature_not_supported),
                 "Program get build info command not supported by backend.");
-          } else {
-            Plugin->checkPiResult(Result);
           }
 
           std::string Opts(OptsSize, '\0');
@@ -234,8 +230,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::feature_not_supported),
                 "Program get build info command not supported by backend.");
-          } else {
-            Plugin->checkPiResult(Result);
           }
 
           const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;

@@ -75,8 +75,6 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Platform get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
   if (ResultSize == 0)
     return false;
@@ -89,8 +87,6 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Platform get info command not supported by backend.");
-  } else {
-    Plugin->checkPiResult(PiResult);
   }
 
   std::string_view ExtensionsString(Result.get());
