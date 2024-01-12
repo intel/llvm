@@ -15,6 +15,7 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -109,18 +110,6 @@ struct SYCLKernelBinaryInfo {
 };
 
 ///
-/// Describe a SYCL/OpenCL kernel attribute by its name and values.
-struct SYCLKernelAttribute {
-  using AttributeValueList = std::vector<std::string>;
-
-  SYCLKernelAttribute(std::string Name)
-      : AttributeName{std::move(Name)}, Values{} {}
-
-  std::string AttributeName;
-  AttributeValueList Values;
-};
-
-///
 /// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
@@ -148,10 +137,6 @@ struct SYCLArgumentDescriptor {
   DynArray<ParameterKind> Kinds;
   DynArray<ArgUsageUT> UsageMask;
 };
-
-///
-/// List of SYCL/OpenCL kernel attributes.
-using AttributeList = std::vector<SYCLKernelAttribute>;
 
 ///
 /// Class to model a three-dimensional index.
@@ -192,6 +177,48 @@ private:
   static constexpr size_t Size = 3;
   size_t Values[Size];
 };
+
+///
+/// Describe a SYCL/OpenCL kernel attribute by its kind and values.
+struct SYCLKernelAttribute {
+  enum class AttrKind { Invalid, ReqdWorkGroupSize, WorkGroupSizeHint };
+
+  static constexpr auto ReqdWorkGroupSizeName = "reqd_work_group_size";
+  static constexpr auto WorkGroupSizeHintName = "work_group_size_hint";
+
+  static AttrKind parseKind(const char *Name) {
+    auto Kind = AttrKind::Invalid;
+    if (std::strcmp(Name, ReqdWorkGroupSizeName) == 0) {
+      Kind = AttrKind::ReqdWorkGroupSize;
+    } else if (std::strcmp(Name, WorkGroupSizeHintName) == 0) {
+      Kind = AttrKind::WorkGroupSizeHint;
+    }
+    return Kind;
+  }
+
+  AttrKind Kind;
+  Indices Values;
+
+  SYCLKernelAttribute() : Kind(AttrKind::Invalid) {}
+  SYCLKernelAttribute(AttrKind Kind, const Indices &Values)
+      : Kind(Kind), Values(Values) {}
+
+  const char *getName() const {
+    assert(Kind != AttrKind::Invalid);
+    switch (Kind) {
+    case AttrKind::ReqdWorkGroupSize:
+      return ReqdWorkGroupSizeName;
+    case AttrKind::WorkGroupSizeHint:
+      return WorkGroupSizeHintName;
+    default:
+      return "__invalid__";
+    }
+  }
+};
+
+///
+/// List of SYCL/OpenCL kernel attributes.
+using SYCLAttributeList = DynArray<SYCLKernelAttribute>;
 
 ///
 /// Class to model SYCL nd_range
@@ -306,7 +333,7 @@ struct SYCLKernelInfo {
 
   SYCLArgumentDescriptor Args;
 
-  AttributeList Attributes;
+  SYCLAttributeList Attributes;
 
   NDRange NDR;
 
