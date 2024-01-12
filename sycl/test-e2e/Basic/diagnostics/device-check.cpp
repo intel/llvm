@@ -30,13 +30,12 @@ int main() {
     std::cout << " Device Name: " << deviceName << std::endl;
   }
 
-
-  catch (exception const& E) {
+  catch (exception const &E) {
 
     // Exception when cpu/gpu/fpga is not available on the system.
     if (E.code() == errc::runtime) {
       if (std::string(E.what()).find("No device of requested type") ==
-            std::string::npos) {
+          std::string::npos) {
         std::cout << "Test failed: received error is incorrect." << std::endl;
         return 1;
       } else {
@@ -47,15 +46,14 @@ int main() {
     // Exception while parsing an invalid device name.
     else if (E.code() == errc::invalid) {
       if (std::string(E.what()).find("error parsing device number: xpu") ==
-              std::string::npos) {
+          std::string::npos) {
         std::cout << "Test failed: received error is incorrect." << std::endl;
         return 1;
       } else {
         std::cout << "Test passed: caught the expected error." << std::endl;
         return 0;
       }
-    }
-    else {
+    } else {
       std::cout << "Test failed: unexpected exception." << std::endl;
       return 1;
     }
