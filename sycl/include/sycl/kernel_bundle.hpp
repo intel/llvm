@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <cstddef>                         // for std::byte
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
@@ -26,6 +25,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
 #include <array>       // for array
+#include <cstddef>     // for std::byte
 #include <cstring>     // for size_t, memcpy
 #include <functional>  // for function
 #include <iterator>    // for distance
@@ -47,7 +47,7 @@ auto get_native(const kernel_bundle<State> &Obj)
 namespace detail {
 class kernel_id_impl;
 class kernel_impl;
-}
+} // namespace detail
 
 template <typename KernelName> kernel_id get_kernel_id();
 
