@@ -206,7 +206,6 @@ std::vector<platform> platform_impl::get_platforms() {
   return Platforms;
 }
 
-
 // Since ONEAPI_DEVICE_SELECTOR admits negative filters, we use type traits
 // to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
 // in the places where the functionality diverges between these two
@@ -472,11 +471,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
 
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
-  #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
   // We do NOT attempt to support both simultaneously.
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-  #endif
+#endif
 
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
