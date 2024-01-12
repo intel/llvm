@@ -32,14 +32,20 @@ static llvm::CallInst *createDeviceFunctionCall(llvm::IRBuilderBase &builder,
                                                 StringRef fnName,
                                                 llvm::Type *retType,
                                                 ArrayRef<llvm::Type *> argTypes,
-                                                ArrayRef<llvm::Value *> args) {
+                                                ArrayRef<llvm::Value *> args,
+                                                bool convergent = false) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
   auto *functionType =
       llvm::FunctionType::get(retType, argTypes, /*isVarArg*/ false);
   auto *fn = dyn_cast<llvm::Function>(
       module->getOrInsertFunction(fnName, functionType).getCallee());
   fn->setCallingConv(llvm::CallingConv::SPIR_FUNC);
-  return builder.CreateCall(fn, args);
+  if (convergent)
+    fn->setConvergent();
+  auto *ci =  builder.CreateCall(fn, args);
+  if (convergent)
+    ci->setConvergent();
+  return ci;
 }
 
 //===----------------------------------------------------------------------===//
@@ -90,7 +96,7 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
 
   return createDeviceFunctionCall(builder, fnName, value->getType(),
                                   {value->getType(), mask->getType()},
-                                  {value, mask});
+                                  {value, mask}, true);
 }
 
 //===----------------------------------------------------------------------===//
