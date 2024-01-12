@@ -42,7 +42,7 @@ static llvm::CallInst *createDeviceFunctionCall(llvm::IRBuilderBase &builder,
   fn->setCallingConv(llvm::CallingConv::SPIR_FUNC);
   if (convergent)
     fn->setConvergent();
-  auto *ci =  builder.CreateCall(fn, args);
+  auto *ci = builder.CreateCall(fn, args);
   if (convergent)
     ci->setConvergent();
   return ci;
