@@ -183,7 +183,7 @@ public:
   }
 
 private:
-  static constexpr auto Size = 3;
+  static constexpr size_t Size = 3;
   size_t Values[Size];
 };
 
