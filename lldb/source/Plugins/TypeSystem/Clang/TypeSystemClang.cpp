@@ -7608,7 +7608,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
       nullptr /*expr*/, is_explicit ? clang::ExplicitSpecKind::ResolvedTrue
                                     : clang::ExplicitSpecKind::ResolvedFalse);
 
-  if (name.startswith("~")) {
+  if (name.starts_with("~")) {
     cxx_dtor_decl =
         clang::CXXDestructorDecl::CreateDeserialized(getASTContext(), 0);
     cxx_dtor_decl->setDeclContext(cxx_record_decl);

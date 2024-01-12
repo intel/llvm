@@ -2178,3 +2178,65 @@ TEST_F(MultiThreadGraphTest, Finalize) {
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
   }
 }
+
+// Test adding fill and memset nodes to a graph
+TEST_F(CommandGraphTest, FillMemsetNodes) {
+  const int Value = 7;
+  // Buffer fill
+  buffer<int> Buffer{range<1>{1}};
+  Buffer.set_write_back(false);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto NodeA = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+    auto NodeB = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+
+    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
+    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+
+    // Check Operator==
+    EXPECT_EQ(NodeAImpl, NodeAImpl);
+    EXPECT_NE(NodeAImpl, NodeBImpl);
+  }
+
+  // USM
+  {
+    int *USMPtr = malloc_device<int>(1, Queue);
+
+    // We need to create some differences between nodes because unlike buffer
+    // fills they are not differentiated on accessor ptr value.
+    auto FillNodeA =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value, 1); });
+    auto FillNodeB =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value + 1, 1); });
+    auto MemsetNodeA =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 1); });
+    auto MemsetNodeB =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 2); });
+
+    auto FillNodeAImpl = sycl::detail::getSyclObjImpl(FillNodeA);
+    auto FillNodeBImpl = sycl::detail::getSyclObjImpl(FillNodeB);
+    auto MemsetNodeAImpl = sycl::detail::getSyclObjImpl(MemsetNodeA);
+    auto MemsetNodeBImpl = sycl::detail::getSyclObjImpl(MemsetNodeB);
+
+    // Check Operator==
+    EXPECT_EQ(FillNodeAImpl, FillNodeAImpl);
+    EXPECT_EQ(FillNodeBImpl, FillNodeBImpl);
+    EXPECT_NE(FillNodeAImpl, FillNodeBImpl);
+
+    EXPECT_EQ(MemsetNodeAImpl, MemsetNodeAImpl);
+    EXPECT_EQ(MemsetNodeBImpl, MemsetNodeBImpl);
+    EXPECT_NE(MemsetNodeAImpl, MemsetNodeBImpl);
+    sycl::free(USMPtr, Queue);
+  }
+}
