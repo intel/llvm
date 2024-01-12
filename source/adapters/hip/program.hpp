@@ -29,6 +29,8 @@ struct ur_program_handle_t_ {
   // Metadata
   bool IsRelocatable = false;
 
+  std::unordered_map<std::string, std::string> GlobalIDMD;
+
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
   char ErrorLog[MAX_LOG_SIZE], InfoLog[MAX_LOG_SIZE];
