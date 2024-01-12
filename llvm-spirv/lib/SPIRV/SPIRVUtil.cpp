@@ -309,21 +309,6 @@ Scope getArgAsScope(CallInst *CI, unsigned I) {
   return static_cast<Scope>(getArgAsInt(CI, I));
 }
 
-Decoration getArgAsDecoration(CallInst *CI, unsigned I) {
-  return static_cast<Decoration>(getArgAsInt(CI, I));
-}
-
-std::string decorateSPIRVFunction(const std::string &S) {
-  return std::string(kSPIRVName::Prefix) + S + kSPIRVName::Postfix;
-}
-
-StringRef undecorateSPIRVFunction(StringRef S) {
-  assert(S.find(kSPIRVName::Prefix) == 0);
-  const size_t Start = strlen(kSPIRVName::Prefix);
-  auto End = S.rfind(kSPIRVName::Postfix);
-  return S.substr(Start, End - Start);
-}
-
 std::string prefixSPIRVName(const std::string &S) {
   return std::string(kSPIRVName::Prefix) + S;
 }
@@ -386,18 +371,6 @@ SPIRVValue *addDecorations(SPIRVValue *Target,
     if (auto *Dec = mapPostfixToDecorate(I, Target))
       Target->addDecorate(Dec);
   return Target;
-}
-
-std::string getPostfix(Decoration Dec, unsigned Value) {
-  switch (Dec) {
-  default:
-    llvm_unreachable("not implemented");
-    return "unknown";
-  case spv::DecorationSaturatedConversion:
-    return kSPIRVPostfix::Sat;
-  case spv::DecorationFPRoundingMode:
-    return rmap<std::string>(static_cast<SPIRVFPRoundingModeKind>(Value));
-  }
 }
 
 std::string getPostfixForReturnType(CallInst *CI, bool IsSigned) {
@@ -558,11 +531,6 @@ bool containsUnsignedAtomicType(StringRef Name) {
     return false;
   return isMangledTypeUnsigned(
       Name[Loc + strlen(kMangledName::AtomicPrefixIncoming)]);
-}
-
-Constant *castToVoidFuncPtr(Function *F) {
-  auto *T = getVoidFuncPtrType(F->getParent());
-  return ConstantExpr::getBitCast(F, T);
 }
 
 bool hasArrayArg(Function *F) {
@@ -1030,10 +998,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
   Ops.push_back(Vec);
 }
 
-Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
-  return ConstantExpr::getBitCast(V, PointerType::get(V->getContext(), Addr));
-}
-
 PointerType *getInt8PtrTy(PointerType *T) {
   return PointerType::get(T->getContext(), T->getAddressSpace());
 }
@@ -1046,14 +1010,6 @@ Value *castToInt8Ptr(Value *V, Instruction *Pos) {
 IntegerType *getSizetType(Module *M) {
   return IntegerType::getIntNTy(M->getContext(),
                                 M->getDataLayout().getPointerSizeInBits(0));
-}
-
-Type *getVoidFuncType(Module *M) {
-  return FunctionType::get(Type::getVoidTy(M->getContext()), false);
-}
-
-Type *getVoidFuncPtrType(Module *M, unsigned AddrSpace) {
-  return PointerType::get(getVoidFuncType(M), AddrSpace);
 }
 
 ConstantInt *getInt64(Module *M, int64_t Value) {
@@ -1159,15 +1115,6 @@ std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M) {
         .setQuiet(true)
         .get(std::get<2>(Tup));
   return Tup;
-}
-
-ConstantInt *mapUInt(Module *M, ConstantInt *I,
-                     std::function<unsigned(unsigned)> F) {
-  return ConstantInt::get(I->getIntegerType(), F(I->getZExtValue()), false);
-}
-
-ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
-  return ConstantInt::get(I->getIntegerType(), F(I->getSExtValue()), true);
 }
 
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
@@ -1538,35 +1485,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-std::string getSPIRVImageSampledTypeName(SPIRVType *Ty) {
-  switch (Ty->getOpCode()) {
-  case OpTypeVoid:
-    return kSPIRVImageSampledTypeName::Void;
-  case OpTypeInt:
-    if (Ty->getIntegerBitWidth() == 32) {
-      if (static_cast<SPIRVTypeInt *>(Ty)->isSigned())
-        return kSPIRVImageSampledTypeName::Int;
-      else
-        return kSPIRVImageSampledTypeName::UInt;
-    }
-    break;
-  case OpTypeFloat:
-    switch (Ty->getFloatBitWidth()) {
-    case 16:
-      return kSPIRVImageSampledTypeName::Half;
-    case 32:
-      return kSPIRVImageSampledTypeName::Float;
-    default:
-      break;
-    }
-    break;
-  default:
-    break;
-  }
-  llvm_unreachable("Invalid sampled type for image");
-  return std::string();
-}
-
 // ToDo: Find a way to represent uint sampled type in LLVM, maybe an
 //      opaque type.
 Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
@@ -1631,6 +1549,18 @@ std::string getImageBaseTypeName(StringRef Name) {
   return ImageTyName;
 }
 
+size_t getImageOperandsIndex(Op OpCode) {
+  switch (OpCode) {
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+    return 2;
+  case OpImageWrite:
+    return 3;
+  default:
+    return ~0U;
+  }
+}
+
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
   if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
     auto IntParams = TET->int_params();
@@ -1668,20 +1598,6 @@ bool eraseIfNoUse(Function *F) {
     Changed = true;
   }
   return Changed;
-}
-
-void eraseIfNoUse(Value *V) {
-  if (!V->use_empty())
-    return;
-  if (Constant *C = dyn_cast<Constant>(V)) {
-    C->destroyConstant();
-    return;
-  }
-  if (Instruction *I = dyn_cast<Instruction>(V)) {
-    if (!I->mayHaveSideEffects())
-      I->eraseFromParent();
-  }
-  eraseIfNoUse(dyn_cast<Function>(V));
 }
 
 bool eraseUselessFunctions(Module *M) {
@@ -2306,8 +2222,9 @@ bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp) {
 namespace {
 class SPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
-  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys)
-      : OC(OC), ArgTys(ArgTys) {}
+  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys,
+                            ArrayRef<SPIRVValue *> Ops)
+      : OC(OC), ArgTys(ArgTys), Ops(Ops) {}
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
@@ -2467,6 +2384,15 @@ public:
     case OpSUDotAccSatKHR:
       addUnsignedArg(1);
       break;
+    case OpImageWrite: {
+      size_t Idx = getImageOperandsIndex(OC);
+      if (Ops.size() > Idx) {
+        auto ImOp = static_cast<SPIRVConstant *>(Ops[Idx])->getZExtIntValue();
+        if (ImOp & ImageOperandsMask::ImageOperandsZeroExtendMask)
+          addUnsignedArg(2);
+      }
+      break;
+    }
     default:;
       // No special handling is needed
     }
@@ -2475,6 +2401,7 @@ public:
 private:
   spv::Op OC;
   ArrayRef<Type *> ArgTys;
+  ArrayRef<SPIRVValue *> Ops;
 };
 class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
@@ -2544,19 +2471,10 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 }
 
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC,
-                                           ArrayRef<Type *> ArgTys) {
-  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<SPIRVValue *> Ops) {
+  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
-}
-
-template <typename T>
-MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
-  if (V->getOpCode() != OpConstant)
-    return nullptr;
-  uint64_t Const = static_cast<SPIRVConstant *>(V)->getZExtIntValue();
-  std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
-  return MetadataAsValue::get(C, MDString::get(C, Str));
 }
 
 } // namespace SPIRV

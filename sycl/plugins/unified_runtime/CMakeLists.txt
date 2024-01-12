@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 749d8e51ea8e56726a9fb57949d7a3f81b47b15c
-  # Merge: 810a5774 34831f4b
+  # commit d06ba9d9c539dc712444c6db95dfe1629bd5f7d8
+  # Merge:  e1414e1 35b6a5e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 3 13:27:16 2024 +0000
-  #     Merge pull request #1198 from al42and/aa-rocm6
-  #     [HIP] Fix build with ROCm 6.0.0
-  set(UNIFIED_RUNTIME_TAG 749d8e51ea8e56726a9fb57949d7a3f81b47b15c)
+  # Date:   Thu Jan 11 15:09:01 2024 +0000
+  #     Merge pull request #1035 from Bensuo/cmd-buffer-profiling-l0
+  #     [EXP][CMDBUF] Add support for recovering CommandBuffer profiling
+  #     information
+  set(UNIFIED_RUNTIME_TAG d06ba9d9c539dc712444c6db95dfe1629bd5f7d8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
