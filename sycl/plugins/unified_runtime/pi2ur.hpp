@@ -4580,6 +4580,37 @@ inline pi_result piextCommandBufferMemBufferWrite(
   return PI_SUCCESS;
 }
 
+inline pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferFillExp(
+      UrCommandBuffer, UrBuffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer CommandBuffer, void *Ptr, const void *Pattern,
+    size_t PatternSize, size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendUSMFillExp(
+      UrCommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
 inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                            pi_queue Queue,
                                            pi_uint32 NumEventsInWaitList,

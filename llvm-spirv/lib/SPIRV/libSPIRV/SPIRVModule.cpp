@@ -79,6 +79,7 @@ public:
 
   SPIRVModuleImpl(const SPIRV::TranslatorOpts &Opts) : SPIRVModuleImpl() {
     TranslationOpts = Opts;
+    MaxVersion = Opts.getMaxVersion();
   }
 
   ~SPIRVModuleImpl() override;
@@ -2156,7 +2157,7 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
   if (!M.getErrorLog().checkError(
           SPIRVVersionIsAllowed, SPIRVEC_InvalidModule,
           "incorrect SPIR-V version number " + to_string(MI.SPIRVVersion) +
-              " - it conflicts with --spirv-max-version which is set to " +
+              " - it conflicts with maximum allowed version which is set to " +
               to_string(M.getMaximumAllowedSPIRVVersion()))) {
     M.setInvalid();
     return I;

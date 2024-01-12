@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c2d78257ba7e7bbc230333f291282d16145aaac7
-  # Merge: 8bb539c5 b3a1d52d
+  # commit d06ba9d9c539dc712444c6db95dfe1629bd5f7d8
+  # Merge:  e1414e1 35b6a5e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 10 11:24:12 2024 +0000
-  #     Merge pull request #1129 from sarnex/adapters
-  #     [UR][L0] Make urPlatformGetBackendOption return -ze-opt-level=2 for -O1 and -O2
-  set(UNIFIED_RUNTIME_TAG c2d78257ba7e7bbc230333f291282d16145aaac7)
+  # Date:   Thu Jan 11 15:09:01 2024 +0000
+  #     Merge pull request #1035 from Bensuo/cmd-buffer-profiling-l0
+  #     [EXP][CMDBUF] Add support for recovering CommandBuffer profiling
+  #     information
+  set(UNIFIED_RUNTIME_TAG d06ba9d9c539dc712444c6db95dfe1629bd5f7d8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
