@@ -119,8 +119,6 @@ int main(int argc, char **argv) {
 
   bool SuppressNumberPrinting = false;
 
-  bool SuppressNumberPrinting = false;
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
