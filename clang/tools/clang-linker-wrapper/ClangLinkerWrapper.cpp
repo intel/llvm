@@ -15,6 +15,7 @@
 //===---------------------------------------------------------------------===//
 
 #include "OffloadWrapper.h"
+#include "SYCLOffloadWrapper.h"
 #include "clang/Basic/Version.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -46,6 +47,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
@@ -633,37 +635,142 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-// Run clang-offload-wrapper
-static Expected<StringRef> runWrapper(StringRef &InputFile,
-                                      const ArgList &Args) {
-  // Create a new file to write the wrapped file to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "bc");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
-  Expected<std::string> ClangOffloadWrapperPath = findProgram(
-      "clang-offload-wrapper", {getMainExecutable("clang-offload-wrapper")});
-  if (!ClangOffloadWrapperPath)
-    return ClangOffloadWrapperPath.takeError();
+Expected<std::vector<char>> readBinaryFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
+                                       /*RequiresNullTerminator */ false);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
+  auto &MB = *MBOrErr;
+  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
+}
 
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*ClangOffloadWrapperPath);
-  CmdArgs.push_back(Saver.save("-o=" + *TempFileOrErr));
-  llvm::Triple HostTriple(
+Expected<std::string> readTextFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
+                                       /*RequiresNullTerminator */ true);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
+
+  auto &MB = *MBOrErr;
+  return std::string(MB->getBufferStart(), MB->getBufferEnd());
+}
+
+Expected<std::unique_ptr<util::PropertySetRegistry>>
+readPropertyRegistryFromFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
+
+  auto &MB = *MBOrErr;
+  return util::PropertySetRegistry::read(&*MB);
+}
+
+// The table format is the following:
+// [Code|Properties|Symbols]
+// a_0.bin|a_0.prop|a_0.sym
+// .
+// a_n.bin|a_n.prop|a_n.sym
+//
+// .bin extension might be a bc, spv or other native extension.
+Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
+                                                         const ArgList &Args) {
+  auto TableOrErr = util::SimpleTable::read(TableFile);
+  if (!TableOrErr)
+    return TableOrErr.takeError();
+
+  std::unique_ptr<util::SimpleTable> Table = std::move(*TableOrErr);
+  int CodeIndex = Table->getColumnId("Code");
+  int PropertiesIndex = Table->getColumnId("Properties");
+  int SymbolsIndex = Table->getColumnId("Symbols");
+  if (CodeIndex == -1 || PropertiesIndex == -1 || SymbolsIndex == -1)
+    return createStringError(
+        inconvertibleErrorCode(),
+        "expected columns in the table: Code, Properties and Symbols");
+
+  SmallVector<SYCLImage> Images;
+  for (const util::SimpleTable::Row &row : Table->rows()) {
+    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    if (!ImageOrErr)
+      return ImageOrErr.takeError();
+
+    auto PropertiesOrErr =
+        readPropertyRegistryFromFile(row.getCell("Properties"));
+    if (!PropertiesOrErr)
+      return PropertiesOrErr.takeError();
+
+    auto SymbolsOrErr = readTextFile(row.getCell("Symbols"));
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
+
+    SYCLImage Image;
+    Image.Image = std::move(*ImageOrErr);
+    Image.PropertyRegistry = std::move(**PropertiesOrErr);
+    Image.Entries = std::move(*SymbolsOrErr);
+    Images.push_back(std::move(Image));
+  }
+
+  return Images;
+}
+
+/// Reads device images from the given \p InputFile and wraps them
+/// in one LLVM IR Module as a constant data.
+///
+/// \returns A path to the LLVM Module that contains wrapped images.
+Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
+                                             const ArgList &Args) {
+  auto OutputFileOrErr = createOutputFile(
+      sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
+  if (!OutputFileOrErr)
+    return OutputFileOrErr.takeError();
+
+  StringRef OutputFilePath = *OutputFileOrErr;
+  if (Verbose || DryRun) {
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile,
+                      OutputFilePath);
+    if (DryRun)
+      return OutputFilePath;
+  }
+
+  auto ImagesOrErr = readSYCLImagesFromTable(InputFile, Args);
+  if (!ImagesOrErr)
+    return ImagesOrErr.takeError();
+
+  auto &Images = *ImagesOrErr;
+  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "can't wrap SYCL image. -triple argument is missed.");
+
+  for (SYCLImage &Image : Images)
+    Image.Target = Target;
+
+  LLVMContext C;
+  Module M("offload.wrapper.object", C);
+  M.setTargetTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  SmallString<128> TargetTripleOpt = Triple.getArchName();
-  CmdArgs.push_back(Saver.save("-target=" + TargetTripleOpt));
-  CmdArgs.push_back("-kind=sycl");
-  CmdArgs.push_back("-batch");
-  CmdArgs.push_back(InputFile);
-  if (Error Err = executeCommands(*ClangOffloadWrapperPath, CmdArgs))
-    return std::move(Err);
-  return *TempFileOrErr;
+
+  StringRef CompileOptions =
+      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
+  StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
+  SYCLWrappingOptions WrappingOptions;
+  WrappingOptions.CompileOptions = CompileOptions;
+  WrappingOptions.LinkOptions = LinkOptions;
+  if (Error E = wrapSYCLBinaries(M, Images, WrappingOptions))
+    return E;
+
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << M;
+
+  // TODO: Once "llc tool->runCompile" migration is finished we need to remove
+  // this scope and use community flow.
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  WriteBitcodeToFile(M, OS);
+  return OutputFilePath;
 }
 
 // Run llc
@@ -691,11 +798,10 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-// Run clang-offload-wrapper and llc
+// Run wrapping library and llc
 static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
                                                 const ArgList &Args) {
-  // call to clang-offload-wrapper
-  auto OutputFile = sycl::runWrapper(InputFile, Args);
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(InputFile, Args);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
