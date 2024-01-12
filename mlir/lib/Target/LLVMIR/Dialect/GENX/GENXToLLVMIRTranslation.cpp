@@ -96,7 +96,7 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
 
   return createDeviceFunctionCall(builder, fnName, value->getType(),
                                   {value->getType(), mask->getType()},
-                                  {value, mask}, true);
+                                  {value, mask}, true /*convergent*/);
 }
 
 //===----------------------------------------------------------------------===//
