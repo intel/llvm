@@ -8,9 +8,9 @@
 
 // REQUIRES: ocloc
 
-// RUN: %clang -c -target spir64 -O0 -emit-llvm %S/Kernels/spirv_tests.cl -o %t.bc && llvm-spirv %t.bc -o %t.spv
-// RUN: %clang -DENABLE_FP16 -c -target spir64 -O0 -emit-llvm %S/Kernels/spirv_tests.cl -o %t_fp16.bc && llvm-spirv %t_fp16.bc -o %t_fp16.spv
-// RUN: %clang -DENABLE_FP64 -c -target spir64 -O0 -emit-llvm %S/Kernels/spirv_tests.cl -o %t_fp64.bc && llvm-spirv %t_fp64.bc -o %t_fp64.spv
+// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels.ll -o %t.bc && llvm-spirv %t.bc -o %t.spv
+// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels_fp16.ll -o %t_fp16.bc && llvm-spirv %t_fp16.bc -o %t_fp16.spv
+// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels_fp64.ll -o %t_fp64.bc && llvm-spirv %t_fp64.bc -o %t_fp64.spv
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.spv %t_fp16.spv %t_fp64.spv
 
@@ -107,6 +107,65 @@ void testParam(sycl::queue &q, const sycl::kernel &kernel) {
   sycl::free(b_ptr, q);
 }
 
+void testStruct(sycl::queue &q, const sycl::kernel &kernel) {
+  const auto num_args = kernel.get_info<sycl::info::kernel::num_args>();
+  assert(num_args == 2 && "kernel should take 2 args");
+
+  // This definition must match the one used in the kernel.
+  struct S {
+    std::int32_t i;
+    cl_float f;
+    std::int32_t *p;
+    struct Inner {
+      std::int32_t i;
+      float f;
+      std::int32_t *p;
+    } inner;
+  };
+
+  // Any constants can be used to initialize this input.
+  std::int32_t *const in_p0 = sycl::malloc_shared<std::int32_t>(1, q);
+  std::int32_t *const in_p1 = sycl::malloc_shared<std::int32_t>(1, q);
+  *in_p0 = 3;
+  *in_p1 = 6;
+  S input{1, 2.0f, in_p0, S::Inner{4, 5.0f, in_p1}};
+
+  std::int32_t *const out_p0 = sycl::malloc_shared<std::int32_t>(1, q);
+  std::int32_t *const out_p1 = sycl::malloc_shared<std::int32_t>(1, q);
+  *out_p0 = 0;
+  *out_p1 = 0;
+  S *output = sycl::malloc_shared<S>(1, q);
+  *output = S{0, 0, out_p0, S::Inner{0, 0, out_p1}};
+
+  q.submit([&](sycl::handler &cgh) {
+     cgh.set_arg(0, input);
+     cgh.set_arg(1, output);
+     cgh.parallel_for(sycl::range<1>{1}, kernel);
+   }).wait();
+
+  std::cout << "output->i: " << output->i << std::endl;
+  std::cout << "output->f: " << output->f << std::endl;
+  std::cout << "output->p: " << *(output->p) << std::endl;
+  std::cout << "output->inner.i: " << output->inner.i << std::endl;
+  std::cout << "output->inner.f: " << output->inner.f << std::endl;
+  std::cout << "output->inner.p: " << *(output->inner.p) << std::endl;
+
+  // For each scalar struct member, output == (2 * input). For pointer members,
+  // *output == (2 * (*input)).
+  assert(output->i == input.i * 2);
+  assert(output->f == input.f * 2);
+  assert(*output->p == (*input.p) * 2);
+  assert(output->inner.i == input.inner.i * 2);
+  assert(output->inner.f == input.inner.f * 2);
+  assert(*output->inner.p == (*input.inner.p) * 2);
+
+  sycl::free(output, q);
+  sycl::free(in_p0, q);
+  sycl::free(in_p1, q);
+  sycl::free(out_p0, q);
+  sycl::free(out_p1, q);
+}
+
 void testKernelsFromSpvFile(std::string kernels_file,
                             std::string fp16_kernel_file,
                             std::string fp64_kernel_file) {
@@ -121,27 +180,30 @@ void testKernelsFromSpvFile(std::string kernels_file,
   sycl::queue q{ctx, d};
   auto bundle = loadKernelsFromFile(q, kernels_file);
 
-  // Test simple kernel
+  // Test simple kernel.
   testSimpleKernel(q, getKernel(bundle, "my_kernel"), 2, 100);
 
-  // Test parameters
+  // Test parameters.
   testParam<std::int8_t>(q, getKernel(bundle, "OpTypeInt8"));
   testParam<std::int16_t>(q, getKernel(bundle, "OpTypeInt16"));
   testParam<std::int32_t>(q, getKernel(bundle, "OpTypeInt32"));
   testParam<std::int64_t>(q, getKernel(bundle, "OpTypeInt64"));
   testParam<float>(q, getKernel(bundle, "OpTypeFloat32"));
 
-  // Test OpTypeFloat16 parameters
+  // Test OpTypeFloat16 parameters.
   if (q.get_device().has(sycl::aspect::fp16)) {
     auto fp16_bundle = loadKernelsFromFile(q, fp16_kernel_file);
     testParam<sycl::half>(q, getKernel(fp16_bundle, "OpTypeFloat16"));
   }
 
-  // Test OpTypeFloat64 parameters
+  // Test OpTypeFloat64 parameters.
   if (q.get_device().has(sycl::aspect::fp64)) {
     auto fp64_bundle = loadKernelsFromFile(q, fp64_kernel_file);
     testParam<double>(q, getKernel(fp64_bundle, "OpTypeFloat64"));
   }
+
+  // Test OpTypeStruct parameters.
+  testStruct(q, getKernel(bundle, "OpTypeStruct"));
 }
 
 int main(int argc, char **argv) {
