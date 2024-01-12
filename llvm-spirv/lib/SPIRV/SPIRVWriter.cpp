@@ -1043,6 +1043,14 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
         BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
     }
   }
+  if (MDNode *StallFree = F->getMetadata(kSPIR2MD::StallFree)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
+      if (getMDOperandAsInt(StallFree, 0)) {
+        BF->addDecorate(new SPIRVDecorateStallFreeINTEL(BF));
+      }
+    }
+  }
   if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
       size_t Depth = getMDOperandAsInt(LoopFuse, 0);
@@ -2676,6 +2684,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       Target->addDecorate(new SPIRVDecorateStallEnableINTEL(Target));
       break;
     }
+    case DecorationStallFreeINTEL: {
+      Target->addDecorate(new SPIRVDecorateStallFreeINTEL(Target));
+      break;
+    }
     case DecorationMergeINTEL: {
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
                         "MergeINTEL requires exactly 3 extra operands");
@@ -3901,8 +3913,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return nullptr;
   }
   case Intrinsic::bitreverse: {
-    if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions)) {
-      BM->addCapability(CapabilityShader);
+    if (!BM->getErrorLog().checkError(
+            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions),
+            SPIRVEC_InvalidFunctionCall, II,
+            "Translation of llvm.bitreverse intrinsic requires "
+            "SPV_KHR_bit_instructions extension.")) {
+      return nullptr;
     }
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
@@ -6455,6 +6471,7 @@ bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
                                       SPIRVEC_TripleMaxVersionIncompatible))
       return false;
     BM->setMinSPIRVVersion(ModuleVer);
+    BM->setMaxSPIRVVersion(ModuleVer);
   }
 
   ModulePassManager PassMgr;

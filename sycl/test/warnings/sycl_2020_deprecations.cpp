@@ -454,5 +454,14 @@ int main() {
   std::ignore =
       sycl::fast_distance(sycl::vec<double, 2>{0.0}, sycl::vec<double, 2>{1.0});
 
+  // clang-format off
+  // SYCL 2020, revision 9 uses fixed-width integer type, one of these has to be
+  // deprecated.
+  // expected-warning-re@+1 {{'nan<{{.*}}>' is deprecated: This is a deprecated argument type for SYCL nan built-in function.}}
+  std::ignore = (sycl::nan((unsigned long){0}), sycl::nan((unsigned long long){0}));
+  // expected-warning-re@+1 {{'nan<sycl::vec<{{.*}}, 2>>' is deprecated: This is a deprecated argument type for SYCL nan built-in function.}}
+  std::ignore = (sycl::nan(sycl::vec<unsigned long, 2>{0}), sycl::nan(sycl::vec<unsigned long long, 2>{0}));
+  // clang-format on
+
   return 0;
 }

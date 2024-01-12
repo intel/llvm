@@ -3146,9 +3146,16 @@ slm_gather(simd<uint32_t, N> byte_offsets, simd_mask<N> mask,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "slm_gather() requires at least element-size alignment");
-  simd<MsgT, N> PassThru; // it is intentionally undefined
-  return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-      byte_offsets.data(), mask.data(), PassThru.data());
+  if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    simd<MsgT, N> PassThru; // it is intentionally undefined
+    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+        byte_offsets.data(), mask.data(), PassThru.data());
+  } else {
+    static_assert(N == 1 || N == 8 || N == 16 || N == 32,
+                  "Unsupported vector length");
+    detail::LocalAccessorMarker acc;
+    return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
+  }
 }
 
 template <typename T, int N,
@@ -4089,15 +4096,22 @@ slm_atomic_update_impl(simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
-  using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_slm_1<MsgT, IOp, cache_hint::none, cache_hint::none,
-                                AddressScale, ImmOffset, EDS, VS, Transposed,
-                                N>(pred.data(), offsets.data(),
-                                   Msg_data.data());
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double>) {
+    return __esimd_lsc_xatomic_slm_1<T, IOp, cache_hint::none, cache_hint::none,
+                                     AddressScale, ImmOffset, EDS, VS,
+                                     Transposed, N>(pred.data(), offsets.data(),
+                                                    src0.data());
+  } else {
+    using MsgT = typename lsc_expand_type<T>::type;
+    simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_slm_1<MsgT, IOp, cache_hint::none, cache_hint::none,
+                                  AddressScale, ImmOffset, EDS, VS, Transposed,
+                                  N>(pred.data(), offsets.data(),
+                                     Msg_data.data());
+    return lsc_format_ret<T>(Tmp);
+  }
 }
 
 /// SLM atomic.
@@ -4126,16 +4140,23 @@ __ESIMD_API simd<T, N> slm_atomic_update_impl(simd<uint32_t, N> offsets,
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
   constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
-  using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
-  simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_slm_2<MsgT, IOp, cache_hint::none, cache_hint::none,
-                                AddressScale, ImmOffset, EDS, VS, Transposed,
-                                N>(pred.data(), offsets.data(),
-                                   Msg_data0.data(), Msg_data1.data());
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double>) {
+    return __esimd_lsc_xatomic_slm_2<T, IOp, cache_hint::none, cache_hint::none,
+                                     AddressScale, ImmOffset, EDS, VS,
+                                     Transposed, N>(pred.data(), offsets.data(),
+                                                    src0.data(), src1.data());
+  } else {
+    using MsgT = typename lsc_expand_type<T>::type;
+    simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_slm_2<MsgT, IOp, cache_hint::none, cache_hint::none,
+                                  AddressScale, ImmOffset, EDS, VS, Transposed,
+                                  N>(pred.data(), offsets.data(),
+                                     Msg_data0.data(), Msg_data1.data());
+    return lsc_format_ret<T>(Tmp);
+  }
 }
 
 } // namespace detail
