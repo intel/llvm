@@ -6027,11 +6027,9 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
                                        const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
-
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug)
       return true;
   }
-
   return false;
 }
