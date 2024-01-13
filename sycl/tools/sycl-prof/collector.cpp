@@ -6,22 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "writer.hpp"
 #include "xpti/xpti_data_types.h"
-
-#include <cstdint>
-#include <cstdlib>
-#include <xpti/xpti_trace_framework.h>
+#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_writer.hpp"
 
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <memory>
+#include <stdexcept>
 #include <stdio.h>
 #include <thread>
 #include <unistd.h>
 
 namespace chrono = std::chrono;
 
-Writer *GWriter = nullptr;
+xpti::trace::TraceWriter *GWriter = nullptr;
 
 struct Measurements {
   size_t TID;
@@ -35,7 +35,7 @@ static Measurements measure() {
   size_t TID = std::hash<std::thread::id>{}(std::this_thread::get_id());
   size_t PID = process_id();
   auto Now = chrono::high_resolution_clock::now();
-  size_t TS = chrono::time_point_cast<chrono::nanoseconds>(Now)
+  size_t TS = chrono::time_point_cast<chrono::microseconds>(Now)
                   .time_since_epoch()
                   .count();
 
@@ -67,8 +67,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     if (!ProfOutFile)
       throw std::runtime_error(
           "SYCL_PROF_OUT_FILE environment variable is not specified");
-    GWriter = new JSONWriter(ProfOutFile);
-    GWriter->init();
+    GWriter = new xpti::trace::JSONWriter(ProfOutFile);
   }
 
   std::string_view NameView{StreamName};
@@ -105,27 +104,38 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 }
 
-XPTI_CALLBACK_API void xptiTraceFinish(const char *) { GWriter->finalize(); }
+XPTI_CALLBACK_API void xptiTraceFinish(const char *) { 
+  if (GWriter != nullptr) {
+    delete GWriter;
+    GWriter = nullptr;
+  }
+}
 
 XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
                                            xpti::trace_event_data_t *,
-                                           xpti::trace_event_data_t *,
-                                           uint64_t /*Instance*/,
+                                           xpti::trace_event_data_t *Event,
+                                           uint64_t Instance,
                                            const void *UserData) {
+  if (!GWriter)
+    return;
+
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_function_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "API", PID, TID,
-                        TS);
+    GWriter->addBeginEvent(static_cast<const char *>(UserData), {"API"},
+                           Instance, Event, PID, TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "API", PID, TID, TS);
+    GWriter->addEndEvent(static_cast<const char *>(UserData), {"API"}, Instance,
+                         Event, PID, TID, TS);
   }
 }
 
 XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
                                             xpti::trace_event_data_t *,
                                             xpti::trace_event_data_t *Event,
-                                            uint64_t /*Instance*/,
-                                            const void *) {
+                                            uint64_t Instance, const void *) {
+  if (!GWriter)
+    return;
+
   std::string_view Name = "unknown";
 
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
@@ -138,24 +148,29 @@ XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
 
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_task_begin) {
-    GWriter->writeBegin(Name, "SYCL", PID, TID, TS);
+    GWriter->addBeginEvent(Name.data(), {"SYCL", "Task"}, Instance, Event, PID,
+                           TID, TS);
   } else {
-    GWriter->writeEnd(Name, "SYCL", PID, TID, TS);
+    GWriter->addEndEvent(Name.data(), {"SYCL", "Task"}, Instance, Event, PID,
+                         TID, TS);
   }
 }
 
 XPTI_CALLBACK_API void waitBeginEndCallback(uint16_t TraceType,
                                             xpti::trace_event_data_t *,
-                                            xpti::trace_event_data_t *,
-                                            uint64_t /*Instance*/,
+                                            xpti::trace_event_data_t *Event,
+                                            uint64_t Instance,
                                             const void *UserData) {
+  if (!GWriter)
+    return;
+
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_wait_begin ||
       TraceType == xpti::trace_barrier_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                        TS);
+    GWriter->addBeginEvent(static_cast<const char *>(UserData),
+                           {"SYCL", "Wait"}, Instance, Event, PID, TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                      TS);
+    GWriter->addEndEvent(static_cast<const char *>(UserData), {"SYCL", "Wait"},
+                         Instance, Event, PID, TID, TS);
   }
 }
