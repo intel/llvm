@@ -45,34 +45,35 @@ llvm.func @genx.barrier() {
 llvm.func @genx.sub_group_shuffle() {
   // CHECK-LABEL: genx.sub_group_shuffle
   %0 = llvm.mlir.constant(0 : i32) : i32
-  // CHECK: %1 = call i32 @_Z21sub_group_shuffle_xorij(i32 0, i32 0)
+  // CHECK: %1 = call i32 @_Z21sub_group_shuffle_xorij(i32 0, i32 0) [[ATTR:#.*]]
   %1 = genx.sub_group_shuffle XOR %0, %0 : i32 -> i32
-  // CHECK: %2 = call i32 @_Z20sub_group_shuffle_upij(i32 0, i32 0)
+  // CHECK: %2 = call i32 @_Z20sub_group_shuffle_upij(i32 0, i32 0) [[ATTR:#.*]]
   %2 = genx.sub_group_shuffle UP %0, %0 : i32 -> i32
-  // CHECK: %3 = call i32 @_Z22sub_group_shuffle_downij(i32 0, i32 0)
+  // CHECK: %3 = call i32 @_Z22sub_group_shuffle_downij(i32 0, i32 0) [[ATTR:#.*]]
   %3 = genx.sub_group_shuffle DOWN %0, %0 : i32 -> i32
-  // CHECK: %4 = call i32 @_Z17sub_group_shuffleij(i32 0, i32 0)
+  // CHECK: %4 = call i32 @_Z17sub_group_shuffleij(i32 0, i32 0) [[ATTR:#.*]]
   %4 = genx.sub_group_shuffle IDX %0, %0 : i32 -> i32
   %5 = llvm.mlir.constant(0 : i8) : i8
-  // CHECK: %5 = call i8 @_Z21sub_group_shuffle_xorcj(i8 0, i32 0)
+  // CHECK: %5 = call i8 @_Z21sub_group_shuffle_xorcj(i8 0, i32 0) [[ATTR:#.*]]
   %6 = genx.sub_group_shuffle XOR %5, %0 : i8 -> i8
   %7 = llvm.mlir.constant(0 : i16) : i16
-  // CHECK: %6 = call i16 @_Z21sub_group_shuffle_xorsj(i16 0, i32 0)
+  // CHECK: %6 = call i16 @_Z21sub_group_shuffle_xorsj(i16 0, i32 0) [[ATTR:#.*]]
   %8 = genx.sub_group_shuffle XOR %7, %0 : i16 -> i16
   %9 = llvm.mlir.constant(0 : i64) : i64
-  // CHECK: %7 = call i64 @_Z21sub_group_shuffle_xorlj(i64 0, i32 0)
+  // CHECK: %7 = call i64 @_Z21sub_group_shuffle_xorlj(i64 0, i32 0) [[ATTR:#.*]]
   %10 = genx.sub_group_shuffle XOR %9, %0 : i64 -> i64
   %11 = llvm.mlir.constant(0.0 : f16) : f16
-  // CHECK: %8 = call half @_Z21sub_group_shuffle_xorDhj(half 0xH0000, i32 0)
+  // CHECK: %8 = call half @_Z21sub_group_shuffle_xorDhj(half 0xH0000, i32 0) [[ATTR:#.*]]
   %12 = genx.sub_group_shuffle XOR %11, %0 : f16 -> f16
   %13 = llvm.mlir.constant(0.0 : f32) : f32
-  // CHECK: %9 = call float @_Z21sub_group_shuffle_xorfj(float 0.000000e+00, i32 0)
+  // CHECK: %9 = call float @_Z21sub_group_shuffle_xorfj(float 0.000000e+00, i32 0) [[ATTR:#.*]]
   %14 = genx.sub_group_shuffle XOR %13, %0 : f32 -> f32
   %15 = llvm.mlir.constant(0.0 : f64) : f64
-  // CHECK: %10 = call double @_Z21sub_group_shuffle_xordj(double 0.000000e+00, i32 0)
+  // CHECK: %10 = call double @_Z21sub_group_shuffle_xordj(double 0.000000e+00, i32 0) [[ATTR:#.*]]
   %16 = genx.sub_group_shuffle XOR %15, %0 : f64 -> f64
   llvm.return
 }
+// CHECK: attributes [[ATTR]] = { convergent }
 
 // -----
 
