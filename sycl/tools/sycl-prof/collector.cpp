@@ -104,7 +104,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 }
 
-XPTI_CALLBACK_API void xptiTraceFinish(const char *) { 
+XPTI_CALLBACK_API void xptiTraceFinish(const char *) {
   if (GWriter != nullptr) {
     delete GWriter;
     GWriter = nullptr;
