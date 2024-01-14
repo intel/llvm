@@ -22841,13 +22841,14 @@ static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
 
-llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
+llvm::CallInst *CodeGenFunction::EmitFPBuiltinofFD(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
     llvm::Value *FnPtr, const FunctionDecl *FD) {
   llvm::Function *Func;
   unsigned FPAccuracyIntrinsicID = 0;
   StringRef Name;
-  if (CurrentBuiltinID == 0) {
+  unsigned FDBuiltinID = FD->getBuiltinID();
+  if (FDBuiltinID == 0) {
     // Even if the current function doesn't have a clang builtin, create
     // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
     // an NoBuiltin attribute.
@@ -22870,13 +22871,12 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   } else {
     // The function has a clang builtin. Create an attribute for it
     // only if it has an fpbuiltin intrinsic.
-    unsigned BuiltinID = getCurrentBuiltinID();
-    Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
+    Name = CGM.getContext().BuiltinInfo.getName(FDBuiltinID);
     if (!FD->getNameInfo().getName().isIdentifier() ||
         (FD->getNameInfo().getName().isIdentifier() &&
          Name != FD->getNameInfo().getName().getAsString()))
       return nullptr;
-    switch (BuiltinID) {
+    switch (FDBuiltinID) {
     default:
       // If the function has a clang builtin but doesn't have an
       // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
