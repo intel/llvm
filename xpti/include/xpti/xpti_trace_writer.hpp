@@ -111,12 +111,10 @@ protected:
     SharedLock<SharedSpinLock> Lock{MBuffersMutex};
     auto ID = std::this_thread::get_id();
 
-    if (MBuffers.count(ID) != 0)
-      return &MBuffers.at(ID);
-
-    Lock.upgrade_to_writer();
-
-    MBuffers.insert({ID, TracePointBuffer()});
+    if (MBuffers.count(ID) == 0) {
+      Lock.upgrade_to_writer();
+      MBuffers.insert({ID, TracePointBuffer()});
+    }
 
     return &MBuffers.at(ID);
   }
