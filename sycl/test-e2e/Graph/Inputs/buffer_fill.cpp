@@ -78,6 +78,10 @@ int main() {
   host_accessor HostDataI8(BufferI8);
   for (int i = 0; i < N; i++) {
     assert(HostData[i] == Pattern);
+    if (HostDataI64[i] != PatternI64) {
+      std::cout << "HostDataI64[" << i << "] = " << HostDataI64[i]
+                << " == PatternI64 = " << PatternI64 << std::endl;
+    }
     assert(HostDataI64[i] == PatternI64);
     assert(HostDataI32[i] == PatternI32);
     assert(HostDataI16[i] == PatternI16);
