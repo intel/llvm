@@ -11,16 +11,12 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/impl_utils.hpp>
-#include <sycl/detail/item_base.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
@@ -28,7 +24,6 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/exception_list.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
@@ -52,7 +47,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/types.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
@@ -68,7 +62,7 @@
 #include <vector>
 
 // TODO: refactor this header
-// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
@@ -1120,9 +1114,12 @@ private:
   };
 
   std::optional<std::array<size_t, 3>> getMaxWorkGroups();
+  // We need to use this version to support gcc 7.5.0. Remove when minimal
+  // supported gcc version is bumped.
+  std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups_v2();
 
   template <int Dims>
-  std::optional<range<Dims>> getRoundedRange(range<Dims> UserRange) {
+  std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange) {
     range<Dims> RoundedRange = UserRange;
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
@@ -1142,7 +1139,7 @@ private:
 
     // Perform range rounding if rounding-up is enabled.
     if (this->DisableRangeRounding())
-      return {};
+      return {range<Dims>{}, false};
 
     // Range should be a multiple of this for reasonable performance.
     size_t MinFactorX = 16;
@@ -1166,8 +1163,8 @@ private:
     // kernel in a 32-bit global range.
     auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
     id<Dims> MaxNWGs = [&] {
-      auto PiResult = getMaxWorkGroups();
-      if (!PiResult.has_value()) {
+      auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2();
+      if (!HasMaxWGs) {
         id<Dims> Default;
         for (int i = 0; i < Dims; ++i)
           Default[i] = (std::numeric_limits<int32_t>::max)();
@@ -1177,7 +1174,7 @@ private:
       id<Dims> IdResult;
       size_t Limit = (std::numeric_limits<int>::max)();
       for (int i = 0; i < Dims; ++i)
-        IdResult[i] = (std::min)(Limit, (*PiResult)[Dims - i - 1]);
+        IdResult[i] = (std::min)(Limit, MaxWGs[Dims - i - 1]);
       return IdResult;
     }();
     auto M = (std::numeric_limits<uint32_t>::max)();
@@ -1213,8 +1210,8 @@ private:
         Adjust(i, MaxRange[i]);
 
     if (!DidAdjust)
-      return {};
-    return RoundedRange;
+      return {range<Dims>{}, false};
+    return {RoundedRange, true};
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1282,7 +1279,8 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
-    if (auto RoundedRange = getRoundedRange(UserRange)) {
+    auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
+    if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
@@ -1300,7 +1298,7 @@ private:
       // __SYCL_ASSUME_INT can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
-      MNDRDesc.set(*RoundedRange);
+      MNDRDesc.set(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
@@ -2318,7 +2316,6 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   single_task(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
                                                                  KernelFunc);
   }
@@ -2329,7 +2326,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2340,7 +2336,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2351,7 +2346,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2362,7 +2356,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
@@ -2377,7 +2370,6 @@ public:
   parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2391,7 +2383,6 @@ public:
   parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2405,7 +2396,6 @@ public:
   parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2462,7 +2452,6 @@ public:
             int Dims, typename PropertiesT>
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(NumWorkGroups, Props,
                                                      KernelFunc);
@@ -2473,7 +2462,6 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(
         NumWorkGroups, WorkGroupSize, Props, KernelFunc);
@@ -3620,17 +3608,6 @@ private:
       throw sycl::exception(make_error_code(errc::kernel_argument),
                             "placeholder accessor must be bound by calling "
                             "handler::require() before it can be used.");
-  }
-
-  template <typename PropertiesT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  throwIfGraphAssociatedAndKernelProperties() const {
-    if (!std::is_same_v<PropertiesT,
-                        ext::oneapi::experimental::empty_properties_t>)
-      throwIfGraphAssociated<
-          ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-              sycl_ext_oneapi_kernel_properties>();
   }
 
   // Set value of the gpu cache configuration for the kernel.

@@ -274,6 +274,8 @@ public:
                                           : llvm::PreservedAnalyses::all();
   }
 
+  static bool isRequired() { return true; }
+
 private:
   SPIRVModule *SMod;
 };

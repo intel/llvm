@@ -183,6 +183,12 @@ public:
     setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
   }
 
+  void setMaxSPIRVVersion(VersionNumber Ver) {
+    assert(static_cast<SPIRVWord>(Ver) >= getSPIRVVersion() &&
+           "Maximum version can't be lower than minimum version!");
+    MaxVersion = std::min(Ver, MaxVersion);
+  }
+
   // Object creation functions
   template <class T> T *add(T *Entry) {
     addEntry(Entry);
@@ -487,16 +493,16 @@ public:
 
   virtual bool
   isAllowedToUseVersion(SPIRV::VersionNumber RequestedVersion) const final {
-    return TranslationOpts.isAllowedToUseVersion(RequestedVersion);
+    return RequestedVersion <= MaxVersion;
   }
 
   virtual bool isAllowedToUseVersion(SPIRVWord RequestedVersion) const final {
-    return TranslationOpts.isAllowedToUseVersion(
+    return isAllowedToUseVersion(
         static_cast<SPIRV::VersionNumber>(RequestedVersion));
   }
 
   virtual SPIRV::VersionNumber getMaximumAllowedSPIRVVersion() const final {
-    return TranslationOpts.getMaxVersion();
+    return MaxVersion;
   }
 
   virtual bool
@@ -575,6 +581,7 @@ protected:
   bool ValidateCapability;
   bool AutoAddExtensions = true;
   SPIRV::TranslatorOpts TranslationOpts;
+  VersionNumber MaxVersion = VersionNumber::MaximumVersion;
 
 private:
   bool IsValid;

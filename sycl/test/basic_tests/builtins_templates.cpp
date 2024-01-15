@@ -24,6 +24,10 @@
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<float, 4>)                        \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<float, 4>)
 
+#define FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                       \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, float)                                      \
+  NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)
+
 #define NONSCALAR_GENFLOAT_CHECK(NUM_ARGS, FUNC_NAME)                          \
   NONSCALAR_FLOAT_CHECK(NUM_ARGS, FUNC_NAME)                                   \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<sycl::half, 4>)                   \
@@ -41,9 +45,9 @@
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                     \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)            \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint32_t, 4>)                  \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint16_t, 4>)                  \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint64_t, 4>)
 
 #define SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, signed char)                                \
@@ -224,9 +228,9 @@ void check() {
   GENFLOAT_CHECK(TWO_ARGS, distance)
   GENFLOAT_CHECK(ONE_ARG, length)
   GENFLOAT_CHECK(ONE_ARG, normalize)
-  GENFLOAT_CHECK(TWO_ARGS, fast_distance)
-  GENFLOAT_CHECK(ONE_ARG, fast_length)
-  GENFLOAT_CHECK(ONE_ARG, fast_normalize)
+  FLOAT_CHECK(TWO_ARGS, fast_distance)
+  FLOAT_CHECK(ONE_ARG, fast_length)
+  FLOAT_CHECK(ONE_ARG, fast_normalize)
 
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isequal)
   NONSCALAR_GENFLOAT_CHECK(TWO_ARGS, isnotequal)
