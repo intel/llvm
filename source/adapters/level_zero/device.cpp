@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.hpp"
+#include "adapter.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
@@ -1321,21 +1322,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // Level Zero devices when we initialized the platforms/devices cache, so the
   // "NativeHandle" must already be in the cache. If it is not, this must not be
   // a valid Level Zero device.
-  //
-  // TODO: maybe we should populate cache of platforms if it wasn't already.
-  // For now assert that is was populated.
-  UR_ASSERT(URPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
-  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
 
   ur_device_handle_t Dev = nullptr;
-  for (ur_platform_handle_t ThePlatform : *URPlatformsCache) {
-    Dev = ThePlatform->getDeviceFromNativeHandle(ZeDevice);
-    if (Dev) {
-      // Check that the input Platform, if was given, matches the found one.
-      UR_ASSERT(!Platform || Platform == ThePlatform,
-                UR_RESULT_ERROR_INVALID_PLATFORM);
-      break;
+  if (const auto *platforms = Adapter.PlatformCache->get_value()) {
+    for (const auto &p : *platforms) {
+      Dev = p->getDeviceFromNativeHandle(ZeDevice);
+      if (Dev) {
+        // Check that the input Platform, if was given, matches the found one.
+        UR_ASSERT(!Platform || Platform == p.get(),
+                  UR_RESULT_ERROR_INVALID_PLATFORM);
+        break;
+      }
     }
+  } else {
+    return Adapter.PlatformCache->get_error();
   }
 
   if (Dev == nullptr)
