@@ -34,6 +34,10 @@ inline llvm::hash_code hash_value(const ParameterIdentity &IP) {
   return llvm::hash_combine(IP.LHS, IP.RHS);
 }
 
+inline llvm::hash_code hash_value(const Indices &I) {
+  return llvm::hash_combine_range(I.begin(), I.end());
+}
+
 inline llvm::hash_code hash_value(const NDRange &ND) {
   return llvm::hash_combine(ND.getDimensions(), ND.getGlobalSize(),
                             ND.getLocalSize(), ND.getOffset());

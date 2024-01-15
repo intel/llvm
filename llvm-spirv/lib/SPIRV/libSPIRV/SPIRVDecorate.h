@@ -173,6 +173,8 @@ public:
       return ExtensionID::SPV_INTEL_float_controls2;
     case DecorationStallEnableINTEL:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
+    case DecorationStallFreeINTEL:
+      return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
     case internal::DecorationCallableFunctionINTEL:
@@ -691,6 +693,12 @@ public:
   // Complete constructor for SPIRVDecorateStallEnableINTEL
   SPIRVDecorateStallEnableINTEL(SPIRVEntry *TheTarget)
       : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget) {}
+};
+
+class SPIRVDecorateStallFreeINTEL : public SPIRVDecorate {
+public:
+  SPIRVDecorateStallFreeINTEL(SPIRVEntry *TheTarget)
+      : SPIRVDecorate(spv::DecorationStallFreeINTEL, TheTarget) {}
 };
 
 class SPIRVDecorateFuseLoopsInFunctionINTEL : public SPIRVDecorate {

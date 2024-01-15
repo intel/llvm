@@ -206,7 +206,6 @@ template <typename T> struct nan_return_unswizzled {
 
 template <typename T>
 using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

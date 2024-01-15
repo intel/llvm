@@ -136,8 +136,13 @@ int main() {
   sycl::marray<int, 3> ma4{1, 1, 1};
   sycl::marray<float, 3> ma5{180, -180, -180};
   sycl::marray<float, 3> ma6{1.4f, 4.2f, 5.3f};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   sycl::marray<unsigned int, 3> ma7{1, 2, 3};
   sycl::marray<unsigned long int, 3> ma8{1, 2, 3};
+#else
+  sycl::marray<uint32_t, 3> ma7{1, 2, 3};
+  sycl::marray<uint64_t, 3> ma8{1, 2, 3};
+#endif
 
   TEST(sycl::fabs, float, 3, EXPECTED(float, 180, 180, 180), 0, ma5);
   TEST(sycl::ilogb, int, 3, EXPECTED(int, 7, 7, 7), 0, ma3);
