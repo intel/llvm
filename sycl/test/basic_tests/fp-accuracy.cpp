@@ -37,7 +37,7 @@ int main() {
     accessor out_vals{out, cgh, write_only};
     cgh.single_task<class Kernel2>([=]() {
       for (int i = 0; i < sz; i++)
-	out_vals[i] = cos(exp(log(in_vals[i])));
+        out_vals[i] = cos(exp(log(in_vals[i])));
     });
   });
   return 0;

@@ -22841,9 +22841,10 @@ static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
 
-llvm::CallInst *CodeGenFunction::EmitFPBuiltinofFD(
-    llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
-    llvm::Value *FnPtr, const FunctionDecl *FD) {
+llvm::CallInst *
+CodeGenFunction::EmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,
+                                   const SmallVectorImpl<llvm::Value *> &IRArgs,
+                                   llvm::Value *FnPtr, const FunctionDecl *FD) {
   llvm::Function *Func;
   unsigned FPAccuracyIntrinsicID = 0;
   StringRef Name;
