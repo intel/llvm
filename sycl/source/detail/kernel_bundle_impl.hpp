@@ -359,9 +359,6 @@ public:
                     std::string *LogPtr) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
-    assert((Language == syclex::source_language::opencl ||
-            Language == syclex::source_language::spirv) &&
-           "TODO: add other Languages. Must be OpenCL or SPIR-V");
 
     const auto spirv = [&]() -> std::vector<uint8_t> {
       if (Language == syclex::source_language::opencl) {

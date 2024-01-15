@@ -370,14 +370,16 @@ using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 // syclex::is_source_kernel_bundle_supported
 /////////////////////////
 bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
-  // at the moment, OpenCL is the only language supported
-  // and it's support is limited to the opencl and level_zero backends.
+  // Support is limited to the opencl and level_zero backends.
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
-  if ((Language == source_language::opencl ||
-       Language == source_language::spirv) &&
-      BE_Acceptable) {
-    return detail::OpenCLC_Compilation_Available();
+  if (BE_Acceptable) {
+    // At the moment, OpenCL and SPIR-V are the only supported languages.
+    if (Language == source_language::opencl) {
+      return detail::OpenCLC_Compilation_Available();
+    } else if (Language == source_language::spirv) {
+      return true;
+    }
   }
 
   // otherwise
