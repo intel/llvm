@@ -115,14 +115,14 @@ public:
   /// function. The SYCL kernel body function is created by SemaSYCL in clang
   /// for the body of the SYCL kernel, e.g., code in parallel_for. The cgeist
   /// frontend attaches a `sycl.kernel_func_obj` attribute to these functions.
-  bool isKernelFuncObjFunction(FunctionOpInterface func) const;
+  static bool isKernelFuncObjFunction(FunctionOpInterface func);
 
-  llvm::SmallSet<FunctionOpInterface, 4>
+  static llvm::SmallSet<FunctionOpInterface, 4>
   getKernelFuncObjFunctions(gpu::GPUFuncOp kernel);
 
   /// Populates \p kernels with GPU kernels that can reach \p func.
   void getKernelCallers(FunctionOpInterface func,
-                        SmallVectorImpl<gpu::GPUFuncOp> &kernels);
+                        SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
 
 private:
   SymbolTable ST;

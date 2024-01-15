@@ -258,13 +258,12 @@ namespace polygeist {
 // FunctionKernelInfo
 //===----------------------------------------------------------------------===//
 
-bool FunctionKernelInfo::isKernelFuncObjFunction(
-    FunctionOpInterface func) const {
+bool FunctionKernelInfo::isKernelFuncObjFunction(FunctionOpInterface func) {
   return func->hasAttr(sycl::SYCLDialect::getKernelFuncObjAttrName());
 }
 
 void FunctionKernelInfo::getKernelCallers(
-    FunctionOpInterface func, SmallVectorImpl<gpu::GPUFuncOp> &kernels) {
+    FunctionOpInterface func, SmallVectorImpl<gpu::GPUFuncOp> &kernels) const {
   auto callers = func->getAttrOfType<ArrayAttr>(
       sycl::SYCLDialect::getKernelFuncObjAttrName());
   if (!callers)
@@ -282,7 +281,8 @@ FunctionKernelInfo::getKernelFuncObjFunctions(gpu::GPUFuncOp kernel) {
 
   StringRef kernelName = kernel.getName();
   llvm::SmallSet<FunctionOpInterface, 4> kernelBodyFunctions;
-  for (auto func : cast<gpu::GPUModuleOp>(ST.getOp()).getOps<func::FuncOp>()) {
+  auto gpuModule = kernel->getParentOfType<gpu::GPUModuleOp>();
+  for (auto func : gpuModule.getOps<func::FuncOp>()) {
     if (auto attr = func->getAttrOfType<ArrayAttr>(
             sycl::SYCLDialect::getKernelFuncObjAttrName())) {
       if (llvm::any_of(attr.getAsRange<FlatSymbolRefAttr>(),
