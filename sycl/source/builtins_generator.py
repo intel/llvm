@@ -317,12 +317,18 @@ vuint64n = [
     Vec(["uint64_t", "unsigned long long"])
 ]  # Fundamental integer types non-standard. Deprecated.
 
+# vuint<N>n name is taken, use "_fixed" suffix.
+vuint16n_fixed = [Vec(["uint16_t"])]
+vuint32n_fixed = [Vec(["uint32_t"])]
+vuint64n_fixed = [Vec(["uint64_t"])]
+
 mint8n = [Marray(["int8_t"])]
 mint16n = [Marray(["int16_t"])]
 mint32n = [Marray(["int32_t"])]
 muint8n = [Marray(["uint8_t"])]
 muint16n = [Marray(["uint16_t"])]
 muint32n = [Marray(["uint32_t"])]
+muint64n = [Marray(["uint64_t"])]
 mintn = [Marray(["int"])]
 mushortn = [Marray(["unsigned short"])]
 muintn = [Marray(["unsigned int"])]
@@ -594,12 +600,16 @@ builtin_types = {
     "vuint16n": vuint16n,
     "vuint32n": vuint32n,
     "vuint64n": vuint64n,
+    "vuint16n_fixed": vuint16n_fixed,
+    "vuint32n_fixed": vuint32n_fixed,
+    "vuint64n_fixed": vuint64n_fixed,
     "mint8n": mint8n,
     "mint16n": mint16n,
     "mint32n": mint32n,
     "muint8n": muint8n,
     "muint16n": muint16n,
     "muint32n": muint32n,
+    "muint64n": muint64n,
     "mintn": mintn,
     "mushortn": mushortn,
     "muintn": muintn,
@@ -1228,16 +1238,15 @@ sycl_builtins = {  # Math functions
         Def("half", ["half", "halfptr"]),
     ],
     "nan": [
-        Def("nanreturn0", ["vuint32n"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["muintn"], marray_use_loop=True),
-        Def("nanreturn0", ["unsigned int"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["vuint64n"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["mulongn"], marray_use_loop=True),
-        Def("nanreturn0", ["unsigned long"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["unsigned long long"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["vuint16n"], custom_invoke=custom_nan_invoke),
-        Def("nanreturn0", ["mushortn"], marray_use_loop=True),
-        Def("nanreturn0", ["unsigned short"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["uint16_t"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["vuint16n_fixed"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["muint16n"], marray_use_loop=True),
+        Def("nanreturn0", ["uint32_t"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["vuint32n_fixed"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["muint32n"], marray_use_loop=True),
+        Def("nanreturn0", ["uint64_t"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["vuint64n_fixed"], custom_invoke=custom_nan_invoke),
+        Def("nanreturn0", ["muint64n"], marray_use_loop=True),
     ],
     "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
     "pow": [Def("genfloat", ["genfloat", "genfloat"])],

@@ -64,6 +64,12 @@ public:
     return *this;
   }
 
+  __iml_ui128 &operator=(const uint64_t &x) {
+    this->bits[0] = x;
+    this->bits[1] = 0;
+    return *this;
+  }
+
   explicit operator uint64_t() { return bits[0]; }
   explicit operator uint32_t() { return static_cast<uint32_t>(bits[0]); }
 
@@ -89,6 +95,7 @@ public:
 
     return x;
   }
+
   __iml_ui128 operator>>(size_t n) {
     if (n == 0)
       return *this;
@@ -120,13 +127,69 @@ public:
     return res;
   }
 
+  __iml_ui128 operator+(const uint64_t &x) {
+    __iml_ui128 res;
+    res.bits[0] = this->bits[0] + x;
+    res.bits[1] = this->bits[1];
+    if (res.bits[0] < this->bits[0] || res.bits[0] < x)
+      res.bits[1] += 1;
+    return res;
+  }
+
+  __iml_ui128 operator+=(const __iml_ui128 &x) {
+    uint64_t temp = this->bits[0] + x.bits[0];
+    this->bits[1] += x.bits[1];
+    if ((temp < this->bits[0]) || (temp < x.bits[0]))
+      this->bits[1] += 1;
+    this->bits[0] = temp;
+    return *this;
+  }
+
+  __iml_ui128 operator+(int x) {
+    return this->operator+(static_cast<uint64_t>(x));
+  }
+
   __iml_ui128 operator-(const uint64_t &x) {
     __iml_ui128 res;
     res.bits[0] = this->bits[0] - x;
-    res.bits[1] = 0;
+    res.bits[1] = this->bits[1];
     if (res.bits[0] > this->bits[0])
       res.bits[1]--;
     return res;
+  }
+
+  __iml_ui128 operator-(int x) {
+    return this->operator-(static_cast<uint64_t>(x));
+  }
+
+  __iml_ui128 operator-(const __iml_ui128 &x) {
+    __iml_ui128 res;
+    res.bits[0] = this->bits[0] - x.bits[0];
+    res.bits[1] = this->bits[1];
+    if (res.bits[0] > this->bits[0])
+      res.bits[1]--;
+    return res;
+  }
+
+  __iml_ui128 operator-=(const __iml_ui128 &x) {
+    uint64_t temp = this->bits[0];
+    this->bits[0] -= x.bits[0];
+    if (this->bits[0] > temp)
+      this->bits[1] -= 1;
+    this->bits[1] -= x.bits[1];
+    return *this;
+  }
+
+  __iml_ui128 operator-=(uint64_t x) {
+    uint64_t temp = this->bits[0];
+    this->bits[0] -= x;
+    if (this->bits[0] > temp)
+      this->bits[1] -= 1;
+    return *this;
+  }
+
+  __iml_ui128 operator-=(int x) {
+    return this->operator-=(static_cast<uint64_t>(x));
   }
 
   bool operator==(const __iml_ui128 &x) {
@@ -143,6 +206,7 @@ public:
 
   bool operator!=(const uint64_t &x) { return !operator==(x); }
 
+  bool operator!=(int x) { return !operator==(static_cast<uint64_t>(x)); }
   bool operator>(const __iml_ui128 &x) {
     if (this->bits[1] > x.bits[1])
       return true;
@@ -169,6 +233,62 @@ public:
     __iml_ui128 res;
     res.bits[0] = this->bits[0] & x;
     res.bits[1] = 0x0;
+    return res;
+  }
+
+  __iml_ui128 operator&(const int64_t &x) {
+    __iml_ui128 res;
+    uint64_t ux = static_cast<uint64_t>(x);
+    res.bits[0] = this->bits[0] & ux;
+    res.bits[1] = 0x0;
+    return res;
+  }
+
+  __iml_ui128 operator&(const uint32_t &x) {
+    __iml_ui128 res;
+    res.bits[0] = this->bits[0] & x;
+    res.bits[1] = 0x0;
+    return res;
+  }
+
+  __iml_ui128 operator&(const int32_t &x) {
+    __iml_ui128 res;
+    uint32_t ux = static_cast<uint32_t>(x);
+    res.bits[0] = this->bits[0] & ux;
+    res.bits[1] = 0x0;
+    return res;
+  }
+
+  __iml_ui128 operator&=(const __iml_ui128 &x) {
+    this->bits[0] &= x.bits[0];
+    this->bits[1] &= x.bits[1];
+    return *this;
+  }
+
+  __iml_ui128 operator|(const __iml_ui128 &x) {
+    __iml_ui128 res;
+    res.bits[0] = this->bits[0] | x.bits[0];
+    res.bits[1] = this->bits[1] | x.bits[1];
+    return res;
+  }
+
+  __iml_ui128 operator|(const uint64_t &x) {
+    __iml_ui128 res;
+    res.bits[0] = this->bits[0] | x;
+    res.bits[1] = 0x0;
+    return res;
+  }
+
+  __iml_ui128 operator|=(const __iml_ui128 &x) {
+    this->bits[0] |= x.bits[0];
+    this->bits[1] |= x.bits[1];
+    return *this;
+  }
+
+  __iml_ui128 operator~() {
+    __iml_ui128 res;
+    res.bits[0] = ~this->bits[0];
+    res.bits[1] = ~this->bits[1];
     return res;
   }
 
@@ -262,6 +382,21 @@ template <typename Ty> static int get_leading_zeros_from(Ty fra, int idx) {
 
   // FATAL error;
   return -1;
+}
+
+static int get_leading_zeros_from(__iml_ui128 fra, int idx) {
+  if (idx <= 64)
+    return get_leading_zeros_from<uint64_t>(fra.bits[0], idx);
+  else if (idx <= 128) {
+    size_t tmp_idx = idx - 64;
+    uint64_t b1(1);
+    if (fra.bits[1] & ((b1 << tmp_idx) - 1)) {
+      return get_leading_zeros_from<uint64_t>(fra.bits[1], tmp_idx);
+    } else {
+      return tmp_idx + get_leading_zeros_from<uint64_t>(fra.bits[0], 64);
+    }
+  } else
+    return -1;
 }
 
 #endif // __LIBDEVICE_IMF_IMPL_UTILS_H__
