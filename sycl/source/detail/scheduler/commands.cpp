@@ -2356,22 +2356,21 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  if (IsCooperative) {
-    pi_result Error =
-        Plugin->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
-            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-            OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-    return Error;
-  } else {
-    pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+  pi_result Error =
+      [&](auto... Args) {
+        if (IsCooperative) {
+          return Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                  Args...);
+        } else {
+          return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+              Args...);
+        }
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
-    return Error;
-  }
+  return Error;
 }
 
 // The function initialize accessors and calls lambda.
