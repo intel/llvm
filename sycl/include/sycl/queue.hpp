@@ -2783,6 +2783,10 @@ public:
 
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
+  event ext_oneapi_get_last_event() const;
+
+  void ext_oneapi_set_external_event(const event &external_event);
+
 private:
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}

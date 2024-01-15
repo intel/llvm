@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 12a67f56c3c5d08cfac0852d552b4e5fe0452d04
-  # Merge: 2b7b827c c10968f5
+  # commit d06ba9d9c539dc712444c6db95dfe1629bd5f7d8
+  # Merge:  e1414e1 35b6a5e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 9 10:53:32 2024 +0000
-  #     Merge pull request #1027 from GeorgeWeb/georgi/hip_memadvise
-  #     [SYCL][HIP] Implement mem_advise for HIP
-  set(UNIFIED_RUNTIME_TAG 12a67f56c3c5d08cfac0852d552b4e5fe0452d04)
+  # Date:   Thu Jan 11 15:09:01 2024 +0000
+  #     Merge pull request #1035 from Bensuo/cmd-buffer-profiling-l0
+  #     [EXP][CMDBUF] Add support for recovering CommandBuffer profiling
+  #     information
+  set(UNIFIED_RUNTIME_TAG d06ba9d9c539dc712444c6db95dfe1629bd5f7d8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

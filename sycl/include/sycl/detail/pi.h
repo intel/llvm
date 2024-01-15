@@ -147,7 +147,8 @@
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
-// 14.41 Add coarse-grain memory advice flag for HIP.
+// 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
+// 14.42 Add coarse-grain memory advice flag for HIP.
 
 #define _PI_H_VERSION_MAJOR 14
 #define _PI_H_VERSION_MINOR 41
@@ -2444,7 +2445,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2461,7 +2462,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2486,7 +2487,43 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to fill the data.
+/// \param pattern pointer to the pattern to fill the buffer with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param offset Offset into the buffer to fill from.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
+    size_t pattern_size, size_t offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr pointer to the USM allocation to fill.
+/// \param pattern pointer to the pattern to fill ptr with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
+    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
