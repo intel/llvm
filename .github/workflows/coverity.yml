@@ -9,9 +9,10 @@ name: coverity-unified-runtime
 # It runs static analysis build - Coverity. It requires special token (set in CI's secret).
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+  schedule:
+    # Run every day at 22:00 UTC
+    - cron: '0 22 * * *'
 
 env:
   WORKDIR:                           ${{ github.workspace }}
@@ -22,20 +23,37 @@ env:
   COVERITY_SCAN_BRANCH_PATTERN:      "main"
   TRAVIS_BRANCH:                     ${{ github.ref_name }}
 
+permissions:
+  contents: read
+
 jobs:
   linux:
     name: Coverity
-    runs-on: ubuntu-latest
+    runs-on: coverity
 
     steps:
       - name: Clone the git repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
 
       - name: Configure CMake
-        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUMF_ENABLE_POOL_TRACKING=ON
+        run: >
+          cmake
+          -B $WORKDIR/build
+          -DUR_ENABLE_TRACING=ON
+          -DUR_DEVELOPER_MODE=ON
+          -DUR_BUILD_TESTS=ON
+          -DUMF_ENABLE_POOL_TRACKING=ON
+          -DUR_FORMAT_CPP_STYLE=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DUR_BUILD_ADAPTER_L0=ON
+          -DUR_BUILD_ADAPTER_CUDA=ON
+          -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so
+          -DUR_BUILD_ADAPTER_NATIVE_CPU=ON
+          -DUR_BUILD_ADAPTER_HIP=ON
+          -DUR_BUILD_ADAPTER_OPENCL=ON
 
       - name: Run Coverity
         run: |

@@ -35,7 +35,7 @@ option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
-option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" OFF)
+option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
 option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
@@ -47,6 +47,9 @@ option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace 
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
+option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
+
+include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

@@ -10,11 +10,13 @@
 #pragma once
 
 #include "common.hpp"
+#include "ze_api.h"
 
 struct ur_device_handle_t_;
 
 struct ur_platform_handle_t_ : public _ur_platform {
-  ur_platform_handle_t_(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+  ur_platform_handle_t_(ze_driver_handle_t Driver)
+      : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 

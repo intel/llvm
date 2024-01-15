@@ -16,13 +16,15 @@
 struct ur_kernel_handle_t_ : _ur_object {
   ur_kernel_handle_t_(ze_kernel_handle_t Kernel, bool OwnZeHandle,
                       ur_program_handle_t Program)
-      : Program{Program}, ZeKernel{Kernel}, SubmissionsCount{0}, MemAllocs{} {
+      : Context{nullptr}, Program{Program}, ZeKernel{Kernel},
+        SubmissionsCount{0}, MemAllocs{} {
     OwnNativeHandle = OwnZeHandle;
   }
 
   ur_kernel_handle_t_(ze_kernel_handle_t Kernel, bool OwnZeHandle,
                       ur_context_handle_t Context)
-      : Context{Context}, ZeKernel{Kernel}, SubmissionsCount{0}, MemAllocs{} {
+      : Context{Context}, Program{nullptr}, ZeKernel{Kernel},
+        SubmissionsCount{0}, MemAllocs{} {
     OwnNativeHandle = OwnZeHandle;
   }
 
