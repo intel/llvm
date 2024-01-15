@@ -11,7 +11,6 @@
 #define __LIBDEVICE_IMF_ROUNDING_OP_H__
 #include "imf_impl_utils.hpp"
 #include <limits>
-
 template <typename Ty>
 static Ty __handling_fp_overflow(unsigned z_sig, int rd) {
   typedef typename __iml_fp_config<Ty>::utype UTy;
@@ -859,4 +858,715 @@ template <typename Ty> Ty __fp_div(Ty x, Ty y, int rd) {
     }
   }
 }
+
+unsigned get_grs_bits(uint64_t dbits, unsigned bit_num) {
+  if (bit_num == 1)
+    return (dbits & 0x1) << 2;
+  else if (bit_num == 2)
+    return (dbits & 0x3) << 1;
+  else {
+    uint64_t Bit1 = 1;
+    unsigned grs = dbits >> (bit_num - 3);
+    unsigned sbit_or = dbits & ((Bit1 << (bit_num - 3)) - 1);
+    return (sbit_or == 0) ? grs : (grs | 0x1);
+  }
+}
+
+unsigned get_grs_bits(__iml_ui128 dbits, unsigned bit_num) {
+  if (bit_num == 1)
+    return static_cast<uint32_t>(dbits & 0x1) << 2;
+  else if (bit_num == 2)
+    return static_cast<uint32_t>(dbits & 0x3) << 1;
+  else {
+    __iml_ui128 Bit1(1);
+    unsigned grs = static_cast<unsigned>(dbits >> (bit_num - 3));
+    unsigned sbit_or =
+        static_cast<unsigned>(dbits & ((Bit1 << (bit_num - 3)) - 1));
+    return (sbit_or == 0) ? grs : (grs | 0x1);
+  }
+}
+
+template <typename FTy, typename UTy, typename DSUTy>
+FTy __fma_helper_ss(int x_exp, DSUTy x_fra_ds, int y_exp, DSUTy y_fra_ds,
+                    UTy sig, int rd) {
+  size_t nshifts = x_exp - y_exp, lz1 = 0, msb_pos1, msb_pos2;
+  UTy r_fra;
+  DSUTy discarded_bits(0), Bit1(1);
+
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    msb_pos1 = y_fra_ds.ui128_msb_pos();
+  else
+    msb_pos1 = get_msb_pos(y_fra_ds);
+
+  if (nshifts <= msb_pos1) {
+    x_fra_ds += (y_fra_ds >> nshifts);
+    discarded_bits = y_fra_ds & ((Bit1 << nshifts) - 1);
+  } else {
+    lz1 = nshifts - (1 + msb_pos1);
+    discarded_bits = y_fra_ds;
+  }
+
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    msb_pos2 = x_fra_ds.ui128_msb_pos();
+  else
+    msb_pos2 = get_msb_pos(x_fra_ds);
+
+  // Result without rounding can be represented as:
+  // 2^x_exp * x_fra_ds which is equivalent to:
+  // 2^x_exp * 1.dd...d * 2^(msb_pos2) which is:
+  // 2^temp * 1.dd...d
+  // temp >= x_exp >= -149 for fp32 and
+  // temp >= x_exp >= -1074 for fp64
+  int temp = x_exp + msb_pos2;
+  if (temp > __iml_fp_config<FTy>::bias)
+    return __handling_fp_overflow<FTy>(sig, rd);
+
+  constexpr int fra_digits = std::numeric_limits<FTy>::digits - 1;
+  uint32_t g_bit = 0, r_bit = 0, s_bit = 0, grs_bits = 0, rb;
+
+  if (msb_pos2 > fra_digits) {
+    int dbits = msb_pos2 - fra_digits;
+    r_fra = static_cast<UTy>((x_fra_ds & ((Bit1 << msb_pos2) - 1)) >> dbits);
+    if (dbits == 1) {
+      g_bit = static_cast<uint32_t>(x_fra_ds & 0x1);
+      if (lz1 == 0) {
+        if (nshifts == 1) {
+          r_bit = static_cast<uint32_t>(discarded_bits & 0x1);
+        } else {
+          DSUTy t1 = (discarded_bits & (Bit1 << (nshifts - 1)));
+          r_bit = static_cast<uint32_t>(t1 >> (nshifts - 1));
+          if ((((Bit1 << (nshifts - 1)) - 1) & discarded_bits) != 0)
+            s_bit = 1;
+        }
+      } else {
+        r_bit = 0;
+        if (discarded_bits != 0)
+          s_bit = 1;
+      }
+      grs_bits = (g_bit << 2) | (r_bit << 1) | s_bit;
+    } else if (dbits == 2) {
+      g_bit = static_cast<uint32_t>((x_fra_ds & 0x2)) >> 1;
+      r_bit = static_cast<uint32_t>(x_fra_ds & 0x1);
+      if (discarded_bits != 0)
+        s_bit = 1;
+      grs_bits = (g_bit << 2) | (r_bit << 1) | s_bit;
+    } else {
+      grs_bits = static_cast<uint32_t>((x_fra_ds & ((Bit1 << dbits) - 1)) >>
+                                       (dbits - 3));
+      if ((grs_bits & 0x1) == 0x0) {
+        auto t1 = ((Bit1 << (dbits - 3)) - 1) & x_fra_ds;
+        if ((t1 != 0) || (discarded_bits != 0))
+          s_bit = 1;
+      }
+      grs_bits = grs_bits | s_bit;
+    }
+  } else {
+
+    int dbits = fra_digits - msb_pos2;
+    r_fra = static_cast<UTy>(x_fra_ds & ((Bit1 << msb_pos2) - 1));
+    r_fra <<= dbits;
+    if (dbits >= nshifts) {
+      r_fra |= static_cast<UTy>(discarded_bits << (dbits - nshifts));
+    } else {
+      if (lz1 > dbits) {
+        // In this case, g_bit is 0, so we set grs_bits = 1 for simplification.
+        grs_bits = 0x1;
+      } else if (lz1 == dbits) {
+        // In this case, g_bit is 1.
+        if (lz1) {
+          if (discarded_bits == (Bit1 << (nshifts - lz1 - 1)))
+            grs_bits = 4;
+          else
+            grs_bits = 5;
+        } else {
+          if (nshifts == 0x0)
+            grs_bits = 0x0;
+          else if (nshifts == 0x1)
+            grs_bits = static_cast<uint32_t>(discarded_bits & 0x1) << 2;
+          else if (nshifts == 0x2)
+            grs_bits = static_cast<uint32_t>(discarded_bits & 0x3) << 1;
+          else {
+            grs_bits = static_cast<uint32_t>(discarded_bits >> (nshifts - 3));
+            if ((discarded_bits & ((Bit1 << (nshifts - 3)) - 1)) != 0)
+              grs_bits = grs_bits | 1;
+          }
+        }
+      } else {
+        r_fra |= static_cast<UTy>(discarded_bits >> (nshifts - dbits));
+        if ((nshifts - dbits) == 1) {
+          grs_bits = static_cast<uint32_t>(discarded_bits & 0x1) << 2;
+        } else if ((nshifts - dbits) == 2) {
+          grs_bits = static_cast<uint32_t>(discarded_bits & 0x3) << 1;
+        } else {
+
+          if ((discarded_bits & (Bit1 << (nshifts - dbits - 1))) != 0)
+            g_bit = 4;
+          if ((discarded_bits & (Bit1 << (nshifts - dbits - 2))) != 0)
+            r_bit = 2;
+          if ((discarded_bits & ((Bit1 << (nshifts - dbits - 2)) - 1)) != 0)
+            s_bit = 1;
+          grs_bits = g_bit | r_bit | s_bit;
+        }
+      }
+    }
+  }
+  rb = __handling_rounding(sig, r_fra, grs_bits, rd);
+  r_fra += rb;
+  UTy r_exp = temp + __iml_fp_config<FTy>::bias;
+  if (r_fra > __iml_fp_config<FTy>::fra_mask) {
+    r_fra = 0;
+    r_exp++;
+  }
+  if (r_exp == __iml_fp_config<FTy>::exp_mask)
+    return __handling_fp_overflow<FTy>(sig, rd);
+  return __builtin_bit_cast(FTy, (sig << (sizeof(FTy) * 8 - 1)) |
+                                     (r_exp << fra_digits) | r_fra);
+}
+
+template <typename FTy, typename UTy, typename DSUTy>
+FTy __fma_helper_ds(int x_exp, DSUTy x_fra_ds, int y_exp, DSUTy y_fra_ds,
+                    UTy x_sig, int rd) {
+  size_t nshifts = x_exp - y_exp;
+  UTy r_fra, r_exp;
+  DSUTy discarded_bits(0), Bit1(1);
+  uint32_t grs_bit_num = nshifts, grs_bits = 0, rb = 0;
+  size_t lo = 0, msb_pos1;
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    msb_pos1 = y_fra_ds.ui128_msb_pos();
+  else
+    msb_pos1 = get_msb_pos(y_fra_ds);
+
+  if (nshifts <= msb_pos1) {
+    discarded_bits = y_fra_ds & ((Bit1 << nshifts) - 1);
+    y_fra_ds = y_fra_ds >> nshifts;
+    if (discarded_bits != 0) {
+      if (x_fra_ds > y_fra_ds) {
+        x_fra_ds -= 1;
+        x_fra_ds -= y_fra_ds;
+        discarded_bits = ~discarded_bits + 1;
+        discarded_bits &= ((Bit1 << nshifts) - 1);
+      } else if (x_fra_ds == y_fra_ds) {
+        x_sig = x_sig ^ 1;
+        x_fra_ds = 0;
+      } else {
+        x_sig = x_sig ^ 1;
+        x_fra_ds = y_fra_ds - x_fra_ds;
+      }
+    } else {
+      if (x_fra_ds > y_fra_ds) {
+        x_fra_ds -= y_fra_ds;
+      } else if (x_fra_ds == y_fra_ds) {
+        return 0;
+      } else {
+        x_fra_ds = y_fra_ds - x_fra_ds;
+        x_sig = x_sig ^ 1;
+      }
+    }
+  } else {
+    // In this case, final result can't be subnormal value
+    x_fra_ds -= 1;
+    lo = nshifts - (1 + msb_pos1);
+    discarded_bits = ~y_fra_ds + 1;
+    discarded_bits &= ((Bit1 << (1 + msb_pos1)) - 1);
+  }
+
+  size_t msb_pos2 = 0;
+  int temp = 0;
+  if (x_fra_ds == 0) {
+    // In this case, discarded_bits is non-zero otherwise 0. is returned.
+    // Result without rounding can be represented as:
+    // 2^x_exp * 0.00..01dd..d which is equivalent to:
+    // 2^x_exp * 1.dd...d * 2^(-d_lz - 1) which is:
+    // 2^temp * 1.dd...d
+    int d_lz = get_leading_zeros_from(discarded_bits, nshifts);
+    temp = x_exp - d_lz - 1;
+    x_fra_ds = discarded_bits;
+    discarded_bits = 0;
+    msb_pos2 = nshifts - d_lz - 1;
+  } else {
+    // Result without rounding can be represented as:
+    // 2^x_exp * x_fra_ds which is equivalent to:
+    // 2^x_exp * 1.dd...d * 2^(msb_pos2) which is:
+    // 2^temp * 1.dd...d
+    if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+      msb_pos2 = x_fra_ds.ui128_msb_pos();
+    else
+      msb_pos2 = get_msb_pos(x_fra_ds);
+    temp = x_exp + msb_pos2;
+  }
+
+  // Result without rounding can be represented as:
+  // 2^x_exp * x_fra_ds which is equivalent to:
+  // 2^x_exp * 1.dd...d * 2^(msb_pos2) which is:
+  // 2^temp * 1.dd...d
+  if (temp > __iml_fp_config<FTy>::bias)
+    return __handling_fp_overflow<FTy>(x_sig, rd);
+
+  constexpr int fra_digits = std::numeric_limits<FTy>::digits - 1;
+  if (temp >= (1 - __iml_fp_config<FTy>::bias)) {
+    x_fra_ds &= ((Bit1 << msb_pos2) - 1);
+    if (msb_pos2 > fra_digits) {
+      DSUTy t_fra = x_fra_ds & ((Bit1 << (msb_pos2 - fra_digits)) - 1);
+      x_fra_ds = x_fra_ds >> (msb_pos2 - fra_digits);
+      if (msb_pos2 >= (fra_digits + 3)) {
+        if (discarded_bits > 0)
+          t_fra = t_fra | 0x1;
+        grs_bit_num = msb_pos2 - fra_digits;
+        discarded_bits = t_fra;
+      } else if (msb_pos2 == (fra_digits + 2)) {
+        t_fra = t_fra << 1;
+        if (discarded_bits > 0)
+          t_fra = t_fra | 1;
+        discarded_bits = t_fra;
+        grs_bit_num = 3;
+      } else {
+        t_fra = t_fra << 2;
+        if (lo > 0)
+          t_fra = t_fra | 2;
+        else {
+          DSUTy tp = discarded_bits & (Bit1 << (nshifts - 1));
+          if ((nshifts > 0) && (tp != 0))
+            t_fra = t_fra | 2;
+        }
+
+        if (lo > 1)
+          t_fra = t_fra | 1;
+        else {
+          if ((lo == 1) && (discarded_bits != 0))
+            t_fra = t_fra | 1;
+          if ((lo == 0) && (nshifts > 0)) {
+            if ((discarded_bits & ((Bit1 << (nshifts - 1)) - 1)) != 0)
+              t_fra = t_fra | 1;
+          }
+        }
+        discarded_bits = t_fra;
+        grs_bit_num = 3;
+      }
+    } else {
+      x_fra_ds = x_fra_ds << (fra_digits - msb_pos2);
+      if (nshifts >= (fra_digits - msb_pos2)) {
+        // Need to fill 23 - msb_pos2 bit from pre-stored 'discarded_bits' to
+        // final frac bits for fp32 and fill 52 - msb_pos2 for fp64
+        if (lo == 0) {
+          grs_bit_num = nshifts - (fra_digits - msb_pos2);
+          x_fra_ds |= (discarded_bits >> grs_bit_num);
+          discarded_bits &= ((Bit1 << grs_bit_num) - 1);
+        } else {
+          x_fra_ds |= ((Bit1 << (fra_digits - msb_pos2)) - 1);
+
+          if (lo == (fra_digits - msb_pos2)) {
+            grs_bit_num = nshifts - lo;
+          } else {
+            // In this case, g bit must be 1 and discarded_bits must be > 4, set
+            // it to 5 for simplification.
+            discarded_bits = 0x5;
+            grs_bit_num = 3;
+          }
+        }
+      } else {
+        discarded_bits = discarded_bits << (fra_digits - msb_pos2 - nshifts);
+        x_fra_ds |= discarded_bits;
+        discarded_bits = 0;
+      }
+    }
+    grs_bits = get_grs_bits(discarded_bits, grs_bit_num);
+    r_exp = temp + __iml_fp_config<FTy>::bias;
+    r_fra = static_cast<UTy>(x_fra_ds) & __iml_fp_config<FTy>::fra_mask;
+  } else {
+    // 2^x_exp * x_fra_ds which is equivalent to:
+    // 2^x_exp * 1.dd...d * 2^(msb_pos2) which is:
+    // 2^temp * 1.dd...d, final result falls into subnormal
+    // range when temp < -126, so we need to normalize
+    // it to: 2^-126 * 0.00...01dd...d for fp32 and for fp64,
+    // fianl result falls into subnormal when temp < -1022, so
+    // we need to normalize it to 2^-1022 * 0.00...01dd...d
+    size_t sshifts = (1 - __iml_fp_config<FTy>::bias) - temp;
+    size_t fra_bits_num = sshifts + msb_pos2;
+    r_exp = 0;
+    DSUTy t;
+    if (fra_bits_num >= (fra_digits + 3)) {
+      t = (Bit1 << (fra_bits_num - fra_digits)) - 1;
+      t = (t & x_fra_ds) >> (fra_bits_num - (fra_digits + 3));
+      grs_bits = static_cast<uint32_t>(t);
+      t = x_fra_ds >> (fra_bits_num - fra_digits);
+      r_fra = static_cast<UTy>(t);
+      if (discarded_bits > 0)
+        grs_bits = grs_bits | 1;
+    } else if (fra_bits_num == (fra_digits + 1)) {
+      t = (x_fra_ds & 1) << 2;
+      grs_bits = static_cast<uint32_t>(t);
+      r_fra = static_cast<UTy>(x_fra_ds >> 1);
+      if ((nshifts > 0) && ((discarded_bits & (Bit1 << (nshifts - 1))) != 0))
+        grs_bits |= 2;
+      if (nshifts > 0) {
+        discarded_bits -= discarded_bits & (Bit1 << (nshifts - 1));
+        if (discarded_bits > 0)
+          grs_bits |= 1;
+      }
+    } else if (fra_bits_num == (fra_digits + 2)) {
+      grs_bits = static_cast<uint32_t>((x_fra_ds & 3) << 2);
+      r_fra = static_cast<UTy>(x_fra_ds >> 2);
+      if (discarded_bits > 0)
+        grs_bits |= 1;
+    } else {
+      // fra_bits_num <= 23, need to fill 23 - fra_bits_num bits
+      // from discarded_bits into final r_fra for fp32 and fill
+      // 52 - fra_bits_num bits for fp64.
+      size_t bits_fill_num = fra_digits - fra_bits_num;
+      r_fra = static_cast<UTy>(x_fra_ds << bits_fill_num);
+      if (nshifts && (discarded_bits > 0)) {
+        if (bits_fill_num <= nshifts) {
+          r_fra |=
+              static_cast<UTy>(discarded_bits >> (nshifts - bits_fill_num));
+          discarded_bits &= (Bit1 << (nshifts - bits_fill_num)) - 1;
+          grs_bits = get_grs_bits(discarded_bits, (nshifts - bits_fill_num));
+        } else
+          r_fra |=
+              static_cast<UTy>(discarded_bits << (bits_fill_num - nshifts));
+      }
+    }
+  }
+
+  rb = __handling_rounding(x_sig, r_fra, grs_bits, rd);
+  r_fra += rb;
+  if (r_fra > __iml_fp_config<FTy>::fra_mask) {
+    r_fra = 0x0;
+    r_exp++;
+  }
+  return __builtin_bit_cast(FTy, (x_sig << (sizeof(FTy) * 8 - 1)) |
+                                     (r_exp << fra_digits) | r_fra);
+}
+
+template <typename FTy> FTy __fp_fma(FTy x, FTy y, FTy z, int rd) {
+  typedef typename __iml_fp_config<FTy>::utype UTy;
+  typedef typename __iml_get_double_size_unsigned<UTy>::utype DSUTy;
+  constexpr int fra_digits = std::numeric_limits<FTy>::digits - 1;
+  UTy x_bit = __builtin_bit_cast(UTy, x);
+  UTy y_bit = __builtin_bit_cast(UTy, y);
+  UTy z_bit = __builtin_bit_cast(UTy, z);
+  UTy x_exp = (x_bit & __iml_fp_config<FTy>::pos_inf_bits) >> fra_digits;
+  UTy y_exp = (y_bit & __iml_fp_config<FTy>::pos_inf_bits) >> fra_digits;
+  UTy z_exp = (z_bit & __iml_fp_config<FTy>::pos_inf_bits) >> fra_digits;
+  UTy x_fra = x_bit & __iml_fp_config<FTy>::fra_mask;
+  UTy y_fra = y_bit & __iml_fp_config<FTy>::fra_mask;
+  UTy z_fra = z_bit & __iml_fp_config<FTy>::fra_mask;
+  UTy x_sig = x_bit >> (sizeof(FTy) * 8 - 1);
+  UTy y_sig = y_bit >> (sizeof(FTy) * 8 - 1);
+  UTy z_sig = z_bit >> (sizeof(FTy) * 8 - 1);
+  UTy xy_sig = x_sig ^ y_sig;
+  DSUTy Bit1(1);
+  constexpr UTy NAN_BITS = __iml_fp_config<FTy>::nan_bits;
+  constexpr UTy INF_BITS = __iml_fp_config<FTy>::pos_inf_bits;
+  unsigned is_sig_diff = xy_sig ^ z_sig;
+
+  if ((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra != 0x0))
+    return __builtin_bit_cast(FTy, NAN_BITS);
+
+  if ((y_exp == __iml_fp_config<FTy>::exp_mask) && (y_fra != 0x0))
+    return __builtin_bit_cast(FTy, NAN_BITS);
+
+  if ((z_exp == __iml_fp_config<FTy>::exp_mask) && (z_fra != 0x0))
+    return __builtin_bit_cast(FTy, NAN_BITS);
+
+  if ((x_exp == 0x0) && (x_fra == 0x0)) {
+    if ((y_exp == __iml_fp_config<FTy>::exp_mask) && (y_fra == 0x0))
+      return __builtin_bit_cast(FTy, NAN_BITS);
+    else
+      return z;
+  }
+
+  if ((y_exp == 0x0) && (y_fra == 0x0)) {
+    if ((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra == 0x0))
+      return __builtin_bit_cast(FTy, NAN_BITS);
+    else
+      return z;
+  }
+
+  if (((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra == 0x0)) ||
+      ((y_exp == __iml_fp_config<FTy>::exp_mask) && (y_fra == 0x0))) {
+    if ((z_exp == __iml_fp_config<FTy>::exp_mask) && (z_fra == 0x0))
+      return is_sig_diff ? __builtin_bit_cast(FTy, NAN_BITS) : z;
+    else
+      return __builtin_bit_cast(FTy,
+                                (INF_BITS | (xy_sig << (sizeof(FTy) * 8 - 1))));
+  }
+
+  if ((z_exp == 0x0) && (z_fra == 0x0))
+    return __fp_mul(x, y, rd);
+
+  int v_exp, w_exp;
+  DSUTy x_fra_ds(x_fra), y_fra_ds(y_fra), w_fra_ds(z_fra), v_fra_ds;
+
+  if (x_exp == 0x0)
+    v_exp = 1 - __iml_fp_config<FTy>::bias;
+  else {
+    v_exp = static_cast<int>(x_exp) - __iml_fp_config<FTy>::bias;
+    x_fra_ds = x_fra_ds | (Bit1 << fra_digits);
+  }
+
+  if (y_exp == 0x0)
+    v_exp += 1 - __iml_fp_config<FTy>::bias;
+  else {
+    v_exp += static_cast<int>(y_exp) - __iml_fp_config<FTy>::bias;
+    y_fra_ds = y_fra_ds | (Bit1 << fra_digits);
+  }
+
+  v_exp = v_exp - 2 * fra_digits;
+  v_fra_ds = x_fra_ds * y_fra_ds;
+
+  // The result of x * y can be represented as:
+  // 2^(v_exp - 46) * (x_fra_ds * y_fra_ds) for fp32 and
+  // 2^(v_exp - 104) * (x_fra_ds * y_fra_ds) for fp64
+  // x_fra_ds * y_fra_ds is non-zero and can be represented as:
+  // 1.dddd...d * 2^(msb_pos1), so x * y representation is:
+  // 2^(v_exp - 46 + msb_pos1) * 1.dddd...d for fp32 and
+  // 2^(v_exp - 104 + msb_pos1) * 1.dddd...d for fp64
+  size_t msb_pos1;
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    msb_pos1 = v_fra_ds.ui128_msb_pos();
+  else
+    msb_pos1 = get_msb_pos(v_fra_ds);
+
+  int temp = v_exp + msb_pos1;
+  int is_mid = 0;
+  if ((((Bit1 << msb_pos1) - 1) & v_fra_ds) == 0x0)
+    is_mid = 1;
+
+  // x * y overflows
+  if (temp > __iml_fp_config<FTy>::bias) {
+    if ((z_exp == __iml_fp_config<FTy>::exp_mask) && (z_fra == 0x0) &&
+        is_sig_diff)
+      return __builtin_bit_cast(FTy, NAN_BITS);
+
+    if (!is_sig_diff || (temp > (1 + __iml_fp_config<FTy>::bias)))
+      return __handling_fp_overflow<FTy>(xy_sig, rd);
+  }
+
+  if ((z_exp == __iml_fp_config<FTy>::exp_mask) && (z_fra == 0x0))
+    return z;
+
+  // x * y is too small and z is non-zero value, all mant bits of x * y are
+  // dicarded
+  if (temp < (1 - __iml_fp_config<FTy>::bias - fra_digits)) {
+    UTy rb = 0;
+    uint32_t grs_bit = 0;
+    if (is_sig_diff) {
+      if (z_fra == 0x0) {
+        z_fra = __iml_fp_config<FTy>::fra_mask;
+        // z_exp is non-zero otherwise, z is 0
+        z_exp--;
+      } else
+        z_fra--;
+      if ((temp == (-__iml_fp_config<FTy>::bias - fra_digits)) &&
+          (z_exp <= 0x1))
+        grs_bit = is_mid ? 0x4 : 0x1;
+      else
+        grs_bit = 0x5;
+    } else {
+      if ((temp == (-__iml_fp_config<FTy>::bias - fra_digits)) &&
+          (z_exp <= 0x1)) {
+        // In this case, g_bit is 1, if s_bit and r_bit aren't both 0, we
+        // set grs_bit to be 0x5 for simplification.
+        grs_bit = is_mid ? 0x4 : 0x5;
+      } else {
+        // In this case, g_bit is 0, r_bit and s_bit won't be both 0, so we
+        // set grs to be 1 for simplification.
+        grs_bit = 0x1;
+      }
+    }
+    rb = __handling_rounding(z_sig, z_fra, grs_bit, rd);
+    z_fra += rb;
+    if (z_fra > __iml_fp_config<FTy>::fra_mask) {
+      z_fra = 0x0;
+      z_exp++;
+    }
+    if (z_exp == __iml_fp_config<FTy>::exp_mask)
+      return __handling_fp_overflow<FTy>(z_sig, rd);
+    return __builtin_bit_cast(FTy, (z_sig << (sizeof(FTy) * 8 - 1)) |
+                                       (z_exp << fra_digits) | z_fra);
+  }
+
+  if (z_exp == 0x0)
+    w_exp = 1 - __iml_fp_config<FTy>::bias;
+  else {
+    w_exp = static_cast<int>(z_exp) - __iml_fp_config<FTy>::bias;
+    w_fra_ds = w_fra_ds | (Bit1 << fra_digits);
+  }
+
+  if (temp < (1 - __iml_fp_config<FTy>::bias)) {
+    size_t nshifts = w_exp - temp;
+    UTy rb = 0;
+    uint32_t grs_bits = 0;
+    // After normalization, x * y can be represented as:
+    // 2^(w_exp) * 0.00...01dd...d whose fraction has nshifts - 1 leading zeros
+    // nshifts + msb_pos1 > 52
+    size_t discarded_bits = nshifts + msb_pos1 - fra_digits;
+    if (discarded_bits > (msb_pos1 + 1)) {
+      if (!is_sig_diff) {
+        // In this case, grs_bits < 4, we set it to 1 for simplification.
+        grs_bits = 1;
+      } else {
+        if (z_fra == 0) {
+          z_fra = __iml_fp_config<FTy>::fra_mask;
+          z_exp--;
+        } else
+          z_fra--;
+        // In this case, grs > 4, we set it to 5 for simplification.
+        grs_bits = 5;
+      }
+    } else if (discarded_bits == (msb_pos1 + 1)) {
+      if (!is_sig_diff)
+        grs_bits = is_mid ? 4 : 5;
+      else {
+        grs_bits = is_mid ? 4 : 1;
+        if (z_fra == 0) {
+          z_fra = __iml_fp_config<FTy>::fra_mask;
+          z_exp--;
+        } else
+          z_fra--;
+      }
+    } else {
+      if (!is_sig_diff) {
+        z_fra += static_cast<UTy>(v_fra_ds >> discarded_bits);
+        if (discarded_bits == 1)
+          grs_bits = static_cast<uint32_t>((v_fra_ds & 1) << 2);
+        else if (discarded_bits == 2)
+          grs_bits = static_cast<uint32_t>((v_fra_ds & 3) << 1);
+        else {
+          grs_bits = static_cast<uint32_t>(
+              (v_fra_ds & ((Bit1 << discarded_bits) - 1)) >>
+              (discarded_bits - 3));
+          if ((v_fra_ds & ((Bit1 << (discarded_bits - 3)) - 1)) != 0)
+            grs_bits |= 1;
+        }
+        if (z_fra > __iml_fp_config<FTy>::fra_mask) {
+          z_fra &= __iml_fp_config<FTy>::fra_mask;
+          if (z_exp != 0) {
+            uint32_t n_grs = (z_fra & 0x1) << 2;
+            n_grs |= ((grs_bits & 4) >> 1);
+            if (grs_bits & 3)
+              n_grs = n_grs | 1;
+            grs_bits = n_grs;
+            z_fra = z_fra >> 1;
+            z_exp++;
+          } else
+            z_exp = 1;
+        }
+      } else {
+        UTy v_fra = static_cast<UTy>(v_fra_ds >> discarded_bits);
+        DSUTy v_fra_dbits = v_fra_ds & ((Bit1 << discarded_bits) - 1);
+        if ((z_exp == 0) && (z_fra <= v_fra)) {
+          z_sig = xy_sig;
+          z_fra = v_fra - z_fra;
+          if (discarded_bits == 1)
+            grs_bits = static_cast<uint32_t>((v_fra_ds & 0x1) << 2);
+          else if (discarded_bits == 2)
+            grs_bits = static_cast<uint32_t>((v_fra_ds & 0x3) << 1);
+          else {
+            grs_bits = static_cast<uint32_t>(
+                (v_fra_ds & ((Bit1 << discarded_bits) - 1)) >>
+                (discarded_bits - 3));
+            uint32_t sbit_or =
+                ((v_fra_ds & ((Bit1 << (discarded_bits - 3)) - 1)) != 0) ? 1
+                                                                         : 0;
+            grs_bits |= sbit_or;
+          }
+        } else {
+          if (v_fra_dbits == 0) {
+            if (z_fra > v_fra)
+              z_fra = z_fra - v_fra;
+            else {
+              z_fra = z_fra + 1 + __iml_fp_config<FTy>::fra_mask;
+              z_fra = z_fra - v_fra;
+              unsigned t_lz = get_leading_zeros_from(z_fra, fra_digits);
+              if (z_exp >= 1 + t_lz + 1) {
+                z_exp -= t_lz + 1;
+                z_fra = (z_fra << (t_lz + 1)) & __iml_fp_config<FTy>::fra_mask;
+              } else {
+                z_fra = z_fra << (z_exp - 1);
+                z_exp = 0;
+              }
+            }
+          } else {
+            int need_norm = 0;
+            v_fra_dbits = ~v_fra_dbits + 1;
+            v_fra_dbits &= (Bit1 << discarded_bits) - 1;
+            if (z_fra == 0x0) {
+              z_fra = __iml_fp_config<FTy>::fra_mask - v_fra;
+              need_norm = 1;
+            } else {
+              z_fra--;
+              if (z_fra > v_fra)
+                z_fra = z_fra - v_fra;
+              else {
+                z_fra = z_fra + 1 + __iml_fp_config<FTy>::fra_mask;
+                z_fra = z_fra - v_fra;
+                need_norm = 1;
+              }
+            }
+            if (need_norm) {
+              unsigned t_lz = get_leading_zeros_from(z_fra, fra_digits);
+              unsigned t_fra_bits = 0;
+              if (z_exp >= 1 + t_lz + 1) {
+                z_exp -= t_lz + 1;
+                z_fra = (z_fra << (t_lz + 1)) & __iml_fp_config<FTy>::fra_mask;
+                t_fra_bits = t_lz + 1;
+              } else {
+                z_fra = z_fra << (z_exp - 1);
+                z_exp = 0;
+                t_fra_bits = 0;
+              }
+              if (t_fra_bits >= discarded_bits) {
+                v_fra_dbits = v_fra_dbits << (t_fra_bits - discarded_bits);
+                z_fra = z_fra | static_cast<UTy>(v_fra_dbits);
+                v_fra_dbits = 0;
+                // In this case, grs is 0, all discarded bits are left shifted
+                // to be included in final frac.
+              } else {
+                z_fra = z_fra | static_cast<UTy>(v_fra_dbits >>
+                                                 (discarded_bits - t_fra_bits));
+                v_fra_dbits =
+                    v_fra_dbits & ((Bit1 << (discarded_bits - t_fra_bits)) - 1);
+                discarded_bits = discarded_bits - t_fra_bits;
+              }
+            }
+            grs_bits = get_grs_bits(v_fra_dbits, discarded_bits);
+          }
+        }
+      }
+    }
+    rb = __handling_rounding(z_sig, z_fra, grs_bits, rd);
+    z_fra += rb;
+    if (z_fra > __iml_fp_config<FTy>::fra_mask) {
+      z_fra = 0;
+      z_exp++;
+    }
+    if (z_exp == __iml_fp_config<FTy>::exp_mask)
+      return __handling_fp_overflow<FTy>(z_sig, rd);
+    return __builtin_bit_cast(FTy, (z_sig << (sizeof(FTy) * 8 - 1)) |
+                                       (z_exp << fra_digits) | z_fra);
+  }
+
+  w_exp -= fra_digits;
+
+  if (!is_sig_diff) {
+    // x * y can be represented as:
+    // 2^v_exp * v_fra_ds and z can be represented as:
+    // 2^2_exp * w_fra_ds
+    if (v_exp >= w_exp)
+      return __fma_helper_ss<FTy, UTy, DSUTy>(v_exp, v_fra_ds, w_exp, w_fra_ds,
+                                              z_sig, rd);
+    else
+      return __fma_helper_ss<FTy, UTy, DSUTy>(w_exp, w_fra_ds, v_exp, v_fra_ds,
+                                              z_sig, rd);
+  } else {
+    if (v_exp >= w_exp)
+      return __fma_helper_ds<FTy, UTy, DSUTy>(v_exp, v_fra_ds, w_exp, w_fra_ds,
+                                              xy_sig, rd);
+    else
+      return __fma_helper_ds<FTy, UTy, DSUTy>(w_exp, w_fra_ds, v_exp, v_fra_ds,
+                                              z_sig, rd);
+  }
+}
+
 #endif
