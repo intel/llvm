@@ -29,6 +29,8 @@ add_ur_adapter(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
@@ -36,6 +38,7 @@ add_ur_adapter(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.hpp
 )
@@ -64,16 +67,14 @@ if(UR_OPENCL_ICD_LOADER_LIBRARY)
     set(OpenCLICDLoaderLibrary ${UR_OPENCL_ICD_LOADER_LIBRARY})
 else()
     find_package(OpenCL 3.0)
-    if(OpenCL_FOUND)
-        set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
-    else()
+    if(NOT OpenCL_FOUND)
         FetchContent_Declare(OpenCL-ICD-Loader
             GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git"
             GIT_TAG         main
         )
         FetchContent_MakeAvailable(OpenCL-ICD-Loader)
-        set(OpenCLICDLoaderLibrary ${PROJECT_BINARY_DIR}/lib/libOpenCL.so)
     endif()
+    set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
 endif()
 
 message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")

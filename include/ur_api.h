@@ -224,48 +224,48 @@ typedef enum ur_function_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,                ///< ::ur_context_properties_t
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                        ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                 ///< ::ur_buffer_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                     ///< ::ur_buffer_region_t
-    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,         ///< ::ur_buffer_channel_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5,  ///< ::ur_buffer_alloc_location_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,                ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 7,                          ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                     ///< ::ur_usm_host_desc_t
-    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                   ///< ::ur_usm_device_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                    ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,             ///< ::ur_usm_pool_limits_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                    ///< ::ur_device_binary_t
-    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                     ///< ::ur_sampler_desc_t
-    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                 ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,           ///< ::ur_queue_index_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,        ///< ::ur_context_native_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,         ///< ::ur_kernel_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,          ///< ::ur_queue_native_properties_t
-    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,            ///< ::ur_mem_native_properties_t
-    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,          ///< ::ur_event_native_properties_t
-    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,       ///< ::ur_platform_native_properties_t
-    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,         ///< ::ur_device_native_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,        ///< ::ur_program_native_properties_t
-    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,        ///< ::ur_sampler_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,                ///< ::ur_queue_native_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,      ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,    ///< ::ur_kernel_arg_mem_obj_properties_t
-    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,          ///< ::ur_physical_mem_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,    ///< ::ur_kernel_arg_pointer_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,    ///< ::ur_kernel_arg_sampler_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,      ///< ::ur_kernel_exec_info_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,      ///< ::ur_kernel_arg_value_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,      ///< ::ur_kernel_arg_local_properties_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,      ///< ::ur_exp_command_buffer_desc_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,   ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,         ///< ::ur_exp_interop_mem_desc_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,   ///< ::ur_exp_interop_semaphore_desc_t
-    UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,          ///< ::ur_exp_file_descriptor_t
-    UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,             ///< ::ur_exp_win32_handle_t
-    UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES = 0x2005, ///< ::ur_exp_layered_image_properties_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2006,       ///< ::ur_exp_sampler_addr_modes_t
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
+    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
+    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
+    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_index_properties_t
+    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
+    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
+    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
+    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
+    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
+    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
+    UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,         ///< ::ur_usm_alloc_location_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,        ///< ::ur_exp_interop_mem_desc_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,  ///< ::ur_exp_interop_semaphore_desc_t
+    UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,         ///< ::ur_exp_file_descriptor_t
+    UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,            ///< ::ur_exp_win32_handle_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,      ///< ::ur_exp_sampler_addr_modes_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3288,6 +3288,25 @@ typedef struct ur_usm_device_desc_t {
 } ur_usm_device_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief USM allocation location desc
+///
+/// @details
+///     - Specify these properties in ::urUSMHostAlloc, ::urUSMDeviceAlloc and
+///       ::urUSMSharedAlloc via ::ur_usm_desc_t as part of a `pNext` chain.
+///
+/// @remarks
+///   _Analogues_
+///     - cl_intel_mem_alloc_buffer_location
+typedef struct ur_usm_alloc_location_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    uint32_t location;         ///< [in] Identifies the ID of global memory partition to which the memory
+                               ///< should be allocated.
+
+} ur_usm_alloc_location_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool descriptor type
 typedef struct ur_usm_pool_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
@@ -3324,6 +3343,7 @@ typedef struct ur_usm_pool_limits_desc_t {
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3369,6 +3389,7 @@ urUSMHostAlloc(
 ///     - Any flags/hints passed through pUSMDesc only affect the single
 ///       allocation.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3417,6 +3438,7 @@ urUSMDeviceAlloc(
 ///       allocation.
 ///     - See also ::ur_usm_host_desc_t.
 ///     - See also ::ur_usm_device_desc_t.
+///     - See also ::ur_usm_alloc_location_desc_t.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -4015,6 +4037,9 @@ urProgramCreateWithIL(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, `phProgram` will
+///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
+///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -7128,21 +7153,6 @@ typedef struct ur_exp_interop_semaphore_desc_t {
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
 
 } ur_exp_interop_semaphore_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes layered image properties
-///
-/// @details
-///     - Specify these properties in ::urBindlessImagesUnsampledImageCreateExp
-///       or ::urBindlessImagesSampledImageCreateExp via ::ur_image_desc_t as
-///       part of a `pNext` chain.
-typedef struct ur_exp_layered_image_properties_t {
-    ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES
-    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
-    uint32_t numLayers;        ///< [in] number of layers the image should have
-
-} ur_exp_layered_image_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate pitched memory

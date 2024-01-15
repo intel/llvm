@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string.h>
 
+#include "command_buffer.hpp"
 #include "common.hpp"
 #include "event.hpp"
 #include "ur_level_zero.hpp"
@@ -165,10 +166,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         // event signal because it is already guaranteed that previous commands
         // in this queue are completed when the signal is started.
         //
+        // Only consideration here is that when profiling is used, signalEvent
+        // cannot be used if EventWaitList.Lenght == 0. In those cases, we need
+        // to fallback directly to barrier to have correct timestamps. See here:
+        // https://spec.oneapi.io/level-zero/latest/core/api.html?highlight=appendsignalevent#_CPPv430zeCommandListAppendSignalEvent24ze_command_list_handle_t17ze_event_handle_t
+        //
         // TODO: this and other special handling of in-order queues to be
         // updated when/if Level Zero adds native support for in-order queues.
         //
-        if (Queue->isInOrderQueue() && InOrderBarrierBySignal) {
+        if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
+            !Queue->isProfilingEnabled()) {
           if (EventWaitList.Length) {
             ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                        (CmdList->first, EventWaitList.Length,
@@ -181,6 +188,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                      (CmdList->first, Event->ZeEvent, EventWaitList.Length,
                       EventWaitList.ZeEventList));
         }
+
         return UR_RESULT_SUCCESS;
       };
 
@@ -447,6 +455,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
                              ///< bytes returned in propValue
 ) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
+
   if (Event->UrQueue &&
       (Event->UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
@@ -462,6 +471,70 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
   ze_kernel_timestamp_result_t tsResult;
+
+  // A Command-buffer consists of three command-lists for which only a single
+  // event is returned to users. The actual profiling information related to the
+  // command-buffer should therefore be extrated from graph events themsleves.
+  // The timestamps of these events are saved in a memory region attached to
+  // event usning CommandData field. The timings must therefore be recovered
+  // from this memory.
+  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) {
+    if (Event->CommandData) {
+      command_buffer_profiling_t *ProfilingsPtr;
+      switch (PropName) {
+      case UR_PROFILING_INFO_COMMAND_START: {
+        ProfilingsPtr =
+            static_cast<command_buffer_profiling_t *>(Event->CommandData);
+        // Sync-point order does not necessarily match to the order of
+        // execution. We therefore look for the first command executed.
+        uint64_t MinStart = ProfilingsPtr->Timestamps[0].global.kernelStart;
+        for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
+          uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelStart;
+          if (Timestamp < MinStart) {
+            MinStart = Timestamp;
+          }
+        }
+        uint64_t ContextStartTime =
+            (MinStart & TimestampMaxValue) * ZeTimerResolution;
+        return ReturnValue(ContextStartTime);
+      }
+      case UR_PROFILING_INFO_COMMAND_END: {
+        ProfilingsPtr =
+            static_cast<command_buffer_profiling_t *>(Event->CommandData);
+        // Sync-point order does not necessarily match to the order of
+        // execution. We therefore look for the last command executed.
+        uint64_t MaxEnd = ProfilingsPtr->Timestamps[0].global.kernelEnd;
+        uint64_t LastStart = ProfilingsPtr->Timestamps[0].global.kernelStart;
+        for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
+          uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelEnd;
+          if (Timestamp > MaxEnd) {
+            MaxEnd = Timestamp;
+            LastStart = ProfilingsPtr->Timestamps[i].global.kernelStart;
+          }
+        }
+        uint64_t ContextStartTime = (LastStart & TimestampMaxValue);
+        uint64_t ContextEndTime = (MaxEnd & TimestampMaxValue);
+
+        //
+        // Handle a possible wrap-around (the underlying HW counter is <
+        // 64-bit). Note, it will not report correct time if there were multiple
+        // wrap arounds, and the longer term plan is to enlarge the capacity of
+        // the HW timestamps.
+        //
+        if (ContextEndTime <= ContextStartTime) {
+          ContextEndTime += TimestampMaxValue;
+        }
+        ContextEndTime *= ZeTimerResolution;
+        return ReturnValue(ContextEndTime);
+      }
+      default:
+        urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+    } else {
+      return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
+    }
+  }
 
   switch (PropName) {
   case UR_PROFILING_INFO_COMMAND_START: {
@@ -756,6 +829,15 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
       return Res;
     Event->CommandData = nullptr;
   }
+  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
+      Event->CommandData) {
+    // Free the memory extra event allocated for profiling purposed.
+    command_buffer_profiling_t *ProfilingPtr =
+        static_cast<command_buffer_profiling_t *>(Event->CommandData);
+    delete[] ProfilingPtr->Timestamps;
+    delete ProfilingPtr;
+    Event->CommandData = nullptr;
+  }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
       auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
@@ -964,8 +1046,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool HostVisible, ur_event_handle_t *RetEvent) {
 
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
 
   if (auto CachedEvent =
           Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
