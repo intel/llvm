@@ -55,7 +55,7 @@ endif()
 
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
-
+  
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG cmdbuf-hip-support)
 

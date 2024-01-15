@@ -716,6 +716,22 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void setExternalEvent(const event &Event) {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MInOrderExternalEvent = Event;
+  }
+
+  std::optional<event> popExternalEvent() {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    std::optional<event> Result = std::nullopt;
+    std::swap(Result, MInOrderExternalEvent);
+    return Result;
+  }
+
+  const std::vector<event> &
+  getExtendDependencyList(const std::vector<event> &DepEvents,
+                          std::vector<event> &MutableVec);
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
@@ -731,8 +747,8 @@ protected:
       };
 
       // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+      // Hence, here is are locks for thread-safety.
+      std::lock_guard<std::mutex> LastEventLock{MLastEventMtx};
 
       if (MLastCGType == CG::CGTYPE::None)
         MLastCGType = Type;
@@ -743,6 +759,13 @@ protected:
 
       if (NeedSeparateDependencyMgmt)
         Handler.depends_on(MLastEvent);
+
+      // If there is an external event set, add it as a dependency and clear it.
+      // We do not need to hold the lock as MLastEventMtx will ensure the last
+      // event reflects the corresponding external event dependence as well.
+      std::optional<event> ExternalEvent = popExternalEvent();
+      if (ExternalEvent)
+        Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
 
@@ -893,6 +916,13 @@ protected:
 
   // the fallback implementation of profiling info
   bool MFallbackProfiling = false;
+
+  // This event can be optionally provided by users for in-order queues to add
+  // an additional dependency for the subsequent submission in to the queue.
+  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // NOTE: std::optional must not be exposed in the ABI.
+  std::optional<event> MInOrderExternalEvent;
+  mutable std::mutex MInOrderExternalEventMtx;
 
 public:
   // Queue constructed with the discard_events property
