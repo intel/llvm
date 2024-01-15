@@ -53,7 +53,48 @@ template <typename... Ts>
 using contains_alignment =
     detail::ContainsProperty<alignment_key, std::tuple<Ts...>>;
 
+// properties filter
+template <typename property_list, template <class...> typename filter>
+using PropertiesFilter =
+    sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
+
+// filter properties that are applied on annotations
+template <typename... Props>
+using annotation_filter = properties<
+    PropertiesFilter<std::tuple<Props...>, propagateToPtrAnnotation>>;
 } // namespace detail
+
+template <typename I, typename P> struct annotationHelper {};
+
+// unpack properties to varadic template
+template <typename I, typename... P>
+struct annotationHelper<I, detail::properties_t<P...>> {
+  static I *annotate(I *ptr) {
+    return __builtin_intel_sycl_ptr_annotation(
+        ptr, detail::PropertyMetaInfo<P>::name...,
+        detail::PropertyMetaInfo<P>::value...);
+  }
+
+  // static I load(I *ptr) {
+  //   return *annotate(ptr);
+  // }
+
+  // template <class O> static I store(I *ptr, O &&Obj) {
+  //   return *annotate(ptr) = std::forward<O>(Obj);
+  // }
+
+  static I load(I *ptr) {
+    return *__builtin_intel_sycl_ptr_annotation(
+        ptr, detail::PropertyMetaInfo<P>::name...,
+        detail::PropertyMetaInfo<P>::value...);
+  }
+
+  template <class O> static I store(I *ptr, O &&Obj) {
+    return *__builtin_intel_sycl_ptr_annotation(
+               ptr, detail::PropertyMetaInfo<P>::name...,
+               detail::PropertyMetaInfo<P>::value...) = std::forward<O>(Obj);
+  }
+};
 
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
@@ -67,44 +108,14 @@ private:
   T *m_Ptr;
   explicit annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
-  // properties filter
-  template <typename property_list, template <class...> typename filter>
-  using PropertiesFilter =
-      sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
-
-  template <typename p>
-  using annotation_filter = propagateToPtrAnnotation<typename p::key_t>;
-
-  // filter properties that are applied on annotations
-  using property_tuple_t = std::tuple<Props...>;
-  using annotation_props =
-      properties<PropertiesFilter<property_tuple_t, annotation_filter>>;
-
-  template <typename I, typename P> struct annotationHelper {};
-
-  // unpack properties to varadic template
-  template <typename I, typename... P>
-  struct annotationHelper<I, detail::properties_t<P...>> {
-    static I load(I *ptr) {
-      return *__builtin_intel_sycl_ptr_annotation(
-          ptr, detail::PropertyMetaInfo<P>::name...,
-          detail::PropertyMetaInfo<P>::value...);
-    }
-
-    template <class O> static I store(I *ptr, O &&Obj) {
-      return *__builtin_intel_sycl_ptr_annotation(
-                 ptr, detail::PropertyMetaInfo<P>::name...,
-                 detail::PropertyMetaInfo<P>::value...) = std::forward<O>(Obj);
-    }
-  };
-
 public:
   annotated_ref(const annotated_ref &) = delete;
 
   // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, annotation_props>::load(m_Ptr);
+    return annotationHelper<T, detail::annotation_filter<Props...>>::load(
+        m_Ptr);
 #else
     return *m_Ptr;
 #endif
@@ -114,7 +125,8 @@ public:
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
   T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, annotation_props>::store(m_Ptr, Obj);
+    return annotationHelper<T, detail::annotation_filter<Props...>>::store(
+        m_Ptr, Obj);
 #else
     return *m_Ptr = std::forward<O>(Obj);
 #endif
@@ -124,6 +136,16 @@ public:
   T operator=(const annotated_ref<O, P> &Ref) const {
     O t2 = Ref.operator O();
     return *this = t2;
+  }
+
+  // address-of operator
+  T *operator&() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return annotationHelper<T, detail::annotation_filter<Props...>>::annotate(
+        m_Ptr);
+#else
+    return *m_Ptr;
+#endif
   }
 
   // propagate compound operators
@@ -376,12 +398,10 @@ public:
 
   operator T *() const noexcept = delete;
 
-  // T *get() const noexcept {
   T *get() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...);
+    return annotationHelper<T, detail::annotation_filter<Props...>>::annotate(
+        m_Ptr);
 #else
     return m_Ptr;
 #endif
