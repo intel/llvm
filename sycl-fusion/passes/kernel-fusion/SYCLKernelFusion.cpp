@@ -314,7 +314,7 @@ Error SYCLKernelFusion::fuseKernel(
     }
   }
   // Function name for the fused kernel.
-  StringRef FusedKernelName = KernelName->getString();
+  auto FusedKernelName = KernelName->getString().str();
   // ND-range for the fused kernel.
   const auto NDRange = getNDFromMD(NDRangeMD);
 
@@ -440,9 +440,9 @@ Error SYCLKernelFusion::fuseKernel(
   }
 
   // Add the information about the new kernel to the SYCLModuleInfo.
-  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
+  if (!ModInfo->hasKernelFor(FusedKernelName)) {
     assert(FusedParamKinds.size() == FusedArgUsageMask.size());
-    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str(),
+    jit_compiler::SYCLKernelInfo KI{FusedKernelName.c_str(),
                                     FusedParamKinds.size()};
     KI.Attributes = KernelAttributeList{FusedAttributes.size()};
     llvm::copy(FusedParamKinds, KI.Args.Kinds.begin());
@@ -451,7 +451,7 @@ Error SYCLKernelFusion::fuseKernel(
     ModInfo->addKernel(KI);
   }
   jit_compiler::SYCLKernelInfo &FusedKernelInfo =
-      *ModInfo->getKernelFor(FusedKernelName.str());
+      *ModInfo->getKernelFor(FusedKernelName);
 
   // Check that no function with the desired name is already present in the
   // module. LLVM would still be able to insert the function (adding a suffix to
