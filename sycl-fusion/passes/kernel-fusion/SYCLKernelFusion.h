@@ -129,19 +129,24 @@ private:
                           llvm::Function *FusedFunction,
                           jit_compiler::SYCLKernelInfo &FusedKernelInfo) const;
 
-  void appendKernelInfo(jit_compiler::SYCLKernelInfo &FusedInfo,
+  using MutableParamKindList = llvm::SmallVector<jit_compiler::ParameterKind>;
+  using MutableArgUsageMask = llvm::SmallVector<jit_compiler::ArgUsageUT>;
+  using MutableAttributeList =
+      llvm::SmallVector<jit_compiler::SYCLKernelAttribute>;
+
+  void appendKernelInfo(MutableParamKindList &FusedParamKinds,
+                        MutableArgUsageMask &FusedArgUsageMask,
+                        MutableAttributeList &FusedAttributes,
                         jit_compiler::SYCLKernelInfo &InputInfo,
                         const llvm::ArrayRef<bool> ParamUseMask) const;
 
-  void updateArgUsageMask(jit_compiler::ArgUsageMask &NewMask,
+  void updateArgUsageMask(MutableArgUsageMask &NewMask,
                           jit_compiler::SYCLArgumentDescriptor &InputDef,
                           const llvm::ArrayRef<bool> ParamUseMask) const;
 
   using KernelAttributeList = jit_compiler::AttributeList;
 
   using KernelAttr = jit_compiler::SYCLKernelAttribute;
-
-  using KernelAttrIterator = KernelAttributeList::iterator;
 
   ///
   /// Indicates the result of merging two attributes of the same kind.
@@ -161,7 +166,7 @@ private:
   ///
   /// Merge the content of Other into Attributes, adding, removing or updating
   /// attributes as needed.
-  void mergeKernelAttributes(KernelAttributeList &Attributes,
+  void mergeKernelAttributes(MutableAttributeList &Attributes,
                              const KernelAttributeList &Other) const;
 
   ///
@@ -184,24 +189,24 @@ private:
   ///
   /// Get the attribute with the specified name from the list or return nullptr
   /// in case no such attribute is present.
-  KernelAttr *getAttribute(KernelAttributeList &Attributes,
+  KernelAttr *getAttribute(MutableAttributeList &Attributes,
                            llvm::StringRef AttrName) const;
 
   ///
   /// Add the attribute to the list.
-  void addAttribute(KernelAttributeList &Attributes,
+  void addAttribute(MutableAttributeList &Attributes,
                     const KernelAttr &Attr) const;
 
   ///
   /// Remove the attribute with the specified name from the list, if present.
-  void removeAttribute(KernelAttributeList &Attributes,
+  void removeAttribute(MutableAttributeList &Attributes,
                        llvm::StringRef AttrName) const;
 
   ///
   /// Find the attribute with the specified name in the list, or return the
   /// end() iterator if no such attribute is present.
-  KernelAttrIterator findAttribute(KernelAttributeList &Attributes,
-                                   llvm::StringRef AttrName) const;
+  MutableAttributeList::iterator findAttribute(MutableAttributeList &Attributes,
+                                               llvm::StringRef AttrName) const;
 
   ///
   /// Retrieve the attribute value at the given index as unsigned integer.

@@ -306,6 +306,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
