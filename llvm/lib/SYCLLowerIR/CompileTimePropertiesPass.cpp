@@ -309,7 +309,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
-  if (!AttrKindStr.startswith("sycl-"))
+  if (!AttrKindStr.starts_with("sycl-"))
     return std::nullopt;
 
   auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
