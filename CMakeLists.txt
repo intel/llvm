@@ -116,9 +116,6 @@ if(UR_ENABLE_TRACING)
     )
     if (MSVC)
         set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
-
-        # disable warning C4267: The compiler detected a conversion from size_t to a smaller type.
-        target_compile_options(xptifw PRIVATE /wd4267)
     else()
         set(TARGET_XPTI xpti)
     endif()

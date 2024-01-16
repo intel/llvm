@@ -5,6 +5,9 @@ on:
     # Run every day at 23:00 UTC
     - cron: '0 23 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   long-fuzz-test:
     name: Run long fuzz tests

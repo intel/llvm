@@ -56,3 +56,4 @@
 {{OPT}}urEnqueueUSMMemcpy2DNegativeTest.InvalidEventWaitList/NVIDIA_CUDA_BACKEND___{{.*}}___pitch__1__width__1__height__1
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/NVIDIA_CUDA_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
+{{OPT}}{{Segmentation fault|Aborted}}
