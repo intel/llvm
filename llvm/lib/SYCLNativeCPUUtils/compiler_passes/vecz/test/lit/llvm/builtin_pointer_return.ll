@@ -41,10 +41,10 @@ define spir_kernel void @fract_v1(float* %xptr, float* %outptr, float* %ioutptr)
   %iout = load float, float* %iouta, align 4
   store float %iout, float* %arrayidx.iout, align 4
   ret void
-; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, {{(ptr|float\*)}} nonnull {{%.*}})
-; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, {{(ptr|float\*)}} nonnull {{%.*}})
-; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, {{(ptr|float\*)}} nonnull {{%.*}})
-; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, {{(ptr|float\*)}} nonnull {{%.*}})
+; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func float @_Z5fractfPf(float {{%.*}}, ptr nonnull {{%.*}})
 }
 
 define spir_kernel void @fract_v2(<2 x float>* %xptr, <2 x float>* %outptr, <2 x float>* %ioutptr) {
@@ -59,8 +59,8 @@ define spir_kernel void @fract_v2(<2 x float>* %xptr, <2 x float>* %outptr, <2 x
   %iout = load <2 x float>, <2 x float>* %iouta, align 8
   store <2 x float> %iout, <2 x float>* %arrayidx.iout, align 8
   ret void
-; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, {{(ptr|<2 x float>\*)}} nonnull {{%.*}})
-; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, {{(ptr|<2 x float>\*)}} nonnull {{%.*}})
-; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, {{(ptr|<2 x float>\*)}} nonnull {{%.*}})
-; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, {{(ptr|<2 x float>\*)}} nonnull {{%.*}})
+; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, ptr nonnull {{%.*}})
+; CHECK: call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> {{%.*}}, ptr nonnull {{%.*}})
 }
