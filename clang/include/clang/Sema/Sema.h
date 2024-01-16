@@ -59,7 +59,6 @@
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -2103,7 +2102,7 @@ public:
                                  SourceLocation AttrLoc);
 
   CodeAlignAttr *BuildCodeAlignAttr(const AttributeCommonInfo &CI, Expr *E);
-  bool CheckRebuiltCodeAlignStmtAttributes(ArrayRef<const Attr *> Attrs);
+  bool CheckRebuiltStmtAttributes(ArrayRef<const Attr *> Attrs);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -3933,6 +3932,11 @@ public:
                                               APValue &Value, CCEKind CCE,
                                               NamedDecl *Dest = nullptr);
 
+  ExprResult
+  EvaluateConvertedConstantExpression(Expr *E, QualType T, APValue &Value,
+                                      CCEKind CCE, bool RequireInt,
+                                      const APValue &PreNarrowingValue);
+
   /// Abstract base class used to perform a contextual implicit
   /// conversion from an expression to any type passing a filter.
   class ContextualImplicitConverter {
@@ -4795,8 +4799,6 @@ public:
   bool CheckAlwaysInlineAttr(const Stmt *OrigSt, const Stmt *CurSt,
                              const AttributeCommonInfo &A);
 
-  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
-
   /// Adjust the calling convention of a method to be the ABI default if it
   /// wasn't specified explicitly.  This handles method types formed from
   /// function type typedefs and typename template arguments.
@@ -5640,7 +5642,6 @@ public:
                       CorrectionCandidateCallback &CCC,
                       TemplateArgumentListInfo *ExplicitTemplateArgs = nullptr,
                       ArrayRef<Expr *> Args = std::nullopt,
-                      DeclContext *LookupCtx = nullptr,
                       TypoExpr **Out = nullptr);
 
   DeclResult LookupIvarInObjCMethod(LookupResult &Lookup, Scope *S,
@@ -7307,8 +7308,7 @@ public:
 
   /// ActOnLambdaExpr - This is called when the body of a lambda expression
   /// was successfully completed.
-  ExprResult ActOnLambdaExpr(SourceLocation StartLoc, Stmt *Body,
-                             Scope *CurScope);
+  ExprResult ActOnLambdaExpr(SourceLocation StartLoc, Stmt *Body);
 
   /// Does copying/destroying the captured variable have side effects?
   bool CaptureHasSideEffects(const sema::Capture &From);
@@ -8557,6 +8557,10 @@ public:
                                      TemplateParameterList *Params,
                                      TemplateArgumentLoc &Arg);
 
+  void NoteTemplateLocation(const NamedDecl &Decl,
+                            std::optional<SourceRange> ParamRange = {});
+  void NoteTemplateParameterLocation(const NamedDecl &Decl);
+
   ExprResult
   BuildExpressionFromDeclTemplateArgument(const TemplateArgument &Arg,
                                           QualType ParamType,
@@ -9350,8 +9354,7 @@ public:
 
   QualType DeduceTemplateSpecializationFromInitializer(
       TypeSourceInfo *TInfo, const InitializedEntity &Entity,
-      const InitializationKind &Kind, MultiExprArg Init,
-      ParenListExpr *PL = nullptr);
+      const InitializationKind &Kind, MultiExprArg Init);
 
   QualType deduceVarTypeFromInitializer(VarDecl *VDecl, DeclarationName Name,
                                         QualType Type, TypeSourceInfo *TSI,
@@ -10088,12 +10091,6 @@ public:
   /// but have not yet been performed.
   std::deque<PendingImplicitInstantiation> PendingInstantiations;
 
-  /// Track constexpr functions referenced before they are (lexically) defined.
-  /// The key is the pattern, associated with a list of specialisations that
-  /// need to be instantiated when the pattern is defined.
-  llvm::DenseMap<NamedDecl *, SmallVector<NamedDecl *>>
-      PendingInstantiationsOfConstexprEntities;
-
   /// Queue of implicit template instantiations that cannot be performed
   /// eagerly.
   SmallVector<PendingImplicitInstantiation, 1> LateParsedInstantiations;
@@ -10266,11 +10263,13 @@ public:
     ~ConstraintEvalRAII() { TI.setEvaluateConstraints(OldValue); }
   };
 
-  // Unlike the above, this evaluates constraints, which should only happen at
-  // 'constraint checking' time.
+  // Must be used instead of SubstExpr at 'constraint checking' time.
   ExprResult
   SubstConstraintExpr(Expr *E,
                       const MultiLevelTemplateArgumentList &TemplateArgs);
+  // Unlike the above, this does not evaluates constraints.
+  ExprResult SubstConstraintExprWithoutSatisfaction(
+      Expr *E, const MultiLevelTemplateArgumentList &TemplateArgs);
 
   /// Substitute the given template arguments into a list of
   /// expressions, expanding pack expansions if required.
@@ -10412,9 +10411,6 @@ public:
                                      bool Recursive = false,
                                      bool DefinitionRequired = false,
                                      bool AtEndOfTU = false);
-
-  void PerformPendingInstantiationsOfConstexprFunctions(FunctionDecl *Template);
-
   VarTemplateSpecializationDecl *BuildVarTemplateInstantiation(
       VarTemplateDecl *VarTemplate, VarDecl *FromVar,
       const TemplateArgumentList &TemplateArgList,
@@ -11023,6 +11019,11 @@ public:
   /// ActOnPragmaFenvAccess - Called on well formed
   /// \#pragma STDC FENV_ACCESS
   void ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled);
+
+  /// ActOnPragmaCXLimitedRange - Called on well formed
+  /// \#pragma STDC CX_LIMITED_RANGE
+  void ActOnPragmaCXLimitedRange(SourceLocation Loc,
+                                 LangOptions::ComplexRangeKind Range);
 
   /// Called on well formed '\#pragma clang fp' that has option 'exceptions'.
   void ActOnPragmaFPExceptions(SourceLocation Loc,
@@ -13846,6 +13847,9 @@ private:
                                     CallExpr *TheCall);
   bool CheckMVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckSVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
+  bool ParseSVEImmChecks(CallExpr *TheCall,
+                         SmallVector<std::tuple<int, int, int>, 3> &ImmChecks);
+  bool CheckSMEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckCDEBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                    CallExpr *TheCall);
   bool CheckARMCoprocessorImmediate(const TargetInfo &TI, const Expr *CoprocArg,

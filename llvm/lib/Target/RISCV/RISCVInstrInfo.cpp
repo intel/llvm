@@ -2266,8 +2266,9 @@ static bool memOpsHaveSameBasePtr(const MachineInstr &MI1,
 }
 
 bool RISCVInstrInfo::shouldClusterMemOps(
-    ArrayRef<const MachineOperand *> BaseOps1,
-    ArrayRef<const MachineOperand *> BaseOps2, unsigned ClusterSize,
+    ArrayRef<const MachineOperand *> BaseOps1, int64_t Offset1,
+    bool OffsetIsScalable1, ArrayRef<const MachineOperand *> BaseOps2,
+    int64_t Offset2, bool OffsetIsScalable2, unsigned ClusterSize,
     unsigned NumBytes) const {
   // If the mem ops (to be clustered) do not have the same base ptr, then they
   // should not be clustered
@@ -2281,9 +2282,14 @@ bool RISCVInstrInfo::shouldClusterMemOps(
     return false;
   }
 
-  // TODO: Use a more carefully chosen heuristic, e.g. only cluster if offsets
-  // indicate they likely share a cache line.
-  return ClusterSize <= 4;
+  unsigned CacheLineSize =
+      BaseOps1.front()->getParent()->getMF()->getSubtarget().getCacheLineSize();
+  // Assume a cache line size of 64 bytes if no size is set in RISCVSubtarget.
+  CacheLineSize = CacheLineSize ? CacheLineSize : 64;
+  // Cluster if the memory operations are on the same or a neighbouring cache
+  // line, but limit the maximum ClusterSize to avoid creating too much
+  // additional register pressure.
+  return ClusterSize <= 4 && std::abs(Offset1 - Offset2) < CacheLineSize;
 }
 
 // Set BaseReg (the base register operand), Offset (the byte offset being
@@ -2304,7 +2310,8 @@ bool RISCVInstrInfo::getMemOperandWithOffsetWidth(
   // load/store instructions.
   if (LdSt.getNumExplicitOperands() != 3)
     return false;
-  if (!LdSt.getOperand(1).isReg() || !LdSt.getOperand(2).isImm())
+  if ((!LdSt.getOperand(1).isReg() && !LdSt.getOperand(1).isFI()) ||
+      !LdSt.getOperand(2).isImm())
     return false;
 
   if (!LdSt.hasOneMemOperand())
@@ -2358,7 +2365,6 @@ RISCVInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   using namespace RISCVII;
   static const std::pair<unsigned, const char *> TargetFlags[] = {
       {MO_CALL, "riscv-call"},
-      {MO_PLT, "riscv-plt"},
       {MO_LO, "riscv-lo"},
       {MO_HI, "riscv-hi"},
       {MO_PCREL_LO, "riscv-pcrel-lo"},
