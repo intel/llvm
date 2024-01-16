@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 declare i64 @__mux_get_global_id(i32)
 
-define spir_kernel void @test_varying_if_ptr(i32 %a, i32** %b, i32* %on_true, i32* %on_false) {
+define spir_kernel void @test_varying_if_ptr(i32 %a, ptr %b, ptr %on_true, ptr %on_false) {
 entry:
   %conv = sext i32 %a to i64
   %call = call i64 @__mux_get_global_id(i32 0)
@@ -30,17 +30,19 @@ entry:
 
 if.then:
   %idxprom = sext i32 %a to i64
-  %arrayidx = getelementptr inbounds i32*, i32** %b, i64 %idxprom
-  store i32* %on_true, i32** %arrayidx, align 4
+  %arrayidx = getelementptr inbounds ptr, ptr %b, i64 %idxprom
+  store ptr %on_true, ptr %arrayidx, align 4
   br label %if.end
 
 if.else:
-  %arrayidx2 = getelementptr inbounds i32*, i32** %b, i64 42
-  store i32* %on_false, i32** %arrayidx2, align 4
+  %arrayidx2 = getelementptr inbounds ptr, ptr %b, i64 42
+  store ptr %on_false, ptr %arrayidx2, align 4
   br label %if.end
 
 if.end:
   ret void
+}
+
 ; CHECK:     define void @__vecz_b_masked_store4_u3ptru3ptrb(ptr [[A:%.*]], ptr [[B:%.*]], i1 [[MASK:%.*]]) [[ATTRS:#[0-9]+]] {
 ; CHECK:       br i1 [[MASK]], label %[[IF:.*]], label %[[EXIT:.*]]
 ; CHECK:     [[IF]]:
@@ -48,28 +50,5 @@ if.end:
 ; CHECK-NEXT:  br label %[[EXIT]]
 ; CHECK:     [[EXIT]]:
 ; CHECK-NEXT:  ret void
-}
-
-define spir_kernel void @test_varying_if_ptrptr(i32 %a, i32*** %b, i32** %on_true, i32** %on_false) {
-entry:
-  %conv = sext i32 %a to i64
-  %call = call i64 @__mux_get_global_id(i32 0)
-  %cmp = icmp eq i64 %conv, %call
-  br i1 %cmp, label %if.then, label %if.else
-
-if.then:
-  %idxprom = sext i32 %a to i64
-  %arrayidx = getelementptr inbounds i32**, i32*** %b, i64 %idxprom
-  store i32** %on_true, i32*** %arrayidx, align 4
-  br label %if.end
-
-if.else:
-  %arrayidx2 = getelementptr inbounds i32**, i32*** %b, i64 42
-  store i32** %on_false, i32*** %arrayidx2, align 4
-  br label %if.end
-
-if.end:
-  ret void
-}
 
 ; CHECK: attributes [[ATTRS]] = { norecurse nounwind }
