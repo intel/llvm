@@ -128,14 +128,19 @@ int main() {
       if (!IsL0 || !IsCombined)
         continue;
       // Check B.
-      assert(D.has(sycl::aspect::ext_oneapi_is_component));
+      assert(!D.has(sycl::aspect::ext_oneapi_is_composite));
       auto Components = D.get_info<info::device::component_devices>();
       assert(Components.empty());
 
       // Check A.
-      auto Composite = D.get_info<info::device::composite_device>();
-      Components = Composite.get_info<info::device::component_devices>();
-      assert(Components.size() >= 2);
+      auto IsComponent = D.has(sycl::aspect::ext_oneapi_is_component);
+      // A device can be neither composite nor component. This happens when
+      // there are not multiple tiles in a single card.
+      if (IsComponent) {
+        auto Composite = D.get_info<info::device::composite_device>();
+        Components = Composite.get_info<info::device::component_devices>();
+        assert(Components.size() >= 2);
+      }
     }
   }
 
@@ -153,21 +158,26 @@ int main() {
       if (!IsL0 || !IsCombined)
         continue;
       // Check A.
-      assert(D.has(sycl::aspect::ext_oneapi_is_component));
-      auto Composite = D.get_info<info::device::composite_device>();
-      assert(Composite.has(sycl::aspect::ext_oneapi_is_composite));
-      // Check B.
-      std::vector<sycl::device> AllCompositeDevs = get_composite_devices();
-      assert(std::find(AllCompositeDevs.begin(), AllCompositeDevs.end(),
-                       Composite) != AllCompositeDevs.end());
-      // Check C.
-      assert(!Composite.has(sycl::aspect::ext_oneapi_is_component));
-      try {
-        auto Invalid = Composite.get_info<info::device::composite_device>();
-        assert(false && "Exception expected.");
-      } catch (sycl::exception &E) {
-        assert(E.code() == sycl::errc::invalid &&
-               "errc should be errc::invalid");
+      assert(!D.has(sycl::aspect::ext_oneapi_is_composite));
+      auto IsComponent = D.has(sycl::aspect::ext_oneapi_is_component);
+      // A device can be neither composite nor component. This happens when
+      // there are not multiple tiles in a single card.
+      if (IsComponent) {
+        auto Composite = D.get_info<info::device::composite_device>();
+        assert(Composite.has(sycl::aspect::ext_oneapi_is_composite));
+        // Check B.
+        std::vector<sycl::device> AllCompositeDevs = get_composite_devices();
+        assert(std::find(AllCompositeDevs.begin(), AllCompositeDevs.end(),
+                         Composite) != AllCompositeDevs.end());
+        // Check C.
+        assert(!Composite.has(sycl::aspect::ext_oneapi_is_component));
+        try {
+          auto Invalid = Composite.get_info<info::device::composite_device>();
+          assert(false && "Exception expected.");
+        } catch (sycl::exception &E) {
+          assert(E.code() == sycl::errc::invalid &&
+                 "errc should be errc::invalid");
+        }
       }
     }
   }
