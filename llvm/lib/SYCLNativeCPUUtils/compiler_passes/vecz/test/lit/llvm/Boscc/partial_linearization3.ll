@@ -59,7 +59,7 @@
 ;   int id = get_global_id(0);
 ;   int ret = 0;
 ;
-;   if (n > 10) { // uniform
+;   if (n < 10) { // uniform
 ;     if (id % 3 == 0) { // varying
 ;       for (int i = 0; i < n - 1; i++) { ret /= 2; } goto end;
 ;     } else { // varying
@@ -93,7 +93,7 @@ define spir_kernel void @partial_linearization3(i32 addrspace(1)* %out, i32 %n) 
 entry:
   %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
-  %cmp = icmp sgt i32 %n, 10
+  %cmp = icmp slt i32 %n, 10
   br i1 %cmp, label %if.then, label %if.else17
 
 if.then:                                          ; preds = %entry
