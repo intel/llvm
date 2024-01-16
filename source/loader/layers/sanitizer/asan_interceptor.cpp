@@ -20,12 +20,10 @@ namespace {
 
 // These magic values are written to shadow for better error
 // reporting.
-const int kUsmDeviceRedzoneMagic = (char)0x81;
-const int kUsmHostRedzoneMagic = (char)0x82;
-const int kUsmSharedRedzoneMagic = (char)0x83;
-const int kMemBufferRedzoneMagic = (char)0x84;
-const int kSharedLocalRedzoneMagic = (char)0xa1;
-const int kUnkownRedzoneMagic = (char)0x8F;
+constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
+constexpr int kUsmHostRedzoneMagic = (char)0x82;
+constexpr int kUsmSharedRedzoneMagic = (char)0x83;
+constexpr int kMemBufferRedzoneMagic = (char)0x84;
 
 const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
 const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
