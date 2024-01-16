@@ -3769,6 +3769,10 @@ def fdebug_macro : Flag<["-"], "fdebug-macro">, Group<f_Group>,
 def fno_debug_macro : Flag<["-"], "fno-debug-macro">, Group<f_Group>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Do not emit macro debug information">;
+def fno_system_debug : Flag<["-"], "fno-system-debug">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option, CLOption, DXCOption]>,
+  HelpText<"Do not emit debug information for declarations in system headers">,
+  MarshallingInfoFlag<CodeGenOpts<"NoSystemDebug">>;
 def fstrict_aliasing : Flag<["-"], "fstrict-aliasing">, Group<f_Group>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Enable optimizations based on strict aliasing rules">;

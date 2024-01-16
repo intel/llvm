@@ -600,6 +600,7 @@
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@56@AEBVdevice@56@AEBVproperty_list@56@@Z
+??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVqueue@56@AEBVproperty_list@56@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@AEAA@AEBV?$shared_ptr@Vnode_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
