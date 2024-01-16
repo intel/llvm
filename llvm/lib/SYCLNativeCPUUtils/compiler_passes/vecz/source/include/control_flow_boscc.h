@@ -221,7 +221,7 @@ class ControlFlowConversionState::BOSCCGadget final {
   /// @brief Create uniform regions
   /// @return true if no problem occurred, false otherwise.
   bool createUniformRegions(
-      llvm::DenseSet<llvm::BasicBlock *> const &noDuplicateBlocks);
+      const llvm::DenseSet<llvm::BasicBlock *> &noDuplicateBlocks);
   /// @brief Duplicate a loop, creating a new looptag and updating all the
   ///        relevant information.
   /// @param[in] L The loop to duplicate

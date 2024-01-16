@@ -155,7 +155,7 @@ bool Reassociator::reassociate(llvm::BinaryOperator &Op) {
     return false;
   }
 
-  auto const Opcode = Op.getOpcode();
+  const auto Opcode = Op.getOpcode();
   auto *const LHS = Op.getOperand(0);
   auto *const RHS = Op.getOperand(1);
 
@@ -232,7 +232,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
     for (auto Iit = BB->begin(); Iit != BB->end();) {
       auto &I = *(Iit++);
       if (auto *BinOp = dyn_cast<BinaryOperator>(&I)) {
-        auto const form = canonicalizeBinOp(*BinOp);
+        const auto form = canonicalizeBinOp(*BinOp);
         if (form == OpForm::Varying || form == OpForm::Mixed) {
           reassociate(*BinOp);
         }

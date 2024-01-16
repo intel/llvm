@@ -121,7 +121,7 @@ class ControlFlowConversionState {
   /// @param[in] BB the BasicBlock
   /// @returns a reference to the MaskInfo
   const MaskInfo &getMaskInfo(llvm::BasicBlock *BB) const {
-    auto const found = MaskInfos.find(BB);
+    const auto found = MaskInfos.find(BB);
     assert(found != MaskInfos.end() &&
            "Mask Info not constructed for Basic Block!");
     return found->second;

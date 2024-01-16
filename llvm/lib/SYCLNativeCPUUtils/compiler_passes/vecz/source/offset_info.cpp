@@ -65,14 +65,14 @@ Value *matchSizeType(IRBuilder<> &B, Value *V, bool sext) {
 }
 
 uint64_t getTypeMask(Type *Ty) {
-  auto const bits = Ty->getIntegerBitWidth();
+  const auto bits = Ty->getIntegerBitWidth();
   return bits < 64 ? ((uint64_t(1) << bits) - 1) : ~uint64_t(0);
 }
 
 // The index size potentially depends on the address space of the pointer,
 // but let's just use the pointer size for now.
-uint64_t getSizeTypeMask(DataLayout const &DL) {
-  auto const bits = DL.getPointerSizeInBits();
+uint64_t getSizeTypeMask(const DataLayout &DL) {
+  const auto bits = DL.getPointerSizeInBits();
   return bits < 64 ? ((uint64_t(1) << bits) - 1) : ~uint64_t(0);
 }
 
@@ -176,9 +176,9 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
   // If we have a uniform value here we don't need to analyse any further.
   if (!SAR.UVR.isVarying(Ins)) {
-    auto const &KB =
+    const auto &KB =
         computeKnownBits(Ins, SAR.F.getParent()->getDataLayout(), 0, &SAR.AC);
-    auto const bitWidth = OffsetTy->getIntegerBitWidth();
+    const auto bitWidth = OffsetTy->getIntegerBitWidth();
 
     // We are interested in the bits that are not known to be zero.
     BitMask &= ~KB.Zero.extractBitsAsZExtValue(bitWidth, 0);
@@ -189,8 +189,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
   if (BinaryOperator *BOp = dyn_cast<BinaryOperator>(Offset)) {
     // Copy these values into local variables, because `SAR.analyze()` can
     // invalidate any previously obtained references.
-    auto const LHS = SAR.analyze(BOp->getOperand(0));
-    auto const RHS = SAR.analyze(BOp->getOperand(1));
+    const auto LHS = SAR.analyze(BOp->getOperand(0));
+    const auto RHS = SAR.analyze(BOp->getOperand(1));
     if (LHS.mayDiverge() || RHS.mayDiverge()) {
       return setMayDiverge();
     }
@@ -226,7 +226,7 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
   // Consider that integer casts cannot scale item IDs.
   if (CastInst *Cast = dyn_cast<CastInst>(Offset)) {
-    auto const &Src = SAR.analyze(Cast->getOperand(0));
+    const auto &Src = SAR.analyze(Cast->getOperand(0));
     if (Src.mayDiverge()) {
       return setMayDiverge();
     }
@@ -237,8 +237,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
       // address, rendering the entire strided MemOp invalid, even when masked
       // such that the read from the base address is not meant to execute.
       // Note that we don't care about overflowing the index type.
-      auto const typeMask = getTypeMask(Cast->getSrcTy());
-      auto const bitMaskSized =
+      const auto typeMask = getTypeMask(Cast->getSrcTy());
+      const auto bitMaskSized =
           Src.BitMask & getSizeTypeMask(Cast->getModule()->getDataLayout());
       if ((bitMaskSized & typeMask) != bitMaskSized) {
         return setMayDiverge();
@@ -270,8 +270,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
     // If the condition isn't varying and both operands have the same
     // constant stride, the result will also have the same constant stride.
-    auto const LHS = SAR.analyze(Select->getOperand(1));
-    auto const RHS = SAR.analyze(Select->getOperand(2));
+    const auto LHS = SAR.analyze(Select->getOperand(1));
+    const auto RHS = SAR.analyze(Select->getOperand(2));
     if (LHS.hasStride() && RHS.hasStride() && LHS.StrideInt == RHS.StrideInt &&
         LHS.isStrideConstantInt()) {
       return copyStrideFrom(LHS);
@@ -315,8 +315,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
   // Analyse function calls.
   if (CallInst *CI = dyn_cast<CallInst>(Offset)) {
-    auto const &BI = SAR.UVR.Ctx.builtins();
-    auto const Builtin = BI.analyzeBuiltinCall(*CI, SAR.UVR.dimension);
+    const auto &BI = SAR.UVR.Ctx.builtins();
+    const auto Builtin = BI.analyzeBuiltinCall(*CI, SAR.UVR.dimension);
     switch (Builtin.uniformity) {
       default:
       case compiler::utils::eBuiltinUniformityMaybeInstanceID:
@@ -409,7 +409,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
       // If it's a simple loop iterator, the stride can be analyzed from the
       // initial value.
       if (GEP->getPointerOperand() == Phi) {
-        for (auto const &index : GEP->indices()) {
+        for (const auto &index : GEP->indices()) {
           if (SAR.UVR.isVarying(index.get())) {
             return setMayDiverge();
           }
@@ -421,7 +421,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
       // If it's a simple loop iterator, the stride can be analyzed from the
       // initial value.
       if (GEP->getPointerOperand() == Phi) {
-        for (auto const &index : GEP->indices()) {
+        for (const auto &index : GEP->indices()) {
           if (SAR.UVR.isVarying(index.get())) {
             return setMayDiverge();
           }
@@ -434,7 +434,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
   } else if (auto *GEP = dyn_cast<GetElementPtrInst>(Address)) {
     {
       auto *const Ptr = GEP->getPointerOperand();
-      auto const &PtrInfo = SAR.analyze(Ptr);
+      const auto &PtrInfo = SAR.analyze(Ptr);
       if (PtrInfo.mayDiverge()) {
         if (isa<SelectInst>(Ptr)) {
           // For the benefit of the Ternary Transform Pass
@@ -461,7 +461,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
       Value *GEPIndex = GEP->getOperand(1 + i);
       assert(GEPIndex && "Could not get operand from GEP");
 
-      auto const &idxOffset = SAR.analyze(GEPIndex);
+      const auto &idxOffset = SAR.analyze(GEPIndex);
       if (idxOffset.mayDiverge()) {
         return setMayDiverge();
       }
@@ -498,8 +498,8 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
     }
     return *this;
   } else if (auto *Select = dyn_cast<SelectInst>(Address)) {
-    auto const LHS = SAR.analyze(Select->getOperand(1));
-    auto const RHS = SAR.analyze(Select->getOperand(2));
+    const auto LHS = SAR.analyze(Select->getOperand(1));
+    const auto RHS = SAR.analyze(Select->getOperand(2));
     if (SAR.UVR.isVarying(Select->getCondition())) {
       // Note that we analyze the operands before returning here, for the
       // benefit of the Ternary Transform Pass, which does its work ONLY
@@ -536,8 +536,8 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
   Instruction *Offset = cast<Instruction>(ActualValue);
   // Analyse binary instructions.
   if (BinaryOperator *BOp = dyn_cast<BinaryOperator>(Offset)) {
-    auto const &LHS = SAR.manifest(B, BOp->getOperand(0));
-    auto const &RHS = SAR.manifest(B, BOp->getOperand(1));
+    const auto &LHS = SAR.manifest(B, BOp->getOperand(0));
+    const auto &RHS = SAR.manifest(B, BOp->getOperand(1));
 
     // Build strides immediately before their instructions
     B.SetInsertPoint(BOp);
@@ -599,7 +599,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
   }
 
   if (auto *GEP = dyn_cast<GetElementPtrInst>(Offset)) {
-    auto const &Ptr = SAR.manifest(B, GEP->getPointerOperand());
+    const auto &Ptr = SAR.manifest(B, GEP->getPointerOperand());
     copyStrideFrom(Ptr);
 
     PointerType *GEPPtrTy = dyn_cast<PointerType>(GEP->getPointerOperandType());
@@ -615,7 +615,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
       Value *GEPIndex = GEP->getOperand(1 + i);
       assert(GEPIndex && "Could not get operand from GEP");
 
-      auto const &idxOffset = SAR.manifest(B, GEPIndex);
+      const auto &idxOffset = SAR.manifest(B, GEPIndex);
 
       Indices.push_back(GEPIndex);
       if (!idxOffset.hasStride()) {
@@ -664,7 +664,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
 }
 
 uint64_t OffsetInfo::getConstantMemoryStride(Type *PtrEleTy,
-                                             DataLayout const *DL) const {
+                                             const DataLayout *DL) const {
   uint64_t PtrEleSize = SizeOrZero(DL->getTypeAllocSize(PtrEleTy));
   VECZ_FAIL_IF(!PtrEleSize);
 
@@ -677,7 +677,7 @@ uint64_t OffsetInfo::getConstantMemoryStride(Type *PtrEleTy,
 }
 
 Value *OffsetInfo::buildMemoryStride(IRBuilder<> &B, Type *PtrEleTy,
-                                     DataLayout const *DL) const {
+                                     const DataLayout *DL) const {
   if (!ManifestStride) {
     assert(Kind != eOffsetLinear &&
            "buildMemoryStride: linear stride not manifest");
@@ -916,7 +916,7 @@ OffsetInfo &OffsetInfo::combineShl(const OffsetInfo &LHS,
     }
 
     if (ConstantInt *CShift = dyn_cast<ConstantInt>(Shift)) {
-      auto const CVal = CShift->getZExtValue();
+      const auto CVal = CShift->getZExtValue();
       BitMask = LHS.BitMask << CVal;
       return setStride(LHS.StrideInt << CVal);
     }
@@ -963,7 +963,7 @@ OffsetInfo &OffsetInfo::combineAShr(const OffsetInfo &LHS,
       // Note that we shift the bitmask as a signed value.
       // Note also that the BitMask is been initialized to the width of the
       // integer type.
-      uint64_t const signMask = (BitMask >> 1) + 1;
+      const uint64_t signMask = (BitMask >> 1) + 1;
       if (LHS.BitMask & signMask) {
         // If it's possible for the source value to be negative, all of the
         // bits in the extended value might be set.
@@ -973,7 +973,7 @@ OffsetInfo &OffsetInfo::combineAShr(const OffsetInfo &LHS,
       }
 
       if (LHS.isStrideConstantInt()) {
-        auto const lostBits = ((uint64_t(1) << CShift) - 1);
+        const auto lostBits = ((uint64_t(1) << CShift) - 1);
         if ((LHS.StrideInt & lostBits) == 0 || (LHS.BitMask & lostBits) == 0) {
           return setStride(LHS.StrideInt >> CShift);
         }
@@ -991,7 +991,7 @@ OffsetInfo &OffsetInfo::manifestAShr(IRBuilder<> &B, const OffsetInfo &LHS,
                                      const OffsetInfo &RHS) {
   if (RHS.Kind == eOffsetConstant) {
     auto *const Shift = RHS.getUniformValue();
-    auto const CShift = RHS.getValueAsConstantInt();
+    const auto CShift = RHS.getValueAsConstantInt();
 
     if (!LHS.isStrideConstantInt() &&
         (LHS.BitMask & ((uint64_t(1) << CShift) - 1)) == 0) {

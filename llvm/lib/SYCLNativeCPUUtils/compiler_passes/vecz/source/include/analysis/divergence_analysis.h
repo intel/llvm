@@ -95,7 +95,7 @@ struct BlockQueue {
   using index_type = uint32_t;
   using index_list = std::vector<index_type>;
 
-  DivergenceResult const &DR;
+  const DivergenceResult &DR;
 
   /// @brief The DCBI indices of the blocks in the queue, in min-heap order.
   /// Since we can easily retrieve the BasicBlockTag from the DCBI ordered
@@ -105,11 +105,11 @@ struct BlockQueue {
   index_list indices;
 
   /// @brief Constructs an empty BlockQueue
-  BlockQueue(DivergenceResult const &dr) : DR(dr){};
+  BlockQueue(const DivergenceResult &dr) : DR(dr){};
 
   /// @brief Constructs a BlockQueue from a set of blocks.
-  BlockQueue(DivergenceResult const &dr,
-             llvm::DenseSet<llvm::BasicBlock *> const &blocks);
+  BlockQueue(const DivergenceResult &dr,
+             const llvm::DenseSet<llvm::BasicBlock *> &blocks);
 
   /// @brief Returns the number of blocks in the queue.
   size_t size() const { return indices.size(); }
@@ -122,7 +122,7 @@ struct BlockQueue {
 
   /// @brief Pushes a block on the queue by pointer.
   /// Prefer `push(size_t)` if the tag index is available.
-  void push(llvm::BasicBlock const *bb);
+  void push(const llvm::BasicBlock *bb);
 
   /// @brief Pops a block from the queue and returns it.
   const BasicBlockTag &pop();
@@ -178,7 +178,7 @@ struct BasicBlockTag {
   /// @brief Deleted address-of operator
   BasicBlockTag *operator&() = delete;
   /// @brief Deleted const address-of operator
-  BasicBlockTag const *operator&() const = delete;
+  const BasicBlockTag *operator&() const = delete;
 
   BlockDivergenceFlag divergenceFlag = BlockDivergenceFlag::eBlockHasNoFlag;
 
@@ -236,7 +236,7 @@ class DivergenceResult {
   /// @brief Gets a BasicBlockTag by its DCBI index
   /// @param[in] index the DCBI index
   /// @returns reference to the BasicBlockTag
-  BasicBlockTag const &getBlockTag(size_t index) const {
+  const BasicBlockTag &getBlockTag(size_t index) const {
     return basicBlockTags[index];
   }
 
@@ -259,7 +259,7 @@ class DivergenceResult {
     return basicBlockTags[getTagIndex(BB)];
   }
 
-  BasicBlockTag const &getTag(const llvm::BasicBlock *BB) const {
+  const BasicBlockTag &getTag(const llvm::BasicBlock *BB) const {
     return basicBlockTags[getTagIndex(BB)];
   }
 
@@ -375,7 +375,7 @@ class DivergenceResult {
                    bool allowLatch = false) const;
 
   /// @brief List of blocks having a divergent branch.
-  std::vector<llvm::BasicBlock *> const &getDivCausingBlocks() const {
+  const std::vector<llvm::BasicBlock *> &getDivCausingBlocks() const {
     return divCausingBlocks;
   }
 
@@ -417,8 +417,8 @@ class DivergenceResult {
   /// @param[in] src Divergent branch
   /// @param[in] L Divergent loop
   /// @return List of exit blocks some work-item may leave through.
-  llvm::DenseSet<llvm::BasicBlock *> escapePoints(llvm::BasicBlock const &src,
-                                                  llvm::Loop const &L) const;
+  llvm::DenseSet<llvm::BasicBlock *> escapePoints(const llvm::BasicBlock &src,
+                                                  const llvm::Loop &L) const;
 
   /// @brief the Function the analysis was run on
   llvm::Function &F;

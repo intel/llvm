@@ -40,8 +40,8 @@ namespace {
 using RPOT = ReversePostOrderTraversal<Function *>;
 }  // namespace
 
-BlockQueue::BlockQueue(DivergenceResult const &dr,
-                       DenseSet<BasicBlock *> const &blocks)
+BlockQueue::BlockQueue(const DivergenceResult &dr,
+                       const DenseSet<BasicBlock *> &blocks)
     : DR(dr) {
   indices.reserve(blocks.size());
   for (auto *const BB : blocks) {
@@ -56,7 +56,7 @@ BlockQueue::BlockQueue(DivergenceResult const &dr,
 const BasicBlockTag &BlockQueue::pop() {
   assert(!indices.empty() && "Trying to pop from an empty BlockQueue");
   std::pop_heap(indices.begin(), indices.end(), std::greater<index_type>());
-  auto const popped_index = indices.back();
+  const auto popped_index = indices.back();
   indices.pop_back();
 
   return DR.getBlockTag(popped_index);
@@ -67,7 +67,7 @@ void BlockQueue::push(size_t index) {
   std::push_heap(indices.begin(), indices.end(), std::greater<index_type>());
 }
 
-void BlockQueue::push(BasicBlock const *bb) {
+void BlockQueue::push(const BasicBlock *bb) {
   indices.push_back(DR.getTagIndex(bb));
   std::push_heap(indices.begin(), indices.end(), std::greater<index_type>());
 }
@@ -84,7 +84,7 @@ size_t DivergenceResult::getTagIndex(const llvm::BasicBlock *BB) const {
 
 BasicBlockTag &DivergenceResult::getOrCreateTag(BasicBlock *BB) {
   assert(BB && "Trying to get the tag of a null BasicBlock");
-  auto const &result = BBMap.try_emplace(BB, basicBlockTags.size());
+  const auto &result = BBMap.try_emplace(BB, basicBlockTags.size());
   if (result.second) {
     // It's a new map entry, so create the new tag and return it.
     basicBlockTags.emplace_back();
@@ -208,7 +208,7 @@ bool DivergenceResult::computeBlockOrdering(DominatorTree &DT) {
       graph.emplace_back();
       graph.back().BB = BB;
 
-      if (auto const *const LTag = getTag(BB).loop) {
+      if (const auto *const LTag = getTag(BB).loop) {
         graph.back().depth = LTag->loop->getLoopDepth();
       }
     }
@@ -221,8 +221,8 @@ bool DivergenceResult::computeBlockOrdering(DominatorTree &DT) {
   SmallVector<unsigned, 16> children;
   SmallVector<unsigned, 16> loopExits;
   while (!stack.empty()) {
-    auto const u = stack.pop_back_val();
-    auto const &uNode = graph[u];
+    const auto u = stack.pop_back_val();
+    const auto &uNode = graph[u];
 
     getTag(uNode.BB).pos = pos++;
 
@@ -233,7 +233,7 @@ bool DivergenceResult::computeBlockOrdering(DominatorTree &DT) {
     auto *const DTNode = DT.getNode(uNode.BB);
     unsigned stacked = 0;
     for (auto *const childNode : make_range(DTNode->begin(), DTNode->end())) {
-      auto const child = indexMap[childNode->getBlock()];
+      const auto child = indexMap[childNode->getBlock()];
       auto &cNode = graph[child];
       if (cNode.depth >= uNode.depth) {
         stack.push_back(child);
@@ -257,8 +257,8 @@ bool DivergenceResult::computeBlockOrdering(DominatorTree &DT) {
     std::sort(stack.end() - stacked, stack.end(), std::greater<unsigned>());
 
     if (!loopExits.empty()) {
-      unsigned const curDepth = stack.empty() ? 0 : graph[stack.back()].depth;
-      unsigned const depth = std::max(curDepth, graph[loopExits.back()].depth);
+      const unsigned curDepth = stack.empty() ? 0 : graph[stack.back()].depth;
+      const unsigned depth = std::max(curDepth, graph[loopExits.back()].depth);
       unsigned count = 0;
       while (!loopExits.empty() && depth == graph[loopExits.back()].depth) {
         stack.push_back(loopExits.pop_back_val());
@@ -299,7 +299,7 @@ void DivergenceResult::reorderTags(size_t n) {
 
 bool DivergenceResult::computeLoopOrdering() {
   loopOrdering.clear();
-  for (auto const &pair : LMap) {
+  for (const auto &pair : LMap) {
     loopOrdering.push_back(pair.second.get());
   }
 
@@ -327,7 +327,7 @@ void DivergenceResult::markDivCausing(BasicBlock &BB, DivergenceInfo &DI,
 
   // If a block is a joint point (blend) of `BB`, then it is divergent (unless
   // it is the post-dominator of `BB`).
-  auto const &joins = joinPoints(BB);
+  const auto &joins = joinPoints(BB);
   for (BasicBlock *const join : joins) {
     setFlag(*join, BlockDivergenceFlag::eBlockIsBlend);
     LLVM_DEBUG(dbgs() << "\tBlock " << join->getName() << " is blend\n");
@@ -363,7 +363,7 @@ void DivergenceResult::markDivLoopDivBlocks(BasicBlock &BB, Loop &L,
   // divergent).
   SmallVector<BasicBlock *, 1> exits;
   L.getExitBlocks(exits);
-  auto const &divergentExits = escapePoints(BB, L);
+  const auto &divergentExits = escapePoints(BB, L);
   for (BasicBlock *E : exits) {
     if (divergentExits.count(E)) {
       markDivergent(*E);
@@ -422,8 +422,8 @@ void DivergenceResult::markByAll(BasicBlock &src) {
     for (BasicBlock *D : descendants) {
       if (D != BB) {
         if (PDT.dominates(D, BB)) {
-          auto const DIndex = getTagIndex(D);
-          auto const *const DLoopTag = basicBlockTags[DIndex].loop;
+          const auto DIndex = getTagIndex(D);
+          const auto *const DLoopTag = basicBlockTags[DIndex].loop;
           // If we are not in a loop, or the loop we live in does not diverge
           // nor does the one englobing us if it exists, then mark by_all.
           Loop *parentLoop;
@@ -473,7 +473,7 @@ bool DivergenceResult::isReachable(BasicBlock *src, BasicBlock *dst,
       return true;
     }
 
-    auto const &BBTag = getTag(BB);
+    const auto &BBTag = getTag(BB);
     for (BasicBlock *succ : successors(BB)) {
       if (!allowLatch && BBTag.isLoopBackEdge(succ)) {
         continue;
@@ -495,13 +495,13 @@ DenseSet<BasicBlock *> DivergenceResult::joinPoints(BasicBlock &src) const {
   Function &F = *src.getParent();
   PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
 
-  DenseMap<BasicBlock const *, BasicBlock const *> defMap;
+  DenseMap<const BasicBlock *, const BasicBlock *> defMap;
   DenseSet<BasicBlock *> joins;
 
   BlockQueue queue(*this);
 
   auto schedule = [&defMap, &joins, &queue](BasicBlock *block,
-                                            BasicBlock const *defBlock) {
+                                            const BasicBlock *defBlock) {
     auto defIt = defMap.find(block);
     // First time we meet this block; not a join (yet).
     if (defIt == defMap.end()) {
@@ -533,9 +533,9 @@ DenseSet<BasicBlock *> DivergenceResult::joinPoints(BasicBlock &src) const {
       continue;
     }
 
-    BasicBlock const *const defBlock = defMap.find(cur)->second;
+    const BasicBlock *const defBlock = defMap.find(cur)->second;
 
-    auto const *const curLTag = curTag.loop;
+    const auto *const curLTag = curTag.loop;
     // If the successor is the header of a nested loop pretend its a single
     // node with the loop's exits as successors.
     if (curLTag && curLTag->header == cur) {
@@ -561,20 +561,20 @@ DenseSet<BasicBlock *> DivergenceResult::joinPoints(BasicBlock &src) const {
   return joins;
 }
 
-DenseSet<BasicBlock *> DivergenceResult::escapePoints(BasicBlock const &src,
-                                                      Loop const &L) const {
-  LoopTag const &LTag = getTag(&L);
+DenseSet<BasicBlock *> DivergenceResult::escapePoints(const BasicBlock &src,
+                                                      const Loop &L) const {
+  const LoopTag &LTag = getTag(&L);
 
   DenseSet<BasicBlock *> divergentExits;
 
-  DenseSet<BasicBlock const *> visited;
+  DenseSet<const BasicBlock *> visited;
   BlockQueue queue(*this);
 
   queue.push(&src);
   visited.insert(&src);
 
   while (!queue.empty()) {
-    auto const &BBTag = queue.pop();
+    const auto &BBTag = queue.pop();
     auto *const BB = BBTag.BB;
 
     // We found a divergent loop exit.
@@ -712,7 +712,7 @@ DivergenceResult DivergenceAnalysis::run(llvm::Function &F,
 
   while (!uniformBranches.empty()) {
     // Partition the list so all the varying branches are grouped at the end.
-    auto const varyingBranches =
+    const auto varyingBranches =
         std::partition(uniformBranches.begin(), uniformBranches.end(),
                        [&UVR](std::pair<BasicBlock *, Value *> &p) -> bool {
                          return !UVR.isVarying(p.second);
@@ -726,7 +726,7 @@ DivergenceResult DivergenceAnalysis::run(llvm::Function &F,
       // Find blocks diverged by varying branch block.
       Res.markDivCausing(*BB, divergenceInfo, PDT);
 
-      if (auto const *const LTag = Res.getTag(BB).loop) {
+      if (const auto *const LTag = Res.getTag(BB).loop) {
         Loop *L = LTag->loop;
         while (L) {
           // If BB is a varying branch, mark the loop as diverging if any two
@@ -757,7 +757,7 @@ DivergenceResult DivergenceAnalysis::run(llvm::Function &F,
     // divergent loops are varying.
     bool updated = false;
     for (BasicBlock *BB : divergenceInfo) {
-      bool const exitedLoop = Res.getTag(BB).outermostExitedLoop;
+      const bool exitedLoop = Res.getTag(BB).outermostExitedLoop;
       for (Instruction &I : *BB) {
         if (PHINode *PHI = dyn_cast<PHINode>(&I)) {
           // Loop exits might have constant phi nodes (lcssa value).

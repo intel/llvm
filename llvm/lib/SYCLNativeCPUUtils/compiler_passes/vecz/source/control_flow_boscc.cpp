@@ -140,8 +140,8 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
     }
     std::sort(predicatedBlockIndices.begin(), predicatedBlockIndices.end());
 
-    for (auto const index : predicatedBlockIndices) {
-      auto const &BTag = DR->getBlockTag(index);
+    for (const auto index : predicatedBlockIndices) {
+      const auto &BTag = DR->getBlockTag(index);
       auto *const B = BTag.BB;
       auto *const LTag = BTag.loop;
 
@@ -200,7 +200,7 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
 
   // Fix the duplicated instructions arguments.
   for (BasicBlock *B : newBlocks) {
-    bool const notHeader = !DR->getTag(B).isLoopHeader();
+    const bool notHeader = !DR->getTag(B).isLoopHeader();
 
     for (Instruction &I : *B) {
       RemapInstruction(&I, VMap,
@@ -235,7 +235,7 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
 }
 
 bool ControlFlowConversionState::BOSCCGadget::duplicateUniformLoops(Loop *L) {
-  LoopTag const &LTag = DR->getTag(L);
+  const LoopTag &LTag = DR->getTag(L);
   Loop *const uniformL = LI->AllocateLoop();
 
   // Either add 'uniformL' as a child of a loop or as a top level loop.
@@ -286,9 +286,9 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformLoops(Loop *L) {
 }
 
 bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
-    DenseSet<BasicBlock *> const &noDuplicateBlocks) {
+    const DenseSet<BasicBlock *> &noDuplicateBlocks) {
   auto discardRegion =
-      [&noDuplicateBlocks](UniformRegion const &region) -> bool {
+      [&noDuplicateBlocks](const UniformRegion &region) -> bool {
     // To determine if it is worth it to duplicate the uniform region, we must
     // take several elements into account:
     // - The length of the duplicated code
@@ -412,11 +412,11 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
   };
 
   // Collect all the blocks in the worklist
-  auto const &DCBI = DR->getBlockOrdering();
-  size_t const numBlocks = DCBI.size();
+  const auto &DCBI = DR->getBlockOrdering();
+  const size_t numBlocks = DCBI.size();
   SmallVector<SESEInfo, 16> SESE;
   SESE.reserve(numBlocks);
-  for (auto const &BBTag : DCBI) {
+  for (const auto &BBTag : DCBI) {
     SESE.emplace_back();
     SESE.back().BB = BBTag.BB;
   }
@@ -436,7 +436,7 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
 
     uniformRegions.emplace_back();
     auto &region = uniformRegions.back();
-    size_t const entryPos = i;
+    const size_t entryPos = i;
     size_t exitPos = 0u;
     size_t firstPredicated = numBlocks;
 
@@ -447,11 +447,11 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
 
     // If we are in a divergent loop, then the whole loop needs a uniform
     // version.
-    auto const *const entryLoopTag = DR->getTag(info.BB).loop;
+    const auto *const entryLoopTag = DR->getTag(info.BB).loop;
     if (entryLoopTag && entryLoopTag->isLoopDivergent()) {
       auto *const loop = entryLoopTag->loop;
       for (BasicBlock *loopB : loop->blocks()) {
-        size_t const pos = DR->getTagIndex(loopB);
+        const size_t pos = DR->getTagIndex(loopB);
         firstPredicated = std::min(firstPredicated, pos);
         SESE[pos].predicated = true;
         region.predicatedBlocks.insert(loopB);
@@ -467,7 +467,7 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
     while (!stack.empty()) {
       auto *const cur = SESE[stack.pop_back_val()].BB;
       for (BasicBlock *succ : successors(cur)) {
-        size_t const succPos = DR->getTagIndex(succ);
+        const size_t succPos = DR->getTagIndex(succ);
 
         auto *const succLoopTag = DR->getBlockTag(succPos).loop;
         if ((!succLoopTag || !succLoopTag->isLoopDivergent()) &&
@@ -582,7 +582,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
       }
     }
 
-    auto const &LTag = DR->getTag(L);
+    const auto &LTag = DR->getTag(L);
     BasicBlock *preheader = LTag.preheader;
     if (!VMap.count(preheader)) {
       auto *T = preheader->getTerminator();
@@ -624,7 +624,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
 
   // If a uniform block targets a predicated block, the latter needs its
   // operands that have a uniform and predicated version blended.
-  for (auto const &predicatedBTag : DR->getBlockOrdering()) {
+  for (const auto &predicatedBTag : DR->getBlockOrdering()) {
     if (BasicBlock *uniformB = getBlock(predicatedBTag.BB)) {
       for (BasicBlock *succ : successors(uniformB)) {
         // We've found a uniform block that targets a predicated block prior
@@ -780,7 +780,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
 
   BasicBlock *connectionPoint = target;
 
-  auto const *const LTag = DR->getTag(predicatedB).loop;
+  const auto *const LTag = DR->getTag(predicatedB).loop;
   const bool needsStore = LTag && LMap.count(LTag->loop);
   if (needsStore) {
     // 'store' is a block that will contain all the uniform versions of the
@@ -856,7 +856,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
 
 bool ControlFlowConversionState::BOSCCGadget::blendConnectionPoint(
     BasicBlock *CP, const std::pair<BasicBlock *, BasicBlock *> &incoming) {
-  auto const *const CPLTag = DR->getTag(CP).loop;
+  const auto *const CPLTag = DR->getTag(CP).loop;
   for (auto &region : uniformRegions) {
     // Create blend instructions at each blend point following 'CP'.
     if (region.contains(CP) || (CP == region.exitBlock) ||
@@ -964,7 +964,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
     }
   }
 
-  for (auto const &tag : DR->getBlockOrdering()) {
+  for (const auto &tag : DR->getBlockOrdering()) {
     BasicBlock *blendPoint = tag.BB;
     if (blendBlocks.count(blendPoint) == 0) {
       continue;
@@ -1124,7 +1124,7 @@ Loop *ControlFlowConversionState::BOSCCGadget::getLoop(Loop *L) {
 
 void ControlFlowConversionState::BOSCCGadget::getUnduplicatedEntryBlocks(
     SmallVectorImpl<BasicBlock *> &blocks) const {
-  for (auto const &region : uniformRegions) {
+  for (const auto &region : uniformRegions) {
     if (VMap.count(region.entryBlock) == 0) {
       blocks.push_back(region.entryBlock);
     }
@@ -1192,7 +1192,7 @@ void ControlFlowConversionState::BOSCCGadget::updateValue(Value *from,
 }
 
 bool ControlFlowConversionState::BOSCCGadget::linkMasks() {
-  for (auto const &BTag : DR->getBlockOrdering()) {
+  for (const auto &BTag : DR->getBlockOrdering()) {
     auto *const BB = BTag.BB;
     if (auto *const uniformB = getBlock(BB)) {
       // Both sets of masks had better exist by this point.
@@ -1287,7 +1287,7 @@ bool ControlFlowConversionState::BOSCCGadget::updateLoopBlendValues(
 
 bool ControlFlowConversionState::BOSCCGadget::computeBlockOrdering() {
   // Create a map from entry blocks to their uniform regions
-  DenseMap<BasicBlock *, UniformRegion const *> entryMap;
+  DenseMap<BasicBlock *, const UniformRegion *> entryMap;
   unsigned maxUBlocks = 0;
   for (const auto &region : uniformRegions) {
     if (!region.uniformBlocks.empty()) {
@@ -1302,11 +1302,11 @@ bool ControlFlowConversionState::BOSCCGadget::computeBlockOrdering() {
   // Also note that we can't use pointers to BasicBlockTags here since
   // `PassState.computeBlockOrdering()` re-orders the tags vector.
   SmallVector<BasicBlock *, 16> filtered;
-  for (auto const &tag : DR->getBlockOrdering()) {
+  for (const auto &tag : DR->getBlockOrdering()) {
     filtered.push_back(tag.BB);
-    auto const found = entryMap.find(tag.BB);
+    const auto found = entryMap.find(tag.BB);
     if (found != entryMap.end()) {
-      auto const *const region = found->second;
+      const auto *const region = found->second;
       filtered.resize(filtered.size() + region->uniformBlocks.size());
     }
   }
@@ -1320,17 +1320,17 @@ bool ControlFlowConversionState::BOSCCGadget::computeBlockOrdering() {
   for (auto it = filtered.begin(), ie = filtered.end(); it != ie;) {
     auto *const BB = *it;
 
-    auto const found = entryMap.find(BB);
+    const auto found = entryMap.find(BB);
     if (found != entryMap.end()) {
       // If the entry block of the region is NOT duplicated, add the uniform
       // blocks after it.
-      bool const entryDupe = getBlock(BB);
+      const bool entryDupe = getBlock(BB);
       if (!entryDupe) {
         ++it;
       }
 
       // Gather the indices of the uniform blocks and sort them.
-      auto const &region = *found->second;
+      const auto &region = *found->second;
       uniformBlocks.clear();
       for (auto *const uBB : region.uniformBlocks) {
         uniformBlocks.push_back(DR->getTagIndex(uBB));
@@ -1338,7 +1338,7 @@ bool ControlFlowConversionState::BOSCCGadget::computeBlockOrdering() {
       std::sort(uniformBlocks.begin(), uniformBlocks.end());
 
       // Insert the uniform blocks into the gap.
-      for (auto const uBBi : uniformBlocks) {
+      for (const auto uBBi : uniformBlocks) {
         (*it++) = DR->getBlockTag(uBBi).BB;
       }
 

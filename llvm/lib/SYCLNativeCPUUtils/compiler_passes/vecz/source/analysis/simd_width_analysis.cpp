@@ -55,7 +55,7 @@ bool definedOrUsedInLoop(Value *V, Loop *L) {
     return true;
   }
 
-  auto const *const I = dyn_cast<Instruction>(V);
+  const auto *const I = dyn_cast<Instruction>(V);
   if (I && L->contains(I)) {
     // It's defined in the current loop.
     return true;
@@ -65,8 +65,8 @@ bool definedOrUsedInLoop(Value *V, Loop *L) {
   // Values defined outwith the loop, but used only by a PHI node within it must
   // be loop-carried variable initial values. If these are not otherwise used
   // directly within the loop, then they are not really live inside the loop.
-  for (auto const *const U : V->users()) {
-    auto const *const I = dyn_cast<Instruction>(U);
+  for (const auto *const U : V->users()) {
+    const auto *const I = dyn_cast<Instruction>(U);
     if (I && !isa<PHINode>(I) && L->contains(I)) {
       return true;
     }

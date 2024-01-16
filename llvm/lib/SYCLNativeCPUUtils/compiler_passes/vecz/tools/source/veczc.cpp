@@ -170,7 +170,7 @@ static vecz::VeczPassOptions getDefaultPassOptions() {
     llvm::EnableStatistics(true);
   }
 
-  auto const factor = SIMDWidth ? SIMDWidth : 4;
+  const auto factor = SIMDWidth ? SIMDWidth : 4;
   auto VF = compiler::utils::VectorizationFactor::getFixedWidth(factor);
   if (VeczSimdWidth) {
     VF.setKnownMin(VeczSimdWidth);

@@ -61,7 +61,7 @@ inline Type *getWideType(Type *ty, ElementCount factor) {
     }
     return VectorType::get(ty, factor);
   }
-  bool const isScalable = isa<ScalableVectorType>(ty);
+  const bool isScalable = isa<ScalableVectorType>(ty);
   assert((!factor.isScalable() || !isScalable) &&
          "Can't widen a scalable vector by a scalable amount");
   auto *vecTy = cast<llvm::VectorType>(ty);
@@ -179,9 +179,9 @@ Value *createOptimalShuffle(IRBuilder<> &B, Value *srcA, Value *srcB,
     // We can absorb one or two unary shuffles into the new shuffle..
     auto *const shuffleAsrc = shuffleA ? shuffleA->getOperand(0) : srcA;
     auto *const shuffleBsrc = shuffleB ? shuffleB->getOperand(0) : srcB;
-    auto const srcASize =
+    const auto srcASize =
         cast<FixedVectorType>(shuffleAsrc->getType())->getNumElements();
-    auto const srcBSize =
+    const auto srcBSize =
         cast<FixedVectorType>(shuffleBsrc->getType())->getNumElements();
     if (srcASize == srcBSize) {
       Constant *srcMaskA = nullptr;
@@ -332,7 +332,7 @@ Value *getGatherIndicesVector(IRBuilder<> &B, Value *Indices, Type *Ty,
                               unsigned FixedVecElts, const Twine &N) {
   auto *const Steps = B.CreateStepVector(Ty);
 
-  auto const EltCount = multi_llvm::getVectorElementCount(Ty);
+  const auto EltCount = multi_llvm::getVectorElementCount(Ty);
   auto *const ElTy = multi_llvm::getVectorElementType(Ty);
 
   auto *const FixedVecEltsSplat =
@@ -512,7 +512,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
 
 void Packetizer::Result::getPacketValues(SmallVectorImpl<Value *> &vals) const {
   assert(info && "No packet info for this packetization result");
-  auto const width = info->numInstances;
+  const auto width = info->numInstances;
   if (width != 0) {
     return getPacketValues(width, vals);
   }
@@ -647,7 +647,7 @@ Value *scalableBroadcastHelper(Value *subvec, ElementCount factor,
                                const vecz::TargetInfo &TI, IRBuilder<> &B,
                                bool URem) {
   auto *ty = subvec->getType();
-  auto const subVecEltCount = multi_llvm::getVectorElementCount(ty);
+  const auto subVecEltCount = multi_llvm::getVectorElementCount(ty);
   assert(subVecEltCount.isScalable() ^ factor.isScalable() &&
          "Must either broadcast fixed vector by scalable factor or scalable "
          "vector by fixed factor");

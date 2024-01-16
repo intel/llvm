@@ -126,15 +126,15 @@ bool VectorizationContext::canExpandBuiltin(const Function *ScalarFn) const {
 VectorizationResult &VectorizationContext::getOrCreateBuiltin(
     llvm::Function &F, unsigned SimdWidth) {
   compiler::utils::BuiltinInfo &BI = builtins();
-  auto const Cached = VectorizedBuiltins.find(&F);
+  const auto Cached = VectorizedBuiltins.find(&F);
   if (Cached != VectorizedBuiltins.end()) {
-    auto const Found = Cached->second.find(SimdWidth);
+    const auto Found = Cached->second.find(SimdWidth);
     if (Found != Cached->second.end()) {
       return Found->second;
     }
   }
 
-  auto const Builtin = BI.analyzeBuiltin(F);
+  const auto Builtin = BI.analyzeBuiltin(F);
 
   // Try to find a vector equivalent for the builtin.
   Function *const VectorCallee =
@@ -151,7 +151,7 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
   result.func = VectorCallee;
 
   // Gather information about the function's arguments.
-  auto const Props = Builtin.properties;
+  const auto Props = Builtin.properties;
   unsigned i = 0;
   for (Argument &Arg : F.args()) {
     Type *pointerRetPointeeTy = nullptr;
@@ -181,7 +181,7 @@ VectorizationResult VectorizationContext::getVectorizedFunction(
 
   auto simdWidth = factor.getFixedValue();
   if (auto *vecTy = dyn_cast<FixedVectorType>(callee.getReturnType())) {
-    auto const Builtin = BI.analyzeBuiltin(callee);
+    const auto Builtin = BI.analyzeBuiltin(callee);
     Function *scalarEquiv = builtins().getScalarEquivalent(Builtin, &Module);
     if (!scalarEquiv) {
       ++VeczContextFailScalarizeCall;
@@ -237,7 +237,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   // called Function because the called Function might be a VarArg function, in
   // which case we need to create the wrapper with the expanded argument list.
   SmallVector<Type *, 8> argTys;
-  for (auto const &U : CI->args()) {
+  for (const auto &U : CI->args()) {
     argTys.push_back(U->getType());
   }
   AttributeList fnAttrs = F->getAttributes();
@@ -524,7 +524,7 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
 
 Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
     MaskedAtomic &I, const VectorizationChoices &Choices, ElementCount VF) {
-  bool const isCmpXchg = I.isCmpXchg();
+  const bool isCmpXchg = I.isCmpXchg();
   LLVMContext &ctx = I.ValTy->getContext();
 
   SmallVector<Type *, 8> argTys;
@@ -753,7 +753,7 @@ bool VectorizationContext::defineInternalBuiltin(Function *F) {
 }
 
 bool VectorizationContext::emitMaskedMemOpBody(Function &F,
-                                               MemOpDesc const &Desc) const {
+                                               const MemOpDesc &Desc) const {
   Value *Data = Desc.getDataOperand(&F);
   Value *Ptr = Desc.getPointerOperand(&F);
   Value *Mask = Desc.getMaskOperand(&F);
@@ -776,20 +776,20 @@ bool VectorizationContext::emitMaskedMemOpBody(Function &F,
 }
 
 bool VectorizationContext::emitInterleavedMemOpBody(
-    Function &F, MemOpDesc const &Desc) const {
+    Function &F, const MemOpDesc &Desc) const {
   return emitMaskedInterleavedMemOpBody(F, Desc);
 }
 
 bool VectorizationContext::emitMaskedInterleavedMemOpBody(
-    Function &F, MemOpDesc const &Desc) const {
+    Function &F, const MemOpDesc &Desc) const {
   Value *Data = Desc.getDataOperand(&F);
   auto *const Ptr = Desc.getPointerOperand(&F);
   VECZ_FAIL_IF(!isa<VectorType>(Desc.getDataType()) || !Ptr);
 
   auto *const Mask = Desc.getMaskOperand(&F);
   auto *const VL = Desc.isVLOp() ? Desc.getVLOperand(&F) : nullptr;
-  auto const Align = Desc.getAlignment();
-  auto const Stride = Desc.getStride();
+  const auto Align = Desc.getAlignment();
+  const auto Stride = Desc.getStride();
 
   BasicBlock *Entry = BasicBlock::Create(F.getContext(), "entry", &F);
   IRBuilder<> B(Entry);
@@ -816,12 +816,12 @@ bool VectorizationContext::emitMaskedInterleavedMemOpBody(
 }
 
 bool VectorizationContext::emitScatterGatherMemOpBody(
-    Function &F, MemOpDesc const &Desc) const {
+    Function &F, const MemOpDesc &Desc) const {
   return emitMaskedScatterGatherMemOpBody(F, Desc);
 }
 
 bool VectorizationContext::emitMaskedScatterGatherMemOpBody(
-    Function &F, MemOpDesc const &Desc) const {
+    Function &F, const MemOpDesc &Desc) const {
   Value *Data = Desc.getDataOperand(&F);
   auto *const VecDataTy = dyn_cast<VectorType>(Desc.getDataType());
   auto *const Ptr = Desc.getPointerOperand(&F);
@@ -829,7 +829,7 @@ bool VectorizationContext::emitMaskedScatterGatherMemOpBody(
 
   auto *const Mask = Desc.getMaskOperand(&F);
   auto *const VL = Desc.isVLOp() ? Desc.getVLOperand(&F) : nullptr;
-  auto const Align = Desc.getAlignment();
+  const auto Align = Desc.getAlignment();
 
   BasicBlock *Entry = BasicBlock::Create(F.getContext(), "entry", &F);
   IRBuilder<> B(Entry);
@@ -914,7 +914,7 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
   // If it's not a scalable vector, we can do it the fast way.
   if (!EC.isScalable() && !IsVP) {
     auto *const NeutralVal = compiler::utils::getNeutralVal(OpKind, EltTy);
-    auto const Width = EC.getFixedValue();
+    const auto Width = EC.getFixedValue();
     auto *const UndefVal = UndefValue::get(VecTy);
 
     // Put the Neutral element in a vector so we can shuffle it in.
@@ -936,14 +936,14 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
       // xxxx3333xxxxBBBB
       // xxxxxxxx77777777
       //
-      auto const N2 = N << 1u;
+      const auto N2 = N << 1u;
       auto MaskIt = mask.begin();
       for (size_t i = 0; i < Width; i += N2) {
         for (size_t j = 0; j < N; ++j) {
           *MaskIt++ = Width;
         }
 
-        auto const k = i + N - 1;
+        const auto k = i + N - 1;
         for (size_t j = 0; j < N; ++j) {
           *MaskIt++ = k;
         }

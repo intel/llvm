@@ -30,7 +30,7 @@ class VectorizationContext;
 /// @param[in] I Instruction to analyze.
 ///
 /// @return true iff the instruction requires instantiation.
-bool needsInstantiation(VectorizationContext const &Ctx, llvm::Instruction &I);
+bool needsInstantiation(const VectorizationContext &Ctx, llvm::Instruction &I);
 };  // namespace vecz
 
 #endif  // VECZ_ANALYSIS_INSTANTIATION_ANALYSIS_H_INCLUDED

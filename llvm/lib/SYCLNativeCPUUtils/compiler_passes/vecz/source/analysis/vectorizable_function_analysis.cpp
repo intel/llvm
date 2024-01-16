@@ -73,7 +73,7 @@ bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
       // All builtins should be vectorizable, in principle. "Invalid builtins"
       // correspond to user functions.
       const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-      auto const Builtin = BI.analyzeBuiltin(*Callee);
+      const auto Builtin = BI.analyzeBuiltin(*Callee);
       if (!Builtin.isValid()) {
         // If it is a user function missing a definition, we cannot safely
         // instantiate it. For example, what if it contains calls to
@@ -100,7 +100,7 @@ bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
 ///
 /// @return the Instruction that prevents the function from vectorizing, or
 /// nullptr if the function can be vectorized.
-Value const *canVectorize(const Function &F, const VectorizationContext &Ctx) {
+const Value *canVectorize(const Function &F, const VectorizationContext &Ctx) {
   // Look for things that are not (yet?) supported.
   for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {

@@ -57,13 +57,13 @@ class StrideAnalysisResult {
 
   /// @brief gets a pointer to the info struct for this value's analysis.
   OffsetInfo *getInfo(llvm::Value *V) {
-    auto const find = analyzed.find(V);
+    const auto find = analyzed.find(V);
     return (find != analyzed.end()) ? &find->second : nullptr;
   }
 
   /// @brief gets a pointer to the info struct for this value's analysis.
-  OffsetInfo const *getInfo(llvm::Value *V) const {
-    auto const find = analyzed.find(V);
+  const OffsetInfo *getInfo(llvm::Value *V) const {
+    const auto find = analyzed.find(V);
     return (find != analyzed.end()) ? &find->second : nullptr;
   }
 
@@ -75,8 +75,8 @@ class StrideAnalysisResult {
   /// not allowed to construct them during an analysis pass. However, note that
   /// information about manifested stride `Value`s will survive until the
   /// analysis is invalidated.
-  OffsetInfo const &manifest(llvm::IRBuilder<> &B, llvm::Value *V) {
-    auto const find = analyzed.find(V);
+  const OffsetInfo &manifest(llvm::IRBuilder<> &B, llvm::Value *V) {
+    const auto find = analyzed.find(V);
     assert(find != analyzed.end() &&
            "Trying to manifest unanalyzed OffsetInfo");
     return find->second.manifest(B, *this);

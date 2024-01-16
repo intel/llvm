@@ -40,7 +40,7 @@ bool analyzeMemOp(MemOp &Op) {
   return analyzeType(Op.getDataType());
 }
 
-bool analyzeCall(VectorizationContext const &Ctx, CallInst *CI) {
+bool analyzeCall(const VectorizationContext &Ctx, CallInst *CI) {
   Function *Callee = CI->getCalledFunction();
   VECZ_FAIL_IF(!Callee);
 
@@ -63,7 +63,7 @@ bool analyzeCall(VectorizationContext const &Ctx, CallInst *CI) {
     return true;
   }
 
-  auto const Props = Ctx.builtins().analyzeBuiltin(*Callee).properties;
+  const auto Props = Ctx.builtins().analyzeBuiltin(*Callee).properties;
 
   // Intrinsics without side-effects can be safely instantiated.
   if (Callee->isIntrinsic() &&
@@ -88,7 +88,7 @@ bool analyzeCall(VectorizationContext const &Ctx, CallInst *CI) {
   return analyzeType(CI->getType());
 }
 
-bool analyzeAlloca(VectorizationContext const &Ctx, AllocaInst *alloca) {
+bool analyzeAlloca(const VectorizationContext &Ctx, AllocaInst *alloca) {
   // Possibly, we could packetize by creating a wider array, but for now let's
   // just let instantiation deal with it.
   if (alloca->isArrayAllocation()) {
@@ -100,14 +100,14 @@ bool analyzeAlloca(VectorizationContext const &Ctx, AllocaInst *alloca) {
   // have to be sure it divides the type allocation size, otherwise only the
   // first vector element would necessarily be correctly aligned.
   auto *const dataTy = alloca->getAllocatedType();
-  uint64_t const memSize = Ctx.dataLayout()->getTypeAllocSize(dataTy);
-  uint64_t const align = alloca->getAlign().value();
+  const uint64_t memSize = Ctx.dataLayout()->getTypeAllocSize(dataTy);
+  const uint64_t align = alloca->getAlign().value();
   return (align != 0 && (memSize % align) != 0);
 }
 }  // namespace
 
 namespace vecz {
-bool needsInstantiation(VectorizationContext const &Ctx, Instruction &I) {
+bool needsInstantiation(const VectorizationContext &Ctx, Instruction &I) {
   if (CallInst *CI = dyn_cast<CallInst>(&I)) {
     return analyzeCall(Ctx, CI);
   } else if (LoadInst *Load = dyn_cast<LoadInst>(&I)) {
