@@ -901,6 +901,8 @@ public:
   ~ApplyInlineDebugLocation();
 };
 
+bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
+
 } // namespace CodeGen
 } // namespace clang
 
