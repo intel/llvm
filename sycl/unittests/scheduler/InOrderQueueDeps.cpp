@@ -115,7 +115,6 @@ pi_result redefinedEnqueueEventsWaitWithBarrier(
   EXPECT_EQ(num_events_in_wait_list, 1u);
   EXPECT_EQ(ExpectedEvent, *event_wait_list);
   BarrierCalled = true;
-  *event = reinterpret_cast<pi_event>(1);
   return PI_SUCCESS;
 }
 
