@@ -3226,7 +3226,7 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     while (Properties[Next]) {
       switch (Properties[Next]) {
       case PI_MEM_ALLOC_FLAGS: {
-        if (Properties[Next + 1] & PI_MEM_ALLOC_WRTITE_COMBINED) {
+        if (Properties[Next + 1] & PI_MEM_ALLOC_WRITE_COMBINED) {
           UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
         }
         if (Properties[Next + 1] & PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
