@@ -1082,7 +1082,7 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
       return;
 
     llvm::SmallSet<FunctionOpInterface, 4> bodyFuncs =
-        funcKernelInfo.getPotentialKernelBodyFunctions(kernel);
+        FunctionKernelInfo::getKernelFuncObjFunctions(kernel);
     kernelBodyFuncs.insert(bodyFuncs.begin(), bodyFuncs.end());
   });
 

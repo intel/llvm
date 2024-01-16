@@ -15,7 +15,8 @@
 // CHECK-DAG:   [[MAP2:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL: func.func private @affine(
-// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_1_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_1_>) {
+// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_1_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_1_>)
+// CEHCK-SAME:      sycl.kernel_func_obj = [@kernel]
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_1_1
 // CHECK-NEXT:    %[[VAL_3:.*]] = memref.alloca() : memref<1x!sycl_range_1_1>
 // CHECK-NEXT:    %[[VAL_4:.*]] = arith.constant 0 : index
@@ -114,7 +115,7 @@
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 gpu.module @device_func {
-func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) {
+func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %id = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
   %c0_i32 = arith.constant 0 : i32

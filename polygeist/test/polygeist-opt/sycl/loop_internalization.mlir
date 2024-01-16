@@ -15,7 +15,8 @@
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0 + s0, 256)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<64xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL: func.func private @affine_2d(
-// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_2_>) {
+// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_2_>)
+// CHECK-SAME:      sycl.kernel_func_obj = [@kernel]
 
 // COM: Get local ids:
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.local_id : !sycl_id_2_1
@@ -89,7 +90,7 @@
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 gpu.module @device_func {
-func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_item_2>) {
+func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_item_2>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -128,7 +129,8 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> ((d0 - 1) * s0 + s0 + 1, 512)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:  func.func private @affine_3d(
-// CHECK-SAME:       %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
+// CHECK-SAME:       %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>)
+// CHECK-SAME:       sycl.kernel_func_obj = [@kernel]
 
 // COM: Get work group sizes:
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_3_1
@@ -235,7 +237,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 gpu.module @device_func {
-func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) {
+func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %c0_i32 = arith.constant 0 : i32
@@ -282,7 +284,8 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!s
 
 // CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_2d(
-// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>) {
+// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>)
+// CHECK-SAME:          sycl.kernel_func_obj = [@kernel]
 
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_2_1
@@ -409,7 +412,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!s
 // CHECK-NEXT:        return
 // CHECK-NEXT:      }
 gpu.module @device_func {
-func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0 = arith.constant 0 : index
@@ -451,7 +454,8 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 
 // CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_3d(
-// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
+// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>)
+// CHECK-SAME:          sycl.kernel_func_obj = [@kernel]
 
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_3_1
@@ -556,7 +560,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!s
 // CHECK-NEXT:      }
 // CHECK-NEXT:      return
 gpu.module @device_func {
-func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) {
+func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) attributes {sycl.kernel_func_obj = [@kernel]} {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %c0 = arith.constant 0 : index

@@ -4,7 +4,8 @@
 // CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_dev, 4> {llvm.noalias, sycl.inner.disjoint},
 // CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_dev, 4> {llvm.noalias, sycl.inner.disjoint},
 // CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_dev, 4> {llvm.noalias, sycl.inner.disjoint},
-// CHECK-SAME:     %arg3: i32) attributes {llvm.linkage = #llvm.linkage<private>} {
+// CHECK-SAME:     %arg3: i32)
+// CHECK-SAME:     sycl.kernel_func_obj = [@caller]
 // CHECK-DAG: [[ALLOCA:%.*]] = memref.alloca()
 // CHECK-DAG: [[CAST:%.*]] = memref.cast [[ALLOCA]]
 // CHECK-DAG: [[ALLOCA1:%.*]] = memref.alloca()
@@ -39,7 +40,7 @@ gpu.module @device_func {
     gpu.return
   }
 
-  func.func private @matrix_multiply_reduction(%arg0: memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, %arg1: i32) {
+  func.func private @matrix_multiply_reduction(%arg0: memref<?x!llvm.struct<(!sycl_accessor_write_1_, !sycl_accessor_read_1_, !sycl_accessor_read_1_)>, 4>, %arg1: i32) attributes {sycl.kernel_func_obj = [@caller]} {
     %c2048 = arith.constant 2048 : index
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
