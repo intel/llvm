@@ -151,7 +151,7 @@
 // 14.42 Add coarse-grain memory advice flag for HIP.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 41
+#define _PI_H_VERSION_MINOR 42
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
