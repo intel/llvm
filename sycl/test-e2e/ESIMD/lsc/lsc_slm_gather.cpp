@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -56,9 +56,10 @@ int main() {
 
   Passed &= test_gather<float, !CheckMerging>(Q);
   Passed &= test_gather<float, CheckMerging>(Q);
-
-  Passed &= test_gather<double, !CheckMerging>(Q);
-  Passed &= test_gather<double, CheckMerging>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    Passed &= test_gather<double, !CheckMerging>(Q);
+    Passed &= test_gather<double, CheckMerging>(Q);
+  }
 
   Passed &= test_gather<sycl::ext::intel::experimental::esimd::tfloat32,
                         !CheckMerging>(Q);

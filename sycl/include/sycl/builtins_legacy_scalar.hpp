@@ -322,8 +322,30 @@ modf(T x, T2 iptr) {
   return __sycl_std::__invoke_modf<T>(x, iptr);
 }
 
-template <typename T, typename = std::enable_if_t<detail::is_nan_type_v<T>, T>>
-detail::nan_return_t<T> nan(T nancode) {
+namespace detail {
+// SYCL 2020, revision 9 modifies accepted overloads to scalar/vec/marray of
+// uint16_t/uint32_t/uint64_t.
+template <typename T>
+inline constexpr bool is_non_deprecated_nan_type_v =
+    std::is_same_v<get_elem_type_t<T>, uint16_t> ||
+    std::is_same_v<get_elem_type_t<T>, uint32_t> ||
+    std::is_same_v<get_elem_type_t<T>, uint64_t>;
+} // namespace detail
+
+template <typename T>
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     detail::is_non_deprecated_nan_type_v<T>,
+                 detail::nan_return_t<T>>
+nan(T nancode) {
+  return __sycl_std::__invoke_nan<detail::nan_return_t<T>>(
+      detail::convert_data_type<T, detail::nan_argument_base_t<T>>()(nancode));
+}
+template <typename T>
+__SYCL_DEPRECATED(
+    "This is a deprecated argument type for SYCL nan built-in function.")
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     !detail::is_non_deprecated_nan_type_v<T>,
+                 detail::nan_return_t<T>> nan(T nancode) {
   return __sycl_std::__invoke_nan<detail::nan_return_t<T>>(
       detail::convert_data_type<T, detail::nan_argument_base_t<T>>()(nancode));
 }

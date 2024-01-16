@@ -694,19 +694,24 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return A.MIndex < B.MIndex;
     });
 
-    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor;
+    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};
     size_t ArgIndex = 0;
     // The kernel function in SPIR-V will only have the non-eliminated
     // arguments, so keep track of this "actual" argument index.
     unsigned ArgFunctionIndex = 0;
+    auto KindIt = ArgDescriptor.Kinds.begin();
+    auto UsageMaskIt = ArgDescriptor.UsageMask.begin();
     for (auto &Arg : Args) {
-      ArgDescriptor.Kinds.push_back(translateArgType(Arg.MType));
+      *KindIt = translateArgType(Arg.MType);
+      ++KindIt;
+
       // DPC++ internally uses 'true' to indicate that an argument has been
       // eliminated, while the JIT compiler uses 'true' to indicate an
       // argument is used. Translate this here.
       bool Eliminated = EliminatedArgs && !EliminatedArgs->empty() &&
                         (*EliminatedArgs)[ArgIndex++];
-      ArgDescriptor.UsageMask.emplace_back(!Eliminated);
+      *UsageMaskIt = !Eliminated;
+      ++UsageMaskIt;
 
       // If the argument has not been eliminated, i.e., is still present on
       // the kernel function in LLVM-IR/SPIR-V, collect information about the
