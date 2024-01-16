@@ -36,7 +36,7 @@ namespace {
 /// memory op and there are no other users to GEP.
 /// Additionally, we reject various cases where the tranform would not result
 /// in better code.
-bool shouldTransform(SelectInst *Select, StrideAnalysisResult const &SAR) {
+bool shouldTransform(SelectInst *Select, const StrideAnalysisResult &SAR) {
   // The transform only applies to pointer selects.
   if (!Select->getType()->isPointerTy()) {
     return false;
@@ -50,7 +50,7 @@ bool shouldTransform(SelectInst *Select, StrideAnalysisResult const &SAR) {
   {
     // If the select itself is a strided pointer, we don't gain anything by
     // transforming it into a pair of masked memops.
-    auto const *info = SAR.getInfo(Select);
+    const auto *info = SAR.getInfo(Select);
     if (info && info->hasStride()) {
       return false;
     }
@@ -66,8 +66,8 @@ bool shouldTransform(SelectInst *Select, StrideAnalysisResult const &SAR) {
   // only scalar Mask Varying memops, instead of vector memops.
   if (SAR.UVR.isVarying(VecTrue) || SAR.UVR.isVarying(VecFalse)) {
     // Both pointers must be either strided or uniform (i.e. not divergent).
-    auto const *infoT = SAR.getInfo(VecTrue);
-    auto const *infoF = SAR.getInfo(VecFalse);
+    const auto *infoT = SAR.getInfo(VecTrue);
+    const auto *infoF = SAR.getInfo(VecFalse);
     if (!infoT || !infoF || infoT->mayDiverge() || infoF->mayDiverge()) {
       return false;
     }
@@ -97,7 +97,7 @@ bool shouldTransform(SelectInst *Select, StrideAnalysisResult const &SAR) {
 
     // Validate the GEP indices
     for (Value *idx : GEP->indices()) {
-      auto const *info = SAR.getInfo(idx);
+      const auto *info = SAR.getInfo(idx);
       if (!info || info->mayDiverge()) {
         return false;
       }
@@ -205,7 +205,7 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
 
 PreservedAnalyses TernaryTransformPass::run(llvm::Function &F,
                                             llvm::FunctionAnalysisManager &AM) {
-  auto const &SAR = AM.getResult<StrideAnalysis>(F);
+  const auto &SAR = AM.getResult<StrideAnalysis>(F);
 
   // Find selects that can be transformed
   SmallVector<SelectInst *, 4> Selects;

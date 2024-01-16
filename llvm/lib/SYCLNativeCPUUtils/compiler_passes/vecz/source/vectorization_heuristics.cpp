@@ -163,7 +163,7 @@ Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmpOperands(
 const Value *Heuristics::shouldVectorizeVisitCmpOperand(
     const Value *Val, const CmpInst *Cmp,
     DenseMap<const Value *, const Value *> &Cache) const {
-  auto const It = Cache.find(Val);
+  const auto It = Cache.find(Val);
   if (It != Cache.end()) {
     return It->second;
   }
@@ -209,7 +209,7 @@ const Value *Heuristics::shouldVectorizeVisitCmpOperand(
   if (const CallInst *CI = dyn_cast<const CallInst>(Val)) {
     // We only care if the CallInst does involve a call to a work-item builtin.
     compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-    auto const Uniformity = BI.analyzeBuiltinCall(*CI, SimdDimIdx).uniformity;
+    const auto Uniformity = BI.analyzeBuiltinCall(*CI, SimdDimIdx).uniformity;
     if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
         Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
       return (Cache[Val] = CI);

@@ -62,12 +62,12 @@ decodeVectorizedFunctionName(llvm::StringRef Name);
 /// @param[in] VU the Vectorization Unit of the scalar function to clone.
 ///
 /// @return The cloned function.
-llvm::Function *cloneFunctionToVector(VectorizationUnit const &VU);
+llvm::Function *cloneFunctionToVector(const VectorizationUnit &VU);
 
 /// @brief Create a copy of the scalar functions debug info metatadata
 //         nodes and set the scope of the copied DI to the vectorized
 //         function.
-void cloneDebugInfo(VectorizationUnit const &VU);
+void cloneDebugInfo(const VectorizationUnit &VU);
 
 /// @brief Clone OpenCL related metadata from the scalar kernel to the
 /// vectorized one.
@@ -76,7 +76,7 @@ void cloneDebugInfo(VectorizationUnit const &VU);
 /// 'opencl.kernel_wg_size_info' metadata from the scalar kernel to the
 /// vectorized one. Obviously, the kernel itself has to be cloned before
 /// calling this function.
-void cloneOpenCLMetadata(VectorizationUnit const &VU);
+void cloneOpenCLMetadata(const VectorizationUnit &VU);
 }  // namespace vecz
 
 #endif  // VECZ_VECTORIZATION_HELPERS_H_INCLUDED

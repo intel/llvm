@@ -97,10 +97,10 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   };
 
   /// @brief Type that maps exit blocks to exit mask information.
-  using DenseExitPHIMap = SmallDenseMap<BasicBlock const *, PHINode *, 2>;
+  using DenseExitPHIMap = SmallDenseMap<const BasicBlock *, PHINode *, 2>;
   /// @brief Type that maps exiting blocks to update mask information.
   using DenseExitUpdateMap =
-      SmallDenseMap<BasicBlock const *, BinaryOperator *, 2>;
+      SmallDenseMap<const BasicBlock *, BinaryOperator *, 2>;
 
   struct LoopMasksInfo {
     /// @brief Keep track of which instances left the loop through which exit
@@ -446,7 +446,7 @@ ControlFlowConversionState::ControlFlowConversionState(
 
 PreservedAnalyses ControlFlowConversionState::Impl::run(
     Function &F, FunctionAnalysisManager &AM) {
-  auto const &CFGR = AM.getResult<CFGAnalysis>(F);
+  const auto &CFGR = AM.getResult<CFGAnalysis>(F);
   if (CFGR.getFailed()) {
     ++VeczCFGFail;
     return VU.setFailed("Cannot vectorize the CFG for", &F, &F);
@@ -719,7 +719,7 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
   //
   // Here we only store the preheader's exit block as we handle the latch
   // in case the loop is divergent in the caller function.
-  auto const *const LTag = DR->getTag(&BB).loop;
+  const auto *const LTag = DR->getTag(&BB).loop;
   if (LTag && LTag->header == &BB) {
     BasicBlock *preheader = LTag->preheader;
     VECZ_ERROR_IF(!preheader, "BasicBlock tag is not defined");
@@ -951,8 +951,8 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
   SmallVector<Loop::Edge, 1> exitEdges;
   LTag.loop->getExitEdges(exitEdges);
   for (Loop::Edge &EE : exitEdges) {
-    auto const *const exitingBlock = EE.first;
-    auto const *const exitBlock = EE.second;
+    const auto *const exitingBlock = EE.first;
+    const auto *const exitBlock = EE.second;
     // Divergent loop need to keep track of which instance left at which exit.
     if (LTag.isLoopDivergent() && DR->isDivergent(*exitBlock)) {
       // The value of the exit mask of a divergent loop is a phi function
@@ -1004,7 +1004,7 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
       PHINode *REM = LMask.persistedDivergentExitMasks[exitingBlock];
       REM->addIncoming(getDefaultValue(REM->getType()), LTag.preheader);
 
-      auto const *const exitingLTag = DR->getTag(exitingBlock).loop;
+      const auto *const exitingLTag = DR->getTag(exitingBlock).loop;
       VECZ_ERROR_IF(!exitingLTag, "Loop tag is not defined");
 
       // By default, the second operand of the mask update is the exit
@@ -1344,8 +1344,8 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
   }
 
   // Builtins without side effects do not need to be masked.
-  auto const builtin = Ctx.builtins().analyzeBuiltin(*callee);
-  auto const props = builtin.properties;
+  const auto builtin = Ctx.builtins().analyzeBuiltin(*callee);
+  const auto props = builtin.properties;
   if (props & compiler::utils::eBuiltinPropertyNoSideEffects) {
     LLVM_DEBUG(dbgs() << "vecz-cf: Called function is an pure builtin\n");
     return true;
@@ -1746,7 +1746,7 @@ bool ControlFlowConversionState::Impl::uniformizeDivergentLoops() {
         // Order the loop exit blocks such that:
         // - divergent loop exits come first
         // - smallest DCBI come first
-        auto const middle = std::partition(
+        const auto middle = std::partition(
             exitBlocks.begin(), exitBlocks.end(),
             [this](BasicBlock *BB) { return DR->isDivergent(*BB); });
         std::sort(exitBlocks.begin(), middle,
@@ -1965,7 +1965,7 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
       {
         SmallPtrSet<BasicBlock *, 1> predsToRemove;
         for (BasicBlock *pred : predecessors(EB)) {
-          auto const *const predLTag = DR->getTag(pred).loop;
+          const auto *const predLTag = DR->getTag(pred).loop;
           // All predecessors of the divergent loop exit that belong in a loop
           // contained in the outermost loop left by that exit need their
           // edge removed.
@@ -2310,7 +2310,7 @@ bool ControlFlowConversionState::Impl::replaceUsesOutsideDivergentLoop(
     // If the use is in a pure exit block of a divergent loop, don't replace
     // the use if it comes from an optional exit block of that loop.
     if (PHINode *PHI = dyn_cast<PHINode>(user)) {
-      auto const *const exitedLoop = DR->getTag(blockUse).outermostExitedLoop;
+      const auto *const exitedLoop = DR->getTag(blockUse).outermostExitedLoop;
       if (exitedLoop && exitedLoop->pureExit == blockUse) {
         BasicBlock *incoming = PHI->getIncomingBlock(U);
         if (!exitedLoop->loop->contains(incoming)) {
@@ -2375,10 +2375,10 @@ void removeDeferrals(BasicBlock *src, DenseDeferralMap &deferrals) {
 
 bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
   // The entry block cannot be targeted.
-  auto const &DCBI = DR->getBlockOrdering();
-  size_t const numBlocks = DCBI.size();
+  const auto &DCBI = DR->getBlockOrdering();
+  const size_t numBlocks = DCBI.size();
   DenseSet<BasicBlock *> targets(numBlocks - 1);
-  for (auto const &tag : make_range(std::next(DCBI.begin()), DCBI.end())) {
+  for (const auto &tag : make_range(std::next(DCBI.begin()), DCBI.end())) {
     targets.insert(tag.BB);
   }
 
@@ -2399,7 +2399,7 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
   lin.infos.reserve(numBlocks);
   lin.data.reserve(numBlocks);
   for (size_t BBIndex = 0; BBIndex != numBlocks; ++BBIndex) {
-    auto const &BBTag = DR->getBlockTag(BBIndex);
+    const auto &BBTag = DR->getBlockTag(BBIndex);
     BasicBlock *BB = BBTag.BB;
     lin.beginBlock(BB);
 
@@ -2434,13 +2434,13 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
             continue;
           }
 
-          size_t const deferredIndex = DR->getTagIndex(deferred);
+          const size_t deferredIndex = DR->getTagIndex(deferred);
           if (nextIndex == ~size_t(0) || nextIndex > deferredIndex) {
             nextIndex = deferredIndex;
           }
         }
 
-        size_t const succIndex = DR->getTagIndex(succ);
+        const size_t succIndex = DR->getTagIndex(succ);
         if (!targeted.count(succ)) {
           // If we have not found a target or there is a better one.
           if (nextIndex == ~size_t(0) || nextIndex > succIndex) {
@@ -2482,7 +2482,7 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
 
       size_t nextIndex = ~size_t(0);
       for (BasicBlock *deferred : availableTargets) {
-        size_t const deferredIndex = DR->getTagIndex(deferred);
+        const size_t deferredIndex = DR->getTagIndex(deferred);
         if (nextIndex == ~size_t(0) || nextIndex > deferredIndex) {
           LLVM_DEBUG(dbgs()
                      << (nextIndex == ~size_t(0)
@@ -2559,12 +2559,12 @@ bool ControlFlowConversionState::Impl::linearizeCFG() {
   VECZ_FAIL_IF(!computeNewTargets(lin));
 
   auto dataIt = lin.data.begin();
-  for (auto const &newTargetInfo : lin.infos) {
+  for (const auto &newTargetInfo : lin.infos) {
     BasicBlock *BB = newTargetInfo.BB;
 
     // Get the new target info for this block
-    auto const numTargets = newTargetInfo.numTargets;
-    auto const newTargets = dataIt;
+    const auto numTargets = newTargetInfo.numTargets;
+    const auto newTargets = dataIt;
     dataIt += numTargets;
 
     LLVM_DEBUG(dbgs() << BB->getName() << ":\n");
@@ -2669,7 +2669,7 @@ bool ControlFlowConversionState::Impl::generateSelects() {
   // For each basic block that has only one predecessor and phi nodes, we need
   // to either blend those phi nodes into select instructions or try to move
   // the phi nodes up the chain of linearized path.
-  for (auto const &BTag : DR->getBlockOrdering()) {
+  for (const auto &BTag : DR->getBlockOrdering()) {
     BasicBlock *B = BTag.BB;
     if (B->hasNPredecessors(1) || DR->isBlend(*B)) {
       if (PHINode *PHI = dyn_cast<PHINode>(&B->front())) {
@@ -2791,7 +2791,7 @@ bool ControlFlowConversionState::Impl::repairSSA() {
 bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
   // We need to update the incoming blocks of phi nodes whose predecessors may
   // have changed since we have not changed the phi nodes during the rewiring.
-  for (auto const &BBTag : DR->getBlockOrdering()) {
+  for (const auto &BBTag : DR->getBlockOrdering()) {
     BasicBlock *BB = BBTag.BB;
     SmallPtrSet<BasicBlock *, 4> preds(pred_begin(BB), pred_end(BB));
     for (auto it = BB->begin(); it != BB->end();) {
@@ -2888,9 +2888,9 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
 bool ControlFlowConversionState::Impl::blendInstructions() {
   LLVM_DEBUG(dbgs() << "CFC: BLEND INSTRUCTIONS\n");
 
-  auto addSuccessors = [this](BasicBlockTag const &BTag, BlockQueue &queue,
+  auto addSuccessors = [this](const BasicBlockTag &BTag, BlockQueue &queue,
                               DenseSet<BasicBlock *> &visited,
-                              BasicBlockTag const &dstTag) {
+                              const BasicBlockTag &dstTag) {
     for (BasicBlock *succ : successors(BTag.BB)) {
       // Allow latch if 'succ' belongs in 'dst's loop and 'dst' is the header
       // of that loop.
@@ -3027,7 +3027,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
 
   SmallPtrSet<Value *, 16> spareBlends;
 
-  for (auto const &dstTag : DR->getBlockOrdering()) {
+  for (const auto &dstTag : DR->getBlockOrdering()) {
     BasicBlock *dst = dstTag.BB;
     LLVM_DEBUG(dbgs() << "Blending instructions used in " << dst->getName()
                       << ":\n");
@@ -3076,7 +3076,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
         DenseSet<BasicBlock *> visited;
         BlockQueue queue(*DR);
 
-        auto const &srcTag = DR->getTag(src);
+        const auto &srcTag = DR->getTag(src);
 
         addSuccessors(srcTag, queue, visited, dstTag);
 
@@ -3084,7 +3084,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
         if (srcLoop && srcLoop->isLoopDivergent()) {
           if (dst != srcLoop->header) {
             auto &srcMasks = LoopMasks[srcLoop->loop];
-            auto const &headerTag = DR->getTag(srcLoop->header);
+            const auto &headerTag = DR->getTag(srcLoop->header);
 
             // If 'opDef' is an update loop exit mask, set an entry point in
             // the loop header.
@@ -3111,7 +3111,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
         }
 
         while (!queue.empty()) {
-          BasicBlockTag const &curTag = queue.pop();
+          const BasicBlockTag &curTag = queue.pop();
           BasicBlock *const cur = curTag.BB;
 
           LLVM_DEBUG(dbgs() << "\t\t\tPopping " << cur->getName() << "\n");
@@ -3202,7 +3202,7 @@ bool ControlFlowConversionState::Impl::simplifyMasks() {
   // however linearization and/or BOSCC can sometimes delete them from under
   // our nose so it's only safe just to go through all the boolean operations
   // and see if we can simplify any of them.
-  for (auto const &BBTag : DR->getBlockOrdering()) {
+  for (const auto &BBTag : DR->getBlockOrdering()) {
     SmallVector<Instruction *, 16> toDelete;
     for (auto &I : *BBTag.BB) {
       if (isa<SelectInst>(&I) || (I.getType()->getScalarSizeInBits() == 1 &&
@@ -3234,12 +3234,12 @@ bool ControlFlowConversionState::computeBlockOrdering() {
 }
 
 bool ControlFlowConversionState::Impl::checkBlocksOrder() const {
-  auto const &DCBI = DR->getBlockOrdering();
+  const auto &DCBI = DR->getBlockOrdering();
   VECZ_ERROR_IF(F.size() != DCBI.size(),
                 "Worklist does not contain all blocks");
 
   uint32_t next = 0u;
-  for (auto const &BBTag : DCBI) {
+  for (const auto &BBTag : DCBI) {
     VECZ_ERROR_IF(BBTag.pos != next,
                   "BasicBlock indices not in consecutive order");
     ++next;

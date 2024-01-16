@@ -268,13 +268,13 @@ class VectorizationContext {
   /// @param[in] F The empty (declaration only) function to emit the body in
   /// @param[in] Desc The MemOpDesc for the memory operation
   /// @returns true on success, false otherwise
-  bool emitMaskedMemOpBody(llvm::Function &F, MemOpDesc const &Desc) const;
+  bool emitMaskedMemOpBody(llvm::Function &F, const MemOpDesc &Desc) const;
   /// @brief Emit the body for the interleaved load or store internal builtins
   ///
   /// @param[in] F The empty (declaration only) function to emit the body in
   /// @param[in] Desc The MemOpDesc for the memory operation
   /// @returns true on success, false otherwise
-  bool emitInterleavedMemOpBody(llvm::Function &F, MemOpDesc const &Desc) const;
+  bool emitInterleavedMemOpBody(llvm::Function &F, const MemOpDesc &Desc) const;
   /// @brief Emit the body for the masked interleaved load/store internal
   /// builtins
   ///
@@ -282,21 +282,21 @@ class VectorizationContext {
   /// @param[in] Desc The MemOpDesc for the memory operation
   /// @returns true on success, false otherwise
   bool emitMaskedInterleavedMemOpBody(llvm::Function &F,
-                                      MemOpDesc const &Desc) const;
+                                      const MemOpDesc &Desc) const;
   /// @brief Emit the body for the scatter or gather internal builtins
   ///
   /// @param[in] F The empty (declaration only) function to emit the body in
   /// @param[in] Desc The MemOpDesc for the memory operation
   /// @returns true on success, false otherwise
   bool emitScatterGatherMemOpBody(llvm::Function &F,
-                                  MemOpDesc const &Desc) const;
+                                  const MemOpDesc &Desc) const;
   /// @brief Emit the body for the masked scatter or gather internal builtins
   ///
   /// @param[in] F The empty (declaration only) function to emit the body in
   /// @param[in] Desc The MemOpDesc for the memory operation
   /// @returns true on success, false otherwise
   bool emitMaskedScatterGatherMemOpBody(llvm::Function &F,
-                                        MemOpDesc const &Desc) const;
+                                        const MemOpDesc &Desc) const;
   /// @brief Add the masked function to the tracking set
   ///
   /// @param[in] F The function to add

@@ -106,7 +106,7 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
   PM.addPass(
       RequireAnalysisPass<compiler::utils::DeviceInfoAnalysis, Module>());
 
-  bool const Check = VeczPassPipeline.empty();
+  const bool Check = VeczPassPipeline.empty();
   if (Check) {
     if (!buildPassPipeline(PM)) {
       return PreservedAnalyses::all();
@@ -305,7 +305,7 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
 
   // Now try and choose the best width.
   std::optional<unsigned> best_width;
-  auto const mux_sub_group_size = compiler::utils::getMuxSubgroupSize(F);
+  const auto mux_sub_group_size = compiler::utils::getMuxSubgroupSize(F);
 
   auto can_produce_legal_width = [&mux_sub_group_size](unsigned size) {
     // We only support vectorization widths where there's a clean multiple, and
@@ -318,7 +318,7 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
     if (!can_produce_legal_width(size)) {
       continue;
     }
-    unsigned const candidate_width = size / mux_sub_group_size;
+    const unsigned candidate_width = size / mux_sub_group_size;
     // Try and choose at least one width.
     if (!best_width) {
       best_width = candidate_width;
@@ -335,8 +335,8 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
     // with that.
     if (auto wgs = compiler::utils::parseRequiredWGSMetadata(F)) {
       uint64_t local_size_x = wgs.value()[0];
-      bool const best_fits = !(local_size_x % *best_width);
-      bool const cand_fits = !(local_size_x % candidate_width);
+      const bool best_fits = !(local_size_x % *best_width);
+      const bool cand_fits = !(local_size_x % candidate_width);
       if (!best_fits && cand_fits) {
         best_width = candidate_width;
         continue;

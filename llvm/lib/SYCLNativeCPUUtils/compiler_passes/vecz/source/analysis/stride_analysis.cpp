@@ -35,7 +35,7 @@ using namespace llvm;
 llvm::AnalysisKey StrideAnalysis::Key;
 
 OffsetInfo &StrideAnalysisResult::analyze(Value *V) {
-  auto const find = analyzed.find(V);
+  const auto find = analyzed.find(V);
   if (find != analyzed.end()) {
     return find->second;
   }
@@ -44,7 +44,7 @@ OffsetInfo &StrideAnalysisResult::analyze(Value *V) {
   // the constructor itself can create more things in the map and constructing
   // it in-place could result in the storage being re-allocated while the
   // constructor is still running.
-  auto const OI = OffsetInfo(*this, V);
+  const auto OI = OffsetInfo(*this, V);
   return analyzed.try_emplace(V, OI).first->second;
 }
 
@@ -67,7 +67,7 @@ StrideAnalysisResult::StrideAnalysisResult(llvm::Function &f,
 }
 
 void StrideAnalysisResult::manifestAll(IRBuilder<> &B) {
-  auto const saved = B.GetInsertPoint();
+  const auto saved = B.GetInsertPoint();
   for (auto &info : analyzed) {
     info.second.manifest(B, *this);
   }

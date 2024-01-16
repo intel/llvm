@@ -42,7 +42,7 @@ class VectorizableFunctionAnalysis
 
     /// @brief If the function can not be vectorized, the value (if any) that
     /// is the cause of the problem.
-    llvm::Value const *failedAt = nullptr;
+    const llvm::Value *failedAt = nullptr;
 
    public:
     /// @brief Handle invalidation events from the new pass manager.

@@ -316,7 +316,7 @@ void vecz::trackVeczSuccessFailure(VectorizationUnit &VU) {
   collectStatistics(VU, Fn, vectorizedFn);
 
   if (VeczDumpReport) {
-    auto const VF = VU.width();
+    const auto VF = VU.width();
     auto FnName = Fn->getName();
     if (vectorizedFn) {
       errs() << "vecz: Vectorization succeeded for kernel '" << FnName
@@ -341,8 +341,8 @@ bool vecz::createVectorizedFunctionMetadata(VectorizationUnit &vu) {
     // kernels.
     cloneOpenCLMetadata(vu);
   }
-  auto const vf = vu.width();
-  auto const dim = vu.dimension();
+  const auto vf = vu.width();
+  const auto dim = vu.dimension();
 
   // emit output metadata based on vectorization result
   auto finalVF = compiler::utils::VectorizationFactor(vf.getKnownMinValue(),
