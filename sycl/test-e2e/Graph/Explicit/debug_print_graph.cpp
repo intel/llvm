@@ -24,8 +24,10 @@
 // CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE5]]
 // CHECK-NEXT: "0x[[#%x,NODE6:]]"
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE6]]\nTYPE = CGCopy Device-to-Host \n"];
+// CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE6]]"
 // CHECK-NEXT: "0x[[#%x,NODE7:]]"
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = None \n"];
+// CHECK-DAG: "0x[[#NODE6]]" -> "0x[[#NODE7]]"
 
 #define GRAPH_E2E_EXPLICIT
 

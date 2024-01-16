@@ -45,12 +45,12 @@ int main() {
       CGH.copy(AccB, AccA);
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferA2D.get_access<access::mode::read>(CGH);
-      CGH.copy(AccA, DataB2D.data());
+    auto Last = add_node(Graph, Queue, [&](handler &CGH) {
+      auto Acc = BufferC.get_access<access::mode::read>(CGH);
+      CGH.copy(Acc, DataA2D.data());
     });
 
-    add_empty_node(Graph, Queue);
+    add_empty_node(Graph, Queue, Last);
 
     Graph.print_graph("graph.dot");
 

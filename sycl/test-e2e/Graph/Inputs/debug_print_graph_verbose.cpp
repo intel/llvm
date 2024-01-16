@@ -45,12 +45,12 @@ int main() {
       CGH.copy(AccB, AccA);
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferA2D.get_access<access::mode::read>(CGH);
+    auto Last = add_node(Graph, Queue, [&](handler &CGH) {
+      auto AccA = BufferC.get_access<access::mode::read>(CGH);
       CGH.copy(AccA, DataB2D.data());
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) { /* empty node */ });
+    add_empty_node(Graph, Queue, Last);
 
     Graph.print_graph("graph_verbose.dot", true);
   }
