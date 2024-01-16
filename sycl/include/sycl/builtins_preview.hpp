@@ -261,10 +261,10 @@ BUILTIN_CREATE_ENABLER(builtin_enable_generic_non_scalar, default_ret_type,
 //         -I <..>/llvm/sycl/include -E -o - \
 //     | grep -v '^#' | clang-format > math_functions.{host|device}.ii
 
-#include <sycl/detail/builtins/common_functions.hpp>
-#include <sycl/detail/builtins/geometric_functions.hpp>
-#include <sycl/detail/builtins/half_precision_math_functions.hpp>
-#include <sycl/detail/builtins/integer_functions.hpp>
-#include <sycl/detail/builtins/math_functions.hpp>
-#include <sycl/detail/builtins/native_math_functions.hpp>
-#include <sycl/detail/builtins/relational_functions.hpp>
+#include <sycl/detail/builtins/common_functions.inc>
+#include <sycl/detail/builtins/geometric_functions.inc>
+#include <sycl/detail/builtins/half_precision_math_functions.inc>
+#include <sycl/detail/builtins/integer_functions.inc>
+#include <sycl/detail/builtins/math_functions.inc>
+#include <sycl/detail/builtins/native_math_functions.inc>
+#include <sycl/detail/builtins/relational_functions.inc>
