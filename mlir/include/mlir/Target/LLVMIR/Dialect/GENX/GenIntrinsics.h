@@ -61,7 +61,7 @@ Function *getDeclaration(Module *M, ID id,
 // Override of isIntrinsic method defined in Function.h
 inline const char *getGenIntrinsicPrefix() { return "llvm.genx."; }
 inline bool isIntrinsic(const Function *CF) {
-  return (CF->getName().startswith(getGenIntrinsicPrefix()));
+  return (CF->getName().starts_with(getGenIntrinsicPrefix()));
 }
 ID getIntrinsicID(const Function *F, bool useContextWrapper = true);
 
