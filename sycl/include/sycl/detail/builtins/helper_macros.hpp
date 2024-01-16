@@ -87,7 +87,7 @@
 #define FOR_EACH0(BASE_CASE, ...)                                              \
   FOR_EACH1(FOR_EACH0_BASE, BASE_CASE, __VA_ARGS__)
 
-// Some helpers to unify implementation between different number of template
+// Some helpers to unify implementation between different numbers of template
 // types.
 
 #define ONE_ARG_TYPENAME_TYPE typename T0
@@ -195,7 +195,7 @@
 #define HOST_IMPL_TEMPLATE_CUSTOM_DELEGATOR(                                   \
     NUM_ARGS, NAME, ENABLER, FUNC_CLASS, RET_TYPE_TRAITS, DELEGATOR)           \
   template <typename... Ts> auto __##FUNC_CLASS##_##NAME##_lambda(Ts... xs) {  \
-    /* Can't inline into the real lamda due to                                 \
+    /* Can't inline into the real lambda due to                                \
      * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112867. Can't emulate a    \
      * lambda through a local struct because templates are not allowed in      \
      * local structs. Have to specify FUNC_CLASS to avoid                      \

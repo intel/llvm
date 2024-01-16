@@ -32,7 +32,7 @@
 // "clang++ -fsycl" when compiling just "#include <sycl/sycl.hpp>"). Another
 // issue is that return type for templates is part of the mangling (and as such
 // SFINAE requirements too). To overcome that we structure host side
-// implementation roughly like this (in most case):
+// implementation roughly like this (in most cases):
 //
 // math_function.cpp exports:
 //   float sycl::__sin_impl(float);
@@ -231,7 +231,7 @@ struct builtin_enable
     : std::enable_if<
           ElemTypeChecker<typename first_type<Ts...>::type>::value &&
               ShapeChecker<typename first_type<Ts...>::type>::value &&
-              ExtraConditions<Ts...>::value && true,
+              ExtraConditions<Ts...>::value,
           typename RetTypeTrait<
               simplify_if_swizzle_t<typename first_type<Ts...>::type>>::type> {
 };
