@@ -9,6 +9,8 @@
 #ifndef SYCL_FUSION_COMMON_KERNEL_H
 #define SYCL_FUSION_COMMON_KERNEL_H
 
+#include "DynArray.h"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -118,6 +120,8 @@ struct SYCLKernelAttribute {
   AttributeValueList Values;
 };
 
+///
+/// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
@@ -132,22 +136,62 @@ enum ArgUsage : uint8_t {
 };
 
 ///
-/// Encode usage of parameters for the actual kernel function.
-using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
+/// Expose the enum's underlying type because it simplifies bitwise operations.
+using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 
 ///
-/// Describe the list of arguments by their kind.
+/// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  std::vector<ParameterKind> Kinds;
+  explicit SYCLArgumentDescriptor(size_t NumArgs)
+      : Kinds(NumArgs), UsageMask(NumArgs){};
 
-  ArgUsageMask UsageMask;
+  DynArray<ParameterKind> Kinds;
+  DynArray<ArgUsageUT> UsageMask;
 };
 
 ///
 /// List of SYCL/OpenCL kernel attributes.
 using AttributeList = std::vector<SYCLKernelAttribute>;
 
-using Indices = std::array<size_t, 3>;
+///
+/// Class to model a three-dimensional index.
+class Indices {
+public:
+  static constexpr size_t size() { return Size; }
+
+  constexpr Indices() : Values{0, 0, 0} {}
+  constexpr Indices(size_t V1, size_t V2, size_t V3) : Values{V1, V2, V3} {}
+
+  constexpr const size_t *begin() const { return Values; }
+  constexpr const size_t *end() const { return Values + Size; }
+  constexpr size_t *begin() { return Values; }
+  constexpr size_t *end() { return Values + Size; }
+
+  constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
+  constexpr size_t &operator[](int Idx) { return Values[Idx]; }
+
+  friend bool operator==(const Indices &A, const Indices &B) {
+    return std::equal(A.begin(), A.end(), B.begin());
+  }
+
+  friend bool operator!=(const Indices &A, const Indices &B) {
+    return !(A == B);
+  }
+
+  friend bool operator<(const Indices &A, const Indices &B) {
+    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
+                                        std::less<size_t>{});
+  }
+
+  friend bool operator>(const Indices &A, const Indices &B) {
+    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
+                                        std::greater<size_t>{});
+  }
+
+private:
+  static constexpr size_t Size = 3;
+  size_t Values[Size];
+};
 
 ///
 /// Class to model SYCL nd_range
@@ -274,8 +318,8 @@ struct SYCLKernelInfo {
       : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
                                                                      BinInfo} {}
 
-  explicit SYCLKernelInfo(const std::string &KernelName)
-      : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
+  SYCLKernelInfo(const std::string &KernelName, size_t NumArgs)
+      : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
 ///

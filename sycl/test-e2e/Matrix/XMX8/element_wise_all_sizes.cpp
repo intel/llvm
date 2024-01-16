@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // TODO: Currently fails and regularly times out on DG2. Re-enable when this has
 //       been addressed.
