@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/maarquitos14/unified-runtime.git")
-  # commit a9746c217adbbe2adcd739261a00ea8a60da5807
-  # Author: Maronas, Marcos <marcos.maronas@intel.com>
-  # Date:   Thu Jan 11 04:05:54 2024 -0800
-  #    Address more code review issues.
-  #    Signed-off-by: Maronas, Marcos <marcos.maronas@intel.com>
-  set(UNIFIED_RUNTIME_TAG a9746c217adbbe2adcd739261a00ea8a60da5807)
+  # commit 75648295df39de3027c989299a0cadb018ea26c8 (HEAD -> maronas/ext_composite_device, origin/maronas/ext_composite_device)
+  # Merge: a9746c21 c63ad9b2
+  # Author: Marcos Maronas <marcos.maronas@intel.com>
+  # Date:   Tue Jan 16 09:04:27 2024 -0800
+  #     Merge remote-tracking branch 'intel/origin/main' into maronas/ext_composite_device
+  set(UNIFIED_RUNTIME_TAG 75648295df39de3027c989299a0cadb018ea26c8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
