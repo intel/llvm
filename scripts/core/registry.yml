@@ -502,9 +502,6 @@ etors:
 - name: ADAPTER_GET_INFO
   desc: Enumerator for $xAdapterGetInfo
   value: '181'
-- name: COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
-  desc: Enumerator for $xCommandBufferUpdateKernelLaunchExp
-  value: '182'
 - name: PROGRAM_BUILD_EXP
   desc: Enumerator for $xProgramBuildExp
   value: '197'
@@ -562,21 +559,27 @@ etors:
 - name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP
   desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCountExp
   value: '215'
-- name: COMMAND_BUFFER_RETAIN_COMMAND_EXP
-  desc: Enumerator for $xCommandBufferRetainCommandExp
+- name: PROGRAM_GET_GLOBAL_VARIABLE_POINTER
+  desc: Enumerator for $xProgramGetGlobalVariablePointer
   value: '216'
-- name: COMMAND_BUFFER_RELEASE_COMMAND_EXP
-  desc: Enumerator for $xCommandBufferReleaseCommandExp
-  value: '217'
-- name: COMMAND_BUFFER_GET_INFO_EXP
-  desc: Enumerator for $xCommandBufferGetInfoExp
-  value: '218'
-- name: COMMAND_BUFFER_COMMAND_GET_INFO_EXP
-  desc: Enumerator for $xCommandBufferCommandGetInfoExp
-  value: '219'
 - name: DEVICE_GET_SELECTED
   desc: Enumerator for $xDeviceGetSelected
+  value: '217'
+- name: COMMAND_BUFFER_RETAIN_COMMAND_EXP
+  desc: Enumerator for $xCommandBufferRetainCommandExp
+  value: '218'
+- name: COMMAND_BUFFER_RELEASE_COMMAND_EXP
+  desc: Enumerator for $xCommandBufferReleaseCommandExp
+  value: '219'
+- name: COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xCommandBufferUpdateKernelLaunchExp
   value: '220'
+- name: COMMAND_BUFFER_GET_INFO_EXP
+  desc: Enumerator for $xCommandBufferGetInfoExp
+  value: '221'
+- name: COMMAND_BUFFER_COMMAND_GET_INFO_EXP
+  desc: Enumerator for $xCommandBufferCommandGetInfoExp
+  value: '222'
 ---
 type: enum
 desc: Defines structure types

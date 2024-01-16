@@ -2127,6 +2127,46 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramGetGlobalVariablePointer
+__urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device to retrieve the pointer for.
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program where the global variable is.
+    const char *
+        pGlobalVariableName, ///< [in] mangled name of the global variable to retrieve the pointer for.
+    size_t *
+        pGlobalVariableSizeRet, ///< [out][optional] Returns the size of the global variable if it is found
+                                ///< in the program.
+    void **
+        ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
+) {
+    auto pfnGetGlobalVariablePointer =
+        context.urDdiTable.Program.pfnGetGlobalVariablePointer;
+
+    if (nullptr == pfnGetGlobalVariablePointer) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_program_get_global_variable_pointer_params_t params = {
+        &hDevice, &hProgram, &pGlobalVariableName, &pGlobalVariableSizeRet,
+        &ppGlobalVariablePointerRet};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
+                             "urProgramGetGlobalVariablePointer", &params);
+
+    ur_result_t result = pfnGetGlobalVariablePointer(
+        hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
+        ppGlobalVariablePointerRet);
+
+    context.notify_end(UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER,
+                       "urProgramGetGlobalVariablePointer", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramGetInfo
 __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
@@ -7152,6 +7192,11 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     dditable.pfnGetFunctionPointer = pDdiTable->pfnGetFunctionPointer;
     pDdiTable->pfnGetFunctionPointer =
         ur_tracing_layer::urProgramGetFunctionPointer;
+
+    dditable.pfnGetGlobalVariablePointer =
+        pDdiTable->pfnGetGlobalVariablePointer;
+    pDdiTable->pfnGetGlobalVariablePointer =
+        ur_tracing_layer::urProgramGetGlobalVariablePointer;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
     pDdiTable->pfnGetInfo = ur_tracing_layer::urProgramGetInfo;
