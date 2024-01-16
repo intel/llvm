@@ -8,11 +8,8 @@
 
 // REQUIRES: ocloc
 
-// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels.ll -o %t.bc && llvm-spirv %t.bc -o %t.spv
-// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels_fp16.ll -o %t_fp16.bc && llvm-spirv %t_fp16.bc -o %t_fp16.spv
-// RUN: %clang -c -target spir64 -O3 -emit-llvm %S/Kernels/spirv_kernels_fp64.ll -o %t_fp64.bc && llvm-spirv %t_fp64.bc -o %t_fp64.spv
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out %t.spv %t_fp16.spv %t_fp64.spv
+// RUN: %{run} %t.out %S/Kernels/kernels.spv %S/Kernels/kernels_fp16.spv %S/Kernels/kernels_fp64.spv
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
 // loads pre-compiled kernels from a SPIR-V file and runs them.
