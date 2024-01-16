@@ -5,7 +5,12 @@
 
 #include <sycl/sycl.hpp>
 
-sycl::ext::oneapi::experimental::device_global<int> dev_var;
+/* device_image_scope is needed to make sure that sycl generates device code
+ * with an integer global variable instead of a pointer */
+sycl::ext::oneapi::experimental::device_global<
+    int, decltype(sycl::ext::oneapi::experimental::properties(
+             sycl::ext::oneapi::experimental::device_image_scope))>
+    dev_var;
 
 int main() {
 
