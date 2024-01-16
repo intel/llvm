@@ -1114,9 +1114,10 @@ public:
                   (std::string_view(#RELLOGOP) == "||" ||                      \
                    std::string_view(#RELLOGOP) == "&&")) {                     \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I,                                                        \
-                     -(vec_data<DataT>::get(Lhs.getValue(I))                   \
-                           RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+        /* We cannot use SetValue here as the operator is not a friend of*/    \
+        /* Ret on Windows. */                                                  \
+        Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                    \
+            Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I)))); \
       }                                                                        \
     } else {                                                                   \
       Ret = vec<rel_t, NumElements>(                                           \
@@ -1145,9 +1146,10 @@ public:
                   (std::string_view(#RELLOGOP) == "||" ||                      \
                    std::string_view(#RELLOGOP) == "&&")) {                     \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I,                                                        \
-                     -(vec_data<DataT>::get(getValue(I))                       \
-                           RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+        /* We cannot use SetValue here as the operator is not a friend of*/    \
+        /* Ret on Windows. */                                                  \
+        Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                    \
+            getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));     \
       }                                                                        \
     } else {                                                                   \
       Ret = vec<rel_t, NumElements>(                                           \
@@ -1174,8 +1176,10 @@ public:
                                                    const vec & Rhs) {          \
     vec<rel_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, -(vec_data<DataT>::get(Lhs.getValue(I))                  \
-                            RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
+      /* We cannot use SetValue here as the operator is not a friend of*/      \
+      /* Ret on Windows. */                                                    \
+      Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                      \
+          Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -1192,8 +1196,10 @@ public:
   vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
     vec<rel_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, -(vec_data<DataT>::get(getValue(I))                      \
-                            RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
+      /* We cannot use SetValue here as the operator is not a friend of*/      \
+      /* Ret on Windows. */                                                    \
+      Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                      \
+          getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));       \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
