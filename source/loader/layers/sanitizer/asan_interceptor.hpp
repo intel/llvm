@@ -117,11 +117,12 @@ class SanitizerInterceptor {
     ur_result_t eraseContext(ur_context_handle_t Context);
 
     ur_result_t insertDevice(ur_context_handle_t Context,
-                          ur_device_handle_t Device);
+                             ur_device_handle_t Device);
 
-    ur_result_t insertQueue(ur_context_handle_t Context, ur_queue_handle_t Queue);
-    ur_result_t eraseQueue(ur_context_handle_t Context,
+    ur_result_t insertQueue(ur_context_handle_t Context,
                             ur_queue_handle_t Queue);
+    ur_result_t eraseQueue(ur_context_handle_t Context,
+                           ur_queue_handle_t Queue);
 
   private:
     ur_result_t updateShadowMemory(ur_queue_handle_t Queue);
