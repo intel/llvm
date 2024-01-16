@@ -76,6 +76,11 @@ void event_impl::waitInternal() {
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
+
+  if (MHostTaskPiEvents.size()) {
+    getPlugin()->call<PiApiKind::piEventsWait>(MHostTaskPiEvents.size(),
+                                               MHostTaskPiEvents.data());
+  }
 }
 
 void event_impl::setComplete() {
@@ -428,7 +433,7 @@ std::vector<pi_native_handle> event_impl::getNativeVector() {
     Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
   std::vector<pi_native_handle> HandleVec;
   // Return native events sumbitted via host task interop
-  for (auto &HostTaskPiEvent : HostTaskPiEvents) {
+  for (auto &HostTaskPiEvent : MHostTaskPiEvents) {
     pi_native_handle Handle;
     Plugin->call<PiApiKind::piextEventGetNativeHandle>(HostTaskPiEvent,
                                                        &Handle);

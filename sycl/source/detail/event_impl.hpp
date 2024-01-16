@@ -304,10 +304,10 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
   void addHostTaskPiEvent(detail::pi::PiEvent Event) {
-    HostTaskPiEvents.push_back(Event);
+    MHostTaskPiEvents.push_back(Event);
   }
 
-  bool backendSet() const { return HostTaskPiEvents.size() > 0; }
+  bool backendSet() const { return MHostTaskPiEvents.size() > 0; }
 
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
@@ -344,7 +344,7 @@ protected:
 
   // Used to hold pi_events for native events that are stored with
   // interop_handle::add_native_events
-  std::vector<sycl::detail::pi::PiEvent> HostTaskPiEvents;
+  std::vector<sycl::detail::pi::PiEvent> MHostTaskPiEvents;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
