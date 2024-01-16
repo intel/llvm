@@ -257,7 +257,7 @@ BUILTIN_CREATE_ENABLER(builtin_enable_generic_non_scalar, default_ret_type,
 // The headers below are specifically implemented without including all the
 // necessary headers to allow preprocessing them on their own and providing
 // human-friendly result. One can use a command like this to achieve that:
-// clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.hpp  \
+// clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc  \
 //         -I <..>/llvm/sycl/include -E -o - \
 //     | grep -v '^#' | clang-format > math_functions.{host|device}.ii
 
