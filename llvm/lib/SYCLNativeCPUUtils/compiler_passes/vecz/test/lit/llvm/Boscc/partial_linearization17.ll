@@ -66,7 +66,7 @@
 ;
 ; where '&' represents merge blocks of BOSCC regions.
 ;
-; __kernel void partial_linearization17(__global int *out, int n) {
+; __kernel void partial_linearization17(__global int *out, int n, int x) {
 ;   int id = get_global_id(0);
 ;   int ret = 0;
 ;   int i = 0;
@@ -74,7 +74,7 @@
 ;   while (1) {
 ;     if (n > 10) {
 ;       goto c;
-;     } else if (n > 5) {
+;     } else if (n < 5) {
 ;       goto f;
 ;     }
 ;     if (id + i++ % 2 == 0) {
@@ -87,12 +87,12 @@
 ;   goto m;
 ;
 ; f:
-;   ret += n * 2;
-;   for (int i = 0; i < n * 2; i++) ret += i;
+;   ret += x / 2;
+;   for (int i = 0; i < x / 2; i++) ret += i;
 ;   goto m;
 ;
 ; c:
-;   for (int i = 0; i < n + 5; i++) ret += 2;
+;   for (int i = 0; i < n - 5; i++) ret += 2;
 ;   // e
 ;   if (id % 2 == 0) {
 ;     goto h;
@@ -105,8 +105,8 @@
 ;   goto o;
 ;
 ; h:
-;   for (int i = 0; i < n * 2; i++) {
-;     if (n > 5) {
+;   for (int i = 0; i < x / 2; i++) {
+;     if (x < 5) {
 ;       goto l;
 ;     }
 ;   }
@@ -118,7 +118,7 @@
 ;   ret += id << 3;
 ;
 ; o:
-;   for (int i = 0; i < n * 2; i++) ret += i;
+;   for (int i = 0; i < x / 2; i++) ret += i;
 ;
 ; p:
 ;   out[id] = ret;
@@ -130,7 +130,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @partial_linearization17(i32 addrspace(1)* %out, i32 %n) #0 {
+define spir_kernel void @partial_linearization17(i32 addrspace(1)* %out, i32 %n, i32 %x) #0 {
 entry:
   %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
@@ -142,7 +142,7 @@ while.body:                                       ; preds = %if.end5, %entry
   br i1 %cmp, label %for.cond28, label %if.else
 
 if.else:                                          ; preds = %while.body
-  %cmp2 = icmp sgt i32 %n, 5
+  %cmp2 = icmp slt i32 %n, 5
   br i1 %cmp2, label %f, label %if.end5
 
 if.end5:                                          ; preds = %if.else
@@ -165,14 +165,14 @@ for.body:                                         ; preds = %for.cond
   br label %for.cond
 
 f:                                                ; preds = %if.else
-  %mul = shl i32 %n, 1
+  %div = sdiv i32 %x, 2
   br label %for.cond18
 
 for.cond18:                                       ; preds = %for.body22, %f
-  %ret.1 = phi i32 [ %mul, %f ], [ %add23, %for.body22 ]
+  %ret.1 = phi i32 [ %div, %f ], [ %add23, %for.body22 ]
   %storemerge3 = phi i32 [ 0, %f ], [ %inc25, %for.body22 ]
-  %mul19 = shl nsw i32 %n, 1
-  %cmp20 = icmp slt i32 %storemerge3, %mul19
+  %div19 = sdiv i32 %x, 2
+  %cmp20 = icmp slt i32 %storemerge3, %div19
   br i1 %cmp20, label %for.body22, label %m
 
 for.body22:                                       ; preds = %for.cond18
@@ -204,12 +204,12 @@ m:                                                ; preds = %for.end36, %for.con
 
 for.cond43:                                       ; preds = %for.inc52, %for.end36
   %storemerge6 = phi i32 [ %inc53, %for.inc52 ], [ 0, %for.end36 ]
-  %mul44 = shl nsw i32 %n, 1
-  %cmp45 = icmp slt i32 %storemerge6, %mul44
+  %div44 = sdiv i32 %x, 2
+  %cmp45 = icmp slt i32 %storemerge6, %div44
   br i1 %cmp45, label %for.body47, label %for.end54
 
 for.body47:                                       ; preds = %for.cond43
-  %cmp48 = icmp sgt i32 %n, 5
+  %cmp48 = icmp slt i32 %x, 5
   br i1 %cmp48, label %l, label %for.inc52
 
 for.inc52:                                        ; preds = %for.body47
@@ -233,8 +233,8 @@ o:                                                ; preds = %l, %m
 for.cond60:                                       ; preds = %for.body64, %o
   %ret.4 = phi i32 [ %storemerge1, %o ], [ %add65, %for.body64 ]
   %storemerge2 = phi i32 [ 0, %o ], [ %inc67, %for.body64 ]
-  %mul61 = shl nsw i32 %n, 1
-  %cmp62 = icmp slt i32 %storemerge2, %mul61
+  %div61 = sdiv i32 %x, 2
+  %cmp62 = icmp slt i32 %storemerge2, %div61
   br i1 %cmp62, label %for.body64, label %p
 
 for.body64:                                       ; preds = %for.cond60
@@ -352,17 +352,18 @@ attributes #2 = { convergent nobuiltin nounwind readonly }
 ; CHECK: br i1 %{{.+}}, label %[[FORCOND43PREHEADERUNIFORM:.+]], label %[[FOREND36UNIFORMBOSCCINDIR:.+]]
 
 ; CHECK: [[FORCOND43PREHEADERUNIFORM]]:
-; CHECK: %[[CMP18UNIFORM:.+]] = icmp
 ; CHECK: br label %[[FORCOND43UNIFORM:.+]]
 
 ; CHECK: [[FOREND36UNIFORMBOSCCINDIR]]:
 ; CHECK: br i1 %{{.+}}, label %[[MUNIFORM]], label %[[FORCOND43PREHEADER:.+]]
 
 ; CHECK: [[FORCOND43UNIFORM]]:
-; CHECK: br i1 %[[CMP18UNIFORM]], label %[[FORBODY47UNIFORM:.+]], label %[[FOREND54UNIFORM:.+]]
+; CHECK: %[[CMP45UNIFORM:.+]] = icmp
+; CHECK: br i1 %[[CMP45UNIFORM]], label %[[FORBODY47UNIFORM:.+]], label %[[FOREND54UNIFORM:.+]]
 
 ; CHECK: [[FORBODY47UNIFORM]]:
-; CHECK: br i1 true, label %[[LUNIFORM:.+]], label %[[FORINC52UNIFORM:.+]]
+; CHECK: %[[CMP48UNIFORM:.+]] = icmp
+; CHECK: br i1 %[[CMP48UNIFORM]], label %[[LUNIFORM:.+]], label %[[FORINC52UNIFORM:.+]]
 
 ; CHECK: [[FORINC52UNIFORM]]:
 ; CHECK: br label %[[FORCOND43UNIFORM]]
@@ -425,7 +426,6 @@ attributes #2 = { convergent nobuiltin nounwind readonly }
 ; CHECK: br label %[[FORCOND43PREHEADER]]
 
 ; CHECK: [[FORCOND43PREHEADER]]:
-; CHECK: %[[CMP14:.+]] = icmp
 ; CHECK: br label %[[FORCOND43:.+]]
 
 ; CHECK: [[MLOOPEXIT]]:
@@ -438,10 +438,12 @@ attributes #2 = { convergent nobuiltin nounwind readonly }
 ; CHECK: br label %[[O:.+]]
 
 ; CHECK: [[FORCOND43]]:
+; CHECK: %[[CMP14:.+]] = icmp
 ; CHECK: br i1 %[[CMP14]], label %[[FORBODY47:.+]], label %[[FOREND54:.+]]
 
 ; CHECK: [[FORBODY47]]:
-; CHECK: br i1 true, label %[[L:.+]], label %[[FORINC52:.+]]
+; CHECK: %[[CMP48:.+]] = icmp
+; CHECK: br i1 %[[CMP48]], label %[[L:.+]], label %[[FORINC52:.+]]
 
 ; CHECK: [[FORINC52]]:
 ; CHECK: br label %[[FORCOND43]]

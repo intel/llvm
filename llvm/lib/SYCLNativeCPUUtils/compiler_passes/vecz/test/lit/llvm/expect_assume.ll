@@ -65,7 +65,7 @@ entry:
 ; CHECK: [[EX1:%.*]] = call i32 @llvm.expect.i32(i32 [[E1]], i32 42)
 ; CHECK: [[EX2:%.*]] = call i32 @llvm.expect.i32(i32 [[E2]], i32 42)
 ; CHECK: [[EX3:%.*]] = call i32 @llvm.expect.i32(i32 [[E3]], i32 42)
-; CHECK: [[C0:%.*]] = insertelement <4 x i32> undef, i32 [[EX0]], i64 0
+; CHECK: [[C0:%.*]] = insertelement <4 x i32> {{undef|poison}}, i32 [[EX0]], i64 0
 ; CHECK: [[C1:%.*]]  = insertelement <4 x i32> [[C0]], i32 [[EX1]], i64 1
 ; CHECK: [[C2:%.*]]  = insertelement <4 x i32> [[C1]], i32 [[EX2]], i64 2
 ; CHECK: [[C3:%.*]]  = insertelement <4 x i32> [[C2]], i32 [[EX3]], i64 3

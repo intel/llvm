@@ -30,7 +30,15 @@ entry:
   %mul = mul nsw i32 %conv2, %stride
   %add = add nsw i32 %conv, %mul
   %mul3 = shl nsw i32 %add, 1
-  %add4 = or i32 %mul3, 1
+  ; LLVM will not generate an add, but the precise form of the or instruction
+  ; that gets generated depends on the LLVM version.
+  ; LLVM 17-: %add4 = or i32 %mul3, 1
+  ; LLVM 18+: %add4 = or disjoint i32 %mul3, 1
+  ; The LLVM 17 form is not recognized as an add by LLVM 18, and the LLVM 18
+  ; form uses a flag which does not exist in LLVM 17. As this is not the
+  ; purpose of the test, use an add instruction here for now, and revisit this
+  ; once our minimum version of LLVM is LLVM 18.
+  %add4 = add nsw nuw i32 %mul3, 1
   %idxprom = sext i32 %add4 to i64
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %idxprom
   %0 = call <4 x i32> @__vecz_b_interleaved_load4_2_Dv4_jPU3AS1j(i32 addrspace(1)* %arrayidx)
