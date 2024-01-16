@@ -298,4 +298,14 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
 
 template <class> inline constexpr bool ur_always_false_t = false;
 
+namespace ur {
+[[noreturn]] inline void unreachable() {
+#ifdef _MSC_VER
+    __assume(0);
+#else
+    __builtin_unreachable();
+#endif
+}
+} // namespace ur
+
 #endif /* UR_UTIL_H */
