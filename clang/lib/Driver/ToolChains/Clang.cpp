@@ -10306,7 +10306,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (!(T.isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (T.isNVPTX())
+  if (T.isNVPTX() || T.isAMDGCN())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
