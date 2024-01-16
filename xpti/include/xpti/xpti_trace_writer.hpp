@@ -145,6 +145,7 @@ protected:
     TP.TracePointType = Ty;
     TP.EventName = EventName;
     TP.Instance = Instance;
+    TP.Value = Value;
     TP.NumCategories = Categories.size();
     TP.Parent = Parent;
     TP.Event = Event;
