@@ -146,7 +146,7 @@ public:
   }
   OP(++)
   OP(--)
-
+#undef OP
   // Assignment operators overloading
 #define OP(op)                                                                 \
   friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
