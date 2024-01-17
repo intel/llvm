@@ -720,6 +720,22 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void setExternalEvent(const event &Event) {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MInOrderExternalEvent = Event;
+  }
+
+  std::optional<event> popExternalEvent() {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    std::optional<event> Result = std::nullopt;
+    std::swap(Result, MInOrderExternalEvent);
+    return Result;
+  }
+
+  const std::vector<event> &
+  getExtendDependencyList(const std::vector<event> &DepEvents,
+                          std::vector<event> &MutableVec);
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -745,6 +761,13 @@ protected:
       if (EventToBuildDeps)
         Handler.depends_on(
             createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
+
+      // If there is an external event set, add it as a dependency and clear it.
+      // We do not need to hold the lock as MLastEventMtx will ensure the last
+      // event reflects the corresponding external event dependence as well.
+      std::optional<event> ExternalEvent = popExternalEvent();
+      if (ExternalEvent)
+        Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
@@ -892,6 +915,13 @@ protected:
 
   // the fallback implementation of profiling info
   bool MFallbackProfiling = false;
+
+  // This event can be optionally provided by users for in-order queues to add
+  // an additional dependency for the subsequent submission in to the queue.
+  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // NOTE: std::optional must not be exposed in the ABI.
+  std::optional<event> MInOrderExternalEvent;
+  mutable std::mutex MInOrderExternalEventMtx;
 
 public:
   // Queue constructed with the discard_events property

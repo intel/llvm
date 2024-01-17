@@ -78,18 +78,19 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
     size_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
     int MemOperand = 0);
 
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          __spv::MatrixUse UA, __spv::MatrixUse UB, __spv::MatrixUse UC,
+template <typename TA, typename TB, typename TC, std::size_t M, std::size_t K,
+          std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
+          __spv::MatrixUse UC,
           __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *
+    __spv::__spirv_JointMatrixINTEL<TC, M, N, LC, S, UC> *
     __spirv_JointMatrixMadINTEL(
-        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-        __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S, UB> *B,
-        __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *C,
+        __spv::__spirv_JointMatrixINTEL<TA, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<TB, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<TC, M, N, LC, S, UC> *C,
         __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,

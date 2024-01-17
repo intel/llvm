@@ -43,9 +43,9 @@ template <typename T> struct ImplicitlyConvertibleType {
   CHECK_INNER(NUM_ARGS, FUNC_NAME, double)
 
 #define UGENINT_NAN_CHECK(NUM_ARGS, FUNC_NAME)                                 \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned int)                               \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned short)                             \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, unsigned long)
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, uint32_t)                                   \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, uint16_t)                                   \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, uint64_t)
 
 void check() {
   GENFLOAT_CHECK(ONE_ARG, acos)

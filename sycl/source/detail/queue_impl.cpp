@@ -107,6 +107,20 @@ static event createDiscardedEvent() {
   return createSyclObjFromImpl<event>(EventImpl);
 }
 
+const std::vector<event> &
+queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
+                                    std::vector<event> &MutableVec) {
+  if (isInOrder()) {
+    std::optional<event> ExternalEvent = popExternalEvent();
+    if (ExternalEvent) {
+      MutableVec = DepEvents;
+      MutableVec.push_back(*ExternalEvent);
+      return MutableVec;
+    }
+  }
+  return DepEvents;
+}
+
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
@@ -143,14 +157,19 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   {
     std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     if (isInOrder()) {
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                                getPIEvents(DepEvents, ExtraEventToWait),
+                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                                 nullptr);
         return createDiscardedEvent();
       }
@@ -158,7 +177,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                              getPIEvents(DepEvents, ExtraEventToWait),
+                              getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                               &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -240,14 +259,19 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   {
     std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     if (isInOrder()) {
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_usm(Src, Self, Count, Dest,
-                                getPIEvents(DepEvents, ExtraEventToWait),
+                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                                 nullptr);
         return createDiscardedEvent();
       }
@@ -255,7 +279,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_usm(Src, Self, Count, Dest,
-                              getPIEvents(DepEvents, ExtraEventToWait),
+                              getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                               &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -286,14 +310,19 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   {
     std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     if (isInOrder()) {
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                  getPIEvents(DepEvents, ExtraEventToWait),
+                                  getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                                   nullptr);
         return createDiscardedEvent();
       }
@@ -301,7 +330,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                getPIEvents(DepEvents, ExtraEventToWait),
+                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
                                 &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host()) {
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -334,15 +363,20 @@ event queue_impl::memcpyToDeviceGlobal(
   {
     std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     if (isInOrder()) {
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_to_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+            getPIEvents(ExpandedDepEvents, ExtraEventToWait), nullptr);
         return createDiscardedEvent();
       }
 
@@ -350,7 +384,7 @@ event queue_impl::memcpyToDeviceGlobal(
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_to_device_global(
           DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          getPIEvents(ExpandedDepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
           EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -382,15 +416,20 @@ event queue_impl::memcpyFromDeviceGlobal(
   {
     std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     if (isInOrder()) {
       guard.lock();
       ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
     }
-    if (canBypassScheduler(DepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_from_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+            getPIEvents(ExpandedDepEvents, ExtraEventToWait), nullptr);
         return createDiscardedEvent();
       }
 
@@ -398,7 +437,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_from_device_global(
           DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          getPIEvents(ExpandedDepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
           EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();

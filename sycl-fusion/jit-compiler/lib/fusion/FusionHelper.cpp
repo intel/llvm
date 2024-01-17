@@ -92,7 +92,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     {
       const auto MDFromND = [&LLVMCtx](const auto &ND) {
         auto MDFromIndices = [&LLVMCtx](const auto &Ind) -> Metadata * {
-          std::array<Metadata *, jit_compiler::Indices{}.size()> MD{nullptr};
+          std::array<Metadata *, jit_compiler::Indices::size()> MD{nullptr};
           std::transform(
               Ind.begin(), Ind.end(), MD.begin(),
               [&LLVMCtx](auto I) { return getConstantIntMD(LLVMCtx, I); });
