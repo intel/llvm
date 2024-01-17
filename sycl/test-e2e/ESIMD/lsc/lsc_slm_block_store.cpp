@@ -17,6 +17,10 @@ template <int Id, int NGroups, int LocalSize, int VL> bool test_store() {
   bool Passed = true;
   Passed &= test<Id, uint32_t, NGroups, LocalSize, VL, 1, true>();
   Passed &= test<Id + 1, uint64_t, NGroups, LocalSize, VL, 1, true>();
+  Passed &= test<Id + 2, uint16_t, NGroups, LocalSize, VL, 1, true>();
+  if constexpr (VL >= 4) {
+    Passed &= test<Id + 3, uint8_t, NGroups, LocalSize, VL, 1, true>();
+  }
   return Passed;
 }
 
@@ -25,11 +29,11 @@ int main(void) {
 
   // test_store<Id, NGroups, LocalSize, VL>();
   Passed &= test_store<0, 1, 1, 4>();
-  Passed &= test_store<2, 1, 7, 16>();
-  Passed &= test_store<4, 4, 3, 2>();
-  Passed &= test_store<6, 16, 8, 8>();
-  Passed &= test_store<8, 2, 4, 32>();
-  Passed &= test_store<10, 2, 4, 64>();
+  Passed &= test_store<4, 1, 7, 16>();
+  Passed &= test_store<8, 4, 3, 2>();
+  Passed &= test_store<12, 16, 8, 8>();
+  Passed &= test_store<16, 2, 4, 32>();
+  Passed &= test_store<20, 2, 4, 64>();
 
   std::cout << (Passed ? "Passed" : "FAILED") << std::endl;
   return Passed ? 0 : 1;
