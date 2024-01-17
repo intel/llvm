@@ -239,14 +239,17 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   // If we have a command graph set we need to capture the copy through normal
   // queue submission rather than execute the copy directly.
-  if (MGraph.lock()) {
+  auto submitWithScheduler = [&]() {
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
           CGH.memcpy(Dest, Src, Count);
         },
         Self, {});
-  }
+  };
+  if (MGraph.lock())
+    return submitWithScheduler();
+
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
     throw runtime_error("NULL pointer argument in memory copy operation.",
@@ -286,18 +289,26 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     }
   }
 
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.memcpy(Dest, Src, Count);
-      },
-      Self, {});
+  return submitWithScheduler();
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
+  // If we have a command graph set we need to capture the advise through normal
+  // queue submission.
+  auto submitWithScheduler = [&]() {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.mem_advise(Ptr, Length, Advice);
+        },
+        Self, {});
+  };
+  if (MGraph.lock())
+    return submitWithScheduler();
+
   {
     std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
@@ -305,10 +316,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    // If we have a command graph set we need to capture the advise through normal
-    // queue submission.
-    if (!MGraph.lock() &&
-        checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
+    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                                   getPIEvents(ExpandedDepEvents), nullptr);
@@ -336,12 +344,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     }
   }
 
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.mem_advise(Ptr, Length, Advice);
-      },
-      Self, {});
+  return submitWithScheduler();
 }
 
 event queue_impl::memcpyToDeviceGlobal(
