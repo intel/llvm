@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 79c28d0f0713f58358d5080653d95803fd131749
-  # Merge: 25e0b603 45d76b78
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Fri Jan 12 16:14:44 2024 +0000
-  #     Merge pull request #1186 from hdelan/device-global-hip
-  #     [HIP] Add support for global variable read write
-  set(UNIFIED_RUNTIME_TAG 79c28d0f0713f58358d5080653d95803fd131749)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG d35ea940b0a34d87b05faf19e9fbbce74ab88531)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
