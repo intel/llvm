@@ -740,7 +740,7 @@ constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION = 0x419E;
 // make the translation to OpenCL transparent.
 using pi_usm_mem_properties = pi_bitfield;
 constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = 0x4195;
-constexpr pi_usm_mem_properties PI_MEM_ALLOC_WRTITE_COMBINED = (1 << 0);
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_WRITE_COMBINED = (1 << 0);
 constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE =
     (1 << 1);
 constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST = (1 << 2);
