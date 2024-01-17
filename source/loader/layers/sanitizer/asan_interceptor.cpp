@@ -519,17 +519,13 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
 
     auto ContextInfo = getContextInfo(Context);
 
-    auto HostInfo = ContextInfo->getDeviceInfo(nullptr);
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
     auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
-    std::shared_lock<ur_shared_mutex> HostGuard(HostInfo->Mutex,
-                                                std::defer_lock);
     std::unique_lock<ur_shared_mutex> DeviceGuard(DeviceInfo->Mutex,
                                                   std::defer_lock);
-    std::scoped_lock<std::shared_lock<ur_shared_mutex>,
-                     std::unique_lock<ur_shared_mutex>, ur_mutex>
-        Guard(HostGuard, DeviceGuard, QueueInfo->Mutex);
+    std::scoped_lock<std::unique_lock<ur_shared_mutex>, ur_mutex> Guard(
+        DeviceGuard, QueueInfo->Mutex);
 
     ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
