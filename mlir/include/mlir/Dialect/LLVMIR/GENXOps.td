@@ -71,7 +71,7 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
     Results<(outs LLVM_Type:$res)>, Arguments<(ins)> {
   string llvmBuilder = [{
     llvm::Type *retType = nullptr;
-    if ("}] # fnName # [{" == "__builtin_IB_get_global_size") {
+    if (std::string("}] # fnName # [{") == std::string("__builtin_IB_get_global_size")) {
       retType = builder.getInt32Ty();
     } else {
       retType = builder.getInt64Ty();
