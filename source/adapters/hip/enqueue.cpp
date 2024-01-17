@@ -1666,6 +1666,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     // There is an issue with hipMemcpy2D* when hipMemcpyDefault is used, which
     // makes the HIP runtime not correctly derive the copy kind (direction) for
     // the copies since ROCm 5.6.0+. See: https://github.com/ROCm/clr/issues/40
+    // TODO: Add maximum HIP_VERSION when bug has been fixed.
 #if HIP_VERSION >= 50600000
     hipPointerAttribute_t srcAttribs{};
     hipPointerAttribute_t dstAttribs{};
