@@ -249,6 +249,17 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
+  // If we have a command graph set we need to capture the advise through normal
+  // queue submission.
+  if (MGraph.lock()) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.mem_advise(Ptr, Length, Advice);
+        },
+        Self, {});
+  }
+
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);

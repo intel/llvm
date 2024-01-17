@@ -351,6 +351,8 @@ The types of commands which are unsupported, and lead to this exception are:
    `dest` are USM pointers. This corresponds to a USM copy command.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
   fill command.
+* `handler::prefetch()`.
+* `handler::mem_advise()`.
 
 Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
 is supported, as a memory buffer copy command exists in the OpenCL extension.
@@ -377,6 +379,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferWriteRectExp |  | No |
 | urCommandBufferAppendMemBufferReadRectExp |  | No |
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
+| urCommandBufferAppendUSMPrefetchExp |  | No |
+| urCommandBufferAppendUSMAdviseExp |  | No |
 | urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |
