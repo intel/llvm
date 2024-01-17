@@ -56,7 +56,7 @@ void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
   auto Plugin = MQueue->getPlugin();
 
   if (!MEvent->backendSet()) {
-    MEvent->setPlugin(Plugin, detail::getImplBackend(MQueue));
+    MEvent->setContextImpl(MContext);
   }
 
   // Make a std::vector of PiEvents from the native events
@@ -65,7 +65,11 @@ void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
     Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
         (pi_native_handle)NativeEvents[i], MContext->getHandleRef(),
         /*OwnNativeHandle*/ true, &Ev);
-    MEvent->addHostTaskPiEvent(Ev);
+    auto EventImpl = std::make_shared<detail::event_impl>(
+        Ev, detail::createSyclObjFromImpl<context>(MContext));
+    // TODO: Do I need to call things like setContextImpl, setStateIncomplete,
+    // setSubmissionTime?
+    MEvent->addHostTaskNativeEvent(EventImpl);
   }
 }
 
