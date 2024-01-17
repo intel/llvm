@@ -21,8 +21,8 @@ namespace ext::intel::esimd::xmx {
 /// it is deducible from the element types of input matrices.
 enum class dpas_argument_type {
   Invalid = 0,
-  u1 = 1,    // unsigned 1 bit
-  s1 = 2,    // signed 1 bit
+  u1 __SYCL_DEPRECATED("u1 is reserved/unsupported") = 1, // unsigned 1 bit
+  s1 __SYCL_DEPRECATED("s1 is reserved/unsupported") = 2, // signed 1 bit
   u2 = 3,    // unsigned 2 bits
   s2 = 4,    // signed 2 bits
   u4 = 5,    // unsigned 4 bits
