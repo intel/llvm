@@ -367,7 +367,8 @@ Error SYCLKernelFusion::fuseKernel(
   DenseMap<std::pair<unsigned, unsigned>, unsigned> ParamMapping;
   // The list of identical parameters is sorted, so the relevant entry can
   // always only be the current front.
-  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin();
+  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin(),
+                                      *ParamEnd = ParamIdentities.end();
   unsigned FuncIndex = 0;
   unsigned ArgIndex = 0;
   for (const auto &Fused : FusedKernels) {
@@ -386,7 +387,7 @@ Error SYCLKernelFusion::fuseKernel(
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
       int IdenticalIdx = -1;
-      if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
+      if (ParamFront < ParamEnd && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
         // Because ParamIdentity is constructed such that LHS > RHS, the other
         // parameter must already have been processed.
