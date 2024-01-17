@@ -871,8 +871,7 @@ std::string handler::getKernelName() {
 #endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::verifyUsedKernelBundleInternal(detail::string &Name) {
-  std::string KernelName = Name.getPtr();
+void handler::verifyUsedKernelBundleInternal(detail::string &KernelName) {
 #else
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 #endif

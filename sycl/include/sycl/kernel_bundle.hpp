@@ -46,7 +46,7 @@ auto get_native(const kernel_bundle<State> &Obj)
 namespace detail {
 class kernel_id_impl;
 class kernel_impl;
-}
+} // namespace detail
 
 template <typename KernelName> kernel_id get_kernel_id();
 
@@ -446,7 +446,11 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 namespace detail {
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT kernel_id get_kernel_id_impl(string KernelName);
+#else
 __SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
+#endif
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName
