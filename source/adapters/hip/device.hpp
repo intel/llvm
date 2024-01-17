@@ -26,6 +26,8 @@ private:
   ur_platform_handle_t Platform;
   hipCtx_t HIPContext;
   uint32_t DeviceIndex;
+  int DeviceMaxLocalMem;
+  int ManagedMemSupport;
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
@@ -35,6 +37,13 @@ public:
 
   ~ur_device_handle_t_() noexcept(false) {
     UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
+
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+        HIPDevice));
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &ManagedMemSupport, hipDeviceAttributeManagedMemory,
+        HIPDevice));
   }
 
   native_type get() const noexcept { return HIPDevice; };
@@ -48,6 +57,10 @@ public:
   // Returns the index of the device relative to the other devices in the same
   // platform
   uint32_t getIndex() const noexcept { return DeviceIndex; };
+
+  int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
+
+  bool getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
