@@ -438,7 +438,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
       return Res;
 
     // Make sure all commands get executed.
-    Queue->synchronize();
+    UR_CALL(Queue->synchronize());
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -654,7 +654,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
 
-    UrQueue->synchronize();
+    UR_CALL(UrQueue->synchronize());
   } else {
     std::unique_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
     std::vector<ze_command_queue_handle_t> ZeQueues;
@@ -1241,7 +1241,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (UrL0Serialize & UrL0SerializeBlock) != 0) {
     if (UsingImmCmdLists) {
-      synchronize();
+      UR_CALL(synchronize());
     } else {
       // Wait until command lists attached to the command queue are executed.
       ZE2UR_CALL(zeHostSynchronize, (ZeCommandQueue));
@@ -1445,7 +1445,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
         for (auto &QueueGroup : QueueMap) {
           if (UsingImmCmdLists) {
             for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
-              syncImmCmdList(this, ImmCmdList);
+              UR_CALL(syncImmCmdList(this, ImmCmdList));
           } else {
             for (auto &ZeQueue : QueueGroup.second.ZeQueues)
               if (ZeQueue)
