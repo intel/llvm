@@ -21,11 +21,12 @@ llvm.func @genx_special_regs() -> i32 {
   %8 = genx.workgroup.dim.y : i64
   // CHECK: call i64 @_Z12get_local_sizej(i32 2)
   %9 = genx.workgroup.dim.z : i32
-  // CHECK: call i64 @_Z12get_global_sizej(i32 0)
+  // CHECK: call i32 @__builtin_IB_get_global_size(i32 0)
   %10 = genx.grid.dim.x : i32
-  // CHECK: call i64 @_Z12get_global_sizej(i32 1)
+  // CHECK: [[CI:%.*]] = call i32 @__builtin_IB_get_global_size(i32 1)
+  // CHECK-NEXT: zext i32 [[CI]] to i64
   %11 = genx.grid.dim.y : i64
-  // CHECK: call i64 @_Z12get_global_sizej(i32 2)
+  // CHECK: call i32 @__builtin_IB_get_global_size(i32 2)
   %12 = genx.grid.dim.z : i32
   llvm.return %1 : i32
 }
