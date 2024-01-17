@@ -11,9 +11,10 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 
 ### SYCL Library
 - Added experimental implementation of SYCL bindless images extension [58a8f2001d8b] [380453deeb51] [b1aab046f408]
-- Added support for local accessors to `copy_from`/`copy_to` API [474461cb2e1d]
-- Added support for local accessors to atomic update API [8974cb944b3c]
-- Added new `raw_send` APIs moving compile time params to template params [1a5e53216b00]
+- Added support for local accessors to `copy_from`/`copy_to` for ESIMD [474461cb2e1d]
+- Added support for local accessors to atomic update for ESIMD [8974cb944b3c]
+- Added support for local accessors to lsc for ESIMD [9dce2d227b31]
+- Added new `raw_send` APIs moving compile time params to template params for ESIMD [1a5e53216b00]
 - Added SYCLcompat library [bedd818eb281] [465aa56ee5b3] [75b31a4c24b4] [4dfaf20884c7] [47d84897a87b] [8c07a840311a] [ab578107b6f8] [ac5a90e0c1b5] [a733fa74b583] [c39c2138f5a0]
 - Implemented `sycl_ext_oneapi_auto_local_range` [a6d4c2120b5c]
 - Implemented [`sycl_ext_oneapi_sub_group_mask`](https://github.com/intel/llvm/blob/3bd09b9089c5221f72f19ab1adde19da909661a7/sycl/doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc) version 2 [3bd09b9089c5]
@@ -49,15 +50,14 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Fixed missing optnone attribute in -O0 mode on non-FPGA target to improve debuggability [993fe5b31b43]
 
 ### SYCL Library
-- Fixed sycl::vec ABI inconsistencies and made it trivially copyable [531aabfdee91] [f4ed132f243a]
-- Supported missing types with ldg extension [aec8a35788c1]
+- Supported missing types for the `ldg` in the [sycl_ext_oneapi_cuda_tex_cache_read](https://github.com/intel/llvm/blob/aec8a35788c1953c6ae74ab1e6eb924fa09d5e4e/sycl/doc/extensions/experimental/sycl_ext_oneapi_cuda_tex_cache_read.asciidoc) [aec8a35788c1]
 - Stopped throwing exception when passing empty accessor to `handler::require()` [7bf1f57bc26e]
 - Moved `addc()` and `subb()` functions out of experimental namespace [9e3852bc1c2e]
 - Moved BFN function from experimental namespace [c9da5c7ff7e8]
 - Improved error message when `queue::memcpy` receives a null pointer  by reporting source code info(file/line number) [626c4b5078c1]
 - Improved accuracy of double `tanpi` host implementation [041a74c0cbda]
-- Added more support for AMD subgroup functions [288aeaef03a9]
-- `annotated_ptr` API fixes [954730e7a823] [fbad42a398ef] [43336a15fcaf]
+- Added support bitwise and/or/xor and logical and/or subgroup collective functions for AMD[288aeaef03a9]
+- Updated `annotated_ptr` API to match spec changes [954730e7a823] [fbad42a398ef] [43336a15fcaf]
 - Implemented info::event_profiling::command_submit support for platforms that use OpenCL version less than 2.1. [7cfa951303eb]
 - Fixed required alignment in buffers [093dae1f7214]
 - Improved error message when using `sycl_ext_oneapi_graph` features that are not yet implemented [8d8d3f4f52b0]
@@ -73,10 +73,9 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Moved GRF property conflict check to compile time [4fb92d35c7be]
 - Added error when using invoke_simd with callables with struct arguments [03c13fd53a24]
 - Added missing `rintf` for CUDA [3c327c736ced]
-- Optimize kernel launch on CUDA by caching the max local mem size so that CUDA driver is called less [1c892f952cae]
-- Added support for local accessors to lsc ESIMD API [9dce2d227b31]
+- Optimized kernel launch on CUDA by caching the max local mem size so that CUDA driver is called less [1c892f952cae]
 - Made `sycl_ext_oneapi_graph` functions thread-safe [c8c64a673eeb]
-- Improveed diagnostic for nd_item passed to parallel_for with range [e600d7922489]
+- Improved diagnostic for `nd_item` passed to `parallel_for` with range [e600d7922489]
 - Implemented missing exceptions defined by `sycl_ext_oneapi_graph` specification [77b794bcaad6]
 - Implemented supported make_device, make_queue, make_event interop functions for HIP backend [5e9d07b14a47]
 - Added missing nearbyint for CUDA [0ef26d3ee808]
@@ -93,7 +92,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Updated [`sycl_ext_oneapi_local_memory`](https://github.com/intel/llvm/blob/457251feceb81845de962383f227e14522d4cf96/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc) [457251feceb8]
 - Added get-coord API and general query example to [`sycl_ext_intel_matrix`](https://github.com/intel/llvm/blob/579f1dec0b5b2ecd177dfb95c3d1522f57079cc6/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc) [579f1dec0b5b] [38ac2124c1e8]
 - Updated design doc for new offloading model [115808f5128f]
-- Updated immediate command list usage [ad973f3383e2]
+- Updated description of the default value of the environment variable `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` to reflect actual behavior [ad973f3383e2]
 - Added overloads with `sycl::queue` for some functions in [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/4d0c552985bd0e4fc16740a0fc89393ef7fe3d04/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) [4d0c552985bd]
 - Specify an error in `sycl_ext_oneapi_graph` if an executable graph is submitted to a queue with a different device or context [2c53815c6c1e]
 
@@ -110,15 +109,15 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Fixed identity values for (sub)group collectives min/max for AMD and CUDA [248389371932]
 - Corrected exception thrown when kernel is submitted with a large (unsupported) `reqd_work_group_size` attribute [25c3666dffa9]
 - Implemented hip `prefetch`/`mem_advise` (noop) for rocm < 5.0 [7e4cc1113987]
-- Adjusted `range` definition so it has a default constructor in accordance with the SYCL spec[0289d2ac94f9]
-- Missing return statement in the `multi_ptr<void..>` conversion operator [836469ba88e2]
-- Optimize kernel fusion implementation so that some resources can be released earlier [a33b0a950ae6]
+- Adjusted `range` definition so it has a default constructor in accordance with the SYCL spec [0289d2ac94f9]
+- Added missing return statement in the `multi_ptr<void..>` conversion operator [836469ba88e2]
+- Optimized kernel fusion implementation so that some resources can be released earlier [a33b0a950ae6]
 - Fixed an integer overflow that happened when sub-buffer size exceeds `INT_MAX` [2fb0b140ad3b]
 - Fixed `std::enable_if` typo for `marray` and `multi_ptr` [0ef25ec3bdf8]
-- Fixed integer type overflow in `SYCLDeviceRequirements` [cee07d3d2652]
+- Fixed an issue with `reqd_work_group_size` attribute values bigger than `INT_MAX` being incorrectly handled [cee07d3d2652]
 - Fixed UB in group sort scratch memory access [ed4c01301a7c]
 - Use primary context in HIP adapter [d1c92cb95b29]
-- Allowed passing default constructed accessors to kernels [fb8ddbf7b0ea]
+- Fixed a crash when default-constructed accessor is passed to a kernel [fb8ddbf7b0ea]
 - Stopped `sycl_ext_oneapi_graph` subgraph nodes from creating incorrect dependencies on subsequent usages of the subgraph [92ddf8d562d7]
 - Fixed ambiguous `log2` call in host code [12fa0af28e88]
 
@@ -126,10 +125,13 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Updated `device_image_scope` property  in `sycl_ext_oneapi_device_global` [be8e031cd078]
 
 ## API/ABI breakages
-- Deprecate experimental functions for ESIMD: quot,div,mod,dp*,line,lrp [76976a22ba2e]
-- Remove ESIMD Emulator plugin [1ece6da6b113]
-- Deprecate `sycl::abs(genfloat)` [d15d4409b2cf]
-- Don't include `<complex>/<cmath>` from `sycl.hpp` if `-fpreview-breaking-changes` is set [6ed0ab887d18] [d22c9c58d2e7]
+- Deprecated experimental functions for ESIMD: quot,div,mod,dp*,line,lrp [76976a22ba2e]
+- Removed ESIMD Emulator plugin [1ece6da6b113]
+- Deprecated `sycl::abs(genfloat)` [d15d4409b2cf]
+
+## Upcoming API/ABI breakages
+- Fixed sycl::vec ABI inconsistencies and made it trivially copyable if `-fpreview-breaking-changes` is specified  [531aabfdee91] [f4ed132f243a] 
+- Updated `sycl.hpp` to not include `<complex>` and `<cmath>` if `-fpreview-breaking-changes` is set. [6ed0ab887d18] [d22c9c58d2e7]
 
 ## Known Issues
 - Having MESA OpenCL implementation which provides no devices on a
