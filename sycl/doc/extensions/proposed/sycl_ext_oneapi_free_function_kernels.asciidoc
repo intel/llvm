@@ -47,6 +47,8 @@ This extension also depends on the following other SYCL extensions:
   sycl_ext_oneapi_free_function_queries]
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
 
 
 == Status
@@ -647,11 +649,10 @@ _{endnote}_]
 
 === Interaction with kernel properties
 
-If the implementation supports
-link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
-sycl_ext_oneapi_kernel_properties], a free function kernel may be decorated
-with these properties by applying the properties to the function declaration as
-illustrated below.
+A free function kernel may also be decorated with any of the properties defined
+in link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_oneapi_kernel_properties] by applying the properties to the function
+declaration as illustrated below.
 
 ```
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
