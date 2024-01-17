@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out %
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_DEVICE_FILTER='*' %{run-unfiltered-devices} %t.out &> %t.log
 // RUN: FileCheck %s < %t.log
 //
