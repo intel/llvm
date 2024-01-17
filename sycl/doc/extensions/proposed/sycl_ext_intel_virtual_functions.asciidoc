@@ -261,10 +261,10 @@ void SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_B) Foo::baz() {}
 });
 ----
 
-Reasons about why it may be necessary to put different virtual functions into
-different sets are explained in further sections, but for simplicity purposes
-both properties can be used without explicitly specifying a set, thus using
-the default set:
+The main reason for virtual functions to be split into different sets is use of
+optional kernel features in those virtual functions. It is explained in more
+details in the next section. However, for simplicity purposes both properties
+can be used without explicitly specifying a set, thus using the default set:
 
 [source,dpcpp]
 ----
@@ -324,6 +324,13 @@ SYCL kernel function, an implementation must take into account all aspects which
 are used by all virtual member functions included into all sets of virtual
 member functions declared to be used by a kernel.
 
+Therefore, if only default set of virtual functions is used by an application,
+it means that every kernel which is submitted with the `calls_indirectly`
+property is assumed to use _all_ virtual functions marked with the
+`indirectly_callable` property. If some of those virtual functions use optional
+kernel features and there are kernels which are supposed to work on devices
+without support for those optional kernel features, then virtual functions
+using them should be outlined into a separate set.
 
 [source,dpcpp]
 ----
