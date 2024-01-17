@@ -1518,10 +1518,20 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferRead>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
-        Deps.size(), Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferRead>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
+            Deps.size(), Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device-to-host buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   } else {
     size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
     size_t BufferSlicePitch =
@@ -1538,11 +1548,20 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                           SrcAccessRange[SrcPos.YTerm],
                                           SrcAccessRange[SrcPos.ZTerm]};
 
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferReadRect>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
-        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-        BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
-        Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferReadRect>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(SrcMem),
+            &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
+            Deps.data(), OutSyncPoint);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device-to-host buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -1576,10 +1595,20 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferWrite>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
-        DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
-        Deps.size(), Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferWrite>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+            DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
+            Deps.size(), Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Host-to-device buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   } else {
     size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
     size_t BufferSlicePitch =
@@ -1596,11 +1625,21 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
                                           DstAccessRange[DstPos.YTerm],
                                           DstAccessRange[DstPos.ZTerm]};
 
-    Plugin->call<PiApiKind::piextCommandBufferMemBufferWriteRect>(
-        CommandBuffer, sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
-        &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
-        BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
-        Deps.data(), OutSyncPoint);
+    pi_result Result =
+        Plugin->call_nocheck<PiApiKind::piextCommandBufferMemBufferWriteRect>(
+            CommandBuffer,
+            sycl::detail::pi::cast<sycl::detail::pi::PiMem>(DstMem),
+            &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
+            Deps.data(), OutSyncPoint);
+
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Host-to-device buffer copy command not supported by graph backend");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
   }
 }
 
@@ -1614,9 +1653,62 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piextCommandBufferMemcpyUSM>(
-      CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
-      OutSyncPoint);
+  pi_result Result =
+      Plugin->call_nocheck<PiApiKind::piextCommandBufferMemcpyUSM>(
+          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
+          OutSyncPoint);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM copy command not supported by graph backend");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
+}
+
+void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *DstMem,
+    size_t Len, int Pattern, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+
+  if (!DstMem)
+    throw runtime_error("NULL pointer argument in memory fill operation.",
+                        PI_ERROR_INVALID_VALUE);
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  // Pattern is interpreted as an unsigned char so pattern size is always 1.
+  size_t PatternSize = 1;
+  Plugin->call<PiApiKind::piextCommandBufferFillUSM>(
+      CommandBuffer, DstMem, &Pattern, PatternSize, Len, Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_fill_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, SYCLMemObjI *SYCLMemObj,
+    void *Mem, size_t PatternSize, const char *Pattern, unsigned int Dim,
+    sycl::range<3> Size, sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
+    unsigned int ElementSize,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  (void)Size;
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  if (SYCLMemObj->getType() != detail::SYCLMemObjI::MemObjType::Buffer) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Images are not supported in Graphs");
+  }
+  if (Dim <= 1) {
+    Plugin->call<PiApiKind::piextCommandBufferMemBufferFill>(
+        CommandBuffer, pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
+        PatternSize, AccessOffset[0] * ElementSize,
+        AccessRange[0] * ElementSize, Deps.size(), Deps.data(), OutSyncPoint);
+    return;
+  }
+  throw runtime_error("Not supported configuration of fill requested",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 void MemoryManager::copy_image_bindless(

@@ -22,10 +22,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
-
-jit_compiler::~jit_compiler() = default;
-
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   switch (Type) {
@@ -54,6 +50,13 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Backend unsupported by kernel fusion");
   }
+}
+
+::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  return ::jit_compiler::TargetInfo::get(
+      Format, static_cast<::jit_compiler::DeviceArchitecture>(
+                  Queue->getDeviceImplPtr()->getDeviceArch()));
 }
 
 std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
@@ -151,6 +154,7 @@ struct PromotionInformation {
   Requirement *Definition;
   NDRDescT NDRange;
   size_t LocalSize;
+  size_t ElemSize;
   std::vector<bool> UsedParams;
 };
 
@@ -366,11 +370,11 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       ThisLocalSize = 0;
     }
     assert(ThisLocalSize.has_value());
-    Promotions.emplace(Req->MSYCLMemObj,
-                       PromotionInformation{ThisPromotionTarget, KernelIndex,
-                                            ArgFunctionIndex, Req, NDRange,
-                                            ThisLocalSize.value(),
-                                            std::vector<bool>()});
+    Promotions.emplace(
+        Req->MSYCLMemObj,
+        PromotionInformation{ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                             Req, NDRange, ThisLocalSize.value(),
+                             Req->MElemSize, std::vector<bool>()});
   }
 }
 
@@ -508,7 +512,7 @@ static ParamIterator preProcessArguments(
             (PromotionTarget == Promotion::Private)
                 ? ::jit_compiler::Internalization::Private
                 : ::jit_compiler::Internalization::Local,
-            Internalization.LocalSize);
+            Internalization.LocalSize, Internalization.ElemSize);
         // If an accessor will be promoted, i.e., if it has the promotion
         // property attached to it, the next three arguments, that are
         // associated with the accessor (access range, memory range, offset),
@@ -630,6 +634,11 @@ std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
                           const property_list &PropList) {
+  if (InputKernels.empty()) {
+    printPerformanceWarning("Fusion list is empty");
+    return nullptr;
+  }
+
   // Retrieve the device binary from each of the input
   // kernels to hand them over to the JIT compiler.
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;
@@ -685,19 +694,24 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return A.MIndex < B.MIndex;
     });
 
-    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor;
+    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};
     size_t ArgIndex = 0;
     // The kernel function in SPIR-V will only have the non-eliminated
     // arguments, so keep track of this "actual" argument index.
     unsigned ArgFunctionIndex = 0;
+    auto KindIt = ArgDescriptor.Kinds.begin();
+    auto UsageMaskIt = ArgDescriptor.UsageMask.begin();
     for (auto &Arg : Args) {
-      ArgDescriptor.Kinds.push_back(translateArgType(Arg.MType));
+      *KindIt = translateArgType(Arg.MType);
+      ++KindIt;
+
       // DPC++ internally uses 'true' to indicate that an argument has been
       // eliminated, while the JIT compiler uses 'true' to indicate an
       // argument is used. Translate this here.
       bool Eliminated = EliminatedArgs && !EliminatedArgs->empty() &&
                         (*EliminatedArgs)[ArgIndex++];
-      ArgDescriptor.UsageMask.emplace_back(!Eliminated);
+      *UsageMaskIt = !Eliminated;
+      ++UsageMaskIt;
 
       // If the argument has not been eliminated, i.e., is still present on
       // the kernel function in LLVM-IR/SPIR-V, collect information about the
@@ -818,11 +832,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
-  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
+      std::move(JITConfig), InputKernelInfo, InputKernelNames,
       FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 

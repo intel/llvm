@@ -1544,8 +1544,37 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
-  using CommonDataT = std::common_type_t<typename OperationLeftT::DataT,
-                                         typename OperationRightT::DataT>;
+  // Certain operators return a vector with a different element type. Also, the
+  // left and right operand types may differ. CommonDataT selects a result type
+  // based on these types to ensure that the result value can be represented.
+  //
+  // Example 1:
+  //   sycl::vec<unsigned char, 4> vec{...};
+  //   auto result = 300u + vec.x();
+  //
+  // CommonDataT is std::common_type_t<OperationLeftT, OperationRightT> since
+  // it's larger than unsigned char.
+  //
+  // Example 2:
+  //   sycl::vec<bool, 1> vec{...};
+  //   auto result = vec.template swizzle<sycl::elem::s0>() && vec;
+  //
+  // CommonDataT is DataT since operator&& returns a vector with element type
+  // int8_t, which is larger than bool.
+  //
+  // Example 3:
+  //   sycl::vec<std::byte, 4> vec{...}; auto swlo = vec.lo();
+  //   auto result = swlo == swlo;
+  //
+  // CommonDataT is DataT since operator== returns a vector with element type
+  // int8_t, which is the same size as std::byte. std::common_type_t<DataT, ...>
+  // can't be used here since there's no type that int8_t and std::byte can both
+  // be implicitly converted to.
+  using OpLeftDataT = typename OperationLeftT::DataT;
+  using OpRightDataT = typename OperationRightT::DataT;
+  using CommonDataT = std::conditional_t<
+      sizeof(DataT) >= sizeof(std::common_type_t<OpLeftDataT, OpRightDataT>),
+      DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;

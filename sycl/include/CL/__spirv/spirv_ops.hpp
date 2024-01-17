@@ -25,6 +25,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
+
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -44,18 +45,52 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          __spv::MatrixUse UA, __spv::MatrixUse UB, __spv::MatrixUse UC,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_CompositeConstructCheckedINTEL(const T Value, size_t Height,
+                                           size_t Stride, size_t Width,
+                                           size_t CoordX, size_t CoordY);
+
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_JointMatrixLoadCheckedINTEL(T *Ptr, std::size_t Stride,
+                                        size_t Height, size_t Width,
+                                        size_t CoordX, size_t CoordY,
+                                        __spv::MatrixLayout Layout = L,
+                                        __spv::Scope::Flag Sc = S,
+                                        int MemOperand = 0);
+
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
+    std::size_t Stride, size_t Height, size_t Width, size_t CoordX,
+    size_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
+    int MemOperand = 0);
+
+template <typename TA, typename TB, typename TC, std::size_t M, std::size_t K,
+          std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
+          __spv::MatrixUse UC,
           __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *
+    __spv::__spirv_JointMatrixINTEL<TC, M, N, LC, S, UC> *
     __spirv_JointMatrixMadINTEL(
-        __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S, UA> *A,
-        __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S, UB> *B,
-        __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S, UC> *C,
+        __spv::__spirv_JointMatrixINTEL<TA, M, K, LA, S, UA> *A,
+        __spv::__spirv_JointMatrixINTEL<TB, K, N, LB, S, UB> *B,
+        __spv::__spirv_JointMatrixINTEL<TC, M, N, LC, S, UC> *C,
         __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
@@ -138,6 +173,11 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
+
+template <typename T, std::size_t NumRows, std::size_t NumCols>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixPrefetchINTEL(
+    T *Ptr, std::size_t coordX, std::size_t coordY, unsigned int CacheLevel,
+    __spv::MatrixLayout Layout, std::size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -426,6 +466,94 @@ __SYCL_GenericCastToPtrExplicit_ToPrivate(const volatile void *Ptr) noexcept {
   return (const volatile __attribute__((opencl_private)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
                                                  __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtr_ToGlobal(void *Ptr) noexcept {
+  return (__attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtr_ToGlobal(Ptr,
+                                        __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern const __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtr_ToGlobal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtr_ToGlobal(Ptr,
+                                        __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern volatile __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtr_ToGlobal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtr_ToGlobal(Ptr,
+                                        __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtr_ToGlobal(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtr_ToGlobal(Ptr,
+                                        __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtr_ToLocal(void *Ptr) noexcept {
+  return (__attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtr_ToLocal(Ptr, __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern const __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtr_ToLocal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtr_ToLocal(Ptr, __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern volatile __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtr_ToLocal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtr_ToLocal(Ptr, __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtr_ToLocal(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtr_ToLocal(Ptr, __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtr_ToPrivate(void *Ptr) noexcept {
+  return (__attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtr_ToPrivate(Ptr, __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern const __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtr_ToPrivate(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtr_ToPrivate(Ptr, __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern volatile __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtr_ToPrivate(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtr_ToPrivate(Ptr, __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtr_ToPrivate(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtr_ToPrivate(Ptr, __spv::StorageClass::Function);
 }
 
 template <typename dataT>

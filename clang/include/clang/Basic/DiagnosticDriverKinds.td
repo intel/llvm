@@ -65,10 +65,10 @@ def err_drv_no_cuda_libdevice : Error<
   "via '--cuda-path', or pass '-nocudalib' to build without linking with "
   "libdevice">;
 
-def warn_function_fp_accuracy_already_set : Warning <
-  "floating point accuracy value of '%0' has already been assigned to "
-  "function '%1'">,
-  InGroup<DiagGroup<"fp-accuracy-already-set">>;
+def warn_drv_fp_accuracy_override : Warning <
+  "'-ffp-accuracy=%0' overrides '-ffp-accuracy=%1' for the function '%2'">,
+  InGroup<FPAccOverride>;
+
 def err_drv_no_rocm_device_lib : Error<
   "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
@@ -399,6 +399,9 @@ def err_drv_fsycl_wrong_optimization_options : Error<
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
   "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
   InGroup<SyclTarget>;
+def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
+  "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
+  InGroup<Deprecated>;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<
@@ -854,4 +857,7 @@ def warn_android_unversioned_fallback : Warning<
   " directories will not be used in Clang 19. Provide a versioned directory"
   " for the target version or lower instead.">,
   InGroup<DiagGroup<"android-unversioned-fallback">>;
+
+def err_drv_triple_version_invalid : Error<
+  "version '%0' in target triple '%1' is invalid">;
 }

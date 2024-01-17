@@ -293,7 +293,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
 
   for (auto &F : *M) {
-    if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
+    if (F.getName().starts_with("_Z28__spirv_VectorExtractDynamic") &&
         F.hasStructRetAttr()) {
       auto *SRetTy = F.getParamStructRetType(0);
       if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
@@ -303,7 +303,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
                          "instruction cannot be a structure other than SYCL "
                          "half.");
     }
-    if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
+    if (F.getName().starts_with("_Z27__spirv_VectorInsertDynamic") &&
         F.getArg(1)->getType()->isPointerTy()) {
       auto *ET = F.getParamByValType(1);
       if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
@@ -491,7 +491,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
 
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
-            "fpmath",
             "tbaa",
             "range",
         };
@@ -511,13 +510,13 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // %1 = insertvalue { i32, i1 } undef, i32 %cmpxchg.res, 0
           // %2 = insertvalue { i32, i1 } %1, i1 %cmpxchg.success, 1
 
-          // To get memory scope argument we might use Cmpxchg->getSyncScopeID()
+          // To get memory scope argument we use Cmpxchg->getSyncScopeID()
           // but LLVM's cmpxchg instruction is not aware of OpenCL(or SPIR-V)
-          // memory scope enumeration. And assuming the produced SPIR-V module
-          // will be consumed in an OpenCL environment, we can use the same
-          // memory scope as OpenCL atomic functions that do not have
-          // memory_scope argument, i.e. memory_scope_device. See the OpenCL C
-          // specification p6.13.11. Atomic Functions
+          // memory scope enumeration. If the scope is not set and assuming the
+          // produced SPIR-V module will be consumed in an OpenCL environment,
+          // we can use the same memory scope as OpenCL atomic functions that do
+          // not have memory_scope argument, i.e. memory_scope_device. See the
+          // OpenCL C specification p6.13.11. Atomic Functions
 
           // cmpxchg LLVM instruction returns a pair {i32, i1}: the original
           // value and a flag indicating success (true) or failure (false).
@@ -529,7 +528,16 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // comparator, which matches with semantics of the flag returned by
           // cmpxchg.
           Value *Ptr = Cmpxchg->getPointerOperand();
-          Value *MemoryScope = getInt32(M, spv::ScopeDevice);
+          SmallVector<StringRef> SSIDs;
+          Cmpxchg->getContext().getSyncScopeNames(SSIDs);
+
+          spv::Scope S;
+          // Fill unknown syncscope value to default Device scope.
+          if (!OCLStrMemScopeMap::find(SSIDs[Cmpxchg->getSyncScopeID()].str(),
+                                       &S)) {
+            S = ScopeDevice;
+          }
+          Value *MemoryScope = getInt32(M, S);
           auto SuccessOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));
           auto FailureOrder = static_cast<OCLMemOrderKind>(

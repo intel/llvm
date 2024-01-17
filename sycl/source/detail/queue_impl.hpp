@@ -25,6 +25,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/properties/queue_properties.hpp>
@@ -146,6 +147,14 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
+    if (has_property<
+            ext::codeplay::experimental::property::queue::enable_fusion>() &&
+        !MDevice->get_info<
+            ext::codeplay::experimental::info::device::supports_fusion>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot enable fusion if device does not support fusion");
+    }
     if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() && Context->getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
@@ -201,6 +210,8 @@ public:
     }
 #endif
   }
+
+  event getLastEvent() const;
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
@@ -705,6 +716,22 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void setExternalEvent(const event &Event) {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MInOrderExternalEvent = Event;
+  }
+
+  std::optional<event> popExternalEvent() {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    std::optional<event> Result = std::nullopt;
+    std::swap(Result, MInOrderExternalEvent);
+    return Result;
+  }
+
+  const std::vector<event> &
+  getExtendDependencyList(const std::vector<event> &DepEvents,
+                          std::vector<event> &MutableVec);
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
@@ -720,8 +747,8 @@ protected:
       };
 
       // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+      // Hence, here is are locks for thread-safety.
+      std::lock_guard<std::mutex> LastEventLock{MLastEventMtx};
 
       if (MLastCGType == CG::CGTYPE::None)
         MLastCGType = Type;
@@ -732,6 +759,13 @@ protected:
 
       if (NeedSeparateDependencyMgmt)
         Handler.depends_on(MLastEvent);
+
+      // If there is an external event set, add it as a dependency and clear it.
+      // We do not need to hold the lock as MLastEventMtx will ensure the last
+      // event reflects the corresponding external event dependence as well.
+      std::optional<event> ExternalEvent = popExternalEvent();
+      if (ExternalEvent)
+        Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
 
@@ -882,6 +916,13 @@ protected:
 
   // the fallback implementation of profiling info
   bool MFallbackProfiling = false;
+
+  // This event can be optionally provided by users for in-order queues to add
+  // an additional dependency for the subsequent submission in to the queue.
+  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // NOTE: std::optional must not be exposed in the ABI.
+  std::optional<event> MInOrderExternalEvent;
+  mutable std::mutex MInOrderExternalEventMtx;
 
 public:
   // Queue constructed with the discard_events property

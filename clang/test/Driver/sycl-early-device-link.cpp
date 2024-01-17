@@ -121,11 +121,13 @@
 // RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \
 // RUN:          %S/Inputs/SYCL/objgenimage.o %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CONSUME_OBJ
+// CONSUME_OBJ-NOT: linked binaries do not contain expected
 // CONSUME_OBJ: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen_image-unknown-unknown" "-input={{.*}}objgenimage.o" "-output=[[DEVICE_IMAGE_OBJ:.+\.o]]
 // CONSUME_OBJ: ld{{.*}} "[[DEVICE_IMAGE_OBJ]]"
 
 // RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \
 // RUN:          %S/Inputs/SYCL/libgenimage.a  %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CONSUME_LIB
+// CONSUME_LIB-NOT: linked binaries do not contain expected
 // CONSUME_LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_gen_image-unknown-unknown" "-input={{.*}}libgenimage.a" "-output=[[DEVICE_IMAGE_LIB:.+\.txt]]
 // CONSUME_LIB: ld{{.*}} "@[[DEVICE_IMAGE_LIB]]"

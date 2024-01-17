@@ -146,9 +146,11 @@
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
+// 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 39
+#define _PI_H_VERSION_MINOR 41
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -579,6 +581,29 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
+
+// HIP _pi_mem_advice aliases
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION_HOST =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice
+    PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST =
+        PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST;
 
 typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = 0x10B1,
@@ -2417,7 +2442,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2434,7 +2459,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2459,7 +2484,43 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to fill the data.
+/// \param pattern pointer to the pattern to fill the buffer with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param offset Offset into the buffer to fill from.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
+    size_t pattern_size, size_t offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr pointer to the USM allocation to fill.
+/// \param pattern pointer to the pattern to fill ptr with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
+    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2693,6 +2754,13 @@ __SYCL_EXPORT pi_result piextSignalExternalSemaphore(
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
+typedef enum {
+  _PI_SANITIZE_TYPE_NONE = 0x0,
+  _PI_SANITIZE_TYPE_ADDRESS = 0x1,
+  _PI_SANITIZE_TYPE_MEMORY = 0x2,
+  _PI_SANITIZE_TYPE_THREAD = 0x3
+} _pi_sanitize_type;
+
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
@@ -2709,6 +2777,8 @@ struct _pi_plugin {
 #define _PI_API(api) decltype(::api) *api;
 #include <sycl/detail/pi.def>
   } PiFunctionTable;
+
+  _pi_sanitize_type SanitizeType;
 };
 
 #ifdef __cplusplus

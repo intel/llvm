@@ -412,8 +412,22 @@ __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(remquo, x[j], y[j])
 #undef __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL
 
 template <typename T, size_t N>
-std::enable_if_t<detail::is_nan_type_v<T>, marray<detail::nan_return_t<T>, N>>
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     detail::is_non_deprecated_nan_type_v<T>,
+                 marray<detail::nan_return_t<T>, N>>
 nan(marray<T, N> nancode) {
+  marray<detail::nan_return_t<T>, N> res;
+  for (int j = 0; j < N; j++) {
+    res[j] = nan(nancode[j]);
+  }
+  return res;
+}
+template <typename T, size_t N>
+__SYCL_DEPRECATED(
+    "This is a deprecated argument type for SYCL nan built-in function.")
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     !detail::is_non_deprecated_nan_type_v<T>,
+                 marray<detail::nan_return_t<T>, N>> nan(marray<T, N> nancode) {
   marray<detail::nan_return_t<T>, N> res;
   for (int j = 0; j < N; j++) {
     res[j] = nan(nancode[j]);
@@ -964,6 +978,8 @@ float fast_distance(T p0, T p1) {
 // double fast_distance (gengeodouble p0, gengeodouble p1)
 template <typename T,
           typename = std::enable_if_t<detail::is_gengeodouble_v<T>, T>>
+__SYCL_DEPRECATED("fast_distance for double precision types is non-standard "
+                  "and has been deprecated")
 double fast_distance(T p0, T p1) {
   return __sycl_std::__invoke_fast_distance<double>(p0, p1);
 }
@@ -978,6 +994,8 @@ float fast_length(T p) {
 // double fast_length (gengeodouble p)
 template <typename T,
           typename = std::enable_if_t<detail::is_gengeodouble_v<T>, T>>
+__SYCL_DEPRECATED("fast_length for double precision types is non-standard "
+                  "and has been deprecated")
 double fast_length(T p) {
   return __sycl_std::__invoke_fast_length<double>(p);
 }
@@ -990,6 +1008,8 @@ std::enable_if_t<detail::is_gengeofloat_v<T>, T> fast_normalize(T p) {
 
 // gengeodouble fast_normalize (gengeodouble p)
 template <typename T>
+__SYCL_DEPRECATED("fast_normalize for double precision types is non-standard "
+                  "and has been deprecated")
 std::enable_if_t<detail::is_gengeodouble_v<T>, T> fast_normalize(T p) {
   return __sycl_std::__invoke_fast_normalize<T>(p);
 }

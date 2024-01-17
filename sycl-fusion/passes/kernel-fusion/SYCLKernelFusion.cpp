@@ -254,6 +254,8 @@ static Expected<CallInst *> createFusionCall(
   // Insert call
   Builder.SetInsertPoint(IPs.CallInsertion);
   auto *Res = Builder.CreateCall(F, CallArgs);
+  Res->setCallingConv(F->getCallingConv());
+  Res->setAttributes(F->getAttributes());
   {
     // If we have introduced a guard, branch to barrier.
     auto *BrTarget = IPs.Exit;
@@ -353,16 +355,12 @@ Error SYCLKernelFusion::fuseKernel(
   // Collect it, so it can be attached to the fused function later on.
   MetadataCollection MDCollection{TargetInfo.getKernelMetadataKeys()};
 
-  // Add the information about the new kernel to the SYCLModuleInfo.
-  // Initialize the jit_compiler::SYCLKernelInfo with the name. The remaining
-  // information for functor & argument layout and attributes will be filled in
-  // with information from the input kernels below.
-  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
-    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str()};
-    ModInfo->addKernel(KI);
-  }
-  jit_compiler::SYCLKernelInfo &FusedKernelInfo =
-      *ModInfo->getKernelFor(FusedKernelName.str());
+  // Collect information for functor & argument layout and attributes from the
+  // input kernels below.
+  MutableParamKindList FusedParamKinds;
+  MutableArgUsageMask FusedArgUsageMask;
+  MutableAttributeList FusedAttributes;
+
   // Mapping from parameter in an input function (index in the list of input
   // functions and index in the original function) to the argument index in the
   // fused function.
@@ -436,9 +434,24 @@ Error SYCLKernelFusion::fuseKernel(
            "No jit_compiler::SYCLKernelInfo found");
     jit_compiler::SYCLKernelInfo &InputKernelInfo =
         *ModInfo->getKernelFor(FN.str());
-    appendKernelInfo(FusedKernelInfo, InputKernelInfo, UsedArgsMask);
+    appendKernelInfo(FusedParamKinds, FusedArgUsageMask, FusedAttributes,
+                     InputKernelInfo, UsedArgsMask);
     ++FuncIndex;
   }
+
+  // Add the information about the new kernel to the SYCLModuleInfo.
+  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
+    assert(FusedParamKinds.size() == FusedArgUsageMask.size());
+    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str(),
+                                    FusedParamKinds.size()};
+    llvm::copy(FusedParamKinds, KI.Args.Kinds.begin());
+    llvm::copy(FusedArgUsageMask, KI.Args.UsageMask.begin());
+    KI.Attributes.insert(KI.Attributes.end(), FusedAttributes.begin(),
+                         FusedAttributes.end());
+    ModInfo->addKernel(KI);
+  }
+  jit_compiler::SYCLKernelInfo &FusedKernelInfo =
+      *ModInfo->getKernelFor(FusedKernelName.str());
 
   // Check that no function with the desired name is already present in the
   // module. LLVM would still be able to insert the function (adding a suffix to
@@ -489,6 +502,8 @@ Error SYCLKernelFusion::fuseKernel(
     copyArgsMD(LLVMCtx, SYCLInternalizer::Key, StubFunction, *FusedFunction,
                ParamMapping, DefaultInternalizationVal);
     copyArgsMD(LLVMCtx, SYCLInternalizer::LocalSizeKey, StubFunction,
+               *FusedFunction, ParamMapping);
+    copyArgsMD(LLVMCtx, SYCLInternalizer::ElemSizeKey, StubFunction,
                *FusedFunction, ParamMapping);
     // and JIT constants
     copyArgsMD(LLVMCtx, SYCLCP::Key, StubFunction, *FusedFunction,
@@ -584,11 +599,13 @@ Error SYCLKernelFusion::fuseKernel(
       // InlineFunction(...) will leave the program in a well-defined state
       // in case it fails, and calling the function is still semantically
       // correct, although it might hinder some optimizations across the borders
-      // of the fused functions.
-      FUSION_DEBUG(llvm::dbgs()
-                   << "WARNING: Inlining of "
-                   << InlineCall->getCalledFunction()->getName()
-                   << " failed due to: " << InlineRes.getFailureReason());
+      // of the fused functions. We need to prevent deletion of the called
+      // function, though.
+      auto *Callee = InlineCall->getCalledFunction();
+      FUSION_DEBUG(llvm::dbgs() << "WARNING: Inlining of " << Callee->getName()
+                                << " failed due to: "
+                                << InlineRes.getFailureReason() << '\n');
+      ToCleanUp.erase(Callee);
     }
   }
 
@@ -700,7 +717,7 @@ void SYCLKernelFusion::attachKernelAttributeMD(
 }
 
 void SYCLKernelFusion::updateArgUsageMask(
-    jit_compiler::ArgUsageMask &NewMask,
+    MutableArgUsageMask &NewMask,
     jit_compiler::SYCLArgumentDescriptor &InputDef,
     const ArrayRef<bool> ParamUseMask) const {
   // Create a new argument usage mask from the input information and the mask
@@ -724,7 +741,9 @@ void SYCLKernelFusion::updateArgUsageMask(
 }
 
 void SYCLKernelFusion::appendKernelInfo(
-    jit_compiler::SYCLKernelInfo &FusedInfo,
+    MutableParamKindList &FusedParamKinds,
+    MutableArgUsageMask &FusedArgUsageMask,
+    MutableAttributeList &FusedAttributes,
     jit_compiler::SYCLKernelInfo &InputInfo,
     const ArrayRef<bool> ParamUseMask) const {
   // Add information from the input kernel to the SYCLKernelInfo of the fused
@@ -732,24 +751,22 @@ void SYCLKernelFusion::appendKernelInfo(
 
   // Add information about the input kernel's arguments to the KernelInfo for
   // the fused function.
-  FusedInfo.Args.Kinds.insert(FusedInfo.Args.Kinds.end(),
-                              InputInfo.Args.Kinds.begin(),
-                              InputInfo.Args.Kinds.end());
+  FusedParamKinds.append(InputInfo.Args.Kinds.begin(),
+                         InputInfo.Args.Kinds.end());
 
   // Create a argument usage mask from input information and the mask resulting
   // from potential identical parameters.
-  jit_compiler::ArgUsageMask NewMask;
+  MutableArgUsageMask NewMask;
   updateArgUsageMask(NewMask, InputInfo.Args, ParamUseMask);
-  FusedInfo.Args.UsageMask.insert(FusedInfo.Args.UsageMask.end(),
-                                  NewMask.begin(), NewMask.end());
+  FusedArgUsageMask.append(NewMask.begin(), NewMask.end());
 
   // Merge the existing kernel attributes for the fused kernel (potentially
   // still empty) with the kernel attributes of the input kernel.
-  mergeKernelAttributes(FusedInfo.Attributes, InputInfo.Attributes);
+  mergeKernelAttributes(FusedAttributes, InputInfo.Attributes);
 }
 
 void SYCLKernelFusion::mergeKernelAttributes(
-    KernelAttributeList &Attributes, const KernelAttributeList &Other) const {
+    MutableAttributeList &Attributes, const KernelAttributeList &Other) const {
   // For the current set of valid kernel attributes, it is sufficient to only
   // iterate over the list of new attributes coming in. In cases where the
   // existing list contains an attribute that is not present in the new list, we
@@ -828,30 +845,30 @@ SYCLKernelFusion::mergeWorkgroupSizeHint(KernelAttr *Attr,
 }
 
 SYCLKernelFusion::KernelAttr *
-SYCLKernelFusion::getAttribute(KernelAttributeList &Attributes,
+SYCLKernelFusion::getAttribute(MutableAttributeList &Attributes,
                                StringRef AttrName) const {
-  SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
+  auto *It = findAttribute(Attributes, AttrName);
   if (It != Attributes.end()) {
     return &*It;
   }
   return nullptr;
 }
 
-void SYCLKernelFusion::addAttribute(KernelAttributeList &Attributes,
+void SYCLKernelFusion::addAttribute(MutableAttributeList &Attributes,
                                     const KernelAttr &Attr) const {
   Attributes.push_back(Attr);
 }
 
-void SYCLKernelFusion::removeAttribute(KernelAttributeList &Attributes,
+void SYCLKernelFusion::removeAttribute(MutableAttributeList &Attributes,
                                        StringRef AttrName) const {
-  SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
+  auto *It = findAttribute(Attributes, AttrName);
   if (It != Attributes.end()) {
     Attributes.erase(It);
   }
 }
 
-SYCLKernelFusion::KernelAttrIterator
-SYCLKernelFusion::findAttribute(KernelAttributeList &Attributes,
+SYCLKernelFusion::MutableAttributeList::iterator
+SYCLKernelFusion::findAttribute(MutableAttributeList &Attributes,
                                 StringRef AttrName) const {
   return llvm::find_if(Attributes, [=](SYCLKernelFusion::KernelAttr &Attr) {
     return Attr.AttributeName == AttrName.str();
