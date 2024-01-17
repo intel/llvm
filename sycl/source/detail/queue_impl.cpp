@@ -304,7 +304,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
+    // If we have a command graph set we need to capture the advise through normal
+    // queue submission.
+    if (!MGraph.lock() && canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                                   getPIEvents(ExpandedDepEvents), nullptr);

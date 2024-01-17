@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -mllvm -inline-threshold=5000 -o %t_gpu.out -DMANUAL_UNROLL
 // RUN: %if gpu %{ %{run} %t_gpu.out %}

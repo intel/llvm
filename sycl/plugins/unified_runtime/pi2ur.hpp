@@ -4611,6 +4611,41 @@ inline pi_result piextCommandBufferFillUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  // flags is currently unused so fail if set
+  PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  // TODO: to map from pi_usm_migration_flags to
+  // ur_usm_migration_flags_t
+  // once we have those defined
+  ur_usm_migration_flags_t UrFlags{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMPrefetchExp(
+      UrCommandBuffer, Ptr, Size, UrFlags, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_usm_advice_flags_t UrAdvice{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
+      UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
 inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                            pi_queue Queue,
                                            pi_uint32 NumEventsInWaitList,

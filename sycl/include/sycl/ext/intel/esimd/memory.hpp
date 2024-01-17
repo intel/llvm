@@ -6408,22 +6408,22 @@ __ESIMD_API
 /// efficient scatter is generated. If the stored vector is too long
 /// for 1 flat-store GPU instruction, then a series of flat-store and/or
 /// scatters may be generated.
-/// @tparam Tx Element type.
+/// @tparam T Element type.
 /// @tparam N Number of elements to store.
-/// @tparam AccessorTy Accessor type (auto-deduced).
+/// @tparam AccessorT Accessor type (auto-deduced).
 /// @param acc The local accessor to store to.
 /// @param offset The byte-offset to store at.
 /// @param vals The vector to store.
 /// @param Flags Specifies the alignment.
 ///
-template <typename Tx, int N, typename AccessorTy, typename Flags>
+template <typename T, int N, typename AccessorT, typename Flags>
 __ESIMD_API
     std::enable_if_t<detail::is_local_accessor_with_v<
-                         AccessorTy, detail::accessor_mode_cap::can_write> &&
+                         AccessorT, detail::accessor_mode_cap::can_write> &&
                      is_simd_flag_type_v<Flags>>
-    block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags) {
-  slm_block_store<Tx, N, Flags>(
-      offset + __ESIMD_DNS::localAccessorToOffset(acc), vals);
+    block_store(AccessorT acc, uint32_t offset, simd<T, N> vals, Flags flags) {
+  slm_block_store<T, N>(offset + __ESIMD_DNS::localAccessorToOffset(acc), vals,
+                        flags);
 }
 
 /// Variant of gather that uses local accessor as a parameter
