@@ -919,6 +919,11 @@ modifiable_command_graph::modifiable_command_graph(
     : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice,
                                                 PropList)) {}
 
+modifiable_command_graph::modifiable_command_graph(
+    const sycl::queue &SyclQueue, const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(
+          SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
