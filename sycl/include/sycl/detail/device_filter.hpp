@@ -46,6 +46,9 @@ public:
   std::optional<unsigned> SubSubDeviceNum;
 
   bool IsNegativeTarget = false; // used to represent negative filters.
+  // used in filter selector to keep count of the number of devices with
+  // the same Backend and DeviceType.
+  int MatchesSeen = 0;
 
   ods_target(backend be) { Backend = be; };
   ods_target(){};

@@ -131,7 +131,6 @@ int filter_selector_impl::operator()(const device &Dev) const {
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (Filter.DeviceNum) {
       // Only check device number if we're good on the previous matches
       if (BackendOK && DeviceTypeOK) {
@@ -141,7 +140,6 @@ int filter_selector_impl::operator()(const device &Dev) const {
         Filter.MatchesSeen++;
       }
     }
-#endif
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
       Score = default_selector_v(Dev);
       mMatchFound = true;

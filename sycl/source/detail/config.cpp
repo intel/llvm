@@ -178,6 +178,8 @@ getSyclDeviceTypeMap() {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
+// is removed.
 const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
   static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
       {{"host", backend::host},
@@ -191,6 +193,8 @@ const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
 }
 #else
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
+// is removed.
 const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
   static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
