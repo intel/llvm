@@ -300,15 +300,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
 
   {
-    ur_result_t Result = urDeviceGetInfo(
-        hQueue->Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
-    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+    MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
+    MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
+    MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
 
-    Result =
-        urDeviceGetInfo(hQueue->Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                        sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
-    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+    MaxWorkGroupSize = hQueue->Device->getMaxWorkGroupSize();
 
     // The MaxWorkGroupSize = 1024 for AMD GPU
     // The MaxThreadsPerBlock = {1024, 1024, 1024}
@@ -1480,7 +1476,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     // If the device does not support managed memory access, we can't set
     // mem_advise.
-    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    if (!Device->getManagedMemSupport()) {
       releaseEvent();
       setErrorMessage("mem_advise ignored as device does not support "
                       "managed memory access",
@@ -1554,7 +1550,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 
     // If the device does not support managed memory access, we can't set
     // mem_advise.
-    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    if (!Device->getManagedMemSupport()) {
       releaseEvent();
       setErrorMessage("mem_advise ignored as device does not support "
                       "managed memory access",
@@ -1571,7 +1567,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                   UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE |
                   UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE |
                   UR_USM_ADVICE_FLAG_DEFAULT)) {
-      if (!getAttribute(Device, hipDeviceAttributeConcurrentManagedAccess)) {
+      if (!Device->getConcurrentManagedAccess()) {
         releaseEvent();
         setErrorMessage("mem_advise ignored as device does not support "
                         "concurrent managed access",
