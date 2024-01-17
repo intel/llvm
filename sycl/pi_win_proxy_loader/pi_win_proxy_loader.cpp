@@ -24,6 +24,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <system_error>
 
 #ifdef _WIN32
 
@@ -165,8 +166,25 @@ __declspec(dllexport) void *getPreloadedPlugin(
 
   MapT &dllMap = getDllMap();
 
-  auto match = dllMap.find(PluginPath); // result might be nullptr (not found),
-                                        // which is perfectly valid.
+  // All entries in the dllMap have the same parent directory.
+  // To avoid case sensivity issues, we don't want to do string comparison but
+  // just make sure that directory of the entires in the map and directory of
+  // the PluginPath are equivalent (point to the same physical location).
+  auto match = dllMap.end();
+  std::error_code ec;
+  if (!dllMap.empty() &&
+      std::filesystem::equivalent((dllMap.begin())->first.parent_path(),
+                                  PluginPath.parent_path(), ec)) {
+    // Now we can search only by filename. Result might be nullptr (not found),
+    // which is perfectly valid.
+    match =
+        std::find_if(dllMap.begin(), dllMap.end(),
+                     [&](const std::pair<std::filesystem::path, void *> &v) {
+                       std::error_code ec;
+                       return v.first.filename() == PluginPath.filename();
+                     });
+  }
+
   if (match == dllMap.end()) {
     // unit testing? return nullptr (not found) rather than risk asserting below
     if (PluginPath.string().find("unittests") != std::string::npos)
