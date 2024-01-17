@@ -54,11 +54,11 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Stopped throwing exception when passing empty accessor to `handler::require()` [7bf1f57bc26e]
 - Moved `addc()` and `subb()` functions out of experimental namespace [9e3852bc1c2e]
 - Moved BFN function from experimental namespace [c9da5c7ff7e8]
-- Improved error message when `queue::memcpy` receives a null pointer  by reporting source code info(file/line number) [626c4b5078c1]
+- Improved error message when `queue::memcpy` receives a null pointer by reporting source code info(file/line number) [626c4b5078c1]
 - Improved accuracy of double `tanpi` host implementation [041a74c0cbda]
 - Added support bitwise and/or/xor and logical and/or subgroup collective functions for AMD[288aeaef03a9]
 - Updated `annotated_ptr` API to match spec changes [954730e7a823] [fbad42a398ef] [43336a15fcaf]
-- Implemented info::event_profiling::command_submit support for platforms that use OpenCL version less than 2.1. [7cfa951303eb]
+- Implemented info::event_profiling::command_submit support for platforms that use OpenCL version less than 2.1 [7cfa951303eb]
 - Fixed required alignment in buffers [093dae1f7214]
 - Improved error message when using `sycl_ext_oneapi_graph` features that are not yet implemented [8d8d3f4f52b0]
 - Supported `get_multi_ptr` in ESIMD context [2f0f3814c541]
@@ -67,7 +67,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Added missing Intel archs to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/c4db251179dcd1b30a1043d4780634dbe39b3e3a/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) [c4db251179dc]
 - Enabled range rounding for unnamed lambdas [4f30e6648d9e]
 - Fixed loading of plugins when path to them contains non-ANSI symbols [5c30815d4821]
-- Improved error message the CGF object parameter accepts the wrong type of parameter [5801970585b2]
+- Improved the error message when the command group function object passed to `queue::submit` has the wrong signature [5801970585b2]
 - Improved `handler::fill` performance on 2D and 3D buffers [0249a55f810e]
 - Added defaults for streaming and register_map fpga_kernel_properties [23a6f389c1e4]
 - Moved GRF property conflict check to compile time [4fb92d35c7be]
@@ -77,8 +77,8 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Made `sycl_ext_oneapi_graph` functions thread-safe [c8c64a673eeb]
 - Improved diagnostic for `nd_item` passed to `parallel_for` with range [e600d7922489]
 - Implemented missing exceptions defined by `sycl_ext_oneapi_graph` specification [77b794bcaad6]
-- Implemented supported make_device, make_queue, make_event interop functions for HIP backend [5e9d07b14a47]
-- Added missing nearbyint for CUDA [0ef26d3ee808]
+- Implemented supported `make_device`, `make_queue`, `make_event` interop functions for HIP backend [5e9d07b14a47]
+- Added missing `nearbyint` for CUDA [0ef26d3ee808]
 - Implemented runtime query for matrix combinations [a09491f4e389]
 - Supported basic kernel launches over 64-bit global ranges [192c3016e76b]
 - Clarified runtime error for nested kernel submissions [7afc2d03fd00]
@@ -125,7 +125,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Updated `device_image_scope` property  in `sycl_ext_oneapi_device_global` [be8e031cd078]
 
 ## API/ABI breakages
-- Deprecated experimental functions for ESIMD: quot,div,mod,dp*,line,lrp [76976a22ba2e]
+- Deprecated experimental functions for ESIMD: `quot`, `div`, `mod`, `dp*`, `line`, `lrp` [76976a22ba2e]
 - Removed ESIMD Emulator plugin [1ece6da6b113]
 - Deprecated `sycl::abs(genfloat)` [d15d4409b2cf]
 
@@ -157,7 +157,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - The format of the object files produced by the compiler can change between
   versions. The workaround is to rebuild the application.
 - Using `sycl::kernel_bundle` API to refer to a kernel defined
-  in another translation unit leads to undefined behavior
+  in another translation unit leads to undefined behavior.
 - Linkage errors with the following message:
   `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
   can happen when a SYCL application is built using MS Visual Studio 2019
