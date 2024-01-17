@@ -119,6 +119,9 @@ def GENX_BlockDimYOp : GENX_DeviceFunctionOp<"workgroup.dim.y",
                         "_Z12get_local_sizej", 1>;
 def GENX_BlockDimZOp : GENX_DeviceFunctionOp<"workgroup.dim.z",
                         "_Z12get_local_sizej", 2>;
+// opencl function is currently not being parsed properly by IGC. 
+// Once IGC fixes this issue, we can switch back to the mangled function name or use 
+// a GenISA intrinsic. 
 def GENX_GridDimXOp : GENX_DeviceFunctionOp<"grid.dim.x",
                         "__builtin_IB_get_global_size", 0>;
 def GENX_GridDimYOp : GENX_DeviceFunctionOp<"grid.dim.y",
