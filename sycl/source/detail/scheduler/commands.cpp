@@ -2864,7 +2864,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
 pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
-    waitForPreparedHostEvents();
+    waitForPreparedHostEvents(); // Why is this not called if the current
+                                 // command group is a HT?
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());

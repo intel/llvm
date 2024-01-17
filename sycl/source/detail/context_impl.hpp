@@ -195,15 +195,6 @@ public:
     return MPlatform->getBackend();
   }
 
-  /// Sets the platform implementation to use another plugin, or a plugin
-  /// if no plugin is being used, ie for a host task.
-  ///
-  /// \param PluginPtr is a pointer to a plugin instance
-  /// \param Backend is the backend that we want this platform to use
-  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    return MPlatform->setPlugin(PluginPtr, Backend);
-  }
-
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
   DeviceImplPtr

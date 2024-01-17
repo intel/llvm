@@ -77,9 +77,12 @@ void event_impl::waitInternal() {
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
 
-  if (MHostTaskPiEvents.size()) {
-    getPlugin()->call<PiApiKind::piEventsWait>(MHostTaskPiEvents.size(),
-                                               MHostTaskPiEvents.data());
+  if (MHostTaskNativeEvents.size()) {
+    auto Plugin = getPlugin();
+    for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {
+      Plugin->call<PiApiKind::piEventsWait>(1,
+                                            &HostTaskNativeEventImpl->MEvent);
+    }
   }
 }
 
@@ -433,10 +436,10 @@ std::vector<pi_native_handle> event_impl::getNativeVector() {
     Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
   std::vector<pi_native_handle> HandleVec;
   // Return native events sumbitted via host task interop
-  for (auto &HostTaskPiEvent : MHostTaskPiEvents) {
+  for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {
     pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextEventGetNativeHandle>(HostTaskPiEvent,
-                                                       &Handle);
+    Plugin->call<PiApiKind::piextEventGetNativeHandle>(
+        HostTaskNativeEventImpl->MEvent, &Handle);
     HandleVec.push_back(Handle);
   }
   return HandleVec;

@@ -140,16 +140,6 @@ public:
     return MPlugin;
   }
 
-  /// Sets the platform implementation to use another plugin.
-  ///
-  /// \param PluginPtr is a pointer to a plugin instance
-  /// \param Backend is the backend that we want this platform to use
-  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    MPlugin = PluginPtr;
-    MBackend = Backend;
-    MBackendSet = true;
-  }
-
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle.
