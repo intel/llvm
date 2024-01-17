@@ -114,10 +114,13 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
     }
   }
 
-  std::array<ur_usm_advice_flags_t, 4> UnmappedMemAdviceFlags = {
+  std::array<ur_usm_advice_flags_t, 6> UnmappedMemAdviceFlags = {
       UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY,
       UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY,
-      UR_USM_ADVICE_FLAG_BIAS_CACHED, UR_USM_ADVICE_FLAG_BIAS_UNCACHED};
+      UR_USM_ADVICE_FLAG_BIAS_CACHED,
+      UR_USM_ADVICE_FLAG_BIAS_UNCACHED,
+      UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY,
+      UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY};
 
   for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
     if (URAdviceFlags & UnmappedFlag) {
