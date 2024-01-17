@@ -45,6 +45,8 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
   sycl_ext_oneapi_free_function_queries]
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
 
 
 == Status
