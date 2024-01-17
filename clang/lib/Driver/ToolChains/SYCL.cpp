@@ -110,6 +110,26 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
   }
 
+  // If fsycl-dump-device-code is passed, put the PTX files
+  // into the path provided in fsycl-dump-device-code.
+  if (T->getToolChain().getTriple().isNVPTX() &&
+      C.getDriver().isDumpDeviceCodeEnabled() && Ext.equals("s")) {
+    SmallString<128> OutputDir;
+
+    Arg *DumpDeviceCodeArg =
+        C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+
+    OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+
+    // If the output directory path is empty, put the PTX files in the
+    // current directory.
+    if (OutputDir.empty())
+      llvm::sys::path::native(OutputDir = "./");
+    else
+      OutputDir.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-dir=" + OutputDir));
+  }
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));

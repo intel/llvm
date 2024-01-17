@@ -128,17 +128,29 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // Save the device code files(spv files) only if -fsycl-dump-device-code
-  // option is enabled.
+  // Save the device code files if -fsycl-dump-device-code option is enabled.
   if (TheDriver.isDumpDeviceCodeEnabled()) {
+    bool IsNVPTX = false;
     Arg *DumpDeviceCodeArg =
         getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+    // Check if SYCL code is being offloaded to CUDA-enabled GPUs.
+    if (const Arg *SYCLTargets =
+            getArgs().getLastArg(options::OPT_fsycl_targets_EQ)) {
+      for (StringRef Val : SYCLTargets->getValues()) {
+        if (Val.starts_with("nvptx") || Val.starts_with("nvptx64"))
+          IsNVPTX = true;
+      }
+    }
     std::string ExpectedDir =
         DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
     std::string ActualFile(File);
-    if (ActualFile.find(ExpectedDir) != std::string::npos &&
-        llvm::sys::path::extension(ActualFile).equals(".spv"))
-      return false;
+
+    if (ActualFile.find(ExpectedDir) != std::string::npos) {
+      if (IsNVPTX)
+        return false;
+      if (llvm::sys::path::extension(ActualFile).equals(".spv"))
+        return false;
+    }
   }
 
   if (!llvm::sys::fs::can_write(File) || !llvm::sys::fs::is_regular_file(File))
