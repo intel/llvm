@@ -64,16 +64,6 @@ bool visitNodeDepthFirst(
   return false;
 }
 
-void duplicateNode(const std::shared_ptr<node_impl> Node,
-                   std::shared_ptr<node_impl> &NodeCopy) {
-  if (Node->MCGType == sycl::detail::CG::None) {
-    NodeCopy = std::make_shared<node_impl>();
-    NodeCopy->MCGType = sycl::detail::CG::None;
-  } else {
-    NodeCopy = std::make_shared<node_impl>(Node->MNodeType, Node->getCGCopy());
-  }
-}
-
 /// Recursively add nodes to execution stack.
 /// @param NodeImpl Node to schedule.
 /// @param Schedule Execution ordering to add node to.
@@ -196,7 +186,7 @@ void exec_graph_impl::makePartitions() {
   int CurrentPartition = -1;
   std::list<std::shared_ptr<node_impl>> HostTaskList;
   // find all the host-tasks in the graph
-  for (auto Node : MGraphImpl->MNodeStorage) {
+  for (auto Node : MNodeStorage) {
     if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
       HostTaskList.push_back(Node);
     }
@@ -247,7 +237,7 @@ void exec_graph_impl::makePartitions() {
         if (HTPartitionNum != -1) {
           // can merge predecessors of node `Node` with predecessors of node
           // `HT` (HTPartitionNum-1) since HT must be reprocessed
-          for (auto NodeImpl : MGraphImpl->MNodeStorage) {
+          for (auto NodeImpl : MNodeStorage) {
             if (NodeImpl->MPartitionNum == Node->MPartitionNum - 1) {
               NodeImpl->MPartitionNum = HTPartitionNum - 1;
             }
@@ -263,7 +253,7 @@ void exec_graph_impl::makePartitions() {
   int PartitionFinalNum = 0;
   for (int i = -1; i <= CurrentPartition; i++) {
     const std::shared_ptr<partition> &Partition = std::make_shared<partition>();
-    for (auto Node : MGraphImpl->MNodeStorage) {
+    for (auto Node : MNodeStorage) {
       if (Node->MPartitionNum == i) {
         MPartitionNodes[Node] = PartitionFinalNum;
         if (isPartitionRoot(Node)) {
@@ -290,7 +280,7 @@ void exec_graph_impl::makePartitions() {
   }
 
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
-  for (auto &Node : MGraphImpl->MNodeStorage) {
+  for (auto &Node : MNodeStorage) {
     Node->MPartitionNum = -1;
   }
 }
@@ -336,33 +326,6 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   return this->add(Impl, Outputs);
 }
 
-std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
-    const std::shared_ptr<graph_impl> &Impl,
-    const std::shared_ptr<exec_graph_impl> &SubGraphExec) {
-  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
-
-  std::list<std::shared_ptr<node_impl>> NodesList = SubGraphExec->getSchedule();
-  std::list<std::shared_ptr<node_impl>> NewNodesList{NodesList.size()};
-
-  // Duplication of nodes
-  for (auto NodeIt = NodesList.end(), NewNodesIt = NewNodesList.end();
-       NodeIt != NodesList.begin();) {
-    --NodeIt;
-    --NewNodesIt;
-    auto Node = *NodeIt;
-    std::shared_ptr<node_impl> NodeCopy;
-    duplicateNode(Node, NodeCopy);
-    *NewNodesIt = NodeCopy;
-    NodesMap.insert({Node, NodeCopy});
-    for (auto &NextNode : Node->MSuccessors) {
-      auto Successor = NodesMap.at(NextNode.lock());
-      NodeCopy->registerSuccessor(Successor, NodeCopy);
-    }
-  }
-
-  return addNodesToExits(Impl, NewNodesList);
-}
-
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
   MRoots.insert(Root);
 }
@@ -405,13 +368,6 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
         make_error_code(errc::invalid),
         "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
         "SYCL Graph Explicit API. Please use empty nodes instead.");
-  }
-
-  // If the handler recorded a subgraph return that here as the relevant nodes
-  // have already been added. The node returned here is an empty node with
-  // dependencies on all the exit nodes of the subgraph.
-  if (Handler.MSubgraphNode) {
-    return Handler.MSubgraphNode;
   }
 
   node_type NodeType =
@@ -878,7 +834,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       } else {
         std::unique_ptr<sycl::detail::CG> CommandGroup =
             std::make_unique<sycl::detail::CGExecCommandBuffer>(
-                CommandBuffer, std::move(CGData));
+                CommandBuffer, nullptr, std::move(CGData));
 
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
             std::move(CommandGroup), Queue);
@@ -954,6 +910,149 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
+}
+
+void exec_graph_impl::duplicateNodes() {
+  // Map of original modifiable nodes (keys) to new duplicated nodes (values)
+  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
+
+  std::vector<std::shared_ptr<node_impl>> ModifiableNodes =
+      MGraphImpl->MNodeStorage;
+  std::deque<std::shared_ptr<node_impl>> NewNodes;
+
+  for (int i = ModifiableNodes.size() - 1; i >= 0; i--) {
+    auto OriginalNode = ModifiableNodes[i];
+    std::shared_ptr<node_impl> NodeCopy =
+        std::make_shared<node_impl>(*OriginalNode);
+
+    // Clear edges between nodes so that we can replace with new ones
+    NodeCopy->MSuccessors.clear();
+    NodeCopy->MPredecessors.clear();
+    // Push the new node to the front of the stack
+    NewNodes.push_front(NodeCopy);
+    // Associate the new node with the old one for updating edges
+    NodesMap.insert({OriginalNode, NodeCopy});
+  }
+
+  // Now that all nodes have been copied rebuild edges on new nodes. This must
+  // be done as a separate step since successors may be out of order.
+  for (size_t i = 0; i < ModifiableNodes.size(); i++) {
+    auto OriginalNode = ModifiableNodes[i];
+    auto NodeCopy = NewNodes[i];
+    // Look through all the original node successors, find their copies and
+    // register those as successors with the current copied node
+    for (auto &NextNode : OriginalNode->MSuccessors) {
+      auto Successor = NodesMap.at(NextNode.lock());
+      NodeCopy->registerSuccessor(Successor, NodeCopy);
+    }
+  }
+
+  // Subgraph nodes need special handling, we extract all subgraph nodes and
+  // merge them
+  // into the main node list
+
+  for (auto NewNodeIt = NewNodes.end(); NewNodeIt != NewNodes.begin();) {
+    --NewNodeIt;
+    auto NewNode = *NewNodeIt;
+    if (NewNode->MNodeType == node_type::subgraph) {
+      std::vector<std::shared_ptr<node_impl>> SubgraphNodes =
+          NewNode->MSubGraphImpl->MNodeStorage;
+      std::deque<std::shared_ptr<node_impl>> NewSubgraphNodes{};
+
+      // Map of original subgraph nodes (keys) to new duplicated nodes (values)
+      std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>>
+          SubgraphNodesMap;
+
+      // Copy subgraph nodes while updating
+      for (auto SubgraphNodeIt = SubgraphNodes.end();
+           SubgraphNodeIt != SubgraphNodes.begin();) {
+        --SubgraphNodeIt;
+        auto SubgraphNode = *SubgraphNodeIt;
+        auto NodeCopy = std::make_shared<node_impl>(*SubgraphNode);
+        NewSubgraphNodes.push_front(NodeCopy);
+        SubgraphNodesMap.insert({SubgraphNode, NodeCopy});
+        NodeCopy->MSuccessors.clear();
+        NodeCopy->MPredecessors.clear();
+      }
+
+      // Rebuild edges for new subgraph nodes
+      for (size_t i = 0; i < SubgraphNodes.size(); i++) {
+        auto SubgraphNode = SubgraphNodes[i];
+        auto NodeCopy = NewSubgraphNodes[i];
+
+        for (auto &NextNode : SubgraphNode->MSuccessors) {
+          auto Successor = SubgraphNodesMap.at(NextNode.lock());
+          NodeCopy->registerSuccessor(Successor, NodeCopy);
+        }
+      }
+
+      // Collect input and output nodes for the subgraph
+      std::vector<std::shared_ptr<node_impl>> Inputs;
+      std::vector<std::shared_ptr<node_impl>> Outputs;
+      for (auto &NodeImpl : NewSubgraphNodes) {
+        if (NodeImpl->MPredecessors.size() == 0) {
+          Inputs.push_back(NodeImpl);
+        }
+        if (NodeImpl->MSuccessors.size() == 0) {
+          Outputs.push_back(NodeImpl);
+        }
+      }
+
+      // Update the predecessors and successors of the nodes which reference the
+      // original subgraph node
+
+      // Predecessors
+      for (auto &PredNodeWeak : NewNode->MPredecessors) {
+        auto PredNode = PredNodeWeak.lock();
+        auto &Successors = PredNode->MSuccessors;
+
+        // Remove the subgraph node from this nodes successors
+        Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
+                                        [NewNode](auto WeakNode) {
+                                          return WeakNode.lock() == NewNode;
+                                        }),
+                         Successors.end());
+
+        // Add all input nodes from the subgraph as successors for this node
+        // instead
+        for (auto &Input : Inputs) {
+          PredNode->registerSuccessor(Input, PredNode);
+        }
+      }
+
+      // Successors
+      for (auto &SuccNodeWeak : NewNode->MSuccessors) {
+        auto SuccNode = SuccNodeWeak.lock();
+        auto &Predecessors = SuccNode->MPredecessors;
+
+        // Remove the subgraph node from this nodes successors
+        Predecessors.erase(std::remove_if(Predecessors.begin(),
+                                          Predecessors.end(),
+                                          [NewNode](auto WeakNode) {
+                                            return WeakNode.lock() == NewNode;
+                                          }),
+                           Predecessors.end());
+
+        // Add all Output nodes from the subgraph as predecessors for this node
+        // instead
+        for (auto &Output : Outputs) {
+          Output->registerSuccessor(SuccNode, Output);
+        }
+      }
+
+      // Remove single subgraph node and add all new individual subgraph nodes
+      // to the node storage in its place
+      auto OldPositionIt =
+          NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
+      // Also set the iterator to the newly added nodes so we can continue
+      // iterating over all remaining nodes
+      NewNodeIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
+                                  NewSubgraphNodes.end());
+    }
+  }
+
+  // Store all the new nodes locally
+  MNodeStorage.insert(MNodeStorage.begin(), NewNodes.begin(), NewNodes.end());
 }
 
 modifiable_command_graph::modifiable_command_graph(

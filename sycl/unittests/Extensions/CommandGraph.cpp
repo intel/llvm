@@ -417,11 +417,11 @@ TEST_F(CommandGraphTest, Finalize) {
   auto Schedule = GraphExecImpl->getSchedule();
   ASSERT_EQ(Schedule.size(), 3ul);
   auto ScheduleIt = Schedule.begin();
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node2));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node2)));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node1)));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node3));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node3)));
   ASSERT_EQ(Queue.get_context(), GraphExecImpl->getContext());
 }
 
@@ -565,18 +565,18 @@ TEST_F(CommandGraphTest, SubGraph) {
 
   // Assert order of the added sub-graph
   ASSERT_NE(sycl::detail::getSyclObjImpl(Node2MainGraph), nullptr);
-  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->isEmpty());
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(MainGraph)->MRoots.size(), 1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
-  // Subgraph nodes are duplicated when inserted to parent graph.
-  // we thus check the node content only.
+  // Subgraph nodes are duplicated when inserted to parent graph on
+  // finalization. we thus check the node content only.
   const bool CompareContentOnly = true;
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
                   ->MSuccessors.front()
                   .lock()
-                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
-                              CompareContentOnly));
+                  ->MNodeType == experimental::node_type::subgraph);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MPredecessors.size(),
@@ -589,11 +589,11 @@ TEST_F(CommandGraphTest, SubGraph) {
   auto MainGraphExecImpl = sycl::detail::getSyclObjImpl(MainGraphExec);
   auto Schedule = MainGraphExecImpl->getSchedule();
   auto ScheduleIt = Schedule.begin();
-  // The schedule list must contain 5 nodes: 4 regulars + 1 empty.
-  // Indeed an empty node is added as an exit point of the added subgraph to
-  // facilitate the handling of dependencies
-  ASSERT_EQ(Schedule.size(), 5ul);
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
+  // The schedule list must contain 4 nodes: the two nodes from the subgraph are
+  // merged into the main graph in place of the subgraph node.
+  ASSERT_EQ(Schedule.size(), 4ul);
+  ASSERT_TRUE(
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node1MainGraph)));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)
                   ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
@@ -603,9 +603,8 @@ TEST_F(CommandGraphTest, SubGraph) {
                   ->isSimilar(sycl::detail::getSyclObjImpl(Node2Graph),
                               CompareContentOnly));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isEmpty());
-  ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node3MainGraph));
+  ASSERT_TRUE(
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node3MainGraph)));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
 }
 
@@ -635,7 +634,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
 
   // Assert order of the added sub-graph
   ASSERT_NE(sycl::detail::getSyclObjImpl(Node2MainGraph), nullptr);
-  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->isEmpty());
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->MNodeType ==
+              experimental::node_type::subgraph);
   // Check the structure of the main graph.
   // 1 root connected to 1 successor (the single root of the subgraph)
   ASSERT_EQ(sycl::detail::getSyclObjImpl(MainGraph)->MRoots.size(), 1lu);
@@ -647,8 +647,7 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
                   ->MSuccessors.front()
                   .lock()
-                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
-                              CompareContentOnly));
+                  ->MNodeType == experimental::node_type::subgraph);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
@@ -663,11 +662,11 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   auto MainGraphExecImpl = sycl::detail::getSyclObjImpl(MainGraphExec);
   auto Schedule = MainGraphExecImpl->getSchedule();
   auto ScheduleIt = Schedule.begin();
-  // The schedule list must contain 6 nodes: 5 regulars + 1 empty.
-  // Indeed an empty node is added as an exit point of the added subgraph to
-  // facilitate the handling of dependencies
-  ASSERT_EQ(Schedule.size(), 6ul);
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
+  // The schedule list must contain 5 nodes: 2 main graph nodes and 3 subgraph
+  // nodes which have been merged.
+  ASSERT_EQ(Schedule.size(), 5ul);
+  ASSERT_TRUE(
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node1MainGraph)));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)
                   ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
@@ -680,10 +679,7 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
                               CompareContentOnly));
   ScheduleIt++;
   ASSERT_TRUE(
-      (*ScheduleIt)->isEmpty()); // empty node added by the impl to handle
-                                 // depenendcies w.r.t. the added subgraph
-  ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node3MainGraph));
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node3MainGraph)));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
 }
 
@@ -713,7 +709,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
 
   // Assert order of the added sub-graph
   ASSERT_NE(sycl::detail::getSyclObjImpl(Node2MainGraph), nullptr);
-  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->isEmpty());
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2MainGraph)->MNodeType ==
+              experimental::node_type::subgraph);
   // Check the structure of the main graph.
   // 1 root connected to 1 successor (the single root of the subgraph)
   ASSERT_EQ(sycl::detail::getSyclObjImpl(MainGraph)->MRoots.size(), 1lu);
@@ -725,8 +722,7 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
                   ->MSuccessors.front()
                   .lock()
-                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
-                              CompareContentOnly));
+                  ->MNodeType == experimental::node_type::subgraph);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
@@ -741,11 +737,11 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   auto MainGraphExecImpl = sycl::detail::getSyclObjImpl(MainGraphExec);
   auto Schedule = MainGraphExecImpl->getSchedule();
   auto ScheduleIt = Schedule.begin();
-  // The schedule list must contain 6 nodes: 5 regulars + 1 empty.
-  // Indeed an empty node is added as an exit point of the added subgraph to
-  // facilitate the handling of dependencies
-  ASSERT_EQ(Schedule.size(), 6ul);
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
+  // The schedule list must contain 5 nodes: 2 main graph nodes and 3 subgraph
+  // nodes which have been merged.
+  ASSERT_EQ(Schedule.size(), 5ul);
+  ASSERT_TRUE(
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node1MainGraph)));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)
                   ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
@@ -758,10 +754,7 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   ASSERT_TRUE((*ScheduleIt)->isEmpty()); // empty node inside the subgraph
   ScheduleIt++;
   ASSERT_TRUE(
-      (*ScheduleIt)->isEmpty()); // empty node added by the impl to handle
-                                 // depenendcies w.r.t. the added subgraph
-  ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node3MainGraph));
+      (*ScheduleIt)->isSimilar(sycl::detail::getSyclObjImpl(Node3MainGraph)));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
 }
 
@@ -796,44 +789,11 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
   auto MainGraphExec = MainGraph.finalize();
   auto MainGraphExecImpl = sycl::detail::getSyclObjImpl(MainGraphExec);
   auto Schedule = MainGraphExecImpl->getSchedule();
-  auto ScheduleIt = Schedule.begin();
-  // The schedule list must contain 5 nodes: 4 regulars + 1 empty.
-  // Indeed an empty node is added as an exit point of the added subgraph to
-  // facilitate the handling of dependencies
-  ASSERT_EQ(Schedule.size(), 5ul);
 
-  // The first and fourth nodes should have events associated with MainGraph but
-  // not graph. The second and third nodes were added as a sub-graph and
-  // duplicated. They should only have events associated with MainGraph, however
-  // these events are created internally in the graph and not present in user
-  // code.
-  ASSERT_ANY_THROW(
-      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
-  ASSERT_EQ(
-      sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt),
-      sycl::detail::getSyclObjImpl(Node1MainGraph));
+  // The schedule list must contain 4 nodes: 2 main graph nodes and 2 subgraph
+  // nodes which have been merged in to the main graph.
+  ASSERT_EQ(Schedule.size(), 4ul);
 
-  ScheduleIt++;
-  ASSERT_NO_THROW(
-      sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
-  ASSERT_ANY_THROW(
-      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
-
-  ScheduleIt++;
-  ASSERT_NO_THROW(
-      sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
-  ASSERT_ANY_THROW(
-      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
-
-  ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isEmpty());
-
-  ScheduleIt++;
-  ASSERT_ANY_THROW(
-      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
-  ASSERT_EQ(
-      sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt),
-      sycl::detail::getSyclObjImpl(Node3MainGraph));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
 }
 
@@ -888,11 +848,11 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   auto Schedule = GraphExecImpl->getSchedule();
   auto ScheduleIt = Schedule.begin();
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
 
@@ -949,11 +909,11 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   auto ScheduleIt = Schedule.begin();
   // the schedule list contains all types of nodes (even empty nodes)
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
 
@@ -1011,9 +971,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   ASSERT_EQ(Schedule.size(), 3ul);
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode3);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
 
@@ -1069,9 +1029,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   auto ScheduleIt = Schedule.begin();
   // the schedule list contains all types of nodes (even empty nodes)
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_EQ(*ScheduleIt, PtrNode1);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, PtrNode2);
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
@@ -2059,7 +2019,14 @@ TEST_F(CommandGraphTest, NodeTypeQueries) {
   auto NodeEmpty = Graph.add();
   ASSERT_EQ(NodeEmpty.get_type(), experimental::node_type::empty);
 
-  // TODO: Test subgraph case once changes have been implemented.
+  experimental::command_graph Subgraph(Queue.get_context(), Dev);
+  // Add an empty node to the subgraph
+  Subgraph.add();
+
+  auto SubgraphExec = Subgraph.finalize();
+  auto NodeSubgraph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.ext_oneapi_graph(SubgraphExec); });
+  ASSERT_EQ(NodeSubgraph.get_type(), experimental::node_type::subgraph);
 }
 
 TEST_F(CommandGraphTest, GetNodeFromEvent) {

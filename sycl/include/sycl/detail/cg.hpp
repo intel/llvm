@@ -33,6 +33,10 @@ inline namespace _V1 {
 // Forward declarations
 class queue;
 
+namespace ext::oneapi::experimental::detail {
+class exec_graph_impl;
+}
+
 namespace detail {
 
 class event_impl;
@@ -573,11 +577,16 @@ public:
 class CGExecCommandBuffer : public CG {
 public:
   sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
+      MExecGraph;
 
-  CGExecCommandBuffer(const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
-                      CG::StorageInitHelper CGData)
+  CGExecCommandBuffer(
+      const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
+      std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
+          ExecGraph,
+      CG::StorageInitHelper CGData)
       : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
-        MCommandBuffer(CommandBuffer) {}
+        MCommandBuffer(CommandBuffer), MExecGraph(ExecGraph) {}
 };
 
 } // namespace detail

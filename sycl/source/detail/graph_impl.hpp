@@ -40,9 +40,6 @@ namespace detail {
 inline node_type getNodeTypeFromCG(sycl::detail::CG::CGTYPE CGType) {
   using sycl::detail::CG;
 
-  // TODO: Handle subgraph case when internal representation has been changed to
-  // contain a single subgraph node. The current approach copies nodes into the
-  // parent graph which prevents this.
   switch (CGType) {
   case CG::None:
     return node_type::empty;
@@ -67,6 +64,8 @@ inline node_type getNodeTypeFromCG(sycl::detail::CG::CGTYPE CGType) {
     return node_type::ext_oneapi_barrier;
   case CG::CodeplayHostTask:
     return node_type::host_task;
+  case CG::ExecCommandBuffer:
+    return node_type::subgraph;
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -88,6 +87,9 @@ public:
   node_type MNodeType = node_type::empty;
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
+  /// Stores the executable graph impl associated with this node if it is a
+  /// subgraph node.
+  std::shared_ptr<exec_graph_impl> MSubGraphImpl;
 
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
@@ -137,7 +139,24 @@ public:
   node_impl(node_type NodeType,
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CommandGroup->getType()), MNodeType(NodeType),
-        MCommandGroup(std::move(CommandGroup)) {}
+        MCommandGroup(std::move(CommandGroup)) {
+    if (NodeType == node_type::subgraph) {
+      MSubGraphImpl =
+          static_cast<sycl::detail::CGExecCommandBuffer *>(MCommandGroup.get())
+              ->MExecGraph;
+    }
+  }
+
+  /// Construct a node from another node. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl(node_impl &Other) {
+    this->MSuccessors = Other.MSuccessors;
+    this->MPredecessors = Other.MPredecessors;
+    this->MCGType = Other.MCGType;
+    this->MNodeType = Other.MNodeType;
+    this->MCommandGroup = Other.getCGCopy();
+    this->MSubGraphImpl = Other.MSubGraphImpl;
+  }
 
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
@@ -216,7 +235,9 @@ public:
     }
     case sycl::detail::CG::Barrier:
     case sycl::detail::CG::BarrierWaitlist:
-      return createCGCopy<sycl::detail::CGBarrier>();
+      // Barrier nodes are stored in the graph with only the bass CG class,
+      // since they are treated internally as empty nodes.
+      return createCGCopy<sycl::detail::CG>();
     case sycl::detail::CG::CopyToDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
     case sycl::detail::CG::CopyFromDeviceGlobal:
@@ -230,13 +251,9 @@ public:
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
     case sycl::detail::CG::ExecCommandBuffer:
-      assert(false &&
-             "Error: Command graph submission should not be a node in a graph");
-      break;
+      return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
-      assert(false &&
-             "Error: Empty nodes should not be enqueue to a command buffer");
-      break;
+      return nullptr;
     }
     return nullptr;
   }
@@ -693,15 +710,6 @@ public:
         "No node in this graph is associated with this event");
   }
 
-  /// Duplicates and Adds sub-graph nodes from an executable graph to this
-  /// graph.
-  /// @param Impl Graph implementation pointer
-  /// @param SubGraphExec sub-graph to add to the parent.
-  /// @return An empty node is used to schedule dependencies on this sub-graph.
-  std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::shared_ptr<graph_impl> &Impl,
-                   const std::shared_ptr<exec_graph_impl> &SubGraphExec);
-
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
@@ -1010,7 +1018,9 @@ public:
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
       : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
-        MRequirements(), MExecutionEvents() {}
+        MRequirements(), MExecutionEvents() {
+    duplicateNodes();
+  }
 
   /// Destructor.
   ///
@@ -1073,6 +1083,11 @@ public:
     return true;
   }
 
+  /// Returns a list of all the accessor requirements for this graph.
+  std::vector<sycl::detail::AccessorImplHost *> getRequirements() const {
+    return MRequirements;
+  }
+
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
@@ -1108,6 +1123,37 @@ private:
                     std::shared_ptr<node_impl> CurrentNode,
                     int ReferencePartitionNum);
 
+  /// Duplicate nodes from the modifiable graph associated with this executable
+  /// graph and store them locally. Any subgraph nodes in the modifiable graph
+  /// will be expanded and merged into this new set of nodes.
+  void duplicateNodes();
+
+  /// Prints the contents of the graph to a text file in DOT format.
+  /// @param FilePath Path to the output file.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+    /// Vector of nodes visited during the graph printing
+    std::vector<node_impl *> VisitedNodes;
+
+    std::fstream Stream(FilePath, std::ios::out);
+    Stream << "digraph dot {" << std::endl;
+
+    std::vector<std::shared_ptr<node_impl>> Roots;
+    for (auto &Node : MNodeStorage) {
+      if (Node->MPredecessors.size() == 0) {
+        Roots.push_back(Node);
+      }
+    }
+
+    for (std::shared_ptr<node_impl> Node : Roots)
+      Node->printDotRecursive(Stream, VisitedNodes, Verbose);
+
+    Stream << "}" << std::endl;
+
+    Stream.close();
+  }
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
@@ -1137,6 +1183,8 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
+  /// Storage for copies of nodes from the original modifiable graph.
+  std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 };
 
 } // namespace detail

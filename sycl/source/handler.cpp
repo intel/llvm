@@ -141,15 +141,6 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-  // If we have a subgraph node that means that a subgraph was recorded as
-  // part of this queue submission, so we skip adding a new node here since
-  // they have already been added, and return the event associated with the
-  // subgraph node.
-  if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
-    return detail::createSyclObjFromImpl<event>(
-        MQueue->getCommandGraph()->getEventForNode(MSubgraphNode));
-  }
-
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
@@ -441,16 +432,35 @@ event handler::finalize() {
         MCodeLoc));
     break;
   }
-  case detail::CG::ExecCommandBuffer:
-    // If we have a subgraph node we don't want to actually execute this command
-    // graph submission.
-    if (!MSubgraphNode) {
+  case detail::CG::ExecCommandBuffer: {
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
+    if (MQueue) {
+      ParentGraph = MQueue->getCommandGraph();
+    } else {
+      ParentGraph = MGraph;
+    }
+    // If a parent graph is set that means we are adding or recording a subgraph
+    // and we don't want to actually execute this command graph submission.
+    if (ParentGraph) {
+      ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
+      if (MQueue) {
+        ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+            ParentGraph->MMutex);
+      }
+      CGData.MRequirements = MExecGraph->getRequirements();
+      // Here we are using the CommandGroup without passing a CommandBuffer to
+      // pass the exec_graph_impl and event dependencies. Since this subgraph CG
+      // will not be executed this is fine.
+      CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
+          nullptr, MExecGraph, std::move(CGData)));
+
+    } else {
       event GraphCompletionEvent =
           MExecGraph->enqueue(MQueue, std::move(CGData));
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }
-    break;
+  } break;
   case detail::CG::CopyImage:
     CommandGroup.reset(new detail::CGCopyImage(
         MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
@@ -484,7 +494,7 @@ event handler::finalize() {
     break;
   }
 
-  if (!MSubgraphNode && !CommandGroup)
+  if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_ERROR_INVALID_OPERATION);
@@ -1396,47 +1406,7 @@ void handler::ext_oneapi_graph(
         ext::oneapi::experimental::graph_state::executable>
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
-  auto GraphImpl = detail::getSyclObjImpl(Graph);
-  // GraphImpl is only read in this scope so we lock this graph for read only
-  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
-      GraphImpl->MMutex);
-
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
-  if (MQueue) {
-    ParentGraph = MQueue->getCommandGraph();
-  } else {
-    ParentGraph = MGraph;
-  }
-
-  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
-  // If a parent graph is set that means we are adding or recording a subgraph
-  if (ParentGraph) {
-    // ParentGraph is read and written in this scope so we lock this graph
-    // with full priviledges.
-    // We only lock for Record&Replay API because the graph has already been
-    // lock if this function was called from the explicit API function add
-    if (MQueue) {
-      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
-          ParentGraph->MMutex);
-    }
-    // Store the node representing the subgraph in the handler so that we can
-    // return it to the user later.
-    // The nodes of the subgraph are duplicated when added to its parents.
-    // This avoids changing properties of the graph added as a subgraph.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(ParentGraph, GraphImpl);
-
-    // If we are recording an in-order queue remember the subgraph node, so it
-    // can be used as a dependency for any more nodes recorded from this queue.
-    if (MQueue && MQueue->isInOrder()) {
-      ParentGraph->setLastInorderNode(MQueue, MSubgraphNode);
-    }
-    // Associate an event with the subgraph node.
-    auto SubgraphEvent = std::make_shared<event_impl>();
-    ParentGraph->addEventForNode(ParentGraph, SubgraphEvent, MSubgraphNode);
-  } else {
-    // Set the exec graph for execution during finalize.
-    MExecGraph = GraphImpl;
-  }
+  MExecGraph = detail::getSyclObjImpl(Graph);
 }
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
