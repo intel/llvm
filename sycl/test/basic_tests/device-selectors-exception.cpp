@@ -1,4 +1,4 @@
-// RUN: clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER="" %t.out
 // RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsycl-targets=%sycl_triple -fpreview-breaking-changes %s -o %t.out %}
 // RUN: %if preview-breaking-changes-supported %{ env ONEAPI_DEVICE_SELECTOR="" %t.out %}
