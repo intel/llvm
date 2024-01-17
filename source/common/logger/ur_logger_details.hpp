@@ -52,6 +52,14 @@ class Logger {
     }
 
     template <typename... Args>
+    void always(const char *format, Args &&...args) {
+        if (sink) {
+            sink->log(logger::Level::QUIET, format,
+                      std::forward<Args>(args)...);
+        }
+    }
+
+    template <typename... Args>
     void log(logger::Level level, const char *format, Args &&...args) {
         if (level < this->level) {
             return;
