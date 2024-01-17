@@ -16,8 +16,11 @@ using syclext = sycl::ext::oneapi::experimental;
 struct set_fp64;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
-  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_fp64) void bar() {
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
+  void foo() {}
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<set_fp64>)
+  void bar() {
     // this virtual function uses double
     double d = 3.14;
   }
@@ -109,21 +112,6 @@ could be used.
 **TODO**: `calls_indirectly` requires compile-time concatenation of strings.
 Document how it should be done.
 
-`indirectly_callable` property is applied to functions using "custom" (comparing
-to other properties) `SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY` macro. This
-is done to allow implementations to attach some extra attributes alongside the
-property. In particular, functions marked with the macro should be considered
-SYCL device functions and compiler should emit diagnostics if those functions
-do not conform with the SYCL 2020 specification. To achieve that and avoid
-extending FE to parse strings within properties, the aforementioned macro should
-also set `sycl_device` attribute:
-
-```
-#define SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(SetId)                    \
-  __attribute__((sycl_device)) [[__sycl_detail__::add_ir_attribute_function(   \
-      "indirectly-callable", __builtin_sycl_unique_stable_name(SetId))]]
-```
-
 ### Changes to the compiler front-end
 
 Most of the handling for virtual functions happens in middle-end and thanks to
@@ -139,10 +127,12 @@ as:
 - virtual member function *not* annotated with `indirectly_callable`
   compile-time property should *not* be emitted into device code;
 
-Since mechanism for attaching the property automatically attaches `sycl_device`
-attribute to virtual functions (see the previous section), it is enough for the
-FE to only look for the `sycl_device` attribute, following the logic which is
-already in place for regular directly called functions.
+To achieve that, the front-end should implicitly add `sycl_device` attribtue to
+each function which is marked with the `indirectly_callable` attribute. This
+can be done during handling of `[[__sycl_detail__::add_ir_attributes_function]]`
+attribute by checking if one of string literals passed in there as a property
+name is equal to "indirectly_callable". Later the `sycl_device` attribute can be
+used to decide if a virtual function should be emitted into device code.
 
 **TODO:** any extra diagnostics we would like to emit? Like kernel without
 `calls_indirectly` property performing virtual function call.
@@ -181,8 +171,11 @@ using syclext = sycl::ext::oneapi::experimental;
 struct set_fp64;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
-  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_fp64) void bar() {
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
+  void foo() {}
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<set_fp64>)
+  void bar() {
     // this virtual function uses double
     double d = 3.14;
   }
