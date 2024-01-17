@@ -29,23 +29,17 @@ namespace detail {
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
 
 static std::vector<sycl::detail::pi::PiEvent>
-getPIEvents(const std::vector<sycl::event> &DepEvents,
-            const EventImplPtr &ExtraDepEvent) {
+getPIEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
-  auto AddEvent = [&RetPiEvents](const EventImplPtr &EventImpl) {
-    if (EventImpl->getHandleRef() == nullptr)
-      return;
-    RetPiEvents.push_back(EventImpl->getHandleRef());
-  };
-  if (ExtraDepEvent)
-    AddEvent(ExtraDepEvent);
-  for (const sycl::event &Event : DepEvents)
-    AddEvent(detail::getSyclObjImpl(Event));
+  for (const sycl::event &Event : DepEvents) {
+    const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
+    if (EventImpl->getHandleRef() != nullptr)
+      RetPiEvents.push_back(EventImpl->getHandleRef());
+  }
   return RetPiEvents;
 }
 
 static bool canBypassScheduler(const std::vector<sycl::event> &DepEvents,
-                               const EventImplPtr &ExtraDepEventPtr,
                                ContextImplPtr Context) {
   auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
     // Throwaway events created with empty constructor will not have a
@@ -67,8 +61,7 @@ static bool canBypassScheduler(const std::vector<sycl::event> &DepEvents,
     return SyclEventImplPtr->getHandleRef() != nullptr;
   };
 
-  return (!ExtraDepEventPtr || CheckEvent(ExtraDepEventPtr)) &&
-         std::all_of(DepEvents.begin(), DepEvents.end(),
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context, &CheckEvent](const sycl::event &Event) {
                        auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
                        return CheckEvent(SyclEventImplPtr);
@@ -109,16 +102,25 @@ static event createDiscardedEvent() {
 
 const std::vector<event> &
 queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
-                                    std::vector<event> &MutableVec) {
-  if (isInOrder()) {
-    std::optional<event> ExternalEvent = popExternalEvent();
-    if (ExternalEvent) {
-      MutableVec = DepEvents;
-      MutableVec.push_back(*ExternalEvent);
-      return MutableVec;
-    }
-  }
-  return DepEvents;
+                                    std::vector<event> &MutableVec,
+                                    std::unique_lock<std::mutex> &QueueLock) {
+  if (!isInOrder())
+    return DepEvents;
+
+  QueueLock.lock();
+  EventImplPtr ExtraEvent =
+      MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+  std::optional<event> ExternalEvent = popExternalEvent();
+
+  if (!ExternalEvent && !ExtraEvent)
+    return DepEvents;
+
+  MutableVec = DepEvents;
+  if (ExternalEvent)
+    MutableVec.push_back(*ExternalEvent);
+  if (ExtraEvent)
+    MutableVec.push_back(detail::createSyclObjFromImpl<event>(ExtraEvent));
+  return MutableVec;
 }
 
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
@@ -155,29 +157,23 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {
-    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
-    EventImplPtr ExtraEventToWait = nullptr;
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
     std::vector<event> MutableDepEvents;
     const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents);
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (isInOrder()) {
-      guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
-    }
-    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
-                                nullptr);
+                                getPIEvents(ExpandedDepEvents), nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                              getPIEvents(ExpandedDepEvents, ExtraEventToWait),
+                              getPIEvents(ExpandedDepEvents),
                               &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -257,29 +253,23 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
 
   {
-    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
-    EventImplPtr ExtraEventToWait = nullptr;
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
     std::vector<event> MutableDepEvents;
     const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents);
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (isInOrder()) {
-      guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
-    }
-    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_usm(Src, Self, Count, Dest,
-                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
-                                nullptr);
+                                getPIEvents(ExpandedDepEvents), nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_usm(Src, Self, Count, Dest,
-                              getPIEvents(ExpandedDepEvents, ExtraEventToWait),
+                              getPIEvents(ExpandedDepEvents),
                               &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -308,29 +298,23 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
-    EventImplPtr ExtraEventToWait = nullptr;
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
     std::vector<event> MutableDepEvents;
     const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents);
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (isInOrder()) {
-      guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
-    }
-    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                  getPIEvents(ExpandedDepEvents, ExtraEventToWait),
-                                  nullptr);
+                                  getPIEvents(ExpandedDepEvents), nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                getPIEvents(ExpandedDepEvents, ExtraEventToWait),
+                                getPIEvents(ExpandedDepEvents),
                                 &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host()) {
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -361,22 +345,17 @@ event queue_impl::memcpyToDeviceGlobal(
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
-    EventImplPtr ExtraEventToWait = nullptr;
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
     std::vector<event> MutableDepEvents;
     const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents);
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (isInOrder()) {
-      guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
-    }
-    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_to_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-            getPIEvents(ExpandedDepEvents, ExtraEventToWait), nullptr);
+            getPIEvents(ExpandedDepEvents), nullptr);
         return createDiscardedEvent();
       }
 
@@ -384,7 +363,7 @@ event queue_impl::memcpyToDeviceGlobal(
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_to_device_global(
           DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-          getPIEvents(ExpandedDepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
           EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
@@ -414,22 +393,17 @@ event queue_impl::memcpyFromDeviceGlobal(
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
-    EventImplPtr ExtraEventToWait = nullptr;
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
     std::vector<event> MutableDepEvents;
     const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents);
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (isInOrder()) {
-      guard.lock();
-      ExtraEventToWait = MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
-    }
-    if (canBypassScheduler(ExpandedDepEvents, ExtraEventToWait, MContext)) {
+    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_from_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-            getPIEvents(ExpandedDepEvents, ExtraEventToWait), nullptr);
+            getPIEvents(ExpandedDepEvents), nullptr);
         return createDiscardedEvent();
       }
 
@@ -437,7 +411,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_from_device_global(
           DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-          getPIEvents(ExpandedDepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
           EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();

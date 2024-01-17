@@ -734,7 +734,8 @@ public:
 
   const std::vector<event> &
   getExtendDependencyList(const std::vector<event> &DepEvents,
-                          std::vector<event> &MutableVec);
+                          std::vector<event> &MutableVec,
+                          std::unique_lock<std::mutex> &QueueLock);
 
 protected:
   event discard_or_return(const event &Event);
