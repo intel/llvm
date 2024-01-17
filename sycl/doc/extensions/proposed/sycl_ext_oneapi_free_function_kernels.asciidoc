@@ -616,11 +616,15 @@ arguments when the kernel is enqueued.
 For example, when enqueuing a kernel with `handler::parallel_for` or
 `handler::single_task`, the kernel argument values must be set via
 `handler::set_arg` or `handler::set_args`.
-Failing to set the value of a kernel argument results in undefined behavior.
-The type of the value passed to `handler::set_arg` or `handler::set_args` must
-be the same as the type of the corresponding formal parameter in the free
-function kernel.
-Passing a value with a mismatched type results in undefined behavior.
+The application must abide by the following rules, otherwise the behavior is
+undefined:
+
+* The application must set a value for each kernel argument.
+* The application must not set a value for a kernel argument that does not
+  exist (e.g. specifying an argument index to `handler::set_arg` that is out of
+  range).
+* The type of the expression used to set the argument's value must match the
+  type of the corresponding formal parameter in the free function kernel.
 
 === Obtaining the iteration id for a kernel
 
