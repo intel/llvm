@@ -852,6 +852,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<uint32_t>(true));
   }
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
+    return ReturnValue(static_cast<uint32_t>(true));
+  }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
     // ESIMD is only supported by Intel GPUs.

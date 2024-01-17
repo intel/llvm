@@ -87,3 +87,15 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
 
   DIE_NO_IMPLEMENTATION;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = blocking;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+
+  DIE_NO_IMPLEMENTATION;
+}
