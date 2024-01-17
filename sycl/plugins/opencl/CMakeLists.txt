@@ -23,4 +23,11 @@ add_sycl_plugin(opencl
     OpenCL-ICD
 )
 
+if (WIN32)
+  target_compile_definitions(pi_opencl PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+  )
+endif()
+
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
