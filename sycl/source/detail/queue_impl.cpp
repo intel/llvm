@@ -39,8 +39,9 @@ getPIEvents(const std::vector<sycl::event> &DepEvents) {
   return RetPiEvents;
 }
 
-static bool canBypassScheduler(const std::vector<sycl::event> &DepEvents,
-                               ContextImplPtr Context) {
+static bool
+checkEventsForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                              ContextImplPtr Context) {
   auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
     // Throwaway events created with empty constructor will not have a
     // context (it is set lazily). Calling getContextImpl() would set that
@@ -163,7 +164,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
+    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::fill_usm(Ptr, Self, Count, Value,
                                 getPIEvents(ExpandedDepEvents), nullptr);
@@ -259,7 +260,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
+    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_usm(Src, Self, Count, Dest,
                                 getPIEvents(ExpandedDepEvents), nullptr);
@@ -306,7 +307,8 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
     // If we have a command graph set we need to capture the advise through normal
     // queue submission.
-    if (!MGraph.lock() && canBypassScheduler(ExpandedDepEvents, MContext)) {
+    if (!MGraph.lock() &&
+        checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                                   getPIEvents(ExpandedDepEvents), nullptr);
@@ -353,7 +355,7 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
+    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_to_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
@@ -401,7 +403,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (canBypassScheduler(ExpandedDepEvents, MContext)) {
+    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_from_device_global(
             DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
