@@ -2,7 +2,7 @@
 // RUN: %if any-device-is-cpu %{ env SYCL_DEVICE_FILTER=cpu %{run-unfiltered-devices} %t.out %}
 // RUN: %if any-device-is-gpu %{ env SYCL_DEVICE_FILTER=gpu %{run-unfiltered-devices} %t.out %}
 // RUN: %if any-device-is-acc %{ env SYCL_DEVICE_FILTER=acc %{run-unfiltered-devices} %t.out %}
-// TODO: Remove this test once SYCL DEVICE FILTER is removed.
+// TODO: Remove this test once SYCL_DEVICE_FILTER is removed.
 
 #include <sycl/sycl.hpp>
 
