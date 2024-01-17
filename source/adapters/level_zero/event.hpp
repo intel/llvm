@@ -196,6 +196,14 @@ struct ur_event_handle_t_ : _ur_object {
   // performance
   bool IsMultiDevice = {false};
 
+  // Indicates the recorded start and end timestamps for the event. These are
+  // only set for events returned by timestamp recording enqueue functions.
+  // A non-zero value for RecordEventStartTimestamp indicates the event was the
+  // result of a timestamp recording. If RecordEventEndTimestamp is non-zero, it
+  // means the event has fetched the end-timestamp from the queue.
+  uint64_t RecordEventStartTimestamp = 0;
+  uint64_t RecordEventEndTimestamp = 0;
+
   // Besides each PI object keeping a total reference count in
   // _ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
@@ -219,6 +227,10 @@ struct ur_event_handle_t_ : _ur_object {
 
   // Tells if this event is with profiling capabilities.
   bool isProfilingEnabled() const;
+
+  // Tells if this event was created as a timestamp event, allowing profiling
+  // info even if profiling is not enabled.
+  bool isTimestamped() const;
 
   // Get the host-visible event or create one and enqueue its signal.
   ur_result_t getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);

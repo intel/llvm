@@ -577,6 +577,9 @@ etors:
 - name: DEVICE_GET_SELECTED
   desc: Enumerator for $xDeviceGetSelected
   value: '220'
+- name: ENQUEUE_TIMESTAMP_RECORDING_EXP
+  desc: Enumerator for $xEnqueueTimestampRecordingExp
+  value: '221'
 ---
 type: enum
 desc: Defines structure types

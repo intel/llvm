@@ -1645,6 +1645,14 @@ ur_result_t urPrintEnqueueCooperativeKernelLaunchExpParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEnqueueTimestampRecordingExpParams(
+    const struct ur_enqueue_timestamp_recording_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintEventGetInfoParams(const struct ur_event_get_info_params_t *params,
                           char *buffer, const size_t buff_size,

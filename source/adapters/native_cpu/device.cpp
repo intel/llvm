@@ -313,6 +313,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     DIE_NO_IMPLEMENTATION;
   }
