@@ -423,11 +423,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
 
     if (LocalMemSzPtr) {
-      int DeviceMaxLocalMem = 0;
-      UR_CHECK_ERROR(hipDeviceGetAttribute(
-          &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
-          Dev->get()));
-
+      int DeviceMaxLocalMem = Dev->getDeviceMaxLocalMem();
       static const int EnvVal = std::atoi(LocalMemSzPtr);
       if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
         setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
