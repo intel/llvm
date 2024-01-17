@@ -82,10 +82,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   uint32_t WG[3]{};
 
   // global_work_size of unused dimensions must be set to 1
-  UR_ASSERT(WorkDim == 3 || GlobalWorkSize[2] == 1,
-            UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(WorkDim >= 2 || GlobalWorkSize[1] == 1,
-            UR_RESULT_ERROR_INVALID_VALUE);
+  if (WorkDim >= 2) {
+    UR_ASSERT(WorkDim >= 2 || GlobalWorkSize[1] == 1,
+              UR_RESULT_ERROR_INVALID_VALUE);
+    if (WorkDim == 3) {
+      UR_ASSERT(WorkDim == 3 || GlobalWorkSize[2] == 1,
+                UR_RESULT_ERROR_INVALID_VALUE);
+    }
+  }
   if (LocalWorkSize) {
     // L0
     UR_ASSERT(LocalWorkSize[0] < (std::numeric_limits<uint32_t>::max)(),
@@ -642,8 +646,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
   if (IndirectAccessTrackingEnabled) {
     UR_CALL(urContextRelease(KernelProgram->Context));
   }
-  // do a release on the program this kernel was part of
-  UR_CALL(urProgramRelease(KernelProgram));
+  // do a release on the program this kernel was part of without delete of the
+  // program handle
+  KernelProgram->ur_release_program_resources(false);
+
   delete Kernel;
 
   return UR_RESULT_SUCCESS;

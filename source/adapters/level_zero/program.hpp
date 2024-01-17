@@ -100,6 +100,11 @@ struct ur_program_handle_t_ : _ur_object {
         State{St}, ZeModule{nullptr}, ZeBuildLog{nullptr} {}
 
   ~ur_program_handle_t_();
+  void ur_release_program_resources(bool deletion);
+
+  // Tracks the release state of the program handle to determine if the
+  // internal handle needs to be released.
+  bool resourcesReleased = false;
 
   const ur_context_handle_t Context; // Context of the program.
 

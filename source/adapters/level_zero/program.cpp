@@ -837,18 +837,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 }
 
 ur_program_handle_t_::~ur_program_handle_t_() {
+  if (!resourcesReleased) {
+    ur_release_program_resources(true);
+  }
+}
+
+void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // According to Level Zero Specification, all kernels and build logs
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
-  for (auto &ZeBuildLogPair : this->ZeBuildLogMap) {
-    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLogPair.second));
-  }
-
-  if (ZeModule && OwnZeModule) {
-    for (auto &ZeModulePair : this->ZeModuleMap) {
-      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+  if (!deletion) {
+    if (!RefCount.decrementAndTest()) {
+      return;
     }
-    this->ZeModuleMap.clear();
+  }
+  if (!resourcesReleased) {
+    for (auto &ZeBuildLogPair : this->ZeBuildLogMap) {
+      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLogPair.second));
+    }
+
+    if (ZeModule && OwnZeModule) {
+      for (auto &ZeModulePair : this->ZeModuleMap) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+      }
+      this->ZeModuleMap.clear();
+    }
+    resourcesReleased = true;
   }
 }
 
