@@ -161,6 +161,12 @@ public:
   modifiable_command_graph(const context &SyclContext, const device &SyclDevice,
                            const property_list &PropList = {});
 
+  /// Constructor.
+  /// @param SyclQueue Queue to use for the graph device and context.
+  /// @param PropList Optional list of properties to pass.
+  modifiable_command_graph(const queue &SyclQueue,
+                           const property_list &PropList = {});
+
   /// Add an empty node to the graph.
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed empty node which has been added to the graph.
@@ -324,6 +330,12 @@ public:
   command_graph(const context &SyclContext, const device &SyclDevice,
                 const property_list &PropList = {})
       : modifiable_command_graph(SyclContext, SyclDevice, PropList) {}
+
+  /// Constructor.
+  /// @param SyclQueue Queue to use for the graph device and context.
+  /// @param PropList Optional list of properties to pass.
+  command_graph(const queue &SyclQueue, const property_list &PropList = {})
+      : modifiable_command_graph(SyclQueue, PropList) {}
 
 private:
   /// Constructor used internally by the runtime.
