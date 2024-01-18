@@ -621,7 +621,7 @@ void SYCLKernelFusion::canonicalizeParameters(
   // The input is a list of parameter pairs which werde detected to be
   // identical. Each pair is constructed such that the RHS belongs to a kernel
   // occuring before the kernel for the LHS in the list of kernels to fuse. This
-  // means, that we want to use the LHS parameter instead of the RHS parameter.
+  // means, that we want to use the RHS parameter instead of the LHS parameter.
 
   // In the first step we sort the list of pairs by their LHS.
   std::sort(Params.begin(), Params.end());
@@ -640,8 +640,7 @@ void SYCLKernelFusion::canonicalizeParameters(
       // LHS and RHS are identical - this does not provide
       // any useful information at all, discard it.
       I = Params.erase(I);
-    }
-    if (Identities.count(I->LHS)) {
+    } else if (Identities.count(I->LHS)) {
       // Duplicate
       auto ExistingIdentity = Identities.at(I->LHS);
       Identities.emplace(I->RHS, ExistingIdentity);
