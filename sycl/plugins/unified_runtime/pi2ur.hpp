@@ -8,10 +8,10 @@
 #pragma once
 
 #include "ur_api.h"
+#include "ur_util.hpp"
 #include <cstdarg>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
-#include <ur/ur.hpp>
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(ur_result_t urResult) {
@@ -161,20 +161,20 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return ur2piResult(Result);
 
 // A version of return helper that returns pi_result and not ur_result_t
-class ReturnHelper : public UrReturnHelper {
+class ReturnHelper : public ur::ReturnHelper {
 public:
-  using UrReturnHelper::UrReturnHelper;
+  using ur::ReturnHelper::ReturnHelper;
 
   template <class T> pi_result operator()(const T &t) {
-    return ur2piResult(UrReturnHelper::operator()(t));
+    return ur2piResult(ur::ReturnHelper::operator()(t));
   }
   // Array return value
   template <class T> pi_result operator()(const T *t, size_t s) {
-    return ur2piResult(UrReturnHelper::operator()(t, s));
+    return ur2piResult(ur::ReturnHelper::operator()(t, s));
   }
   // Array return value where element type is different from T
   template <class RetType, class T> pi_result operator()(const T *t, size_t s) {
-    return ur2piResult(UrReturnHelper::operator()<RetType>(t, s));
+    return ur2piResult(ur::ReturnHelper::operator()<RetType>(t, s));
   }
 };
 
@@ -186,14 +186,14 @@ public:
   // Convert the value using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convert(std::function<TypePI(TypeUR)> Func) {
-    *param_value_size_ret = sizeof(TypePI);
+    *ParamValueSizeRet = sizeof(TypePI);
 
     // There is no value to convert.
-    if (!param_value)
+    if (!ParamValue)
       return PI_SUCCESS;
 
-    auto pValueUR = static_cast<TypeUR *>(param_value);
-    auto pValuePI = static_cast<TypePI *>(param_value);
+    auto pValueUR = static_cast<TypeUR *>(ParamValue);
+    auto pValuePI = static_cast<TypePI *>(ParamValue);
 
     // Cannot convert to a smaller storage type
     PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
@@ -209,22 +209,22 @@ public:
     PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
 
     const uint32_t NumberElements =
-        *param_value_size_ret / sizeof(ur_device_partition_t);
+        *ParamValueSizeRet / sizeof(ur_device_partition_t);
 
-    *param_value_size_ret *= sizeof(TypePI) / sizeof(TypeUR);
+    *ParamValueSizeRet *= sizeof(TypePI) / sizeof(TypeUR);
 
     // There is no value to convert. Adjust to a possibly bigger PI storage.
-    if (!param_value)
+    if (!ParamValue)
       return PI_SUCCESS;
 
-    PI_ASSERT(*param_value_size_ret % sizeof(TypePI) == 0, PI_ERROR_UNKNOWN);
+    PI_ASSERT(*ParamValueSizeRet % sizeof(TypePI) == 0, PI_ERROR_UNKNOWN);
 
     // Make a copy of the input UR array as we may possibly overwrite
     // following elements while converting previous ones (if extending).
-    auto ValueUR = new char[*param_value_size_ret];
+    auto ValueUR = new char[*ParamValueSizeRet];
     auto pValueUR = reinterpret_cast<TypeUR *>(ValueUR);
-    auto pValuePI = static_cast<TypePI *>(param_value);
-    memcpy(pValueUR, param_value, *param_value_size_ret);
+    auto pValuePI = static_cast<TypePI *>(ParamValue);
+    memcpy(pValueUR, ParamValue, *ParamValueSizeRet);
 
     for (uint32_t I = 0; I < NumberElements; ++I) {
       *pValuePI = Func(*pValueUR);
@@ -240,11 +240,11 @@ public:
   template <typename TypeUR, typename TypePI>
   pi_result convertBitSet(std::function<TypePI(TypeUR)> Func) {
     // There is no value to convert.
-    if (!param_value)
+    if (!ParamValue)
       return PI_SUCCESS;
 
-    auto pValuePI = static_cast<TypePI *>(param_value);
-    auto pValueUR = static_cast<TypeUR *>(param_value);
+    auto pValuePI = static_cast<TypePI *>(ParamValue);
+    auto pValueUR = static_cast<TypeUR *>(ParamValue);
 
     // Cannot handle biteset large than size_t
     PI_ASSERT(sizeof(TypeUR) <= sizeof(size_t), PI_ERROR_UNKNOWN);
