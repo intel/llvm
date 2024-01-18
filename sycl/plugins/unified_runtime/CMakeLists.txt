@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5d58871ccce3dd605bdc4245819965cc77441946
-  # Merge: 8007b222 0ebaca6e
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 17 12:35:19 2024 +0000
-  #     Merge pull request #1245 from nrspruit/enable_relaxed_alloc
-  #     [L0] Only Override max allocation limits given env
-  set(UNIFIED_RUNTIME_TAG 5d58871ccce3dd605bdc4245819965cc77441946)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/kbenzie/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG eba3905b1cb3e821401f6b9268358b2684be697d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -150,6 +144,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
