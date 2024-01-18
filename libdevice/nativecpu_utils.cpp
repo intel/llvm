@@ -12,6 +12,9 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
+// template <class Type>   Type __spirv_SubgroupShuffleINTEL(Type val, unsigned
+// id) noexcept;
+
 #include "CL/__spirv/spirv_ops.hpp"
 
 struct __nativecpu_state {
@@ -69,13 +72,6 @@ struct __nativecpu_state {
 };
 
 #define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
-
-// test
-/*DEVICE_EXTERNAL size_t __spirv_GlobalSize_x_tst(__nativecpu_state &v) {
-  v.update(0, 0, 0);
-  return 0;
-}*/
-
 #define DEVICE_EXTERNAL __attribute__((always_inline))
 
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
@@ -87,9 +83,6 @@ struct __nativecpu_state {
     return __mux_sub_group_shuffle_##Sfx(val, id);                             \
   }
 
-// todo: un-comment next line which currently causes link error -rn 
-// DefShuffleINTEL(uint32_t,i32, int32_t)
-
 #define DefShuffleUpINTEL(Type, Sfx, MuxType)                                  \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
       MuxType prev, MuxType curr, int32_t delta);                              \
@@ -99,8 +92,6 @@ struct __nativecpu_state {
     return __mux_sub_group_shuffle_up_##Sfx(prev, curr, delta);                \
   }
 
-DefShuffleUpINTEL(uint32_t, i32, int32_t)
-
 #define DefShuffleDownINTEL(Type, Sfx, MuxType)                                \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
       MuxType curr, MuxType next, int32_t delta);                              \
@@ -109,8 +100,6 @@ DefShuffleUpINTEL(uint32_t, i32, int32_t)
       Type curr, Type next, unsigned delta) noexcept {                         \
     return __mux_sub_group_shuffle_down_##Sfx(curr, next, delta);              \
   }
-
-    DefShuffleDownINTEL(uint32_t, i32, int32_t)
 
 #define DefShuffleXorINTEL(Type, Sfx, MuxType)                                 \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
@@ -122,18 +111,16 @@ DefShuffleUpINTEL(uint32_t, i32, int32_t)
   \	
 }
 
-        DefShuffleXorINTEL(uint32_t, i32, int32_t)
-
 #define DefShuffleINTEL_All(Type, Sfx, MuxType)                                \
   DefShuffleINTEL(Type, Sfx, MuxType) DefShuffleUpINTEL(Type, Sfx, MuxType)    \
       DefShuffleDownINTEL(Type, Sfx, MuxType)                                  \
           DefShuffleXorINTEL(Type, Sfx, MuxType)
 
-            DefShuffleINTEL_All(uint64_t, i64, int64_t)
-                DefShuffleINTEL_All(int64_t, i64, int64_t)
-                    DefShuffleINTEL_All(int32_t, i32, int32_t)
-// DefShuffleINTEL_All(uint32_t,i32 , int32_t)
-// DefShuffleINTEL_All(int16_t, i16 , int16_t)
-// DefShuffleINTEL_All(uint16_t, i16 , int16_t)
+DefShuffleINTEL_All(uint64_t, i64, int64_t)
+    DefShuffleINTEL_All(int64_t, i64, int64_t)
+        DefShuffleINTEL_All(int32_t, i32, int32_t)
+            DefShuffleINTEL_All(uint32_t, i32, int32_t)
+                DefShuffleINTEL_All(int16_t, i16, int16_t)
+                    DefShuffleINTEL_All(uint16_t, i16, int16_t)
 
 #endif // __SYCL_NATIVE_CPU__
