@@ -169,7 +169,8 @@ jobs:
           {name: CUDA, platform: ""},
           {name: HIP, platform: ""},
           {name: L0, platform: ""},
-          {name: OPENCL, platform: "Intel(R) OpenCL"}
+          {name: OPENCL, platform: "Intel(R) OpenCL"},
+          {name: NATIVE_CPU, platform: ""}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
