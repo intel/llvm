@@ -277,7 +277,7 @@ std::unique_ptr<TraceWriter> create_writer() {
     case OUTPUT_JSON:
         return std::make_unique<JsonWriter>();
     default:
-        assert(0); /* unreachable */
+        ur::unreachable();
     }
     return nullptr;
 }

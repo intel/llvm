@@ -15,6 +15,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 #include "usm.hpp"
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
@@ -190,12 +191,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_HOST);
       }
       // should never get here
-#ifdef _MSC_VER
-      __assume(0);
-#else
-      __builtin_unreachable();
-#endif
-      return ReturnValue(UR_USM_TYPE_UNKNOWN);
+      ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer
