@@ -2042,7 +2042,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
       if (auto *const alloca = dyn_cast<AllocaInst>(ptr)) {
         if (!needsInstantiation(Ctx, *alloca)) {
           // If it's an alloca we can widen, we can just change the size
-          llvm::TypeSize const allocSize =
+          const llvm::TypeSize allocSize =
               Ctx.dataLayout()->getTypeAllocSize(alloca->getAllocatedType());
           const auto lifeSize =
               allocSize.isScalable() || SimdWidth.isScalable()
