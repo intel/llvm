@@ -794,11 +794,7 @@ inline pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Platform
-inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
-                                pi_uint32 *NumPlatforms) {
-
+inline pi_result PiGetAdapter(ur_adapter_handle_t &adapter) {
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.
@@ -809,9 +805,23 @@ inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                  [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
   HANDLE_ERRORS(Ret);
 
+  adapter = Adapter;
+
+  return PI_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Platform
+inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
+                                pi_uint32 *NumPlatforms) {
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
   HANDLE_ERRORS(
-      urPlatformGet(&Adapter, 1, NumEntries, phPlatforms, NumPlatforms));
+      urPlatformGet(&adapter, 1, NumEntries, phPlatforms, NumPlatforms));
   return PI_SUCCESS;
 }
 
@@ -837,6 +847,12 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   PI_ASSERT(Platform, PI_ERROR_INVALID_PLATFORM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
