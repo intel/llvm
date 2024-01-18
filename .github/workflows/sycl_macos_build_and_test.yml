@@ -42,6 +42,14 @@ jobs:
       run: |
         echo "#include <cmath>" > a.cpp
         c++ -std=c++17 -E -C -dD a.cpp -o -
+    - name: Debug2
+      run: |
+        echo "#include <cmath>" > b.cpp
+        echo "struct S { float x; operator float() { return x; } };" >> b.cpp
+        echo "auto foo(S s) { return std::isfinite(s); }" >> b.cpp
+        echo "cat b.cpp:"
+        cat b.cpp
+        c++ -std=c++17 -c b.cpp
     - name: Configure
       env:
         ARGS: ${{ inputs.build_configure_extra_args }}
