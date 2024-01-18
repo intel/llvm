@@ -281,7 +281,7 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
             error = "urDeviceGet() failed to get devices.";
             return;
         }
-        for (u_long i = 0; i < count; i++) {
+        for (unsigned i = 0; i < count; i++) {
             size_t size;
             if (urDeviceGetInfo(devices[i], UR_DEVICE_INFO_NAME, 0, nullptr,
                                 &size)) {
