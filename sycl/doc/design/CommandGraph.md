@@ -245,8 +245,8 @@ This WaitEvent is reset in the suffix.
 
 A command-buffer is expected to be submitted multiple times. Consequently,
 we need to ensure that L0 events associated with graph commands have not
-been signalled by a previous execution. These events are therefore reset to the
-unsignalled state before running the actual graph associated commands. Note
+been signaled by a previous execution. These events are therefore reset to the
+non-signaled state before running the actual graph associated commands. Note
 that this reset is performed in the prefix and not in the suffix to avoid
 additional synchronization w.r.t profiling data extraction.
 
