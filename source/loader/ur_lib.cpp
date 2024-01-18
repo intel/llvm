@@ -293,12 +293,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     // (If we wished to preserve the ordering of terms, we could replace `std::map`
     // with `std::queue<std::pair<key_type_t, value_type_t>>` or something similar.)
     auto maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false);
-    std::cout
-        << "DEBUG: "
-        << (maybeEnvVarMap.has_value()
-                ? "getenv_to_map parsed env var and produced a map"
-                : "getenv_to_map parsed env var and failed to produce a map")
-        << std::endl;
+    logger::debug(
+        "getenv_to_map parsed env var and {} a map",
+        (maybeEnvVarMap.has_value() ? "produced" : "failed to produce"));
 
     // if the ODS env var is not set at all, then pretend it was set to the default
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
@@ -430,26 +427,23 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         if (backend
                 .empty()) { // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing backend -- output ERROR, then continue
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout << "ERROR: missing backend, format of filter = "
-                         "'[!]backend:filterStrings'"
-                      << std::endl;
+            logger::error("ERROR: missing backend, format of filter = "
+                          "'[!]backend:filterStrings'");
             continue;
         }
         enum FilterType {
             AcceptFilter,
             DiscardFilter,
         } termType = (backend.front() != '!') ? AcceptFilter : DiscardFilter;
-        std::cout << "DEBUG: termType is"
-                  << (termType != AcceptFilter ? "DiscardFilter"
-                                               : "AcceptFilter")
-                  << std::endl;
+        logger::debug(
+            "termType is {}",
+            (termType != AcceptFilter ? "DiscardFilter" : "AcceptFilter"));
         auto &deviceList =
             (termType != AcceptFilter) ? discardDeviceList : acceptDeviceList;
         if (termType != AcceptFilter) {
-            std::cout << "DEBUG: backend was '" << backend << "'" << std::endl;
+            logger::debug("DEBUG: backend was '{}'", backend);
             backend.erase(backend.cbegin());
-            std::cout << "DEBUG: backend now '" << backend << "'" << std::endl;
+            logger::debug("DEBUG: backend now '{}'", backend);
         }
         // Note the hPlatform -> platformBackend -> platformBackendName conversion above
         // guarantees minimal sanity for the comparison with backend from the ODS string
@@ -463,17 +457,13 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                    std::tolower(static_cast<unsigned char>(b));
                         })) {
             // irrelevant term for current request: different backend -- silently ignore
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout << "WARNING: ignoring term with irrelevant backend"
-                      << std::endl;
+            logger::warning("WARNING: ignoring term with irrelevant backend '{}'", backend);
             continue;
         }
         if (termPair.second.size() == 0) {
             // malformed term: missing filterStrings -- output ERROR, then continue
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout << "ERROR missing filterStrings, format of filter = "
-                         "'[!]backend:filterStrings'"
-                      << std::endl;
+            logger::error("ERROR missing filterStrings, format of filter = "
+                          "'[!]backend:filterStrings'");
             continue;
         }
         if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -481,10 +471,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
             termPair.second
                 .cend()) { // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing filterString -- output warning, then continue
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout << "WARNING: empty filterString, format of filterStrings "
-                         "= 'filterString[,filterString[,...]]'"
-                      << std::endl;
+            logger::warning(
+                "WARNING: empty filterString, format of filterStrings "
+                "= 'filterString[,filterString[,...]]'");
             continue;
         }
         if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -492,10 +481,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                              return std::count(s.cbegin(), s.cend(), '.') > 2;
                          }) != termPair.second.cend()) {
             // malformed term: too many dots in filterString -- output warning, then continue
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout << "WARNING: too many dots in filterString, format of "
-                         "filterString = 'root[.sub[.subsub]]'"
-                      << std::endl;
+            logger::warning("WARNING: too many dots in filterString, format of "
+                            "filterString = 'root[.sub[.subsub]]'");
             continue;
         }
         if (std::find_if(
@@ -515,10 +502,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                     return false; // no BAD things, so must be okay
                 }) != termPair.second.cend()) {
             // malformed term: star dot no-star in filterString -- output warning, then continue
-            // TODO: replace std::cout with URT message output mechanism
-            std::cout
-                << "WARNING: invalid wildcard in filterString, '*.' => '*.*'"
-                << std::endl;
+            logger::warning(
+                "WARNING: invalid wildcard in filterString, '*.' => '*.*'");
             continue;
         }
 
@@ -576,10 +561,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
             DevicePartLevel::ROOT, ::UR_DEVICE_TYPE_ALL, DeviceIdTypeALL});
     }
 
-    std::cout << "DEBUG: size of acceptDeviceList = " << acceptDeviceList.size()
-              << std::endl
-              << "DEBUG: size of discardDeviceList = "
-              << discardDeviceList.size() << std::endl;
+    logger::debug("DEBUG: size of acceptDeviceList = {}",
+                  acceptDeviceList.size());
+    logger::debug("DEBUG: size of discardDeviceList = {}",
+                  discardDeviceList.size());
 
     std::vector<DeviceSpec> rootDevices;
     std::vector<DeviceSpec> subDevices;
@@ -710,46 +695,47 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
             // if this is a subsubdevice filter, then it must be '*.*.*'
             matches = (filter.hwType == device.hwType) ||
                       (filter.hwType == DeviceHardwareType::UR_DEVICE_TYPE_ALL);
-            std::cout << "DEBUG: In ApplyFilter, if block case 1, matches = "
-                      << matches << std::endl;
+            logger::debug(
+                "DEBUG: In ApplyFilter, if block case 1, matches = {}",
+                matches);
         } else if (filter.rootId != device.rootId) {
             // root part in filter is a number but does not match the number in the root part of device
             matches = false;
-            std::cout << "DEBUG: In ApplyFilter, if block case 2, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 2, matches = ",
+                          matches);
         } else if (filter.level == DevicePartLevel::ROOT) {
             // this is a root device filter with a number that matches
             matches = true;
-            std::cout << "DEBUG: In ApplyFilter, if block case 3, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 3, matches = ",
+                          matches);
         } else if (filter.subId == DeviceIdTypeALL) {
             // sub type of star always matches (when root part matches, which we already know here)
             // if this is a subdevice filter, then it must be 'matches.*'
             // if this is a subsubdevice filter, then it must be 'matches.*.*'
             matches = true;
-            std::cout << "DEBUG: In ApplyFilter, if block case 4, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 4, matches = ",
+                          matches);
         } else if (filter.subId != device.subId) {
             // sub part in filter is a number but does not match the number in the sub part of device
             matches = false;
-            std::cout << "DEBUG: In ApplyFilter, if block case 5, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 5, matches = ",
+                          matches);
         } else if (filter.level == DevicePartLevel::SUB) {
             // this is a sub device number filter, numbers match in both parts
             matches = true;
-            std::cout << "DEBUG: In ApplyFilter, if block case 6, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 6, matches = ",
+                          matches);
         } else if (filter.subsubId == DeviceIdTypeALL) {
             // subsub type of star always matches (when other parts match, which we already know here)
             // this is a subsub device filter, it must be 'matches.matches.*'
             matches = true;
-            std::cout << "DEBUG: In ApplyFilter, if block case 7, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 7, matches = ",
+                          matches);
         } else {
             // this is a subsub device filter, numbers in all three parts match
             matches = (filter.subsubId == device.subsubId);
-            std::cout << "DEBUG: In ApplyFilter, if block case 8, matches = "
-                      << matches << std::endl;
+            logger::debug("DEBUG: In ApplyFilter, if block case 8, matches = ",
+                          matches);
         }
         return matches;
     };
@@ -817,10 +803,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 subSubDevices.end());
         }
         if (numAlreadySelected == selectedDevices.size()) {
-            std::cout << "WARNING: an accept term was ignored because it "
-                         "does not select any additional devices"
-                         "selectedDevices.size() = "
-                      << selectedDevices.size() << std::endl;
+            logger::warning("WARNING: an accept term was ignored because it "
+                            "does not select any additional devices"
+                            "selectedDevices.size() = {}",
+                            selectedDevices.size());
         }
     }
 
