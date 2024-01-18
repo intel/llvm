@@ -107,7 +107,7 @@ void PacketizationAnalysisResult::markForPacketization(Value *V) {
   if (mo) {
     auto *const ptr = mo->getPointerOperand();
     if (ptr && UVR.isVarying(ptr)) {
-      auto const *info = SAR.getInfo(ptr);
+      const auto *info = SAR.getInfo(ptr);
       assert(info && "markForPacketization: Unable to obtain stride info");
 
       bool hasValidStride = info->hasStride();
@@ -123,7 +123,7 @@ void PacketizationAnalysisResult::markForPacketization(Value *V) {
           // No interleaved memops exist for vector element types or pointer
           // types. We can only vectorize pointer loads/stores or widen vector
           // load/stores if they are contiguous.
-          auto const stride = info->getConstantMemoryStride(
+          const auto stride = info->getConstantMemoryStride(
               eltTy, &F.getParent()->getDataLayout());
           if (stride != 1) {
             hasValidStride = false;
@@ -152,7 +152,7 @@ void PacketizationAnalysisResult::markForPacketization(Value *V) {
   }
 
   if (auto *const intrinsic = dyn_cast<llvm::IntrinsicInst>(I)) {
-    auto const intrinsicID = intrinsic->getIntrinsicID();
+    const auto intrinsicID = intrinsic->getIntrinsicID();
     if (intrinsicID == llvm::Intrinsic::lifetime_end ||
         intrinsicID == llvm::Intrinsic::lifetime_start) {
       // We don't trace through lifetime intrinsics.

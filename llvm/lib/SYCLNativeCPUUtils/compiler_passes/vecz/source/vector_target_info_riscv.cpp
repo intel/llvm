@@ -110,7 +110,7 @@ bool TargetInfoRISCV::isVectorTypeLegal(Type *Ty) const {
   // before we can enable this for Int1Ty as well.
   bool isLegal = isLegalVPElementType(multi_llvm::getVectorElementType(Ty));
   if (isLegal) {
-    uint32_t const MinSize =
+    const uint32_t MinSize =
         multi_llvm::getVectorElementCount(Ty).getKnownMinValue();
     isLegal = isPowerOf2_32(MinSize) &&
               MinSize * Ty->getScalarSizeInBits() <= MaxLegalVectorTypeBits;
@@ -201,7 +201,7 @@ bool TargetInfoRISCV::isOperationLegal(llvm::Intrinsic::ID ID,
 
 namespace {
 static unsigned getRISCVBits(const TargetMachine *TM) {
-  auto const &Triple = TM->getTargetTriple();
+  const auto &Triple = TM->getTargetTriple();
   return Triple.isArch32Bit() ? 32 : 64;
 }
 
@@ -309,8 +309,8 @@ llvm::Value *TargetInfoRISCV::createScalableExtractElement(
   unsigned intrIdxBitWidth;
   std::tie(intrinsicID, intrIdxBitWidth) = getGatherIntrinsic(srcTy);
 
-  auto const srcEC = multi_llvm::getVectorElementCount(srcTy);
-  auto const resEC = multi_llvm::getVectorElementCount(narrowTy);
+  const auto srcEC = multi_llvm::getVectorElementCount(srcTy);
+  const auto resEC = multi_llvm::getVectorElementCount(narrowTy);
 
   auto *const indexEltTy = B.getIntNTy(intrIdxBitWidth);
   Type *const indexVecTy = VectorType::get(indexEltTy, resEC);
@@ -325,8 +325,8 @@ llvm::Value *TargetInfoRISCV::createScalableExtractElement(
   auto *const avl = getIntrinsicVL(B, VL, narrowTy, getTargetMachine());
 
   auto *indexTy = index->getType();
-  bool const isIdxVector = indexTy->isVectorTy();
-  unsigned const idxBitWidth = indexTy->getScalarSizeInBits();
+  const bool isIdxVector = indexTy->isVectorTy();
+  const unsigned idxBitWidth = indexTy->getScalarSizeInBits();
 
   // The intrinsic may demand a larger index type than we currently have;
   // extend up to the right type.
@@ -490,9 +490,9 @@ llvm::Value *TargetInfoRISCV::createScalableInsertElement(
   std::tie(intrinsicID, intrIdxBitWidth) =
       getGatherIntrinsic(intoTy, /*isMasked*/ true);
 
-  auto const eltEC = multi_llvm::getVectorElementCount(eltTy);
-  auto const intoEC = multi_llvm::getVectorElementCount(intoTy);
-  auto const fixedAmt =
+  const auto eltEC = multi_llvm::getVectorElementCount(eltTy);
+  const auto intoEC = multi_llvm::getVectorElementCount(intoTy);
+  const auto fixedAmt =
       multi_llvm::getVectorElementCount(origInsert->getType());
   assert(!fixedAmt.isScalable() && "Scalable pre-packetized value?");
 
@@ -509,8 +509,8 @@ llvm::Value *TargetInfoRISCV::createScalableInsertElement(
   auto *const avl = getIntrinsicVL(B, VL, intoTy, getTargetMachine());
 
   auto *const indexTy = index->getType();
-  unsigned const idxBitWidth = indexTy->getScalarSizeInBits();
-  bool const indexIsVector = indexTy->isVectorTy();
+  const unsigned idxBitWidth = indexTy->getScalarSizeInBits();
+  const bool indexIsVector = indexTy->isVectorTy();
 
   // The intrinsic may demand a larger index type than we currently have;
   // extend up to the right type.
@@ -585,8 +585,8 @@ llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,
   }
 
   auto *const maskTy = cast<VectorType>(mask->getType());
-  auto const srcEC = multi_llvm::getVectorElementCount(srcTy);
-  auto const resEC = multi_llvm::getVectorElementCount(maskTy);
+  const auto srcEC = multi_llvm::getVectorElementCount(srcTy);
+  const auto resEC = multi_llvm::getVectorElementCount(maskTy);
 
   auto *const resTy = VectorType::get(srcTy->getElementType(), resEC);
 
@@ -619,10 +619,10 @@ llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,
 
   auto *const zero = B.getInt64(0);
 
-  bool const same = (resEC == srcEC);
-  bool const narrow = !same && (srcEC.isScalable() || !resEC.isScalable()) &&
+  const bool same = (resEC == srcEC);
+  const bool narrow = !same && (srcEC.isScalable() || !resEC.isScalable()) &&
                       resEC.getKnownMinValue() <= srcEC.getKnownMinValue();
-  bool const widen = !same && (resEC.isScalable() || !srcEC.isScalable()) &&
+  const bool widen = !same && (resEC.isScalable() || !srcEC.isScalable()) &&
                      srcEC.getKnownMinValue() <= resEC.getKnownMinValue();
 
   assert((srcTy == resTy || narrow || widen) &&
@@ -675,7 +675,7 @@ llvm::Value *TargetInfoRISCV::createVectorSlideUp(llvm::IRBuilder<> &B,
     return TargetInfo::createVectorSlideUp(B, src, insert, VL);
   }
 
-  auto const intrinsicID = getSlideUpIntrinsic(srcTy);
+  const auto intrinsicID = getSlideUpIntrinsic(srcTy);
 
   auto *const avl = getIntrinsicVL(B, VL, srcTy, getTargetMachine());
 
@@ -711,7 +711,7 @@ Value *TargetInfoRISCV::createVPKernelWidth(IRBuilder<> &B,
   if (WidestEltTy < 8 || WidestEltTy > 64 || !isPowerOf2_32(WidestEltTy)) {
     return nullptr;
   }
-  auto const KnownMin = VF.getKnownMinValue();
+  const auto KnownMin = VF.getKnownMinValue();
   // The vectorization factor must be scalable and a legal vsetvli amount: no
   // greater than the maximum vector length for each element width:
   // nx64vi8,nx32vi16,nx16vi32,nxv8i64
@@ -721,14 +721,14 @@ Value *TargetInfoRISCV::createVPKernelWidth(IRBuilder<> &B,
   }
 
   unsigned LMUL = 0;
-  unsigned const MaxLegalElementWidth = 64;
+  const unsigned MaxLegalElementWidth = 64;
 
   if ((WidestEltTy * KnownMin) / MaxLegalElementWidth) {
     // Non-fractional LMULs
     LMUL = Log2_64((WidestEltTy * KnownMin) / MaxLegalElementWidth);
   } else {
     // Fractional LMULs
-    auto const Fraction = MaxLegalElementWidth / (WidestEltTy * KnownMin);
+    const auto Fraction = MaxLegalElementWidth / (WidestEltTy * KnownMin);
     if (Fraction == 2) {
       LMUL = LMUL_F2;
     } else if (Fraction == 4) {

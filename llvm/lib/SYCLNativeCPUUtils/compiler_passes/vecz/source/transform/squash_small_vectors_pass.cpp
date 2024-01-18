@@ -45,8 +45,8 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
                                               FunctionAnalysisManager &AM) {
   bool changed = false;
 
-  auto const &UVR = AM.getResult<UniformValueAnalysis>(F);
-  auto const &SAR = AM.getResult<StrideAnalysis>(F);
+  const auto &UVR = AM.getResult<UniformValueAnalysis>(F);
+  const auto &SAR = AM.getResult<StrideAnalysis>(F);
   auto &DL = F.getParent()->getDataLayout();
   auto &context = F.getContext();
 
@@ -88,10 +88,10 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
 
         auto *const ty = load->getType();
         auto *const scalarTy = ty->getScalarType();
-        unsigned const numBits = ty->getPrimitiveSizeInBits();
+        const unsigned numBits = ty->getPrimitiveSizeInBits();
         if ((numBits & (numBits - 1)) == 0 && scalarTy != ty &&
             DL.fitsInLegalInteger(numBits)) {
-          auto const align = load->getAlign();
+          const auto align = load->getAlign();
           auto *const intTy = IntegerType::get(context, numBits);
           if (DL.getABITypeAlign(intTy) > align) {
             // The alignment of this type is too strict to convert
@@ -99,7 +99,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
           }
 
           auto *const ptr = load->getPointerOperand();
-          auto const *const info = SAR.getInfo(ptr);
+          const auto *const info = SAR.getInfo(ptr);
           if (info && info->hasStride() &&
               info->getConstantMemoryStride(ty, &DL) == 1) {
             // No need to perform this transform on contiguous loads
@@ -107,7 +107,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
           }
 
           IRBuilder<> B(load);
-          auto const name = load->getName();
+          const auto name = load->getName();
           auto *const newPtrTy =
               PointerType::get(intTy, ptr->getType()->getPointerAddressSpace());
           auto *const ptrCast = B.CreatePointerCast(
@@ -132,10 +132,10 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
         auto *const data = store->getValueOperand();
         auto *const ty = data->getType();
         auto *const scalarTy = ty->getScalarType();
-        unsigned const numBits = ty->getPrimitiveSizeInBits();
+        const unsigned numBits = ty->getPrimitiveSizeInBits();
         if ((numBits & (numBits - 1)) == 0 && scalarTy != ty &&
             DL.fitsInLegalInteger(numBits)) {
-          auto const align = store->getAlign();
+          const auto align = store->getAlign();
           auto *const intTy = IntegerType::get(context, numBits);
           if (DL.getABITypeAlign(intTy) > align) {
             // The alignment of this type is too strict to convert
@@ -143,7 +143,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
           }
 
           auto *const ptr = store->getPointerOperand();
-          auto const *const info = SAR.getInfo(ptr);
+          const auto *const info = SAR.getInfo(ptr);
           if (info && info->hasStride() &&
               info->getConstantMemoryStride(ty, &DL) == 1) {
             // No need to perform this transform on contiguous stores
@@ -197,8 +197,8 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
             IRBuilder<> B(zext);
             Value *element = getSquashed(vector, intTy, B);
 
-            auto const bits = zext->getSrcTy()->getScalarSizeInBits();
-            auto const scaled =
+            const auto bits = zext->getSrcTy()->getScalarSizeInBits();
+            const auto scaled =
                 cast<ConstantInt>(indexOp)->getZExtValue() * bits;
 
             // Note on Little Endian systems, element 0 occupies the least
@@ -206,7 +206,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
             // the most significant bits. Thus, we shift by "maximum element
             // number minus current element number" times by "number of bits
             // per element".
-            auto const shift =
+            const auto shift =
                 DL.isBigEndian()
                     ? intTy->getPrimitiveSizeInBits() - bits - scaled
                     : scaled;
@@ -246,11 +246,11 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
             IRBuilder<> B(sext);
             Value *element = getSquashed(vector, intTy, B);
 
-            auto const bits = sext->getSrcTy()->getScalarSizeInBits();
-            auto const shiftr = intTy->getPrimitiveSizeInBits() - bits;
-            auto const scaled =
+            const auto bits = sext->getSrcTy()->getScalarSizeInBits();
+            const auto shiftr = intTy->getPrimitiveSizeInBits() - bits;
+            const auto scaled =
                 cast<ConstantInt>(indexOp)->getZExtValue() * bits;
-            auto const shiftl = DL.isBigEndian() ? scaled : shiftr - scaled;
+            const auto shiftl = DL.isBigEndian() ? scaled : shiftr - scaled;
 
             if (shiftl != 0) {
               element =

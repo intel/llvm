@@ -228,7 +228,7 @@ PreservedAnalyses ScalarizationPass::run(llvm::Function &F,
     // operands, scalarization can produce dead code, which will get removed
     // by later cleanup optimizations. Reductions are generally much better
     // off scalarized.
-    bool const scalable = VU.width().isScalable();
+    const bool scalable = VU.width().isScalable();
 
     OperandTracer tracer(UVR, scalable);
     for (Instruction *Leaf : Leaves) {

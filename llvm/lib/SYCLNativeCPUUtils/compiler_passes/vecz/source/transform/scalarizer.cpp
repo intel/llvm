@@ -225,7 +225,7 @@ Value *Scalarizer::scalarizeOperands(Instruction *I) {
     if (!Callee->isIntrinsic()) {
       // Check if this is indeed a printf call
       compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-      auto const ID = BI.analyzeBuiltin(*Callee).ID;
+      const auto ID = BI.analyzeBuiltin(*Callee).ID;
       if (ID == BI.getPrintfBuiltin()) {
         return scalarizeOperandsPrintf(CI);
       }
@@ -272,7 +272,7 @@ Value *Scalarizer::scalarizeOperandsPrintf(CallInst *CI) {
   // Gather the operands for the new printf call, taking care to scalarize
   // any vector operands.
   llvm::SmallVector<Value *, 16> NewOps;
-  for (Use const &Op : CI->args()) {
+  for (const Use &Op : CI->args()) {
     // The first operand is the new format string
     if (Op == *CI->arg_begin()) {
       Constant *Zero = B.getInt32(0);
@@ -1304,12 +1304,12 @@ SimdPacket *Scalarizer::scalarizeCall(CallInst *CI, PacketMask PM) {
     Callee = originalFunc;
   }
 
-  auto const Builtin = BI.analyzeBuiltin(*Callee);
+  const auto Builtin = BI.analyzeBuiltin(*Callee);
   Function *ScalarEquiv = BI.getScalarEquivalent(Builtin, F.getParent());
   VECZ_STAT_FAIL_IF(!ScalarEquiv, VeczScalarizeFailBuiltin);
 
   IRBuilder<> B(CI);
-  auto const Props = Builtin.properties;
+  const auto Props = Builtin.properties;
   // Ignore the mask if present
   unsigned NumArgs = VectorCallMask ? CI->arg_size() - 1 : CI->arg_size();
   SmallVector<SimdPacket *, 4> OpPackets(NumArgs);
@@ -1535,8 +1535,8 @@ SimdPacket *Scalarizer::scalarizeGEP(GetElementPtrInst *GEP, PacketMask PM) {
   }
 
   IRBuilder<> B(GEP);
-  bool const inBounds = GEP->isInBounds();
-  auto const name = GEP->getName();
+  const bool inBounds = GEP->isInBounds();
+  const auto name = GEP->getName();
   SimdPacket *const P = getPacket(GEP, simdWidth);
   for (unsigned i = 0; i < simdWidth; i++) {
     if (!PM.isEnabled(i) || P->at(i)) {

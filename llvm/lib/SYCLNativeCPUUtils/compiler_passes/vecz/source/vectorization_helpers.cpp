@@ -37,9 +37,9 @@ using namespace vecz;
 
 namespace {
 
-Function *declareFunction(VectorizationUnit const &VU) {
+Function *declareFunction(const VectorizationUnit &VU) {
   Module &Module = VU.context().module();
-  Function const *const ScalarFn = VU.scalarFunction();
+  const Function *const ScalarFn = VU.scalarFunction();
   ElementCount SimdWidth = VU.width();
 
   // For kernels, the vectorized function type is is the same as the original
@@ -66,7 +66,7 @@ Function *declareFunction(VectorizationUnit const &VU) {
 /// searches for the node that contains the scalar kernel, and copies all its
 /// metadata, which the exception of the Function itself, which is replaced by
 /// the vectorized kernel.
-void cloneOpenCLNamedMetadataHelper(VectorizationUnit const &VU,
+void cloneOpenCLNamedMetadataHelper(const VectorizationUnit &VU,
                                     const std::string &NodeName) {
   Module &M = VU.context().module();
 
@@ -121,10 +121,10 @@ void cloneOpenCLNamedMetadataHelper(VectorizationUnit const &VU,
 ///
 /// @param[in,out] ValueMap Map to update with the arguments.
 SmallVector<Instruction *, 2> createArgumentPlaceholders(
-    VectorizationUnit const &VU, Function *VecFunc,
+    const VectorizationUnit &VU, Function *VecFunc,
     ValueToValueMapTy &ValueMap) {
   SmallVector<Instruction *, 2> Placeholders;
-  auto const &Arguments = VU.arguments();
+  const auto &Arguments = VU.arguments();
   unsigned i = 0u;
   for (Argument &DstArg : VecFunc->args()) {
     Argument *SrcArg = Arguments[i++].OldArg;
@@ -192,7 +192,7 @@ decodeVectorizedFunctionName(StringRef Name) {
   return std::make_tuple(Name.str(), VF, Choices);
 }
 
-Function *cloneFunctionToVector(VectorizationUnit const &VU) {
+Function *cloneFunctionToVector(const VectorizationUnit &VU) {
   auto *const VectorizedFn = declareFunction(VU);
   VECZ_ERROR_IF(!VectorizedFn, "declareFunction failed to initialize");
 
@@ -266,7 +266,7 @@ static DILocation *getDILocation(unsigned Line, unsigned Column, MDNode *Scope,
                          /*ImplicitCode*/ false);
 }
 
-void cloneDebugInfo(VectorizationUnit const &VU) {
+void cloneDebugInfo(const VectorizationUnit &VU) {
   DISubprogram *const ScalarDI = VU.scalarFunction()->getSubprogram();
   // We don't have debug info
   if (!ScalarDI) {
@@ -430,7 +430,7 @@ void cloneDebugInfo(VectorizationUnit const &VU) {
   return;
 }
 
-void cloneOpenCLMetadata(VectorizationUnit const &VU) {
+void cloneOpenCLMetadata(const VectorizationUnit &VU) {
   cloneOpenCLNamedMetadataHelper(VU, "opencl.kernels");
   cloneOpenCLNamedMetadataHelper(VU, "opencl.kernel_wg_size_info");
 }

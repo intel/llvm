@@ -156,7 +156,7 @@ void UniformValueResult::findVectorLeaves(
           // uniform then add it to the leaves
           if (!Callee->isIntrinsic() && CI->use_empty()) {
             // Try to identify the called function
-            auto const Builtin = BI.analyzeBuiltin(*Callee);
+            const auto Builtin = BI.analyzeBuiltin(*Callee);
             if (!Builtin.isValid()) {
               Leaves.push_back(CI);
             }
@@ -218,8 +218,8 @@ void UniformValueResult::findVectorRoots(std::vector<Value *> &Roots) const {
       if (!CI || !CI->getCalledFunction()) {
         continue;
       }
-      auto const Builtin = BI.analyzeBuiltinCall(*CI, dimension);
-      auto const Uniformity = Builtin.uniformity;
+      const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension);
+      const auto Uniformity = Builtin.uniformity;
       if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
           Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
         // Calls to `get_global_id`/`get_local_id` are roots.
@@ -280,8 +280,8 @@ void UniformValueResult::markVaryingValues(Value *V, Value *From) {
     Function *Callee = CI->getCalledFunction();
     if (Callee) {
       compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-      auto const Builtin = BI.analyzeBuiltinCall(*CI, dimension);
-      auto const Uniformity = Builtin.uniformity;
+      const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension);
+      const auto Uniformity = Builtin.uniformity;
       if (Uniformity == compiler::utils::eBuiltinUniformityAlways) {
         return;
       }
@@ -405,7 +405,7 @@ Value *UniformValueResult::extractMemBase(Value *Address) {
       // If it's a simple loop iterator, the base can be analyzed from the
       // initial value.
       if (GEP->getPointerOperand() == Phi) {
-        for (auto const &index : GEP->indices()) {
+        for (const auto &index : GEP->indices()) {
           if (isVarying(index.get())) {
             return nullptr;
           }
@@ -455,7 +455,7 @@ UniformValueResult UniformValueAnalysis::run(
       // The same goes for the atomic builtins as well
       if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         if (Function *Callee = CI->getCalledFunction()) {
-          auto const Builtin = BI.analyzeBuiltin(*Callee);
+          const auto Builtin = BI.analyzeBuiltin(*Callee);
           if (Builtin.properties & compiler::utils::eBuiltinPropertyAtomic) {
             Res.markVaryingValues(&I);
             continue;

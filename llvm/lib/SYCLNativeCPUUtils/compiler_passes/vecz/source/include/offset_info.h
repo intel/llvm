@@ -124,7 +124,7 @@ struct OffsetInfo {
   /// @return The memory stride as number of elements.
 
   uint64_t getConstantMemoryStride(llvm::Type *PtrEleTy,
-                                   llvm::DataLayout const *DL) const;
+                                   const llvm::DataLayout *DL) const;
 
   /// @brief Convert the bytewise stride into an element-wise stride based on
   /// the data type and data layout, building instructions where needed. Note
@@ -135,7 +135,7 @@ struct OffsetInfo {
   /// @param[in] DL The Data Layout.
   /// @return The memory stride as number of elements.
   llvm::Value *buildMemoryStride(llvm::IRBuilder<> &B, llvm::Type *PtrEleTy,
-                                 llvm::DataLayout const *DL) const;
+                                 const llvm::DataLayout *DL) const;
 
   /// @brief Create Values that represent or compute strides.
   ///
