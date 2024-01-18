@@ -6613,6 +6613,11 @@ def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
 
+// OS-specific options
+let Flags = [TargetSpecific] in {
+defm android_pad_segment : BooleanFFlag<"android-pad-segment">, Group<f_Group>;
+} // let Flags = [TargetSpecific]
+
 //===----------------------------------------------------------------------===//
 // FLangOption + NoXarchOption
 //===----------------------------------------------------------------------===//

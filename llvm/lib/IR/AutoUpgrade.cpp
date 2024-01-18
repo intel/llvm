@@ -1196,14 +1196,22 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
       // not to an intrinsic alone.  We expand them in UpgradeIntrinsicCall.
       //
       // TODO: We could add lohi.i2d.
-      bool Expand = StringSwitch<bool>(Name)
-                        .Cases("abs.i", "abs.ll", true)
-                        .Cases("clz.ll", "popc.ll", "h2f", true)
-                        .Cases("max.i", "max.ll", "max.ui", "max.ull", true)
-                        .Cases("min.i", "min.ll", "min.ui", "min.ull", true)
-                        .StartsWith("atomic.load.add.f32.p", true)
-                        .StartsWith("atomic.load.add.f64.p", true)
-                        .Default(false);
+      bool Expand = false;
+      if (Name.consume_front("abs."))
+        // nvvm.abs.{i,ii}
+        Expand = Name == "i" || Name == "ll";
+      else if (Name == "clz.ll" || Name == "popc.ll" || Name == "h2f")
+        Expand = true;
+      else if (Name.consume_front("max.") || Name.consume_front("min."))
+        // nvvm.{min,max}.{i,ii,ui,ull}
+        Expand = Name == "s" || Name == "i" || Name == "ll" || Name == "us" ||
+                 Name == "ui" || Name == "ull";
+      else if (Name.consume_front("atomic.load.add."))
+        // nvvm.atomic.load.add.{f32.p,f64.p}
+        Expand = Name.starts_with("f32.p") || Name.starts_with("f64.p");
+      else
+        Expand = false;
+
       if (Expand) {
         NewFn = nullptr;
         return true;
@@ -4119,19 +4127,21 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       Value *Val = CI->getArgOperand(1);
       Rep = Builder.CreateAtomicRMW(AtomicRMWInst::FAdd, Ptr, Val, MaybeAlign(),
                                     AtomicOrdering::SequentiallyConsistent);
-    } else if (IsNVVM && (Name == "max.i" || Name == "max.ll" ||
-                          Name == "max.ui" || Name == "max.ull")) {
+    } else if (IsNVVM && Name.consume_front("max.") &&
+               (Name == "s" || Name == "i" || Name == "ll" || Name == "us" ||
+                Name == "ui" || Name == "ull")) {
       Value *Arg0 = CI->getArgOperand(0);
       Value *Arg1 = CI->getArgOperand(1);
-      Value *Cmp = Name.ends_with(".ui") || Name.ends_with(".ull")
+      Value *Cmp = Name.starts_with("u")
                        ? Builder.CreateICmpUGE(Arg0, Arg1, "max.cond")
                        : Builder.CreateICmpSGE(Arg0, Arg1, "max.cond");
       Rep = Builder.CreateSelect(Cmp, Arg0, Arg1, "max");
-    } else if (IsNVVM && (Name == "min.i" || Name == "min.ll" ||
-                          Name == "min.ui" || Name == "min.ull")) {
+    } else if (IsNVVM && Name.consume_front("min.") &&
+               (Name == "s" || Name == "i" || Name == "ll" || Name == "us" ||
+                Name == "ui" || Name == "ull")) {
       Value *Arg0 = CI->getArgOperand(0);
       Value *Arg1 = CI->getArgOperand(1);
-      Value *Cmp = Name.ends_with(".ui") || Name.ends_with(".ull")
+      Value *Cmp = Name.starts_with("u")
                        ? Builder.CreateICmpULE(Arg0, Arg1, "min.cond")
                        : Builder.CreateICmpSLE(Arg0, Arg1, "min.cond");
       Rep = Builder.CreateSelect(Cmp, Arg0, Arg1, "min");
