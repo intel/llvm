@@ -90,7 +90,7 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
                                 ArrayRef<Value *> Args, llvm::CallBase *CB) {
   LLVMContext &Context = F->getContext();
   auto &DL = F->getParent()->getDataLayout();
-  unsigned PtrBits = DL.getPointerSizeInBits();
+  const unsigned PtrBits = DL.getPointerSizeInBits();
 
   // Check the alignment constraints do not exceed the algorithmic requirements
   // of doing 64 bits at time
@@ -99,8 +99,8 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   const auto &MSI = cast<MemSetInst>(CB);
 
   // Note that once LLVM 8.0 is deprecated we can use actual alignment classes
-  Align Alignment = MSI->getDestAlign().valueOrOne();
-  Align Int64Alignment = DL.getABITypeAlign(B.getInt64Ty());
+  const Align Alignment = MSI->getDestAlign().valueOrOne();
+  const Align Int64Alignment = DL.getABITypeAlign(B.getInt64Ty());
   if (Alignment < std::max(Int64Alignment, Align(8u))) {
     return nullptr;
   }
@@ -109,7 +109,7 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   Type *Int8Ty = B.getInt8Ty();
 
   Value *StoredValue = Args[1];
-  bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
+  const bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
   llvm::StoreInst *MS = nullptr;
 
   // For nicely named IR instructions
@@ -120,7 +120,7 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   if (!CL) {
     return nullptr;
   }
-  int64_t Bytes = CL->getValue().getZExtValue();
+  const int64_t Bytes = CL->getValue().getZExtValue();
 
   // Unlike memcpy, if we want to use 64bit stores in memset we need to
   // construct the 64bit value from a 8bit one.
@@ -130,7 +130,7 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   if (ConstantValue) {
     // If we can get the value at compile time, calculate the 64bit value at
     // compile time as well.
-    unsigned IntValue = ConstantValue->getZExtValue();
+    const unsigned IntValue = ConstantValue->getZExtValue();
     APInt APValue(64, IntValue);
     for (int i = 1; IntValue && i < 8; ++i) {
       APValue |= APValue << 8;
@@ -165,7 +165,8 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
 
     // Set alignments for store to be minimum of that from
     // the instruction and what is required for 8 byte stores
-    Align StoreAlign = byte == 0 ? Alignment : std::min(Align(8u), Alignment);
+    const Align StoreAlign =
+        byte == 0 ? Alignment : std::min(Align(8u), Alignment);
     MS->setAlignment(StoreAlign);
   }
   // ...and then we fill in the remaining with 8bit stores.
@@ -185,9 +186,9 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
   auto &DL = F->getParent()->getDataLayout();
 
   const auto &MSI = cast<MemCpyInst>(CB);
-  Align DestAlignment = MSI->getDestAlign().valueOrOne();
-  Align SourceAlignment = MSI->getSourceAlign().valueOrOne();
-  Align Int64Alignment = DL.getABITypeAlign(B.getInt64Ty());
+  const Align DestAlignment = MSI->getDestAlign().valueOrOne();
+  const Align SourceAlignment = MSI->getSourceAlign().valueOrOne();
+  const Align Int64Alignment = DL.getABITypeAlign(B.getInt64Ty());
 
   if (DestAlignment < std::max(Int64Alignment, Align(8u))) {
     return nullptr;
@@ -197,13 +198,13 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
     return nullptr;
   }
 
-  unsigned PtrBits = DL.getPointerSizeInBits();
+  const unsigned PtrBits = DL.getPointerSizeInBits();
 
   Value *DstPtr = Args[0];
   Value *SrcPtr = Args[1];
   Type *Int8Ty = B.getInt8Ty();
 
-  bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
+  const bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
   llvm::StoreInst *MC = nullptr;
 
   // For nicely named IR instructions
@@ -216,7 +217,7 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
   if (!CL) {
     return nullptr;
   }
-  int64_t Length = CL->getValue().getSExtValue();
+  const int64_t Length = CL->getValue().getSExtValue();
 
   // Emit enough stores to replicate the behaviour of memcpy.
   int64_t byte = 0;
@@ -241,10 +242,10 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
 
     // Set alignments for stores and loads to be minimum of that from
     // the instruction and what is required for 8 byte load/stores
-    Align StoreAlign =
+    const Align StoreAlign =
         byte == 0 ? DestAlignment : std::min(Align(8u), DestAlignment);
     MC->setAlignment(StoreAlign);
-    Align LoadAlign =
+    const Align LoadAlign =
         byte == 0 ? SourceAlignment : std::min(Align(8u), SourceAlignment);
     LoadValue->setAlignment(LoadAlign);
   }
@@ -285,7 +286,7 @@ Value *BuiltinInliningPass::processCallSite(CallInst *CI,
   if (Callee->isIntrinsic()) {
     if (Callee->getIntrinsicID() == Intrinsic::memcpy) {
       IRBuilder<> B(CI);
-      SmallVector<Value *, 4> Args(CI->args());
+      const SmallVector<Value *, 4> Args(CI->args());
       if (Value *Impl = emitBuiltinMemCpy(Callee, B, Args, CI)) {
         return Impl;
       }
@@ -293,7 +294,7 @@ Value *BuiltinInliningPass::processCallSite(CallInst *CI,
 
     if (Callee->getIntrinsicID() == Intrinsic::memset) {
       IRBuilder<> B(CI);
-      SmallVector<Value *, 4> Args(CI->args());
+      const SmallVector<Value *, 4> Args(CI->args());
       if (Value *Impl = emitBuiltinMemSet(Callee, B, Args, CI)) {
         return Impl;
       }

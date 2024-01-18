@@ -245,8 +245,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
       }
       BitMask = Src.BitMask & typeMask;
     } else if (isa<SExtInst>(Cast)) {
-      uint64_t widthMask = getTypeMask(Cast->getSrcTy());
-      uint64_t signMask = (widthMask >> 1) + 1;
+      const uint64_t widthMask = getTypeMask(Cast->getSrcTy());
+      const uint64_t signMask = (widthMask >> 1) + 1;
       if (Src.BitMask & signMask) {
         // If it's possible for the source value to be negative, all of the
         // bits in the extended value might be set.
@@ -364,7 +364,8 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
         if (((VUArg.OldArg == Arg) || (VUArg.NewArg == Arg)) &&
             VUArg.PointerRetPointeeTy) {
           Type *MemTy = VUArg.PointerRetPointeeTy;
-          uint64_t MemSize = SAR.UVR.Ctx.dataLayout()->getTypeAllocSize(MemTy);
+          const uint64_t MemSize =
+              SAR.UVR.Ctx.dataLayout()->getTypeAllocSize(MemTy);
           return setStride(MemSize);
         }
       }
@@ -384,7 +385,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
     }
 
     Type *MemTy = Alloca->getAllocatedType();
-    uint64_t MemSize = SAR.UVR.Ctx.dataLayout()->getTypeAllocSize(MemTy);
+    const uint64_t MemSize = SAR.UVR.Ctx.dataLayout()->getTypeAllocSize(MemTy);
     return setStride(MemSize);
   } else if (auto *const Phi = dyn_cast<PHINode>(Address)) {
     // If all the incoming values are the same, we can trace through it. In
@@ -481,7 +482,7 @@ OffsetInfo &OffsetInfo::analyzePtr(Value *Address, StrideAnalysisResult &SAR) {
       if (idxOffset.isStrideConstantInt()) {
         // Add all the strides together,
         // since `Base + (A * X) + (B * X) == Base + (A + B) * X`
-        uint64_t MemSize = SizeOrZero(
+        const uint64_t MemSize = SizeOrZero(
             GEP->getModule()->getDataLayout().getTypeAllocSize(MemTy));
         GEPStrideInt += idxOffset.StrideInt * MemSize;
       } else {
@@ -629,7 +630,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
       // process of manifesting the indices can change the insert point.
       B.SetInsertPoint(GEP);
       Value *idxStride = nullptr;
-      uint64_t MemSize =
+      const uint64_t MemSize =
           SizeOrZero(GEP->getModule()->getDataLayout().getTypeAllocSize(MemTy));
       if (MemSize == 1) {
         // Don't need to do anything if the size is 1
@@ -665,7 +666,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
 
 uint64_t OffsetInfo::getConstantMemoryStride(Type *PtrEleTy,
                                              const DataLayout *DL) const {
-  uint64_t PtrEleSize = SizeOrZero(DL->getTypeAllocSize(PtrEleTy));
+  const uint64_t PtrEleSize = SizeOrZero(DL->getTypeAllocSize(PtrEleTy));
   VECZ_FAIL_IF(!PtrEleSize);
 
   // It's not a valid stride if it's not divisible by the element size.
@@ -684,7 +685,7 @@ Value *OffsetInfo::buildMemoryStride(IRBuilder<> &B, Type *PtrEleTy,
     return nullptr;
   }
 
-  uint64_t PtrEleSize = SizeOrZero(DL->getTypeAllocSize(PtrEleTy));
+  const uint64_t PtrEleSize = SizeOrZero(DL->getTypeAllocSize(PtrEleTy));
   VECZ_FAIL_IF(!PtrEleSize);
 
   // It's not a valid stride if it's not divisible by the element size.

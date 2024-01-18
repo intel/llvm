@@ -950,7 +950,7 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
   Type *maskTy = Type::getInt1Ty(F.getContext());
   SmallVector<Loop::Edge, 1> exitEdges;
   LTag.loop->getExitEdges(exitEdges);
-  for (Loop::Edge &EE : exitEdges) {
+  for (const Loop::Edge &EE : exitEdges) {
     const auto *const exitingBlock = EE.first;
     const auto *const exitBlock = EE.second;
     // Divergent loop need to keep track of which instance left at which exit.
@@ -996,7 +996,7 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
     return innerLoop;
   };
 
-  for (Loop::Edge &EE : exitEdges) {
+  for (const Loop::Edge &EE : exitEdges) {
     BasicBlock *exitingBlock = const_cast<BasicBlock *>(EE.first);
     BasicBlock *exitBlock = const_cast<BasicBlock *>(EE.second);
 
@@ -1077,7 +1077,7 @@ bool ControlFlowConversionState::Impl::createCombinedLoopExitMask(
   auto *const Loop = LTag.loop;
   Loop->getExitEdges(exitEdges);
   auto &LMask = LoopMasks[Loop];
-  for (Loop::Edge &EE : exitEdges) {
+  for (const Loop::Edge &EE : exitEdges) {
     BasicBlock *exitingBlock = const_cast<BasicBlock *>(EE.first);
     BasicBlock *exitBlock = const_cast<BasicBlock *>(EE.second);
     if (DR->isDivergent(*exitBlock)) {
@@ -1863,7 +1863,7 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
         // proven otherwise, should not.
         break;
       case Instruction::Br: {
-        unsigned keepIdx = succIdx == 0 ? 1 : 0;
+        const unsigned keepIdx = succIdx == 0 ? 1 : 0;
         auto *newT = BranchInst::Create(T->getSuccessor(keepIdx), T);
 
         updateMaps(T, newT);
@@ -2674,8 +2674,8 @@ bool ControlFlowConversionState::Impl::generateSelects() {
     if (B->hasNPredecessors(1) || DR->isBlend(*B)) {
       if (PHINode *PHI = dyn_cast<PHINode>(&B->front())) {
         LLVM_DEBUG(dbgs() << B->getName() << ":\n");
-        SmallPtrSet<BasicBlock *, 2> incomings(PHI->block_begin(),
-                                               PHI->block_end());
+        const SmallPtrSet<BasicBlock *, 2> incomings(PHI->block_begin(),
+                                                     PHI->block_end());
         BasicBlock *cur = B;
         while (cur->hasNPredecessors(1) && !incomings.empty()) {
           cur = cur->getSinglePredecessor();
@@ -2793,7 +2793,7 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
   // have changed since we have not changed the phi nodes during the rewiring.
   for (const auto &BBTag : DR->getBlockOrdering()) {
     BasicBlock *BB = BBTag.BB;
-    SmallPtrSet<BasicBlock *, 4> preds(pred_begin(BB), pred_end(BB));
+    const SmallPtrSet<BasicBlock *, 4> preds(pred_begin(BB), pred_end(BB));
     for (auto it = BB->begin(); it != BB->end();) {
       Instruction &I = *it++;
       PHINode *PHI = dyn_cast<PHINode>(&I);
@@ -2801,8 +2801,8 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
         break;
       }
 
-      SmallPtrSet<BasicBlock *, 4> incomings(PHI->block_begin(),
-                                             PHI->block_end());
+      const SmallPtrSet<BasicBlock *, 4> incomings(PHI->block_begin(),
+                                                   PHI->block_end());
 
       // If no predecessors of `BB` is an incoming block of its PHI Node, then
       // completely transform the PHI Node into multiple select instructions.

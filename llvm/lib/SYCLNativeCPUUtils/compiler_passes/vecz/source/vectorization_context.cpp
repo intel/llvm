@@ -153,7 +153,7 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
   // Gather information about the function's arguments.
   const auto Props = Builtin.properties;
   unsigned i = 0;
-  for (Argument &Arg : F.args()) {
+  for (const Argument &Arg : F.args()) {
     Type *pointerRetPointeeTy = nullptr;
     VectorizationResult::Arg::Kind kind = VectorizationResult::Arg::SCALAR;
 
@@ -231,7 +231,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   // function can become a bit too complex, among other things because name
   // mangling with arbitrary types can become a bit complex. printf is the only
   // vararg OpenCL builtin, so only user functions are affected by this.
-  bool isVarArg = F->isVarArg();
+  const bool isVarArg = F->isVarArg();
   VECZ_FAIL_IF(isVarArg && F->getName() != "printf");
   // Copy the argument types. This is done from the CallInst instead of the
   // called Function because the called Function might be a VarArg function, in
@@ -266,7 +266,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   argTys.push_back(Type::getInt1Ty(ctx));
   // Generate the function name
   compiler::utils::NameMangler mangler(&ctx);
-  SmallVector<compiler::utils::TypeQualifiers, 8> quals(
+  const SmallVector<compiler::utils::TypeQualifiers, 8> quals(
       argTys.size(), compiler::utils::TypeQualifiers());
   std::string newFName;
   raw_string_ostream O(newFName);
@@ -312,7 +312,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   CIArgs.pop_back();
 
   FunctionType *FTy = CI->getFunctionType();
-  AttributeList callAttrs = CI->getAttributes();
+  const AttributeList callAttrs = CI->getAttributes();
   SmallVector<std::pair<Value *, BasicBlock *>, 4> PhiOperands;
   if (hasImmArg) {
     Value *immArg = newFunction->getArg(firstImmArg);
@@ -393,7 +393,7 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
   if (!FnName.consume_front("masked_")) {
     return std::nullopt;
   }
-  bool IsCmpXchg = FnName.consume_front("cmpxchg_");
+  const bool IsCmpXchg = FnName.consume_front("cmpxchg_");
   if (!IsCmpXchg && !FnName.consume_front("atomicrmw_")) {
     return std::nullopt;
   }
@@ -663,8 +663,8 @@ std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
   if (!L.Consume("sub_group_scan_")) {
     return std::nullopt;
   }
-  bool isInt = ty->isIntOrIntVectorTy();
-  bool isInclusive = L.Consume("inclusive_");
+  const bool isInt = ty->isIntOrIntVectorTy();
+  const bool isInclusive = L.Consume("inclusive_");
   if (isInclusive || L.Consume("exclusive_")) {
     StringRef OpKind;
     if (L.ConsumeAlpha(OpKind)) {
@@ -699,7 +699,7 @@ std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
       } else {
         return std::nullopt;
       }
-      bool isVP = L.Consume("_vp");
+      const bool isVP = L.Consume("_vp");
       return std::make_tuple(isInclusive, opKind, isVP);
     }
   }
@@ -739,9 +739,9 @@ bool VectorizationContext::defineInternalBuiltin(Function *F) {
 
   // Handle subgroup scan operations.
   if (auto scanInfo = isSubgroupScan(F->getName(), F->getReturnType())) {
-    bool isInclusive = std::get<0>(*scanInfo);
-    RecurKind opKind = std::get<1>(*scanInfo);
-    bool isVP = std::get<2>(*scanInfo);
+    const bool isInclusive = std::get<0>(*scanInfo);
+    const RecurKind opKind = std::get<1>(*scanInfo);
+    const bool isVP = std::get<2>(*scanInfo);
     return emitSubgroupScanBody(*F, isInclusive, opKind, isVP);
   }
 
@@ -904,7 +904,7 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
 
   Type *const VecTy = F.getReturnType();
   Type *const EltTy = multi_llvm::getVectorElementType(VecTy);
-  ElementCount EC = multi_llvm::getVectorElementCount(VecTy);
+  const ElementCount EC = multi_llvm::getVectorElementCount(VecTy);
 
   Function::arg_iterator Arg = F.arg_begin();
 
@@ -1069,7 +1069,7 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
 bool VectorizationContext::emitMaskedAtomicBody(
     Function &F, const VectorizationContext::MaskedAtomic &MA) const {
   LLVMContext &Ctx = F.getContext();
-  bool IsCmpXchg = MA.isCmpXchg();
+  const bool IsCmpXchg = MA.isCmpXchg();
 
   auto *const EntryBB = BasicBlock::Create(Ctx, "entry", &F);
 
@@ -1290,7 +1290,7 @@ PreservedAnalyses DefineInternalBuiltinsPass::run(Module &M,
       continue;
     }
     llvm::SmallPtrSet<VectorizationUnit *, 1> UserVUs;
-    for (Use &U : F.uses()) {
+    for (const Use &U : F.uses()) {
       if (CallInst *CI = dyn_cast<CallInst>(U.getUser())) {
         auto R = FAM.getResult<VectorizationUnitAnalysis>(*CI->getFunction());
         if (R.hasResult()) {
@@ -1308,7 +1308,7 @@ PreservedAnalyses DefineInternalBuiltinsPass::run(Module &M,
     }
 
     VectorizationContext &Ctx = (*UserVUs.begin())->context();
-    bool DefinedBuiltin = Ctx.defineInternalBuiltin(&F);
+    const bool DefinedBuiltin = Ctx.defineInternalBuiltin(&F);
     if (!DefinedBuiltin) {
       // If we've failed to define this builtin, ensure we clean up the
       // half-complete body. We can't simply delete it because it will have

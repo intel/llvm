@@ -134,7 +134,7 @@ unsigned SimdWidthAnalysis::avoidSpillImpl(Function &F,
       // the live set at the point before the last (i.e. first) instruction, so
       // we deal with the operands first and then process the live set.
       if (PAR.needsPacketization(&inst)) {
-        bool isGEP = isa<GetElementPtrInst>(&inst);
+        const bool isGEP = isa<GetElementPtrInst>(&inst);
         for (auto operand : inst.operand_values()) {
           if (isa<Instruction>(operand) || isa<Argument>(operand)) {
             if (!isGEP || PAR.needsPacketization(operand)) {
@@ -167,8 +167,9 @@ unsigned SimdWidthAnalysis::avoidSpillImpl(Function &F,
 
 SimdWidthAnalysis::Result SimdWidthAnalysis::run(
     Function &F, llvm::FunctionAnalysisManager &AM) {
-  TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
-  VectorizationUnit &VU = AM.getResult<VectorizationUnitAnalysis>(F).getVU();
+  const TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
+  const VectorizationUnit &VU =
+      AM.getResult<VectorizationUnitAnalysis>(F).getVU();
 
   // If the target does not provide vector registers, return 0.
   MaxVecRegBitWidth =

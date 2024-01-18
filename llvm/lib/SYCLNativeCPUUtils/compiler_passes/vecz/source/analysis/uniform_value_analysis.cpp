@@ -40,7 +40,7 @@ namespace {
 // Find leaves by recursing through an instruction's uses
 bool findStrayLeaves(UniformValueResult &UVR, Instruction &I,
                      DenseSet<Instruction *> &Visited) {
-  for (Use &U : I.uses()) {
+  for (const Use &U : I.uses()) {
     auto *User = U.getUser();
     if (isa<StoreInst>(User) || isa<AtomicRMWInst>(User) ||
         isa<AtomicCmpXchgInst>(User)) {
@@ -129,7 +129,7 @@ static bool isGroupBroadcastOrReduction(
 
 void UniformValueResult::findVectorLeaves(
     std::vector<Instruction *> &Leaves) const {
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       // Reductions and broadcasts are always vector leaves regardless of
@@ -211,7 +211,7 @@ void UniformValueResult::findVectorLeaves(
 }
 
 void UniformValueResult::findVectorRoots(std::vector<Value *> &Roots) const {
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       CallInst *CI = dyn_cast<CallInst>(&I);
@@ -279,7 +279,7 @@ void UniformValueResult::markVaryingValues(Value *V, Value *From) {
     // Some builtins produce a uniform value regardless of their inputs.
     Function *Callee = CI->getCalledFunction();
     if (Callee) {
-      compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+      const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
       const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension);
       const auto Uniformity = Builtin.uniformity;
       if (Uniformity == compiler::utils::eBuiltinUniformityAlways) {
@@ -310,7 +310,7 @@ void UniformValueResult::markVaryingValues(Value *V, Value *From) {
   LLVM_DEBUG(dbgs() << "vecz: Needs packetization: " << *V << "\n");
 
   // Visit all users of V, they are varying too.
-  for (Use &Use : V->uses()) {
+  for (const Use &Use : V->uses()) {
     User *User = Use.getUser();
     markVaryingValues(User, V);
   }
@@ -443,7 +443,7 @@ UniformValueResult UniformValueAnalysis::run(
     Res.markVaryingValues(Root);
   }
 
-  compiler::utils::BuiltinInfo &BI = Res.Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Res.Ctx.builtins();
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       // Find atomic instructions, these are always varying

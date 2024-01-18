@@ -123,7 +123,7 @@ InstructionCost calculateBoolReductionCost(LLVMContext &context, Module *module,
   IRBuilder<> B(BB);
   multi_llvm::createSimpleTargetReduction(B, &TTI, &*F->arg_begin(),
                                           RecurKind::And);
-  InstructionCost cost = calculateBlockCost(*BB, TTI);
+  const InstructionCost cost = calculateBlockCost(*BB, TTI);
 
   // We don't really need that function in the module anymore because it's
   // only purpose was to be used for analysis, so we go ahead and remove it.
@@ -220,12 +220,12 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
   VectorizationUnitAnalysis::Result R =
       AM.getResult<VectorizationUnitAnalysis>(F);
-  TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
-  VectorizationUnit &VU = R.getVU();
+  const TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
+  const VectorizationUnit &VU = R.getVU();
 
   bool modified = false;
   auto &LI = AM.getResult<LoopAnalysis>(F);
-  bool div_exceptions =
+  const bool div_exceptions =
       VU.choices().isEnabled(VectorizationChoices::eDivisionExceptions);
 
   InstructionCost boscc_cost;
@@ -287,7 +287,7 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
       InstructionCost total_cost = 0;
 
       for (auto *succ : hoistable) {
-        InstructionCost block_cost = calculateBlockCost(*succ, TTI);
+        const InstructionCost block_cost = calculateBlockCost(*succ, TTI);
         if (block_cost < min_cost) {
           min_cost = block_cost;
         }

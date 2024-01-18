@@ -83,7 +83,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
                                                 FunctionAnalysisManager &AM) {
   auto &Ctx = AM.getResult<VectorizationContextAnalysis>(F).getContext();
 
-  TargetInfo &VTI = Ctx.targetInfo();
+  const TargetInfo &VTI = Ctx.targetInfo();
   std::vector<Instruction *> ToDelete;
   for (Function &Builtin : F.getParent()->functions()) {
     std::optional<MemOpDesc> BuiltinDesc =

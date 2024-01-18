@@ -212,7 +212,8 @@ void LivenessResult::Impl::mark(Value *V, const BasicBlock *parent,
 
 void LivenessResult::Impl::calculateMaxRegistersInBlock(const BasicBlock *BB) {
   auto &BI = LR.BlockInfos[BB];
-  SmallPtrSet<const Value *, 16> liveOut(BI.LiveOut.begin(), BI.LiveOut.end());
+  const SmallPtrSet<const Value *, 16> liveOut(BI.LiveOut.begin(),
+                                               BI.LiveOut.end());
   SmallPtrSet<const Value *, 16> seenButNotInLiveOut;
 
   auto maxRegistersUsed = liveOut.size();
