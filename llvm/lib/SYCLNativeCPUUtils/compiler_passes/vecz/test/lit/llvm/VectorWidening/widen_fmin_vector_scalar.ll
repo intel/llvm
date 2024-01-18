@@ -57,7 +57,7 @@ entry:
 ; scalar operand is sub-splatted to the required <16 x float>.
 ; CHECK: %[[LDA:.+]] = load <16 x float>, ptr %{{.+}}
 ; CHECK: %[[LDB:.+]] = load <4 x float>, ptr %{{.+}}
-; CHECK: %[[SPL:.+]] = shufflevector <4 x float> %[[LDB]], <4 x float> undef, <16 x i32> <i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3>
+; CHECK: %[[SPL:.+]] = shufflevector <4 x float> %[[LDB]], <4 x float> {{undef|poison}}, <16 x i32> <i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3>
 ; CHECK: %[[RES:.+]] = call <16 x float> @llvm.minnum.v16f32(<16 x float> %[[LDA]], <16 x float> %[[SPL]])
 ; CHECK: store <16 x float> %[[RES]], ptr %{{.+}}
 

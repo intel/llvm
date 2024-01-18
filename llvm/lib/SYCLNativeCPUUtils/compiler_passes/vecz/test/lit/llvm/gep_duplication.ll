@@ -31,21 +31,20 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 define spir_kernel void @gep_duplication(ptr addrspace(1) align 4 %out) {
 entry:
   %out.addr = alloca ptr addrspace(1), align 8
-  %global_id = alloca i32, align 4
+  %global_id = alloca i64, align 8
   %myStruct = alloca %struct.testStruct, align 4
   store ptr addrspace(1) %out, ptr %out.addr, align 8
   %call = call i64 @__mux_get_global_id(i32 0) #2
-  %conv = trunc i64 %call to i32
-  store i32 %conv, ptr %global_id, align 4
+  store i64 %call, ptr %global_id, align 8
   %x = getelementptr inbounds %struct.testStruct, ptr %myStruct, i32 0, i32 0
   %arrayidx = getelementptr inbounds [2 x i32], ptr %x, i64 0, i64 0
   store i32 0, ptr %arrayidx, align 4
   %x1 = getelementptr inbounds %struct.testStruct, ptr %myStruct, i32 0, i32 0
   %arrayidx2 = getelementptr inbounds [2 x i32], ptr %x1, i64 0, i64 1
   store i32 1, ptr %arrayidx2, align 4
-  %0 = load i32, ptr %global_id, align 4
-  %and = and i32 %0, 1
-  %tobool = icmp ne i32 %and, 0
+  %0 = load i64, ptr %global_id, align 8
+  %and = and i64 %0, 1
+  %tobool = icmp ne i64 %and, 0
   br i1 %tobool, label %if.then, label %if.else
 
 if.then:                                          ; preds = %entry

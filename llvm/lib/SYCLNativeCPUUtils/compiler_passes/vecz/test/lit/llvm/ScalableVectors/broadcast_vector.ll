@@ -150,7 +150,7 @@ entry:
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC5]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> {{(undef|poison)}})
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    store <4 x i32> zeroinitializer, ptr [[EXISTING_ALLOC]], align 16
-; CHECK-NEXT:    store i32 1, ptr [[EXISTING_ALLOC]], align 16
+; CHECK-NEXT:    store i32 1, ptr [[EXISTING_ALLOC]], align
 ; CHECK-NEXT:    [[V:%.*]] = load <4 x i32>, ptr [[EXISTING_ALLOC]], align 16
 ; CHECK-NEXT:    store <4 x i32> [[V]], ptr [[FIXLEN_ALLOC]], align 16
 ; CHECK-NEXT:    [[TMP2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>

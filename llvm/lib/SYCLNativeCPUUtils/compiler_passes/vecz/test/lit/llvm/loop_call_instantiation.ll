@@ -46,7 +46,7 @@ declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 ; CHECK: %[[V4:[0-9]+]] = extractelement <4 x i64> %0, i32 %[[INSTANCE1]]
 ; CHECK: %[[V5:[0-9]+]] = extractelement <4 x i32> %{{.+}}, i32 %[[INSTANCE1]]
 ; CHECK: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) @{{.+}}, i64 %[[V4]], i32 %[[V5]])
-; CHECK: %[[V7]] = add i32 %[[INSTANCE1]], 1
+; CHECK: %[[V7]] = add {{(nuw |nsw )*}}i32 %[[INSTANCE1]], 1
 ; CHECK: br label %[[LOOPHEADER1]]
 
 ; CHECK: [[LOOPHEADER2:instloop.header.*]]:
@@ -57,7 +57,7 @@ declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 ; CHECK: [[LOOPBODY2]]:
 ; CHECK: %[[V9:[0-9]+]] = extractelement <4 x i64> %0, i32 %[[INSTANCE3]]
 ; CHECK: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) @{{.+}}, i64 %[[V9]])
-; CHECK: %[[V11]] = add i32 %[[INSTANCE3]], 1
+; CHECK: %[[V11]] = add {{(nuw |nsw )*}}i32 %[[INSTANCE3]], 1
 ; CHECK: br label %[[LOOPHEADER2]]
 
 ; CHECK: ret void
