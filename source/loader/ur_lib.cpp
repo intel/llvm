@@ -13,7 +13,9 @@
 // avoids windows.h from defining macros for min and max
 // which avoids playing havoc with std::min and std::max
 // (not quite sure why windows.h is being included here)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif // !NOMINMAX
 
 #include "ur_lib.hpp"
 #include "logger/ur_logger.hpp"
@@ -457,7 +459,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                    std::tolower(static_cast<unsigned char>(b));
                         })) {
             // irrelevant term for current request: different backend -- silently ignore
-            logger::warning("WARNING: ignoring term with irrelevant backend '{}'", backend);
+            logger::warning(
+                "WARNING: ignoring term with irrelevant backend '{}'", backend);
             continue;
         }
         if (termPair.second.size() == 0) {
