@@ -10869,6 +10869,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phKernel));
 
     os << ", ";
+    os << ".localWorkSize = ";
+
+    os << *(params->plocalWorkSize);
+
+    os << ", ";
+    os << ".dynamicSharedMemorySize = ";
+
+    os << *(params->pdynamicSharedMemorySize);
+
+    os << ", ";
     os << ".pGroupCountRet = ";
 
     ur::details::printPtr(os,

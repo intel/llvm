@@ -747,8 +747,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, size_t localWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   (void)hKernel;
+  (void)localWorkSize;
+  (void)dynamicSharedMemorySize;
   *pGroupCountRet = 1;
   return UR_RESULT_SUCCESS;
 }
