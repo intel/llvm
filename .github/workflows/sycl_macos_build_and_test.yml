@@ -38,6 +38,10 @@ jobs:
         path: build_cache_${{ inputs.build_cache_suffix }}
         key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-${{ github.sha }}
         restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-
+    - name: Debug
+      run: |
+        echo "#include <cmath>" > a.cpp
+        c++ -std=c++17 -E -C -dD a.cpp -o -
     - name: Configure
       env:
         ARGS: ${{ inputs.build_configure_extra_args }}
