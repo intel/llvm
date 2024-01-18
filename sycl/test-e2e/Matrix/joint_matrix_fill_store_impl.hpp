@@ -50,13 +50,13 @@ void matrix_fill_store(big_matrix<T1, TM, TN> &C, big_matrix<T2, TM, TK> &A,
            // joint_matrix_fill(sg, sub_b, 5.0);
            joint_matrix_fill(sg, sub_c, 5.0);
 
-          //  ext::intel::experimental::matrix::joint_matrix_store(
-          //      sg, sub_a, accA.template get_multi_ptr<access::decorated::no>(),
-          //      TK);
+           //  ext::intel::experimental::matrix::joint_matrix_store(
+           //      sg, sub_a, accA.template
+           //      get_multi_ptr<access::decorated::no>(), TK);
 
-          //  ext::intel::experimental::matrix::joint_matrix_store(
-          //      sg, sub_b, accB.template get_multi_ptr<access::decorated::no>(),
-          //      TN * 2);
+           //  ext::intel::experimental::matrix::joint_matrix_store(
+           //      sg, sub_b, accB.template
+           //      get_multi_ptr<access::decorated::no>(), TN * 2);
 
            joint_matrix_store(
                sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
