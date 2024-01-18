@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstddef>
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
@@ -853,9 +854,9 @@ mock_piextKernelGetNativeHandle(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-inline pi_result
-mock_piextKernelSuggestMaxCooperativeGroupCount(pi_kernel kernel,
-                                                pi_uint32 *group_count_ret) {
+inline pi_result mock_piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret) {
   *group_count_ret = 1;
   return PI_SUCCESS;
 }

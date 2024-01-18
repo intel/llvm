@@ -1662,10 +1662,14 @@ piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 /// Gets the max work group count for a cooperative kernel.
 ///
 /// \param kernel is the PI kernel being queried.
-/// \param group_count_ret is a pointer to where the query result will be
-/// stored.
+/// \param local_work_size is the number of work items in a work group that will
+/// be used when the kernel is launched. \param dynamic_shared_memory_size is
+/// the size of dynamic shared memory, for each work group, in bytes, that will
+/// be used when the kernel is launched." \param group_count_ret is a pointer to
+/// where the query result will be stored.
 __SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
-    pi_kernel kernel, pi_uint32 *group_count_ret);
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret);
 
 //
 // Events

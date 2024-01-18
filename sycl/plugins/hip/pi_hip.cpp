@@ -571,10 +571,11 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   return pi2ur::piextKernelGetNativeHandle(Kernel, NativeHandle);
 }
 
-pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
-                                                     pi_uint32 *GroupCountRet) {
-  return pi2ur::piextKernelSuggestMaxCooperativeGroupCount(Kernel,
-                                                           GroupCountRet);
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
+  return pi2ur::piextKernelSuggestMaxCooperativeGroupCount(
+      Kernel, LocalWorkSize, DynamicSharedMemorySize, GroupCountRet);
 }
 
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {

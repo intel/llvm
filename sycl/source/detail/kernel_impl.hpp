@@ -269,9 +269,11 @@ inline typename ext::oneapi::experimental::info::kernel_queue_specific::
             max_num_work_group_sync>(const queue &Queue) const {
   const auto &Plugin = getPlugin();
   const auto &Handle = getHandleRef();
+  const auto MaxWorkGroupSize =
+      Queue.get_device().get_info<info::device::max_work_group_size>();
   pi_uint32 GroupCount = 0;
   Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
-      Handle, &GroupCount);
+      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
   return GroupCount;
 }
 

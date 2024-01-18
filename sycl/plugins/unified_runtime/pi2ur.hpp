@@ -2581,15 +2581,15 @@ inline pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   return PI_SUCCESS;
 }
 
-inline pi_result
-piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
-                                           pi_uint32 *GroupCountRet) {
+inline pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
   PI_ASSERT(GroupCountRet, PI_ERROR_INVALID_VALUE);
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(
-      urKernelSuggestMaxCooperativeGroupCountExp(UrKernel, GroupCountRet));
+  HANDLE_ERRORS(urKernelSuggestMaxCooperativeGroupCountExp(
+      UrKernel, LocalWorkSize, DynamicSharedMemorySize, GroupCountRet));
 
   return PI_SUCCESS;
 }
