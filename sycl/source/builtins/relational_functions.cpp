@@ -36,7 +36,16 @@ inline namespace _V1 {
   }                                                                            \
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, FP_TYPES)
 #define REL_BUILTIN(NUM_ARGS, NAME)                                            \
-  REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, std::NAME)
+  REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, [](auto... xs) {                          \
+    return std::NAME([](auto x) {                                              \
+      /* Workaround for MacOS that doesn't provide some std::is* functions as  \
+       * overloads over FP types (e.g., isfinite) */                           \
+      if constexpr (std::is_same_v<half, decltype(x)>)                         \
+        return static_cast<float>(x);                                          \
+      else                                                                     \
+        return x;                                                              \
+    }(xs)...);                                                                 \
+  })
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
