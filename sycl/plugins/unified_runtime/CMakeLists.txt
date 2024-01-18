@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/maarquitos14/unified-runtime.git")
-  # commit 75648295df39de3027c989299a0cadb018ea26c8 (HEAD -> maronas/ext_composite_device, origin/maronas/ext_composite_device)
+  # commit 75648295df39de3027c989299a0cadb018ea26c8
   # Merge: a9746c21 c63ad9b2
   # Author: Marcos Maronas <marcos.maronas@intel.com>
   # Date:   Tue Jan 16 09:04:27 2024 -0800
@@ -118,6 +118,8 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
@@ -147,6 +149,9 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h

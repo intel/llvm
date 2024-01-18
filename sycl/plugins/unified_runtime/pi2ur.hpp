@@ -800,11 +800,7 @@ inline pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Platform
-inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
-                                pi_uint32 *NumPlatforms) {
-
+inline pi_result PiGetAdapter(ur_adapter_handle_t &adapter) {
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.
@@ -815,9 +811,23 @@ inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                  [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
   HANDLE_ERRORS(Ret);
 
+  adapter = Adapter;
+
+  return PI_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Platform
+inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
+                                pi_uint32 *NumPlatforms) {
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
   HANDLE_ERRORS(
-      urPlatformGet(&Adapter, 1, NumEntries, phPlatforms, NumPlatforms));
+      urPlatformGet(&adapter, 1, NumEntries, phPlatforms, NumPlatforms));
   return PI_SUCCESS;
 }
 
@@ -843,6 +853,12 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   PI_ASSERT(Platform, PI_ERROR_INVALID_PLATFORM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
@@ -4615,6 +4631,44 @@ inline pi_result piextCommandBufferFillUSM(
 
   HANDLE_ERRORS(urCommandBufferAppendUSMFillExp(
       UrCommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  // flags is currently unused so fail if set
+  PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  // TODO: to map from pi_usm_migration_flags to
+  // ur_usm_migration_flags_t
+  // once we have those defined
+  ur_usm_migration_flags_t UrFlags{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMPrefetchExp(
+      UrCommandBuffer, Ptr, Size, UrFlags, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  // TODO: Handle advice correctly
+  (void)Advice;
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_usm_advice_flags_t UrAdvice{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
+      UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
   return PI_SUCCESS;
 }

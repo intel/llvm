@@ -57,7 +57,7 @@ attributes #3 = { alwaysinline nounwind }
   !"StdLayout", !"StdLayout"
 }
 !20 = !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1}
-!21 = !{!"KernelOne", !19, !20, !{!"work_group_size_hint", !"1", !"1", !"64"}}
+!21 = !{!"KernelOne", !19, !20, !{!"work_group_size_hint", i32 1, i32 1, i32 64}}
 !22 = !{!"KernelTwo", !19, !20}
 !sycl.moduleinfo = !{!21, !22}
 
