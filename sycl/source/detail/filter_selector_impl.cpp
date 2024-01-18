@@ -158,13 +158,11 @@ int filter_selector_impl::operator()(const device &Dev) const {
 }
 
 void filter_selector_impl::reset() const {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This is a bit of an abuse of "const" method...
   // Reset state if you want to reuse this selector.
   for (auto &Filter : mFilters) {
     Filter.MatchesSeen = 0;
   }
-#endif
   mMatchFound = false;
   mNumDevicesSeen = 0;
 }
