@@ -568,8 +568,6 @@ bool device_impl::has(aspect Aspect) const {
            (this->getBackend() == backend::opencl);
   }
   case aspect::ext_oneapi_is_composite: {
-    if (getBackend() != backend::ext_oneapi_level_zero)
-      return false;
     auto components = get_info<
         sycl::ext::oneapi::experimental::info::device::component_devices>();
     // Any device with ext_oneapi_is_composite aspect will have at least two

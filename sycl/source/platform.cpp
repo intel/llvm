@@ -96,7 +96,7 @@ context platform::ext_oneapi_get_default_context() const {
 }
 
 std::vector<device> platform::ext_oneapi_get_composite_devices() const {
-  // Only some Intel GPU architectures can be composite devices.
+  // Only GPU architectures can be composite devices.
   auto GPUDevices = get_devices(info::device_type::gpu);
   // Using ZE_FLAT_DEVICE_HIERARCHY=COMBINED, we receive tiles as devices, which
   // are component devices. Thus, we need to get the composite device for each
@@ -104,12 +104,13 @@ std::vector<device> platform::ext_oneapi_get_composite_devices() const {
   std::vector<device> Composites;
   std::vector<device> Result;
   for (auto &Dev : GPUDevices) {
-    if (Dev.has(sycl::aspect::ext_oneapi_is_component)) {
-      auto Composite = Dev.get_info<
-          sycl::ext::oneapi::experimental::info::device::composite_device>();
-      if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
-        Composites.push_back(Composite);
-    }
+    if (!Dev.has(sycl::aspect::ext_oneapi_is_component))
+      continue;
+
+    auto Composite = Dev.get_info<
+        sycl::ext::oneapi::experimental::info::device::composite_device>();
+    if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
+      Composites.push_back(Composite);
   }
   for (const auto &Composite : Composites) {
     auto Components = Composite.get_info<

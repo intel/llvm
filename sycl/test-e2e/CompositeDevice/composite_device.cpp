@@ -2,7 +2,6 @@
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %{run} %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE %{run} %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %{run} %t.out
-// REQUIRES: level-zero
 
 #include <sycl/sycl.hpp>
 
@@ -33,7 +32,7 @@ int main() {
 
       // If ZE_FLAT_DEVICE_HIERARCHY != COMBINED,
       // sycl::aspect::ext_oneapi_is_component must be false.
-      assert(!(!IsCombined && D.has(sycl::aspect::ext_oneapi_is_component)));
+      assert(IsCombined || !D.has(sycl::aspect::ext_oneapi_is_component));
     }
 
     for (const auto &P : Platforms) {
@@ -73,8 +72,7 @@ int main() {
       auto CompositeDevs = P.ext_oneapi_get_composite_devices();
       bool IsL0 = isL0Backend(P.get_backend());
       // Check C.
-      if (!IsL0 || !IsCombined)
-        assert(CompositeDevs.empty());
+      assert(CompositeDevs.empty() || (IsL0 && IsCombined));
 
       for (const auto &D : CompositeDevs) {
         if (std::find(CombinedCompositeDevs.begin(),
@@ -85,13 +83,15 @@ int main() {
     }
     // Check A. and B.
     assert(AllCompositeDevs.size() == CombinedCompositeDevs.size());
-    for (size_t i = 0; i < AllCompositeDevs.size(); ++i) {
-      const auto &D1 = AllCompositeDevs[i];
-      const auto &D2 = CombinedCompositeDevs[i];
-      assert(D1 == D2);
-      assert(D1.has(sycl::aspect::ext_oneapi_is_composite));
-      assert(D2.has(sycl::aspect::ext_oneapi_is_composite));
-    }
+    assert(std::all_of(AllCompositeDevs.begin(), AllCompositeDevs.end(),
+                       [&](const sycl::device &D) {
+                         const bool Found =
+                             std::find(CombinedCompositeDevs.begin(),
+                                       CombinedCompositeDevs.end(),
+                                       D) != CombinedCompositeDevs.end();
+                         return Found &&
+                                D.has(sycl::aspect::ext_oneapi_is_composite);
+                       }));
 
     // Check D.
     std::vector<sycl::device> AllCompositeDevs2 = get_composite_devices();
@@ -100,8 +100,7 @@ int main() {
       auto CompositeDevs = P.ext_oneapi_get_composite_devices();
       bool IsL0 = isL0Backend(P.get_backend());
       // Check C.
-      if (!IsL0 || !IsCombined)
-        assert(CompositeDevs.empty());
+      assert(CompositeDevs.empty() || (IsL0 && IsCombined));
 
       for (const auto &D : CompositeDevs) {
         if (std::find(CombinedCompositeDevs2.begin(),
@@ -125,10 +124,7 @@ int main() {
   {
     auto Devs = sycl::device::get_devices();
     for (const auto &D : Devs) {
-      bool IsL0 = isL0Backend(D.get_backend());
-      if (!IsL0 || !IsCombined)
-        continue;
-      // Check B.
+      //  Check B.
       assert(!D.has(sycl::aspect::ext_oneapi_is_composite));
       auto Components = D.get_info<info::device::component_devices>();
       assert(Components.empty());

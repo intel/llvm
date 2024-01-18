@@ -1140,8 +1140,9 @@ struct get_device_info_impl<
       return createSyclObjFromImpl<device>(
           Platform->getOrMakeDeviceImpl(Result, Platform));
     }
-    assert(false && "Something went wrong.");
-    return {};
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "A component with aspect::ext_oneapi_is_component "
+                          "must have a composite device.");
   }
 };
 
