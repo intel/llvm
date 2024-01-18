@@ -17,6 +17,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include <algorithm>
 #include <sstream>
 
 using namespace clang::driver;
@@ -311,6 +312,21 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (SanitizeVal == "address")
         addLibraries(SYCLDeviceSanitizerLibs);
     }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    bool IsDeviceAsanEnabled = false;
+    auto SyclFEArg = Args.getAllArgValues(options::OPT_Xsycl_frontend);
+    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
+                                      "-fsanitize=address") > 0);
+    if (!IsDeviceAsanEnabled) {
+      auto SyclFEArgEq = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
+      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
+                                        "-fsanitize=address") > 0);
+    }
+    if (IsDeviceAsanEnabled)
+      addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
   return LibraryList;
