@@ -11,7 +11,7 @@ target triple = "spir64-unknown-unknown"
 @va = dso_local global %"class.sycl::_V1::ext::intel::esimd::simd" zeroinitializer, align 64 #0
 @vb = dso_local global %"class.sycl::_V1::ext::intel::esimd::simd" zeroinitializer, align 64 #0
 
-define weak_odr dso_local spir_kernel void @foo() {
+define weak_odr dso_local spir_kernel void @foo() #1 {
 %1 = call <16 x float> asm "", "=rw"()
 ; CHECK: call void @llvm.genx.vstore.v16f32.p0(<16 x float> %1, ptr @va)
 store <16 x float> %1, ptr @va
@@ -21,4 +21,5 @@ ret void
 }
 
 attributes #0 = { "genx_byte_offset"="0" "genx_volatile" }
-attributes #1 = { "" }
+; CHECK-NOT: noinline
+attributes #1 = { noinline }

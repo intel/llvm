@@ -37,6 +37,12 @@ define dso_local spir_kernel void @KERNEL(ptr addrspace(4) %ptr) !sycl_explicit_
   ret void
 }
 
+; Function with "noinline" attribute must be marked with "alwaysinline" if it is an ESIMD namespace function
+define dso_local spir_func void @_ZNK4sycl3_V13ext5intel5esimd6detail13simd_obj_implIiLi16ENS3_4simdIiLi16EEEvE4dataEv(ptr addrspace(4) %ptr) #1 {
+; CHECK: define dso_local spir_func void @_ZNK4sycl3_V13ext5intel5esimd6detail13simd_obj_implIiLi16ENS3_4simdIiLi16EEEvE4dataEv(ptr addrspace(4) %ptr) #[[ATTRS1]] {
+ret void
+}
+
 
 attributes #0 = { "VCStackCall" }
 attributes #1 = { noinline }
