@@ -24,10 +24,9 @@ namespace ext::oneapi::experimental {
 /// image type enum
 enum class image_type : unsigned int {
   standard = 0,
-  interop = 1,
-  mipmap = 2,
-  cubemap = 3, /* Not implemented */
-  layered = 4, /* Not implemented */
+  mipmap = 1,
+  cubemap = 2, /* Not implemented */
+  layered = 3, /* Not implemented */
 };
 
 /// A struct to describe the properties of an image.
