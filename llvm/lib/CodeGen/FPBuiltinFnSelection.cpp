@@ -13,13 +13,13 @@
 
 #include "llvm/CodeGen/FPBuiltinFnSelection.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 
 using namespace llvm;
 
