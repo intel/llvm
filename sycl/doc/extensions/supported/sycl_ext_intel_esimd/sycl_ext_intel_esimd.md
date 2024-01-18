@@ -77,9 +77,8 @@ compiler, collectives just return the value in the single work-item. Another
 consequence of the unit subgroup size is guaranteed independent forward
 progress between work-items on many Intel GPU architecture generations.
 
-Explicit SIMD APIs can be used only in the code to be executed on Intel graphics
-architecture devices. Attempt to run such code on other devices will result in
-error.
+Explicit SIMD APIs must be executed on Intel graphics architecture devices.
+Attempting to run such code on other devices will result in an error.
 
 Also, most of ESIMD APIs require the corresponding HW support in the target GPU.
 It is user's responsibility to manage corresponding compile- and/or runtime-checks to avoid
@@ -1128,16 +1127,16 @@ more examples can be found in the
 
 ## Device queries and conditional dispatching of the code
 
-ESIMD API provides the access to low level GPU hardware API. At the ESIMD program
+ESIMD API provides access to low level GPU hardware API. At ESIMD program
 compilation time it is not known what target device is going to be used to run the program.
-ESIMD programming model relies on user to manage the corresponding compile- and/or
-runtime-checks that prevents ESIMD API from running on GPU that does not support such API.
+The ESIMD programming model relies on the user to manage the corresponding compile- and/or
+runtime-checks to prevent ESIMD API from running on a GPU that does not support the API.
 
-One of the most trivial way to manage such checks is to have them on HOST. This variant
+One of the most trivial ways to manage such checks is to have them on the HOST. This variant
 includes a) calling device detect query to understand what device is being used
 b) depending on the device run one or another version of the kernel.
 For example, [this test](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_int.cpp#L8) is designed to be run on DG2 and PVC even though those two devices have
-different `execution size`. This is done via usage of [device query on HOST](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L430) and subsequent
+different `execution sizes`. This is done via usage of [device query on the HOST](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L430) and a subsequent
 call of the corresponding supported variant of the [DG2 kernel](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L446) or [PVC kernel](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L438).
 
 There may also be JIT-compile time checks via usage of [specialization constants](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_specialization_constants) or [if_architecture_is](../../experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension.
