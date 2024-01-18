@@ -65,7 +65,7 @@ inline Type *getWideType(Type *ty, ElementCount factor) {
   assert((!factor.isScalable() || !isScalable) &&
          "Can't widen a scalable vector by a scalable amount");
   auto *vecTy = cast<llvm::VectorType>(ty);
-  unsigned elts = vecTy->getElementCount().getKnownMinValue();
+  const unsigned elts = vecTy->getElementCount().getKnownMinValue();
   // If we're widening a scalable type then set the fixed factor to scalable
   // here.
   if (isScalable && !factor.isScalable()) {
@@ -245,7 +245,7 @@ bool createSubSplats(const vecz::TargetInfo &TI, IRBuilder<> &B,
     return false;
   }
 
-  unsigned srcWidth = vecTy->getNumElements();
+  const unsigned srcWidth = vecTy->getNumElements();
 
   // Build shuffle mask to widen the vector condition.
   SmallVector<int, 16> mask;
@@ -424,7 +424,7 @@ Value *Packetizer::Result::getAsValue() const {
     // Gathering an instantiated vector by concatenating all the lanes
     auto parts = narrow(2);
     auto *vecTy = cast<FixedVectorType>(parts.front()->getType());
-    unsigned fullWidth = vecTy->getNumElements() * 2;
+    const unsigned fullWidth = vecTy->getNumElements() * 2;
 
     SmallVector<int, 16> mask;
     for (size_t j = 0; j < fullWidth; ++j) {
@@ -480,7 +480,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
   Value *vec = info->vector;
   if (auto *const vecTy = dyn_cast<FixedVectorType>(vec->getType())) {
     assert(isa<FixedVectorType>(vecTy) && "Must be a fixed vector type here!");
-    unsigned scalarWidth = vecTy->getNumElements() / width;
+    const unsigned scalarWidth = vecTy->getNumElements() / width;
     if (scalarWidth > 1) {
       auto *const undef = UndefValue::get(vec->getType());
 
@@ -716,9 +716,9 @@ const Packetizer::Result &Packetizer::Result::broadcast(unsigned width) const {
     result = createScalableBroadcastOfFixedVector(TI, B, scalar, factor);
   } else if (ty->isVectorTy()) {
     auto *const vecTy = cast<FixedVectorType>(ty);
-    unsigned scalarWidth = vecTy->getNumElements();
+    const unsigned scalarWidth = vecTy->getNumElements();
 
-    unsigned simdWidth = factor.getFixedValue();
+    const unsigned simdWidth = factor.getFixedValue();
 
     // Build shuffle mask to perform the splat.
     SmallVector<int, 16> mask;

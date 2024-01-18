@@ -85,7 +85,7 @@ void Reachability::recalculate(Function &F) {
         continue;
       }
 
-      size_t succIndex = indexMap[succ];
+      const size_t succIndex = indexMap[succ];
 
       node.successors.push_back(succIndex);
       auto &succNode = graph[succIndex];
@@ -95,13 +95,13 @@ void Reachability::recalculate(Function &F) {
 
     if (auto *DTNode = DT.getNode(&BB)) {
       if (auto *IDom = DTNode->getIDom()) {
-        size_t dom = indexMap[IDom->getBlock()];
+        const size_t dom = indexMap[IDom->getBlock()];
         node.dom = dom;
       }
     }
     if (auto *PDTNode = PDT.getNode(&BB)) {
       if (auto *IPDom = PDTNode->getIDom()) {
-        size_t postDom = indexMap[IPDom->getBlock()];
+        const size_t postDom = indexMap[IPDom->getBlock()];
         node.postDom = postDom;
       }
     }
@@ -133,12 +133,12 @@ void Reachability::recalculate(Function &F) {
   std::vector<size_t> rootsY = roots;
 
   while (!roots.empty()) {
-    size_t u = roots.back();
+    const size_t u = roots.back();
     roots.pop_back();
 
     auto &uNode = graph[u];
     uNode.X = Xindex++;
-    for (size_t v : uNode.successors) {
+    for (const size_t v : uNode.successors) {
       auto &vNode = graph[v];
       if (--vNode.predTmp == 0) {
         roots.push_back(v);
@@ -160,14 +160,14 @@ void Reachability::recalculate(Function &F) {
   // the property of a max heap. No need to make_heap!
   while (!roots.empty()) {
     std::pop_heap(roots.begin(), roots.end(), cmpY);
-    size_t u = roots.back();
+    const size_t u = roots.back();
     roots.pop_back();
 
     auto &uNode = graph[u];
     uNode.Y = Yindex++;
     for (auto vi = uNode.successors.rbegin(), ve = uNode.successors.rend();
          vi != ve; ++vi) {
-      size_t v = *vi;
+      const size_t v = *vi;
       auto &vNode = graph[v];
       if (--vNode.predTmp == 0) {
         roots.push_back(v);
@@ -183,7 +183,7 @@ void Reachability::recalculate(Function &F) {
       dbgs() << BB.getName() << ":\n";
       dbgs() << "[ " << node.X << ", " << node.Y << " ] : ";
       dbgs() << "( " << node.dom << ", " << node.postDom << " ) : ";
-      for (size_t s : node.successors) {
+      for (const size_t s : node.successors) {
         if (graph[s].X <= graph[i].X) {
           dbgs() << "!x!";
         }
@@ -202,7 +202,7 @@ void Reachability::recalculate(Function &F) {
 
 bool Reachability::validate() const {
   for (auto &node : graph) {
-    for (size_t s : node.successors) {
+    for (const size_t s : node.successors) {
       if (graph[s].X <= node.X || graph[s].Y <= node.Y) {
         return false;
       }
@@ -223,8 +223,8 @@ bool Reachability::isReachableImpl(size_t from, size_t to) const {
       return false;
     }
 
-    size_t dom = nodeTo.dom;
-    size_t postDom = nodeFrom.postDom;
+    const size_t dom = nodeTo.dom;
+    const size_t postDom = nodeFrom.postDom;
     if (dom == from || postDom == to) {
       return true;
     }
@@ -244,7 +244,7 @@ bool Reachability::isReachableImpl(size_t from, size_t to) const {
     }
 
     // possible false positive, so check recursively..
-    for (size_t succ : nodeFrom.successors) {
+    for (const size_t succ : nodeFrom.successors) {
       if (succ == to) {
         return true;
       }

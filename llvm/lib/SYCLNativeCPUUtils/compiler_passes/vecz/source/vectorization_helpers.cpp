@@ -40,14 +40,14 @@ namespace {
 Function *declareFunction(const VectorizationUnit &VU) {
   Module &Module = VU.context().module();
   const Function *const ScalarFn = VU.scalarFunction();
-  ElementCount SimdWidth = VU.width();
+  const ElementCount SimdWidth = VU.width();
 
   // For kernels, the vectorized function type is is the same as the original
   // scalar function type, since function arguments are uniform. We no longer
   // use Vectorization Units for builtins.
   FunctionType *VectorizedFnType = VU.scalarFunction()->getFunctionType();
   VECZ_FAIL_IF(!VectorizedFnType);
-  std::string VectorizedName =
+  const std::string VectorizedName =
       getVectorizedFunctionName(ScalarFn->getName(), SimdWidth, VU.choices());
   Module.getOrInsertFunction(VectorizedName, VectorizedFnType);
   auto *const VectorizedFn = Module.getFunction(VectorizedName);
@@ -68,7 +68,7 @@ Function *declareFunction(const VectorizationUnit &VU) {
 /// the vectorized kernel.
 void cloneOpenCLNamedMetadataHelper(const VectorizationUnit &VU,
                                     const std::string &NodeName) {
-  Module &M = VU.context().module();
+  const Module &M = VU.context().module();
 
   // Try to get the OpenCL metadata
   NamedMDNode *KernelsMD = M.getNamedMetadata(NodeName);
@@ -151,8 +151,8 @@ namespace vecz {
 std::string getVectorizedFunctionName(StringRef ScalarName, ElementCount VF,
                                       VectorizationChoices Choices,
                                       bool IsBuiltin) {
-  Twine Prefix = Twine(VF.isScalable() ? "nxv" : "v");
-  Twine IsVP = Twine(Choices.vectorPredication() ? "_vp_" : "_");
+  const Twine Prefix = Twine(VF.isScalable() ? "nxv" : "v");
+  const Twine IsVP = Twine(Choices.vectorPredication() ? "_vp_" : "_");
   return ((IsBuiltin ? VectorizationContext::InternalBuiltinPrefix
                      : Twine("__vecz_")) +
           Prefix + Twine(VF.getKnownMinValue()) + IsVP + ScalarName)
@@ -222,7 +222,7 @@ Function *cloneFunctionToVector(const VectorizationUnit &VU) {
     LLVMContext &Ctx = VectorizedFn->getContext();
     AttributeList PAL = VectorizedFn->getAttributes();
     bool RemovedAttribute = false;
-    for (Attribute::AttrKind Kind : {Attribute::ZExt, Attribute::SExt}) {
+    for (const Attribute::AttrKind Kind : {Attribute::ZExt, Attribute::SExt}) {
       if (PAL.hasRetAttr(Kind)) {
         PAL = PAL.removeRetAttribute(Ctx, Kind);
         RemovedAttribute = true;

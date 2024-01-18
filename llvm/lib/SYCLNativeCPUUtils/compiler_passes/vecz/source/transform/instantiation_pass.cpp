@@ -58,7 +58,7 @@ InstantiationPass::InstantiationPass(Packetizer &pp)
 PacketRange InstantiationPass::instantiate(Value *V) {
   VECZ_FAIL_IF(packetizer.width().isScalable());
   if (auto info = packetizer.getPacketized(V)) {
-    unsigned SimdWidth = packetizer.width().getFixedValue();
+    const unsigned SimdWidth = packetizer.width().getFixedValue();
     return info.getAsPacket(SimdWidth);
   }
 
@@ -66,7 +66,7 @@ PacketRange InstantiationPass::instantiate(Value *V) {
   // items.
   auto *Ins = dyn_cast<Instruction>(V);
   if (Ins && packetizer.uniform().isMaskVarying(V)) {
-    PacketRange P = simdBroadcast(Ins);
+    const PacketRange P = simdBroadcast(Ins);
     if (!P) {
       emitVeczRemark(&packetizer.function(), V,
                      "Failed to broadcast Mask Varying instruction");
@@ -90,7 +90,7 @@ PacketRange InstantiationPass::instantiateInternal(Value *V) {
   if (packetizer.uniform().isVarying(V)) {
     // The packetizer will call back into the instantiator when it needs to
     VECZ_FAIL_IF(packetizer.width().isScalable());
-    unsigned SimdWidth = packetizer.width().getFixedValue();
+    const unsigned SimdWidth = packetizer.width().getFixedValue();
     return packetizer.packetize(V).getAsPacket(SimdWidth);
   } else {
     return instantiate(V);
@@ -126,7 +126,7 @@ PacketRange InstantiationPass::assignInstance(const PacketRange P, Value *V) {
 
 PacketRange InstantiationPass::broadcast(Value *V) {
   VECZ_FAIL_IF(packetizer.width().isScalable());
-  unsigned SimdWidth = packetizer.width().getFixedValue();
+  const unsigned SimdWidth = packetizer.width().getFixedValue();
   PacketRange P = packetizer.createPacket(V, SimdWidth);
   for (unsigned i = 0; i < SimdWidth; i++) {
     P[i] = V;
@@ -136,9 +136,9 @@ PacketRange InstantiationPass::broadcast(Value *V) {
 
 PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
   VECZ_FAIL_IF(packetizer.width().isScalable());
-  unsigned SimdWidth = packetizer.width().getFixedValue();
+  const unsigned SimdWidth = packetizer.width().getFixedValue();
   // Handle special call instructions that return a lane ID.
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   const auto Builtin = BI.analyzeBuiltinCall(*CI, packetizer.dimension());
   if (Builtin.properties & compiler::utils::eBuiltinPropertyWorkItem) {
     const auto Uniformity = Builtin.uniformity;
@@ -249,7 +249,7 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
 
 PacketRange InstantiationPass::instantiateAlloca(AllocaInst *Alloca) {
   VECZ_FAIL_IF(packetizer.width().isScalable());
-  unsigned SimdWidth = packetizer.width().getFixedValue();
+  const unsigned SimdWidth = packetizer.width().getFixedValue();
   PacketRange P = packetizer.createPacket(Alloca, SimdWidth);
   VECZ_FAIL_IF(!P);
   IRBuilder<> B(Alloca);

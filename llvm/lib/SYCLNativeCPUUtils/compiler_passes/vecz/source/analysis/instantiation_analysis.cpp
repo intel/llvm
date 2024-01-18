@@ -78,8 +78,9 @@ bool analyzeCall(const VectorizationContext &Ctx, CallInst *CI) {
 
   // Functions returning void must have side-effects.
   // We cannot vectorize them and instead we need to instantiate them.
-  bool HasSideEffects = Callee->getReturnType()->isVoidTy() ||
-                        (Props & compiler::utils::eBuiltinPropertySideEffects);
+  const bool HasSideEffects =
+      Callee->getReturnType()->isVoidTy() ||
+      (Props & compiler::utils::eBuiltinPropertySideEffects);
   if (HasSideEffects &&
       (Props & compiler::utils::eBuiltinPropertySupportsInstantiation)) {
     return true;

@@ -208,7 +208,7 @@ const Value *Heuristics::shouldVectorizeVisitCmpOperand(
 
   if (const CallInst *CI = dyn_cast<const CallInst>(Val)) {
     // We only care if the CallInst does involve a call to a work-item builtin.
-    compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+    const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
     const auto Uniformity = BI.analyzeBuiltinCall(*CI, SimdDimIdx).uniformity;
     if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
         Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
@@ -234,7 +234,7 @@ Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmp(
   const Value *RHS =
       shouldVectorizeVisitCmpOperand(Cmp->getOperand(1), Cmp, Cache);
 
-  CmpInst::Predicate pred = Cmp->getPredicate();
+  const CmpInst::Predicate pred = Cmp->getPredicate();
 
   BrClauseKind vectorize = BrClauseKind::None;
   // The CmpInst may involve two CallInst, or it may involve only one but
@@ -243,7 +243,7 @@ Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmp(
     vectorize = shouldVectorizeVisitCmpOperands(RHS, pred);
   }
   if (llvm::isa_and_nonnull<const CallInst>(RHS)) {
-    BrClauseKind RHSStatus = shouldVectorizeVisitCmpOperands(LHS, pred);
+    const BrClauseKind RHSStatus = shouldVectorizeVisitCmpOperands(LHS, pred);
     // This should never happen but in case it does, we want to "void" the
     // result and vectorize!
     if (vectorize != BrClauseKind::None && vectorize != RHSStatus) {
@@ -293,7 +293,7 @@ bool Heuristics::shouldVectorize() {
       if (isa<StoreInst>(&I) || isa<LoadInst>(&I)) {
         weight++;
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
-        compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+        const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
         if (Function *Callee = CI->getCalledFunction()) {
           auto const builtin = BI.analyzeBuiltin(*Callee);
           if (!(builtin.properties &
@@ -333,7 +333,7 @@ bool Heuristics::shouldVectorize() {
   Instruction *TI = BB.getTerminator();
   if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
     if (BI->isConditional()) {
-      BrClauseKind clause = shouldVectorizeVisitBr(BI->getCondition());
+      const BrClauseKind clause = shouldVectorizeVisitBr(BI->getCondition());
       unsigned succWeight = 0;
       if (clause != BrClauseKind::None) {
         BasicBlock *start = nullptr;

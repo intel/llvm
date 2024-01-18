@@ -64,7 +64,7 @@ Value *processCallSite(CallInst *CI, bool &NeedLLVMInline,
   const auto Builtin = BI.analyzeBuiltin(*Callee);
   if (Builtin.properties &
       compiler::utils::eBuiltinPropertyInlinePostVectorization) {
-    SmallVector<Value *, 4> Args(CI->args());
+    const SmallVector<Value *, 4> Args(CI->args());
     if (Value *Impl = BI.emitBuiltinInline(Callee, B, Args)) {
       VECZ_ERROR_IF(
           Impl->getType() != CI->getType(),

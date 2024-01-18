@@ -342,7 +342,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
 PreservedAnalyses UniformReassociationPass::run(Function &F,
                                                 FunctionAnalysisManager &AM) {
   Reassociator reassociator;
-  bool changed = reassociator.run(F, AM);
+  const bool changed = reassociator.run(F, AM);
   (void)changed;
 
   PreservedAnalyses PA;
