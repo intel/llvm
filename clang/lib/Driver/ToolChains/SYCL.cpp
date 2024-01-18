@@ -334,7 +334,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16",
+      "nativecpu_utils"
 };
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
