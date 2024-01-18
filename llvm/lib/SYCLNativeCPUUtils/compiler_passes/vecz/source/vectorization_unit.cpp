@@ -93,7 +93,7 @@ void VectorizationUnit::setWidth(ElementCount NewWidth) {
   SimdWidth = NewWidth;
 
   // Determine the vectorized function's name and try to look it up.
-  std::string VectorizedName =
+  const std::string VectorizedName =
       getVectorizedFunctionName(ScalarFn->getName(), SimdWidth, Choices);
   if (VectorizedFn) {
     VectorizedFn->setName(VectorizedName);

@@ -100,7 +100,7 @@ Value *Scalarizer::getGather(Value *V) {
   }
 
   auto *VecTy = cast<FixedVectorType>(V->getType());
-  unsigned SimdWidth = VecTy->getNumElements();
+  const unsigned SimdWidth = VecTy->getNumElements();
 
   SimdPacket *P = getPacket(V, SimdWidth, false);
   assert(P);
@@ -152,7 +152,7 @@ bool Scalarizer::scalarizeAll() {
   for (Value *V : ToScalarize) {
     auto *VecTy = getVectorType(V);
     assert(VecTy && "Trying to scalarize a non-vector");
-    unsigned SimdWidth = VecTy->getNumElements();
+    const unsigned SimdWidth = VecTy->getNumElements();
     // In the SimdPacket we use a mask that is stored as a uint64_t. Due
     // to that, there is a limit on the vector size that Vecz can
     // handle.
@@ -225,7 +225,7 @@ Value *Scalarizer::scalarizeOperands(Instruction *I) {
     // printf calls:
     if (!Callee->isIntrinsic()) {
       // Check if this is indeed a printf call
-      compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+      const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
       const auto ID = BI.analyzeBuiltin(*Callee).ID;
       if (ID == BI.getPrintfBuiltin()) {
         return scalarizeOperandsPrintf(CI);
@@ -257,7 +257,7 @@ Value *Scalarizer::scalarizeOperandsPrintf(CallInst *CI) {
   // Get the format string as a string
   GlobalVariable *FmtStringGV = GetFormatStringAsValue(CI->getArgOperand(0));
   VECZ_STAT_FAIL_IF(!FmtStringGV, VeczScalarizeFailCall);
-  std::string FmtString = GetFormatStringAsString(FmtStringGV);
+  const std::string FmtString = GetFormatStringAsString(FmtStringGV);
   VECZ_STAT_FAIL_IF(FmtString.empty(), VeczScalarizeFailCall);
   std::string NewFmtString;
   const EnumPrintfError err =
@@ -460,7 +460,7 @@ Value *Scalarizer::scalarizeOperandsExtractElement(ExtractElementInst *Extr) {
     ReturnVal = Select;
   } else {
     // Scalarize the original vector, but only for the lane to extract.
-    unsigned Lane = ConstantExtractIndex->getZExtValue();
+    const unsigned Lane = ConstantExtractIndex->getZExtValue();
     PM.enable(Lane);
     OrigVecPacket = scalarize(OrigVec, PM);
     VECZ_FAIL_IF(!OrigVecPacket);
@@ -476,7 +476,7 @@ Value *Scalarizer::scalarizeOperandsExtractElement(ExtractElementInst *Extr) {
 Value *Scalarizer::scalarizeOperandsBitCast(BitCastInst *BC) {
   auto *VecSrcTy = dyn_cast<FixedVectorType>(BC->getSrcTy());
   VECZ_FAIL_IF(!VecSrcTy);
-  unsigned SimdWidth = VecSrcTy->getNumElements();
+  const unsigned SimdWidth = VecSrcTy->getNumElements();
   PacketMask PM;
   PM.enableAll(SimdWidth);
   SimdPacket *SrcPacket = scalarize(BC->getOperand(0), PM);
@@ -486,8 +486,8 @@ Value *Scalarizer::scalarizeOperandsBitCast(BitCastInst *BC) {
   Type *DstAsIntTy = DstTy;
   Type *SrcEleTy = VecSrcTy->getElementType();
   Type *SrcEleAsIntTy = SrcEleTy;
-  unsigned SrcEleBits = SrcEleTy->getScalarSizeInBits();
-  unsigned DstBits = DstTy->getPrimitiveSizeInBits();
+  const unsigned SrcEleBits = SrcEleTy->getScalarSizeInBits();
+  const unsigned DstBits = DstTy->getPrimitiveSizeInBits();
   if (!DstTy->isIntegerTy()) {
     DstAsIntTy = IntegerType::get(BC->getContext(), DstBits);
   }
@@ -519,7 +519,7 @@ SimdPacket *Scalarizer::scalarize(Value *V, PacketMask PM) {
   auto *VecTy = getVectorType(V);
   VECZ_ERROR_IF(!VecTy,
                 "We shouldn't be trying to scalarize a non-vector instruction");
-  unsigned SimdWidth = VecTy->getNumElements();
+  const unsigned SimdWidth = VecTy->getNumElements();
 
   // Re-use cached packets, but make sure it contains all the lanes we want.
   // If we have a cached packet with missing lanes, it will be fetched by
@@ -610,7 +610,7 @@ SimdPacket *Scalarizer::scalarize(Value *V, PacketMask PM) {
 SimdPacket *Scalarizer::extractLanes(llvm::Value *V, PacketMask PM) {
   auto *VecTy = getVectorType(V);
   VECZ_FAIL_IF(!VecTy);
-  unsigned SimdWidth = VecTy->getNumElements();
+  const unsigned SimdWidth = VecTy->getNumElements();
   SimdPacket *P = getPacket(V, SimdWidth);
 
   if (Constant *CVec = dyn_cast<Constant>(V)) {
@@ -758,7 +758,7 @@ SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
   PointerType *VecPtrTy = cast<PointerType>(VecPtr->getType());
   auto *VecDataTy = dyn_cast<FixedVectorType>(Load->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
 
   Type *ScalarEleTy = VecDataTy->getElementType();
   PointerType *ScalarPtrTy =
@@ -815,7 +815,7 @@ SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
 
   // The individual elements may need laxer alignment requirements than the
   // whole vector.
-  unsigned Alignment = Load->getAlign().value();
+  const unsigned Alignment = Load->getAlign().value();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
   if (Alignment < EleAlign) {
     EleAlign = Alignment;
@@ -844,7 +844,7 @@ SimdPacket *Scalarizer::scalarizeStore(StoreInst *Store, PacketMask PM) {
   auto *VecDataTy =
       dyn_cast<FixedVectorType>(Store->getValueOperand()->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   Type *ScalarEleTy = VecDataTy->getElementType();
   PointerType *ScalarPtrTy =
       PointerType::get(ScalarEleTy, VecPtrTy->getAddressSpace());
@@ -900,7 +900,7 @@ SimdPacket *Scalarizer::scalarizeStore(StoreInst *Store, PacketMask PM) {
   }
 
   // See comment at equivalent part of scalarizeLoad()
-  unsigned Alignment = Store->getAlign().value();
+  const unsigned Alignment = Store->getAlign().value();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
   if (Alignment < EleAlign) {
     EleAlign = Alignment;
@@ -933,7 +933,7 @@ SimdPacket *Scalarizer::scalarizeBinaryOp(BinaryOperator *BinOp,
   Value *LHS = BinOp->getOperand(0);
   auto *VecDataTy = dyn_cast<FixedVectorType>(LHS->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *LHSPacket = scalarize(LHS, PM);
   VECZ_FAIL_IF(!LHSPacket);
   Value *RHS = BinOp->getOperand(1);
@@ -961,7 +961,7 @@ SimdPacket *Scalarizer::scalarizeFreeze(FreezeInst *FreezeI, PacketMask PM) {
   Value *Src = FreezeI->getOperand(0);
   auto *VecDataTy = dyn_cast<FixedVectorType>(Src->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *SrcPacket = scalarize(Src, PM);
   VECZ_FAIL_IF(!SrcPacket);
 
@@ -982,7 +982,7 @@ SimdPacket *Scalarizer::scalarizeUnaryOp(UnaryOperator *UnOp, PacketMask PM) {
   Value *Src = UnOp->getOperand(0);
   auto *VecDataTy = dyn_cast<FixedVectorType>(Src->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *SrcPacket = scalarize(Src, PM);
   VECZ_FAIL_IF(!SrcPacket);
   SimdPacket *P = getPacket(UnOp, SimdWidth);
@@ -1002,7 +1002,7 @@ SimdPacket *Scalarizer::scalarizeUnaryOp(UnaryOperator *UnOp, PacketMask PM) {
 
 SimdPacket *Scalarizer::scalarizeCast(CastInst *CastI, PacketMask PM) {
   // Make sure we support the cast operation.
-  CastInst::CastOps Opc = CastI->getOpcode();
+  const CastInst::CastOps Opc = CastI->getOpcode();
   switch (Opc) {
     default:
       return nullptr;
@@ -1026,7 +1026,7 @@ SimdPacket *Scalarizer::scalarizeCast(CastInst *CastI, PacketMask PM) {
   Value *Src = CastI->getOperand(0);
   auto *VecSrcTy = dyn_cast<FixedVectorType>(Src->getType());
   VECZ_FAIL_IF(!VecSrcTy);
-  unsigned SimdWidth = VecSrcTy->getNumElements();
+  const unsigned SimdWidth = VecSrcTy->getNumElements();
   auto *VecDstTy = dyn_cast<FixedVectorType>(CastI->getType());
   VECZ_STAT_FAIL_IF(!VecDstTy || (VecDstTy->getNumElements() != SimdWidth),
                     VeczScalarizeFailCast);
@@ -1055,9 +1055,9 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
   auto *VecSrcTy = dyn_cast<FixedVectorType>(SrcTy);
   auto *VecDstTy = dyn_cast<FixedVectorType>(BC->getDestTy());
   VECZ_FAIL_IF(!VecDstTy);
-  unsigned SimdWidth = VecDstTy->getNumElements();
-  bool Vec3Src = VecSrcTy && (VecSrcTy->getNumElements() == 3);
-  bool Vec3Dst = (SimdWidth == 3);
+  const unsigned SimdWidth = VecDstTy->getNumElements();
+  const bool Vec3Src = VecSrcTy && (VecSrcTy->getNumElements() == 3);
+  const bool Vec3Dst = (SimdWidth == 3);
   VECZ_STAT_FAIL_IF(Vec3Src ^ Vec3Dst, VeczScalarizeFailBitcast);
 
   // Handle non-vector -> vector casts and vector casts with different widths.
@@ -1068,8 +1068,8 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
     Value *SrcAsInt = Src;
     Type *DstEleTy = VecDstTy->getElementType();
     Type *DstEleAsIntTy = DstEleTy;
-    unsigned SrcBits = SrcTy->getPrimitiveSizeInBits();
-    unsigned LaneBits = DstEleTy->getPrimitiveSizeInBits();
+    const unsigned SrcBits = SrcTy->getPrimitiveSizeInBits();
+    const unsigned LaneBits = DstEleTy->getPrimitiveSizeInBits();
     if (!SrcTy->isIntegerTy()) {
       SrcAsIntTy = SrcTy->getIntNTy(BC->getContext(), SrcBits);
       SrcAsInt = B.CreateBitCast(SrcAsInt, SrcAsIntTy);
@@ -1120,7 +1120,7 @@ SimdPacket *Scalarizer::scalarizeICmp(ICmpInst *ICmp, PacketMask PM) {
   Value *LHS = ICmp->getOperand(0);
   auto *VecDataTy = dyn_cast<FixedVectorType>(ICmp->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *LHSPacket = scalarize(LHS, PM);
   VECZ_FAIL_IF(!LHSPacket);
   Value *RHS = ICmp->getOperand(1);
@@ -1143,7 +1143,7 @@ SimdPacket *Scalarizer::scalarizeFCmp(FCmpInst *FCmp, PacketMask PM) {
   Value *LHS = FCmp->getOperand(0);
   auto *VecDataTy = dyn_cast<FixedVectorType>(FCmp->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *LHSPacket = scalarize(LHS, PM);
   VECZ_FAIL_IF(!LHSPacket);
   Value *RHS = FCmp->getOperand(1);
@@ -1172,7 +1172,7 @@ SimdPacket *Scalarizer::scalarizeSelect(SelectInst *Select, PacketMask PM) {
   Value *TrueVal = Select->getTrueValue();
   auto *VecDataTy = dyn_cast<FixedVectorType>(Select->getType());
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   SimdPacket *TruePacket = scalarize(TrueVal, PM);
   VECZ_FAIL_IF(!TruePacket);
   Value *FalseVal = Select->getFalseValue();
@@ -1197,7 +1197,7 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
   VECZ_STAT_FAIL_IF(!Callee, VeczScalarizeFailCall);
   auto *VecDataTy = getVectorType(CI);
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
   assert((MaskedOp.isLoad() || MaskedOp.isStore()) &&
          "Masked op is not a store or load!");
 
@@ -1256,7 +1256,7 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
     PtrPacket.set(i, ScalarPtr);
   }
 
-  unsigned Alignment = MaskedOp.getAlignment();
+  const unsigned Alignment = MaskedOp.getAlignment();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
   if (Alignment < EleAlign) {
     EleAlign = Alignment;
@@ -1290,7 +1290,7 @@ SimdPacket *Scalarizer::scalarizeCall(CallInst *CI, PacketMask PM) {
   VECZ_STAT_FAIL_IF(!Callee, VeczScalarizeFailCall);
   auto *VecDataTy = getVectorType(CI);
   VECZ_FAIL_IF(!VecDataTy);
-  unsigned SimdWidth = VecDataTy->getNumElements();
+  const unsigned SimdWidth = VecDataTy->getNumElements();
 
   if (auto MaskedOp = MemOp::get(CI, MemOpAccessKind::Masked)) {
     if (MaskedOp->isMaskedMemOp()) {
@@ -1316,7 +1316,7 @@ SimdPacket *Scalarizer::scalarizeCall(CallInst *CI, PacketMask PM) {
   IRBuilder<> B(CI);
   const auto Props = Builtin.properties;
   // Ignore the mask if present
-  unsigned NumArgs = VectorCallMask ? CI->arg_size() - 1 : CI->arg_size();
+  const unsigned NumArgs = VectorCallMask ? CI->arg_size() - 1 : CI->arg_size();
   SmallVector<SimdPacket *, 4> OpPackets(NumArgs);
   SmallVector<Value *, 4> OpScalars(NumArgs);
   for (unsigned i = 0; i < NumArgs; i++) {
@@ -1408,8 +1408,8 @@ SimdPacket *Scalarizer::scalarizeShuffleVector(ShuffleVectorInst *Shuffle,
   assert(RHS && "Could not get operand 1");
   auto *LHSVecTy = dyn_cast<FixedVectorType>(LHS->getType());
   VECZ_FAIL_IF(!LHSVecTy);
-  unsigned SrcWidth = LHSVecTy->getNumElements();
-  unsigned DstWidth = VecTy->getNumElements();
+  const unsigned SrcWidth = LHSVecTy->getNumElements();
+  const unsigned DstWidth = VecTy->getNumElements();
 
   // Determine which lanes we need from both vector operands.
   PacketMask LHSMask;
@@ -1517,7 +1517,7 @@ SimdPacket *Scalarizer::scalarizeInsertElement(InsertElementInst *Insert,
 SimdPacket *Scalarizer::scalarizeGEP(GetElementPtrInst *GEP, PacketMask PM) {
   auto *const vecDataTy = dyn_cast<FixedVectorType>(GEP->getType());
   VECZ_FAIL_IF(!vecDataTy);
-  unsigned simdWidth = vecDataTy->getNumElements();
+  const unsigned simdWidth = vecDataTy->getNumElements();
 
   Value *const ptr = GEP->getPointerOperand();
   SimdPacket *ptrPacket = nullptr;
@@ -1604,7 +1604,7 @@ SimdPacket *Scalarizer::scalarizePHI(PHINode *Phi, PacketMask PM) {
   }
 
   // Assign the scalarized incoming values to the scalarized Phi nodes
-  for (unsigned lane : ActiveLanes) {
+  for (const unsigned lane : ActiveLanes) {
     VECZ_ERROR_IF(!PM.isEnabled(lane), "Active lane should be enabled.");
     PHINode *SPhi = cast<PHINode>(P->at(lane));
     for (unsigned i = 0; i < NumIncoming; ++i) {

@@ -79,7 +79,7 @@ bool VectorizationChoices::parseChoicesString(StringRef Str) {
   // so we will use it here.
   compiler::utils::Lexer L(Str);
   // We support multiple separators in case of platform-dependent issues
-  StringRef Separators = ":;,";
+  const StringRef Separators = ":;,";
   // All the parsed choices will be stored in a set and will only be
   // enabled/disabled after the parsing has been completed successfully.
   SmallVector<ChoiceValuePair, 4> ParsedChoices;
@@ -96,11 +96,11 @@ bool VectorizationChoices::parseChoicesString(StringRef Str) {
       break;
     }
     // Consume the optional "no" prefix, which disables the given prefix
-    bool disable = L.Consume("no");
+    const bool disable = L.Consume("no");
     // Consume the Choice name
     if (L.ConsumeAlphanumeric(ParsedChoice)) {
       // Convert the string to a Choice value
-      Choice C = fromString(ParsedChoice);
+      const Choice C = fromString(ParsedChoice);
       if (C == eInvalid) {
         printChoicesParseError(Str, L.CurrentPos() - ParsedChoice.size(),
                                "Invalid Choice \"" + ParsedChoice + "\"");

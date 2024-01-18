@@ -120,7 +120,7 @@ static llvm::cl::list<unsigned> SGSizes(
 static llvm::TargetMachine *initLLVMTarget(llvm::StringRef triple_string,
                                            llvm::StringRef cpu_model,
                                            llvm::StringRef target_features) {
-  llvm::Triple triple(triple_string);
+  const llvm::Triple triple(triple_string);
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();

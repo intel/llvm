@@ -233,7 +233,7 @@ void collectStatistics(VectorizationUnit &VU, Function *Scalar,
   // Normalized Scalar Insts = Simd Width * Scalar Insts
   // IK - Input Kernel
   // Scalar Insts = IK's Scalar Insts + IK's Vec Insts * IK's VecWidth
-  unsigned SimdWidth = VU.width().getFixedValue();
+  const unsigned SimdWidth = VU.width().getFixedValue();
   Ratio = (SimdWidth * (ScalarInstructions - ScalarVectorInsts +
                         ScalarVectorInsts * MaxScalarVectorWidth)) /
           VeczInstructions;
@@ -245,9 +245,9 @@ VectorizationUnit *vecz::createVectorizationUnit(VectorizationContext &Ctx,
                                                  const VeczPassOptions &Opts,
                                                  FunctionAnalysisManager &FAM,
                                                  bool Check) {
-  unsigned SimdDimIdx = Opts.vec_dim_idx;
-  unsigned LocalSize = Opts.local_size;
-  bool Auto = Opts.vecz_auto;
+  const unsigned SimdDimIdx = Opts.vec_dim_idx;
+  const unsigned LocalSize = Opts.local_size;
+  const bool Auto = Opts.vecz_auto;
   auto VF =
       ElementCount::get(Opts.factor.getKnownMin(), Opts.factor.isScalable());
 
@@ -310,7 +310,7 @@ VectorizationUnit *vecz::createVectorizationUnit(VectorizationContext &Ctx,
 void vecz::trackVeczSuccessFailure(VectorizationUnit &VU) {
   Function *Fn = VU.scalarFunction();
   Function *vectorizedFn = VU.vectorizedFunction();
-  bool failed = VU.failed();
+  const bool failed = VU.failed();
   VeczFail += failed;
   VeczSuccess += !failed;
   collectStatistics(VU, Fn, vectorizedFn);
@@ -348,8 +348,8 @@ bool vecz::createVectorizedFunctionMetadata(VectorizationUnit &vu) {
   auto finalVF = compiler::utils::VectorizationFactor(vf.getKnownMinValue(),
                                                       vf.isScalable());
 
-  compiler::utils::VectorizationInfo info{finalVF, dim,
-                                          vu.choices().vectorPredication()};
+  const compiler::utils::VectorizationInfo info{
+      finalVF, dim, vu.choices().vectorPredication()};
 
   if (vectorizedFn && vectorizedFn != fn) {  // success
     // Link the original function to the vectorized one.

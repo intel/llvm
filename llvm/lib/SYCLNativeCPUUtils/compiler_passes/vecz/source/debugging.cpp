@@ -63,7 +63,7 @@ void emitVeczRemarkMissed(const Function *F, const Value *V, StringRef Msg,
   if (I) {
     ORE.emit(OptimizationRemarkMissed("vecz", "vecz", I) << RemarkMsg);
   } else {
-    DebugLoc D = I ? DebugLoc(I->getDebugLoc()) : DebugLoc();
+    const DebugLoc D = I ? DebugLoc(I->getDebugLoc()) : DebugLoc();
     ORE.emit(OptimizationRemarkMissed("vecz", "vecz", D, &(F->getEntryBlock()))
              << RemarkMsg);
   }
@@ -75,7 +75,7 @@ void emitVeczRemarkMissed(const Function *F, StringRef Msg, StringRef Note) {
 
 void emitVeczRemark(const Function *F, const Value *V, StringRef Msg) {
   const Instruction *I = V ? dyn_cast<Instruction>(V) : nullptr;
-  DebugLoc D = I ? DebugLoc(I->getDebugLoc()) : DebugLoc();
+  const DebugLoc D = I ? DebugLoc(I->getDebugLoc()) : DebugLoc();
 
   auto RemarkMsg = createRemarkMessage(V, Msg);
   OptimizationRemarkEmitter ORE(F);

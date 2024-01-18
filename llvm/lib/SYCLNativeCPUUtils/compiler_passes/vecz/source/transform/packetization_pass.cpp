@@ -49,10 +49,10 @@ PreservedAnalyses PacketizationPass::run(Function &F,
   VectorizationUnit &VU = AM.getResult<VectorizationUnitAnalysis>(F).getVU();
 
   if (!VU.width().isScalable()) {
-    unsigned SimdWidth = VU.width().getFixedValue();
+    const unsigned SimdWidth = VU.width().getFixedValue();
     if (VU.autoWidth() && VU.context().targetInfo().getTargetMachine()) {
       LLVM_DEBUG(dbgs() << "vecz: Original SIMD width: " << SimdWidth << "\n");
-      unsigned NewSimdWidth = AM.getResult<SimdWidthAnalysis>(F).value;
+      const unsigned NewSimdWidth = AM.getResult<SimdWidthAnalysis>(F).value;
       LLVM_DEBUG(dbgs() << "vecz: Re-determined SIMD width: " << NewSimdWidth
                         << "\n");
 

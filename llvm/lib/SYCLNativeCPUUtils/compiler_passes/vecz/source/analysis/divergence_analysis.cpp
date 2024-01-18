@@ -218,7 +218,7 @@ bool DivergenceResult::computeBlockOrdering(DominatorTree &DT) {
   SmallVector<unsigned, 16> stack;
   stack.push_back(0);
   uint32_t pos = 0;
-  SmallVector<unsigned, 16> children;
+  const SmallVector<unsigned, 16> children;
   SmallVector<unsigned, 16> loopExits;
   while (!stack.empty()) {
     const auto u = stack.pop_back_val();
@@ -392,8 +392,8 @@ void DivergenceResult::markDivergent(const Loop &L) {
 
 void DivergenceResult::markByAll(BasicBlock &src) {
   Function &F = *src.getParent();
-  DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
-  PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+  const DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  const PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
 
   BlockQueue queue(*this);
   queue.push(&src);
@@ -493,7 +493,7 @@ DenseSet<BasicBlock *> DivergenceResult::joinPoints(BasicBlock &src) const {
   }
 
   Function &F = *src.getParent();
-  PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+  const PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
 
   DenseMap<const BasicBlock *, const BasicBlock *> defMap;
   DenseSet<BasicBlock *> joins;
@@ -626,7 +626,7 @@ DivergenceResult DivergenceAnalysis::run(llvm::Function &F,
   Res.basicBlockTags.reserve(F.size() * 4);
 
   // Prepare the BasicBlockTags.
-  LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+  const LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
   for (BasicBlock &BB : F) {
     // Create BB info entries.
     BasicBlockTag &BBTag = Res.getOrCreateTag(&BB);

@@ -41,7 +41,7 @@ CFGResult CFGAnalysis::run(llvm::Function &F,
 
   LLVM_DEBUG(dbgs() << "CONTROL FLOW ANALYSIS\n");
 
-  UniformValueResult &UVR = AM.getResult<UniformValueAnalysis>(F);
+  const UniformValueResult &UVR = AM.getResult<UniformValueAnalysis>(F);
 
   bool mayDiverge = false;
   for (BasicBlock &BB : F) {
@@ -81,9 +81,9 @@ CFGResult CFGAnalysis::run(llvm::Function &F,
     return Res;
   }
 
-  LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+  const LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
   using RPOTraversal = ReversePostOrderTraversal<const Function *>;
-  RPOTraversal FuncRPOT(&F);
+  const RPOTraversal FuncRPOT(&F);
   if (containsIrreducibleCFG<const BasicBlock *, const RPOTraversal,
                              const LoopInfo>(FuncRPOT, LI)) {
     emitVeczRemarkMissed(&F, &F, "Irreducible loop detected in");

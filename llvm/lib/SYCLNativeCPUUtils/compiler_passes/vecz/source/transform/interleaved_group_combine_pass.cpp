@@ -267,7 +267,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
       if (!Op || !Op->isStrideConstantInt()) {
         continue;
       }
-      int64_t Stride = Op->getStrideAsConstantInt();
+      const int64_t Stride = Op->getStrideAsConstantInt();
       if ((Stride == 0) || (Stride == 1)) {
         continue;
       }
@@ -383,7 +383,7 @@ bool InterleavedGroupCombinePass::findGroup(
       Ptr0 = Info0.Op->getOperand(0);
     }
 
-    IRBuilder<> B(cast<Instruction>(Info0.Op));
+    const IRBuilder<> B(cast<Instruction>(Info0.Op));
     Value *Base0 = UVR.extractMemBase(Ptr0);
     if (!Base0) {
       continue;
@@ -395,7 +395,7 @@ bool InterleavedGroupCombinePass::findGroup(
     }
 
     Type *EleTy = DataType0->getScalarType();
-    unsigned Align = EleTy->getScalarSizeInBits() / 8;
+    const unsigned Align = EleTy->getScalarSizeInBits() / 8;
     assert(Align != 0 &&
            "interleaved memory operation with zero-sized elements");
 
@@ -429,7 +429,7 @@ bool InterleavedGroupCombinePass::findGroup(
         continue;
       }
 
-      IRBuilder<> B(cast<Instruction>(InfoN.Op));
+      const IRBuilder<> B(cast<Instruction>(InfoN.Op));
       Value *BaseN = UVR.extractMemBase(PtrN);
       if (!BaseN || BaseN != Base0) {
         continue;
@@ -503,7 +503,7 @@ bool InterleavedGroupCombinePass::findGroup(
         continue;
       }
 
-      unsigned Stride = Info0.Stride;
+      const unsigned Stride = Info0.Stride;
       Group.Stride = Stride;
       // If the group is bigger than the stride we can still de-interleave the
       // first "Stride" members

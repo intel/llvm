@@ -472,7 +472,7 @@ Packetizer::Impl::~Impl() = default;
 bool Packetizer::packetize(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
                            ElementCount Width, unsigned Dim) {
   Impl impl(F, AM, Width, Dim);
-  bool Res = impl.packetize();
+  const bool Res = impl.packetize();
   if (!Res) {
     impl.onFailure();
   }
@@ -689,7 +689,7 @@ bool Packetizer::Impl::packetize() {
       // back to vector type for contiguous loads/stores)
       bool needCast = false;
       auto *const newTy = newAlloca->getType();
-      for (Use &U : alloca->uses()) {
+      for (const Use &U : alloca->uses()) {
         auto *const user = dyn_cast<BitCastInst>(U.getUser());
         if (!user) {
           needCast = true;
@@ -727,13 +727,13 @@ bool Packetizer::Impl::packetize() {
       // Make sure the alloca has an alignment at least as wide as any of the
       // packetized loads or stores using it.
       SmallVector<Instruction *, 8> users;
-      for (Use &U : alloca->uses()) {
+      for (const Use &U : alloca->uses()) {
         users.push_back(cast<Instruction>(U.getUser()));
       }
       while (!users.empty()) {
         auto *const user = users.pop_back_val();
         if (isa<BitCastInst>(user) || isa<GetElementPtrInst>(user)) {
-          for (Use &U : user->uses()) {
+          for (const Use &U : user->uses()) {
             users.push_back(cast<Instruction>(U.getUser()));
           }
         } else if (auto memop = MemOp::get(user)) {
@@ -758,7 +758,7 @@ bool Packetizer::Impl::packetize() {
     IC.deleteInstructionLater(alloca);
   }
 
-  compiler::utils::NameMangler Mangler(&F.getContext());
+  const compiler::utils::NameMangler Mangler(&F.getContext());
 
   // Handle __mux_get_sub_group_size specially (i.e., not in BuiltinInfo) since
   // inlining it requires extra vectorization context, such as the vectorization
@@ -914,7 +914,7 @@ Value *Packetizer::Impl::reduceBranchCond(Value *cond, Instruction *terminator,
     }
   }
 
-  RecurKind kind = allOf ? RecurKind::And : RecurKind::Or;
+  const RecurKind kind = allOf ? RecurKind::And : RecurKind::Or;
 
   // VP reduction intrinsics didn't make it into LLVM 13 so we have to make do
   // by pre-sanitizing the input such that elements past VL get the identity
@@ -975,7 +975,7 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
       // a divergence reduction so it will need reducing manually here.
       if (newCond->getType()->isVectorTy()) {
         IRBuilder<> B(Branch);
-        RecurKind kind = RecurKind::Or;
+        const RecurKind kind = RecurKind::Or;
         newCond = createMaybeVPTargetReduction(B, TTI, newCond, kind, VL);
       }
 
@@ -1212,7 +1212,7 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   if (!CI || !CI->getCalledFunction()) {
     return nullptr;
   }
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
 
   const auto Builtin = BI.analyzeBuiltin(*callee);
@@ -1223,8 +1223,8 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
     return nullptr;
   }
 
-  bool isWorkGroup = Info->isWorkGroupScope();
-  unsigned argIdx = isWorkGroup ? 1 : 0;
+  const bool isWorkGroup = Info->isWorkGroupScope();
+  const unsigned argIdx = isWorkGroup ? 1 : 0;
 
   SmallVector<Value *, 16> opPackets;
   IRBuilder<> B(CI);
@@ -1285,7 +1285,7 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   if (!CI || !CI->getCalledFunction()) {
     return nullptr;
   }
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
   const auto Builtin = BI.analyzeBuiltin(*callee);
 
@@ -1302,7 +1302,7 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
 
   IRBuilder<> B(CI);
 
-  unsigned argIdx = isWorkGroup ? 1 : 0;
+  const unsigned argIdx = isWorkGroup ? 1 : 0;
   auto *const src = CI->getArgOperand(argIdx);
 
   auto op = packetize(src);
@@ -1386,7 +1386,7 @@ Packetizer::Impl::isSubgroupShuffleLike(Instruction *I) {
   if (!CI || !CI->getCalledFunction()) {
     return std::nullopt;
   }
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
 
   const auto Builtin = BI.analyzeBuiltin(*callee);
@@ -1666,7 +1666,7 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
 
 Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleUpDown(
     Instruction *I, compiler::utils::GroupCollective ShuffleUpDown) {
-  bool IsDown =
+  const bool IsDown =
       ShuffleUpDown.Op == compiler::utils::GroupCollective::OpKind::ShuffleDown;
   assert((IsDown || ShuffleUpDown.Op ==
                         compiler::utils::GroupCollective::OpKind::ShuffleUp) &&
@@ -1911,8 +1911,8 @@ Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
 
     Value *vecMask = nullptr;
 
-    MemOpDesc desc = memop->getDesc();
-    bool isVector = desc.getDataType()->isVectorTy();
+    const MemOpDesc desc = memop->getDesc();
+    const bool isVector = desc.getDataType()->isVectorTy();
 
     // If only the mask operand is varying, we do not need to vectorize the
     // MemOp itself, only reduce the mask with an OR.
@@ -2257,14 +2257,14 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
 
   compiler::utils::NameMangler mangler(&CI->getContext());
 
-  unsigned ArgOffset = Scan.isWorkGroupScope() ? 1 : 0;
+  const unsigned ArgOffset = Scan.isWorkGroupScope() ? 1 : 0;
 
   // The operands and types for the internal builtin
   SmallVector<Value *, 2> Ops = {
       packetize(CI->getArgOperand(ArgOffset)).getAsValue()};
   SmallVector<Type *, 2> Tys = {getWideType(CI->getType(), SimdWidth)};
 
-  bool isInclusive =
+  const bool isInclusive =
       Scan.Op == compiler::utils::GroupCollective::OpKind::ScanInclusive;
   StringRef op = "add";
   // min/max scans are prefixed with s/u if they are signed/unsigned integer
@@ -2328,7 +2328,7 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
     << (isInclusive ? "inclusive" : "exclusive") << "_" << op
     << (VP ? "_vp" : "") << "_";
 
-  compiler::utils::TypeQualifiers VecQuals(
+  const compiler::utils::TypeQualifiers VecQuals(
       compiler::utils::eTypeQualNone, opIsSignedInt
                                           ? compiler::utils::eTypeQualSignedInt
                                           : compiler::utils::eTypeQualNone);
@@ -2340,7 +2340,8 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
   if (VP) {
     Ops.push_back(VL);
     Tys.push_back(VL->getType());
-    compiler::utils::TypeQualifiers VLQuals(compiler::utils::eTypeQualNone);
+    const compiler::utils::TypeQualifiers VLQuals(
+        compiler::utils::eTypeQualNone);
     if (!mangler.mangleType(O, Tys[1], VLQuals)) {
       return results;
     }
@@ -2513,9 +2514,10 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
   }
 
   auto *const constantStrideVal = dyn_cast_or_null<ConstantInt>(stride);
-  int constantStride =
+  const int constantStride =
       constantStrideVal ? constantStrideVal->getSExtValue() : 0;
-  bool validStride = stride && (!constantStrideVal || constantStride != 0);
+  const bool validStride =
+      stride && (!constantStrideVal || constantStride != 0);
   if (!validStride) {
     if (dataTy->isPointerTy()) {
       // We do not have vector-of-pointers support in Vecz builtins, hence
@@ -2730,12 +2732,13 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
     // alignment, but may be overaligned. After vectorization it can't be
     // larger than the pointee element type.
     unsigned alignment = op.getAlignment();
-    unsigned sizeInBits = dataTy->getPrimitiveSizeInBits().getKnownMinValue();
+    const unsigned sizeInBits =
+        dataTy->getPrimitiveSizeInBits().getKnownMinValue();
     alignment = std::min(alignment, std::max(sizeInBits, 8u) / 8u);
 
     // Regular load or store.
     if (mask) {
-      bool isVectorMask = mask->getType()->isVectorTy();
+      const bool isVectorMask = mask->getType()->isVectorTy();
       auto maskPacket = packetizeAndGet(mask, packetWidth);
       PACK_FAIL_IF(maskPacket.empty());
 
@@ -2744,8 +2747,8 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
       auto *const vecTy = dyn_cast<FixedVectorType>(dataTy);
       if (vecTy && !isVectorMask) {
         PACK_FAIL_IF(factor.isScalable());
-        unsigned simdWidth = factor.getFixedValue();
-        unsigned scalarWidth = vecTy->getNumElements();
+        const unsigned simdWidth = factor.getFixedValue();
+        const unsigned scalarWidth = vecTy->getNumElements();
 
         // Build shuffle mask to widen the vector condition.
         SmallVector<int, 16> widenMask;
@@ -2777,7 +2780,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
         }
       }
     } else {
-      TargetInfo &VTI = Ctx.targetInfo();
+      const TargetInfo &VTI = Ctx.targetInfo();
       if (op.isLoad()) {
         auto *const one = B.getInt64(1);
         for (unsigned i = 0; i != packetWidth; ++i) {
@@ -2833,7 +2836,7 @@ ValuePacket Packetizer::Impl::packetizeMaskedAtomic(
   }
 
   ValuePacket valOrCmpPacket;
-  Result valResult = packetize(valOrCmpArg);
+  const Result valResult = packetize(valOrCmpArg);
   PACK_FAIL_IF(!valResult);
   valResult.getPacketValues(packetWidth, valOrCmpPacket);
   PACK_FAIL_IF(valOrCmpPacket.empty());
@@ -2841,20 +2844,20 @@ ValuePacket Packetizer::Impl::packetizeMaskedAtomic(
   ValuePacket newValPacket;
   if (IsCmpXchg) {
     Value *const newValArg = CI.getArgOperand(2);
-    Result newValResult = packetize(newValArg);
+    const Result newValResult = packetize(newValArg);
     PACK_FAIL_IF(!newValResult);
     newValResult.getPacketValues(packetWidth, newValPacket);
     PACK_FAIL_IF(newValPacket.empty());
   }
 
   ValuePacket ptrPacket;
-  Result ptrResult = packetize(ptrArg);
+  const Result ptrResult = packetize(ptrArg);
   PACK_FAIL_IF(!ptrResult);
   ptrResult.getPacketValues(packetWidth, ptrPacket);
   PACK_FAIL_IF(ptrPacket.empty());
 
   ValuePacket maskPacket;
-  Result maskResult = packetize(maskArg);
+  const Result maskResult = packetize(maskArg);
   PACK_FAIL_IF(!maskResult);
   maskResult.getPacketValues(packetWidth, maskPacket);
   PACK_FAIL_IF(maskPacket.empty());
@@ -2946,7 +2949,7 @@ ValuePacket Packetizer::Impl::packetizeGEP(GetElementPtrInst *GEP) {
   IRBuilder<> B(GEP);
   IC.deleteInstructionLater(GEP);
 
-  bool inBounds = GEP->isInBounds();
+  const bool inBounds = GEP->isInBounds();
   const auto name = GEP->getName();
 
   const auto numIndices = opPackets.size();
@@ -3182,7 +3185,7 @@ ValuePacket Packetizer::Impl::packetizeSelect(SelectInst *Select) {
   PACK_FAIL_IF(!resC);
 
   IRBuilder<> B(Select);
-  bool isVectorSelect = cond->getType()->isVectorTy();
+  const bool isVectorSelect = cond->getType()->isVectorTy();
   SmallVector<Value *, 16> vecC;
   if (UVR.isVarying(cond)) {
     resC.getPacketValues(packetWidth, vecC);
@@ -3264,7 +3267,7 @@ Value *Packetizer::Impl::vectorizeCall(CallInst *CI) {
   }
 
   // Handle external builtins.
-  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   const auto Builtin = BI.analyzeBuiltinCall(*CI, Dimension);
 
   if (Builtin.properties & compiler::utils::eBuiltinPropertyExecutionFlow) {
@@ -3449,7 +3452,7 @@ Value *Packetizer::Impl::vectorizeAlloca(AllocaInst *alloca) {
   // case" is actually the most likely.
   //
   VECZ_FAIL_IF(SimdWidth.isScalable());
-  unsigned fixedWidth = SimdWidth.getFixedValue();
+  const unsigned fixedWidth = SimdWidth.getFixedValue();
   IRBuilder<> B(alloca);
   auto *const ty = alloca->getAllocatedType();
   AllocaInst *wideAlloca =
@@ -3898,7 +3901,7 @@ ValuePacket Packetizer::Impl::packetizeShuffleVector(
     } else {
       // It isn't safe to do it if it's not a power of 2.
       PACK_FAIL_IF(!isPowerOf2_32(scalarWidth));
-      TargetInfo &VTI = Ctx.targetInfo();
+      const TargetInfo &VTI = Ctx.targetInfo();
 
       const auto dstScalarWidth = multi_llvm::getVectorNumElements(ty);
       const auto fullWidth = SimdWidth * dstScalarWidth;

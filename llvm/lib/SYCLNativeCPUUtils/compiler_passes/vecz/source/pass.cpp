@@ -334,7 +334,7 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
     // If we have a required work-group size, prefer one that will fit well
     // with that.
     if (auto wgs = compiler::utils::parseRequiredWGSMetadata(F)) {
-      uint64_t local_size_x = wgs.value()[0];
+      const uint64_t local_size_x = wgs.value()[0];
       const bool best_fits = !(local_size_x % *best_width);
       const bool cand_fits = !(local_size_x % candidate_width);
       if (!best_fits && cand_fits) {

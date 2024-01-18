@@ -124,7 +124,7 @@ bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
     // last. However, "getSuccessor(n)" also indexes backwards, from the end.
     BasicBlock *SuccT = Branch->getSuccessor(0);
     BasicBlock *SuccF = Branch->getSuccessor(1);
-    bool Which = isReturnBlock(*SuccT);
+    const bool Which = isReturnBlock(*SuccT);
 
     BasicBlock *ReturnBlock = Which ? SuccT : SuccF;
     Value *Cond = Branch->getCondition();

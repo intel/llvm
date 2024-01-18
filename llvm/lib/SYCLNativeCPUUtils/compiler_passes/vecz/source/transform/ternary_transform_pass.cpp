@@ -145,7 +145,7 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
     Value *GepFalse = B.CreateGEP(GEP->getSourceElementType(), False, Indices);
     auto MaskedOp = MemOp::get(Memop);
     assert(MaskedOp);
-    MemOpDesc Mem = MaskedOp->getDesc();
+    const MemOpDesc Mem = MaskedOp->getDesc();
 
     // We should have filtered out all vector memory operations earlier.
     assert(!Mem.getDataType()->isVectorTy());
@@ -177,7 +177,7 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
     if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U)) {
       ToDelete.push_back(GEP);
 
-      SmallVector<Value *, 2> Indices(GEP->idx_begin(), GEP->idx_end());
+      const SmallVector<Value *, 2> Indices(GEP->idx_begin(), GEP->idx_end());
 
       for (User *G : GEP->users()) {
         if (LoadInst *Load = dyn_cast<LoadInst>(G)) {

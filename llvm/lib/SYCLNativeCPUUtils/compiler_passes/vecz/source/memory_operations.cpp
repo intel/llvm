@@ -41,10 +41,12 @@ static std::string getMaskedMemOpName(Type *DataTy, PointerType *PtrTy,
   }
   compiler::utils::NameMangler Mangler(&DataTy->getContext());
   const char *BaseName = IsLoad ? "masked_load" : "masked_store";
-  compiler::utils::TypeQualifiers DataQuals(compiler::utils::eTypeQualNone);
-  compiler::utils::TypeQualifiers PtrQuals(compiler::utils::eTypeQualNone,
-                                           compiler::utils::eTypeQualNone);
-  compiler::utils::TypeQualifiers MaskQuals(compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers DataQuals(
+      compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers PtrQuals(
+      compiler::utils::eTypeQualNone, compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers MaskQuals(
+      compiler::utils::eTypeQualNone);
   std::string Name;
   raw_string_ostream O(Name);
   O << VectorizationContext::InternalBuiltinPrefix << BaseName << Alignment
@@ -58,7 +60,8 @@ static std::string getMaskedMemOpName(Type *DataTy, PointerType *PtrTy,
     return std::string();
   }
   if (IsVP) {
-    compiler::utils::TypeQualifiers VLQuals(compiler::utils::eTypeQualNone);
+    const compiler::utils::TypeQualifiers VLQuals(
+        compiler::utils::eTypeQualNone);
     if (!Mangler.mangleType(O, IntegerType::getInt32Ty(DataTy->getContext()),
                             VLQuals)) {
       return std::string();
@@ -72,7 +75,7 @@ Function *vecz::getOrCreateMaskedMemOpFn(VectorizationContext &Ctx,
                                          Type *DataTy, PointerType *PtrTy,
                                          unsigned Alignment, bool IsLoad,
                                          bool IsVP) {
-  Module &M = Ctx.module();
+  const Module &M = Ctx.module();
   LLVMContext &LLVMCtx = M.getContext();
   Type *MaskTy = IntegerType::getInt1Ty(LLVMCtx);
   if (auto *VecTy = dyn_cast<VectorType>(DataTy)) {
@@ -80,7 +83,7 @@ Function *vecz::getOrCreateMaskedMemOpFn(VectorizationContext &Ctx,
   }
 
   // Try to retrieve the builtin if it already exists.
-  std::string Name =
+  const std::string Name =
       getMaskedMemOpName(DataTy, PtrTy, MaskTy, Alignment, IsLoad, IsVP);
   VECZ_FAIL_IF(Name.empty());
   Function *F = Ctx.getOrCreateInternalBuiltin(Name, nullptr);
@@ -158,10 +161,10 @@ static std::string getInterleavedMemOpName(Type *DataTy, PointerType *PtrTy,
   compiler::utils::NameMangler Mangler(&DataTy->getContext());
   const char *BaseName = IsLoad ? "interleaved_load" : "interleaved_store";
   std::string Name;
-  compiler::utils::TypeQualifiers VecQuals(compiler::utils::eTypeQualNone,
-                                           compiler::utils::eTypeQualNone);
-  compiler::utils::TypeQualifiers PtrQuals(compiler::utils::eTypeQualNone,
-                                           compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers VecQuals(
+      compiler::utils::eTypeQualNone, compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers PtrQuals(
+      compiler::utils::eTypeQualNone, compiler::utils::eTypeQualNone);
   raw_string_ostream O(Name);
   O << VectorizationContext::InternalBuiltinPrefix;
   if (MaskTy) {
@@ -182,13 +185,15 @@ static std::string getInterleavedMemOpName(Type *DataTy, PointerType *PtrTy,
     return std::string();
   }
   if (MaskTy) {
-    compiler::utils::TypeQualifiers MaskQuals(compiler::utils::eTypeQualNone);
+    const compiler::utils::TypeQualifiers MaskQuals(
+        compiler::utils::eTypeQualNone);
     if (!Mangler.mangleType(O, MaskTy, MaskQuals)) {
       return std::string();
     }
   }
   if (IsVP) {
-    compiler::utils::TypeQualifiers VLQuals(compiler::utils::eTypeQualNone);
+    const compiler::utils::TypeQualifiers VLQuals(
+        compiler::utils::eTypeQualNone);
     if (!Mangler.mangleType(O, IntegerType::getInt32Ty(DataTy->getContext()),
                             VLQuals)) {
       return std::string();
@@ -207,8 +212,8 @@ Function *vecz::getOrCreateInterleavedMemOpFn(VectorizationContext &Ctx,
   LLVMContext &LLVMCtx = M.getContext();
 
   // Try to retrieve the builtin if it already exists.
-  std::string Name = getInterleavedMemOpName(DataTy, PtrTy, Stride, MaskTy,
-                                             Alignment, IsLoad, IsVP);
+  const std::string Name = getInterleavedMemOpName(
+      DataTy, PtrTy, Stride, MaskTy, Alignment, IsLoad, IsVP);
   VECZ_FAIL_IF(Name.empty());
   Function *F = Ctx.getOrCreateInternalBuiltin(Name, nullptr);
   if (!F) {
@@ -296,11 +301,12 @@ static std::string getScatterGatherMemOpName(Type *DataTy, VectorType *VecPtrTy,
   compiler::utils::NameMangler Mangler(&DataTy->getContext());
   const char *BaseName = IsGather ? "gather_load" : "scatter_store";
   std::string Name;
-  compiler::utils::TypeQualifiers VecQuals(compiler::utils::eTypeQualNone,
-                                           compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers VecQuals(
+      compiler::utils::eTypeQualNone, compiler::utils::eTypeQualNone);
   compiler::utils::TypeQualifiers PtrQuals(compiler::utils::eTypeQualNone,
                                            compiler::utils::eTypeQualNone);
-  compiler::utils::TypeQualifiers MaskQuals(compiler::utils::eTypeQualNone);
+  const compiler::utils::TypeQualifiers MaskQuals(
+      compiler::utils::eTypeQualNone);
   PtrQuals.push_back(compiler::utils::eTypeQualNone);
   raw_string_ostream O(Name);
   O << VectorizationContext::InternalBuiltinPrefix;
@@ -319,7 +325,8 @@ static std::string getScatterGatherMemOpName(Type *DataTy, VectorType *VecPtrTy,
     return std::string();
   }
   if (IsVP) {
-    compiler::utils::TypeQualifiers VLQuals(compiler::utils::eTypeQualNone);
+    const compiler::utils::TypeQualifiers VLQuals(
+        compiler::utils::eTypeQualNone);
     if (!Mangler.mangleType(O, IntegerType::getInt32Ty(DataTy->getContext()),
                             VLQuals)) {
       return std::string();
@@ -335,15 +342,15 @@ Function *vecz::getOrCreateScatterGatherMemOpFn(vecz::VectorizationContext &Ctx,
                                                 llvm::Type *MaskTy,
                                                 unsigned Alignment,
                                                 bool IsGather, bool IsVP) {
-  Module &M = Ctx.module();
+  const Module &M = Ctx.module();
   LLVMContext &LLVMCtx = M.getContext();
   assert(VecPtrTy);
   assert(!MaskTy || multi_llvm::getVectorElementCount(MaskTy) ==
                         multi_llvm::getVectorElementCount(DataTy));
 
   // Try to retrieve the builtin if it already exists.
-  std::string Name = getScatterGatherMemOpName(DataTy, VecPtrTy, MaskTy,
-                                               Alignment, IsGather, IsVP);
+  const std::string Name = getScatterGatherMemOpName(DataTy, VecPtrTy, MaskTy,
+                                                     Alignment, IsGather, IsVP);
   VECZ_FAIL_IF(Name.empty());
   Function *F = Ctx.getOrCreateInternalBuiltin(Name, nullptr);
   if (!F) {
@@ -461,7 +468,7 @@ std::optional<MemOpDesc> MemOpDesc::analyzeMemOpFunction(Function &F) {
 }
 
 std::optional<MemOpDesc> MemOpDesc::analyzeMaskedMemOp(Function &F) {
-  StringRef MangledName = F.getName();
+  const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;
@@ -522,7 +529,7 @@ std::optional<MemOpDesc> MemOpDesc::analyzeMaskedMemOp(Function &F) {
 }
 
 std::optional<MemOpDesc> MemOpDesc::analyzeInterleavedMemOp(Function &F) {
-  StringRef MangledName = F.getName();
+  const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;
@@ -602,7 +609,7 @@ std::optional<MemOpDesc> MemOpDesc::analyzeInterleavedMemOp(Function &F) {
 }
 
 std::optional<MemOpDesc> MemOpDesc::analyzeMaskedInterleavedMemOp(Function &F) {
-  StringRef MangledName = F.getName();
+  const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;
@@ -700,7 +707,7 @@ std::optional<MemOpDesc> MemOpDesc::analyzeMaskedInterleavedMemOp(Function &F) {
 }
 
 std::optional<MemOpDesc> MemOpDesc::analyzeScatterGatherMemOp(Function &F) {
-  StringRef MangledName = F.getName();
+  const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;
@@ -754,7 +761,7 @@ std::optional<MemOpDesc> MemOpDesc::analyzeScatterGatherMemOp(Function &F) {
 
 std::optional<MemOpDesc> MemOpDesc::analyzeMaskedScatterGatherMemOp(
     Function &F) {
-  StringRef MangledName = F.getName();
+  const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;

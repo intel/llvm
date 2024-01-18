@@ -144,13 +144,13 @@ bool TargetInfoArm::canOptimizeInterleavedGroupImpl(const Instruction &val,
     return false;
   }
 
-  unsigned VecBits = VecTy->getPrimitiveSizeInBits();
+  const unsigned VecBits = VecTy->getPrimitiveSizeInBits();
   if ((VecBits != 128) && (VecBits != 64)) {
     return false;
   }
 
   // NEON interleave instructions only allow 8, 16, and 32 bit elements
-  unsigned ElementSize = VecTy->getScalarSizeInBits();
+  const unsigned ElementSize = VecTy->getScalarSizeInBits();
   if ((ElementSize != 32) && (ElementSize != 16) && (ElementSize != 8)) {
     return false;
   }
@@ -163,7 +163,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
                                              ArrayRef<Value *> group,
                                              ArrayRef<Value *>, Value *address,
                                              int stride) const {
-  bool HasMask =
+  const bool HasMask =
       (kind == eMaskedInterleavedLoad) || (kind == eMaskedInterleavedStore);
   // canOptimizeInterleavedGroup() should have returned false in this case.
   // ARM does not have masked vector load or store instructions.
@@ -213,7 +213,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
   }
 
   Type *EleTy = VecTy->getElementType();
-  unsigned Alignment = (EleTy->getPrimitiveSizeInBits() / 8);
+  const unsigned Alignment = (EleTy->getPrimitiveSizeInBits() / 8);
 
   // Declare the intrinsic if needed.
   SmallVector<Type *, 2> Tys;
@@ -244,7 +244,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
   if (kind == eInterleavedLoad) {
     for (unsigned i = 0; i < Calls.size(); i++) {
       CallInst *Op = Calls[i];
-      ArrayRef<unsigned> Indices(&i, 1);
+      const ArrayRef<unsigned> Indices(&i, 1);
       Value *Extract = B.CreateExtractValue(CI, Indices);
       Op->replaceAllUsesWith(Extract);
     }
@@ -312,13 +312,13 @@ bool TargetInfoAArch64::canOptimizeInterleavedGroupImpl(
     return false;
   }
 
-  unsigned VecBits = VecTy->getPrimitiveSizeInBits();
+  const unsigned VecBits = VecTy->getPrimitiveSizeInBits();
   if ((VecBits != 128) && (VecBits != 64)) {
     return false;
   }
 
   // NEON interleave instructions only allow 8, 16, and 32 bit elements
-  unsigned ElementSize = VecTy->getScalarSizeInBits();
+  const unsigned ElementSize = VecTy->getScalarSizeInBits();
   if ((ElementSize != 32) && (ElementSize != 16) && (ElementSize != 8)) {
     return false;
   }
@@ -329,7 +329,7 @@ bool TargetInfoAArch64::canOptimizeInterleavedGroupImpl(
 bool TargetInfoAArch64::optimizeInterleavedGroup(
     IRBuilder<> &B, InterleavedOperation kind, ArrayRef<Value *> group,
     ArrayRef<Value *>, Value *address, int stride) const {
-  bool HasMask =
+  const bool HasMask =
       (kind == eMaskedInterleavedLoad) || (kind == eMaskedInterleavedStore);
   // canOptimizeInterleavedGroup() should have returned false in this case.
   // AArch64 does not have masked vector load or store instructions.
@@ -398,7 +398,7 @@ bool TargetInfoAArch64::optimizeInterleavedGroup(
   if (kind == eInterleavedLoad) {
     for (unsigned i = 0; i < Calls.size(); i++) {
       CallInst *Op = Calls[i];
-      ArrayRef<unsigned> Indices(&i, 1);
+      const ArrayRef<unsigned> Indices(&i, 1);
       Value *Extract = B.CreateExtractValue(CI, Indices);
       Op->replaceAllUsesWith(Extract);
     }

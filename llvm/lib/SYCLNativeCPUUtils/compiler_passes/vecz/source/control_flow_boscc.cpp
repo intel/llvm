@@ -110,10 +110,11 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
   SmallVector<Loop *, 16> duplicatedLoops;
   SmallPtrSet<Loop *, 16> duplicatedLoopSet;
 
-  size_t size = std::accumulate(uniformRegions.begin(), uniformRegions.end(), 0,
-                                [](size_t base, const UniformRegion &region) {
-                                  return base + region.predicatedBlocks.size();
-                                });
+  const size_t size =
+      std::accumulate(uniformRegions.begin(), uniformRegions.end(), 0,
+                      [](size_t base, const UniformRegion &region) {
+                        return base + region.predicatedBlocks.size();
+                      });
   std::vector<BasicBlock *> newBlocks;
   newBlocks.reserve(size);
 
@@ -666,7 +667,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
     // connected, we can replace the blended values uses with their new
     // value.
     DenseSet<Instruction *> toDelete;
-    for (URVBlender::value_type &blender : URVB) {
+    for (const URVBlender::value_type &blender : URVB) {
       BasicBlock *block = blender.first;
       Value *from = blender.second.first;
       Instruction *to = blender.second.second;
@@ -694,7 +695,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
                                  BasicBlock *to) {
     for (Instruction &I : *B) {
       if (PHINode *PHI = dyn_cast<PHINode>(&I)) {
-        int fromIdx = PHI->getBasicBlockIndex(from);
+        const int fromIdx = PHI->getBasicBlockIndex(from);
         if (fromIdx != -1) {
           PHI->setIncomingBlock(fromIdx, to);
         }
@@ -1081,7 +1082,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
       // SSA doesn't have to look for the instructions inside the uniform loop.
       for (Instruction &I : *connectionPoint) {
         if (PHINode *PHI = dyn_cast<PHINode>(&I)) {
-          int idx = PHI->getBasicBlockIndex(target);
+          const int idx = PHI->getBasicBlockIndex(target);
           VECZ_ERROR_IF(idx == -1,
                         "Connection point PHIs must have incoming "
                         "block from the target");
@@ -1261,7 +1262,7 @@ bool ControlFlowConversionState::BOSCCGadget::updateLoopBlendValues(
     // latch. Since the CFG is final now, this should cover everything.
     for (Instruction &headerI : *LTag->header) {
       if (PHINode *PHI = dyn_cast<PHINode>(&headerI)) {
-        int latchIdx = PHI->getBasicBlockIndex(LTag->latch);
+        const int latchIdx = PHI->getBasicBlockIndex(LTag->latch);
         VECZ_ERROR_IF(latchIdx == -1,
                       "Header has no incoming value from the latch");
         if ((PHI == to) || (PHI->getIncomingValue(latchIdx) == from)) {
@@ -1368,7 +1369,7 @@ bool ControlFlowConversionState::BOSCCGadget::cleanUp() {
   // blend the same two values together. Also, sometimes values are blended
   // even though they have no further uses and can be removed as dead code.
 
-  RPOT rpot(&F);
+  const RPOT rpot(&F);
   std::vector<PHINode *> blends;
   for (auto *BB : rpot) {
     for (auto I = BB->begin(); I != BB->end();) {

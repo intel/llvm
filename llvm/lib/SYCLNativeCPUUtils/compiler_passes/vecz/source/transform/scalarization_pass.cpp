@@ -190,9 +190,9 @@ PreservedAnalyses ScalarizationPass::run(llvm::Function &F,
   const auto *DI =
       MAMProxy.getCachedResult<compiler::utils::DeviceInfoAnalysis>(
           *F.getParent());
-  bool DoubleSupport = DI && DI->double_capabilities != 0;
+  const bool DoubleSupport = DI && DI->double_capabilities != 0;
 
-  bool FullScalarization =
+  const bool FullScalarization =
       VU.choices().isEnabled(VectorizationChoices::eFullScalarization);
   bool NeedsScalarization = false;
   Scalarizer SR(F, Ctx, DoubleSupport);

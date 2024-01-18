@@ -223,7 +223,7 @@ static unsigned getRISCVBits(const TargetMachine *TM) {
 llvm::Value *getIntrinsicVL(llvm::IRBuilderBase &B, llvm::Value *VL,
                             llvm::Type *wideTy, llvm::TargetMachine *TM,
                             const Twine &N = "xlen") {
-  unsigned XLenTyWidth = getRISCVBits(TM);
+  const unsigned XLenTyWidth = getRISCVBits(TM);
   Type *XLen = B.getIntNTy(XLenTyWidth);
 
   if (VL) {
