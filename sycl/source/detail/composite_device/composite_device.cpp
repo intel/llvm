@@ -26,18 +26,17 @@ std::vector<device> get_composite_devices() {
     }
   }
   std::vector<device> Result;
-  std::copy_if(Composites.begin(), Composites.end(), std::back_inserter(Result),
-               [&](const device &Composite) {
-                 auto Components =
-                     Composite.get_info<info::device::component_devices>();
-                 // Only return composite devices if all of its component
-                 // devices are available.
-                 return std::all_of(Components.begin(), Components.end(),
-                                    [&](const device &d) {
-                                      return std::find(Devs.begin(), Devs.end(),
-                                                       d) != Devs.end();
-                                    });
-               });
+  std::copy_if(
+      Composites.begin(), Composites.end(), std::back_inserter(Result),
+      [&](const device &Composite) {
+        auto Components = Composite.get_info<info::device::component_devices>();
+        // Only return composite devices if all of its component
+        // devices are available.
+        return std::all_of(
+            Components.begin(), Components.end(), [&](const device &d) {
+              return std::find(Devs.begin(), Devs.end(), d) != Devs.end();
+            });
+      });
   return Result;
 }
 } // namespace ext::oneapi::experimental
