@@ -123,18 +123,12 @@ using floating_list =
 // geometric floating point types
 using scalar_geo_half_list = type_list<half>;
 
-using scalar_geo_bfloat16_list = type_list<sycl::ext::oneapi::bfloat16>;
-
 using scalar_geo_float_list = type_list<float>;
 
 using scalar_geo_double_list = type_list<double>;
 
 using vector_geo_half_list =
     type_list<vec<half, 1>, vec<half, 2>, vec<half, 3>, vec<half, 4>>;
-
-using vector_geo_bfloat16_list = type_list<
-    vec<sycl::ext::oneapi::bfloat16, 1>, vec<sycl::ext::oneapi::bfloat16, 2>,
-    vec<sycl::ext::oneapi::bfloat16, 3>, vec<sycl::ext::oneapi::bfloat16, 4>>;
 
 using vector_geo_float_list =
     type_list<vec<float, 1>, vec<float, 2>, vec<float, 3>, vec<float, 4>>;
@@ -150,21 +144,16 @@ using marray_geo_double_list =
 
 using geo_half_list = tl_append<scalar_geo_half_list, vector_geo_half_list>;
 
-using geo_bfloat16_list =
-    tl_append<scalar_geo_bfloat16_list, vector_geo_bfloat16_list>;
-
 using geo_float_list = tl_append<scalar_geo_float_list, vector_geo_float_list>;
 
 using geo_double_list =
     tl_append<scalar_geo_double_list, vector_geo_double_list>;
 
-using scalar_geo_list =
-    tl_append<scalar_geo_half_list, scalar_geo_bfloat16_list,
-              scalar_geo_float_list, scalar_geo_double_list>;
+using scalar_geo_list = tl_append<scalar_geo_half_list, scalar_geo_float_list,
+                                  scalar_geo_double_list>;
 
-using vector_geo_list =
-    tl_append<vector_geo_half_list, vector_geo_bfloat16_list,
-              vector_geo_float_list, vector_geo_double_list>;
+using vector_geo_list = tl_append<vector_geo_half_list, vector_geo_float_list,
+                                  vector_geo_double_list>;
 
 using marray_geo_list =
     tl_append<marray_geo_float_list, marray_geo_double_list>;
