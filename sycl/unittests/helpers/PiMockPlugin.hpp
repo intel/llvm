@@ -1410,6 +1410,22 @@ inline pi_result mock_piextCommandBufferFillUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {

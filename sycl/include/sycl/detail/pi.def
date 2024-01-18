@@ -180,6 +180,8 @@ _PI_API(piextCommandBufferMemBufferRead)
 _PI_API(piextCommandBufferMemBufferReadRect)
 _PI_API(piextCommandBufferMemBufferFill)
 _PI_API(piextCommandBufferFillUSM)
+_PI_API(piextCommandBufferPrefetchUSM)
+_PI_API(piextCommandBufferAdviseUSM)
 _PI_API(piextEnqueueCommandBuffer)
 
 _PI_API(piextUSMPitchedAlloc)
