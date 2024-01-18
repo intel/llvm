@@ -24,20 +24,18 @@ using namespace jit_compiler::translation;
 using namespace llvm;
 
 ///
-/// Get an attribute value consisting of NumValues scalar constant integers
-/// from the MDNode.
-static void getAttributeValues(std::vector<std::string> &Values, MDNode *MD) {
-  for (const auto &MDOp : MD->operands()) {
-    auto *ConstantMD = cast<ConstantAsMetadata>(MDOp);
-    auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
-    Values.push_back(std::to_string(ConstInt->getZExtValue()));
-  }
+/// Get an `Indices` object from the MDNode's three constant integer operands.
+static Indices getAttributeValues(MDNode *MD) {
+  assert(MD->getNumOperands() == Indices::size());
+  Indices Res;
+  std::transform(MD->op_begin(), MD->op_end(), Res.begin(),
+                 [](const auto &MDOp) {
+                   auto *ConstantMD = cast<ConstantAsMetadata>(MDOp);
+                   auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
+                   return ConstInt->getZExtValue();
+                 });
+  return Res;
 }
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-static const char *REQD_WORK_GROUP_SIZE_ATTR = "reqd_work_group_size";
-// NOLINTNEXTLINE(readability-identifier-naming)
-static const char *WORK_GROUP_SIZE_HINT_ATTR = "work_group_size_hint";
 
 ///
 /// Restore kernel attributes for the kernel in Info from the metadata
@@ -48,16 +46,20 @@ static const char *WORK_GROUP_SIZE_HINT_ATTR = "work_group_size_hint";
 static void restoreKernelAttributes(Module *Mod, SYCLKernelInfo &Info) {
   auto *KernelFunction = Mod->getFunction(Info.Name);
   assert(KernelFunction && "Kernel function not present in module");
-  if (auto *MD = KernelFunction->getMetadata(REQD_WORK_GROUP_SIZE_ATTR)) {
-    SYCLKernelAttribute ReqdAttr{REQD_WORK_GROUP_SIZE_ATTR};
-    getAttributeValues(ReqdAttr.Values, MD);
-    Info.Attributes.push_back(ReqdAttr);
+  SmallVector<SYCLKernelAttribute, 2> Attrs;
+  using AttrKind = SYCLKernelAttribute::AttrKind;
+  if (auto *MD = KernelFunction->getMetadata(
+          SYCLKernelAttribute::ReqdWorkGroupSizeName)) {
+    Attrs.emplace_back(AttrKind::ReqdWorkGroupSize, getAttributeValues(MD));
   }
-  if (auto *MD = KernelFunction->getMetadata(WORK_GROUP_SIZE_HINT_ATTR)) {
-    SYCLKernelAttribute HintAttr{WORK_GROUP_SIZE_HINT_ATTR};
-    getAttributeValues(HintAttr.Values, MD);
-    Info.Attributes.push_back(HintAttr);
+  if (auto *MD = KernelFunction->getMetadata(
+          SYCLKernelAttribute::WorkGroupSizeHintName)) {
+    Attrs.emplace_back(AttrKind::WorkGroupSizeHint, getAttributeValues(MD));
   }
+  if (Attrs.empty())
+    return;
+  Info.Attributes = SYCLAttributeList{Attrs.size()};
+  llvm::copy(Attrs, Info.Attributes.begin());
 }
 
 llvm::Expected<std::unique_ptr<llvm::Module>>

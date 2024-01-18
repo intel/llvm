@@ -12,10 +12,7 @@
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
-// Include the generated builtins.
-#include <sycl/builtins_marray_gen.hpp>
-#include <sycl/builtins_scalar_gen.hpp>
-#include <sycl/builtins_vector_gen.hpp>
+#include <sycl/builtins_preview.hpp>
 
 #else // __INTEL_PREVIEW_BREAKING_CHANGES
 

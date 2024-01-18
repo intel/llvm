@@ -1038,6 +1038,8 @@
 ?ext_oneapi_copyD2H_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEAXIV?$range@$02@34@4V?$id@$02@34@IPEADI45IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_copyH2D_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEADIV?$range@$02@34@V?$id@$02@34@IPEAXI445IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_copy_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEBXPEAU_pi_ext_command_buffer@@_KPEAXV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_prefetch_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAX_KV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_disable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
