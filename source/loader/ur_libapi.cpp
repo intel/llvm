@@ -7919,7 +7919,13 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+    size_t
+        localWorkSize, ///< [in] number of local work-items that will form a work-group when the
+                       ///< kernel is launched
+    size_t
+        dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
+    ///< that will be used when the kernel is launched
+    uint32_t *pGroupCountRet ///< [out] pointer to maximum number of groups
     ) try {
     auto pfnSuggestMaxCooperativeGroupCountExp =
         ur_lib::context->urDdiTable.KernelExp
@@ -7928,7 +7934,8 @@ ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
+    return pfnSuggestMaxCooperativeGroupCountExp(
+        hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

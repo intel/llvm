@@ -8419,8 +8419,12 @@ urEnqueueCooperativeKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+    ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
+    size_t localWorkSize,           ///< [in] number of local work-items that will form a work-group when the
+                                    ///< kernel is launched
+    size_t dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
+                                    ///< that will be used when the kernel is launched
+    uint32_t *pGroupCountRet        ///< [out] pointer to maximum number of groups
 );
 
 #if !defined(__GNUC__)
@@ -9368,6 +9372,8 @@ typedef struct ur_kernel_set_specialization_constants_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t {
     ur_kernel_handle_t *phKernel;
+    size_t *plocalWorkSize;
+    size_t *pdynamicSharedMemorySize;
     uint32_t **ppGroupCountRet;
 } ur_kernel_suggest_max_cooperative_group_count_exp_params_t;
 
