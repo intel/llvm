@@ -387,7 +387,7 @@ Error SYCLKernelFusion::fuseKernel(
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
       int IdenticalIdx = -1;
-      if (ParamFront < ParamEnd && FuncIndex == ParamFront->LHS.KernelIdx &&
+      if (ParamFront != ParamEnd && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
         // Because ParamIdentity is constructed such that LHS > RHS, the other
         // parameter must already have been processed.
