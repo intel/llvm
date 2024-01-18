@@ -978,6 +978,7 @@
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@@Z
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?deleteAccProps@buffer_plain@detail@_V1@sycl@@IEAAXAEBW4PropWithDataKind@234@@Z
 ?deleteAccessorProperty@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBW4PropWithDataKind@234@@Z
