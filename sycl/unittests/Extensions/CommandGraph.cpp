@@ -1105,7 +1105,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1118,7 +1118,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1165,7 +1165,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1178,7 +1178,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1240,7 +1240,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1253,7 +1253,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1316,7 +1316,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1329,7 +1329,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
