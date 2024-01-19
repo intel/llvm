@@ -143,6 +143,11 @@ def ExternalGlobalVar : SubsetSubject<Var,
                                !S->isLocalExternDecl()}],
                              "external global variables">;
 
+def NonTLSGlobalVar : SubsetSubject<Var,
+                             [{S->hasGlobalStorage() &&
+                               S->getTLSKind() == 0}],
+                             "non-TLS global variables">;
+
 def InlineFunction : SubsetSubject<Function,
                              [{S->isInlineSpecified()}], "inline functions">;
 
@@ -443,6 +448,7 @@ def TargetAArch64 : TargetArch<["aarch64", "aarch64_be", "aarch64_32"]>;
 def TargetAnyArm : TargetArch<!listconcat(TargetARM.Arches, TargetAArch64.Arches)>;
 def TargetAVR : TargetArch<["avr"]>;
 def TargetBPF : TargetArch<["bpfel", "bpfeb"]>;
+def TargetLoongArch : TargetArch<["loongarch32", "loongarch64"]>;
 def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
 def TargetMSP430 : TargetArch<["msp430"]>;
@@ -1157,6 +1163,14 @@ def CoroWrapper : InheritableAttr {
 def CoroLifetimeBound : InheritableAttr {
   let Spellings = [Clang<"coro_lifetimebound">];
   let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroLifetimeBoundDoc];
+  let SimpleHandler = 1;
+}
+
+def CoroDisableLifetimeBound : InheritableAttr {
+  let Spellings = [Clang<"coro_disable_lifetimebound">];
+  let Subjects = SubjectList<[Function]>;
   let LangOpts = [CPlusPlus];
   let Documentation = [CoroLifetimeBoundDoc];
   let SimpleHandler = 1;
@@ -3795,6 +3809,15 @@ def PragmaClangTextSection : InheritableAttr {
   let Documentation = [InternalOnly];
 }
 
+def CodeModel : InheritableAttr, TargetSpecificAttr<TargetLoongArch> {
+  let Spellings = [GCC<"model">];
+  let Args = [EnumArgument<"Model", "llvm::CodeModel::Model",
+              ["normal", "medium", "extreme"], ["Small", "Medium", "Large"],
+              /*opt=*/0, /*fake=*/0, /*isExternalType=*/1>];
+  let Subjects = SubjectList<[NonTLSGlobalVar], ErrorDiag>;
+  let Documentation = [CodeModelDocs];
+}
+
 def Sentinel : InheritableAttr {
   let Spellings = [GCC<"sentinel">];
   let Args = [DefaultIntArgument<"Sentinel", 0>,
@@ -5412,5 +5435,23 @@ def CodeAlign: StmtAttr {
   let AdditionalMembers = [{
     static constexpr int MinimumAlignment = 1;
     static constexpr int MaximumAlignment = 4096;
+  }];
+}
+
+def CountedBy : InheritableAttr {
+  let Spellings = [Clang<"counted_by">];
+  let Subjects = SubjectList<[Field]>;
+  let Args = [IdentifierArgument<"CountedByField">];
+  let Documentation = [CountedByDocs];
+  let LangOpts = [COnly];
+  // FIXME: This is ugly. Let using a DeclArgument would be nice, but a Decl
+  // isn't yet available due to the fact that we're still parsing the
+  // structure. Maybe that code could be changed sometime in the future.
+  code AdditionalMembers = [{
+    private:
+      SourceRange CountedByFieldLoc;
+    public:
+      SourceRange getCountedByFieldLoc() const { return CountedByFieldLoc; }
+      void setCountedByFieldLoc(SourceRange Loc) { CountedByFieldLoc = Loc; }
   }];
 }

@@ -266,15 +266,24 @@ std::vector<int> platform_impl::filterDeviceFilter(
     MPlugin->call<PiApiKind::piDeviceGetInfo>(
         Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
         &PiDevType, nullptr);
+    // Assumption here is that there is 1-to-1 mapping between PiDevType and
+    // Sycl device type for GPU, CPU, and ACC.
+    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend.value_or(backend::all);
       // First, match the backend entry.
       if (FilterBackend != Backend && FilterBackend != backend::all)
         continue;
+      info::device_type FilterDevType =
+          Filter.DeviceType.value_or(info::device_type::all);
 
       // Match the device_num entry.
       if (Filter.DeviceNum && DeviceNum != Filter.DeviceNum.value())
+        continue;
+
+      if (FilterDevType != info::device_type::all &&
+          FilterDevType != DeviceType)
         continue;
 
       if constexpr (is_ods_target) {

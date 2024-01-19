@@ -25,6 +25,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
 #include <array>       // for array
+#include <cstddef>     // for std::byte
 #include <cstring>     // for size_t, memcpy
 #include <functional>  // for function
 #include <iterator>    // for distance
@@ -46,7 +47,7 @@ auto get_native(const kernel_bundle<State> &Obj)
 namespace detail {
 class kernel_id_impl;
 class kernel_impl;
-}
+} // namespace detail
 
 template <typename KernelName> kernel_id get_kernel_id();
 
@@ -886,11 +887,18 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
+
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(
-    const context &SyclContext,
-    sycl::ext::oneapi::experimental::source_language Language,
-    const std::string &Source);
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::string &Source);
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::vector<std::byte> &Bytes);
+#endif
 
 /////////////////////////
 // syclex::build(source_kb) => exe_kb

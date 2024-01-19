@@ -45,9 +45,9 @@
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint32_t, 4>)                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint16_t, 4>)                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::vec<uint64_t, 4>)                     \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned int, 4>)              \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned short, 4>)            \
-  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<unsigned long, 4>)
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint32_t, 4>)                  \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint16_t, 4>)                  \
+  CHECK_INNER(NUM_ARGS, FUNC_NAME, sycl::marray<uint64_t, 4>)
 
 #define SGENINT_CHECK(NUM_ARGS, FUNC_NAME)                                     \
   CHECK_INNER(NUM_ARGS, FUNC_NAME, signed char)                                \

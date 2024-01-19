@@ -794,11 +794,7 @@ inline pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Platform
-inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
-                                pi_uint32 *NumPlatforms) {
-
+inline pi_result PiGetAdapter(ur_adapter_handle_t &adapter) {
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.
@@ -809,9 +805,23 @@ inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                  [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
   HANDLE_ERRORS(Ret);
 
+  adapter = Adapter;
+
+  return PI_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Platform
+inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
+                                pi_uint32 *NumPlatforms) {
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
   HANDLE_ERRORS(
-      urPlatformGet(&Adapter, 1, NumEntries, phPlatforms, NumPlatforms));
+      urPlatformGet(&adapter, 1, NumEntries, phPlatforms, NumPlatforms));
   return PI_SUCCESS;
 }
 
@@ -837,6 +847,12 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   PI_ASSERT(Platform, PI_ERROR_INVALID_PLATFORM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
 
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
@@ -3358,6 +3374,18 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
   }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
   }
@@ -4565,6 +4593,75 @@ inline pi_result piextCommandBufferMemBufferWrite(
       UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
 
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferFillExp(
+      UrCommandBuffer, UrBuffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer CommandBuffer, void *Ptr, const void *Pattern,
+    size_t PatternSize, size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  HANDLE_ERRORS(urCommandBufferAppendUSMFillExp(
+      UrCommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+
+  // flags is currently unused so fail if set
+  PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  // TODO: to map from pi_usm_migration_flags to
+  // ur_usm_migration_flags_t
+  // once we have those defined
+  ur_usm_migration_flags_t UrFlags{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMPrefetchExp(
+      UrCommandBuffer, Ptr, Size, UrFlags, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  // TODO: Handle advice correctly
+  (void)Advice;
+
+  ur_exp_command_buffer_handle_t UrCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
+
+  ur_usm_advice_flags_t UrAdvice{};
+  HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
+      UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint));
   return PI_SUCCESS;
 }
 
