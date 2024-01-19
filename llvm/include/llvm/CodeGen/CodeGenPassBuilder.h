@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/ExpandReductions.h"
 #include "llvm/CodeGen/FPBuiltinFnSelection.h"
 #include "llvm/CodeGen/GCMetadata.h"
+#include "llvm/CodeGen/GlobalMerge.h"
 #include "llvm/CodeGen/IndirectBrExpand.h"
 #include "llvm/CodeGen/InterleavedAccess.h"
 #include "llvm/CodeGen/InterleavedLoadCombine.h"
@@ -280,6 +281,9 @@ protected:
     return make_error<StringError>("addInstSelector is not overridden",
                                    inconvertibleErrorCode());
   }
+
+  /// Target can override this to add GlobalMergePass before all IR passes.
+  void addGlobalMergePass(AddIRPass &) const {}
 
   /// Add passes that optimize instruction level parallelism for out-of-order
   /// targets. These passes are run while the machine code is still in SSA
@@ -594,6 +598,7 @@ CodeGenPassBuilder<Derived>::getPassNameFromLegacyName(StringRef Name) const {
 
 template <typename Derived>
 void CodeGenPassBuilder<Derived>::addISelPasses(AddIRPass &addPass) const {
+  derived().addGlobalMergePass(addPass);
   if (TM.useEmulatedTLS())
     addPass(LowerEmuTLSPass());
 
