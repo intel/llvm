@@ -1190,7 +1190,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
 
   auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
   auto EventGraphWaitList = EventGraphImpl->getWaitList();
-  // Previous task is an host task. Explicit dependency is needed to enfore the
+  // Previous task is a host task. Explicit dependency is needed to enforce the
   // execution order
   ASSERT_EQ(EventGraphWaitList.size(), 1lu);
   ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
