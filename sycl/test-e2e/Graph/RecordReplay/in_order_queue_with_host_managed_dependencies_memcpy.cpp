@@ -49,15 +49,9 @@ int main() {
 
   Queue.wait_and_throw();
 
-  std::vector<T> Reference(Size);
-  std::memset(Reference.data(), 1, Size * sizeof(T));
-  for (size_t i = 0; i < Size; i++) {
-    Reference[i] += i;
-  }
-
   // Check Outputs
   for (size_t i = 0; i < Size; i++) {
-    assert(TestDataOut[i] == Reference[i]);
+    assert(TestDataOut[i] == 1+i;
   }
 
   sycl::free(TestData, Queue);
