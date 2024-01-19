@@ -9,8 +9,9 @@
  */
 #include "backtrace.hpp"
 
-#include <DbgHelp.h>
 #include <Windows.h>
+// Windows.h must be included before DbgHelp.h
+#include <DbgHelp.h>
 #include <vector>
 
 namespace ur_validation_layer {
