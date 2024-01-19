@@ -18,6 +18,7 @@ on:
     - '**.rst'
     - '.github/workflows/sycl_linux_*.yml'
     - '.github/workflows/sycl_precommit_aws.yml'
+    - '.github/workflows/sycl_macos_*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
