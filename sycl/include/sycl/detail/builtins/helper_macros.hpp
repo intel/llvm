@@ -188,6 +188,12 @@
   DEVICE_IMPL_TEMPLATE_CUSTOM_DELEGATE(NUM_ARGS, NAME, ENABLER,                \
                                        builtin_marray_impl, sycl, __VA_ARGS__)
 
+#ifdef __SYCL_BUILD_SYCL_DLL
+#define SYCL_BUILTIN_EXPORT __SYCL_EXPORT
+#else
+#define SYCL_BUILTIN_EXPORT
+#endif
+
 // Use extern function declaration in function scope to save compile time.
 // Otherwise the FE has to parse multiple types/VLs/functions costing us around
 // 0.3s in compile-time. It also allows us to skip providing all the explicit
@@ -204,7 +210,7 @@
      */                                                                        \
     using ret_ty = typename detail::RET_TYPE_TRAITS<                           \
         typename detail::first_type<Ts...>::type>::type;                       \
-    extern ret_ty __##NAME##_impl(Ts...);                                      \
+    extern SYCL_BUILTIN_EXPORT ret_ty __##NAME##_impl(Ts...);                  \
     return __##NAME##_impl(xs...);                                             \
   }                                                                            \
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
@@ -223,7 +229,8 @@
 
 #define HOST_IMPL_SCALAR_RET_TYPE(NUM_ARGS, NAME, RET_TYPE, TYPE)              \
   inline RET_TYPE NAME(NUM_ARGS##_TYPE_ARG(TYPE)) {                            \
-    extern RET_TYPE __##NAME##_impl(NUM_ARGS##_TYPE(TYPE));                    \
+    extern SYCL_BUILTIN_EXPORT RET_TYPE __##NAME##_impl(                       \
+        NUM_ARGS##_TYPE(TYPE));                                                \
     return __##NAME##_impl(NUM_ARGS##_ARG);                                    \
   }
 
