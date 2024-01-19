@@ -51,7 +51,7 @@ int main() {
 
   // Check Outputs
   for (size_t i = 0; i < Size; i++) {
-    assert(TestDataOut[i] == 1+i;
+    assert(TestDataOut[i] == 1+i);
   }
 
   sycl::free(TestData, Queue);
