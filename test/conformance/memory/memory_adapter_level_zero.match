@@ -1,4 +1,4 @@
-urMemBufferCreateTest.InvalidBufferSizeZero/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urMemBufferCreateWithFlagsTest.InvalidBufferSizeZero/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urMemBufferPartitionTest.InvalidBufferSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urMemBufferPartitionTest.InvalidValueCreateType/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
