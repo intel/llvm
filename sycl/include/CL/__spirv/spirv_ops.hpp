@@ -996,8 +996,8 @@ __spirv_ConvertFToBF16INTEL(float) noexcept;
 extern __DPCPP_SYCL_EXTERNAL float
     __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT
+    __ocl_vec_t<uint32_t, 4>
     __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 // TODO: I'm not 100% sure that these NonUniform instructions should be
@@ -1257,6 +1257,23 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
+
+template <typename dataT, typename RetT, typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL size_t __spirv_TaskSequenceCreateINTEL(
+    dataT *Data, RetT (*f)(ArgsT...), uint32_t InvocationCapacity = 0,
+    uint32_t ResponseCapacity = 0, int32_t Pipelined = -1,
+    uint16_t ClusterMode = -1) noexcept;
+
+template <typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL void
+__spirv_TaskSequenceAsyncINTEL(size_t Id, ArgsT... Args) noexcept;
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT
+__spirv_TaskSequenceGetINTEL(size_t Id) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL void
+__spirv_TaskSequenceReleaseINTEL(size_t Id) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

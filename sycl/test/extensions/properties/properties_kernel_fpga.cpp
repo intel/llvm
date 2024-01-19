@@ -15,6 +15,8 @@ int main() {
                 intel::experimental::register_map_interface_key>::value);
   static_assert(oneapi::experimental::is_property_key<
                 intel::experimental::pipelined_key>::value);
+  static_assert(oneapi::experimental::is_property_key<
+                intel::experimental::fpga_cluster_key>::value);
 
   // Check that oneapi::experimental::is_property_value is correctly specialized
   static_assert(oneapi::experimental::is_property_value<
@@ -52,6 +54,15 @@ int main() {
   static_assert(oneapi::experimental::is_property_value<
                 decltype(intel::experimental::pipelined<4>)>::value);
 
+  static_assert(oneapi::experimental::is_property_value<
+                decltype(intel::experimental::fpga_cluster<
+                         intel::experimental::fpga_cluster_options_enum::
+                             stall_enable>)>::value);
+  static_assert(oneapi::experimental::is_property_value<
+                decltype(intel::experimental::fpga_cluster<
+                         intel::experimental::fpga_cluster_options_enum::
+                             stall_free>)>::value);
+
   // Check that property lists will accept the new properties
   using PS = decltype(oneapi::experimental::properties(
       intel::experimental::streaming_interface_remove_downstream_stall));
@@ -77,4 +88,11 @@ int main() {
   static_assert(PP::has_property<intel::experimental::pipelined_key>());
   static_assert(PP::get_property<intel::experimental::pipelined_key>() ==
                 intel::experimental::pipelined<-1>);
+
+  using PFC = decltype(oneapi::experimental::properties(
+      intel::experimental::use_stall_enable_clusters));
+  static_assert(oneapi::experimental::is_property_list_v<PFC>);
+  static_assert(PSE::has_property<intel::experimental::fpga_cluster_key>());
+  static_assert(PSE::get_property<intel::experimental::fpga_cluster_key>() ==
+                intel::experimental::use_stall_enable_clusters);
 }
