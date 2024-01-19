@@ -1210,7 +1210,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  // Check if device has usm shared allocation
+  // Check if device has usm shared allocation.
   if (!InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations))
     return;
   size_t Size = 128;
