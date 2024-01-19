@@ -350,7 +350,7 @@ intel_gpu_12_10_0 = intel_gpu_dg1
 |-
 |Aliases for Intel graphics architectures.
 
-3+^|*Nvidia GPU family*
+3+^|*NVIDIA GPU family*
 
 a|
 [source]
@@ -652,7 +652,7 @@ template<architecture ...Archs, typename T>
 _Constraints:_ The type `T` must be a {cpp} `Callable` type which is invocable
 with an empty parameter list.
 
-_Preconditions:_ This function must not be called from host code.
+_Preconditions:_ This function must be called from device code.
 
 _Effects:_ The `Archs` parameter pack identifies the condition that gates
 execution of the callable object `fn`.
