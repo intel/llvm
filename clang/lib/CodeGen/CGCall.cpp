@@ -5031,6 +5031,23 @@ static unsigned getMaxVectorWidth(const llvm::Type *Ty) {
   return MaxVectorWidth;
 }
 
+static bool shouldCreateFPBuiltinForFD(const FunctionDecl *FD, StringRef Name) {
+  if (FD->getBuiltinID() == 0) {
+    // Even if FD doesn't have a clang builtin, an 'fpbuiltin-max-error'
+    // attribute is created for it; unless it's marked with
+    // an NoBuiltin attribute.
+    if (FD->hasAttr<NoBuiltinAttr>())
+      return false;
+    if (Name == "fdiv" || Name == "fadd" || Name == "fmul" || Name == "fsub" ||
+        Name == "frem" || Name == "sincos" || Name == "exp10" ||
+        Name == "rsqrt")
+      return true;
+    else
+      return false;
+  }
+  return true;
+}
+
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
                                  ReturnValueSlot ReturnValue,
@@ -5691,8 +5708,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (!getLangOpts().FPAccuracyFuncMap.empty() ||
         !getLangOpts().FPAccuracyVal.empty()) {
       const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      if (FD) {
-        CI = EmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr, FD);
+      if (FD && FD->getNameInfo().getName().isIdentifier() &&
+          shouldCreateFPBuiltinForFD(FD, FD->getName())) {
+        CI = EmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr, FD->getName(),
+                               FD->getBuiltinID());
         if (CI)
           return RValue::get(CI);
       }

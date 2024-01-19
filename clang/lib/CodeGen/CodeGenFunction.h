@@ -4436,7 +4436,7 @@ public:
   llvm::CallInst *
   EmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,
                     const SmallVectorImpl<llvm::Value *> &IRArgs,
-                    llvm::Value *FnPtr, const FunctionDecl *FD);
+                    llvm::Value *FnPtr, StringRef Name, unsigned FDBuiltinID);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
