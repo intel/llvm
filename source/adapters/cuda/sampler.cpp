@@ -18,7 +18,7 @@ urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
       new ur_sampler_handle_t_(hContext)};
 
   if (pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
-    Sampler->Props |= pDesc->normalizedCoords;
+    Sampler->Props |= static_cast<uint32_t>(pDesc->normalizedCoords);
     Sampler->Props |= pDesc->filterMode << 1;
     Sampler->Props |= pDesc->addressingMode << 2;
   } else {

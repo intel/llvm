@@ -12,7 +12,11 @@
 
 #include <memory>
 
-#include "ur_util.hpp"
+#if _WIN32
+#include <windows.h>
+#else
+#define HMODULE void *
+#endif
 
 namespace ur_loader {
 

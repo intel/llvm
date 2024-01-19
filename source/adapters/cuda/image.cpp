@@ -146,7 +146,7 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
           std::make_pair(image_channel_type, num_channels));
       cuda_format = cuda_format_and_size.first;
       pixel_size_bytes = cuda_format_and_size.second;
-    } catch (std::out_of_range &e) {
+    } catch (const std::out_of_range &) {
       return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
     }
   }
@@ -285,7 +285,7 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     ImageTexDesc.mipmapFilterMode = MipFilterMode;
     ImageTexDesc.maxMipmapLevelClamp = hSampler->MaxMipmapLevelClamp;
     ImageTexDesc.minMipmapLevelClamp = hSampler->MinMipmapLevelClamp;
-    ImageTexDesc.maxAnisotropy = hSampler->MaxAnisotropy;
+    ImageTexDesc.maxAnisotropy = static_cast<unsigned>(hSampler->MaxAnisotropy);
 
     // The address modes can interfere with other dimensions
     // e.g. 1D texture sampling can be interfered with when setting other

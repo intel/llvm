@@ -23,6 +23,9 @@
 #if UR_ENABLE_TRACING
 #include "tracing/ur_tracing_layer.hpp"
 #endif
+#if UR_ENABLE_SANITIZER
+#include "sanitizer/ur_sanitizer_layer.hpp"
+#endif
 
 #include <atomic>
 #include <mutex>
@@ -69,7 +72,10 @@ class __urdlllocal context_t {
     const std::vector<proxy_layer_context_t *> layers = {
         &ur_validation_layer::context,
 #if UR_ENABLE_TRACING
-        &ur_tracing_layer::context
+        &ur_tracing_layer::context,
+#endif
+#if UR_ENABLE_SANITIZER
+        &ur_sanitizer_layer::context
 #endif
     };
     std::string availableLayers;
