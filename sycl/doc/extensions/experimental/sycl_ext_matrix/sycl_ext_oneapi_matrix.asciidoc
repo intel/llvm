@@ -418,41 +418,13 @@ that corresponds to the abstract type `T1` or it must be a
 const-qualified version of that storage format type. For example:
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix {
+joint_matrix<sub_group, precision::tf32, use::a, tM, tK, layout::row_major> tA;
 
-template <typename Group, size_t Rows, size_t Cols,
-          access::address_space Space, access::decorated IsDecorated>
-void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
-    layout::dynamic> &res,
-    multi_ptr<const float, Space, IsDecorated> src,
-    size_t stride, layout Layout);
+float *buf = malloc_shared<float>(M*K, q);
+auto pBuf = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(buf);
 
-template <typename Group, size_t Rows, size_t Cols,
-          access::address_space Space, access::decorated IsDecorated>
-void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
-    layout::dynamic> &res,
-    multi_ptr<float, Space, IsDecorated> src,
-    size_t stride, layout Layout);
-
-// Only available when Layout != layout::dynamic
-template <typename Group, size_t Rows, size_t Cols,
-          use Use, layout Layout,
-          access::address_space Space, access::decorated IsDecorated>
-void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride);
-
-// Only available when Layout != layout::dynamic
-template <typename Group, size_t Rows, size_t Cols,
-          use Use, layout Layout,
-          access::address_space Space, access::decorated IsDecorated>
-void joint_matrix_load(Group g,
-    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<float, Space, IsDecorated> src, size_t stride);
-
-} // namespace sycl::ext::oneapi::experimental::matrix
+joint_matrix_load(sg, tA, pBuf + Offset, Stride);
 ```
 
 ==== store
@@ -460,17 +432,13 @@ The template parameter `T2` must be the storage format type that
 corresponds to the abstract type `T1`. For example:
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix {
+joint_matrix<sub_group, precision::tf32, use::accumulator, tM, tK> tC;
 
-template <typename Group, size_t Rows, size_t Cols,
-          access::address_space Space, access::decorated IsDecorated>
-void joint_matrix_store(Group g,
-   const joint_matrix<Group, precision::tf32, use::accumulator, Rows,
-                      Cols,  layout::dynamic> &res,
-   multi_ptr<float, Space, IsDecorated> dest,
-   size_t stride, layout Layout);
+float *buf = malloc_shared<float>(M*K, q);
+auto pBuf = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(buf);
 
-} // namespace sycl::ext::oneapi::experimental::matrix
+joint_matrix_store(sg, tA, pBuf + Offset, Stride, layout::row_major);
 ```
 
 ==== fill
@@ -478,29 +446,18 @@ The template parameter `Tv` must be implicitly convertible to the
 storage format type that corresponds to the abstract type `T`. For example:
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-
-template <typename Group, size_t Rows, size_t Cols,
-          use Use, layout Layout>
-void joint_matrix_fill(Group g, joint_matrix<Group, precision::tf32, Use, Rows,
-          Cols, Layout> &m, float v);
-
-} // namespace sycl::ext::oneapi::experimental::matrix
+joint_matrix<sub_group, precision::tf32, use::a, tM, tK, layout::row_major> tA;
+float v = 42.0;
+joint_matrix_fill(sg, tA, v);
 ```
 
 ==== copy
 The template parameters `T1` and `T2` must use the abstract type.
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-
-template <typename Group, size_t Rows, size_t Cols, use Use1,
-          use Use2, layout Layout1, layout Layout2>
-void joint_matrix_copy(Group g,
-        joint_matrix<Group, precision::tf32, Use1, Rows, Cols, Layout1> &src,
-        joint_matrix<Group, float, Use2, Rows, Cols, Layout2> &dest);
-
-} // namespace sycl::ext::oneapi::experimental::matrix
+joint_matrix<sub_group, precision::tf32, use::a, tM, tK, layout::row_major> tA;
+joint_matrix<sub_group, float, use::accumulator, tM, tK> tC;
+joint_matrix_copy(sg, tC, tA);
 ```
 
 ==== Element-wise operations
@@ -510,7 +467,8 @@ to the abstract type `T`. For example, in the case where `C` is a
 joint matrix of type `precision::tf32`:
 
 ```c++
-joint_matrix_apply(sg, C, [=](float &x) {
+joint_matrix<sub_group, precision::tf32, use::accumulator, tM, tK> tC;
+joint_matrix_apply(sg, tC, [=](float &x) {
     x *= alpha;
 });
 ```
