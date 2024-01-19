@@ -10,7 +10,7 @@
 // should. So the Sycl graph support cannot correctly catch the error and throw
 // the approriate exception for negative test. An issue has been reported
 // https://github.com/bashbaug/SimpleOpenCLSamples/issues/95
-// XFAIL: cuda
+// XFAIL: cuda, hip
 // UNSUPPORTED: opencl
 // Note: failing negative test with HIP in the original test
 
