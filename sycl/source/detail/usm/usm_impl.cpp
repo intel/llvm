@@ -160,11 +160,11 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 
     switch (Kind) {
     case alloc::device: {
-      if (Kind == alloc::device &&
-    !DevImpl->has(sycl::aspect::usm_device_allocations)) {
-        throw sycl::exception(sycl::errc::feature_not_supported,
-            "Device does not support Unified Shared Memory!");
-  }
+      //if (Kind == alloc::device &&
+    //!DevImpl->has(sycl::aspect::usm_device_allocations)) {
+      //  throw sycl::exception(sycl::errc::feature_not_supported,
+        //    "Device does not support Unified Shared Memory!");
+  //}
       Id = DevImpl->getHandleRef();
 
       std::array<pi_usm_mem_properties, 3> Props;
