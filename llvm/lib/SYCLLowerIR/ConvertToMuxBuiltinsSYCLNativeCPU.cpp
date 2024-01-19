@@ -82,15 +82,6 @@ enum class BT_Sig {
     }                                                                          \
   }
 
-#define GEN_direct(ITName, VSName, ncpu_name, sig)                             \
-  {                                                                            \
-    {ITName, VSName}, {                                                        \
-      #ncpu_name, {                                                            \
-        sig, {}                                                                \
-      }                                                                        \
-    }                                                                          \
-  }
-
 struct bt_info {
   BT_Sig type;
   unsigned args[1];
@@ -114,26 +105,6 @@ static const std::pair<std::pair<StringRef, StringRef>,
         GEN_u32(__spirv_SubgroupId, 18, __mux_get_sub_group_id),
         GEN_u32(__spirv_NumSubgroups, 20, __mux_get_num_sub_groups),
         GEN_u32(__spirv_SubgroupSize, 20, __mux_get_sub_group_size),
-        GEN_direct("_Z28__spirv_SubgroupShuffleINTELIjET_S0_j",
-                   "??$__spirv_SubgroupShuffleINTEL@I@@YAIII@Z",
-                   __mux_sub_group_shuffle_i32, BT_Sig::I32_I32_I32),
-        GEN_direct("@_Z28__spirv_SubgroupShuffleINTELIdET_S0_j",
-                   "??$__spirv_SubgroupShuffleINTEL@N@@YANNI@Z",
-                   __mux_sub_group_shuffle_f64, BT_Sig::F64_F64_I32
-                   ),
-        GEN_direct("_Z30__spirv_SubgroupShuffleUpINTELIdET_S0_S0_j",
-                   "??$__spirv_SubgroupShuffleUpINTEL@N@@YANNNI@Z", // double (double,double,unsigned int)
-                   __mux_sub_group_shuffle_up_f64, BT_Sig::F64_F64_F64_I32
-                   ),
-        GEN_direct("_Z32__spirv_SubgroupShuffleDownINTELIdET_S0_S0_j",
-                   "??$__spirv_SubgroupShuffleDownINTEL@N@@YANNNI@Z", // double (double,double,unsigned int)
-                   __mux_sub_group_shuffle_down_f64, BT_Sig::F64_F64_F64_I32
-                   ),
-
-        GEN_direct("_Z31__spirv_SubgroupShuffleXorINTELIdET_S0_j",
-                   "??$__spirv_SubgroupShuffleXorINTEL@N@@YANNI@Z", // double (double, unsigned int)
-                   __mux_sub_group_shuffle_xor_f64, BT_Sig::F64_F64_I32
-                   )
 };
 
 static inline bool isForVisualStudio(StringRef TripleStr) {

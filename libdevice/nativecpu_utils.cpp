@@ -71,6 +71,8 @@ struct __nativecpu_state {
   }
 };
 
+#undef DEVICE_EXTERNAL
+#undef DEVICE_EXTERN_C
 #define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
 #define DEVICE_EXTERNAL __attribute__((always_inline))
 
@@ -123,5 +125,6 @@ DefShuffleINTEL_All(uint64_t, i64, int64_t)
             DefShuffleINTEL_All(uint32_t, i32, int32_t)
                 DefShuffleINTEL_All(int16_t, i16, int16_t)
                     DefShuffleINTEL_All(uint16_t, i16, int16_t)
+                        DefShuffleINTEL_All(double, f64, double)
 
 #endif // __SYCL_NATIVE_CPU__
