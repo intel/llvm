@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c311fe82256a7bc7f6ddd19cb86c8d555ce401bc
-  # Merge: eee75a29 d398d4ae
+  # commit 43c2ad2363f735fd83282bb8da9d4996424dd3cf
+  # Merge: 5d58871c eba3905b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 4 15:12:54 2024 +0000
-  #     Merge pull request #1222 from sommerlukas/lukas/comgr-include-rocm4
-  #     [UR][HIP] Fix include for AMD COMGR
-  set(UNIFIED_RUNTIME_TAG c311fe82256a7bc7f6ddd19cb86c8d555ce401bc)
+  # Date:   Fri Jan 19 15:52:55 2024 +0000
+  #     Merge pull request #1260 from kbenzie/benie/dont-include-windows.h-in-ur_info.hpp
+  #         [Common] Don't include Windows.h in ur_util.hpp
+  set(UNIFIED_RUNTIME_TAG 43c2ad2363f735fd83282bb8da9d4996424dd3cf)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -149,6 +149,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
 )
 
 # We need for #include <ze_api.h> in common.h
