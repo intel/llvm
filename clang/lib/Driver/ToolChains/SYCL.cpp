@@ -1315,7 +1315,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // For AOT, Use ocloc's per-device options flag with the correct ocloc
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+            {DeviceName, Args.MakeArgString(BackendOptName)});
       } else if (Triple.isSPIR() &&
                  Triple.getSubArch() == llvm::Triple::NoSubArch) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
@@ -1334,8 +1334,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     StringRef DeviceName = "pvc";
     StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
     if (IsGen)
-      PerDeviceArgs.push_back(
-          {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+      PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
     else if (Triple.isSPIR() &&
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +

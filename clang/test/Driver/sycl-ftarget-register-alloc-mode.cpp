@@ -62,27 +62,27 @@
 // AUTO_AOT: ocloc{{.*}} "-output"
 // AUTO_AOT: -device_options
 // AUTO_AOT: pvc
-// AUTO_AOT: "-options -ze-intel-enable-auto-large-GRF-mode"
+// AUTO_AOT: "-ze-intel-enable-auto-large-GRF-mode"
 
 // LARGE_AOT: ocloc{{.*}} "-output"
 // LARGE_AOT: -device_options
 // LARGE_AOT: pvc
-// LARGE_AOT: "-options -ze-opt-large-register-file"
+// LARGE_AOT: "-ze-opt-large-register-file"
 
 // SMALL_AOT: ocloc{{.*}} "-output"
 // SMALL_AOT: -device_options
 // SMALL_AOT: pvc
-// SMALL_AOT: "-options -ze-intel-128-GRF-per-thread"
+// SMALL_AOT: "-ze-intel-128-GRF-per-thread"
 
 // DEFAULT_AOT-NOT: -device_options
 
 // MULTIPLE_ARGS_AOT: ocloc{{.*}} "-output"
 // MULTIPLE_ARGS_AOT: -device_options
 // MULTIPLE_ARGS_AOT: pvc
-// MULTIPLE_ARGS_AOT: "-options -ze-intel-128-GRF-per-thread"
+// MULTIPLE_ARGS_AOT: "-ze-intel-128-GRF-per-thread"
 // MULTIPLE_ARGS_AOT: -device_options
 // MULTIPLE_ARGS_AOT: pvc
-// MULTIPLE_ARGS_AOT: "-options -ze-opt-large-register-file"
+// MULTIPLE_ARGS_AOT: "-ze-opt-large-register-file"
 
 // AUTO_JIT: clang-offload-wrapper{{.*}} "-compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-enable-auto-large-GRF-mode"
 
