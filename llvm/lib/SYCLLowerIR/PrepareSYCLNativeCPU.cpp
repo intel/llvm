@@ -8,7 +8,7 @@
 //
 // Prepares the kernel for SYCL Native CPU:
 // * Handles kernel calling convention and attributes.
-// * Materializes spirv buitlins.
+// * Materializes spirv builtins.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
