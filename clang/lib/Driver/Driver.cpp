@@ -5522,8 +5522,10 @@ class OffloadingActionBuilder final {
               TC, SYCLDeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
+        clang::driver::Action *NativeCPULib = nullptr;
         if (IsSYCLNativeCPU) {
-          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, SYCLDeviceLibs);
+          SYCLDeviceLibLinked |=
+              addSYCLNativeCPULibs(TC, SYCLDeviceLibs, NativeCPULib);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(SYCLDeviceLibs, types::TY_LLVM_BC);
@@ -5606,6 +5608,12 @@ class OffloadingActionBuilder final {
           };
           Action *PostLinkAction = createPostLinkAction();
           if (IsSYCLNativeCPU) {
+            if (NativeCPULib) {
+              clang::driver::ActionList AllLibs = {FullDeviceLinkAction,
+                                                   NativeCPULib};
+              FullDeviceLinkAction =
+                  C.MakeAction<LinkJobAction>(AllLibs, types::TY_LLVM_BC);
+            }
             // for SYCL Native CPU, we just take the linked device
             // modules, lower them to an object file , and link it to the host
             // object file.
@@ -5782,9 +5790,10 @@ class OffloadingActionBuilder final {
     }
 
     bool addSYCLNativeCPULibs(const ToolChain *TC,
-                              ActionList &DeviceLinkObjects) {
-      // Todo: we should get rid of this function and refactor addSYCLDeviceLibs to account
-      // for SYCL Native CPU
+                              ActionList &DeviceLinkObjects,
+                              clang::driver::Action *&NativeCPULib) {
+      // Todo: we should get rid of this function and refactor addSYCLDeviceLibs
+      // to account for SYCL Native CPU
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
@@ -5819,8 +5828,11 @@ class OffloadingActionBuilder final {
             auto *SYCLDeviceLibsDependenciesAction =
                 C.MakeAction<OffloadAction>(
                     Dep, SYCLDeviceLibsUnbundleAction->getType());
-
-            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            if (LibName.str().contains("libsycl-nativecpu_utils")) {
+              assert(!NativeCPULib);
+              NativeCPULib = SYCLDeviceLibsDependenciesAction;
+            } else
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }
@@ -5848,6 +5860,9 @@ class OffloadingActionBuilder final {
         // Select libclc variant based on target triple
         std::string LibSpirvTargetName = "builtins.link.libspirv-";
         LibSpirvTargetName.append(TC->getTripleString() + ".bc");
+        if (TC->getAuxTriple()->isOSWindows())
+          LibSpirvTargetName =
+              "remangled-l32-signed_char.libspirv-x86_64-unknown-linux-gnu.bc";
 
         for (StringRef LibraryPath : LibraryPaths) {
           SmallString<128> LibSpirvTargetFile(LibraryPath);

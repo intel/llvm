@@ -74,6 +74,8 @@ struct __nativecpu_state {
 #define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
 #define DEVICE_EXTERNAL __attribute__((always_inline))
 
+// defining subgroup builtins
+
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
                                                         int32_t lid);          \
@@ -108,8 +110,7 @@ struct __nativecpu_state {
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL<Type>(                  \
       Type data, unsigned value) noexcept {                                    \
     return __mux_sub_group_shuffle_xor_##Sfx(data, value);                     \
-  \	
-}
+  }
 
 #define DefShuffleINTEL_All(Type, Sfx, MuxType)                                \
   DefShuffleINTEL(Type, Sfx, MuxType) DefShuffleUpINTEL(Type, Sfx, MuxType)    \
