@@ -43,6 +43,16 @@ define dso_local spir_func void @_ZNK4sycl3_V13ext5intel5esimd6detail13simd_obj_
 ret void
 }
 
+; assert functions must not be marked with "alwaysinline"
+define dso_local spir_func void @__assert_fail(ptr addrspace(4) %ptr) {
+; CHECK: define dso_local spir_func void @__assert_fail(ptr addrspace(4) %ptr) #[[ATTRS3]] {
+  ret void
+}
+
+define dso_local spir_func void @__devicelib_assert_fail(ptr addrspace(4) %ptr) {
+; CHECK: define dso_local spir_func void @__devicelib_assert_fail(ptr addrspace(4) %ptr) #[[ATTRS3]] {
+  ret void
+}
 
 attributes #0 = { "VCStackCall" }
 attributes #1 = { noinline }
