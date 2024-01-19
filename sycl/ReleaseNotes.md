@@ -3,7 +3,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 
 ## New Features
 ### SYCL Compiler
-- Added `-fpreview-breaking-changes` option [08febcfcb64a] [99b97eef4278]
+- Added `-fpreview-breaking-changes` option (see ["Upcoming API/ABI breakages"](#upcoming-apiabi-breakages) section for more details) [08febcfcb64a] [99b97eef4278]
 - Enabled early AOT abilities when creating objects [6f248088541c]
 - Added support for `-faltmathlib` [32c3e642d644]
 - Added support for `-ftarget-register-alloc-mode` [8e5275af77af]
@@ -47,7 +47,7 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Made `-fintelfpga` flag imply `-fsycl`. [ad2f959d8b88] [6d48bc13c456]
 - Ensured debug format for SYCL device on Windows is the expected format [73bba79a3ffb]
 - Disabled parallel for range rounding at `-O0` [2c117d7a6104]
-- Fixed missing optnone attribute in -O0 mode on non-FPGA target to improve debuggability [993fe5b31b43]
+- Fixed missing `optnone` attribute in `-O0` mode on non-FPGA target to improve debuggability [993fe5b31b43]
 
 ### SYCL Library
 - Supported missing types for the `ldg` in the [sycl_ext_oneapi_cuda_tex_cache_read](https://github.com/intel/llvm/blob/aec8a35788c1953c6ae74ab1e6eb924fa09d5e4e/sycl/doc/extensions/experimental/sycl_ext_oneapi_cuda_tex_cache_read.asciidoc) [aec8a35788c1]
@@ -130,8 +130,9 @@ Release notes for commit range f4e0d3177338..f4ed132f243a
 - Deprecated `sycl::abs(genfloat)` [d15d4409b2cf]
 
 ## Upcoming API/ABI breakages
-- Fixed sycl::vec ABI inconsistencies and made it trivially copyable if `-fpreview-breaking-changes` is specified  [531aabfdee91] [f4ed132f243a] 
-- Updated `sycl.hpp` to not include `<complex>` and `<cmath>` if `-fpreview-breaking-changes` is set. [6ed0ab887d18] [d22c9c58d2e7]
+The following changes ared only in effect if the `-fpreview-breaking-changes` flag is set.
+- Fixed sycl::vec ABI inconsistencies and made it trivially copyable [531aabfdee91] [f4ed132f243a] 
+- Updated `sycl.hpp` to not include `<complex>` and `<cmath>` [6ed0ab887d18] [d22c9c58d2e7]
 
 ## Known Issues
 - Having MESA OpenCL implementation which provides no devices on a
