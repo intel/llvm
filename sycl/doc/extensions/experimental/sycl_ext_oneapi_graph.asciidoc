@@ -1031,7 +1031,7 @@ queue::ext_oneapi_get_graph();
 
 | Query the underlying command graph of a queue when recording.
 
-Returns: A copy of the graph object, the queue is recording commands into.
+Returns: The graph object that the queue is recording commands into.
 
 Exceptions:
 
