@@ -48,8 +48,10 @@ int main() {
   Queue.wait_and_throw();
 
   // Check Outputs
+  T Reference = 0;
+  std::memset(&Reference, 1, sizeof(T));
   for (size_t i = 0; i < Size; i++) {
-    assert(TestDataOut[i] == 1 + i);
+    assert(TestDataOut[i] == (Reference + i));
   }
 
   sycl::free(TestData, Queue);
