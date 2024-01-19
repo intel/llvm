@@ -4,6 +4,9 @@
 // typedef-ed in system headers.  Thus, the increased debuggability
 // is worth the small extra cost.
 
+// Windows does not have <unistd.h>
+// UNSUPPORTED: system-windows
+
 // RUN: %clang -fno-system-debug -emit-llvm -S -g %s -o %t.ll
 
 // RUN: FileCheck %s < %t.ll
