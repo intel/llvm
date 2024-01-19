@@ -1296,7 +1296,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
       InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
   auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
-  // Record in-order queue with three nodes
+  // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
