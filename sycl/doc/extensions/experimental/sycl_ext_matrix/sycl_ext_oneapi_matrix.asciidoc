@@ -452,7 +452,9 @@ joint_matrix_fill(sg, tA, v);
 ```
 
 ==== copy
-The template parameters `T1` and `T2` must use the abstract type.
+There is no special constraint for the `joint_matrix_copy`
+function. The template parameters `T1` and `T2` correspond to the
+element types of the `src` and `dest` matrices.
 
 ```c++
 joint_matrix<sub_group, precision::tf32, use::a, tM, tK, layout::row_major> tA;
