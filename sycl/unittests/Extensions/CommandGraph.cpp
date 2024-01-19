@@ -1274,8 +1274,8 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
       InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto EventLastWaitList = EventLastImpl->getWaitList();
-  // Previous task is not an host task. In Order queue dependency are managed by
-  // the backend for non-host kernels
+  // Previous task is not a host task. In Order queue dependency is managed by
+  // the backend for non-host kernels.
   ASSERT_EQ(EventLastWaitList.size(), 0lu);
 }
 
