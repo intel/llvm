@@ -1,0 +1,34 @@
+# Runs linter for Docker files
+name: Hadolint
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+    paths:
+      - '.github/docker/*Dockerfile'
+      - '.github/workflows/hadolint.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Hadolint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone the git repo
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          recursive: true
+          dockerfile:  ".github/docker/*Dockerfile"
+          # ignore pinning apt packages to versions
+          ignore: DL3008

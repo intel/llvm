@@ -1101,7 +1101,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
+  *phNativeHandle = reinterpret_cast<ur_native_handle_t>(
+      static_cast<std::uintptr_t>(hDevice->get()));
   return UR_RESULT_SUCCESS;
 }
 

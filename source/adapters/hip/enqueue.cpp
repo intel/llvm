@@ -15,26 +15,9 @@
 #include "memory.hpp"
 #include "queue.hpp"
 
-namespace {
+extern size_t imageElementByteSize(hipArray_Format ArrayFormat);
 
-static size_t imageElementByteSize(hipArray_Format ArrayFormat) {
-  switch (ArrayFormat) {
-  case HIP_AD_FORMAT_UNSIGNED_INT8:
-  case HIP_AD_FORMAT_SIGNED_INT8:
-    return 1;
-  case HIP_AD_FORMAT_UNSIGNED_INT16:
-  case HIP_AD_FORMAT_SIGNED_INT16:
-  case HIP_AD_FORMAT_HALF:
-    return 2;
-  case HIP_AD_FORMAT_UNSIGNED_INT32:
-  case HIP_AD_FORMAT_SIGNED_INT32:
-  case HIP_AD_FORMAT_FLOAT:
-    return 4;
-  default:
-    detail::ur::die("Invalid image format.");
-  }
-  return 0;
-}
+namespace {
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
                               uint32_t NumEventsInWaitList,
@@ -1071,8 +1054,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     hipArray *Array = std::get<SurfaceMem>(hImage->Mem).getArray(Device);
 
-    hipArray_Format Format;
-    size_t NumChannels;
+    hipArray_Format Format{};
+    size_t NumChannels{};
     UR_CHECK_ERROR(getArrayDesc(Array, Format, NumChannels));
 
     int ElementByteSize = imageElementByteSize(Format);
@@ -1132,8 +1115,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     hipArray *Array =
         std::get<SurfaceMem>(hImage->Mem).getArray(hQueue->getDevice());
 
-    hipArray_Format Format;
-    size_t NumChannels;
+    hipArray_Format Format{};
+    size_t NumChannels{};
     UR_CHECK_ERROR(getArrayDesc(Array, Format, NumChannels));
 
     int ElementByteSize = imageElementByteSize(Format);
@@ -1195,14 +1178,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     hipArray *SrcArray =
         std::get<SurfaceMem>(hImageSrc->Mem).getArray(hQueue->getDevice());
-    hipArray_Format SrcFormat;
-    size_t SrcNumChannels;
+    hipArray_Format SrcFormat{};
+    size_t SrcNumChannels{};
     UR_CHECK_ERROR(getArrayDesc(SrcArray, SrcFormat, SrcNumChannels));
 
     hipArray *DstArray =
         std::get<SurfaceMem>(hImageDst->Mem).getArray(hQueue->getDevice());
-    hipArray_Format DstFormat;
-    size_t DstNumChannels;
+    hipArray_Format DstFormat{};
+    size_t DstNumChannels{};
     UR_CHECK_ERROR(getArrayDesc(DstArray, DstFormat, DstNumChannels));
 
     UR_ASSERT(SrcFormat == DstFormat,

@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -51,20 +51,23 @@ RUN apt-get update \
 	${BASE_DEPS} \
 	${UR_DEPS} \
 	${MISC_DEPS} \
+ && rm -rf /var/lib/apt/lists/* \
  && apt-get clean all
 
-RUN pip3 install ${UR_PYTHON_DEPS}
+# pip package is pinned to a version, but it's probably improperly parsed here
+# hadolint ignore=DL3013
+RUN pip3 install --no-cache-dir ${UR_PYTHON_DEPS}
 
 # Install DPC++
-COPY install_dpcpp.sh install_dpcpp.sh
+COPY install_dpcpp.sh /opt/install_dpcpp.sh
 ENV DPCPP_PATH=/opt/dpcpp
-RUN ./install_dpcpp.sh
+RUN /opt/install_dpcpp.sh
 
 # Install libbacktrace
-COPY install_libbacktrace.sh install_libbacktrace.sh
-RUN ./install_libbacktrace.sh
+COPY install_libbacktrace.sh /opt/install_libbacktrace.sh
+RUN /opt/install_libbacktrace.sh
 
 # Add a new (non-root) 'user'
 ENV USER user
 ENV USERPASS pass
-RUN useradd -m $USER -g sudo -p `mkpasswd $USERPASS`
+RUN useradd -m "${USER}" -g sudo -p "$(mkpasswd ${USERPASS})"

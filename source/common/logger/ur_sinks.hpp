@@ -22,7 +22,7 @@ class Sink {
     template <typename... Args>
     void log(logger::Level level, const char *fmt, Args &&...args) {
         std::ostringstream buffer;
-        if (!skip_prefix) {
+        if (!skip_prefix && level != logger::Level::QUIET) {
             buffer << "<" << logger_name << ">"
                    << "[" << level_to_str(level) << "]: ";
         }
