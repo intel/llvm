@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Tests submitting an host kernel to an in-order queue before recording
+// Tests submitting a host kernel to an in-order queue before recording
 // commands from it.
 
 #include "../graph_common.hpp"
