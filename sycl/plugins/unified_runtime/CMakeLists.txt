@@ -56,7 +56,7 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "git@github.com:przemektmalon/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
   # commit 16c6dc262451cf1b7dcb7d8021904a968c4a16ee
   # Author: Przemek Malon <przemek.malon@codeplay.com>
   # Date:   Wed Nov 29 11:25:34 2023 +0000
