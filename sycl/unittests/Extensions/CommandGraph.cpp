@@ -1130,7 +1130,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto WaitList = EventLastImpl->getWaitList();
   // Previous task is a host task. Explicit dependency is needed to enforce the
-  // execution order
+  // execution order.
   ASSERT_EQ(WaitList.size(), 1lu);
   ASSERT_EQ(WaitList[0], EventInitialImpl);
 }
