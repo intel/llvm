@@ -65,6 +65,63 @@ TEST_P(urEnqueueMemBufferReadTest, InvalidSize) {
                                             nullptr));
 }
 
+TEST_P(urEnqueueMemBufferReadTest, Blocking) {
+    constexpr const size_t memSize = 10u;
+    constexpr const size_t bytes = memSize * sizeof(int);
+    const int data[memSize] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    int output[memSize] = {};
+
+    ur_mem_handle_t memObj;
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, bytes,
+                                     nullptr, &memObj));
+
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, memObj, true, 0, bytes, data,
+                                           0, nullptr, nullptr));
+
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, memObj, true, 0, bytes, output,
+                                          0, nullptr, nullptr));
+
+    bool isSame =
+        std::equal(std::begin(output), std::end(output), std::begin(data));
+    EXPECT_TRUE(isSame);
+    if (!isSame) {
+        std::for_each(std::begin(output), std::end(output),
+                      [](int &elem) { std::cout << elem << ","; });
+        std::cout << std::endl;
+    }
+}
+
+TEST_P(urEnqueueMemBufferReadTest, NonBlocking) {
+    constexpr const size_t memSize = 10u;
+    constexpr const size_t bytes = memSize * sizeof(int);
+    const int data[memSize] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    int output[memSize] = {};
+
+    ur_mem_handle_t memObj;
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, bytes,
+                                     nullptr, &memObj));
+
+    ur_event_handle_t cpIn, cpOut;
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, memObj, false, 0, bytes, data,
+                                           0, nullptr, &cpIn));
+    ASSERT_NE(cpIn, nullptr);
+
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, memObj, false, 0, bytes,
+                                          output, 0, nullptr, &cpOut));
+    ASSERT_NE(cpOut, nullptr);
+
+    ASSERT_SUCCESS(urEventWait(1, &cpOut));
+
+    bool isSame =
+        std::equal(std::begin(output), std::end(output), std::begin(data));
+    EXPECT_TRUE(isSame);
+    if (!isSame) {
+        std::for_each(std::begin(output), std::end(output),
+                      [](int &elem) { std::cout << elem << ","; });
+        std::cout << std::endl;
+    }
+}
+
 using urEnqueueMemBufferReadMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
 
