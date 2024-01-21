@@ -961,6 +961,60 @@ int main() {
 +
 Where `kfp` would have some nicer name.
 
+* We are debating whether we should allow a free function kernel to be defined
+  with an initial "iteration index" parameter such as:
++
+--
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+void iota(sycl::item<1> item, float start, float *ptr) { /*...*/  }
+```
+
+The advantage is that the user wouldn't need to use the functions in
+link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+sycl_ext_oneapi_free_function_queries] to get the iteration index.
+Doing this raises some new questions, though:
+
+** When the application sets the value of a kernel parameter via `set_arg`,
+   does argument index `0` correspond to the `item` or to the first parameter
+   after `item`?
+   For example, to set the value of `start` in the example above, does the
+   application call `+set_arg(0, ...)+` or `+set_arg(1, ...)+`?
+   Both seem like reasonable choices, so many users may need to read the
+   documentation to determine what is right.
+
+** If the first parameter is an index like `sycl::item<1>`, then the property
+   `syclex::range_kernel<1>` is somewhat redundant.
+   Should the compiler raise a diagnostic if they do not match?
+   Or, should we invent a new property like:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::kernel_function))
+void iota(sycl::item<1> item, float start, float *ptr) { /*...*/  }
+```
+
+** In standard SYCL kernels, the iteration index can be anything that is
+   convertible from `sycl::item` or `sycl::nd_item`.
+   For example, it is common to use `id` for range kernels or `int` for
+   1-dimensional range kernels.
+   However, both `id` and `int` can also be used as kernel parameters.
+   Therefore, something like this is ambiguous:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+void iota(sycl::id<1> i, float start, float *ptr) { /*...*/  }
+```
++
+Is `i` the kernel's iteration index, or is it simply a kernel argument whose
+type is `sycl::id`?
+--
++
+We agreed that we _do_ need to support free function kernels that do not have
+an initial iteration index parameter (as this spec is currently written)
+because this is necessary when migrating some CUDA code.
+Therefore, the question is whether we _also_ want to support a syntax where the
+first parameter is an iteration index.
+
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
   `single_task`.
