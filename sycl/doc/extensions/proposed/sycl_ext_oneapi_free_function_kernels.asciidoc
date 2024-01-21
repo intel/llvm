@@ -1031,6 +1031,14 @@ because this is necessary when migrating some CUDA code.
 Therefore, the question is whether we _also_ want to support a syntax where the
 first parameter is an iteration index.
 
+* Should the spec require an implementation to emit a diagnostic if a free
+  function kernel violates the restrictions listed in "Defining a free function
+  kernel"?
+  For now, I've listed this under "Implementation notes" because I expect
+  {dpcpp} to emit a diagnostic in this case.
+  We should decide if it is reasonable to require a diagnostic for all
+  implementations of this extensions.
+
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
   `single_task`.
