@@ -844,6 +844,22 @@ int main() {
 
 == Implementation notes
 
+=== Compiler diagnostics
+
+My expectation is that {dpcpp} will emit a diagnostic if a function is
+decorated as a free function kernel (e.g. via `syclex::range_kernel`) and the
+function violates any of the restrictions listed above under "Defining a free
+function kernel".
+(Except, of course, no diagnostic is required for violations of the last bullet
+because that cannot be diagnosed when compiling a single translation unit.)
+
+It is probably not practical to diagnose violations for all the extra
+restrictions listed under "Restrictions for integration header
+implementations".
+However, we should diagnose as many as are practical.
+In particular, it seems easy to emit a diagnostic if a free function kernel
+is defined as a static member function.
+
 === Integration header
 
 My expectation is that {dpcpp} will use the integration header to implement the
