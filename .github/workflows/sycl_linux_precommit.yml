@@ -19,6 +19,7 @@ on:
     - '**.md'
     - '**.rst'
     - '.github/workflows/sycl_windows_*.yml'
+    - '.github/workflows/sycl_macos_*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 

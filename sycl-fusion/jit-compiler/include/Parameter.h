@@ -9,8 +9,10 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_PARAMETER_H
 #define SYCL_FUSION_JIT_COMPILER_PARAMETER_H
 
+#include "DynArray.h"
+
+#include <algorithm>
 #include <cstdint>
-#include <string>
 #include <vector>
 
 namespace jit_compiler {
@@ -103,10 +105,13 @@ struct ParameterInternalization {
 /// Client of the API owns the data held by `ValPtr`.
 struct JITConstant {
   Parameter Param;
-  std::string Value;
+  DynArray<char> Value;
   JITConstant() = default;
   JITConstant(const Parameter &Parameter, void *Ptr, size_t Size)
-      : Param{Parameter}, Value{reinterpret_cast<const char *>(Ptr), Size} {}
+      : Param{Parameter}, Value{Size} {
+    auto *CPtr = reinterpret_cast<const char *>(Ptr);
+    std::copy(CPtr, CPtr + Size, Value.begin());
+  }
 
   friend bool operator==(const JITConstant &LHS,
                          const JITConstant &RHS) noexcept {
