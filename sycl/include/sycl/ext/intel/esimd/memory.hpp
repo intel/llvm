@@ -2540,7 +2540,7 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    (sizeof(T) <= 4) && detail::isPowerOf2(N, 32) &&
         (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
          is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_read>),
     simd<T, N>>
@@ -3347,8 +3347,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
     return __esimd_slm_gather_ld<MsgT, N, Alignment>(
         byte_offsets.data(), mask.data(), PassThru.data());
   } else {
-    static_assert(N == 1 || N == 8 || N == 16 || N == 32,
-                  "Unsupported vector length");
+    static_assert(detail::isPowerOf2(N, 32), "Unsupported vector length");
     detail::LocalAccessorMarker acc;
     return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
   }
