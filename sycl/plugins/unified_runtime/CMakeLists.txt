@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 43c2ad2363f735fd83282bb8da9d4996424dd3cf
-  # Merge: 5d58871c eba3905b
+  # commit 92f44da347323af842cb5352b94169d16a5cfbe7
+  # Merge: 43c2ad23 3ef6d11d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jan 19 15:52:55 2024 +0000
-  #     Merge pull request #1260 from kbenzie/benie/dont-include-windows.h-in-ur_info.hpp
-  #         [Common] Don't include Windows.h in ur_util.hpp
-  set(UNIFIED_RUNTIME_TAG 43c2ad2363f735fd83282bb8da9d4996424dd3cf)
+  # Date:   Fri Jan 19 15:59:50 2024 +0000
+  #     Merge pull request #1257 from pbalcer/fix-native-handle-waits
+  #     [L0] fix waiting on non-owned native handle events
+  set(UNIFIED_RUNTIME_TAG 92f44da347323af842cb5352b94169d16a5cfbe7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
