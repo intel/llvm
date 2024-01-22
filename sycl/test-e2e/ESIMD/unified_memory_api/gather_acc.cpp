@@ -12,7 +12,7 @@
 // The test verifies esimd::gather() functions accepting ACCESSOR
 // and optional compile-time esimd::properties.
 // The gather() calls in this test do not use cache-hint properties
-// or VS > 1 (number of loads per offset) to not impose using PVC features.
+// or VS > 1 (number of loads per offset) to not impose using DG2/PVC features.
 
 #include "Inputs/gather.hpp"
 
