@@ -37,12 +37,14 @@ with the following entry-points:
 | `urCommandBufferFinalizeExp`                 | No more commands can be appended, makes command-buffer ready to enqueue on a command-queue. |
 | `urCommandBufferAppendKernelLaunchExp`       | Append a kernel execution command to command-buffer. |
 | `urCommandBufferAppendUSMMemcpyExp`          | Append a USM memcpy command to the command-buffer. |
+| `urCommandBufferAppendUSMFillExp`            | Append a USM fill command to the command-buffer. |
 | `urCommandBufferAppendMemBufferCopyExp`      | Append a mem buffer copy command to the command-buffer. |
 | `urCommandBufferAppendMemBufferWriteExp`     | Append a memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadExp`      | Append a memory read command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferCopyRectExp`  | Append a rectangular memory copy command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
+| `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
 | `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
 
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
@@ -239,11 +241,22 @@ created on UR command-buffer enqueue.
 
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
-This WaitEvent is reset at the end of the suffix, along with reset commands
-to reset the L0 events used to implement the UR sync-points back to the
-non-signaled state.
+This WaitEvent is reset in the suffix.
 
-![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
+A command-buffer is expected to be submitted multiple times. Consequently,
+we need to ensure that L0 events associated with graph commands have not
+been signaled by a previous execution. These events are therefore reset to the
+non-signaled state before running the actual graph associated commands. Note
+that this reset is performed in the prefix and not in the suffix to avoid
+additional synchronization w.r.t profiling data extraction.
+
+If a command-buffer is about to be submitted to a queue with the profiling
+property enabled, an extra command that copies timestamps of L0 events
+associated with graph commands into a dedicated memory which is attached to the
+returned UR event. This memory stores the profiling information that
+corresponds to the current submission of the command-buffer.
+
+![L0 command-buffer diagram](images/L0_UR_command-buffer-v3.jpg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two
@@ -347,6 +360,10 @@ The types of commands which are unsupported, and lead to this exception are:
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
    `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
+  fill command.
+* `handler::prefetch()`.
+* `handler::mem_advise()`.
 
 Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
 is supported, as a memory buffer copy command exists in the OpenCL extension.
@@ -373,6 +390,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferWriteRectExp |  | No |
 | urCommandBufferAppendMemBufferReadRectExp |  | No |
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
+| urCommandBufferAppendUSMPrefetchExp |  | No |
+| urCommandBufferAppendUSMAdviseExp |  | No |
 | urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |

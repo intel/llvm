@@ -199,6 +199,20 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                      __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
     __ESIMD_INTRIN_END;
 
+// Gather data from the given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
+// Gather data from the given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_slm_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
 /// Surface-based gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -212,8 +226,10 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam ImmOffset is the immediate offset added to each address.
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam Transposed indicates if the data is transposed during the
+/// transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to
+/// access)
 /// @tparam SurfIndAliasT is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.

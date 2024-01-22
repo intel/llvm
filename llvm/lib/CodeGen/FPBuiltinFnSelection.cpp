@@ -63,6 +63,48 @@ static bool replaceWithAltMathFunction(FPBuiltinIntrinsic &BuiltinCall,
   return true;
 }
 
+static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
+  // Replace the call to the fpbuiltin intrinsic with a call
+  // to the corresponding function from the alternate math library.
+  IRBuilder<> IRBuilder(&BuiltinCall);
+  SmallVector<Value *> Args(BuiltinCall.args());
+  // Preserve the operand bundles.
+  Value *Replacement = nullptr;
+  switch (BuiltinCall.getIntrinsicID()) {
+  default:
+    llvm_unreachable("Unexpected instrinsic");
+  case Intrinsic::fpbuiltin_fadd:
+    Replacement = IRBuilder.CreateFAdd(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_fsub:
+    Replacement = IRBuilder.CreateFSub(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_fmul:
+    Replacement = IRBuilder.CreateFMul(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_fdiv:
+    Replacement = IRBuilder.CreateFDiv(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_frem:
+    Replacement = IRBuilder.CreateFRem(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_sqrt:
+    Replacement =
+        IRBuilder.CreateIntrinsic(BuiltinCall.getType(), Intrinsic::sqrt, Args);
+    break;
+  case Intrinsic::fpbuiltin_ldexp:
+    Replacement = IRBuilder.CreateIntrinsic(BuiltinCall.getType(),
+                                            Intrinsic::ldexp, Args);
+    break;
+  }
+  BuiltinCall.replaceAllUsesWith(Replacement);
+  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
+                    << BuiltinCall.getCalledFunction()->getName()
+                    << "` with equivalent IR. \n `");
+  return true;
+}
+
 static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
                                       FPBuiltinIntrinsic &BuiltinCall) {
   LLVM_DEBUG({
@@ -81,6 +123,26 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
             Twine(" was called with unrecognized floating-point attributes.\n"),
         false);
     return false;
+  }
+
+  Triple T(BuiltinCall.getModule()->getTargetTriple());
+  // Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
+  // which means correctly rounded results. For now x86 host AltMathLibrary
+  // doesn't have such ability. For such accuracy level, the fpbuiltins
+  // should be replaced by equivalent IR operation or llvmbuiltins.
+  if (T.isX86() && BuiltinCall.getRequiredAccuracy().value() == 0.5) {
+    switch (BuiltinCall.getIntrinsicID()) {
+    case Intrinsic::fpbuiltin_fadd:
+    case Intrinsic::fpbuiltin_fsub:
+    case Intrinsic::fpbuiltin_fmul:
+    case Intrinsic::fpbuiltin_fdiv:
+    case Intrinsic::fpbuiltin_frem:
+    case Intrinsic::fpbuiltin_sqrt:
+    case Intrinsic::fpbuiltin_ldexp:
+      return replaceWithLLVMIR(BuiltinCall);
+    default:
+      report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
+    }
   }
 
   /// Call TLI to select a function implementation to call

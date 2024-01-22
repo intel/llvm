@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2d42d77d5b931b4558842bad32cf9dad80e17b3c
-  # Merge: 9f14fedb 2a960baf
+  # commit 6032f6fde37eeadcc3f12c10460e3ffec161dd33
+  # Merge: 92f44da3 f9ad3d42
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jan 8 13:40:40 2024 +0000
-  #     Merge pull request #1229 from oneapi-src/revert-1228-revert-984-ext_oneapi_queue_priority-hip
-  #     Revert "Revert "[HIP] Implement ext_oneapi_queue_priority""
-  set(UNIFIED_RUNTIME_TAG 2d42d77d5b931b4558842bad32cf9dad80e17b3c)
+  # Date:   Mon Jan 22 12:30:12 2024 +0000
+  #     Merge pull request #1259 from igchor/fix_sync
+  #     [L0] do not ignore returned values from zeHostSynchronize
+  set(UNIFIED_RUNTIME_TAG 6032f6fde37eeadcc3f12c10460e3ffec161dd33)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -119,6 +119,8 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
@@ -148,6 +150,10 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h

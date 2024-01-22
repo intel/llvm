@@ -131,6 +131,21 @@ no need to exhaustively show all aspects of your extension.  Those details
 should be explained in the sections that follow.  This section is just an
 overview to introduce your readers to your extension._
 
+_It is also appropriate to give an indication of who the target audience is for
+the extension.  For example, if the extension is intended only for ninja
+programmers, we might say something like:_
+
+The properties described in this extension are advanced features that most
+applications should not need to use.  In most cases, applications get the best
+performance without using these properties.
+
+_Occasionally, we might add an extension as a stopgap measure for a limited
+audience.  When this happens, it's best to discourage general usage with a
+statement like:_
+
+This extension exists to solve a specific problem, and a general solution is
+still being evaluated.  It is not recommended for general usage.
+
 _Note that text should be wrapped at 80 columns as shown in this template.
 Extensions use AsciiDoc markup language (like this template).  If you need help
 with AsciiDoc syntax, see

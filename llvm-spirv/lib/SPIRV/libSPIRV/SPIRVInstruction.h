@@ -3007,10 +3007,7 @@ _SPIRV_OP(SUDotAccSatKHR, true, 6, true, 3)
 class SPIRVBitOp : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions))
-      return getVec(CapabilityBitInstructions);
-
-    return getVec(CapabilityShader);
+    return getVec(CapabilityBitInstructions);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -3438,7 +3435,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVCooperativeMatrixPrefetchINTELInstBase,       \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(CooperativeMatrixPrefetch, false, 6, true, 3)
+_SPIRV_OP(CooperativeMatrixPrefetch, false, 8, true, 5)
 #undef _SPIRV_OP
 
 class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase

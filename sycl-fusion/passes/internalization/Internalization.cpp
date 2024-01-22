@@ -664,7 +664,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
     // Use the argument usage mask to provide feedback to the runtime which
     // arguments have been promoted to private or local memory and which have
     // been eliminated in the process (private promotion).
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       const auto &MDS = cast<MDString>(I.value().get())->getString();
       if (MDS == PrivatePromotion) {

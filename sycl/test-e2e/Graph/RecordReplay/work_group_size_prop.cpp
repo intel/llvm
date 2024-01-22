@@ -10,7 +10,8 @@
 // should. So the Sycl graph support cannot correctly catch the error and throw
 // the approriate exception for negative test. An issue has been reported
 // https://github.com/bashbaug/SimpleOpenCLSamples/issues/95
-// XFAIL: cuda, opencl
+// XFAIL: cuda
+// UNSUPPORTED: opencl
 // Note: failing negative test with HIP in the original test
 // TODO: disable hip when HIP backend will be supported by Graph
 
