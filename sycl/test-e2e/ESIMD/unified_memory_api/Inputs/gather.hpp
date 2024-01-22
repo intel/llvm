@@ -207,7 +207,6 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
          }
        } // end if (VS == 1)
        Vals.copy_to(Out + GlobalID * N);
-       // scatter(Out, ByteOffsets.template select<NOffsets, 1>(), Vals);
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';

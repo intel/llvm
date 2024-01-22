@@ -2599,7 +2599,7 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
   static_assert(sizeof(OffsetT) <= 4,
                 "Implicit truncation of 64-bit byte_offset to 32-bit is "
                 "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
-                "convert offsets to 32-bit vector");
+                "convert offsets to a 32-bit vector");
   static_assert(VS == 1 || sizeof(T) >= 4,
                 "VS > 1 is supprted only for 4- and 8-byte elements");
   check_lsc_vector_size<VS>();
@@ -2651,8 +2651,8 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 ///   undefined.
 ///
 // Dev note: the argument \p glob_offset of this function does not have
-// the default value to not conflict with more generic variant (acc-ga-3)
-// defined lower. This restriction though requires adding an additional
+// a default value to not conflict with more generic variant (acc-ga-3)
+// defined below. This restriction though requires adding an additional
 // variant: simd<T, N> gather(acc, glob_offset) to support calls that require
 // implicit conversion of a scalar offset to a vector of offsets, e.g.
 // 'res = gather<T, N>(acc, 0);'
@@ -2668,7 +2668,7 @@ __ESIMD_API
                       byte_offsets, mask);
 #else
   if constexpr (sizeof(T) > 4 || !((N == 1 || N == 8 || N == 16 || N == 32))) {
-    // Requires DG2 or PVC implementation.
+    // Requires DG2 or PVC.
     simd<T, N> PassThru; // Intentionally undefined
     byte_offsets += glob_offset;
     return detail::gather_impl<T, N, 1, cache_hint::none, cache_hint::none,
@@ -2726,7 +2726,11 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset,
 ///                   PropertyListT props = {});                   // (acc-ga-2)
 /// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 ///                   PropertyListT props = {});                   // (acc-ga-3)
-
+///
+/// The next 3 functions are similar to (acc-ga-1,2,3), but they don't have
+/// the template parameter 'VS'. These functions are added for convenience and
+/// to make it possible for user to omit the template parameters T and N,
+/// e.g. 'auto res = gather(acc, byte_offsets);
 /// template <typename T, int N, typename AccessorT, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(AccessorT acc, simd<OffsetT, N> byte_offsets,
@@ -2736,6 +2740,20 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset,
 ///                   simd_mask<N> mask, PropertyListT props = {});// (acc-ga-5)
 /// simd<T, N> gather(AccessorT acc, simd<OffsetT, N> byte_offsets,
 ///                   PropertyListT props = {});                   // (acc-ga-6)
+///
+/// The next 3 functions are similar to (acc-ga-1,2,3), but accept the
+/// \p byte_offsets as a \c simd_view argument:
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+//            typename PropertyListT = empty_properties_t>
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
+///                   PropertyListT props = {});                   // (acc-ga-7)
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   simd_mask<N / VS> mask,
+///                   PropertyListT props = {});                   // (acc-ga-8)
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
+///                   PropertyListT props = {});                   // (acc-ga-9)
 
 /// template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
@@ -2745,8 +2763,8 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset,
 /// Supported platforms: DG2, PVC only - Temporary restriction for the variant
 /// with pass_thru operand. The only exception: DG2/PVC is not required if
 /// stateless memory mode is enforced via -fsycl-esimd-force-stateless-mem and
-/// VS == 1 and no L1/L2 cache hints passed and __ESIMD_GATHER_SCATTER_LLVM_IR
-/// macro is used.
+/// VS == 1 and no L1/L2 cache hints passed and the
+/// __ESIMD_GATHER_SCATTER_LLVM_IR macro is used.
 ///
 /// Loads ("gathers") elements of the type 'T' from memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets, and returns
@@ -2790,6 +2808,9 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
 
   return detail::gather_impl<T, N, VS, L1Hint, L2Hint,
                              detail::lsc_data_size::default_size>(
@@ -2850,6 +2871,9 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 VS > 1 || sizeof(T) > 4 ||
@@ -2967,7 +2991,7 @@ gather(AccessorT acc, simd<OffsetT, N> byte_offsets, PropertyListT props = {}) {
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
-/// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
 ///                   PropertyListT props = {});                   // (acc-ga-7)
 /// This function is identical to (acc-ga-1) except that the \p byte_offsets
@@ -2990,7 +3014,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
-/// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
 ///                   simd_mask<N / VS> mask,
 ///                   PropertyListT props = {});                   // (acc-ga-8)
 /// This function is identical to (acc-ga-2) except that the \p byte_offsets
@@ -3013,7 +3037,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// template <typename T, int N, int VS = 1, typename AccessorT,
 ///           typename OffsetSimdViewT,
 //            typename PropertyListT = empty_properties_t>
-/// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+/// simd<T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
 ///                   PropertyListT props = {});                   // (acc-ga-9)
 /// This function is identical to (acc-ga-3) except that the \p byte_offsets
 /// is represented as \c simd_view.
