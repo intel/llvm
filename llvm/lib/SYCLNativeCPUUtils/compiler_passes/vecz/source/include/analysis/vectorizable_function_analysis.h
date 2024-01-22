@@ -44,7 +44,6 @@ class VectorizableFunctionAnalysis
     /// is the cause of the problem.
     const llvm::Value *failedAt = nullptr;
 
-   public:
     /// @brief Handle invalidation events from the new pass manager.
     ///
     /// @return false, as this analysis can never be invalidated.
