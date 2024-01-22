@@ -757,7 +757,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
     NewEvent->setStateIncomplete();
-    NewEvent->setEventFromSubmitedExecCommandBuffer(true);
     return NewEvent;
   });
 
@@ -840,7 +839,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
             std::move(CommandGroup), Queue);
       }
-
+      NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
                 sycl::detail::CG::CGTYPE::CodeplayHostTask)) {

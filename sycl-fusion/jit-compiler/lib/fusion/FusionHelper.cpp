@@ -22,8 +22,8 @@ static Metadata *getConstantIntMD(llvm::LLVMContext &LLVMContext, T Val) {
 }
 
 static Metadata *getConstantMD(llvm::LLVMContext &LLVMCtx,
-                               llvm::StringRef Data) {
-  return MDString::get(LLVMCtx, Data);
+                               const jit_compiler::DynArray<char> &Data) {
+  return MDString::get(LLVMCtx, StringRef{Data.begin(), Data.size()});
 }
 
 static Metadata *getMDParam(LLVMContext &LLVMCtx,
