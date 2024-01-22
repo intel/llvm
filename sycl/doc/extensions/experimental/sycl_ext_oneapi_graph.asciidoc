@@ -1026,7 +1026,7 @@ object.
 [source,c++]
 ----
 command_graph<graph_state::modifiable>
-queue::ext_oneapi_get_graph();
+queue::ext_oneapi_get_graph() const;
 ----
 
 | Query the underlying command graph of a queue when recording.
