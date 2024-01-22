@@ -316,28 +316,28 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   SmallVector<std::pair<Value *, BasicBlock *>, 4> PhiOperands;
   if (hasImmArg) {
     Value *immArg = newFunction->getArg(firstImmArg);
-    BasicBlock *immTrue =
+    BasicBlock *const immTrueBB =
         BasicBlock::Create(ctx, "active.imm.1", newFunction, mergeBlock);
     CIArgs[firstImmArg] = ConstantInt::getTrue(ctx);
     CallInst *c0 =
-        CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immTrue);
+        CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immTrueBB);
     c0->setCallingConv(cc);
     c0->setAttributes(callAttrs);
-    BranchInst::Create(mergeBlock, immTrue);
+    BranchInst::Create(mergeBlock, immTrueBB);
 
     CIArgs[firstImmArg] = ConstantInt::getFalse(ctx);
     // Now the false half
-    BasicBlock *immFalse =
+    BasicBlock *const immFalseBB =
         BasicBlock::Create(ctx, "active.imm.0", newFunction, mergeBlock);
 
     CallInst *c1 =
-        CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immFalse);
+        CallInst::Create(FTy, CI->getCalledOperand(), CIArgs, "", immFalseBB);
     c1->setCallingConv(cc);
     c1->setAttributes(callAttrs);
-    BranchInst::Create(mergeBlock, immFalse);
-    BranchInst::Create(immTrue, immFalse, immArg, activeBlock);
-    PhiOperands.push_back({c0, immTrue});
-    PhiOperands.push_back({c1, immFalse});
+    BranchInst::Create(mergeBlock, immFalseBB);
+    BranchInst::Create(immTrueBB, immFalseBB, immArg, activeBlock);
+    PhiOperands.push_back({c0, immTrueBB});
+    PhiOperands.push_back({c1, immFalseBB});
 
     // Now fix up the new function's signature. It can't be inheriting illegal
     // attributes; only intrinsics may have the `ImmArg` Attribute. The verifier
