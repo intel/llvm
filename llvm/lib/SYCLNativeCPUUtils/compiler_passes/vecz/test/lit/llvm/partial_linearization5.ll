@@ -86,7 +86,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @partial_linearization5(i32 addrspace(1)* %out, i32 %n) #0 {
+define spir_kernel void @partial_linearization5(i32 addrspace(1)* %out, i32 noundef %n) #0 {
 entry:
   %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
@@ -187,11 +187,7 @@ attributes #2 = { nobuiltin nounwind readonly }
 
 ; CHECK: [[IFELSE5]]:
 ; CHECK: %[[CMP7:.+]] = icmp
-; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
-; on inactive lanes.
-; CHECK: %[[CMP7_ACTIVE:.+]] = and i1 %[[CMP7]], {{%.*}}
-; CHECK: %[[CMP7_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[CMP7_ACTIVE]])
-; CHECK: br i1 %[[CMP7_ACTIVE_ANY]], label %[[IFTHEN]], label %[[FORCOND14PREHEADER:.+]]
+; CHECK: br i1 %[[CMP7]], label %[[IFTHEN]], label %[[FORCOND14PREHEADER:.+]]
 
 ; CHECK: [[FORCOND14PREHEADER]]:
 ; CHECK: br label %[[FORCOND14:.+]]
