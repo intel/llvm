@@ -13,9 +13,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
-#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -113,12 +113,11 @@ public:
   /// property::queue::enable_profiling property, an invalid_object_error SYCL
   /// exception is thrown.
   ///
-  /// \param NodeImpl shared ptr to the node_impl for which the profiling information
-  /// is queried.
-  /// \return depends on template parameter.
+  /// \param NodeImpl shared ptr to the node_impl for which the profiling
+  /// information is queried. \return depends on template parameter.
   template <typename Param>
-  typename Param::return_type
-  get_profiling_info(std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl);
+  typename Param::return_type get_profiling_info(
+      std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl);
 
   /// Queries this SYCL event for information.
   ///
@@ -301,14 +300,14 @@ public:
     return MGraph.lock();
   }
 
-  void setEventFromSubmitedExecCommandBuffer(
+  void setEventFromSubmittedExecCommandBuffer(
       bool value, ext::oneapi::experimental::detail::exec_graph_impl *Graph) {
-    MEventFromSubmitedExecCommandBuffer = value;
+    MEventFromSubmittedExecCommandBuffer = value;
     MExecGraph = Graph;
   }
 
-  bool isEventFromSubmitedExecCommandBuffer() const {
-    return MEventFromSubmitedExecCommandBuffer;
+  bool isEventFromSubmittedExecCommandBuffer() const {
+    return MEventFromSubmittedExecCommandBuffer;
   }
 
 protected:
@@ -361,8 +360,8 @@ protected:
   /// Store the command graph associated with this event, if any.
   /// This event is also be stored in the graph so a weak_ptr is used.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
-  /// Indicates that the event results from a command graph submission
-  bool MEventFromSubmitedExecCommandBuffer = false;
+  /// Indicates that the event results from a command graph submission.
+  bool MEventFromSubmittedExecCommandBuffer = false;
   /// Store the executable command graph associated with this event, if any.
   ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph;
 

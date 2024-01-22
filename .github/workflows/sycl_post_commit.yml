@@ -15,6 +15,7 @@ on:
     - .github/workflows/sycl_post_commit.yml
     - .github/workflows/sycl_linux_build.yml
     - .github/workflows/sycl_linux_run_tests.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
