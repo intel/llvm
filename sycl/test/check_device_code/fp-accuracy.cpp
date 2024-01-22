@@ -1,9 +1,8 @@
-// RUN: %clangxx -fsycl %s -isystem %sycl_include/sycl \
-// RUN: -ffp-accuracy=high -fno-math-errno -S -emit-llvm -o- | FileCheck %s
+// RUN: %clangxx -fsycl %s -ffp-accuracy=high -fno-math-errno \
+// RUN: -S -emit-llvm -o- | FileCheck %s
 
-// RUN: %clangxx -fsycl %s -isystem %sycl_include/sycl \
-// RUN: -ffp-accuracy=high -ffp-accuracy=low:exp -fno-math-errno -S -emit-llvm \
-// RUN: -o- | FileCheck --check-prefix=CHECK-F1 %s
+// RUN: %clangxx -fsycl %s -ffp-accuracy=high -ffp-accuracy=low:exp \
+// RUN: -fno-math-errno -S -emit-llvm -o- | FileCheck --check-prefix=CHECK-F1 %s
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
