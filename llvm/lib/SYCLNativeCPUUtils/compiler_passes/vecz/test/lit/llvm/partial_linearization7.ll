@@ -93,7 +93,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @partial_linearization7(i32 addrspace(1)* %out, i32 %n) #0 {
+define spir_kernel void @partial_linearization7(i32 addrspace(1)* %out, i32 noundef %n) #0 {
 entry:
   %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32

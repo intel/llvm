@@ -405,25 +405,15 @@ static inline Error makeStringError(const Twine &message, Instruction &I) {
   return make_error<StringError>(helper_stream.str(), inconvertibleErrorCode());
 }
 
-// A conservative helper method to determine whether a branch condition
+// A helper method to determine whether a branch condition
 // (expected to be an i1 result of a comparison instruction) is truly uniform.
-// Note that we can't (currently) rely on UniformValueAnalysis for this
-// purpose. We need to be able to discern "truly" uniform values from uniform
-// values which are only uniform on active lanes.
-// FIXME: This is pessimistic. We could expand on this, or enhance the
-// UniformValueAnalysis.
-static bool isBranchCondTrulyUniform(Value *cond) {
+static bool isBranchCondTrulyUniform(Value *cond, UniformValueResult &UVR) {
   const auto *cmp = dyn_cast_if_present<CmpInst>(cond);
   if (!cmp || cmp->getType()->isVectorTy()) {
     return false;
   }
 
-  // Pessimistically assume that only arguments and constants are truly
-  // uniform: i.e., they won't given different reuslts on active vs inactive
-  // lanes.
-  return llvm::all_of(cmp->operands(), [](Value *op) {
-    return isa<Argument>(op) || isa<Constant>(op);
-  });
+  return UVR.isTrueUniform(cmp);
 }
 }  // namespace
 
@@ -1545,7 +1535,7 @@ bool ControlFlowConversionState::Impl::createBranchReductions() {
         // FIXME: Is this missing incorrect branches in uniform blocks/loops?
         if (auto *LTag = DR->getTag(&BB).loop;
             DR->isDivergent(BB) && (!LTag || LTag->isLoopDivergent())) {
-          if (!isBranchCondTrulyUniform(cond)) {
+          if (!isBranchCondTrulyUniform(cond, *UVR)) {
             cond = BinaryOperator::Create(Instruction::BinaryOps::And, cond,
                                           MaskInfos[&BB].entryMask,
                                           cond->getName() + "_active", Branch);

@@ -41,8 +41,11 @@ class VectorizationUnit;
 /// @brief Holds the result of Uniform Value Analysis for a given function.
 struct UniformValueResult {
   enum class VaryingKind {
-    /// @brief The value is uniform.
-    eValueUniform,
+    /// @brief The value is truly uniform on all active and inactive lanes.
+    eValueTrueUniform,
+    /// @brief The value is uniform on active lanes. May be poison or undefined
+    /// on inactive lanes.
+    eValueActiveUniform,
     /// @brief The value is varying and lanes may see different values.
     eValueVarying,
     /// @brief The value is uniform, but its mask is not.
@@ -71,23 +74,32 @@ struct UniformValueResult {
   ///
   /// @param[in] V Value to analyze.
   ///
-  /// @brief true if the value needs to be packetized, false otherwise.
+  /// @return true if the value needs to be packetized, false otherwise.
   bool isVarying(const llvm::Value *V) const;
 
   /// @brief Determine whether the given value has a varying mask or not.
   ///
   /// @param[in] V Value to analyze.
   ///
-  /// @brief true if the value has a varying mask, false otherwise.
+  /// @return true if the value has a varying mask, false otherwise.
   bool isMaskVarying(const llvm::Value *V) const;
 
   /// @brief Determine whether the given value has a varying mask or not.
   ///
   /// @param[in] V Value to analyze.
   ///
-  /// @brief true if the value is varying or has a varying mask, false
+  /// @return true if the value is varying or has a varying mask, false
   /// otherwise.
   bool isValueOrMaskVarying(const llvm::Value *V) const;
+
+  /// @brief Determine (on demand) whether the given value is a true uniform
+  /// value.
+  ///
+  /// @param[in] V Value to analyze.
+  ///
+  /// @return true if the value is true uniform, false otherwise. Caches the
+  /// result for future queries.
+  bool isTrueUniform(const llvm::Value *V);
 
   /// @brief Remove the value from the analysis.
   ///

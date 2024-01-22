@@ -18,6 +18,9 @@
 
 #include <compiler/utils/builtin_info.h>
 #include <compiler/utils/mangling.h>
+#include <llvm/Analysis/ValueTracking.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/Debug.h>
@@ -76,6 +79,38 @@ bool isDivergenceReduction(const Function &F) {
           L.Consume("divergence_"));
 }
 
+bool isTrueUniformInternal(const Value *V, unsigned Depth) {
+  if (!V) {
+    return false;
+  }
+
+  // Constants and Arguments that can't be undef/poison are truly uniform
+  if (isa<Constant>(V) || isa<Argument>(V)) {
+    return isGuaranteedNotToBePoison(V);
+  }
+
+  constexpr unsigned DepthLimit = 6;
+
+  if (Depth < DepthLimit) {
+    // For a specific subset of instructions, if all operands are truly
+    // uniform, then the instruction is too.
+    // FIXME: This is pessimistic. We could improve this by extending the list
+    // of instructions covered. We could also use flow-sensitive analysis in
+    // isGuaranteedNotToBePoison to enhance its capabilities.
+    if (const auto *I = dyn_cast<Instruction>(V)) {
+      if (isa<UnaryOperator>(I) || isa<BinaryOperator>(I) || isa<CastInst>(I) ||
+          isa<CmpInst>(I) || isa<SelectInst>(I) || isa<PHINode>(I)) {
+        return isGuaranteedNotToBePoison(I) &&
+               llvm::all_of(I->operands(), [Depth](Value *Op) {
+                 return isTrueUniformInternal(Op, Depth + 1);
+               });
+      }
+    }
+  }
+
+  return false;
+}
+
 }  // namespace
 
 UniformValueResult::UniformValueResult(Function &F, VectorizationUnit &vu)
@@ -102,7 +137,21 @@ bool UniformValueResult::isValueOrMaskVarying(const Value *V) const {
   if (found == varying.end()) {
     return false;
   }
-  return found->second != VaryingKind::eValueUniform;
+  return found->second != VaryingKind::eValueTrueUniform &&
+         found->second != VaryingKind::eValueActiveUniform;
+}
+
+bool UniformValueResult::isTrueUniform(const Value *V) {
+  auto found = varying.find(V);
+  if (found != varying.end()) {
+    return found->second == VaryingKind::eValueTrueUniform;
+  }
+  if (!isTrueUniformInternal(V, /*Depth=*/0)) {
+    return false;
+  }
+  // Cache this result to help speed up future queries
+  varying[V] = VaryingKind::eValueTrueUniform;
+  return true;
 }
 
 /// @brief Utility function to check whether an instruction is a call to a
