@@ -916,11 +916,11 @@ void exec_graph_impl::duplicateNodes() {
   // Map of original modifiable nodes (keys) to new duplicated nodes (values)
   std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
 
-  std::vector<std::shared_ptr<node_impl>> ModifiableNodes =
+  const std::vector<std::shared_ptr<node_impl>> &ModifiableNodes =
       MGraphImpl->MNodeStorage;
   std::deque<std::shared_ptr<node_impl>> NewNodes;
 
-  for (int i = ModifiableNodes.size() - 1; i >= 0; i--) {
+  for (int i = 0; i < ModifiableNodes.size(); i++) {
     auto OriginalNode = ModifiableNodes[i];
     std::shared_ptr<node_impl> NodeCopy =
         std::make_shared<node_impl>(*OriginalNode);
@@ -929,7 +929,7 @@ void exec_graph_impl::duplicateNodes() {
     NodeCopy->MSuccessors.clear();
     NodeCopy->MPredecessors.clear();
     // Push the new node to the front of the stack
-    NewNodes.push_front(NodeCopy);
+    NewNodes.push_back(NodeCopy);
     // Associate the new node with the old one for updating edges
     NodesMap.insert({OriginalNode, NodeCopy});
   }
@@ -948,107 +948,105 @@ void exec_graph_impl::duplicateNodes() {
   }
 
   // Subgraph nodes need special handling, we extract all subgraph nodes and
-  // merge them
-  // into the main node list
+  // merge them into the main node list
 
   for (auto NewNodeIt = NewNodes.end(); NewNodeIt != NewNodes.begin();) {
     --NewNodeIt;
     auto NewNode = *NewNodeIt;
-    if (NewNode->MNodeType == node_type::subgraph) {
-      std::vector<std::shared_ptr<node_impl>> SubgraphNodes =
-          NewNode->MSubGraphImpl->MNodeStorage;
-      std::deque<std::shared_ptr<node_impl>> NewSubgraphNodes{};
+    if (NewNode->MNodeType != node_type::subgraph) {
+      continue;
+    }
+    const std::vector<std::shared_ptr<node_impl>> &SubgraphNodes =
+        NewNode->MSubGraphImpl->MNodeStorage;
+    std::deque<std::shared_ptr<node_impl>> NewSubgraphNodes{};
 
-      // Map of original subgraph nodes (keys) to new duplicated nodes (values)
-      std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>>
-          SubgraphNodesMap;
+    // Map of original subgraph nodes (keys) to new duplicated nodes (values)
+    std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>>
+        SubgraphNodesMap;
 
-      // Copy subgraph nodes while updating
-      for (auto SubgraphNodeIt = SubgraphNodes.end();
-           SubgraphNodeIt != SubgraphNodes.begin();) {
-        --SubgraphNodeIt;
-        auto SubgraphNode = *SubgraphNodeIt;
-        auto NodeCopy = std::make_shared<node_impl>(*SubgraphNode);
-        NewSubgraphNodes.push_front(NodeCopy);
-        SubgraphNodesMap.insert({SubgraphNode, NodeCopy});
-        NodeCopy->MSuccessors.clear();
-        NodeCopy->MPredecessors.clear();
+    // Copy subgraph nodes
+    for (size_t i = 0; i < SubgraphNodes.size(); i++) {
+      auto SubgraphNode = SubgraphNodes[i];
+      auto NodeCopy = std::make_shared<node_impl>(*SubgraphNode);
+      NewSubgraphNodes.push_back(NodeCopy);
+      SubgraphNodesMap.insert({SubgraphNode, NodeCopy});
+      NodeCopy->MSuccessors.clear();
+      NodeCopy->MPredecessors.clear();
+    }
+
+    // Rebuild edges for new subgraph nodes
+    for (size_t i = 0; i < SubgraphNodes.size(); i++) {
+      auto SubgraphNode = SubgraphNodes[i];
+      auto NodeCopy = NewSubgraphNodes[i];
+
+      for (auto &NextNode : SubgraphNode->MSuccessors) {
+        auto Successor = SubgraphNodesMap.at(NextNode.lock());
+        NodeCopy->registerSuccessor(Successor, NodeCopy);
       }
+    }
 
-      // Rebuild edges for new subgraph nodes
-      for (size_t i = 0; i < SubgraphNodes.size(); i++) {
-        auto SubgraphNode = SubgraphNodes[i];
-        auto NodeCopy = NewSubgraphNodes[i];
-
-        for (auto &NextNode : SubgraphNode->MSuccessors) {
-          auto Successor = SubgraphNodesMap.at(NextNode.lock());
-          NodeCopy->registerSuccessor(Successor, NodeCopy);
-        }
+    // Collect input and output nodes for the subgraph
+    std::vector<std::shared_ptr<node_impl>> Inputs;
+    std::vector<std::shared_ptr<node_impl>> Outputs;
+    for (auto &NodeImpl : NewSubgraphNodes) {
+      if (NodeImpl->MPredecessors.size() == 0) {
+        Inputs.push_back(NodeImpl);
       }
-
-      // Collect input and output nodes for the subgraph
-      std::vector<std::shared_ptr<node_impl>> Inputs;
-      std::vector<std::shared_ptr<node_impl>> Outputs;
-      for (auto &NodeImpl : NewSubgraphNodes) {
-        if (NodeImpl->MPredecessors.size() == 0) {
-          Inputs.push_back(NodeImpl);
-        }
-        if (NodeImpl->MSuccessors.size() == 0) {
-          Outputs.push_back(NodeImpl);
-        }
+      if (NodeImpl->MSuccessors.size() == 0) {
+        Outputs.push_back(NodeImpl);
       }
+    }
 
-      // Update the predecessors and successors of the nodes which reference the
-      // original subgraph node
+    // Update the predecessors and successors of the nodes which reference the
+    // original subgraph node
 
-      // Predecessors
-      for (auto &PredNodeWeak : NewNode->MPredecessors) {
-        auto PredNode = PredNodeWeak.lock();
-        auto &Successors = PredNode->MSuccessors;
+    // Predecessors
+    for (auto &PredNodeWeak : NewNode->MPredecessors) {
+      auto PredNode = PredNodeWeak.lock();
+      auto &Successors = PredNode->MSuccessors;
 
-        // Remove the subgraph node from this nodes successors
-        Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
+      // Remove the subgraph node from this nodes successors
+      Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
+                                      [NewNode](auto WeakNode) {
+                                        return WeakNode.lock() == NewNode;
+                                      }),
+                       Successors.end());
+
+      // Add all input nodes from the subgraph as successors for this node
+      // instead
+      for (auto &Input : Inputs) {
+        PredNode->registerSuccessor(Input, PredNode);
+      }
+    }
+
+    // Successors
+    for (auto &SuccNodeWeak : NewNode->MSuccessors) {
+      auto SuccNode = SuccNodeWeak.lock();
+      auto &Predecessors = SuccNode->MPredecessors;
+
+      // Remove the subgraph node from this nodes successors
+      Predecessors.erase(std::remove_if(Predecessors.begin(),
+                                        Predecessors.end(),
                                         [NewNode](auto WeakNode) {
                                           return WeakNode.lock() == NewNode;
                                         }),
-                         Successors.end());
+                         Predecessors.end());
 
-        // Add all input nodes from the subgraph as successors for this node
-        // instead
-        for (auto &Input : Inputs) {
-          PredNode->registerSuccessor(Input, PredNode);
-        }
+      // Add all Output nodes from the subgraph as predecessors for this node
+      // instead
+      for (auto &Output : Outputs) {
+        Output->registerSuccessor(SuccNode, Output);
       }
-
-      // Successors
-      for (auto &SuccNodeWeak : NewNode->MSuccessors) {
-        auto SuccNode = SuccNodeWeak.lock();
-        auto &Predecessors = SuccNode->MPredecessors;
-
-        // Remove the subgraph node from this nodes successors
-        Predecessors.erase(std::remove_if(Predecessors.begin(),
-                                          Predecessors.end(),
-                                          [NewNode](auto WeakNode) {
-                                            return WeakNode.lock() == NewNode;
-                                          }),
-                           Predecessors.end());
-
-        // Add all Output nodes from the subgraph as predecessors for this node
-        // instead
-        for (auto &Output : Outputs) {
-          Output->registerSuccessor(SuccNode, Output);
-        }
-      }
-
-      // Remove single subgraph node and add all new individual subgraph nodes
-      // to the node storage in its place
-      auto OldPositionIt =
-          NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
-      // Also set the iterator to the newly added nodes so we can continue
-      // iterating over all remaining nodes
-      NewNodeIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
-                                  NewSubgraphNodes.end());
     }
+
+    // Remove single subgraph node and add all new individual subgraph nodes
+    // to the node storage in its place
+    auto OldPositionIt =
+        NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
+    // Also set the iterator to the newly added nodes so we can continue
+    // iterating over all remaining nodes
+    NewNodeIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
+                                NewSubgraphNodes.end());
   }
 
   // Store all the new nodes locally

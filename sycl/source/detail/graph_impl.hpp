@@ -83,7 +83,7 @@ public:
   std::vector<std::weak_ptr<node_impl>> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CG::CGTYPE MCGType = sycl::detail::CG::None;
-  /// User facing type of the node
+  /// User facing type of the node.
   node_type MNodeType = node_type::empty;
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
@@ -235,7 +235,7 @@ public:
     }
     case sycl::detail::CG::Barrier:
     case sycl::detail::CG::BarrierWaitlist:
-      // Barrier nodes are stored in the graph with only the bass CG class,
+      // Barrier nodes are stored in the graph with only the base CG class,
       // since they are treated internally as empty nodes.
       return createCGCopy<sycl::detail::CG>();
     case sycl::detail::CG::CopyToDeviceGlobal:
@@ -628,7 +628,7 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
-  /// @param Impl Graph implementation pointer
+  /// @param Impl Graph implementation pointer.
   /// @param Dep List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
@@ -636,7 +636,7 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
-  /// @param Impl Graph implementation pointer
+  /// @param Impl Graph implementation pointer.
   /// @param Events List of events associated to this node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
@@ -667,7 +667,7 @@ public:
 
   /// Associate a sycl event with a node in the graph.
   /// @param GraphImpl shared_ptr to Graph impl associated with this event, aka
-  /// this
+  /// this.
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
@@ -696,6 +696,10 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
+  /// Find the node associated with a SYCL event. Throws if no node is found for
+  /// the given event.
+  /// @param EventImpl Event to find the node for.
+  /// @return Node associated with the event.
   std::shared_ptr<node_impl>
   getNodeForEvent(std::shared_ptr<sycl::detail::event_impl> EventImpl) {
     ReadLock Lock(MMutex);
@@ -944,7 +948,7 @@ private:
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Adds nodes to the exit nodes of this graph.
-  /// @param Impl Graph implementation pointer
+  /// @param Impl Graph implementation pointer.
   /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
@@ -1013,12 +1017,17 @@ public:
   mutable std::shared_mutex MMutex;
 
   /// Constructor.
+  ///
+  /// Nodes from GraphImpl will be copied when constructing this
+  /// exec_graph_impl so that nodes may be modified (e.g. when merging subgraph
+  /// nodes).
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
       : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
         MRequirements(), MExecutionEvents() {
+    // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
   }
 

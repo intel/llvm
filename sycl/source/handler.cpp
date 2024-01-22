@@ -433,12 +433,9 @@ event handler::finalize() {
     break;
   }
   case detail::CG::ExecCommandBuffer: {
-    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
-    if (MQueue) {
-      ParentGraph = MQueue->getCommandGraph();
-    } else {
-      ParentGraph = MGraph;
-    }
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
+        MQueue ? MQueue->getCommandGraph() : MGraph;
+
     // If a parent graph is set that means we are adding or recording a subgraph
     // and we don't want to actually execute this command graph submission.
     if (ParentGraph) {
