@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
-// REQUIRES: level-zero
+// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:0 ZE_FLAT_DEVICE_HIERARCHY=COMBINED %t.out
+// REQUIRES: level_zero
 
 #include <sycl/sycl.hpp>
 
