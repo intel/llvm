@@ -45,10 +45,13 @@ option(UR_BUILD_ADAPTER_NATIVE_CPU "Build the Native-CPU adapter" OFF)
 option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
+option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
-option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
+set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
+    "List of sycl targets to build CTS device binaries for")
+set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
 
 include(Assertions)
 
