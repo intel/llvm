@@ -9,6 +9,8 @@
 #ifndef SYCL_FUSION_COMMON_KERNEL_H
 #define SYCL_FUSION_COMMON_KERNEL_H
 
+#include "DynArray.h"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -118,6 +120,8 @@ struct SYCLKernelAttribute {
   AttributeValueList Values;
 };
 
+///
+/// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
@@ -132,15 +136,17 @@ enum ArgUsage : uint8_t {
 };
 
 ///
-/// Encode usage of parameters for the actual kernel function.
-using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
+/// Expose the enum's underlying type because it simplifies bitwise operations.
+using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 
 ///
-/// Describe the list of arguments by their kind.
+/// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  std::vector<ParameterKind> Kinds;
+  explicit SYCLArgumentDescriptor(size_t NumArgs)
+      : Kinds(NumArgs), UsageMask(NumArgs){};
 
-  ArgUsageMask UsageMask;
+  DynArray<ParameterKind> Kinds;
+  DynArray<ArgUsageUT> UsageMask;
 };
 
 ///
@@ -312,8 +318,8 @@ struct SYCLKernelInfo {
       : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
                                                                      BinInfo} {}
 
-  explicit SYCLKernelInfo(const std::string &KernelName)
-      : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
+  SYCLKernelInfo(const std::string &KernelName, size_t NumArgs)
+      : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
 ///
