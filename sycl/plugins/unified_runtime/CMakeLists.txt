@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/maarquitos14/unified-runtime.git")
-  # commit 75648295df39de3027c989299a0cadb018ea26c8
-  # Merge: a9746c21 c63ad9b2
-  # Author: Marcos Maronas <marcos.maronas@intel.com>
-  # Date:   Tue Jan 16 09:04:27 2024 -0800
-  #     Merge remote-tracking branch 'intel/origin/main' into maronas/ext_composite_device
-  set(UNIFIED_RUNTIME_TAG 75648295df39de3027c989299a0cadb018ea26c8)
+  # commit 5d322ee7656232313c8a3019df1785817c083450
+  # Merge: 75648295 6032f6fd
+  # Author: Maronas, Marcos <marcos.maronas@intel.com>
+  # Date:   Mon Jan 22 07:18:52 2024 -0800
+  #    Merge remote-tracking branch 'intel/origin/main' into maronas/ext_composite_device
+  set(UNIFIED_RUNTIME_TAG 5d322ee7656232313c8a3019df1785817c083450)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -149,6 +149,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"

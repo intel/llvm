@@ -367,7 +367,8 @@ Error SYCLKernelFusion::fuseKernel(
   DenseMap<std::pair<unsigned, unsigned>, unsigned> ParamMapping;
   // The list of identical parameters is sorted, so the relevant entry can
   // always only be the current front.
-  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin();
+  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin(),
+                                      *ParamEnd = ParamIdentities.end();
   unsigned FuncIndex = 0;
   unsigned ArgIndex = 0;
   for (const auto &Fused : FusedKernels) {
@@ -386,7 +387,7 @@ Error SYCLKernelFusion::fuseKernel(
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
       int IdenticalIdx = -1;
-      if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
+      if (ParamFront != ParamEnd && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
         // Because ParamIdentity is constructed such that LHS > RHS, the other
         // parameter must already have been processed.
@@ -620,7 +621,7 @@ void SYCLKernelFusion::canonicalizeParameters(
   // The input is a list of parameter pairs which werde detected to be
   // identical. Each pair is constructed such that the RHS belongs to a kernel
   // occuring before the kernel for the LHS in the list of kernels to fuse. This
-  // means, that we want to use the LHS parameter instead of the RHS parameter.
+  // means, that we want to use the RHS parameter instead of the LHS parameter.
 
   // In the first step we sort the list of pairs by their LHS.
   std::sort(Params.begin(), Params.end());
@@ -639,8 +640,7 @@ void SYCLKernelFusion::canonicalizeParameters(
       // LHS and RHS are identical - this does not provide
       // any useful information at all, discard it.
       I = Params.erase(I);
-    }
-    if (Identities.count(I->LHS)) {
+    } else if (Identities.count(I->LHS)) {
       // Duplicate
       auto ExistingIdentity = Identities.at(I->LHS);
       Identities.emplace(I->RHS, ExistingIdentity);
