@@ -408,7 +408,7 @@ struct ur_queue_handle_t_ : _ur_object {
   bool isImmediateSubmission() const;
 
   // Wait for all commandlists associated with this Queue to finish operations.
-  ur_result_t synchronize();
+  [[nodiscard]] ur_result_t synchronize();
 
   // Get event from the queue's cache.
   // Returns nullptr if the cache doesn't contain any reusable events or if the
