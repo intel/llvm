@@ -10,6 +10,7 @@
 
 #include "device.hpp"
 #include "ur_level_zero.hpp"
+#include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
 #include <optional>
@@ -302,9 +303,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{64});
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    // if not optimized for 32-bit access, return total memory size.
-    // otherwise, return only maximum allocatable size.
-    if (Device->useOptimized32bitAccess() == 0) {
+    // if the user wishes to allocate large allocations on a system that usually
+    // does not allow that allocation size, then we return the max global mem
+    // size as the limit.
+    if (Device->useRelaxedAllocationLimits()) {
       return ReturnValue(uint64_t{calculateGlobalMemSize(Device)});
     } else {
       return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
@@ -1013,20 +1015,14 @@ ur_device_handle_t_::useImmediateCommandLists() {
   }
 }
 
-int32_t ur_device_handle_t_::useOptimized32bitAccess() {
-  static const int32_t Optimize32bitAccessMode = [this] {
-    // If device is Intel(R) Data Center GPU Max,
-    // use default provided by L0 driver.
-    // TODO: Use IP versioning to select based on range of devices
-    if (this->isPVC())
-      return -1;
-    const char *UrRet = std::getenv("UR_L0_USE_OPTIMIZED_32BIT_ACCESS");
-    if (!UrRet)
-      return 0;
-    return std::atoi(UrRet);
+bool ur_device_handle_t_::useRelaxedAllocationLimits() {
+  static const bool EnableRelaxedAllocationLimits = [] {
+    auto UrRet = ur_getenv("UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS");
+    const bool RetVal = UrRet ? std::stoi(*UrRet) : 0;
+    return RetVal;
   }();
 
-  return Optimize32bitAccessMode;
+  return EnableRelaxedAllocationLimits;
 }
 
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
