@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit 16c6dc262451cf1b7dcb7d8021904a968c4a16ee
+  # commit 9713f7d8469600dcc4b220b4f1d1f01ea909068d
   # Author: Przemek Malon <przemek.malon@codeplay.com>
   # Date:   Wed Nov 29 11:25:34 2023 +0000
   #   [Bindless][Exp] Add device queries for sampled image fetch  
@@ -69,7 +69,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
-  set(UNIFIED_RUNTIME_TAG aa442a391c79692af279aaeda74da63c9ba6a489)
+  set(UNIFIED_RUNTIME_TAG 9713f7d8469600dcc4b220b4f1d1f01ea909068d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
