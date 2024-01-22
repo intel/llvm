@@ -16,6 +16,15 @@
 namespace sycl {
 inline namespace _V1 {
 
+template <typename T> static auto process_arg_for_macos(T x) {
+  // Workaround for MacOS that doesn't provide some std::is* functions as
+  // overloads over FP types (e.g., isfinite)
+  if constexpr (std::is_same_v<T, half>)
+    return static_cast<float>(x);
+  else
+    return x;
+}
+
 #if defined(__GNUC__) && !defined(__clang__)
 // sycl::vec has UB in operator[] (aliasing violation) that causes the following
 // warning here. Note that the way this #pragma works is that we have to put it
@@ -36,7 +45,9 @@ inline namespace _V1 {
   }                                                                            \
   EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, FP_TYPES)
 #define REL_BUILTIN(NUM_ARGS, NAME)                                            \
-  REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, std::NAME)
+  REL_BUILTIN_CUSTOM(NUM_ARGS, NAME, [](auto... xs) {                          \
+    return std::NAME(process_arg_for_macos(xs)...);                            \
+  })
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
@@ -57,10 +68,9 @@ REL_BUILTIN(ONE_ARG, isfinite)
 REL_BUILTIN(ONE_ARG, isinf)
 REL_BUILTIN(ONE_ARG, isnan)
 REL_BUILTIN(ONE_ARG, isnormal)
+REL_BUILTIN(TWO_ARGS, isunordered)
 REL_BUILTIN_CUSTOM(TWO_ARGS, isordered,
-                   ([](auto x, auto y) { return !std::isunordered(x, y); }))
-REL_BUILTIN_CUSTOM(TWO_ARGS, isunordered,
-                   ([](auto x, auto y) { return std::isunordered(x, y); }))
+                   ([](auto x, auto y) { return !sycl::isunordered(x, y); }))
 #if defined(__GNUC__) && !defined(__clang__)
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112816
 #pragma GCC push_options

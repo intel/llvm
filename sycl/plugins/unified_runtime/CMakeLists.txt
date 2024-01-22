@@ -156,6 +156,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
