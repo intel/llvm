@@ -937,6 +937,12 @@ mock_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piEnqueueTimestampRecordingExp(
+    pi_queue queue, pi_bool blocking, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  return PI_SUCCESS;
+}
+
 //
 // Sampler
 //

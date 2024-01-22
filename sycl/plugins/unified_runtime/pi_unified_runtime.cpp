@@ -682,6 +682,13 @@ __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
                                                  OwnNativeHandle, Event);
 }
 
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue Queue, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piEnqueueTimestampRecordingExp(
+      Queue, Blocking, NumEventsInWaitList, EventWaitList, Event);
+}
+
 __SYCL_EXPORT pi_result piEnqueueMemImageFill(
     pi_queue Queue, pi_mem Image, const void *FillColor, const size_t *Origin,
     const size_t *Region, pi_uint32 NumEventsInWaitList,
@@ -1480,6 +1487,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextEventGetNativeHandle)
   _PI_API(piEventGetProfilingInfo)
   _PI_API(piEventCreate)
+  _PI_API(piEnqueueTimestampRecordingExp)
 
   _PI_API(piSamplerCreate)
   _PI_API(piSamplerGetInfo)

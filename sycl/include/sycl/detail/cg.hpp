@@ -78,6 +78,7 @@ public:
     CopyImage = 23,
     SemaphoreWait = 24,
     SemaphoreSignal = 25,
+    ProfilingTag = 26,
   };
 
   struct StorageInitHelper {
@@ -361,6 +362,12 @@ public:
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+};
+
+class CGProfilingTag : public CG {
+public:
+  CGProfilingTag(CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CG::ProfilingTag, std::move(CGData), std::move(loc)) {}
 };
 
 /// "Copy 2D USM" command group class.

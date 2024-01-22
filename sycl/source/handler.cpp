@@ -453,6 +453,10 @@ event handler::finalize() {
     }
     break;
   }
+  case detail::CG::ProfilingTag: {
+    CommandGroup.reset(new detail::CGProfilingTag(std::move(CGData), MCodeLoc));
+    break;
+  }
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,

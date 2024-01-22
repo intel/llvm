@@ -177,6 +177,7 @@ class stream_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
+class HandlerAccess;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -3677,6 +3678,23 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
+
+  inline void internalProfilingTagImpl() {
+    throwIfActionIsCreated();
+    setType(detail::CG::ProfilingTag);
+  }
+
+  friend class detail::HandlerAccess;
 };
+
+namespace detail {
+class HandlerAccess {
+public:
+  static void internalProfilingTagImpl(handler &Handler) {
+    Handler.internalProfilingTagImpl();
+  }
+};
+} // namespace detail
+
 } // namespace _V1
 } // namespace sycl

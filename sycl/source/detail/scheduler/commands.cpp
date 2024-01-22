@@ -1914,6 +1914,8 @@ ExecCGCommand::ExecCGCommand(
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
   }
+  if (MCommandGroup->getType() == detail::CG::ProfilingTag)
+    MEvent->markAsProfilingTagEvent();
 
   emitInstrumentationDataProxy();
 }
@@ -3151,6 +3153,20 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::ProfilingTag: {
+    const PluginPtr &Plugin = MQueue->getPlugin();
+    // If the queue is not in-order, we need to insert a barrier. This barrier
+    // does not need output events as it will implicitly enforce the following
+    // enqueue is blocked until it finishes.
+    if (!MQueue->isInOrder())
+      Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
+          MQueue->getHandleRef(), 0, nullptr, nullptr);
+
+    Plugin->call<PiApiKind::piEnqueueTimestampRecordingExp>(
+        MQueue->getHandleRef(), false, 0, nullptr, Event);
 
     return PI_SUCCESS;
   }

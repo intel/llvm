@@ -246,6 +246,8 @@ public:
       return createCGCopy<sycl::detail::CGSemaphoreSignal>();
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
+    case sycl::detail::CG::ProfilingTag:
+      return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CG::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
