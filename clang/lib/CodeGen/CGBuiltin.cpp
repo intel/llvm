@@ -23081,10 +23081,9 @@ static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
 
-llvm::CallInst *CodeGenFunction::EmitFPBuiltinofFD(
+llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
     llvm::Value *FnPtr, StringRef Name, unsigned FDBuiltinID) {
-  llvm::Function *Func;
   unsigned FPAccuracyIntrinsicID = 0;
   if (FDBuiltinID == 0) {
     FPAccuracyIntrinsicID =
@@ -23183,7 +23182,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinofFD(
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
       !LangOpts.FPAccuracyVal.empty()) {
-    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    llvm::Function *Func =
+        CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
