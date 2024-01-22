@@ -55,7 +55,7 @@ using Vec16StorageT = std::array<Bfloat16StorageT, 16>;
 } // namespace bf16
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-static bool float_is_nan(float x) { return x != x; }
+inline bool float_is_nan(float x) { return x != x; }
 #endif
 } // namespace detail
 

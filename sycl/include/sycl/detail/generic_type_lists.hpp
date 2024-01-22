@@ -163,15 +163,12 @@ using geo_list = tl_append<scalar_geo_list, vector_geo_list>;
 // cross floating point types
 using cross_half_list = type_list<vec<half, 3>, vec<half, 4>>;
 
-using cross_bfloat16_list = type_list<vec<sycl::ext::oneapi::bfloat16, 3>,
-                                      vec<sycl::ext::oneapi::bfloat16, 4>>;
-
 using cross_float_list = type_list<vec<float, 3>, vec<float, 4>>;
 
 using cross_double_list = type_list<vec<double, 3>, vec<double, 4>>;
 
-using cross_floating_list = tl_append<cross_float_list, cross_double_list,
-                                      cross_half_list, cross_bfloat16_list>;
+using cross_floating_list =
+    tl_append<cross_float_list, cross_double_list, cross_half_list>;
 
 using cross_marray_list = type_list<marray<float, 3>, marray<float, 4>,
                                     marray<double, 3>, marray<double, 4>>;

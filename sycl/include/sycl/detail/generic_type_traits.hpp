@@ -549,9 +549,10 @@ using select_cl_scalar_t = std::conditional_t<
         std::is_floating_point_v<T>, select_cl_scalar_float_t<T>,
         // half and bfloat16 are special cases: they are implemented differently
         // on host and device and therefore might lower to different types
-        std::conditional_t<is_half_or_bf16_v<T>,
-                           sycl::detail::half_impl::BIsRepresentationT,
-                           select_cl_scalar_complex_or_T_t<T>>>>;
+        std::conditional_t<
+            is_half_v<T>, sycl::detail::half_impl::BIsRepresentationT,
+            std::conditional_t<is_bfloat16_v<T>, T,
+                               select_cl_scalar_complex_or_T_t<T>>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -563,10 +564,10 @@ template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
     T, typename std::enable_if_t<is_vgentype_v<T>>> {
   using type =
-      // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
+      // select_cl_scalar_t may return _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
-      vec<std::conditional_t<is_half_or_bf16_v<mptr_or_vec_elem_type_t<T>>,
+      vec<std::conditional_t<is_half_v<mptr_or_vec_elem_type_t<T>>,
                              mptr_or_vec_elem_type_t<T>,
                              select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
           T::size()>;
