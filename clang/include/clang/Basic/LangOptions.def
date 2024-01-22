@@ -220,7 +220,7 @@ BENIGN_LANGOPT(NoSignedZero      , 1, 0, "Permit Floating Point optimization wit
 BENIGN_LANGOPT(AllowRecip        , 1, 0, "Permit Floating Point reciprocal")
 BENIGN_LANGOPT(ApproxFunc        , 1, 0, "Permit Floating Point approximation")
 
-ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 2, CX_Full, "Enable use of range reduction for complex arithmetics.")
+ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 2, CX_None, "Enable use of range reduction for complex arithmetics.")
 
 BENIGN_LANGOPT(ObjCGCBitmapPrint , 1, 0, "printing of GC's bitmap layout for __weak/__strong ivars")
 
@@ -329,7 +329,8 @@ BENIGN_LANGOPT(IgnoreXCOFFVisibility, 1, 0, "All the visibility attributes that 
 BENIGN_LANGOPT(VisibilityInlinesHiddenStaticLocalVar, 1, 0,
                "hidden visibility for static local variables in inline C++ "
                "methods when -fvisibility-inlines hidden is enabled")
-LANGOPT(GlobalAllocationFunctionVisibilityHidden , 1, 0, "hidden visibility for global operator new and delete declaration")
+ENUM_LANGOPT(GlobalAllocationFunctionVisibility, VisibilityForcedKinds, 3, VisibilityForcedKinds::ForceDefault,
+             "How to apply visibility to global operator new and delete declarations")
 LANGOPT(NewInfallible , 1, 0, "Treats throwing global C++ operator new as always returning valid memory (annotates with __attribute__((returns_nonnull)) and throw()). This is detectable in source.")
 BENIGN_LANGOPT(ParseUnknownAnytype, 1, 0, "__unknown_anytype")
 BENIGN_LANGOPT(DebuggerSupport , 1, 0, "debugger support")
