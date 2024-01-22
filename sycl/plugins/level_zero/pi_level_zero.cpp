@@ -58,8 +58,7 @@ pi_result piPluginGetLastError(char **message) {
 
 // Returns plugin specific backend option.
 // Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
-// Return '-ze-opt-level=2' for frontend_option = -O3.
+// Return '-ze-opt-level=2' for frontend_option = -O1, O2 or -O3.
 // Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
 // frontend_option = -ftarget-compile-fast.
 pi_result piPluginGetBackendOption(pi_platform platform,
@@ -1302,6 +1301,45 @@ pi_result piextCommandBufferMemBufferWriteRect(
       CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
       BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferFill(
+      CommandBuffer, Buffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
+                                    void *Ptr, const void *Pattern,
+                                    size_t PatternSize, size_t Size,
+                                    pi_uint32 NumSyncPointsInWaitList,
+                                    const pi_ext_sync_point *SyncPointWaitList,
+                                    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferFillUSM(
+      CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,

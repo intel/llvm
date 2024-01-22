@@ -412,8 +412,22 @@ __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(remquo, x[j], y[j])
 #undef __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL
 
 template <typename T, size_t N>
-std::enable_if_t<detail::is_nan_type_v<T>, marray<detail::nan_return_t<T>, N>>
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     detail::is_non_deprecated_nan_type_v<T>,
+                 marray<detail::nan_return_t<T>, N>>
 nan(marray<T, N> nancode) {
+  marray<detail::nan_return_t<T>, N> res;
+  for (int j = 0; j < N; j++) {
+    res[j] = nan(nancode[j]);
+  }
+  return res;
+}
+template <typename T, size_t N>
+__SYCL_DEPRECATED(
+    "This is a deprecated argument type for SYCL nan built-in function.")
+std::enable_if_t<detail::is_nan_type_v<T> &&
+                     !detail::is_non_deprecated_nan_type_v<T>,
+                 marray<detail::nan_return_t<T>, N>> nan(marray<T, N> nancode) {
   marray<detail::nan_return_t<T>, N> res;
   for (int j = 0; j < N; j++) {
     res[j] = nan(nancode[j]);

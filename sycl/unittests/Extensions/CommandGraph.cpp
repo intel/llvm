@@ -1674,76 +1674,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
   sycl::free(ImgMemUSM, Ctxt);
 }
 
-TEST_F(CommandGraphTest, GetProfilingInfoExceptionCheck) {
-  sycl::context Ctx{Dev};
-  sycl::queue QueueProfile{
-      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  experimental::command_graph<experimental::graph_state::modifiable>
-      GraphProfile{QueueProfile.get_context(), Dev};
-
-  GraphProfile.begin_recording(QueueProfile);
-  auto Event = QueueProfile.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-
-  // Checks that exception is thrown when get_profile_info is called on "event"
-  // returned by a queue in recording mode.
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  GraphProfile.end_recording();
-
-  auto GraphExec = GraphProfile.finalize();
-  auto EventSub = QueueProfile.submit(
-      [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
-
-  // Checks that exception is thrown when get_profile_info is called on "event"
-  // returned by a graph submission.
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_start>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_end>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // Set up some nodes in the graph
   auto NodeA = Graph.add(
@@ -2176,5 +2106,67 @@ TEST_F(MultiThreadGraphTest, Finalize) {
         sycl::detail::getSyclObjImpl(GraphsExecMap.find(i)->second);
     auto GraphExecRefImpl = sycl::detail::getSyclObjImpl(GraphExecRef);
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
+  }
+}
+
+// Test adding fill and memset nodes to a graph
+TEST_F(CommandGraphTest, FillMemsetNodes) {
+  const int Value = 7;
+  // Buffer fill
+  buffer<int> Buffer{range<1>{1}};
+  Buffer.set_write_back(false);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto NodeA = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+    auto NodeB = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+
+    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
+    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+
+    // Check Operator==
+    EXPECT_EQ(NodeAImpl, NodeAImpl);
+    EXPECT_NE(NodeAImpl, NodeBImpl);
+  }
+
+  // USM
+  {
+    int *USMPtr = malloc_device<int>(1, Queue);
+
+    // We need to create some differences between nodes because unlike buffer
+    // fills they are not differentiated on accessor ptr value.
+    auto FillNodeA =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value, 1); });
+    auto FillNodeB =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value + 1, 1); });
+    auto MemsetNodeA =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 1); });
+    auto MemsetNodeB =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 2); });
+
+    auto FillNodeAImpl = sycl::detail::getSyclObjImpl(FillNodeA);
+    auto FillNodeBImpl = sycl::detail::getSyclObjImpl(FillNodeB);
+    auto MemsetNodeAImpl = sycl::detail::getSyclObjImpl(MemsetNodeA);
+    auto MemsetNodeBImpl = sycl::detail::getSyclObjImpl(MemsetNodeB);
+
+    // Check Operator==
+    EXPECT_EQ(FillNodeAImpl, FillNodeAImpl);
+    EXPECT_EQ(FillNodeBImpl, FillNodeBImpl);
+    EXPECT_NE(FillNodeAImpl, FillNodeBImpl);
+
+    EXPECT_EQ(MemsetNodeAImpl, MemsetNodeAImpl);
+    EXPECT_EQ(MemsetNodeBImpl, MemsetNodeBImpl);
+    EXPECT_NE(MemsetNodeAImpl, MemsetNodeBImpl);
+    sycl::free(USMPtr, Queue);
   }
 }

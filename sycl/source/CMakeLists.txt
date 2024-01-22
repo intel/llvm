@@ -155,7 +155,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 endfunction(add_sycl_rt_library)
 
-set(SYCL_SOURCES
+set(SYCL_COMMON_SOURCES
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
     "backend.cpp"
@@ -163,11 +163,6 @@ set(SYCL_SOURCES
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
-    "detail/builtins_common.cpp"
-    "detail/builtins_geometric.cpp"
-    "detail/builtins_integer.cpp"
-    "detail/builtins_math.cpp"
-    "detail/builtins_relational.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
@@ -243,6 +238,25 @@ set(SYCL_SOURCES
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
+set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+    "detail/builtins_common.cpp"
+    "detail/builtins_geometric.cpp"
+    "detail/builtins_integer.cpp"
+    "detail/builtins_math.cpp"
+    "detail/builtins_relational.cpp"
+)
+
+
+set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+    "builtins/common_functions.cpp"
+    "builtins/geometric_functions.cpp"
+    "builtins/half_precision_math_functions.cpp"
+    "builtins/integer_functions.cpp"
+    "builtins/math_functions.cpp"
+    "builtins/native_math_functions.cpp"
+    "builtins/relational_functions.cpp"
+)
+
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
   # To avoid potential issues in user code we also need to provide two kinds
@@ -258,14 +272,14 @@ if (MSVC)
 
   set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
     endif()
   else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
     endif()
   endif()
   unset(WIN_DUPE)
@@ -290,14 +304,14 @@ set(LIB_NAME "sycl")
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
   endif()
 else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
   endif()
 endif()
 

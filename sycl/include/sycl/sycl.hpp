@@ -74,6 +74,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
@@ -102,7 +103,6 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-
 #if !defined(SYCL2020_CONFORMANT_APIS) &&                                      \
     !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 // We used to include those and some code might be reliant on that.
