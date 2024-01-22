@@ -108,7 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
           /* IsInternal */ false));
     }
 
-    Queue->synchronize();
+    UR_CALL(Queue->synchronize());
 
     if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
@@ -625,13 +625,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
                        ///< events to wait for completion
 ) {
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventWaitList[I]->UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
+    auto e = EventWaitList[I];
+    if (e->UrQueue && e->UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
       //
-      ur_event_handle_t_ *Event =
-          ur_cast<ur_event_handle_t_ *>(EventWaitList[I]);
+      ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(e);
       if (!Event->hasExternalRefs())
         die("urEventsWait must not be called for an internal event");
 
@@ -781,6 +781,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
+
+    UREvent->RefCountExternal++;
 
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

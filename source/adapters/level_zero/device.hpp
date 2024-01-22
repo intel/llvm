@@ -160,7 +160,7 @@ struct ur_device_handle_t_ : _ur_object {
   // provide support for only one, like for Intel(R)
   // Data Center GPU Max, for which L0 driver only
   // supports stateless.
-  int32_t useOptimized32bitAccess();
+  bool useRelaxedAllocationLimits();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
