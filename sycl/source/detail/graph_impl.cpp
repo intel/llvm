@@ -920,7 +920,7 @@ void exec_graph_impl::duplicateNodes() {
       MGraphImpl->MNodeStorage;
   std::deque<std::shared_ptr<node_impl>> NewNodes;
 
-  for (int i = 0; i < ModifiableNodes.size(); i++) {
+  for (size_t i = 0; i < ModifiableNodes.size(); i++) {
     auto OriginalNode = ModifiableNodes[i];
     std::shared_ptr<node_impl> NodeCopy =
         std::make_shared<node_impl>(*OriginalNode);
