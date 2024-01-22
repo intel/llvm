@@ -412,7 +412,7 @@ public:
   ext_oneapi_get_state() const;
 
   ext::oneapi::experimental::command_graph<graph_state::modifiable> 
-  ext_oneapi_get_graph();
+  ext_oneapi_get_graph() const;
 
   /* -- graph convenience shortcuts -- */
 
