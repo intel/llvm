@@ -32,6 +32,20 @@ get_event_profiling_info(sycl::detail::pi::PiEvent Event,
 }
 
 template <typename Param>
+typename Param::return_type
+get_event_profiling_info(sycl::detail::pi::PiEvent Event,
+                         sycl::detail::pi::PiExtSyncPoint SyncPoint,
+                         const PluginPtr &Plugin) {
+  static_assert(is_event_profiling_info_desc<Param>::value,
+                "Unexpected event profiling info descriptor");
+  typename Param::return_type Result{0};
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin->call<PiApiKind::piEventGetProfilingInfo>(
+      Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  return Result;
+}
+
+template <typename Param>
 typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
                                            const PluginPtr &Plugin) {
   static_assert(is_event_info_desc<Param>::value,

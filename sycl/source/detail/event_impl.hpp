@@ -15,6 +15,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -100,6 +101,24 @@ public:
   ///
   /// \return depends on template parameter.
   template <typename Param> typename Param::return_type get_profiling_info();
+
+  /// Queries the proliling information of a SYCL Graph node for the graph
+  /// execution associated with this event.
+  ///
+  /// If the requested info is not available when this member function is
+  /// called due to incompletion of command groups associated with the event,
+  /// then the call to this member function will block until the requested
+  /// info is available. If the queue which submitted the command group this
+  /// event is associated with was not constructed with the
+  /// property::queue::enable_profiling property, an invalid_object_error SYCL
+  /// exception is thrown.
+  ///
+  /// \param NodeImpl shared ptr to the node_impl for which the profiling information
+  /// is queried.
+  /// \return depends on template parameter.
+  template <typename Param>
+  typename Param::return_type
+  get_profiling_info(std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl);
 
   /// Queries this SYCL event for information.
   ///
@@ -282,8 +301,10 @@ public:
     return MGraph.lock();
   }
 
-  void setEventFromSubmitedExecCommandBuffer(bool value) {
+  void setEventFromSubmitedExecCommandBuffer(
+      bool value, ext::oneapi::experimental::detail::exec_graph_impl *Graph) {
     MEventFromSubmitedExecCommandBuffer = value;
+    MExecGraph = Graph;
   }
 
   bool isEventFromSubmitedExecCommandBuffer() const {
@@ -342,6 +363,8 @@ protected:
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// Indicates that the event results from a command graph submission
   bool MEventFromSubmitedExecCommandBuffer = false;
+  /// Store the executable command graph associated with this event, if any.
+  ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is

@@ -94,6 +94,23 @@ event::get_profiling_info() const {
   return impl->template get_profiling_info<Param>();
 }
 
+template <typename Param>
+typename detail::is_event_profiling_info_desc<Param>::return_type
+event::get_profiling_info_node(ext::oneapi::experimental::node Node) const {
+  if (impl->getCommandGraph()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Profiling information is unavailable for events "
+                          "returned from a submission to a queue in the "
+                          "recording state.");
+  }
+
+  if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
+    impl->wait(impl);
+  }
+  return impl->template get_profiling_info<Param>(
+      sycl::detail::getSyclObjImpl(Node));
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
 
@@ -104,8 +121,16 @@ event::get_profiling_info() const {
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT                                               \
   event::get_profiling_info<info::DescType::Desc>() const;
-
+	 
 #include <sycl/info/event_profiling_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, param_type, ReturnT, PiCode) \
+  template __SYCL_EXPORT ReturnT                                               \
+  event::get_profiling_info_node<info::DescType::Desc>(param_type) const;
+	 
+#include <sycl/info/event_profiling_node_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

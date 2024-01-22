@@ -757,7 +757,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
     NewEvent->setStateIncomplete();
-    NewEvent->setEventFromSubmitedExecCommandBuffer(true);
+    NewEvent->setEventFromSubmitedExecCommandBuffer(true, this);
     return NewEvent;
   });
 

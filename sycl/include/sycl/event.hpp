@@ -14,6 +14,7 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -129,6 +130,25 @@ public:
   template <typename Param>
   typename detail::is_event_profiling_info_desc<Param>::return_type
   get_profiling_info() const;
+
+  /// Queries the proliling information of a SYCL Graph node for the graph
+  /// execution associated with this SYCL event.
+  ///
+  /// If this SYCL event is not associated to a graph execution, an
+  /// invalid_object_error SYCL exception is thrown. If the requested info is
+  /// not available when this member function is called due to incompletion of
+  /// command groups associated with the event, then the call to this member
+  /// function will block until the requested info is available. If the queue
+  /// which submitted the command group this event is associated with was not
+  /// constructed with the property::queue::enable_profiling property, an
+  /// invalid_object_error SYCL exception is thrown.
+  ///
+  /// \param Node is the handle to the node for which the profiling information
+  /// is queried.
+  /// \return depends on template parameter.
+  template <typename Param>
+  typename detail::is_event_profiling_info_desc<Param>::return_type
+  get_profiling_info_node(ext::oneapi::experimental::node Node) const;
 
   /// Returns the backend associated with this platform.
   ///

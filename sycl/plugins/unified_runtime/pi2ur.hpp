@@ -4139,6 +4139,46 @@ inline pi_result piEventGetProfilingInfo(pi_event Event,
   return PI_SUCCESS;
 }
 
+inline pi_result piEventGetProfilingInfo(pi_event Event,
+					 pi_ext_sync_point SyncPoint,
+                                         pi_profiling_info ParamName,
+                                         size_t ParamValueSize,
+                                         void *ParamValue,
+                                         size_t *ParamValueSizeRet) {
+
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
+
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
+
+  ur_profiling_info_t PropName{};
+  switch (ParamName) {
+  case PI_PROFILING_INFO_COMMAND_QUEUED: {
+    PropName = UR_PROFILING_INFO_COMMAND_QUEUED;
+    break;
+  }
+  case PI_PROFILING_INFO_COMMAND_SUBMIT: {
+    PropName = UR_PROFILING_INFO_COMMAND_SUBMIT;
+    break;
+  }
+  case PI_PROFILING_INFO_COMMAND_START: {
+    PropName = UR_PROFILING_INFO_COMMAND_START;
+    break;
+  }
+  case PI_PROFILING_INFO_COMMAND_END: {
+    PropName = UR_PROFILING_INFO_COMMAND_END;
+    break;
+  }
+  default:
+    return PI_ERROR_INVALID_PROPERTY;
+  }
+
+  std::cout << "Call UR !!!!!" << std::endl;
+  //HANDLE_ERRORS(urEventGetProfilingInfo(UREvent, PropName, ParamValueSize,
+  //                                       ParamValue, ParamValueSizeRet));
+
+  return PI_SUCCESS;
+}
+
 inline pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
 
   ur_context_handle_t UrContext =

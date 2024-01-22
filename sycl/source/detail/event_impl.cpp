@@ -155,8 +155,8 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
+                                         Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
   if (Queue->is_host()) {
@@ -328,6 +328,107 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       auto EndTime =
           get_event_profiling_info<info::event_profiling::command_end>(
               this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return EndTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + EndTime;
+      }
+    }
+    return 0;
+  }
+  if (!MHostProfilingInfo)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+  return MHostProfilingInfo->getEndTime();
+}
+
+template <>
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_submit>(
+    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
+  if (isEventFromSubmitedExecCommandBuffer()) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Node profiling information is only available for "
+                          "event returned from graph submission" +
+                              codeToString(PI_ERROR_INVALID_VALUE));
+  }
+  checkProfilingPreconditions();
+  return MSubmitTime;
+}
+
+template <>
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_start>(
+    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
+  if (isEventFromSubmitedExecCommandBuffer()) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Node profiling information is only available for "
+                          "event returned from graph submission" +
+                              codeToString(PI_ERROR_INVALID_VALUE));
+  }
+  checkProfilingPreconditions();
+  // Node profiling is only available for Level-Zero backend
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+  }
+  if (!MHostEvent) {
+    if (MEvent) {
+      sycl::detail::pi::PiExtSyncPoint SyncPoint =
+          MExecGraph->getSyncPointFromNode(NodeImpl);
+
+      auto StartTime =
+          get_event_profiling_info<info::event_profiling::command_start>(
+              this->getHandleRef(), SyncPoint, this->getPlugin());
+      if (!MFallbackProfiling) {
+        return StartTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + StartTime;
+      }
+    }
+    return 0;
+  }
+  if (!MHostProfilingInfo)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+  return MHostProfilingInfo->getStartTime();
+}
+
+template <>
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>(
+    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
+  if (isEventFromSubmitedExecCommandBuffer()) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Node profiling information is only available for "
+                          "event returned from graph submission" +
+                              codeToString(PI_ERROR_INVALID_VALUE));
+  }
+  checkProfilingPreconditions();
+  // Node profiling is only available for Level-Zero backend
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+  }
+  if (!MHostEvent) {
+    if (MEvent) {
+      sycl::detail::pi::PiExtSyncPoint SyncPoint =
+          MExecGraph->getSyncPointFromNode(NodeImpl);
+
+      auto EndTime =
+          get_event_profiling_info<info::event_profiling::command_end>(
+              this->getHandleRef(), SyncPoint, this->getPlugin());
       if (!MFallbackProfiling) {
         return EndTime;
       } else {
