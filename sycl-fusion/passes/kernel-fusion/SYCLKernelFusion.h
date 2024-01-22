@@ -144,9 +144,10 @@ private:
                           jit_compiler::SYCLArgumentDescriptor &InputDef,
                           const llvm::ArrayRef<bool> ParamUseMask) const;
 
-  using KernelAttributeList = jit_compiler::AttributeList;
+  using KernelAttributeList = jit_compiler::SYCLAttributeList;
 
   using KernelAttr = jit_compiler::SYCLKernelAttribute;
+  using KernelAttrKind = jit_compiler::SYCLKernelAttribute::AttrKind;
 
   ///
   /// Indicates the result of merging two attributes of the same kind.
@@ -187,10 +188,10 @@ private:
                                          const KernelAttr &Other) const;
 
   ///
-  /// Get the attribute with the specified name from the list or return nullptr
+  /// Get the attribute with the specified kind from the list or return nullptr
   /// in case no such attribute is present.
   KernelAttr *getAttribute(MutableAttributeList &Attributes,
-                           llvm::StringRef AttrName) const;
+                           KernelAttrKind AttrKind) const;
 
   ///
   /// Add the attribute to the list.
@@ -198,19 +199,15 @@ private:
                     const KernelAttr &Attr) const;
 
   ///
-  /// Remove the attribute with the specified name from the list, if present.
+  /// Remove the attribute with the specified kind from the list, if present.
   void removeAttribute(MutableAttributeList &Attributes,
-                       llvm::StringRef AttrName) const;
+                       KernelAttrKind AttrKind) const;
 
   ///
-  /// Find the attribute with the specified name in the list, or return the
+  /// Find the attribute with the specified kind in the list, or return the
   /// end() iterator if no such attribute is present.
   MutableAttributeList::iterator findAttribute(MutableAttributeList &Attributes,
-                                               llvm::StringRef AttrName) const;
-
-  ///
-  /// Retrieve the attribute value at the given index as unsigned integer.
-  unsigned getAttrValueAsInt(const KernelAttr &Attr, size_t Idx) const;
+                                               KernelAttrKind AttrKind) const;
 };
 
 #endif // SYCL_FUSION_PASSES_SYCLKERNELFUSION_H
