@@ -953,6 +953,17 @@ def make_func_name(namespace, tags, obj):
 
 """
 Public:
+    returns the name of a function from a given name with prefix
+"""
+def make_func_name_with_prefix(prefix, name):
+    func_name = re.sub(r'^[^_]+_', '', name)
+    func_name = re.sub('_t$', '', func_name).capitalize()
+    func_name = re.sub(r'_([a-z])', lambda match: match.group(1).upper(), func_name)
+    func_name = f'{prefix}{func_name}'
+    return func_name
+
+"""
+Public:
     returns the etor of a function
 """
 def make_func_etor(namespace, tags, obj):
