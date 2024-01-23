@@ -35,7 +35,7 @@
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINK]].bc", "{{.*}}.bc"], output: "[[KERNELLINKWLIB:.*]].bc"
-//CHECK_BINDINGS:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.obj"], outputs: ["[[UNBUNDLEDNCPU:.*]].o"]
+//CHECK_BINDINGS:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.{{.*}}"], outputs: ["[[UNBUNDLEDNCPU:.*]].o"]
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINKWLIB]].bc", "[[UNBUNDLEDNCPU]].o"], output: "[[KERNELLINKWLIB12:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB12]].bc"], output: "[[KERNELOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL post link", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[TABLEFILE:.*]].table"
