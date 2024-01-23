@@ -5,6 +5,9 @@ on:
     # Run every day at 23:00 UTC
     - cron: '0 23 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   long-fuzz-test:
     name: Run long fuzz tests
@@ -16,7 +19,7 @@ jobs:
     runs-on: 'ubuntu-22.04'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt

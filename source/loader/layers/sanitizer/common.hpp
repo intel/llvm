@@ -62,20 +62,20 @@ inline constexpr bool IsAligned(uptr a, uptr alignment) {
 
 // Valid redzone sizes are 16, 32, 64, ... 2048, so we encode them in 3 bits.
 // We use adaptive redzones: for larger allocation larger redzones are used.
-inline constexpr u32 RZLog2Size(u32 rz_log) {
+inline constexpr uptr RZLog2Size(uptr rz_log) {
     assert(rz_log < 8);
     return 16 << rz_log;
 }
 
 inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
-    u32 rz_log = user_requested_size <= 64 - 16            ? 0
-                 : user_requested_size <= 128 - 32         ? 1
-                 : user_requested_size <= 512 - 64         ? 2
-                 : user_requested_size <= 4096 - 128       ? 3
-                 : user_requested_size <= (1 << 14) - 256  ? 4
-                 : user_requested_size <= (1 << 15) - 512  ? 5
-                 : user_requested_size <= (1 << 16) - 1024 ? 6
-                                                           : 7;
+    uptr rz_log = user_requested_size <= 64 - 16            ? 0
+                  : user_requested_size <= 128 - 32         ? 1
+                  : user_requested_size <= 512 - 64         ? 2
+                  : user_requested_size <= 4096 - 128       ? 3
+                  : user_requested_size <= (1 << 14) - 256  ? 4
+                  : user_requested_size <= (1 << 15) - 512  ? 5
+                  : user_requested_size <= (1 << 16) - 1024 ? 6
+                                                            : 7;
     return rz_log;
 }
 

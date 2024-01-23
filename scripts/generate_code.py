@@ -71,6 +71,44 @@ def _mako_ddi_h(path, namespace, tags, version, revision, specs, meta):
         meta=meta)
 
 """
+    generates c/c++ files from the mako template
+"""
+def _mako_print_h(path, namespace, tags, version, specs, meta):
+    template = "print.h.mako"
+    fin = os.path.join("templates", template)
+
+    filename = "%s_print.h"%(namespace)
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
+    generates c/c++ files from the mako template
+"""
+def _mako_print_cpp(path, namespace, tags, version, specs, meta):
+    template = "print.cpp.mako"
+    fin = os.path.join("templates", template)
+
+    filename = "%s_print.cpp"%(namespace)
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
     generates c/c++ files from the specification documents
 """
 def _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, specs, meta):
@@ -90,6 +128,7 @@ def generate_api(incpath, srcpath, namespace, tags, version, revision, specs, me
     util.makePath(srcpath)
 
     loc = 0
+    loc += _mako_print_h(incpath, namespace, tags, version, specs, meta)
     loc += _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
@@ -330,6 +369,7 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
 
     loc = 0
     loc += _mako_loader_cpp(dstpath, namespace, tags, version, specs, meta)
+    loc += _mako_print_cpp(dstpath, namespace, tags, version, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
 """

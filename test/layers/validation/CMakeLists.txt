@@ -4,20 +4,20 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(UR_VALIDATION_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(VAL_TEST_PREFIX validation_test)
 
-function(add_validation_test name)
-    set(TEST_TARGET_NAME validation_test-${name})
-    add_ur_executable(${TEST_TARGET_NAME}
+function(add_validation_test_executable name)
+    add_ur_executable(${VAL_TEST_PREFIX}-${name}
         ${ARGN})
-    target_link_libraries(${TEST_TARGET_NAME}
+    target_link_libraries(${VAL_TEST_PREFIX}-${name}
         PRIVATE
         ${PROJECT_NAME}::loader
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
         GTest::gtest_main)
-    add_test(NAME ${name}
-        COMMAND ${TEST_TARGET_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+endfunction()
+
+function(set_validation_test_properties name)
     set_tests_properties(${name} PROPERTIES LABELS "validation")
     set_property(TEST ${name} PROPERTY ENVIRONMENT
         "UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION"
@@ -25,11 +25,28 @@ function(add_validation_test name)
         "UR_LOG_VALIDATION=level:debug\;flush:debug\;output:stdout")
 endfunction()
 
-function(add_validation_match_test name match_file)
-    add_validation_test(${name} ${ARGN})
-    file(READ ${match_file} MATCH_STRING)
-    set_tests_properties(${name} PROPERTIES
-        PASS_REGULAR_EXPRESSION "${MATCH_STRING}")
+function(add_validation_test name)
+    add_validation_test_executable(${name} ${ARGN})
+
+    add_test(NAME ${name}
+        COMMAND ${VAL_TEST_PREFIX}-${name}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    set_validation_test_properties(${name})
+endfunction()
+
+function(add_validation_match_test name)
+    add_validation_test_executable(${name} ${ARGN})
+
+    add_test(NAME ${name}
+        COMMAND ${CMAKE_COMMAND}
+        -D MODE=stdout
+        -D TEST_FILE=$<TARGET_FILE:${VAL_TEST_PREFIX}-${name}>
+        -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}.out.match
+        -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    set_validation_test_properties(${name})
 endfunction()
 
 add_validation_test(parameters parameters.cpp)

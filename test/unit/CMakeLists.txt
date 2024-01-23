@@ -19,6 +19,7 @@ function(add_unit_test name)
         PRIVATE
         ${PROJECT_NAME}::common
         ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::loader
         gmock
         GTest::gtest_main
         unit_tests_helpers

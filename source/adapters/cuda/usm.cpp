@@ -17,6 +17,7 @@
 #include "event.hpp"
 #include "platform.hpp"
 #include "queue.hpp"
+#include "ur_util.hpp"
 #include "usm.hpp"
 
 #include <cuda.h>
@@ -227,11 +228,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_HOST);
       }
       // should never get here
-#ifdef _MSC_VER
-      __assume(0);
-#else
-      __builtin_unreachable();
-#endif
+      ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_BASE_PTR: {
 #if CUDA_VERSION >= 10020

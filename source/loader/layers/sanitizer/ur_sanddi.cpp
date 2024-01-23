@@ -496,10 +496,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         if (!dditable->PhysicalMem.pfnCreate) {
             die("Some PhysicalMem APIs are needed to enable UR_LAYER_ASAN");
         }
-
-        if (!dditable->KernelExp.pfnGetKernelSuggestedLocalWorkSizeExp) {
-            die("urGetKernelSuggestedLocalWorkSizeExp is needed to enable UR_LAYER_ASAN");
-        }
     }
 
     urDdiTable = *dditable;
