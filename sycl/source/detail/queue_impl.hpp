@@ -844,6 +844,21 @@ protected:
     return Event;
   }
 
+  /// Performs direct submission of a memory operation.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param MemOpFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemOpArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename FuncT, typename... ArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents, FuncT MemOpFunc,
+                          ArgTs... MemOpArgs);
+
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(const detail::code_location &CodeLoc,
