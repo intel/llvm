@@ -25,58 +25,58 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
     int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
     assert(y != nullptr);
 
-  sycl::event DiscardedEvent;
+    sycl::event DiscardedEvent;
 
-  DiscardedEvent = Q.memset(x, 0, BUFFER_SIZE * sizeof(int));
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.memset(x, 0, BUFFER_SIZE * sizeof(int));
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.memcpy(y, x, BUFFER_SIZE * sizeof(int));
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.memcpy(y, x, BUFFER_SIZE * sizeof(int));
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.fill(y, 1, BUFFER_SIZE);
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.fill(y, 1, BUFFER_SIZE);
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.copy(y, x, BUFFER_SIZE);
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.copy(y, x, BUFFER_SIZE);
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.prefetch(y, BUFFER_SIZE * sizeof(int));
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.prefetch(y, BUFFER_SIZE * sizeof(int));
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.mem_advise(y, BUFFER_SIZE * sizeof(int), 0);
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.mem_advise(y, BUFFER_SIZE * sizeof(int), 0);
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.single_task([=] {});
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.single_task([=] {});
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.submit([&](sycl::handler &CGH) {
-    CGH.parallel_for(range, [=](sycl::item<1> itemID) {});
-  });
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.submit([&](sycl::handler &CGH) {
+      CGH.parallel_for(range, [=](sycl::item<1> itemID) {});
+    });
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.ext_oneapi_submit_barrier();
-  assert(
-      DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::ext_oneapi_unknown);
+    DiscardedEvent = Q.ext_oneapi_submit_barrier();
+    assert(DiscardedEvent
+               .get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::ext_oneapi_unknown);
 
-  Q.wait();
-  free(x, Q);
-  free(y, Q);
+    Q.wait();
+    free(x, Q);
+    free(y, Q);
   } catch (const sycl::exception &) {
     return;
   }
