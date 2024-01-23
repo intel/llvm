@@ -1737,6 +1737,42 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     F.addFnAttr(llvm::Attribute::NoInline);
   };
 
+  bool ModuleContainsGenXVolatile =
+      std::any_of(M.global_begin(), M.global_end(), [](const auto &Global) {
+        return Global.hasAttribute("genx_volatile");
+      });
+
+  auto requiresInlining = [=](Function &F) {
+    // If there are any genx_volatile globals in the module, inline
+    // noinline functions because load/store semantics are not valid for
+    // these globals and we cannot know for sure if the load/store target
+    // is one of these globals without inlining.
+    if (ModuleContainsGenXVolatile)
+      return true;
+
+    // Otherwise, only inline esimd namespace functions.
+    StringRef MangledName = F.getName();
+    id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
+                                               MangledName.end());
+    id::Node *AST = Parser.parse();
+    if (!AST || AST->getKind() != id::Node::KFunctionEncoding)
+      return false;
+
+    auto *FE = static_cast<id::FunctionEncoding *>(AST);
+    const id::Node *NameNode = FE->getName();
+    if (!NameNode)
+      return false;
+
+    if (NameNode->getKind() == id::Node::KLocalName)
+      return false;
+
+    id::OutputBuffer NameBuf;
+    NameNode->print(NameBuf);
+    StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
+
+    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+  };
   bool NeedInline = false;
   for (auto &F : M) {
     // If some function already has 'alwaysinline' attribute, then request
@@ -1773,7 +1809,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     // it had noinline or VCStackCall attrubute.
     // This code migrated to here without changes, but... VC BE does support
     //  the calls of spir_func these days, so this code needs re-visiting.
-    if (!F.hasFnAttribute(Attribute::NoInline))
+    if (!F.hasFnAttribute(Attribute::NoInline) || requiresInlining(F))
       NeedInline |= markAlwaysInlined(F);
 
     if (!isSlmInit(F))
