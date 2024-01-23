@@ -216,7 +216,7 @@ static Type *getStateType(Module &M) {
   auto str = llvm::find_if(Types, [](auto T) { return T->getName() == StateTypeName; });
   if (str == Types.end()) {
     //report_fatal_error("Native CPU state unexpectedly found in the module.");
-  } else if (llvm::StructType *stype = dyn_cast<llvm::StructType>(*str)) {
+  } else if ((*str)->isStructTy()) {
     // state struct should come from linked builtin bc file
     return *str;
   }
@@ -452,9 +452,26 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
-  for (auto &F : M) {
-    if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
-      OldKernels.push_back(&F);
+  {
+    SmallVector<Function *> ToRemove;
+    for (auto &F : M) {
+      if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
+        OldKernels.push_back(&F);
+      else if (F.getNumUses() == 0) {
+        if (F.isDeclaration()) {
+        } else if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
+          StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
+          if (val.endswith("libdevice/nativecpu_utils.cpp"))
+            // We remove all unused, always-inlined functions llvm-linked from
+            // the nativecpu device builtin library from the module.
+            ToRemove.push_back(&F);
+        }
+      }
+    }
+    for (Function *f : ToRemove) {
+      f->eraseFromParent();
+      ModuleChanged = true;
+    }
   }
 
   // Materialize builtins
