@@ -14,8 +14,18 @@ bool isL0Backend(sycl::backend backend) {
 }
 
 bool isCombinedMode() {
-  const char *Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-  return (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+  char *Mode = nullptr;
+  bool Res = false;
+#ifdef _WIN32
+  size_t Size = 0;
+  auto Err = _dupenv_s(&Mode, &Size, "ZE_FLAT_DEVICE_HIERARCHY");
+  Res = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+  free(Mode);
+#else
+  Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
+  Res = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
+#endif
+  return Res;
 }
 
 int main() {
