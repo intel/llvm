@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Jan 23 11:29:19 2024 +0000
   #     Merge pull request #1135 from nrspruit/multi_device_kernel_compilation_main
   #     [L0] Add support for multi-device kernel compilation
-  set(UNIFIED_RUNTIME_TAG 7c58060ffdd86e1e342e9bea12834e49aa2cb187)
+  set(UNIFIED_RUNTIME_TAG v0.8.4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
