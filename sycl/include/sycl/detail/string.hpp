@@ -27,14 +27,15 @@ namespace detail {
 // For example, an API can pass a std::string as a parameter and return
 // a std::string. That's why we need two separate members, 'str' and 'ret_str'.
 class string {
-  const char *str;         // used to send user's owning std::string to libsycl
-  char *ret_str = nullptr; // set from libsycl to return a std::string to a user program
+  const char *str; // used to send user's owning std::string to libsycl
+  char *ret_str =
+      nullptr; // set from libsycl to return a std::string to a user program
 
 public:
   string() : str(nullptr), ret_str(nullptr) {}
   string(const char *ptr) : str(ptr) {}
-  string(std::string& strn) : str(strn.c_str()) {}
-  string(const std::string& strn) : str(strn.c_str()) {}
+  string(std::string &strn) : str(strn.c_str()) {}
+  string(const std::string &strn) : str(strn.c_str()) {}
 
   bool operator==(const char *st) { return strcmp(str, st) == 0; }
 
