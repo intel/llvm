@@ -25,14 +25,15 @@ constexpr int kUsmHostRedzoneMagic = (char)0x82;
 constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
 
-const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
-const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
-const auto kSPIR_AsanShadowMemoryLocalStart = "__AsanShadowMemoryLocalStart";
-const auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
+constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
+    "__AsanShadowMemoryGlobalStart";
+constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
+constexpr auto kSPIR_AsanShadowMemoryLocalStart = "__AsanShadowMemoryLocalStart";
+constexpr auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
-const auto kSPIR_DeviceType = "__DeviceType";
+DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> 3);
@@ -340,7 +341,6 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
     context.logger.info("ShadowMemory(Global): {} - {}",
                         (void *)DeviceInfo->ShadowOffset,
                         (void *)DeviceInfo->ShadowOffsetEnd);
-
     return UR_RESULT_SUCCESS;
 }
 
@@ -408,7 +408,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     }
                 }
 
-                context.logger.debug("urVirtualMemMap({} ~ {})",
+                context.logger.debug("urVirtualMemMap: {} ~ {}",
                                      (void *)MappedPtr,
                                      (void *)(MappedPtr + PageSize - 1));
 
@@ -484,7 +484,8 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
         auto Value = AllocInfo->UserEnd -
                      RoundDownTo(AllocInfo->UserEnd, ASAN_SHADOW_GRANULARITY);
         UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->UserEnd,
-                                    1, Value, LastEvent, &LastEvent));
+                                    1, static_cast<u8>(Value), LastEvent,
+                                    &LastEvent));
     }
 
     int ShadowByte;
@@ -645,7 +646,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                 LastEvent ? &LastEvent : nullptr;
             auto Result =
                 context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-                    Queue, Program, Name, true, sizeof(uptr), 0, Value,
+                    Queue, Program, Name, false, sizeof(uptr), 0, Value,
                     NumEvents, EventsList, &NewEvent);
             if (Result != UR_RESULT_SUCCESS) {
                 context.logger.warning("Device Global[{}] Write Failed: {}",

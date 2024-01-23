@@ -1,4 +1,4 @@
 {{OPT}}urEventGetInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_EVENT_INFO_COMMAND_TYPE
 {{OPT}}urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_QUEUED
 {{OPT}}urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_SUBMIT
-{{OPT}} Segmentation fault
+{{OPT}}{{Segmentation fault|Aborted}}

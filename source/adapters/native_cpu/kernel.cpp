@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ur_api.h"
+#include "ur_util.hpp"
 
 #include "common.hpp"
 #include "kernel.hpp"
@@ -172,11 +173,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32: {
-#ifdef _MSC_VER
-    __assume(0);
-#else
-    __builtin_unreachable();
-#endif
+    ur::unreachable();
   }
   }
   DIE_NO_IMPLEMENTATION;

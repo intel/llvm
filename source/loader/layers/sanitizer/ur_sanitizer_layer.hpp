@@ -37,7 +37,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     SanitizerType enabledType = SanitizerType::None;
 
     context_t();
-    virtual ~context_t();
+    ~context_t();
 
     bool isAvailable() const override;
 
