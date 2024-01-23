@@ -6,15 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// #include <cstdlib>
-#include "device.h"
-#include <cstdint>
+// This file contains all device builtins and types that are either directly
+// referenced in the SYCL source code (e.g. __spirv_...) or used by the
+// NativeCPU passes. This is currently built as a device code library but
+// could perhaps eventually be compiled as a standard C++ translation unit
+// without SYCL attributes etc.
 
 #if defined(__SYCL_NATIVE_CPU__)
 
-// template <class Type>   Type __spirv_SubgroupShuffleINTEL(Type val, unsigned
-// id) noexcept;
-
+#include "device.h"
+#include <cstdint>
 #include "CL/__spirv/spirv_ops.hpp"
 
 struct __nativecpu_state {
