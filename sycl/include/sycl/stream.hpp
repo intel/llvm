@@ -85,9 +85,7 @@ constexpr unsigned FLUSH_BUF_OFFSET_SIZE = 2;
 
 template <class F, class T = void>
 using EnableIfFP = typename std::enable_if_t<
-    std::is_same_v<F, float> || std::is_same_v<F, double> ||
-        std::is_same_v<F, half> || std::is_same_v<F, ext::oneapi::bfloat16>,
-    T>;
+    detail::check_type_in_v<F, float, double, half, ext::oneapi::bfloat16>, T>;
 
 using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
                                     sycl::access::target::device>;
