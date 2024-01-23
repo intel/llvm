@@ -132,175 +132,69 @@ public:
 #endif
   }
 
-  bfloat16 &operator+=(const bfloat16 &rhs) {
-    value = from_float(to_float(value) + to_float(rhs.value));
-    return *this;
-  }
-
-  bfloat16 &operator-=(const bfloat16 &rhs) {
-    value = from_float(to_float(value) - to_float(rhs.value));
-    return *this;
-  }
-
-  bfloat16 &operator*=(const bfloat16 &rhs) {
-    value = from_float(to_float(value) * to_float(rhs.value));
-    return *this;
-  }
-
-  bfloat16 &operator/=(const bfloat16 &rhs) {
-    value = from_float(to_float(value) / to_float(rhs.value));
-    return *this;
-  }
-
-  // Operator ++, --
-  bfloat16 &operator++() {
-    float f = to_float(value);
-    value = from_float(++f);
-    return *this;
-  }
-
-  bfloat16 operator++(int) {
-    bfloat16 ret(*this);
-    operator++();
-    return ret;
-  }
-
-  bfloat16 &operator--() {
-    float f = to_float(value);
-    value = from_float(--f);
-    return *this;
-  }
-
-  bfloat16 operator--(int) {
-    bfloat16 ret(*this);
-    operator--();
-    return ret;
-  }
-
-// Operator +, -, *, /
+// Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 operator op(const bfloat16 lhs, const bfloat16 rhs) {        \
-    return to_float(lhs.value) op to_float(rhs.value);                         \
+  friend bfloat16 &operator op(bfloat16 &lhs) {                                \
+    float f = to_float(lhs.value);                                             \
+    lhs.value = from_float(op f);                                              \
+    return lhs;                                                                \
   }                                                                            \
-  friend double operator op(const bfloat16 lhs, const double rhs) {            \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend double operator op(const double lhs, const bfloat16 rhs) {            \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend float operator op(const bfloat16 lhs, const float rhs) {              \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend float operator op(const float lhs, const bfloat16 rhs) {              \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 lhs, const int rhs) {             \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const int lhs, const bfloat16 rhs) {             \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 lhs, const long rhs) {            \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const long lhs, const bfloat16 rhs) {            \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 lhs, const long long rhs) {       \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const long long lhs, const bfloat16 rhs) {       \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 &lhs, const unsigned int &rhs) {  \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const unsigned int &lhs, const bfloat16 &rhs) {  \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 &lhs, const unsigned long &rhs) { \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const unsigned long &lhs, const bfloat16 &rhs) { \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const bfloat16 &lhs,                             \
-                              const unsigned long long &rhs) {                 \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bfloat16 operator op(const unsigned long long &lhs,                   \
-                              const bfloat16 &rhs) {                           \
-    return lhs op to_float(rhs.value);                                         \
+  friend bfloat16 operator op(bfloat16 &lhs, int) {                            \
+    bfloat16 old = lhs;                                                        \
+    operator op(lhs);                                                          \
+    return old;                                                                \
   }
-  OP(+)
-  OP(-)
-  OP(*)
-  OP(/)
-
+  OP(++)
+  OP(--)
 #undef OP
 
-// Operator ==, !=, <, >, <=, >=
+  // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bool operator op(const bfloat16 &lhs, const bfloat16 &rhs) {          \
-    return to_float(lhs.value) op to_float(rhs.value);                         \
+  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
+    float f = static_cast<float>(lhs);                                         \
+    f op static_cast<float>(rhs);                                              \
+    return lhs = f;                                                            \
   }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const double &rhs) {            \
-    return to_float(lhs.value) op rhs;                                         \
+  template <typename T>                                                        \
+  friend bfloat16 &operator op(bfloat16 &lhs, const T &rhs) {                  \
+    float f = static_cast<float>(lhs);                                         \
+    f op static_cast<float>(rhs);                                              \
+    return lhs = f;                                                            \
   }                                                                            \
-  friend bool operator op(const double &lhs, const bfloat16 &rhs) {            \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const float &rhs) {             \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const float &lhs, const bfloat16 &rhs) {             \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const int &rhs) {               \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const int &lhs, const bfloat16 &rhs) {               \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const long &rhs) {              \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const long &lhs, const bfloat16 &rhs) {              \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const long long &rhs) {         \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const long long &lhs, const bfloat16 &rhs) {         \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const unsigned int &rhs) {      \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const unsigned int &lhs, const bfloat16 &rhs) {      \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs, const unsigned long &rhs) {     \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const unsigned long &lhs, const bfloat16 &rhs) {     \
-    return lhs op to_float(rhs.value);                                         \
-  }                                                                            \
-  friend bool operator op(const bfloat16 &lhs,                                 \
-                          const unsigned long long &rhs) {                     \
-    return to_float(lhs.value) op rhs;                                         \
-  }                                                                            \
-  friend bool operator op(const unsigned long long &lhs,                       \
-                          const bfloat16 &rhs) {                               \
-    return lhs op to_float(rhs.value);                                         \
+  template <typename T> friend T &operator op(T &lhs, const bfloat16 &rhs) {   \
+    float f = static_cast<float>(lhs);                                         \
+    f op static_cast<float>(rhs);                                              \
+    return lhs = f;                                                            \
   }
-  OP(==)
-  OP(!=)
-  OP(<)
-  OP(>)
-  OP(<=)
-  OP(>=)
+  OP(+=)
+  OP(-=)
+  OP(*=)
+  OP(/=)
+#undef OP
 
+// Binary operators overloading
+#define OP(type, op)                                                           \
+  friend type operator op(const bfloat16 &lhs, const bfloat16 &rhs) {          \
+    return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
+  }                                                                            \
+  template <typename T>                                                        \
+  friend type operator op(const bfloat16 &lhs, const T &rhs) {                 \
+    return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
+  }                                                                            \
+  template <typename T>                                                        \
+  friend type operator op(const T &lhs, const bfloat16 &rhs) {                 \
+    return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
+  }
+  OP(bfloat16, +)
+  OP(bfloat16, -)
+  OP(bfloat16, *)
+  OP(bfloat16, /)
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
 #undef OP
 
   // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
