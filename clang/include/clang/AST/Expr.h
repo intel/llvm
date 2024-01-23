@@ -4807,17 +4807,6 @@ public:
     return T->getStmtClass() == SourceLocExprClass;
   }
 
-  static bool MayBeDependent(SourceLocIdentKind Kind) {
-    switch (Kind) {
-    case SourceLocIdentKind::Function:
-    case SourceLocIdentKind::FuncSig:
-    case SourceLocIdentKind::SourceLocStruct:
-      return true;
-    default:
-      return false;
-    }
-  }
-
 private:
   friend class ASTStmtReader;
 };
