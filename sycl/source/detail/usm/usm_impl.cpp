@@ -65,7 +65,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       })) {
     throw sycl::exception(
         sycl::errc::feature_not_supported,
-        "No device in this context supports host allocations!");
+        "No device in this context supports USM host allocations!");
   }
   void *RetVal = nullptr;
   if (Size == 0)
@@ -142,7 +142,12 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
   if (Kind == alloc::device &&
       !DevImpl->has(sycl::aspect::usm_device_allocations)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
-                          "Device does not support Unified Shared Memory!");
+                          "Device does not support USM device allocations!");
+  }
+  if (Kind == alloc::shared &&
+      !DevImpl->has(sycl::aspect::usm_shared_allocations)) {
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Device does not support USM shared allocations!");
   }
   void *RetVal = nullptr;
   if (Size == 0)
@@ -265,10 +270,6 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   PrepareNotify.scopedNotify(
       (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
 #endif
-  if (Kind == alloc::shared && !Dev.has(sycl::aspect::usm_shared_allocations)) {
-    throw sycl::exception(sycl::errc::feature_not_supported,
-                          "Device does not support USM shared allocations!");
-  }
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                            getSyclObjImpl(Dev).get(), Kind, PropList);
