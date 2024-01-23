@@ -525,4 +525,4 @@ try:
 except ImportError:
     pass
 
-config.substitutions.append( ('%device_sanitizer_flags', "-fsanitize=address -fsanitize-target=device") )
+config.substitutions.append( ('%device_sanitizer_flags', "-Xsycl-target-frontend=spir64 -fsanitize=address") )

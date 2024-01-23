@@ -313,8 +313,12 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  auto *AsanInitFunction = M.getFunction("__asan_init");
-  return AsanInitFunction;
+  for (auto &F : M) {
+    if (F.getFunction().getName().starts_with("__asan_")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Gets reqd_work_group_size information for function Func.
