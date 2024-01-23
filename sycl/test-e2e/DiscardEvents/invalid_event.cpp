@@ -18,16 +18,15 @@ static constexpr size_t BUFFER_SIZE = 16;
 void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
   sycl::range<1> range(BUFFER_SIZE);
 
-try {
-  auto Dev = Q.get_device();
-  int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
-  assert(x != nullptr);
-  int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
-  assert(y != nullptr);
-}
-catch (const sycl::exception& e) {
- return;
-}
+  try {
+    auto Dev = Q.get_device();
+    int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
+    assert(x != nullptr);
+    int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
+    assert(y != nullptr);
+  } catch (const sycl::exception &e) {
+    return;
+  }
 
   sycl::event DiscardedEvent;
 
