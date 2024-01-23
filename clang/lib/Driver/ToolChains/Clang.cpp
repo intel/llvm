@@ -2862,7 +2862,7 @@ RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
     ComplexRangeStr += "fortran";
     break;
   default:
-    assert("Unexpected range option");
+    assert(0 && "Unexpected range option");
   }
   return ComplexRangeStr;
 }
@@ -7238,6 +7238,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fopenmp-assume-no-nested-parallelism");
       if (Args.hasArg(options::OPT_fopenmp_offload_mandatory))
         CmdArgs.push_back("-fopenmp-offload-mandatory");
+      if (Args.hasArg(options::OPT_fopenmp_force_usm))
+        CmdArgs.push_back("-fopenmp-force-usm");
       break;
     default:
       // By default, if Clang doesn't know how to generate useful OpenMP code

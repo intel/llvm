@@ -1084,7 +1084,7 @@ int runOrcJIT(const char *ProgName) {
       [&](std::unique_ptr<MemoryBuffer> Obj)
           -> Expected<std::unique_ptr<MemoryBuffer>> {
         ObjDump(*Obj);
-        return Obj;
+        return std::move(Obj);
       });
 
   // If this is a Mingw or Cygwin executor then we need to alias __main to
