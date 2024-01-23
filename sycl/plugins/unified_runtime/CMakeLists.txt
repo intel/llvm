@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 79c28d0f0713f58358d5080653d95803fd131749
-  # Merge: 25e0b603 45d76b78
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Fri Jan 12 16:14:44 2024 +0000
-  #     Merge pull request #1186 from hdelan/device-global-hip
-  #     [HIP] Add support for global variable read write
-  set(UNIFIED_RUNTIME_TAG 79c28d0f0713f58358d5080653d95803fd131749)
+  # commit 7c58060ffdd86e1e342e9bea12834e49aa2cb187
+  # Merge: 4f800802 1b2cd5b3
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jan 23 11:29:19 2024 +0000
+  #     Merge pull request #1135 from nrspruit/multi_device_kernel_compilation_main
+  #     [L0] Add support for multi-device kernel compilation
+  set(UNIFIED_RUNTIME_TAG 7c58060ffdd86e1e342e9bea12834e49aa2cb187)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -150,6 +150,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"

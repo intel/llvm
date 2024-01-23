@@ -52,14 +52,12 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.
-Interfaces defined in this specification may not be implemented yet or may be
-in a preliminary state.
-The specification itself may also change in incompatible ways before it is
-finalized.
-*Shipping software products should not rely on APIs defined in this
-specification.*
+This is an experimental extension specification, intended to provide early 
+access to features and gather community feedback. Interfaces defined in 
+this specification are implemented in DPC++, but they are not finalized 
+and may change incompatibly in future versions of DPC++ without prior notice. 
+*Shipping software products should not rely on APIs defined in 
+this specification.*
 
 
 == Overview
@@ -174,7 +172,7 @@ The SPIR-V *OpEntryPoint* that defines a kernel has an associated *OpFunction*.
 This *OpFunction* is followed by a list of *OpFunctionParameter* instructions,
 one for each kernel argument.
 The following table defines the set of argument types that are supported by
-this extension, and explains how to pass each type of argument from SYCL.
+this extension and explains how to pass each type of argument from SYCL.
 However, the set of supported argument types may be further limited by the
 backend's SPIR-V client API specification.
 
@@ -200,21 +198,26 @@ of 32, `double` when the *OpTypeFloat* has a width of 64, and `sycl::half` when
 the *OpTypeFloat* has a width of 16.
 _{endnote}_]
 
-|*OpTypePointer* with storage class *CrossWorkgroup*
-|Either a pointer to USM memory or an `accessor` whose target is
- `target::device`.
+|*OpTypePointer* with _Storage Class_ *CrossWorkgroup*
+|Either a {cpp} pointer (typically a pointer to USM memory) or an `accessor`
+ whose target is `target::device`.
 
-|*OpTypePointer* with storage class *Workgroup*
+|*OpTypePointer* with _Storage Class_ *Workgroup*
 |A `local_accessor`.
 
-|*OpTypeStruct* whose member types are limited to *OpTypeInt*, *OpTypeFloat*,
- and *OpTypePointer* (with storage class *CrossWorkgroup*).
- The *OpTypeStruct* may contain members which are also *OpTypeStruct* so long
- as its members are limited to the same types.
-|A C++ struct or class that is device copyable.
- Each member variable must have the corresponding type as defined above,
- except that an *OpTypePointer* member must correspond to a USM pointer.
- It is not valid to pass an `accessor` for these members.
+|*OpTypePointer* with _Storage Class_ *Function* and _Type_ *OpTypeStruct*
+ (i.e. the pointed-at type is *OpTypeStruct*).
+|A C++ struct or class that is device copyable, which has the same size and
+ data representation as the *OpTypeStruct*.
+
+[_Note:_ The SYCL argument is a structure even though the SPIR-V argument type
+is a pointer because structures are passed by reference.
+
+The SYCL argument must not contain any `accessor` or `local_accessor` members
+because these types are not device copyable.
+If the *OpTypeStruct* contains an *OpTypePointer* member, the corresponding SYCL
+structure member is typically a USM pointer.
+_{endnote}_]
 |===
 
 When data allocated on the host is accessed by the kernel via a pointer, the

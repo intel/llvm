@@ -8,8 +8,10 @@
 // REQUIRES: matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
+
+// -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "../common.hpp"
 #include <cstddef>

@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -218,6 +218,18 @@ This definition means that a SYCL context that contains a composite device is
 compatible with any of its component devices, even if those component devices
 are not contained by the context.  See the core SYCL specification for details.
 
+=== Interaction with the default context
+
+If the implementation supports the
+link:../supported/sycl_ext_oneapi_default_context.asciidoc[
+sycl_ext_oneapi_default_context] extension, then each platform has the notion
+of a default context.  This default context contains only the platform's root
+devices, which are those returned by `platform::get_devices`.  Any composite
+devices for the platform are not considered root devices, and thus the default
+context does not include these composite devices.  If an application wants a
+context that contains the composite devices, then it must explicitly create
+such a context.
+
 
 == Impact to the ONEAPI_DEVICE_SELECTOR
 
@@ -257,21 +269,6 @@ for the composite devices.
 
 
 == Issues
-
-* What is the impact of this extension on
-  link:../supported/sycl_ext_oneapi_default_context.asciidoc[
-  sycl_ext_oneapi_default_context]?  I think there are two reasonable options.
-  One option is to say that the default context is not affected by this
-  extension.  As a result, applications that use composite devices will need to
-  create their own context which contains the set of composite devices that
-  they care about.  The other option is to change the default context to
-  include all of the composite devices.  This would be easier to use because
-  the default context continues to reflect all devices in the system.  As a
-  result, the default context can be used in all scenarios, and an application
-  only needs to create a custom one in order to gain some optimization.  It's
-  not clear at this point if redefining the default context like this would
-  result in a performance penalty for applications that don't use composite
-  devices.
 
 * What guarantees do we make (if any) about the accessibility of USM allocated
   on a composite device?  Do we guarantee that this memory is also accessible
