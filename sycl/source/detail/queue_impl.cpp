@@ -107,7 +107,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
+      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
       Count, Value);
 }
 
@@ -167,7 +167,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
+      [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
       Count, Dest);
 }
 
@@ -188,7 +188,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
+      [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
       Self, Length, Advice);
 }
 
@@ -198,7 +198,7 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::vector<event> &DepEvents) {
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](const auto &...Args) {
+      [](const auto &...Args) {
         MemoryManager::copy_to_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
@@ -210,7 +210,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     size_t Offset, const std::vector<event> &DepEvents) {
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](const auto &...Args) {
+      [](const auto &...Args) {
         MemoryManager::copy_from_device_global(Args...);
       },
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
