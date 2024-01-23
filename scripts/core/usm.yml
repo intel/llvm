@@ -131,7 +131,7 @@ etors:
       desc: "Hint that memory coherence will be coarse-grained (up-to-date only at kernel boundaries)"
     - name: CLEAR_NON_COHERENT_MEMORY
       value: "$X_BIT(16)"
-      desc: "Removes the affect of $X_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY"
+      desc: "Removes the effect of $X_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of USM pool"
