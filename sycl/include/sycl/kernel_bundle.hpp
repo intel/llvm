@@ -447,7 +447,7 @@ namespace detail {
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT kernel_id get_kernel_id_impl(string KernelName);
+__SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
 #else
 __SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
 #endif

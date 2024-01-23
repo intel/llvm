@@ -141,7 +141,8 @@ device::get_info_internal() const {
   return impl->template get_info<Param>();
 }
 
-void device::get_device_info(detail::string &Type) const {
+void device::get_device_info(detail::string_view &Type,
+                             detail::string &InfoStr) const {
   std::string Info;
   if (Type == typeid(info::device::name).name()) {
     Info = impl->template get_info<info::device::name>();
@@ -157,7 +158,7 @@ void device::get_device_info(detail::string &Type) const {
     throw sycl::invalid_parameter_error("unsupported device info requested",
                                         PI_ERROR_INVALID_OPERATION);
   }
-  Type.unmarshall(Info);
+  InfoStr = Info;
 }
 #else
 template <typename Param>

@@ -26,6 +26,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -565,11 +566,10 @@ private:
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::string KernelName = getKernelName();
-    return LambdaName == KernelName.marshall();
 #else
     const std::string KernelName = getKernelName();
-    return LambdaName == KernelName;
 #endif
+    return KernelName == LambdaName;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -854,10 +854,10 @@ private:
   ///                   kernel bundle contains.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
-    detail::string Name = detail::string(KernelName);
+    detail::string_view Name = KernelName;
     verifyUsedKernelBundleInternal(Name);
   }
-  void verifyUsedKernelBundleInternal(detail::string &KernelName);
+  void verifyUsedKernelBundleInternal(detail::string_view &KernelName);
 #else
   void verifyUsedKernelBundle(const std::string &KernelName);
 #endif
@@ -3421,9 +3421,9 @@ private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false) {
-    ext_intel_read_host_pipe(detail::string(Name), Ptr, Size, Block);
+    ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
-  void ext_intel_read_host_pipe(const detail::string &Name, void *Ptr,
+  void ext_intel_read_host_pipe(const detail::string_view &Name, void *Ptr,
                                 size_t Size, bool Block = false);
 #else
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
@@ -3439,9 +3439,9 @@ private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false) {
-    ext_intel_write_host_pipe(detail::string(Name), Ptr, Size, Block);
+    ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
-  void ext_intel_write_host_pipe(const detail::string &Name, void *Ptr,
+  void ext_intel_write_host_pipe(const detail::string_view &Name, void *Ptr,
                                  size_t Size, bool Block = false);
 #else
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,

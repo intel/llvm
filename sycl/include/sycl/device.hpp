@@ -16,6 +16,7 @@
 #include <sycl/detail/owner_less_base.hpp>    // for Owne...
 #include <sycl/detail/pi.h>                   // for pi_n...
 #include <sycl/detail/string.hpp>             // for c++11 abi compatibility
+#include <sycl/detail/string_view.hpp>        // for c++11 abi compatibility
 #include <sycl/device_selector.hpp>           // for Enab...
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
 #include <sycl/info/info_desc.hpp>                              // for part...
@@ -227,11 +228,10 @@ public:
                   std::is_same_v<Param, info::device::version> ||
                   std::is_same_v<Param, info::device::profile>) {
 
-      detail::string Info = typeid(Param).name();
-      Info.allocate(100);
-      get_device_info(Info);
+      detail::string_view PropertyName = typeid(Param).name();
+      detail::string Info; // Libsycl fills this param with property information
+      get_device_info(PropertyName, Info);
       std::string DeviceInfo = Info.marshall();
-      Info.deallocate();
       return DeviceInfo;
     }
     return get_info_internal<Param>();
@@ -321,7 +321,7 @@ private:
   typename detail::is_device_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_device_info(detail::string &Type) const;
+  void get_device_info(detail::string_view &Type, detail::string &Info) const;
 #endif
 };
 

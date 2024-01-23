@@ -63,7 +63,8 @@ platform::get_info_internal() const {
   return impl->get_info<Param>();
 }
 
-void platform::get_platform_info(detail::string &Type) const {
+void platform::get_platform_info(detail::string_view &Type,
+                                 detail::string &InfoStr) const {
   std::string Info;
   if (Type == typeid(info::platform::name).name()) {
     Info = impl->get_info<info::platform::name>();
@@ -77,7 +78,7 @@ void platform::get_platform_info(detail::string &Type) const {
     throw sycl::invalid_parameter_error("unsupported device info requested",
                                         PI_ERROR_INVALID_OPERATION);
   }
-  Type.unmarshall(Info);
+  InfoStr = Info;
 }
 #else
 template <typename Param>
