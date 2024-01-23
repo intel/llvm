@@ -854,10 +854,10 @@ protected:
   ///        manager except the last three: dependencies, PI event and
   ///        EventImplPtr are filled out by this helper.
   /// \return an event representing the submitted operation.
-  template <typename FuncT, typename... ArgTs>
+  template <typename MemOpFuncT, typename... MemOpArgTs>
   event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
-                          const std::vector<event> &DepEvents, FuncT MemOpFunc,
-                          ArgTs... MemOpArgs);
+                          const std::vector<event> &DepEvents,
+                          MemOpFuncT MemOpFunc, MemOpArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
