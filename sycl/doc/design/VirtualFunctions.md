@@ -109,8 +109,75 @@ be implemented in accordance with the corresponding [design document][2]:
 In order to convert a type to a string, [\__builtin_sycl_unique_stable_name][3]
 could be used.
 
-**TODO**: `calls_indirectly` requires compile-time concatenation of strings.
-Document how it should be done.
+The `calls_indirectly` compile-time property accepts a list of types which
+identify virtual functions set. It can be handled using metaprogramming magic to
+compile-time concatenate strings to produce a single value out of a set of
+parameters. Similar approach is used to handle `reqd_work_group_size` and other
+compile-time properties that accept integers:
+
+```c++
+// Helper to hide variadic list of arguments under a single type
+template <char... Chars> struct CharList {};
+
+// Helper to concatenate several lists of characters into a single string.
+// Lists are separated from each other with comma within the resulting string.
+template <typename List, typename... Rest> struct ConcatenateCharsToStr;
+
+// Specialization for a single list
+template <char... Chars> struct ConcatenateCharsToStr<CharList<Chars...>> {
+  static constexpr char value[] = {Chars..., '\0'};
+};
+
+// Specialization for two lists
+template <char... Chars, char... CharsToAppend>
+struct ConcatenateCharsToStr<CharList<Chars...>, CharList<CharsToAppend...>>
+    : ConcatenateCharsToStr<CharList<Chars..., ',', CharsToAppend...>> {};
+
+// Specialization for the case when there are more than two lists
+template <char... Chars, char... CharsToAppend, typename... Rest>
+struct ConcatenateCharsToStr<CharList<Chars...>, CharList<CharsToAppend...>,
+                             Rest...>
+    : ConcatenateCharsToStr<CharList<Chars..., ',', CharsToAppend...>,
+                            Rest...> {};
+
+// Helper to convert type T to a list of characters representing the type (its
+// mangled name).
+template <typename T, size_t... Indices> struct StableNameToCharsHelper {
+  using chars = CharList<__builtin_sycl_unique_stable_name(T)[Indices]...>;
+};
+
+// Wrapper helper for the struct above
+template <typename T, typename Sequence> struct StableNameToChars;
+
+// Specialization of that wrapper helper which accepts sequence of integers
+template <typename T, size_t... Indices>
+struct StableNameToChars<T, std::integer_sequence<size_t, Indices...>>
+    : StableNameToCharsHelper<T, Indices...> {};
+
+// Top-level helper, which should be used to convert list of typenames into a
+// string that contains comma-separated list of their string representations
+// (mangled names).
+template <typename... Types> struct PropertyValueHelper {
+  static constexpr const char *name = "my-fancy-attr";
+  static constexpr const char *value =
+      ConcatenateCharsToStr<typename StableNameToChars<
+          Types,
+          std::make_index_sequence<__builtin_strlen(
+              __builtin_sycl_unique_stable_name(Types))>>::chars...>::value;
+};
+
+// Example usage:
+SYCL_EXTERNAL
+[[__sycl_detail__::add_ir_attributes_function(
+    PropertyValueHelper<void, int>::name,
+    PropertyValueHelper<void, int>::value)]] void
+foo() {
+  // Produced LLVM IR:
+  // define void @_Z3foov() #0 { ... }
+  // attributes #0 = { "my-fancy-attr"="_ZTSv,_ZTSi" ... }
+}
+
+```
 
 ### Changes to the compiler front-end
 
