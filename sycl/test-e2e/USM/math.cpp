@@ -25,7 +25,8 @@ int main() {
       {
         float *Buf = (float *)s::malloc_shared(
             sizeof(float) * 2, myQueue.get_device(), myQueue.get_context());
-        s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
+        void *ptr =
+            s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
           cgh.single_task<class fractF1UF1>(
               [=]() { Buf[0] = s::fract(float{1.5f}, &Buf[1]); });
@@ -34,6 +35,7 @@ int main() {
         r = Buf[0];
         i = Buf[1];
         s::free(Buf, myQueue.get_context());
+        s::free(ptr, myQueue.get_context());
       }
       assert(r == 0.5f);
       assert(i == 1.0f);
