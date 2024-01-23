@@ -273,7 +273,7 @@ static void __asan_internal_report_save(
   if (atomicCompareAndSet(&__DeviceSanitizerReportMem.Flag, Desired,
                           Expected) == Expected) {
 
-    print_shadow_memory(ptr, as);
+    // print_shadow_memory(ptr, as);
 
     int FileLength = 0;
     int FuncLength = 0;
