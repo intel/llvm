@@ -1879,11 +1879,6 @@ inline pi_result piProgramCreateWithBinary(
   PI_ASSERT(Binaries && Lengths, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
 
-  // For now we support only one device.
-  if (NumDevices != 1) {
-    die("piProgramCreateWithBinary: level_zero supports only one device.");
-    return PI_ERROR_INVALID_VALUE;
-  }
   if (!Binaries[0] || !Lengths[0]) {
     if (BinaryStatus)
       *BinaryStatus = PI_ERROR_INVALID_VALUE;
@@ -1985,11 +1980,6 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
               pi_uint32 NumInputPrograms, const pi_program *InputPrograms,
               void (*PFnNotify)(pi_program Program, void *UserData),
               void *UserData, pi_program *RetProgram) {
-  // We only support one device with Level Zero currently.
-  if (NumDevices != 1) {
-    die("piProgramLink: level_zero supports only one device.");
-    return PI_ERROR_INVALID_VALUE;
-  }
 
   // Validate input parameters.
   PI_ASSERT(DeviceList, PI_ERROR_INVALID_DEVICE);
@@ -2061,14 +2051,6 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
                void *UserData) {
   PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
   if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList)) {
-    return PI_ERROR_INVALID_VALUE;
-  }
-
-  // We only support build to one device with Level Zero now.
-  // TODO: we should eventually build to the possibly multiple root
-  // devices in the context.
-  if (NumDevices != 1) {
-    die("piProgramBuild: level_zero supports only one device.");
     return PI_ERROR_INVALID_VALUE;
   }
 
