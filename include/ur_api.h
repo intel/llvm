@@ -3237,7 +3237,7 @@ typedef enum ur_usm_advice_flag_t {
     UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST = UR_BIT(14), ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST
     UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY = UR_BIT(15),       ///< Hint that memory coherence will be coarse-grained (up-to-date only at
                                                                    ///< kernel boundaries)
-    UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY = UR_BIT(16),     ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY
+    UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY = UR_BIT(16),     ///< Removes the effect of ::UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY
     /// @cond
     UR_USM_ADVICE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
