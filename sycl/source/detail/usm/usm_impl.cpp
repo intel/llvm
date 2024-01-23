@@ -138,7 +138,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
                            const context_impl *CtxImpl,
                            const device_impl *DevImpl, alloc Kind,
                            const property_list &PropList) {
-  if (Kind == alloc::device &&
+  if ((Kind == alloc::device || Kind == alloc::shared) &&
       !DevImpl->has(sycl::aspect::usm_device_allocations)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Device does not support Unified Shared Memory!");
