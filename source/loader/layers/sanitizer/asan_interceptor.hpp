@@ -99,6 +99,8 @@ class SanitizerInterceptor {
   public:
     SanitizerInterceptor();
 
+    ~SanitizerInterceptor();
+
     ur_result_t allocateMemory(ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
@@ -158,6 +160,7 @@ class SanitizerInterceptor {
     ur_shared_mutex m_ContextMapMutex;
 
     bool m_IsInASanContext;
+    bool m_ShadowMemInited;
 };
 
 } // namespace ur_sanitizer_layer

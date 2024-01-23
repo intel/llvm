@@ -101,7 +101,14 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
 } // namespace
 
 SanitizerInterceptor::SanitizerInterceptor()
-    : m_IsInASanContext(IsInASanContext()) {}
+    : m_IsInASanContext(IsInASanContext()),
+      m_ShadowMemInited(m_IsInASanContext) {}
+
+SanitizerInterceptor::~SanitizerInterceptor() {
+    if (!m_IsInASanContext && m_ShadowMemInited && !DestroyShadowMem()) {
+        context.logger.error("Failed to destroy shadow memory");
+    }
+}
 
 /// The memory chunk allocated from the underlying allocator looks like this:
 /// L L L L L L U U U U U U R R
@@ -289,20 +296,20 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
     if (DeviceInfo->Type == DeviceType::CPU) {
         if (!m_IsInASanContext) {
-            context.logger.error("Host AddressSanitizer needs to be enabled");
-            return UR_RESULT_ERROR_INVALID_CONTEXT;
+            static std::once_flag OnceFlag;
+            bool Result = true;
+            std::call_once(OnceFlag, [&]() {
+                Result = m_ShadowMemInited = SetupShadowMem();
+            });
+
+            if (!Result) {
+                context.logger.error("Failed to allocate shadow memory");
+                return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+            }
         }
 
-        // Based on "compiler-rt/lib/asan/asan_mapping.h"
-        // Typical shadow mapping on Linux/x86_64 with SHADOW_OFFSET == 0x00007fff8000:
-        DeviceInfo->ShadowOffset = 0x00007fff8000ULL;
-        DeviceInfo->ShadowOffsetEnd = 0x10007fff7fffULL;
-        // // Default Linux/i386 mapping on x86_64 machine:
-        // DeviceInfo->ShadowOffset = 0x20000000ULL;
-        // DeviceInfo->ShadowOffsetEnd = 0x3fffffffULL;
-        // // Default Linux/i386 mapping on i386 machine
-        // DeviceInfo->ShadowOffset = 0x20000000ULL;
-        // DeviceInfo->ShadowOffsetEnd = 0x37ffffffULL;
+        DeviceInfo->ShadowOffset = LOW_SHADOW_BEGIN;
+        DeviceInfo->ShadowOffsetEnd = HIGH_SHADOW_END;
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
