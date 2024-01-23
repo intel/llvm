@@ -117,12 +117,12 @@ if(UR_ENABLE_SANITIZER)
     if(WIN32)
         target_sources(ur_loader
             PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/windows/check_san.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/windows/san_utils.cpp
         )
     else()
         target_sources(ur_loader
             PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/check_san.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/san_utils.cpp
         )
     endif()
 
