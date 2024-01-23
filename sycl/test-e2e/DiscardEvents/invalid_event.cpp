@@ -24,9 +24,6 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
     assert(x != nullptr);
     int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
     assert(y != nullptr);
-  } catch (const sycl::exception &e) {
-    return;
-  }
 
   sycl::event DiscardedEvent;
 
@@ -80,6 +77,9 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
   Q.wait();
   free(x, Q);
   free(y, Q);
+  } catch (const sycl::exception &) {
+    return;
+  }
 }
 
 int main(int Argc, const char *Argv[]) {
