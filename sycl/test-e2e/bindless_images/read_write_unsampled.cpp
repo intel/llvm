@@ -99,24 +99,24 @@ struct util {
               if constexpr (NChannels >= 1) {
                 VecType px1 =
                     sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_0, sycl::int4(dim0, dim1, dim2, 0));
+                        input_0, sycl::int3(dim0, dim1, dim2));
                 VecType px2 =
                     sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_1, sycl::int4(dim0, dim1, dim2, 0));
+                        input_1, sycl::int3(dim0, dim1, dim2));
 
                 auto sum =
                     VecType(util::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<VecType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), VecType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {
                 DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_0, sycl::int4(dim0, dim1, dim2, 0));
+                    input_0, sycl::int3(dim0, dim1, dim2));
                 DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_1, sycl::int4(dim0, dim1, dim2, 0));
+                    input_1, sycl::int3(dim0, dim1, dim2));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<DType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), DType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), DType(sum));
               }
             });
       });
