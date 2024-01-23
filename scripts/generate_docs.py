@@ -262,7 +262,7 @@ def generate_html(dstpath):
     if result.returncode != 0:
         print("sphinx-build returned non-zero error code.")
         print("--- output ---")
-        print(result.stderr.read().decode())
+        print(result.stderr.decode())
         raise Exception("Failed to generate html documentation.")
 
 """
@@ -277,7 +277,7 @@ def generate_pdf(dstpath):
     if result.returncode != 0:
         print("sphinx-build returned non-zero error code.")
         print("--- output ---")
-        print(result.stderr.read().decode())
+        print(result.stderr.decode())
         raise Exception("Failed to generate pdf documentation.")
 
 """
