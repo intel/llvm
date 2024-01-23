@@ -29,7 +29,7 @@
 //call sycl-post-link and clang-offload-wrapper
 //CHECK_ACTIONS:|  +- [[VAL83:.*]]: sycl-post-link, {[[ALLLINK]]}, tempfiletable, (device-sycl)
 //CHECK_ACTIONS:|- [[VAL84:.*]]: clang-offload-wrapper, {[[VAL83]]}, object, (device-sycl)
-//CHECK_ACTIONS:[[VAL85:.*]]: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {[[VAL82]]}, "device-sycl ({{.*}})" {84}, image
+//CHECK_ACTIONS:[[VAL85:.*]]: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {[[VAL82]]}, "device-sycl ({{.*}})" {[[VAL84]]}, image
 
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
