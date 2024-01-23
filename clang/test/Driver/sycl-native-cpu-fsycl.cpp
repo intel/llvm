@@ -16,21 +16,21 @@
 //CHECK_ACTIONS:   +- 9: assembler, {8}, object, (host-sycl)
 //CHECK_ACTIONS:+- 10: linker, {9}, image, (host-sycl)
 //CHECK_ACTIONS:        +- 11: linker, {5}, ir, (device-sycl)
-//CHECK_ACTIONS:        |- 12: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
-//CHECK_ACTIONS:     +- 13: linker, {11, 12}, ir, (device-sycl)
+//CHECK_ACTIONS:        |- 75: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
+//CHECK_ACTIONS:     +- 76: linker, {11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 75}, ir, (device-sycl)
 //this is where we compile the device code to a shared lib, and we link the host shared lib and the device shared lib
-//CHECK_ACTIONS:|  +- 14: backend, {13}, assembler, (device-sycl)
-//CHECK_ACTIONS:|- 15: assembler, {14}, object, (device-sycl)
+//CHECK_ACTIONS:|  +- 81: backend, {80}, assembler, (device-sycl)
+//CHECK_ACTIONS:|- 82: assembler, {81}, object, (device-sycl)
 //call sycl-post-link and clang-offload-wrapper
-//CHECK_ACTIONS:|  +- 16: sycl-post-link, {13}, tempfiletable, (device-sycl)
-//CHECK_ACTIONS:|- 17: clang-offload-wrapper, {16}, object, (device-sycl)
-//CHECK_ACTIONS:18: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {15}, "device-sycl ({{.*}})" {17}, image
+//CHECK_ACTIONS:|  +- 83: sycl-post-link, {76}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS:|- 84: clang-offload-wrapper, {83}, object, (device-sycl)
+//CHECK_ACTIONS:85: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {82}, "device-sycl ({{.*}})" {84}, image
 
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINK]].bc", "{{.*}}.bc"], output: "[[KERNELLINKWLIB:.*]].bc"
-//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[KERNELOBJ:.*]].o"
+//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB2:.*]].bc"], output: "[[KERNELOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL post link", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[TABLEFILE:.*]].table"
 //CHECK_BINDINGS:# "{{.*}}" - "offload wrapper", inputs: ["[[TABLEFILE]].table"], output: "[[WRAPPEROBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "Append Footer to source", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[SRCWFOOTER:.*]].cpp"
