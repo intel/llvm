@@ -193,6 +193,8 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
                                            0, size, 1, &inv_evt, nullptr, &map),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidSize) {
