@@ -76,6 +76,17 @@ if config.spirv_tools_have_spirv_val:
 else:
     config.substitutions.append(('spirv-val', ':'))
 
+if not config.llvm_spirv_build_external and config.llvm_build_shared_libs:
+    config.available_features.add('pass-plugin')
+    config.substitutions.append(
+        (
+            "%load_spirv_lib",
+            "-load-pass-plugin={}/libLLVMSPIRVLib{}".format(
+                config.llvm_shlib_dir, config.llvm_plugin_ext
+            ),
+        )
+    )
+
 llvm_config.with_system_environment('LD_LIBRARY_PATH')
 if using_spirv_tools:
     llvm_config.with_environment('LD_LIBRARY_PATH', config.spirv_tools_lib_dir, append_path=True)

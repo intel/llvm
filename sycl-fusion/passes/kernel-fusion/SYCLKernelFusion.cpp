@@ -355,23 +355,20 @@ Error SYCLKernelFusion::fuseKernel(
   // Collect it, so it can be attached to the fused function later on.
   MetadataCollection MDCollection{TargetInfo.getKernelMetadataKeys()};
 
-  // Add the information about the new kernel to the SYCLModuleInfo.
-  // Initialize the jit_compiler::SYCLKernelInfo with the name. The remaining
-  // information for functor & argument layout and attributes will be filled in
-  // with information from the input kernels below.
-  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
-    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str()};
-    ModInfo->addKernel(KI);
-  }
-  jit_compiler::SYCLKernelInfo &FusedKernelInfo =
-      *ModInfo->getKernelFor(FusedKernelName.str());
+  // Collect information for functor & argument layout and attributes from the
+  // input kernels below.
+  MutableParamKindList FusedParamKinds;
+  MutableArgUsageMask FusedArgUsageMask;
+  MutableAttributeList FusedAttributes;
+
   // Mapping from parameter in an input function (index in the list of input
   // functions and index in the original function) to the argument index in the
   // fused function.
   DenseMap<std::pair<unsigned, unsigned>, unsigned> ParamMapping;
   // The list of identical parameters is sorted, so the relevant entry can
   // always only be the current front.
-  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin();
+  SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin(),
+                                      *ParamEnd = ParamIdentities.end();
   unsigned FuncIndex = 0;
   unsigned ArgIndex = 0;
   for (const auto &Fused : FusedKernels) {
@@ -390,7 +387,7 @@ Error SYCLKernelFusion::fuseKernel(
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
       int IdenticalIdx = -1;
-      if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
+      if (ParamFront != ParamEnd && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
         // Because ParamIdentity is constructed such that LHS > RHS, the other
         // parameter must already have been processed.
@@ -438,9 +435,24 @@ Error SYCLKernelFusion::fuseKernel(
            "No jit_compiler::SYCLKernelInfo found");
     jit_compiler::SYCLKernelInfo &InputKernelInfo =
         *ModInfo->getKernelFor(FN.str());
-    appendKernelInfo(FusedKernelInfo, InputKernelInfo, UsedArgsMask);
+    appendKernelInfo(FusedParamKinds, FusedArgUsageMask, FusedAttributes,
+                     InputKernelInfo, UsedArgsMask);
     ++FuncIndex;
   }
+
+  // Add the information about the new kernel to the SYCLModuleInfo.
+  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
+    assert(FusedParamKinds.size() == FusedArgUsageMask.size());
+    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str(),
+                                    FusedParamKinds.size()};
+    KI.Attributes = KernelAttributeList{FusedAttributes.size()};
+    llvm::copy(FusedParamKinds, KI.Args.Kinds.begin());
+    llvm::copy(FusedArgUsageMask, KI.Args.UsageMask.begin());
+    llvm::copy(FusedAttributes, KI.Attributes.begin());
+    ModInfo->addKernel(KI);
+  }
+  jit_compiler::SYCLKernelInfo &FusedKernelInfo =
+      *ModInfo->getKernelFor(FusedKernelName.str());
 
   // Check that no function with the desired name is already present in the
   // module. LLVM would still be able to insert the function (adding a suffix to
@@ -609,7 +621,7 @@ void SYCLKernelFusion::canonicalizeParameters(
   // The input is a list of parameter pairs which werde detected to be
   // identical. Each pair is constructed such that the RHS belongs to a kernel
   // occuring before the kernel for the LHS in the list of kernels to fuse. This
-  // means, that we want to use the LHS parameter instead of the RHS parameter.
+  // means, that we want to use the RHS parameter instead of the LHS parameter.
 
   // In the first step we sort the list of pairs by their LHS.
   std::sort(Params.begin(), Params.end());
@@ -628,8 +640,7 @@ void SYCLKernelFusion::canonicalizeParameters(
       // LHS and RHS are identical - this does not provide
       // any useful information at all, discard it.
       I = Params.erase(I);
-    }
-    if (Identities.count(I->LHS)) {
+    } else if (Identities.count(I->LHS)) {
       // Duplicate
       auto ExistingIdentity = Identities.at(I->LHS);
       Identities.emplace(I->RHS, ExistingIdentity);
@@ -689,16 +700,16 @@ void SYCLKernelFusion::attachKernelAttributeMD(
   // Attach kernel attribute information as metadata to a kernel function.
   for (jit_compiler::SYCLKernelAttribute &KernelAttr :
        FusedKernelInfo.Attributes) {
-    if (KernelAttr.AttributeName == "reqd_work_group_size" ||
-        KernelAttr.AttributeName == "work_group_size_hint") {
+    if (KernelAttr.Kind == KernelAttrKind::ReqdWorkGroupSize ||
+        KernelAttr.Kind == KernelAttrKind::WorkGroupSizeHint) {
       // 'reqd_work_group_size' and 'work_group_size_hint' get attached as
       // metadata with their three values as constant integer metadata.
       SmallVector<Metadata *, 3> MDValues;
-      for (std::string &Val : KernelAttr.Values) {
+      for (auto Val : KernelAttr.Values) {
         MDValues.push_back(ConstantAsMetadata::get(
-            ConstantInt::get(Type::getInt32Ty(LLVMCtx), std::stoi(Val))));
+            ConstantInt::get(Type::getInt32Ty(LLVMCtx), Val)));
       }
-      attachFusedMetadata(FusedFunction, KernelAttr.AttributeName, MDValues);
+      attachFusedMetadata(FusedFunction, KernelAttr.getName(), MDValues);
     }
     // The two kernel attributes above are currently the only attributes
     // attached as metadata, so we don't do anything for other attributes.
@@ -706,7 +717,7 @@ void SYCLKernelFusion::attachKernelAttributeMD(
 }
 
 void SYCLKernelFusion::updateArgUsageMask(
-    jit_compiler::ArgUsageMask &NewMask,
+    MutableArgUsageMask &NewMask,
     jit_compiler::SYCLArgumentDescriptor &InputDef,
     const ArrayRef<bool> ParamUseMask) const {
   // Create a new argument usage mask from the input information and the mask
@@ -730,7 +741,9 @@ void SYCLKernelFusion::updateArgUsageMask(
 }
 
 void SYCLKernelFusion::appendKernelInfo(
-    jit_compiler::SYCLKernelInfo &FusedInfo,
+    MutableParamKindList &FusedParamKinds,
+    MutableArgUsageMask &FusedArgUsageMask,
+    MutableAttributeList &FusedAttributes,
     jit_compiler::SYCLKernelInfo &InputInfo,
     const ArrayRef<bool> ParamUseMask) const {
   // Add information from the input kernel to the SYCLKernelInfo of the fused
@@ -738,31 +751,29 @@ void SYCLKernelFusion::appendKernelInfo(
 
   // Add information about the input kernel's arguments to the KernelInfo for
   // the fused function.
-  FusedInfo.Args.Kinds.insert(FusedInfo.Args.Kinds.end(),
-                              InputInfo.Args.Kinds.begin(),
-                              InputInfo.Args.Kinds.end());
+  FusedParamKinds.append(InputInfo.Args.Kinds.begin(),
+                         InputInfo.Args.Kinds.end());
 
   // Create a argument usage mask from input information and the mask resulting
   // from potential identical parameters.
-  jit_compiler::ArgUsageMask NewMask;
+  MutableArgUsageMask NewMask;
   updateArgUsageMask(NewMask, InputInfo.Args, ParamUseMask);
-  FusedInfo.Args.UsageMask.insert(FusedInfo.Args.UsageMask.end(),
-                                  NewMask.begin(), NewMask.end());
+  FusedArgUsageMask.append(NewMask.begin(), NewMask.end());
 
   // Merge the existing kernel attributes for the fused kernel (potentially
   // still empty) with the kernel attributes of the input kernel.
-  mergeKernelAttributes(FusedInfo.Attributes, InputInfo.Attributes);
+  mergeKernelAttributes(FusedAttributes, InputInfo.Attributes);
 }
 
 void SYCLKernelFusion::mergeKernelAttributes(
-    KernelAttributeList &Attributes, const KernelAttributeList &Other) const {
+    MutableAttributeList &Attributes, const KernelAttributeList &Other) const {
   // For the current set of valid kernel attributes, it is sufficient to only
   // iterate over the list of new attributes coming in. In cases where the
   // existing list contains an attribute that is not present in the new list, we
   // want to keep it anyways.
   for (const jit_compiler::SYCLKernelAttribute &OtherAttr : Other) {
     SYCLKernelFusion::KernelAttr *Attr =
-        getAttribute(Attributes, OtherAttr.AttributeName);
+        getAttribute(Attributes, OtherAttr.Kind);
     SYCLKernelFusion::AttrMergeResult MergeResult =
         mergeAttribute(Attr, OtherAttr);
     switch (MergeResult) {
@@ -775,7 +786,7 @@ void SYCLKernelFusion::mergeKernelAttributes(
       addAttribute(Attributes, OtherAttr);
       break;
     case AttrMergeResult::RemoveAttr:
-      removeAttribute(Attributes, OtherAttr.AttributeName);
+      removeAttribute(Attributes, OtherAttr.Kind);
       break;
     case AttrMergeResult::Error:
       llvm_unreachable("Failed to merge attribute");
@@ -787,14 +798,15 @@ void SYCLKernelFusion::mergeKernelAttributes(
 SYCLKernelFusion::AttrMergeResult
 SYCLKernelFusion::mergeAttribute(KernelAttr *Attr,
                                  const KernelAttr &Other) const {
-  if (Other.AttributeName == "reqd_work_group_size") {
+  switch (Other.Kind) {
+  case KernelAttrKind::ReqdWorkGroupSize:
     return mergeReqdWorkgroupSize(Attr, Other);
-  }
-  if (Other.AttributeName == "work_group_size_hint") {
+  case KernelAttrKind::WorkGroupSizeHint:
     return mergeWorkgroupSizeHint(Attr, Other);
+  default:
+    // Unknown attribute name, return an error.
+    return SYCLKernelFusion::AttrMergeResult::Error;
   }
-  // Unknown attribute name, return an error.
-  return SYCLKernelFusion::AttrMergeResult::Error;
 }
 
 SYCLKernelFusion::AttrMergeResult
@@ -805,11 +817,9 @@ SYCLKernelFusion::mergeReqdWorkgroupSize(KernelAttr *Attr,
     // new one
     return SYCLKernelFusion::AttrMergeResult::AddAttr;
   }
-  for (size_t I = 0; I < 3; ++I) {
-    if (getAttrValueAsInt(*Attr, I) != getAttrValueAsInt(Other, I)) {
-      // Two different required work-group sizes, causes an error.
-      return SYCLKernelFusion::AttrMergeResult::Error;
-    }
+  if (Attr->Values != Other.Values) {
+    // Two different required work-group sizes, causes an error.
+    return SYCLKernelFusion::AttrMergeResult::Error;
   }
   // The required workgroup sizes are identical, keep it.
   return SYCLKernelFusion::AttrMergeResult::KeepAttr;
@@ -823,51 +833,41 @@ SYCLKernelFusion::mergeWorkgroupSizeHint(KernelAttr *Attr,
     // the new one
     return SYCLKernelFusion::AttrMergeResult::AddAttr;
   }
-  for (size_t I = 0; I < 3; ++I) {
-    if (getAttrValueAsInt(*Attr, I) != getAttrValueAsInt(Other, I)) {
-      // Two different hints, remove the hint altogether.
-      return SYCLKernelFusion::AttrMergeResult::RemoveAttr;
-    }
+  if (Attr->Values != Other.Values) {
+    // Two different hints, remove the hint altogether.
+    return SYCLKernelFusion::AttrMergeResult::RemoveAttr;
   }
   // The given hint is identical, keep it.
   return SYCLKernelFusion::AttrMergeResult::KeepAttr;
 }
 
 SYCLKernelFusion::KernelAttr *
-SYCLKernelFusion::getAttribute(KernelAttributeList &Attributes,
-                               StringRef AttrName) const {
-  SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
+SYCLKernelFusion::getAttribute(MutableAttributeList &Attributes,
+                               KernelAttrKind AttrKind) const {
+  auto *It = findAttribute(Attributes, AttrKind);
   if (It != Attributes.end()) {
     return &*It;
   }
   return nullptr;
 }
 
-void SYCLKernelFusion::addAttribute(KernelAttributeList &Attributes,
+void SYCLKernelFusion::addAttribute(MutableAttributeList &Attributes,
                                     const KernelAttr &Attr) const {
   Attributes.push_back(Attr);
 }
 
-void SYCLKernelFusion::removeAttribute(KernelAttributeList &Attributes,
-                                       StringRef AttrName) const {
-  SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
+void SYCLKernelFusion::removeAttribute(MutableAttributeList &Attributes,
+                                       KernelAttrKind AttrKind) const {
+  auto *It = findAttribute(Attributes, AttrKind);
   if (It != Attributes.end()) {
     Attributes.erase(It);
   }
 }
 
-SYCLKernelFusion::KernelAttrIterator
-SYCLKernelFusion::findAttribute(KernelAttributeList &Attributes,
-                                StringRef AttrName) const {
+SYCLKernelFusion::MutableAttributeList::iterator
+SYCLKernelFusion::findAttribute(MutableAttributeList &Attributes,
+                                KernelAttrKind AttrKind) const {
   return llvm::find_if(Attributes, [=](SYCLKernelFusion::KernelAttr &Attr) {
-    return Attr.AttributeName == AttrName.str();
+    return Attr.Kind == AttrKind;
   });
-}
-
-unsigned SYCLKernelFusion::getAttrValueAsInt(const KernelAttr &Attr,
-                                             size_t Idx) const {
-  assert(Idx < Attr.Values.size());
-  unsigned Result = 0;
-  StringRef(Attr.Values[Idx]).getAsInteger(0, Result);
-  return Result;
 }

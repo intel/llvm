@@ -732,6 +732,17 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     CmdArgs.push_back("-fcoverage-mapping");
   }
 
+  if (Args.hasFlag(options::OPT_fmcdc_coverage, options::OPT_fno_mcdc_coverage,
+                   false)) {
+    if (!Args.hasFlag(options::OPT_fcoverage_mapping,
+                      options::OPT_fno_coverage_mapping, false))
+      D.Diag(clang::diag::err_drv_argument_only_allowed_with)
+          << "-fcoverage-mcdc"
+          << "-fcoverage-mapping";
+
+    CmdArgs.push_back("-fcoverage-mcdc");
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_ffile_compilation_dir_EQ,
                                options::OPT_fcoverage_compilation_dir_EQ)) {
     if (A->getOption().matches(options::OPT_ffile_compilation_dir_EQ))
@@ -1633,7 +1644,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
         << Triple.getArchName();
 
   StringRef Scope, Key;
-  bool IndirectBranches;
+  bool IndirectBranches, BranchProtectionPAuthLR;
 
   if (A->getOption().matches(options::OPT_msign_return_address_EQ)) {
     Scope = A->getValue();
@@ -1642,6 +1653,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << A->getSpelling() << Scope;
     Key = "a_key";
     IndirectBranches = false;
+    BranchProtectionPAuthLR = false;
   } else {
     StringRef DiagMsg;
     llvm::ARM::ParsedBranchProtection PBP;
@@ -1653,6 +1665,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << "b-key" << A->getAsString(Args);
     Scope = PBP.Scope;
     Key = PBP.Key;
+    BranchProtectionPAuthLR = PBP.BranchProtectionPAuthLR;
     IndirectBranches = PBP.BranchTargetEnforcement;
   }
 
@@ -1661,6 +1674,9 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
   if (!Scope.equals("none"))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-msign-return-address-key=") + Key));
+  if (BranchProtectionPAuthLR)
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-mbranch-protection-pauth-lr")));
   if (IndirectBranches)
     CmdArgs.push_back("-mbranch-target-enforce");
 }
@@ -2203,12 +2219,9 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
     StringRef Arch = riscv::getRISCVArch(Args, Triple);
     auto ISAInfo = llvm::RISCVISAInfo::parseArchString(
         Arch, /*EnableExperimentalExtensions*/ true);
-    if (!ISAInfo) {
-      // Ignore parsing error.
-      consumeError(ISAInfo.takeError());
-    } else {
+    // Ignore parsing error.
+    if (!errorToBool(ISAInfo.takeError()))
       MinVLen = (*ISAInfo)->getMinVLen();
-    }
 
     // If the value is "zvl", use MinVLen from march. Otherwise, try to parse
     // as integer as long as we have a MinVLen.
@@ -3348,13 +3361,13 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                    options::OPT_fstrict_float_cast_overflow, false))
     CmdArgs.push_back("-fno-strict-float-cast-overflow");
 
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_limited_range))
+  if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_fortran_rules))
+  if (Args.hasArg(options::OPT_fcx_fortran_rules))
     CmdArgs.push_back("-fcx-fortran-rules");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_limited_range))
+  if (Args.hasArg(options::OPT_fno_cx_limited_range))
     CmdArgs.push_back("-fno-cx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_fortran_rules))
+  if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
 }
 
@@ -4561,6 +4574,10 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     if (checkDebugInfoOption(Args.getLastArg(options::OPT_fdebug_macro), Args,
                              D, TC))
       CmdArgs.push_back("-debug-info-macro");
+
+  // -fno-system-debug turns off debug info generation for system headers
+  if (Args.hasArg(options::OPT_fno_system_debug))
+    CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
   const auto *PubnamesArg =
@@ -10293,7 +10310,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (!(T.isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (T.isNVPTX())
+  if (T.isNVPTX() || T.isAMDGCN())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR

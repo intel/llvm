@@ -133,31 +133,23 @@ void preloadLibraries() {
 
   MapT &dllMap = getDllMap();
 
-  auto ocl_path = LibSYCLDir / __SYCL_OPENCL_PLUGIN_NAME;
-  dllMap.emplace(ocl_path,
-                 LoadLibraryEx(ocl_path.wstring().c_str(), NULL, NULL));
-
-  auto l0_path = LibSYCLDir / __SYCL_LEVEL_ZERO_PLUGIN_NAME;
-  dllMap.emplace(l0_path, LoadLibraryEx(l0_path.wstring().c_str(), NULL, NULL));
-
-  auto cuda_path = LibSYCLDir / __SYCL_CUDA_PLUGIN_NAME;
-  dllMap.emplace(cuda_path,
-                 LoadLibraryEx(cuda_path.wstring().c_str(), NULL, NULL));
-
-  auto esimd_path = LibSYCLDir / __SYCL_ESIMD_EMULATOR_PLUGIN_NAME;
-  dllMap.emplace(esimd_path,
-                 LoadLibraryEx(esimd_path.wstring().c_str(), NULL, NULL));
-
-  auto hip_path = LibSYCLDir / __SYCL_HIP_PLUGIN_NAME;
-  dllMap.emplace(hip_path,
-                 LoadLibraryEx(hip_path.wstring().c_str(), NULL, NULL));
-
-  auto ur_path = LibSYCLDir / __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
-  dllMap.emplace(ur_path, LoadLibraryEx(ur_path.wstring().c_str(), NULL, NULL));
-
-  auto nativecpu_path = LibSYCLDir / __SYCL_NATIVE_CPU_PLUGIN_NAME;
-  dllMap.emplace(nativecpu_path,
-                 LoadLibraryEx(nativecpu_path.wstring().c_str(), NULL, NULL));
+  // When searching for dependencies of the plugins limit the
+  // list of directories to %windows%\system32 and the directory that contains
+  // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
+  // current directory and some other directories which are considered unsafe.
+  auto loadPlugin = [&](auto pluginName,
+                        DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                                      LOAD_LIBRARY_SEARCH_SYSTEM32) {
+    auto path = LibSYCLDir / pluginName;
+    dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
+  };
+  loadPlugin(__SYCL_OPENCL_PLUGIN_NAME);
+  loadPlugin(__SYCL_LEVEL_ZERO_PLUGIN_NAME);
+  loadPlugin(__SYCL_CUDA_PLUGIN_NAME);
+  loadPlugin(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME);
+  loadPlugin(__SYCL_HIP_PLUGIN_NAME);
+  loadPlugin(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME);
+  loadPlugin(__SYCL_NATIVE_CPU_PLUGIN_NAME);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

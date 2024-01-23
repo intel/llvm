@@ -300,5 +300,31 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
+event queue::ext_oneapi_get_last_event() const {
+  if (!is_in_order())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_last_event() can only be called on in-order queues.");
+  if (impl->MDiscardEvents)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_last_event() cannot be called on queues with the "
+        "ext::oneapi::property::queue::discard_events property.");
+  return impl->getLastEvent();
+}
+
+void queue::ext_oneapi_set_external_event(const event &external_event) {
+  if (!is_in_order())
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "ext_oneapi_set_external_event() can only be called "
+                          "on in-order queues.");
+  if (impl->MDiscardEvents)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_set_external_event() cannot be called on queues with the "
+        "ext::oneapi::property::queue::discard_events property.");
+  return impl->setExternalEvent(external_event);
+}
+
 } // namespace _V1
 } // namespace sycl

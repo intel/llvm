@@ -22,6 +22,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
@@ -660,7 +661,8 @@ public:
         {"addc", {"addc", {l(0)}}},
         {"subb", {"subb", {l(0)}}},
         {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}},
-        {"srnd", {"srnd", {a(0), a(1)}}}};
+        {"srnd", {"srnd", {a(0), a(1)}}},
+        {"timestamp",{"timestamp",{}}}};
   }
   // clang-format on
 
@@ -968,6 +970,38 @@ static void translateBlockStore(CallInst &CI, bool IsSLM) {
 
   auto SI = Builder.CreateAlignedStore(Op1, Op0, Align);
   SI->setDebugLoc(CI.getDebugLoc());
+}
+
+static void translateGatherLoad(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  Align AlignValue(Val.getZExtValue());
+
+  auto OffsetsOp = CI.getArgOperand(0);
+  auto MaskOp = CI.getArgOperand(1);
+  auto PassThroughOp = CI.getArgOperand(2);
+  auto DataType = CI.getType();
+
+  // Convert the mask from <N x i16> to <N x i1>.
+  Value *Zero = ConstantInt::get(MaskOp->getType(), 0);
+  MaskOp = Builder.CreateICmp(ICmpInst::ICMP_NE, MaskOp, Zero);
+
+  // The address space may be 3-SLM, 1-global or private.
+  // At the moment of calling 'gather()' operation the pointer passed to it
+  // is already 4-generic. Thus, simply use 4-generic for global and private
+  // and let GPU BE deduce the actual address space from the use-def graph.
+  unsigned AS = IsSLM ? 3 : 4;
+  auto ElemType = DataType->getScalarType();
+  auto NumElems = (cast<VectorType>(DataType))->getElementCount();
+  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
+
+  auto LI = Builder.CreateMaskedGather(DataType, VPtrOp, AlignValue, MaskOp,
+                                       PassThroughOp);
+  LI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(LI);
 }
 
 // TODO Specify document behavior for slm_init and nbarrier_init when:
@@ -1703,6 +1737,42 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     F.addFnAttr(llvm::Attribute::NoInline);
   };
 
+  bool ModuleContainsGenXVolatile =
+      std::any_of(M.global_begin(), M.global_end(), [](const auto &Global) {
+        return Global.hasAttribute("genx_volatile");
+      });
+
+  auto requiresInlining = [=](Function &F) {
+    // If there are any genx_volatile globals in the module, inline
+    // noinline functions because load/store semantics are not valid for
+    // these globals and we cannot know for sure if the load/store target
+    // is one of these globals without inlining.
+    if (ModuleContainsGenXVolatile)
+      return true;
+
+    // Otherwise, only inline esimd namespace functions.
+    StringRef MangledName = F.getName();
+    id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
+                                               MangledName.end());
+    id::Node *AST = Parser.parse();
+    if (!AST || AST->getKind() != id::Node::KFunctionEncoding)
+      return false;
+
+    auto *FE = static_cast<id::FunctionEncoding *>(AST);
+    const id::Node *NameNode = FE->getName();
+    if (!NameNode)
+      return false;
+
+    if (NameNode->getKind() == id::Node::KLocalName)
+      return false;
+
+    id::OutputBuffer NameBuf;
+    NameNode->print(NameBuf);
+    StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
+
+    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+  };
   bool NeedInline = false;
   for (auto &F : M) {
     // If some function already has 'alwaysinline' attribute, then request
@@ -1739,7 +1809,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     // it had noinline or VCStackCall attrubute.
     // This code migrated to here without changes, but... VC BE does support
     //  the calls of spir_func these days, so this code needs re-visiting.
-    if (!F.hasFnAttribute(Attribute::NoInline))
+    if (!F.hasFnAttribute(Attribute::NoInline) || requiresInlining(F))
       NeedInline |= markAlwaysInlined(F);
 
     if (!isSlmInit(F))
@@ -1910,6 +1980,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
+      if (Name.startswith("__esimd_gather_ld") ||
+          Name.startswith("__esimd_slm_gather_ld")) {
+        translateGatherLoad(*CI, Name.startswith("__esimd_slm_gather_ld"));
+        ToErase.push_back(CI);
+        continue;
+      }
+
       if (Name.startswith("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);

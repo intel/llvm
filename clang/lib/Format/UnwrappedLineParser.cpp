@@ -1650,8 +1650,10 @@ void UnwrappedLineParser::parseStructuralElement(
       return;
     }
     // In Verilog labels can be any expression, so we don't do them here.
-    if (!Style.isVerilog() && Tokens->peekNextToken()->is(tok::colon) &&
-        !Line->MustBeDeclaration) {
+    // JS doesn't have macros, and within classes colons indicate fields, not
+    // labels.
+    if (!Style.isJavaScript() && !Style.isVerilog() &&
+        Tokens->peekNextToken()->is(tok::colon) && !Line->MustBeDeclaration) {
       nextToken();
       Line->Tokens.begin()->Tok->MustBreakBefore = true;
       FormatTok->setFinalizedType(TT_GotoLabelColon);
@@ -2306,7 +2308,7 @@ bool UnwrappedLineParser::tryToParseLambdaIntroducer() {
       LeftSquare->isCppStructuredBinding(Style)) {
     return false;
   }
-  if (FormatTok->is(tok::l_square))
+  if (FormatTok->is(tok::l_square) || tok::isLiteral(FormatTok->Tok.getKind()))
     return false;
   if (FormatTok->is(tok::r_square)) {
     const FormatToken *Next = Tokens->peekNextToken(/*SkipComment=*/true);

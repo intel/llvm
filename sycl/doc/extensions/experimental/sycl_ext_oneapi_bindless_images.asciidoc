@@ -506,6 +506,7 @@ namespace sycl::ext::oneapi::experimental {
 struct unsampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
 
+  unsampled_image_handle();
   unsampled_image_handle(raw_image_handle_type raw_handle);
 
   raw_image_handle_type raw_handle;
@@ -515,6 +516,7 @@ struct unsampled_image_handle {
 struct sampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
 
+  sampled_image_handle();
   sampled_image_handle(raw_image_handle_type raw_image_handle);
 
   raw_image_handle_type raw_handle;
@@ -618,7 +620,10 @@ If the creation of an image fails, `create_image` will throw a `sycl::exception`
 with error code `sycl::errc::runtime`.
 
 The `unsampled_image_handle` and `sampled_image_handle` types shall be 
-default-constructible, copy-constructible, and device-copyable.
+default-constructible, copy-constructible, and device-copyable. When default 
+constructed, image handles are not valid until a user manually assigns a valid 
+`raw_image_handle_type` to the `raw_handle` field of the handle struct. The 
+default value of the `raw_handle` is implementation defined.
 
 The `unsampled_image_handle` and `sampled_image_handle` types have a 
 constructor to allow creation of the types from a `raw_image_handle_type`

@@ -1880,11 +1880,9 @@ selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
       llvm::RISCVISAInfo::parseArchString(
           Arch, /*EnableExperimentalExtension=*/true,
           /*ExperimentalExtensionVersionCheck=*/false);
-  if (!ParseResult) {
-    // Ignore any error here, we assume it will be handled in another place.
-    consumeError(ParseResult.takeError());
+  // Ignore any error here, we assume it will be handled in another place.
+  if (llvm::errorToBool(ParseResult.takeError()))
     return false;
-  }
 
   auto &ISAInfo = *ParseResult;
 
@@ -1919,10 +1917,8 @@ selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
           llvm::RISCVISAInfo::parseArchString(
               Flag, /*EnableExperimentalExtension=*/true,
               /*ExperimentalExtensionVersionCheck=*/false);
-      if (!MLConfigParseResult) {
-        // Ignore any error here, we assume it will handled in another place.
-        llvm::consumeError(MLConfigParseResult.takeError());
-
+      // Ignore any error here, we assume it will handled in another place.
+      if (llvm::errorToBool(MLConfigParseResult.takeError())) {
         // We might get a parsing error if rv32e in the list, we could just skip
         // that and process the rest of multi-lib configs.
         Skip = true;
@@ -2394,6 +2390,15 @@ void Generic_GCC::GCCInstallationDetector::init(
     return;
   }
 
+  // If --gcc-triple is specified use this instead of trying to
+  // auto-detect a triple.
+  if (const Arg *A =
+          Args.getLastArg(clang::driver::options::OPT_gcc_triple_EQ)) {
+    StringRef GCCTriple = A->getValue();
+    CandidateTripleAliases.clear();
+    CandidateTripleAliases.push_back(GCCTriple);
+  }
+
   // Compute the set of prefixes for our search.
   SmallVector<std::string, 8> Prefixes;
   StringRef GCCToolchainDir = getGCCToolchainDir(Args, D.SysRoot);
@@ -2802,7 +2807,9 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::arm:
   case llvm::Triple::thumb:
     LibDirs.append(begin(ARMLibDirs), end(ARMLibDirs));
-    if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF) {
+    if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::MuslEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::EABIHF) {
       TripleAliases.append(begin(ARMHFTriples), end(ARMHFTriples));
     } else {
       TripleAliases.append(begin(ARMTriples), end(ARMTriples));
@@ -2811,7 +2818,9 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::armeb:
   case llvm::Triple::thumbeb:
     LibDirs.append(begin(ARMebLibDirs), end(ARMebLibDirs));
-    if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF) {
+    if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::MuslEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::EABIHF) {
       TripleAliases.append(begin(ARMebHFTriples), end(ARMebHFTriples));
     } else {
       TripleAliases.append(begin(ARMebTriples), end(ARMebTriples));

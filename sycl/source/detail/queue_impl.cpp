@@ -61,6 +61,20 @@ static event createDiscardedEvent() {
   return createSyclObjFromImpl<event>(EventImpl);
 }
 
+const std::vector<event> &
+queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
+                                    std::vector<event> &MutableVec) {
+  if (isInOrder()) {
+    std::optional<event> ExternalEvent = popExternalEvent();
+    if (ExternalEvent) {
+      MutableVec = DepEvents;
+      MutableVec.push_back(*ExternalEvent);
+      return MutableVec;
+    }
+  }
+  return DepEvents;
+}
+
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
@@ -108,9 +122,13 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext),
+                            getOrWaitEvents(ExpandedDepEvents, MContext),
                             &EventImpl->getHandleRef(), EventImpl);
 
     if (MContext->is_host())
@@ -201,9 +219,13 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext),
+                            getOrWaitEvents(ExpandedDepEvents, MContext),
                             &EventImpl->getHandleRef(), EventImpl);
 
     if (MContext->is_host())
@@ -227,6 +249,17 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
+  // If we have a command graph set we need to capture the advise through normal
+  // queue submission.
+  if (MGraph.lock()) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.mem_advise(Ptr, Length, Advice);
+        },
+        Self, {});
+  }
+
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -244,9 +277,13 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext),
+                              getOrWaitEvents(ExpandedDepEvents, MContext),
                               &EventImpl->getHandleRef(), EventImpl);
 
     if (MContext->is_host())
@@ -288,11 +325,15 @@ event queue_impl::memcpyToDeviceGlobal(
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                                         getOrWaitEvents(DepEvents, MContext),
-                                         &EventImpl->getHandleRef(), EventImpl);
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        getOrWaitEvents(ExpandedDepEvents, MContext),
+        &EventImpl->getHandleRef(), EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -333,11 +374,15 @@ event queue_impl::memcpyFromDeviceGlobal(
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents);
+
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &EventImpl->getHandleRef(),
-        EventImpl);
+        getOrWaitEvents(ExpandedDepEvents, MContext),
+        &EventImpl->getHandleRef(), EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

@@ -153,9 +153,7 @@ get_tangle_group(Group group) {
   // TODO: Construct from compiler-generated mask. Return an invalid group in
   //       in the meantime. CUDA devices will report false for the tangle_group
   //       support aspect so kernels launch should ensure this is never run.
-  return tangle_group<sycl::sub_group>(
-      sycl::detail::Builder::createSubGroupMask<
-          sycl::ext::oneapi::sub_group_mask>(0, 0));
+  return tangle_group<sycl::sub_group>(0);
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

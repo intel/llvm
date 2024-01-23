@@ -18,6 +18,7 @@ on:
     - '**.rst'
     - '.github/workflows/sycl_linux_*.yml'
     - '.github/workflows/sycl_precommit_aws.yml'
+    - '.github/workflows/sycl_macos_*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -33,41 +34,10 @@ jobs:
   detect_changes:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
-  lint:
-    runs-on: [Linux, build]
-    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
-    container:
-      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
-      options: -u 1001:1001
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: ${{ github.base_ref }}
-        sparse-checkout: |
-          devops/actions/cached_checkout
-          devops/actions/clang-format
-          devops/actions/cleanup
-    - name: Register cleanup after job is finished
-      uses: ./devops/actions/cleanup
-    - name: 'PR commits + 2'
-      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
-    - uses: ./devops/actions/cached_checkout
-      with:
-        path: src
-        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-        ref: ${{ github.event.pull_request.head.sha }}
-        merge_ref: ''
-        cache_path: "/__w/repo_cache/"
-    - name: Run clang-format
-      uses: ./devops/actions/clang-format
-      with:
-        path: src
-
   build:
-    needs: [lint, detect_changes]
+    needs: [detect_changes]
     if: |
-      always()
-      && (success() || needs.lint.result == 'skipped')
+      always() && success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build.yml
     with:

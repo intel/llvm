@@ -309,12 +309,15 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
 // Add decoration if needed
 void addFPBuiltinDecoration(SPIRVModule *BM, Instruction *Inst,
                             SPIRVInstruction *I) {
-  if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_max_error))
-    return;
+  bool AllowFPMaxError =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_max_error);
+
   auto *II = dyn_cast_or_null<IntrinsicInst>(Inst);
   if (II && II->getCalledFunction()->getName().starts_with("llvm.fpbuiltin")) {
     // Add a new decoration for llvm.builtin intrinsics, if needed
     if (II->getAttributes().hasFnAttr("fpbuiltin-max-error")) {
+      BM->getErrorLog().checkError(AllowFPMaxError, SPIRVEC_RequiresExtension,
+                                   "SPV_INTEL_fp_max_error\n");
       double F = 0.0;
       II->getAttributes()
           .getFnAttr("fpbuiltin-max-error")
@@ -324,6 +327,8 @@ void addFPBuiltinDecoration(SPIRVModule *BM, Instruction *Inst,
                      convertFloatToSPIRVWord(F));
     }
   } else if (auto *MD = Inst->getMetadata("fpmath")) {
+    if (!AllowFPMaxError)
+      return;
     auto *MDVal = mdconst::dyn_extract<ConstantFP>(MD->getOperand(0));
     double ValAsDouble = MDVal->getValue().convertToFloat();
     I->addDecorate(DecorationFPMaxErrorDecorationINTEL,
@@ -1036,6 +1041,14 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
             ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
       if (getMDOperandAsInt(StallEnable, 0))
         BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
+    }
+  }
+  if (MDNode *StallFree = F->getMetadata(kSPIR2MD::StallFree)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
+      if (getMDOperandAsInt(StallFree, 0)) {
+        BF->addDecorate(new SPIRVDecorateStallFreeINTEL(BF));
+      }
     }
   }
   if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
@@ -2671,6 +2684,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       Target->addDecorate(new SPIRVDecorateStallEnableINTEL(Target));
       break;
     }
+    case DecorationStallFreeINTEL: {
+      Target->addDecorate(new SPIRVDecorateStallFreeINTEL(Target));
+      break;
+    }
     case DecorationMergeINTEL: {
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
                         "MergeINTEL requires exactly 3 extra operands");
@@ -3896,8 +3913,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return nullptr;
   }
   case Intrinsic::bitreverse: {
-    if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions)) {
-      BM->addCapability(CapabilityShader);
+    if (!BM->getErrorLog().checkError(
+            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions),
+            SPIRVEC_InvalidFunctionCall, II,
+            "Translation of llvm.bitreverse intrinsic requires "
+            "SPV_KHR_bit_instructions extension.")) {
+      return nullptr;
     }
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
@@ -6246,11 +6267,6 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
   }
-  case OpMatrixTimesScalar: {
-    return BM->addMatrixTimesScalarInst(
-        transType(CI->getType()), transValue(CI->getArgOperand(0), BB)->getId(),
-        transValue(CI->getArgOperand(1), BB)->getId(), BB);
-  }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transScavengedType(CI),
@@ -6455,6 +6471,7 @@ bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
                                       SPIRVEC_TripleMaxVersionIncompatible))
       return false;
     BM->setMinSPIRVVersion(ModuleVer);
+    BM->setMaxSPIRVVersion(ModuleVer);
   }
 
   ModulePassManager PassMgr;
