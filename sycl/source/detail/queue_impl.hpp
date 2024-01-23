@@ -841,6 +841,23 @@ protected:
     return Event;
   }
 
+  /// Helper function for memory operation shortcuts. Checks if the scheduler
+  /// can be bypassed and submits the operation directly if so.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param DiscardPiEventFunc is a function that performs submission while
+  ///        discarding the PI event.
+  /// \param KeepPiEventFunc is a function that performs submission while
+  ///        keeping the PI event.
+  /// \return a SYCL event if direct submission is possible.
+  template <typename DiscardPiEventFuncT, typename KeepPiEventFuncT>
+  std::optional<event>
+  tryBypassingScheduler(const std::shared_ptr<detail::queue_impl> &Self,
+                        const std::vector<sycl::event> &DepEvents,
+                        DiscardPiEventFuncT DiscardPiEventFunc,
+                        KeepPiEventFuncT KeepPiEventFunc);
+
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(const detail::code_location &CodeLoc,

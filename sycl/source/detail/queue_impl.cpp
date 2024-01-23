@@ -39,36 +39,6 @@ getPIEvents(const std::vector<sycl::event> &DepEvents) {
   return RetPiEvents;
 }
 
-static bool
-checkEventsForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                              ContextImplPtr Context) {
-  auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
-    // Throwaway events created with empty constructor will not have a
-    // context (it is set lazily). Calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    if (!SyclEventImplPtr->isContextInitialized() &&
-        !SyclEventImplPtr->is_host()) {
-      return true;
-    }
-    if (SyclEventImplPtr->is_host()) {
-      return SyclEventImplPtr->isCompleted();
-    }
-    // Cross-context dependencies can't be passed to the backend directly.
-    if (SyclEventImplPtr->getContextImpl() != Context)
-      return false;
-
-    // A nullptr here means that the commmand does not produce a PI event or it
-    // hasn't been enqueued yet.
-    return SyclEventImplPtr->getHandleRef() != nullptr;
-  };
-
-  return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context, &CheckEvent](const sycl::event &Event) {
-                       auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
-                       return CheckEvent(SyclEventImplPtr);
-                     });
-}
-
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
@@ -155,40 +125,19 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           "for use with the SYCL Graph extension.");
   }
 
-  // We need to submit command and update the last event under same lock if we
-  // have in-order queue.
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
-
-    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
-        MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                                getPIEvents(ExpandedDepEvents), nullptr);
-        return createDiscardedEvent();
-      }
-
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                              getPIEvents(ExpandedDepEvents),
-                              &EventImpl->getHandleRef(), EventImpl);
-      if (MContext->is_host())
-        return MDiscardEvents ? createDiscardedEvent() : event();
-      if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-      // Track only if we won't be able to handle it with piQueueFinish.
-      if (MEmulateOOO)
-        addSharedEvent(ResEvent);
-      return discard_or_return(ResEvent);
-    }
-  }
+  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
+    MemoryManager::fill_usm(Ptr, Self, Count, Value, PiDepEvents, nullptr);
+  };
+  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
+                             pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+    MemoryManager::fill_usm(Ptr, Self, Count, Value, PiDepEvents, OutEvent,
+                            OutEventImpl);
+  };
+  std::optional<event> Result = tryBypassingScheduler(
+      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
+  if (Result)
+    return *Result;
 
   return submit(
       [&](handler &CGH) {
@@ -256,38 +205,19 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                         PI_ERROR_INVALID_VALUE);
   }
 
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
-
-    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
-        MemoryManager::copy_usm(Src, Self, Count, Dest,
-                                getPIEvents(ExpandedDepEvents), nullptr);
-        return createDiscardedEvent();
-      }
-
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::copy_usm(Src, Self, Count, Dest,
-                              getPIEvents(ExpandedDepEvents),
-                              &EventImpl->getHandleRef(), EventImpl);
-      if (MContext->is_host())
-        return MDiscardEvents ? createDiscardedEvent() : event();
-      if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-      // Track only if we won't be able to handle it with piQueueFinish.
-      if (MEmulateOOO)
-        addSharedEvent(ResEvent);
-      return discard_or_return(ResEvent);
-    }
-  }
+  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
+    MemoryManager::copy_usm(Src, Self, Count, Dest, PiDepEvents, nullptr);
+  };
+  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
+                             pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+    MemoryManager::copy_usm(Src, Self, Count, Dest, PiDepEvents, OutEvent,
+                            OutEventImpl);
+  };
+  std::optional<event> Result = tryBypassingScheduler(
+      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
+  if (Result)
+    return *Result;
 
   return submitWithScheduler();
 }
@@ -309,40 +239,19 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   if (MGraph.lock())
     return submitWithScheduler();
 
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
-
-    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
-        MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                  getPIEvents(ExpandedDepEvents), nullptr);
-        return createDiscardedEvent();
-      }
-
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                getPIEvents(ExpandedDepEvents),
-                                &EventImpl->getHandleRef(), EventImpl);
-      if (MContext->is_host()) {
-        return MDiscardEvents ? createDiscardedEvent() : event();
-      }
-      if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-      // Track only if we won't be able to handle it with piQueueFinish.
-      if (MEmulateOOO)
-        addSharedEvent(ResEvent);
-
-      return discard_or_return(ResEvent);
-    }
-  }
+  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
+    MemoryManager::advise_usm(Ptr, Self, Length, Advice, PiDepEvents, nullptr);
+  };
+  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
+                             pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+    MemoryManager::advise_usm(Ptr, Self, Length, Advice, PiDepEvents, OutEvent,
+                              OutEventImpl);
+  };
+  std::optional<event> Result = tryBypassingScheduler(
+      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
+  if (Result)
+    return *Result;
 
   return submitWithScheduler();
 }
@@ -351,40 +260,22 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
-
-    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
-        MemoryManager::copy_to_device_global(
-            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-            getPIEvents(ExpandedDepEvents), nullptr);
-        return createDiscardedEvent();
-      }
-
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::copy_to_device_global(
-          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-          getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
-          EventImpl);
-      if (MContext->is_host())
-        return MDiscardEvents ? createDiscardedEvent() : event();
-      if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-      // Track only if we won't be able to handle it with piQueueFinish.
-      if (MEmulateOOO)
-        addSharedEvent(ResEvent);
-      return discard_or_return(ResEvent);
-    }
-  }
+  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
+    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                         Self, NumBytes, Offset, Src,
+                                         PiDepEvents, nullptr);
+  };
+  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
+                             pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                         Self, NumBytes, Offset, Src,
+                                         PiDepEvents, OutEvent, OutEventImpl);
+  };
+  std::optional<event> Result = tryBypassingScheduler(
+      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
+  if (Result)
+    return *Result;
 
   return submit(
       [&](handler &CGH) {
@@ -399,40 +290,22 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
-
-    if (checkEventsForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
-        MemoryManager::copy_from_device_global(
-            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-            getPIEvents(ExpandedDepEvents), nullptr);
-        return createDiscardedEvent();
-      }
-
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::copy_from_device_global(
-          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-          getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
-          EventImpl);
-      if (MContext->is_host())
-        return MDiscardEvents ? createDiscardedEvent() : event();
-      if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-      // Track only if we won't be able to handle it with piQueueFinish.
-      if (MEmulateOOO)
-        addSharedEvent(ResEvent);
-      return discard_or_return(ResEvent);
-    }
-  }
+  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
+    MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                           Self, NumBytes, Offset, Dest,
+                                           PiDepEvents, nullptr);
+  };
+  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
+                             pi::PiEvent *OutEvent,
+                             const detail::EventImplPtr &OutEventImpl) {
+    MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                           Self, NumBytes, Offset, Dest,
+                                           PiDepEvents, OutEvent, OutEventImpl);
+  };
+  std::optional<event> Result = tryBypassingScheduler(
+      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
+  if (Result)
+    return *Result;
 
   return submit(
       [&](handler &CGH) {
@@ -504,6 +377,72 @@ void queue_impl::addSharedEvent(const event &Event) {
             }));
   }
   MEventsShared.push_back(Event);
+}
+
+static bool
+areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
+                                ContextImplPtr Context) {
+  auto CheckEvent = [&Context](const sycl::event &Event) {
+    const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
+    // Events that don't have an initialized context are throwaway evemts that
+    // don't represent actual dependencies. Calling getContextImpl() would set
+    // their context, which we wish to avoid as it is expensive.
+    if (!SyclEventImplPtr->isContextInitialized() &&
+        !SyclEventImplPtr->is_host()) {
+      return true;
+    }
+    if (SyclEventImplPtr->is_host()) {
+      return SyclEventImplPtr->isCompleted();
+    }
+    // Cross-context dependencies can't be passed to the backend directly.
+    if (SyclEventImplPtr->getContextImpl() != Context)
+      return false;
+
+    // A nullptr here means that the commmand does not produce a PI event or it
+    // hasn't been enqueued yet.
+    return SyclEventImplPtr->getHandleRef() != nullptr;
+  };
+
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context, &CheckEvent](const sycl::event &Event) {
+                       return CheckEvent(Event);
+                     });
+}
+
+template <typename DiscardPiEventFuncT, typename KeepPiEventFuncT>
+std::optional<event> queue_impl::tryBypassingScheduler(
+    const std::shared_ptr<detail::queue_impl> &Self,
+    const std::vector<sycl::event> &DepEvents,
+    DiscardPiEventFuncT DiscardPiEventFunc, KeepPiEventFuncT KeepPiEventFunc) {
+  // We need to submit command and update the last event under same lock if we
+  // have in-order queue.
+  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+
+  std::vector<event> MutableDepEvents;
+  const std::vector<event> &ExpandedDepEvents =
+      getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
+
+  if (!areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext))
+    return std::nullopt;
+  if (MHasDiscardEventsSupport) {
+    DiscardPiEventFunc(getPIEvents(ExpandedDepEvents));
+    return createDiscardedEvent();
+  }
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+  auto EventImpl = detail::getSyclObjImpl(ResEvent);
+  KeepPiEventFunc(getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
+                  EventImpl);
+  if (MContext->is_host())
+    return MDiscardEvents ? createDiscardedEvent() : event();
+  if (isInOrder()) {
+    auto &EventToStoreIn = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+    EventToStoreIn = EventImpl;
+  }
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (MEmulateOOO)
+    addSharedEvent(ResEvent);
+  return discard_or_return(ResEvent);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
