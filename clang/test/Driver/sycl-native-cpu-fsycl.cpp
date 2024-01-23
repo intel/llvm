@@ -16,21 +16,28 @@
 //CHECK_ACTIONS:   +- 9: assembler, {8}, object, (host-sycl)
 //CHECK_ACTIONS:+- 10: linker, {9}, image, (host-sycl)
 //CHECK_ACTIONS:        +- 11: linker, {5}, ir, (device-sycl)
-//CHECK_ACTIONS:        |- 75: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
-//CHECK_ACTIONS:     +- 76: linker, {11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 75}, ir, (device-sycl)
+//CHECK_ACTIONS:        |- [[SRIRVLINK:.*]]: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl)
+//different libraries may be linked on different platforms, so just check the common stages
+//CHECK_ACTIONS_TODO:     +- [[LINKALL:.*]]: linker, {[0-9, ]* [[SRIRVLINK]]}, ir, (device-sycl)
+//CHECK_ACTIONS:        +- [[NCPUINP:.*]]: input, "{{.*}}nativecpu{{.*}}", object
+//CHECK_ACTIONS:      +- [[NCPUUNB:.*]]: clang-offload-unbundler, {[[NCPUINP]]}, object
+//CHECK_ACTIONS:     |- [[NCPUOFFLOAD:.*]]: offload, " ({{.*}})" {[[NCPUUNB]]}, object
+//CHECK_ACTIONS:    +- [[NCPULINK:.*]]: linker, {[[ALLLINK:.*]], [[NCPUOFFLOAD]]}, ir, (device-sycl)
 //this is where we compile the device code to a shared lib, and we link the host shared lib and the device shared lib
-//CHECK_ACTIONS:|  +- 81: backend, {80}, assembler, (device-sycl)
-//CHECK_ACTIONS:|- 82: assembler, {81}, object, (device-sycl)
+//CHECK_ACTIONS:|  +- [[VAL81:.*]]: backend, {[[NCPULINK]]}, assembler, (device-sycl)
+//CHECK_ACTIONS:|- [[VAL82:.*]]: assembler, {[[VAL81]]}, object, (device-sycl)
 //call sycl-post-link and clang-offload-wrapper
-//CHECK_ACTIONS:|  +- 83: sycl-post-link, {76}, tempfiletable, (device-sycl)
-//CHECK_ACTIONS:|- 84: clang-offload-wrapper, {83}, object, (device-sycl)
-//CHECK_ACTIONS:85: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {82}, "device-sycl ({{.*}})" {84}, image
+//CHECK_ACTIONS:|  +- [[VAL83:.*]]: sycl-post-link, {[[ALLLINK]]}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS:|- [[VAL84:.*]]: clang-offload-wrapper, {[[VAL83]]}, object, (device-sycl)
+//CHECK_ACTIONS:[[VAL85:.*]]: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {[[VAL82]]}, "device-sycl ({{.*}})" {84}, image
 
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINK]].bc", "{{.*}}.bc"], output: "[[KERNELLINKWLIB:.*]].bc"
-//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB2:.*]].bc"], output: "[[KERNELOBJ:.*]].o"
+//CHECK_BINDINGS:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}nativecpu_utils.obj"], outputs: ["[[UNBUNDLEDNCPU:.*]].o"]
+//CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELLINKWLIB]].bc", "[[UNBUNDLEDNCPU]].o"], output: "[[KERNELLINKWLIB12:.*]].bc"
+//CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINKWLIB12]].bc"], output: "[[KERNELOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL post link", inputs: ["[[KERNELLINKWLIB]].bc"], output: "[[TABLEFILE:.*]].table"
 //CHECK_BINDINGS:# "{{.*}}" - "offload wrapper", inputs: ["[[TABLEFILE]].table"], output: "[[WRAPPEROBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "Append Footer to source", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[SRCWFOOTER:.*]].cpp"
