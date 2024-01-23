@@ -4652,13 +4652,39 @@ inline pi_result piextCommandBufferAdviseUSM(
     pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
     pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  // TODO: Handle advice correctly
-  (void)Advice;
 
   ur_exp_command_buffer_handle_t UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
 
   ur_usm_advice_flags_t UrAdvice{};
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_RESET) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
+  }
+
   HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
       UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
