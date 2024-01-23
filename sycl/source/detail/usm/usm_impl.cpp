@@ -139,10 +139,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
                            const context_impl *CtxImpl,
                            const device_impl *DevImpl, alloc Kind,
                            const property_list &PropList) {
-  if ((Kind == alloc::device &&
-       !DevImpl->has(sycl::aspect::usm_device_allocations)) ||
-      (Kind == alloc::shared &&
-       !DevImpl->has(sycl::aspect::usm_shared_allocations))) {
+  if (Kind == alloc::device &&
+      !DevImpl->has(sycl::aspect::usm_device_allocations)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Device does not support Unified Shared Memory!");
   }
@@ -267,6 +265,10 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   PrepareNotify.scopedNotify(
       (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
 #endif
+  if (Kind == alloc::shared && !Dev.has(sycl::aspect::usm_shared_allocations)) {
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Device does not support USM shared allocations!");
+  }
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                            getSyclObjImpl(Dev).get(), Kind, PropList);
