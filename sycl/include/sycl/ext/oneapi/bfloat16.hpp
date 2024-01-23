@@ -134,7 +134,7 @@ public:
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs) {                                \
+  friend bfloat16 &operator op(bfloat16 & lhs) {                               \
     float f = to_float(lhs.value);                                             \
     lhs.value = from_float(op f);                                              \
     return lhs;                                                                \
@@ -150,18 +150,18 @@ public:
 
   // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
+  friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
   template <typename T>                                                        \
-  friend bfloat16 &operator op(bfloat16 &lhs, const T &rhs) {                  \
+  friend bfloat16 &operator op(bfloat16 & lhs, const T & rhs) {                \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
-  template <typename T> friend T &operator op(T &lhs, const bfloat16 &rhs) {   \
+  template <typename T> friend T &operator op(T & lhs, const bfloat16 & rhs) { \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
