@@ -256,36 +256,47 @@ pixelf32 as_pixelf32(int4 v) { return as_float4(v); }
             image, x * sizeof(pixelf##pixelf_size), y, z));                    \
   }
 
-_DEFINE_VEC4_CAST(float, int)
-_DEFINE_VEC4_CAST(int, float)
-_DEFINE_VEC4_CAST(float, uint)
-_DEFINE_VEC4_CAST(uint, float)
-_DEFINE_VEC4_CAST(uint, int)
+_DEFINE_VEC4_CAST(int, int)
 _DEFINE_VEC4_CAST(int, uint)
 _DEFINE_VEC4_CAST(int, short)
 _DEFINE_VEC4_CAST(int, char)
+_DEFINE_VEC4_CAST(int, float)
 _DEFINE_VEC4_CAST(uint, ushort)
 _DEFINE_VEC4_CAST(uint, uchar)
+_DEFINE_VEC4_CAST(short, short)
+_DEFINE_VEC4_CAST(short, ushort)
 _DEFINE_VEC4_CAST(short, char)
 _DEFINE_VEC4_CAST(short, uchar)
+_DEFINE_VEC4_CAST(float, int)
+_DEFINE_VEC4_CAST(float, uint)
 _DEFINE_VEC4_CAST(float, half)
 
 _DEFINE_VEC4_TO_VEC2_CAST(int, int)
-_DEFINE_VEC4_TO_VEC2_CAST(uint, uint)
-_DEFINE_VEC4_TO_VEC2_CAST(float, float)
-_DEFINE_VEC4_TO_VEC2_CAST(short, short)
-_DEFINE_VEC4_TO_VEC2_CAST(short, char)
+_DEFINE_VEC4_TO_VEC2_CAST(int, uint)
 _DEFINE_VEC4_TO_VEC2_CAST(int, short)
 _DEFINE_VEC4_TO_VEC2_CAST(int, char)
+_DEFINE_VEC4_TO_VEC2_CAST(uint, uint)
 _DEFINE_VEC4_TO_VEC2_CAST(uint, ushort)
 _DEFINE_VEC4_TO_VEC2_CAST(uint, uchar)
+_DEFINE_VEC4_TO_VEC2_CAST(short, short)
+_DEFINE_VEC4_TO_VEC2_CAST(short, ushort)
+_DEFINE_VEC4_TO_VEC2_CAST(short, char)
+_DEFINE_VEC4_TO_VEC2_CAST(float, float)
 _DEFINE_VEC4_TO_VEC2_CAST(float, half)
 
+_DEFINE_VEC2_CAST(int, int)
 _DEFINE_VEC2_CAST(int, float)
+_DEFINE_VEC2_CAST(short, short)
 _DEFINE_VEC2_CAST(short, char)
 _DEFINE_VEC2_CAST(short, uchar)
 
+_DEFINE_CAST(int, int)
+_DEFINE_CAST(int, uint)
 _DEFINE_CAST(int, float)
+_DEFINE_CAST(short, short)
+_DEFINE_CAST(short, ushort)
+_DEFINE_CAST(short, char)
+_DEFINE_CAST(short, uchar)
 _DEFINE_CAST(float, float)
 _DEFINE_CAST(float2, float2)
 _DEFINE_CAST(float4, float4)
@@ -2588,3 +2599,349 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_f, flo
 #undef COORD_PARAMS_3D
 
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN
+
+// ------- Image Arrays / Layered Images -------
+
+// //  --- THUNKS: Surface Array Reads ---
+// int
+int __nvvm_suld_1d_array_i32_clamp_s(long, int, int) __asm(
+    "llvm.nvvm.suld.1d.array.i32.clamp");
+int __nvvm_suld_2d_array_i32_clamp_s(long, int, int, int) __asm(
+    "llvm.nvvm.suld.2d.array.i32.clamp");
+int2 __nvvm_suld_1d_array_v2i32_clamp_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v2i32_clamp");
+int2 __nvvm_suld_2d_array_v2i32_clamp_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v2i32_clamp");
+int4 __nvvm_suld_1d_array_v4i32_clamp_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v4i32_clamp");
+int4 __nvvm_suld_2d_array_v4i32_clamp_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v4i32_clamp");
+
+// short
+short __nvvm_suld_1d_array_i16_clamp_s(long, int, int) __asm(
+    "llvm.nvvm.suld.1d.array.i16.clamp");
+short __nvvm_suld_2d_array_i16_clamp_s(long, int, int, int) __asm(
+    "llvm.nvvm.suld.2d.array.i16.clamp");
+short2 __nvvm_suld_1d_array_v2i16_clamp_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v2i16_clamp");
+short2 __nvvm_suld_2d_array_v2i16_clamp_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v2i16_clamp");
+short4 __nvvm_suld_1d_array_v4i16_clamp_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v4i16_clamp");
+short4 __nvvm_suld_2d_array_v4i16_clamp_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v4i16_clamp");
+
+// char helper -- i8 intrinsic returns i16, requires helper
+short __nvvm_suld_1d_array_i8_clamp_s_helper(long, int, int) __asm(
+    "llvm.nvvm.suld.1d.array.i8.clamp");
+short __nvvm_suld_2d_array_i8_clamp_s_helper(long, int, int, int) __asm(
+    "llvm.nvvm.suld.2d.array.i8.clamp");
+short2 __nvvm_suld_1d_array_v2i8_clamp_s_helper(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v2i8_clamp");
+short2 __nvvm_suld_2d_array_v2i8_clamp_s_helper(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v2i8_clamp");
+short4 __nvvm_suld_1d_array_v4i8_clamp_s_helper(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_array_v4i8_clamp");
+short4 __nvvm_suld_2d_array_v4i8_clamp_s_helper(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_array_v4i8_clamp");
+
+// Macro to generate surface array fetches
+#define _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(                \
+    elem_t, fetch_elem_t, cast_to_elem_t, vec_size, fetch_vec_size, helper)    \
+  elem_t __nvvm_suld_1d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
+                                                   int idx, int x) {           \
+    fetch_elem_t a = __nvvm_suld_1d_array_##fetch_vec_size##_clamp_s##helper(  \
+        imageHandle, idx, x);                                                  \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+  }                                                                            \
+  elem_t __nvvm_suld_2d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
+                                                   int idx, int x, int y) {    \
+    fetch_elem_t a = __nvvm_suld_2d_array_##fetch_vec_size##_clamp_s##helper(  \
+        imageHandle, idx, x, y);                                               \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+  }
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, int, uint, j32, i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort, short, ushort, t16, i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char, short, char, i8, i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar, short, uchar, h8, i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint2, int4, uint2, v2j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort2, short4, ushort2, v2t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char2, short2, char2, v2i8, v2i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar2, short2, uchar2, v2h8, v2i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint4, int4, uint4, v4j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort4, short4, ushort4, v4t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char4, short4, char4, v4i8, v4i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar4, short4, uchar4, v4h8, v4i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float, int, int, f32, i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, short, short, f16, i16, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float2, int2, int2, v2f32, v2i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half2, short2, short2, v2f16, v2i16, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float4, int4, int4, v4f32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4, v4f16, v4i16, )
+
+#undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN
+
+// //  --- THUNKS: Surface Array Writes ---
+// int
+void __nvvm_sust_1d_array_v4i32_clamp_s(
+    unsigned long, int, int, int, int, int,
+    int) __asm("llvm.nvvm.sust.b.1d.array.v4i32.clamp");
+void __nvvm_sust_2d_array_v4i32_clamp_s(
+    unsigned long, int, int, int, int, int, int,
+    int) __asm("llvm.nvvm.sust.b.2d.array.v4i32.clamp");
+void __nvvm_sust_1d_array_v2i32_clamp_s(
+    unsigned long, int, int, int,
+    int) __asm("llvm.nvvm.sust.b.1d.array.v2i32.clamp");
+void __nvvm_sust_2d_array_v2i32_clamp_s(
+    unsigned long, int, int, int, int,
+    int) __asm("llvm.nvvm.sust.b.2d.array.v2i32.clamp");
+void __nvvm_sust_1d_array_i32_clamp_s(unsigned long, int, int, int) __asm(
+    "llvm.nvvm.sust.b.1d.array.i32.clamp");
+void __nvvm_sust_2d_array_i32_clamp_s(unsigned long, int, int, int, int) __asm(
+    "llvm.nvvm.sust.b.2d.array.i32.clamp");
+
+// short
+void __nvvm_sust_1d_array_v4i16_clamp_s(
+    unsigned long, int, int, short, short, short,
+    short) __asm("llvm.nvvm.sust.b.1d.array.v4i16.clamp");
+void __nvvm_sust_2d_array_v4i16_clamp_s(
+    unsigned long, int, int, int, short, short, short,
+    short) __asm("llvm.nvvm.sust.b.2d.array.v4i16.clamp");
+void __nvvm_sust_1d_array_v2i16_clamp_s(
+    unsigned long, int, int, short,
+    short) __asm("llvm.nvvm.sust.b.1d.array.v2i16.clamp");
+void __nvvm_sust_2d_array_v2i16_clamp_s(
+    unsigned long, int, int, int, short,
+    short) __asm("llvm.nvvm.sust.b.2d.array.v2i16.clamp");
+void __nvvm_sust_1d_array_i16_clamp_s(unsigned long, int, int, short) __asm(
+    "llvm.nvvm.sust.b.1d.array.i16.clamp");
+void __nvvm_sust_2d_array_i16_clamp_s(
+    unsigned long, int, int, int,
+    short) __asm("llvm.nvvm.sust.b.2d.array.i16.clamp");
+
+// char helper -- i8 intrinsic takes i16, requires helper
+void __nvvm_sust_1d_array_v4i8_clamp_s_helper(
+    unsigned long, int, int, short, short, short,
+    short) __asm("llvm.nvvm.sust.b.1d.array.v4i8.clamp");
+void __nvvm_sust_2d_array_v4i8_clamp_s_helper(
+    unsigned long, int, int, int, short, short, short,
+    short) __asm("llvm.nvvm.sust.b.2d.array.v4i8.clamp");
+void __nvvm_sust_1d_array_v2i8_clamp_s_helper(
+    unsigned long, int, int, short,
+    short) __asm("llvm.nvvm.sust.b.1d.array.v2i8.clamp");
+void __nvvm_sust_2d_array_v2i8_clamp_s_helper(
+    unsigned long, int, int, int, short,
+    short) __asm("llvm.nvvm.sust.b.2d.array.v2i8.clamp");
+void __nvvm_sust_1d_array_i8_clamp_s_helper(
+    unsigned long, int, int, short) __asm("llvm.nvvm.sust.b.1d.array.i8.clamp");
+void __nvvm_sust_2d_array_i8_clamp_s_helper(
+    unsigned long, int, int, int,
+    short) __asm("llvm.nvvm.sust.b.2d.array.i8.clamp");
+
+#define COLOR_INPUT_1_CHANNEL(elem_t) elem_t a
+#define COLOR_INPUT_2_CHANNEL(elem_t) elem_t a, elem_t b
+#define COLOR_INPUT_4_CHANNEL(elem_t) elem_t a, elem_t b, elem_t c, elem_t d
+
+#define COLOR_PARAMS_1_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a)
+#define COLOR_PARAMS_2_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a), as_##elem_t(b)
+#define COLOR_PARAMS_4_CHANNEL_AS_TYPE(elem_t)                                 \
+  as_##elem_t(a), as_##elem_t(b), as_##elem_t(c), as_##elem_t(d)
+
+#define COLOR_PARAMS_1_CHANNEL_C_CAST(elem_t) (elem_t) a
+#define COLOR_PARAMS_2_CHANNEL_C_CAST(elem_t) (elem_t) a, (elem_t)b
+#define COLOR_PARAMS_4_CHANNEL_C_CAST(elem_t)                                  \
+  (elem_t) a, (elem_t)b, (elem_t)c, (elem_t)d
+
+// Macro to generate surface array writes
+#define _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(               \
+    elem_t, write_elem_t, vec_size, write_vec_size, num_channels,              \
+    type_conversion, helper)                                                   \
+  void __nvvm_sust_1d_array_##vec_size##_clamp_s(                              \
+      unsigned long imageHandle, int idx, int x,                               \
+      COLOR_INPUT_##num_channels##_CHANNEL(elem_t)) {                          \
+    return __nvvm_sust_1d_array_##write_vec_size##_clamp_s##helper(            \
+        imageHandle, idx, x,                                                   \
+        COLOR_PARAMS_##num_channels##_CHANNEL_##type_conversion(               \
+            write_elem_t));                                                    \
+  }                                                                            \
+  void __nvvm_sust_2d_array_##vec_size##_clamp_s(                              \
+      unsigned long imageHandle, int idx, int x, int y,                        \
+      COLOR_INPUT_##num_channels##_CHANNEL(elem_t)) {                          \
+    return __nvvm_sust_2d_array_##write_vec_size##_clamp_s##helper(            \
+        imageHandle, idx, x, y,                                                \
+        COLOR_PARAMS_##num_channels##_CHANNEL_##type_conversion(               \
+            write_elem_t));                                                    \
+  }
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, j32, i32, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, t16, i16, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, i8, i8, 1, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, h8, i8, 1, C_CAST, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v2j32, v2i32, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v2t16, v2i16, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v2i8, v2i8, 2, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v2h8, v2i8, 2, C_CAST, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v4j32, v4i32, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v4t16, v4i16, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v4i8, v4i8, 4, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v4h8, v4i8, 4, C_CAST, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, f32, i32, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, f16, i16, 1, AS_TYPE, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v2f32, v2i32, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v2f16, v2i16, 2, AS_TYPE, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v4f32, v4i32, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16, v4i16, 4, AS_TYPE, )
+
+#undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN
+
+#undef COLOR_INPUT_1_CHANNEL
+#undef COLOR_INPUT_2_CHANNEL
+#undef COLOR_INPUT_4_CHANNEL
+
+#undef COLOR_PARAMS_1_CHANNEL_AS_TYPE
+#undef COLOR_PARAMS_2_CHANNEL_AS_TYPE
+#undef COLOR_PARAMS_4_CHANNEL_AS_TYPE
+
+#undef COLOR_PARAMS_1_CHANNEL_C_CAST
+#undef COLOR_PARAMS_2_CHANNEL_C_CAST
+#undef COLOR_PARAMS_4_CHANNEL_C_CAST
+
+// GENERATED FUNCS: SURFACE ARRAY READ/WRITES
+
+// Vector of size 1 is scalar
+#define ELEM_VEC_1(elem_t) elem_t
+#define ELEM_VEC_2(elem_t) elem_t##2
+#define ELEM_VEC_4(elem_t) elem_t##4
+
+#define COORD_INPUT_1D(elem_t) ELEM_VEC_1(elem_t) coord
+#define COORD_INPUT_2D(elem_t) ELEM_VEC_2(elem_t) coord
+
+#define COORD_PARAMS_1D(elem_t) coord * sizeof(elem_t)
+#define COORD_PARAMS_2D(elem_t) coord.x * sizeof(elem_t), coord.y
+
+#define COLOR_PARAMS_1_CHANNEL c
+#define COLOR_PARAMS_2_CHANNEL c.x, c.y
+#define COLOR_PARAMS_4_CHANNEL c.x, c.y, c.z, c.w
+
+#define VEC_SIZE_1(elem_t, size) elem_t##size
+#define VEC_SIZE_2(elem_t, size) v2##elem_t##size
+#define VEC_SIZE_4(elem_t, size) v4##elem_t##size
+
+#define DVEC_SIZE_1(prefix, elem_t, postfix) prefix##elem_t##postfix
+#define DVEC_SIZE_2(prefix, elem_t, postfix) prefix##Dv2_##elem_t##postfix
+#define DVEC_SIZE_4(prefix, elem_t, postfix) prefix##Dv4_##elem_t##postfix
+
+#define CONCAT(x, y) x##y
+#define CONCAT_HELP(x, y) CONCAT(x, y)
+
+#define NVVM_FUNC(name, dimension, vec_size_mangled)                           \
+  __nvvm_##name##_##dimension##d_array_##vec_size_mangled##_clamp_s
+#define NVVM_FUNC_HELP(a, b, c) NVVM_FUNC(a, b, c)
+
+#define MANGLE_FUNC_IMG_HANDLE_HELP(size, name, prefix, postfix)               \
+  MANGLE_FUNC_IMG_HANDLE(size, name, prefix, postfix)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                         \
+    elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELP(            \
+      22, __spirv_ImageArrayRead,                                              \
+      DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
+      DVEC_SIZE_##dimension(, i, ET_T0_T1_i))(                                 \
+      ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx) {           \
+    return NVVM_FUNC_HELP(                                                     \
+        suld, dimension,                                                       \
+        VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size))(                \
+        imageHandle, idx,                                                      \
+        COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
+  }
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN(                        \
+    elem_t, vec_size, dimension, elem_t_mangled, write_mangled, elem_t_size)   \
+  _CLC_DEF void MANGLE_FUNC_IMG_HANDLE_HELP(                                   \
+      23, __spirv_ImageArrayWrite, I,                                          \
+      CONCAT_HELP(DVEC_SIZE_##dimension(, i, ),                                \
+                  DVEC_SIZE_##vec_size(, elem_t_mangled, EvT_T0_iT1_)))(       \
+      ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx,             \
+      ELEM_VEC_##vec_size(elem_t) c) {                                         \
+    NVVM_FUNC_HELP(sust, dimension,                                            \
+                   VEC_SIZE_##vec_size(write_mangled, elem_t_size))            \
+    (imageHandle, idx,                                                         \
+     COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)),                 \
+     COLOR_PARAMS_##vec_size##_CHANNEL);                                       \
+  }
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                           \
+    dimension, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                               \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)                                                             \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN(                              \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                   \
+    vec_size, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)    \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                                 \
+      1, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,            \
+      elem_t_size)                                                             \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                                 \
+      2, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,            \
+      elem_t_size)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(                          \
+    elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)              \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      1, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)         \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      2, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)         \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      4, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)
+
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(int, i, i, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uint, j, j, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(short, s, i, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
+
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL
+#undef ELEM_VEC_1
+#undef ELEM_VEC_2
+#undef ELEM_VEC_4
+#undef COORD_INPUT_1D
+#undef COORD_INPUT_2D
+#undef COORD_PARAMS_1D
+#undef COORD_PARAMS_2D
+#undef COLOR_PARAMS_1_CHANNEL
+#undef COLOR_PARAMS_2_CHANNEL
+#undef COLOR_PARAMS_4_CHANNEL
+#undef VEC_SIZE_1
+#undef VEC_SIZE_2
+#undef VEC_SIZE_4
+#undef DVEC_SIZE_1
+#undef DVEC_SIZE_2
+#undef DVEC_SIZE_4
+#undef CONCAT
+#undef CONCAT_HELP
+#undef NVVM_FUNC
+#undef NVVM_FUNC_HELPER
+#undef MANGLE_FUNC_IMG_HANDLE_HELP

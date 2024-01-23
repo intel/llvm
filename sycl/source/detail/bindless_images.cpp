@@ -28,11 +28,25 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piDesc.image_width = desc.width;
   piDesc.image_height = desc.height;
   piDesc.image_depth = desc.depth;
-  piDesc.image_type = desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  if (desc.array_size > 1) {
+    // Image Array
+    if (desc.depth > 0) {
+      // Image arrays must be 1D or 2D
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "No support for 3D image arrays.");
+    }
+    piDesc.image_type =
+        desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    piDesc.image_type =
+        desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
+
   piDesc.image_row_pitch = pitch;
-  piDesc.image_array_size = 0;
+  piDesc.image_array_size = desc.array_size;
   piDesc.image_slice_pitch = 0;
   piDesc.num_mip_levels = desc.num_levels;
   piDesc.num_samples = 0;
@@ -154,21 +168,7 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  if (desc.type == image_type::mipmap) {
-    // Mipmaps must have more than one level
-    if (desc.num_levels <= 1)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Mipmap number of levels must be 2 or more");
-  } else if (desc.type == image_type::standard) {
-    // Non-mipmap images must have only 1 level
-    if (desc.num_levels != 1)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Image number of levels must be 1");
-  } else {
-    // Not an image to allocate
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Invalid image type to allocate");
-  }
+  desc.verify();
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -273,7 +273,8 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemMipmapFree>(
           C, Device, memHandle.raw_handle);
-    } else if (imageType == image_type::standard) {
+    } else if (imageType == image_type::standard ||
+               imageType == image_type::array) {
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemImageFree>(
           C, Device, memHandle.raw_handle);
