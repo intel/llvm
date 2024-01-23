@@ -56,9 +56,8 @@ class KernelFusion {
 public:
   static FusionResult fuseKernels(
       Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
-      const std::vector<std::string> &KernelsToFuse,
-      const std::string &FusedKernelName,
-      jit_compiler::ParamIdentList &Identities, BarrierFlags BarriersFlags,
+      const char *FusedKernelName, jit_compiler::ParamIdentList &Identities,
+      BarrierFlags BarriersFlags,
       const std::vector<jit_compiler::ParameterInternalization>
           &Internalization,
       const std::vector<jit_compiler::JITConstant> &JITConstants);

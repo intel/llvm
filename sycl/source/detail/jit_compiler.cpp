@@ -756,9 +756,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, JITCompilerNDR,
-                                 BinInfo);
-    InputKernelNames.push_back(KernelName);
+    InputKernelInfo.emplace_back(KernelName.c_str(), ArgDescriptor,
+                                 JITCompilerNDR, BinInfo);
 
     // Collect information for the fused kernel
 
@@ -823,8 +822,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
           : ::jit_compiler::getLocalAndGlobalBarrierFlag();
 
   static size_t FusedKernelNameIndex = 0;
-  std::stringstream FusedKernelName;
-  FusedKernelName << "fused_" << FusedKernelNameIndex++;
+  auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
   ::jit_compiler::Config JITConfig;
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
@@ -837,9 +835,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      std::move(JITConfig), InputKernelInfo, InputKernelNames,
-      FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
-      JITConstants);
+      std::move(JITConfig), InputKernelInfo, FusedKernelName.c_str(),
+      ParamIdentities, BarrierFlags, InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
@@ -851,6 +848,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   auto &FusedKernelInfo = FusionResult.getKernelInfo();
+  std::string FusedOrCachedKernelName{FusedKernelInfo.Name.c_str()};
 
   std::vector<ArgDesc> FusedArgs;
   int FusedArgIndex = 0;
@@ -887,7 +885,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // Create a kernel bundle for the fused kernel.
   // Kernel bundles are stored in the CG as one of the "extended" members.
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
-      FusedKernelInfo.Name);
+      FusedOrCachedKernelName);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -898,7 +896,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
+      std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
       CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
@@ -932,18 +930,18 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
                     "Invalid output format");
   }
 
+  std::string FusedKernelName{FusedKernelInfo.Name.c_str()};
   DeviceBinaryContainer Binary;
 
   // Create an offload entry for the fused kernel.
   // It seems to be OK to set zero for most of the information here, at least
   // that is the case for compiled SPIR-V binaries.
-  OffloadEntryContainer Entry{FusedKernelInfo.Name, nullptr, 0, 0, 0};
+  OffloadEntryContainer Entry{FusedKernelName, nullptr, 0, 0, 0};
   Binary.addOffloadEntry(std::move(Entry));
 
   // Create a property entry for the argument usage mask for the fused kernel.
   auto ArgMask = encodeArgUsageMask(FusedKernelInfo.Args.UsageMask);
-  PropertyContainer ArgMaskProp{FusedKernelInfo.Name, ArgMask.data(),
-                                ArgMask.size(),
+  PropertyContainer ArgMaskProp{FusedKernelName, ArgMask.data(), ArgMask.size(),
                                 pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
 
   // Create a property set for the argument usage masks of all kernels
@@ -968,7 +966,7 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
     if (ReqdWGS != FusedKernelInfo.Attributes.end()) {
       auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
       std::stringstream PropName;
-      PropName << FusedKernelInfo.Name;
+      PropName << FusedKernelInfo.Name.c_str();
       PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
       PropertyContainer ReqdWorkGroupSizeProp{
           PropName.str(), Encoded.data(), Encoded.size(),
