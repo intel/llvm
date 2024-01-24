@@ -235,14 +235,9 @@ public:
 const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
-#else
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
 const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
-#endif
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
