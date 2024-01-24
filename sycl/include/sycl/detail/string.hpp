@@ -64,11 +64,6 @@ public:
            "Error: memory already allocated for this object.");
     str = new char[size];
   } // called by libsycl before returning
-
-  void reallocate(int size) {
-    delete[] str;
-    str = new char[size];
-  }
 };
 
 } // namespace detail
