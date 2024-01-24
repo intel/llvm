@@ -13,7 +13,8 @@ inline namespace _V1 {
 namespace detail {
 
 // This class is intended to support different ABIs between libsycl and
-// the user program.
+// the user program. This class is not inteded to replace std::string
+// for general purpose usage.
 // One most important issue is different ABIs for std::string before
 // C++11-ABI and after C++11-ABI.
 // To address this issue, we define sycl::detail::string class.
@@ -54,13 +55,19 @@ public:
   // memeber.
   void unmarshall(std::string &strn) { strcpy(str, strn.c_str()); }
 
-  char *c_str() { return str; }
+  const char *c_str() { return str; }
 
   void allocate(int size) {
+    // reallocation is not prohibited.
     assert(str == nullptr &&
            "Error: memory already allocated for this object.");
     str = new char[size];
   } // called by libsycl before returning
+
+  void reallocate(int size) {
+    delete[] str;
+    str = new char[size];
+  }
 };
 
 } // namespace detail
