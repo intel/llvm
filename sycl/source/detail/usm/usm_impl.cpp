@@ -144,6 +144,14 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Device does not support USM device allocations!");
   }
+  if (Kind == alloc::shared &&
+      !DevImpl->has(sycl::aspect::usm_shared_allocations)) {
+    // TODO:: Throw an exception to conform with the specification.
+    //  Note that many tests will have to be changed to conform with the spec
+    //  before completing this. That is, the tests will now have to expect
+    //  exceptions as a result of failed allocations in addition to nullptr
+    //  being returned depending on the reason why allocation failed.
+  }
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
