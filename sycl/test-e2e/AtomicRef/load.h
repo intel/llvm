@@ -81,6 +81,37 @@ void load_global_test(queue q, size_t N) {
                      [&](T x) { return (x == initial); }));
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void load_global_test_usm_shared(queue q, size_t N) {
+  T initial = T(42);
+  T *ld = malloc_shared<T>(1, q);
+  ld[0] = initial;
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  std::fill(output_begin, output_end, 0);
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         size_t gid = it.get_id(0);
+         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(ld[0]);
+         output[gid] = atm.load(order);
+       });
+     }).wait_and_throw();
+  }
+
+  // All work-items should read the same value.
+  // Atomicity isn't tested here, but support for load() is.
+  assert(std::all_of(output_begin, output_end,
+                     [&](T x) { return (x == initial); }));
+
+  free(ld, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -107,9 +138,13 @@ void load_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       load_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q, N);
+      load_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                  order, scope>(q, N);
     }
 #else
     load_global_test<::sycl::atomic_ref, space, T, order, scope>(q, N);
+    load_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(q,
+                                                                            N);
 #endif
   }
 }

@@ -106,6 +106,48 @@ void min_global_test(queue q, size_t N) {
   }
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void min_global_test_usm_shared(queue q, size_t N) {
+  T initial = std::numeric_limits<T>::max();
+  T *val = malloc_shared<T>(1, q);
+  val[0] = initial;
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  std::fill(output_begin, output_end, 0);
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (val[0]);
+         output[gid] = atm.fetch_min(T(gid), order);
+       });
+     }).wait_and_throw();
+  }
+
+  // Final value should be equal to 0.
+  assert(val[0] == 0);
+
+  // Only one work-item should have received the initial value.
+  assert(std::count(output_begin, output_end, initial) == 1);
+
+  // fetch_min returns original value.
+  // Intermediate values should all be <= initial value.
+  for (int i = 0; i < N; ++i) {
+    assert(output[i] <= initial && output[i] >= val[0]);
+  }
+
+  free(val, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -132,9 +174,13 @@ void min_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       min_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q, N);
+      min_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                 order, scope>(q, N);
     }
 #else
     min_global_test<::sycl::atomic_ref, space, T, order, scope>(q, N);
+    min_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(q,
+                                                                           N);
 #endif
   }
 }
