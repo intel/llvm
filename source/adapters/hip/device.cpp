@@ -177,7 +177,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int WarpSize = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
                                          hDevice->get()));
-    size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
+    uint32_t Sizes[1] = {static_cast<uint32_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
