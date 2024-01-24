@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/pasaulais/unified-runtime.git")
-  # commit f0ea491fa931c302cb617fc939b06edab458ee75
-  # Author: Pierre-Andre Saulais <pierre-andre@codeplay.com>
-  # Date:   Mon Nov 20 11:50:33 2023 +0000
-  #
-  #    [CUDA] Move CUPTI function pointers to a separate struct
-  set(UNIFIED_RUNTIME_TAG f0ea491fa931c302cb617fc939b06edab458ee75)
+  # commit 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e
+  # Merge: 6fb1e547 4b2ac71e
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jan 24 11:48:06 2024 +0000
+  #     Merge pull request #1070 from pasaulais/pa/dlopen-cupti
+  #     [CUDA] Dynamically load the CUPTI library when tracing
+  set(UNIFIED_RUNTIME_TAG 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
