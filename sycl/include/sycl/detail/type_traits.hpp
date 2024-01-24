@@ -532,6 +532,20 @@ struct map_type<T, From, To, Rest...> {
   using type = std::conditional_t<std::is_same_v<From, T>, To,
                                   typename map_type<T, Rest...>::type>;
 };
+template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
+  constexpr bool SameType[] = {
+      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
+  // Replace with std::any_of with C++20.
+  for (size_t I = 0; I < sizeof...(Ts); ++I)
+    if (SameType[I])
+      return true;
+  return false;
+}
+
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

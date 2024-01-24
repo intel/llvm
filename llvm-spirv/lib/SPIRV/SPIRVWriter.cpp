@@ -117,6 +117,45 @@ static SPIRVWord convertFloatToSPIRVWord(float F) {
   return FPMaxError.Spir;
 }
 
+/// Return one of the SPIR-V 1.4 SignExtend or ZeroExtend image operands
+/// for a function name, or 0 if the function does not return or
+/// write an integer type.
+int getImageSignZeroExt(Function *F) {
+  bool IsSigned = false;
+  bool IsUnsigned = false;
+
+  ParamSignedness RetSignedness;
+  SmallVector<ParamSignedness, 4> ArgSignedness;
+  if (!getRetParamSignedness(F, RetSignedness, ArgSignedness))
+    return 0;
+
+  StringRef Name = F->getName();
+  Name = Name.substr(Name.find(kSPIRVName::Prefix));
+  Name.consume_front(kSPIRVName::Prefix);
+  if (Name.consume_front("ImageRead") ||
+      Name.consume_front("ImageSampleExplicitLod")) {
+    if (RetSignedness == ParamSignedness::Signed)
+      IsSigned = true;
+    else if (RetSignedness == ParamSignedness::Unsigned)
+      IsUnsigned = true;
+    else if (F->getReturnType()->isIntOrIntVectorTy() &&
+             Name.consume_front("_R")) {
+      // Return type is mangled after _R, e.g. _Z23__spirv_ImageRead_Rint2li
+      IsSigned = isMangledTypeSigned(Name[0]);
+      IsUnsigned = Name.starts_with("u");
+    }
+  } else if (Name.starts_with("ImageWrite")) {
+    IsSigned = (ArgSignedness[2] == ParamSignedness::Signed);
+    IsUnsigned = (ArgSignedness[2] == ParamSignedness::Unsigned);
+  }
+
+  if (IsSigned)
+    return ImageOperandsMask::ImageOperandsSignExtendMask;
+  if (IsUnsigned)
+    return ImageOperandsMask::ImageOperandsZeroExtendMask;
+  return 0;
+}
+
 } // namespace
 
 namespace SPIRV {
@@ -5682,19 +5721,20 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       auto AddSingleArgExecutionMode = [&](ExecutionMode EMode) {
         uint32_t Arg = ~0u;
         N.get(Arg);
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(BF, EMode, Arg)));
+        BF->addExecutionMode(
+            BM->add(new SPIRVExecutionMode(OpExecutionMode, BF, EMode, Arg)));
       };
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-        BF->addExecutionMode(BM->add(
-            new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
         break;
       case spv::ExecutionModeInitializer:
       case spv::ExecutionModeFinalizer:
         if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1)) {
-          BF->addExecutionMode(BM->add(
-              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
         } else {
           getErrorLog().checkError(false, SPIRVEC_Requires1_1,
                                    "Initializer/Finalizer Execution Mode");
@@ -5706,7 +5746,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         unsigned X = 0, Y = 0, Z = 0;
         N.get(X).get(Y).get(Z);
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
       } break;
       case spv::ExecutionModeMaxWorkgroupSizeINTEL: {
         if (BM->isAllowedToUseExtension(
@@ -5714,7 +5754,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           unsigned X = 0, Y = 0, Z = 0;
           N.get(X).get(Y).get(Z);
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode), X, Y,
+              Z)));
           BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
           BM->addCapability(CapabilityKernelAttributesINTEL);
         }
@@ -5723,8 +5764,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         if (!BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_kernel_attributes))
           break;
-        BF->addExecutionMode(BM->add(
-            new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
         BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
         BM->addCapability(CapabilityKernelAttributesINTEL);
       } break;
@@ -5768,7 +5809,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         unsigned NBarrierCnt = 0;
         N.get(NBarrierCnt);
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), NBarrierCnt)));
+            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode),
+            NBarrierCnt)));
         BM->addExtension(ExtensionID::SPV_INTEL_vector_compute);
         BM->addCapability(CapabilityVectorComputeINTEL);
       } break;
@@ -5798,8 +5840,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       } break;
       case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
         if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
-          BF->addExecutionMode(BM->add(
-              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
       } break;
       default:
         llvm_unreachable("invalid execution mode");
@@ -5844,8 +5886,8 @@ void LLVMToSPIRVBase::transFPContract() {
     }
 
     if (DisableContraction) {
-      BF->addExecutionMode(BF->getModule()->add(
-          new SPIRVExecutionMode(BF, spv::ExecutionModeContractionOff)));
+      BF->addExecutionMode(BF->getModule()->add(new SPIRVExecutionMode(
+          OpExecutionMode, BF, spv::ExecutionModeContractionOff)));
     }
   }
 }
@@ -6008,6 +6050,47 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addSampledImageInst(transType(SampledImgTy),
                                    transValue(Image, BB),
                                    transValue(Sampler, BB), BB);
+  }
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+  case OpImageWrite: {
+    // Image Op needs handling of SignExtend or ZeroExtend image operands.
+    auto Args = getArguments(CI);
+    SPIRVType *SPRetTy =
+        CI->getType()->isVoidTy() ? nullptr : transScavengedType(CI);
+    auto *SPI = SPIRVInstTemplateBase::create(OC);
+    std::vector<SPIRVWord> SPArgs;
+    for (size_t I = 0, E = Args.size(); I != E; ++I) {
+      if (Args[I]->getType()->isPointerTy()) {
+        [[maybe_unused]] Value *Pointee = Args[I]->stripPointerCasts();
+        assert((Pointee == Args[I] || !isa<Function>(Pointee)) &&
+               "Illegal use of a function pointer type");
+      }
+      SPArgs.push_back(SPI->isOperandLiteral(I)
+                           ? cast<ConstantInt>(Args[I])->getZExtValue()
+                           : transValue(Args[I], BB)->getId());
+    }
+    if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
+      size_t ImOpIdx = getImageOperandsIndex(OC);
+      if (Args.size() > ImOpIdx) {
+        // Update existing ImageOperands with SignExtendMask/ZeroExtendMask.
+        if (auto *ImOp = dyn_cast<ConstantInt>(Args[ImOpIdx])) {
+          uint64_t ImOpVal = ImOp->getZExtValue();
+          unsigned SignZeroExtMasks =
+              ImageOperandsMask::ImageOperandsSignExtendMask |
+              ImageOperandsMask::ImageOperandsZeroExtendMask;
+          if (!(ImOpVal & SignZeroExtMasks))
+            if (int SignZeroExt = getImageSignZeroExt(CI->getCalledFunction()))
+              SPArgs[ImOpIdx] = ImOpVal | SignZeroExt;
+        }
+      } else {
+        // Add new ImageOperands argument.
+        if (int SignZeroExt = getImageSignZeroExt(CI->getCalledFunction()))
+          SPArgs.push_back(SignZeroExt);
+      }
+    }
+    BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
+    return SPI;
   }
   case OpFixedSqrtINTEL:
   case OpFixedRecipINTEL:
