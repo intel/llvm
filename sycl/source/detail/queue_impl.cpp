@@ -125,26 +125,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           "for use with the SYCL Graph extension.");
   }
 
-  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value, PiDepEvents, nullptr);
-  };
-  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
-                             pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value, PiDepEvents, OutEvent,
-                            OutEventImpl);
-  };
-  std::optional<event> Result = tryBypassingScheduler(
-      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
-  if (Result)
-    return *Result;
-
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.memset(Ptr, Value, Count);
-      },
-      Self, {});
+  return submitMemOpHelper(
+      Self, DepEvents,
+      [&](handler &CGH) {CGH.memset(Ptr, Value, Count);},
+      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
+      Count, Value);
 }
 
 void report(const code_location &CodeLoc) {
@@ -188,16 +173,9 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   // If we have a command graph set we need to capture the copy through normal
   // queue submission rather than execute the copy directly.
-  auto submitWithScheduler = [&]() {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.memcpy(Dest, Src, Count);
-        },
-        Self, {});
-  };
+  auto HandlerFunc = [&](handler &CGH) {CGH.memcpy(Dest, Src, Count);};
   if (MGraph.lock())
-    return submitWithScheduler();
+    return submitWithHandler(Self, DepEvents, HandlerFunc);
 
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
@@ -205,21 +183,10 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                         PI_ERROR_INVALID_VALUE);
   }
 
-  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest, PiDepEvents, nullptr);
-  };
-  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
-                             pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest, PiDepEvents, OutEvent,
-                            OutEventImpl);
-  };
-  std::optional<event> Result = tryBypassingScheduler(
-      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
-  if (Result)
-    return *Result;
-
-  return submitWithScheduler();
+  return submitMemOpHelper(
+      Self, DepEvents, HandlerFunc,
+      [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
+      Count, Dest);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
@@ -228,92 +195,40 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const std::vector<event> &DepEvents) {
   // If we have a command graph set we need to capture the advise through normal
   // queue submission.
-  auto submitWithScheduler = [&]() {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.mem_advise(Ptr, Length, Advice);
-        },
-        Self, {});
-  };
+  auto HandlerFunc = [&](handler &CGH) {CGH.mem_advise(Ptr, Length, Advice);};
   if (MGraph.lock())
-    return submitWithScheduler();
+    return submitWithHandler(Self, DepEvents, HandlerFunc);
 
-  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice, PiDepEvents, nullptr);
-  };
-  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
-                             pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice, PiDepEvents, OutEvent,
-                              OutEventImpl);
-  };
-  std::optional<event> Result = tryBypassingScheduler(
-      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
-  if (Result)
-    return *Result;
-
-  return submitWithScheduler();
+  return submitMemOpHelper(
+      Self, DepEvents, HandlerFunc,
+      [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
+      Self, Length, Advice);
 }
 
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
-  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
-    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                                         PiDepEvents, nullptr);
-  };
-  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
-                             pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                                         PiDepEvents, OutEvent, OutEventImpl);
-  };
-  std::optional<event> Result = tryBypassingScheduler(
-      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
-  if (Result)
-    return *Result;
-
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
-                                 NumBytes, Offset);
+  return submitMemOpHelper(
+      Self, DepEvents,
+      [&](handler &CGH) {CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope, NumBytes, Offset);},
+      [](const auto &...Args) {
+        MemoryManager::copy_to_device_global(Args...);
       },
-      Self, {});
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-  auto DiscardPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents) {
-    MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                           Self, NumBytes, Offset, Dest,
-                                           PiDepEvents, nullptr);
-  };
-  auto KeepPiEventFunc = [&](const std::vector<pi::PiEvent> &PiDepEvents,
-                             pi::PiEvent *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
-    MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                           Self, NumBytes, Offset, Dest,
-                                           PiDepEvents, OutEvent, OutEventImpl);
-  };
-  std::optional<event> Result = tryBypassingScheduler(
-      Self, DepEvents, DiscardPiEventFunc, KeepPiEventFunc);
-  if (Result)
-    return *Result;
-
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
-                                   NumBytes, Offset);
+  return submitMemOpHelper(
+      Self, DepEvents,
+      [&](handler &CGH) {CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope, NumBytes, Offset);},
+      [](const auto &...Args) {
+        MemoryManager::copy_from_device_global(Args...);
       },
-      Self, {});
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
 event queue_impl::getLastEvent() {
@@ -409,40 +324,57 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
                      });
 }
 
-template <typename DiscardPiEventFuncT, typename KeepPiEventFuncT>
-std::optional<event> queue_impl::tryBypassingScheduler(
-    const std::shared_ptr<detail::queue_impl> &Self,
-    const std::vector<sycl::event> &DepEvents,
-    DiscardPiEventFuncT DiscardPiEventFunc, KeepPiEventFuncT KeepPiEventFunc) {
+template <typename HandlerFuncT>
+event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self, const std::vector<event> &DepEvents, HandlerFuncT HandlerFunc) {
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+	HandlerFunc(CGH);
+      },
+      Self, {});
+}
+
+template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
+event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                                    const std::vector<event> &DepEvents,
+				    HandlerFuncT HandlerFunc,
+                                    MemOpFuncT MemOpFunc,
+                                    MemOpArgTs... MemOpArgs) {
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
-  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+  {
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
-  std::vector<event> MutableDepEvents;
-  const std::vector<event> &ExpandedDepEvents =
-      getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-  if (!areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext))
-    return std::nullopt;
-  if (MHasDiscardEventsSupport) {
-    DiscardPiEventFunc(getPIEvents(ExpandedDepEvents));
-    return createDiscardedEvent();
+    if (areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
+      if (MHasDiscardEventsSupport) {
+        MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+                  /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+                &EventImpl->getHandleRef(), EventImpl);
+
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+
+      if (isInOrder()) {
+        auto &EventToStoreIn = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
+    }
   }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  KeepPiEventFunc(getPIEvents(ExpandedDepEvents), &EventImpl->getHandleRef(),
-                  EventImpl);
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
-  if (isInOrder()) {
-    auto &EventToStoreIn = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
-    EventToStoreIn = EventImpl;
-  }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return discard_or_return(ResEvent);
+  return submitWithHandler(Self, DepEvents, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

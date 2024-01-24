@@ -841,22 +841,26 @@ protected:
     return Event;
   }
 
-  /// Helper function for memory operation shortcuts. Checks if the scheduler
-  /// can be bypassed and submits the operation directly if so.
+  template <typename HandlerFuncT>
+  event submitWithHandler(const std::shared_ptr<queue_impl> &Self, const std::vector<event> &DepEvents, HandlerFuncT HandlerFunc);
+
+  /// Performs direct submission of a memory operation.
   ///
   /// \param Self is a shared_ptr to this queue.
   /// \param DepEvents is a vector of dependencies of the operation.
-  /// \param DiscardPiEventFunc is a function that performs submission while
-  ///        discarding the PI event.
-  /// \param KeepPiEventFunc is a function that performs submission while
-  ///        keeping the PI event.
-  /// \return a SYCL event if direct submission is possible.
-  template <typename DiscardPiEventFuncT, typename KeepPiEventFuncT>
-  std::optional<event>
-  tryBypassingScheduler(const std::shared_ptr<detail::queue_impl> &Self,
-                        const std::vector<sycl::event> &DepEvents,
-                        DiscardPiEventFuncT DiscardPiEventFunc,
-                        KeepPiEventFuncT KeepPiEventFunc);
+  /// \param HandlerFunc is a function that submits the operation via the
+  ///        handler (and the scheduler).
+  /// \param MemMngrFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemMngrArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename HandlerFuncT, typename MemMngrFuncT, typename... MemMngrArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+			  HandlerFuncT HandlerFunc,
+                          MemMngrFuncT MemMngrFunc, MemMngrArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
