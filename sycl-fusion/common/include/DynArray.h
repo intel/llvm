@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_DYNARRAY_H
 
 #include <algorithm>
+#include <cstring>
 
 namespace jit_compiler {
 
@@ -90,6 +91,24 @@ private:
     Size = Other.Size;
     Other.Size = 0;
   }
+};
+
+///
+/// String-like class that owns its character storage.
+class DynString {
+public:
+  explicit DynString(const char *Str) : Chars{std::strlen(Str) + 1} {
+    std::copy(Str, Str + Chars.size(), Chars.begin());
+  }
+
+  const char *c_str() const { return Chars.begin(); }
+
+  friend bool operator==(const DynString &A, const char *B) {
+    return std::strcmp(A.c_str(), B) == 0;
+  }
+
+private:
+  DynArray<char> Chars;
 };
 
 } // namespace jit_compiler
