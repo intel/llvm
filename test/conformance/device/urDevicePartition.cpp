@@ -42,7 +42,7 @@ TEST_F(urDevicePartitionTest, PartitionEquallySuccess) {
             };
 
             // Get the number of devices that will be created
-            uint32_t n_devices;
+            uint32_t n_devices = 0;
             ASSERT_SUCCESS(
                 urDevicePartition(device, &properties, 0, nullptr, &n_devices));
             ASSERT_NE(n_devices, 0);
@@ -125,7 +125,7 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
             };
 
             // Get the number of devices that will be created
-            uint32_t n_devices;
+            uint32_t n_devices = 0;
             ASSERT_SUCCESS(
                 urDevicePartition(device, &properties, 0, nullptr, &n_devices));
             ASSERT_EQ(n_devices, property_list.size());
@@ -267,7 +267,7 @@ TEST_F(urDevicePartitionTest, SuccessSubSet) {
         };
 
         // Get the number of devices that will be created
-        uint32_t n_devices;
+        uint32_t n_devices = 0;
         ASSERT_SUCCESS(
             urDevicePartition(device, &properties, 0, nullptr, &n_devices));
         ASSERT_NE(n_devices, 0);
