@@ -202,8 +202,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(num_elems);
 
   std::srand(seed);
-  bindless_helpers::fillRand(input_0, seed);
-  bindless_helpers::fillRand(input_1, seed);
+  bindless_helpers::fill_rand(input_0, seed);
+  bindless_helpers::fill_rand(input_1, seed);
   bindless_helpers::add_host(input_0, input_1, expected);
 
   try {

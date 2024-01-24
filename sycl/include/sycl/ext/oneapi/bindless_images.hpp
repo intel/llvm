@@ -1052,6 +1052,7 @@ DataT read_image_array(const unsampled_image_handle &imageHandle
                        [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
                        const int arrayLayer [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2,
                 "Expected input coordinate to be have 1 or 2 components for 1D "

@@ -5,7 +5,8 @@
 namespace bindless_helpers {
 
 template <typename DType, int NChannels>
-static void fillRand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
+static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
+                      int seed = std::default_random_engine::default_seed) {
   std::default_random_engine generator;
   generator.seed(seed);
   auto distribution = [&]() {
@@ -56,4 +57,5 @@ add_kernel(const sycl::vec<DType, NChannels> &in_0,
   }
   return out;
 }
+
 }; // namespace bindless_helpers

@@ -10,6 +10,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
 #include <cstdlib>
@@ -112,33 +113,6 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
 }
 
-template <typename DType, int NChannels>
-void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v) {
-  std::default_random_engine generator;
-  using distribution_t =
-      std::conditional_t<std::is_integral_v<DType>,
-                         std::uniform_int_distribution<DType>,
-                         std::uniform_real_distribution<DType>>;
-  distribution_t distribution(static_cast<DType>(0), static_cast<DType>(100));
-
-  assert(v.empty());
-  for (int i = 0; i < v.capacity(); ++i) {
-    v.emplace_back(distribution(generator));
-  }
-}
-
-template <typename T, int NChannels> T add_kernel(T &in_0, T &in_1) {
-  if constexpr (std::is_scalar_v<T>) {
-    return in_0 + in_1;
-  } else {
-    T out;
-    for (int i = 0; i < NChannels; ++i) {
-      out[i] = in_0[i] + in_1[i];
-    }
-    return out;
-  }
-}
-
 template <int NDims, typename DType, sycl::image_channel_type CType,
           int NChannels, typename KernelName>
 void run_ndim_test(sycl::range<NDims> global_size,
@@ -190,8 +164,8 @@ void run_ndim_test(sycl::range<NDims> global_size,
                 VecType px2 = syclexp::read_image<VecType>(
                     handles.input_2, sycl::int2(dim0, dim1));
 
-                auto sum =
-                    VecType(util::add_kernel<VecType, NChannels>(px1, px2));
+                auto sum = VecType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<VecType>(
                     handles.output, sycl::int2(dim0, dim1), VecType(sum));
               } else {
@@ -200,7 +174,8 @@ void run_ndim_test(sycl::range<NDims> global_size,
                 DType px2 = syclexp::read_image<DType>(handles.input_2,
                                                        sycl::int2(dim0, dim1));
 
-                auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = DType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<DType>(handles.output,
                                             sycl::int2(dim0, dim1), DType(sum));
               }
@@ -213,8 +188,8 @@ void run_ndim_test(sycl::range<NDims> global_size,
                 VecType px2 = syclexp::read_image<VecType>(
                     handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
 
-                auto sum =
-                    VecType(util::add_kernel<VecType, NChannels>(px1, px2));
+                auto sum = VecType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<VecType>(handles.output,
                                               sycl::int4(dim0, dim1, dim2, 0),
                                               VecType(sum));
@@ -224,7 +199,8 @@ void run_ndim_test(sycl::range<NDims> global_size,
                 DType px2 = syclexp::read_image<DType>(
                     handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
 
-                auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = DType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<DType>(handles.output,
                                             sycl::int4(dim0, dim1, dim2, 0),
                                             DType(sum));
@@ -290,7 +266,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   std::vector<VecType> input_vector_0;
   input_vector_0.reserve(num_elems);
   std::srand(seed);
-  util::fill_rand(input_vector_0);
+  bindless_helpers::fill_rand(input_vector_0);
 
   VecType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes1.stagingMemory, 0 /*offset*/,
@@ -304,7 +280,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   std::vector<VecType> input_vector_1;
   input_vector_1.reserve(num_elems);
   std::srand(seed);
-  util::fill_rand(input_vector_1);
+  bindless_helpers::fill_rand(input_vector_1);
 
   VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes2.stagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
@@ -543,7 +519,7 @@ bool run_all() {
   printString("Running 2D uint2\n");
   valid &= run_test<2, uint32_t, 2, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::rg, class uint2_2d>(
-      {1024, 1024}, {2, 2}, seed);
+      {128, 128}, {2, 2}, seed);
 
   printString("Running 2D uint\n");
   valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,

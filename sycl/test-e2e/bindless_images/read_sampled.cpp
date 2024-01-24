@@ -806,7 +806,7 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(numElems);
 
   std::srand(seed);
-  bindless_helpers::fillRand(input, seed);
+  bindless_helpers::fill_rand(input, seed);
 
   {
     sycl::range<NDims> globalSize = dims;

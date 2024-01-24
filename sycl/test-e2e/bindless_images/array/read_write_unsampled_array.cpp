@@ -15,16 +15,18 @@ static sycl::device dev;
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 // Helpers and utilities
 struct util {
   // parallel_for 3D
   template <int NDims, typename DType, int NChannels, typename KernelName,
             typename = std::enable_if_t<NDims == 3>>
-  static void run_ndim_test(
-      sycl::queue q, sycl::range<3> globalSize, sycl::range<3> localSize,
-      sycl::ext::oneapi::experimental::unsampled_image_handle input_0,
-      sycl::ext::oneapi::experimental::unsampled_image_handle input_1,
-      sycl::ext::oneapi::experimental::unsampled_image_handle output) {
+  static void run_ndim_test(sycl::queue q, sycl::range<3> globalSize,
+                            sycl::range<3> localSize,
+                            syclexp::unsampled_image_handle input_0,
+                            syclexp::unsampled_image_handle input_1,
+                            syclexp::unsampled_image_handle output) {
     using VecType = sycl::vec<DType, NChannels>;
     try {
       q.submit([&](sycl::handler &cgh) {
@@ -36,28 +38,24 @@ struct util {
               size_t dim2 = it.get_global_id(2);
 
               if constexpr (NChannels >= 1) {
-                VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image_array<VecType>(
-                        input_0, sycl::int2(dim0, dim1), int(dim2));
-                VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image_array<VecType>(
-                        input_1, sycl::int2(dim0, dim1), int(dim2));
+                VecType px1 = syclexp::read_image_array<VecType>(
+                    input_0, sycl::int2(dim0, dim1), int(dim2));
+                VecType px2 = syclexp::read_image_array<VecType>(
+                    input_1, sycl::int2(dim0, dim1), int(dim2));
 
                 auto sum = VecType(
                     bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
-                sycl::ext::oneapi::experimental::write_image_array<VecType>(
+                syclexp::write_image_array<VecType>(
                     output, sycl::int2(dim0, dim1), int(dim2), VecType(sum));
               } else {
-                DType px1 =
-                    sycl::ext::oneapi::experimental::read_image_array<DType>(
-                        input_0, sycl::int2(dim0, dim1), int(dim2));
-                DType px2 =
-                    sycl::ext::oneapi::experimental::read_image_array<DType>(
-                        input_1, sycl::int2(dim0, dim1), int(dim2));
+                DType px1 = syclexp::read_image_array<DType>(
+                    input_0, sycl::int2(dim0, dim1), int(dim2));
+                DType px2 = syclexp::read_image_array<DType>(
+                    input_1, sycl::int2(dim0, dim1), int(dim2));
 
                 auto sum = DType(
                     bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
-                sycl::ext::oneapi::experimental::write_image_array<DType>(
+                syclexp::write_image_array<DType>(
                     output, sycl::int2(dim0, dim1), int(dim2), DType(sum));
               }
             });
@@ -74,11 +72,11 @@ struct util {
   // parallel_for 2D
   template <int NDims, typename DType, int NChannels, typename KernelName,
             typename = std::enable_if_t<NDims == 2>>
-  static void run_ndim_test(
-      sycl::queue q, sycl::range<2> globalSize, sycl::range<2> localSize,
-      sycl::ext::oneapi::experimental::unsampled_image_handle input_0,
-      sycl::ext::oneapi::experimental::unsampled_image_handle input_1,
-      sycl::ext::oneapi::experimental::unsampled_image_handle output) {
+  static void run_ndim_test(sycl::queue q, sycl::range<2> globalSize,
+                            sycl::range<2> localSize,
+                            syclexp::unsampled_image_handle input_0,
+                            syclexp::unsampled_image_handle input_1,
+                            syclexp::unsampled_image_handle output) {
     using VecType = sycl::vec<DType, NChannels>;
     try {
       q.submit([&](sycl::handler &cgh) {
@@ -89,29 +87,25 @@ struct util {
               size_t dim1 = it.get_global_id(1);
 
               if constexpr (NChannels >= 1) {
-                VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image_array<VecType>(
-                        input_0, int(dim0), int(dim1));
-                VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image_array<VecType>(
-                        input_1, int(dim0), int(dim1));
+                VecType px1 = syclexp::read_image_array<VecType>(
+                    input_0, int(dim0), int(dim1));
+                VecType px2 = syclexp::read_image_array<VecType>(
+                    input_1, int(dim0), int(dim1));
 
                 auto sum = VecType(
                     bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
-                sycl::ext::oneapi::experimental::write_image_array<VecType>(
-                    output, int(dim0), int(dim1), VecType(sum));
+                syclexp::write_image_array<VecType>(output, int(dim0),
+                                                    int(dim1), VecType(sum));
               } else {
-                DType px1 =
-                    sycl::ext::oneapi::experimental::read_image_array<DType>(
-                        input_0, int(dim0), int(dim1));
-                DType px2 =
-                    sycl::ext::oneapi::experimental::read_image_array<DType>(
-                        input_1, int(dim0), int(dim1));
+                DType px1 = syclexp::read_image_array<DType>(input_0, int(dim0),
+                                                             int(dim1));
+                DType px2 = syclexp::read_image_array<DType>(input_1, int(dim0),
+                                                             int(dim1));
 
                 auto sum = DType(
                     bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
-                sycl::ext::oneapi::experimental::write_image_array<DType>(
-                    output, int(dim0), int(dim1), DType(sum));
+                syclexp::write_image_array<DType>(output, int(dim0), int(dim1),
+                                                  DType(sum));
               }
             });
       });
@@ -153,27 +147,23 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(num_elems);
 
   std::srand(seed);
-  bindless_helpers::fillRand(input_0, seed);
-  bindless_helpers::fillRand(input_1, seed);
+  bindless_helpers::fill_rand(input_0, seed);
+  bindless_helpers::fill_rand(input_1, seed);
   bindless_helpers::add_host(input_0, input_1, expected);
 
   try {
-    sycl::ext::oneapi::experimental::image_descriptor desc(
-        {dims[0], NDims > 2 ? dims[1] : 0}, COrder, CType,
-        sycl::ext::oneapi::experimental::image_type::array, 1,
-        NDims > 2 ? dims[2] : dims[1]);
+    syclexp::image_descriptor desc({dims[0], NDims > 2 ? dims[1] : 0}, COrder,
+                                   CType, syclexp::image_type::array, 1,
+                                   NDims > 2 ? dims[2] : dims[1]);
 
     // Extension: allocate memory on device and create the handle
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, q);
-    sycl::ext::oneapi::experimental::image_mem img_mem_1(desc, q);
-    sycl::ext::oneapi::experimental::image_mem img_mem_2(desc, q);
+    syclexp::image_mem img_mem_0(desc, q);
+    syclexp::image_mem img_mem_1(desc, q);
+    syclexp::image_mem img_mem_2(desc, q);
 
-    auto img_input_0 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, desc, q);
-    auto img_input_1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_1, desc, q);
-    auto img_output =
-        sycl::ext::oneapi::experimental::create_image(img_mem_2, desc, q);
+    auto img_input_0 = syclexp::create_image(img_mem_0, desc, q);
+    auto img_input_1 = syclexp::create_image(img_mem_1, desc, q);
+    auto img_output = syclexp::create_image(img_mem_2, desc, q);
 
     // Extension: copy over data to device
     q.ext_oneapi_copy(input_0.data(), img_mem_0.get_handle(), desc);
@@ -192,9 +182,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     }
 
     // Cleanup
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_input_0, q);
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_input_1, q);
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_output, q);
+    syclexp::destroy_image_handle(img_input_0, q);
+    syclexp::destroy_image_handle(img_input_1, q);
+    syclexp::destroy_image_handle(img_output, q);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     exit(-1);
