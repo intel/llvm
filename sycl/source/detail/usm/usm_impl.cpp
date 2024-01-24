@@ -144,11 +144,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Device does not support USM device allocations!");
   }
-  if (Kind == alloc::shared &&
-      !DevImpl->has(sycl::aspect::usm_shared_allocations)) {
-    throw sycl::exception(sycl::errc::feature_not_supported,
-                          "Device does not support USM shared allocations!");
-  }
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
