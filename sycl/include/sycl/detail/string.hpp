@@ -50,11 +50,6 @@ public:
     strcpy(str, s);
   }
 
-  // Once libsycl returns a detail::string object, we need to reconstruct
-  // std::string to return to the user program.
-  std::string marshall() { return std::string(str); }
-  std::string marshall() const { return std::string(str); }
-
   // Libsycl calls this method to copy from std::string to the 'str' data
   // memeber.
   void unmarshall(std::string &strn) { strcpy(str, strn.c_str()); }
