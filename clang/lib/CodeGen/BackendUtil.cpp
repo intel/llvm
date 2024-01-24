@@ -125,7 +125,7 @@ cl::opt<bool> ClRelinkBuiltinBitcodePostop(
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
     cl::desc("Run the backend passes for SYCL Native CPU"));
-}
+} // namespace llvm
 
 namespace {
 
