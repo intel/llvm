@@ -27,4 +27,6 @@ TEST_P(urContextCreateWithNativeHandleTest, Success) {
     uint32_t n_devices = 0;
     ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_NUM_DEVICES,
                                     sizeof(uint32_t), &n_devices, nullptr));
+
+    ASSERT_SUCCESS(urContextRelease(ctx));
 }

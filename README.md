@@ -128,6 +128,7 @@ List of options provided by CMake:
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
 | UR_ENABLE_SANITIZER | Enable device sanitizer layer | ON/OFF | ON |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
+| UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |

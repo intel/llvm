@@ -5103,7 +5103,7 @@ urKernelCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query queue info
 typedef enum ur_queue_info_t {
-    UR_QUEUE_INFO_CONTEXT = 0,         ///< [::ur_queue_handle_t] context associated with this queue.
+    UR_QUEUE_INFO_CONTEXT = 0,         ///< [::ur_context_handle_t] context associated with this queue.
     UR_QUEUE_INFO_DEVICE = 1,          ///< [::ur_device_handle_t] device associated with this queue.
     UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< [::ur_queue_handle_t] the current default queue of the underlying
                                        ///< device.

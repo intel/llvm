@@ -197,8 +197,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t hNativeSampler, ur_context_handle_t,
-    const ur_sampler_native_properties_t *, ur_sampler_handle_t *phSampler) {
+    const ur_sampler_native_properties_t *pProperties,
+    ur_sampler_handle_t *phSampler) {
   *phSampler = reinterpret_cast<ur_sampler_handle_t>(
       cl_adapter::cast<cl_sampler>(hNativeSampler));
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urSamplerRetain(*phSampler);
+  }
   return UR_RESULT_SUCCESS;
 }

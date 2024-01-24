@@ -8018,9 +8018,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
 
     switch (value) {
     case UR_QUEUE_INFO_CONTEXT: {
-        const ur_queue_handle_t *tptr = (const ur_queue_handle_t *)ptr;
-        if (sizeof(ur_queue_handle_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";

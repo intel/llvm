@@ -16,6 +16,7 @@ TEST_P(urMemBufferPartitionTest, Success) {
                                         UR_BUFFER_CREATE_TYPE_REGION, &region,
                                         &partition));
     ASSERT_NE(partition, nullptr);
+    ASSERT_SUCCESS(urMemRelease(partition));
 }
 
 TEST_P(urMemBufferPartitionTest, InvalidNullHandleBuffer) {
@@ -88,6 +89,7 @@ TEST_P(urMemBufferPartitionTest, InvalidValueCreateType) {
                      urMemBufferPartition(ro_buffer, UR_MEM_FLAG_READ_WRITE,
                                           UR_BUFFER_CREATE_TYPE_REGION, &region,
                                           &partition));
+    ASSERT_SUCCESS(urMemRelease(ro_buffer));
 }
 
 TEST_P(urMemBufferPartitionTest, InvalidValueBufferCreateInfoOutOfBounds) {
