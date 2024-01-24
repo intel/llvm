@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//= bfloat16_half_vector_plus_eq_scalar.cpp - Test for bfloat16 operators =//
+//==- bfloat16_vector_plus_scalar.cpp - Test for bfloat16 operators ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,7 +19,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 template <typename T> ESIMD_NOINLINE bool test(queue Q) {
   std::cout << "Testing T=" << esimd_test::type_name<T>() << "...\n";
 
-  constexpr int N = 8;
+  constexpr int N = 1;
 
   constexpr int NumOps = 4;
   constexpr int CSize = NumOps * N;
@@ -31,22 +31,22 @@ template <typename T> ESIMD_NOINLINE bool test(queue Q) {
   Q.single_task([=]() SYCL_ESIMD_KERNEL {
      {
        simd<T, N> Vec(TOne);
-       Vec += TTen;
+       Vec = Vec + TTen;
        Vec.copy_to(Mem);
      }
      {
        simd<T, N> Vec(TOne);
-       Vec -= TTen;
+       Vec = Vec - TTen;
        Vec.copy_to(Mem + N);
      }
      {
        simd<T, N> Vec(TOne);
-       Vec *= TTen;
+       Vec = Vec * TTen;
        Vec.copy_to(Mem + 2 * N);
      }
      {
        simd<T, N> Vec(TOne);
-       Vec /= TTen;
+       Vec = Vec / TTen;
        Vec.copy_to(Mem + 3 * N);
      }
    }).wait();
@@ -89,7 +89,6 @@ int main() {
   if (SupportsHalf) {
     Passed &= test<sycl::half>(Q);
   }
-
 #ifdef USE_BF16
   Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
 #endif
