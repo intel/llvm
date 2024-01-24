@@ -256,14 +256,17 @@ public:
 void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<set_B>)
 Foo::baz() {}
 
-// kernel calling virtual function should also be annotated:
-/* */.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
-  Foo *ptr = /* ... */;
-  ptr->bar()
+int main() {
+  sycl::queue q;
+  // kernel calling virtual function should also be annotated:
+  q.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
+    Foo *ptr = /* ... */;
+    ptr->bar()
 
-  // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
-  // 'Foo::baz', because the latter is declared within a different set.
-});
+    // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
+    // 'Foo::baz', because the latter is declared within a different set.
+  });
+}
 ----
 
 The main reason for virtual functions to be split into different sets is use of
@@ -288,13 +291,16 @@ public:
   void bar() {}
 };
 
-/* */.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
-  Foo *ptr = /* ... */;
-  ptr->bar()
+int main() {
+  sycl::queue q;
+  q.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
+    Foo *ptr = /* ... */;
+    ptr->bar()
 
-  // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because the
-  // latter belongs to a different (non-default) set of virtual functions.
-});
+    // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because
+    // the latter belongs to a different (non-default) set of virtual functions.
+  });
+}
 ----
 
 NOTE: By convention, the type `void` is used to denote the default set of
@@ -414,18 +420,20 @@ struct Foo {
   void bar() {}
 };
 
-sycl::queue q(/* device selector returns a device *without* fp64 support */);
-assert(!q.get_device().has(sycl::aspect::fp64));
+int main() {
+  sycl::queue q(/* device selector returns a device *without* fp64 support */);
+  assert(!q.get_device().has(sycl::aspect::fp64));
 
-q.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
-  // Exception is expected to be thrown, because target device doesn't support
-  // fp64 aspect and it is required by 'Foo::foo' which is included into 'set_A'
-});
+  q.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
+    // Exception is expected to be thrown, because target device doesn't support
+    // fp64 aspect and it is used by 'Foo::foo' which is included into 'set_A'
+  });
 
-q.single_task(syclext::properties{syclext::calls_indirectly<set_B>}, [=] {
-  // No exceptions are expected, because 'set_B' doesn't bring any requirements
-  // for optional kernel features.
-});
+  q.single_task(syclext::properties{syclext::calls_indirectly<set_B>}, [=] {
+    // No exceptions are expected, because 'set_B' doesn't bring any
+    // requirements for optional kernel features.
+  });
+}
 ----
 
 An implementation may not raise a compile time diagnostic or a run time
@@ -447,20 +455,22 @@ struct Foo {
   void bar() {}
 };
 
-sycl::queue q(/* device selector choosing a device *without* fp64 support */);
-assert(!q.get_device().has(sycl::aspect::fp64));
+int main() {
+  sycl::queue q(/* device selector choosing a device *without* fp64 support */);
+  assert(!q.get_device().has(sycl::aspect::fp64));
 
-auto *Storage = sycl::malloc_device<Foo>(1, q);
+  auto *Storage = sycl::malloc_device<Foo>(1, q);
 
-q.single_task([=] {
-  // The kernel is not submitted with 'calls_indirectly' property and therefore
-  // it is not considered to be using any of virtual member functions of 'Foo'.
-  // This means that the object of 'Foo' can be successfully created by this
-  // kernel, regardless of whether a target device supports 'fp64' aspect which
-  // is used by 'Foo::foo'.
-  // No exceptions are expected to be thrown.
-  new (Storage) Foo;
-});
+  q.single_task([=] {
+    // The kernel is not submitted with 'calls_indirectly' property and
+    // therefore it is not considered to be using any of virtual member
+    // functions of 'Foo'. This means that the object of 'Foo' can be
+    // successfully created by this kernel, regardless of whether a target
+    // device supports 'fp64' aspect which is used by 'Foo::foo'. No exceptions
+    // are expected to be thrown.
+    new (Storage) Foo;
+  });
+}
 ----
 
 ==== Interaction with `reqd_sub_group_size` attribute
