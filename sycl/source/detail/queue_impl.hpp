@@ -740,7 +740,11 @@ protected:
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
-    if (MIsInorder) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (MIsInorder && (getCommandGraph() == nullptr)) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
         return Type == CG::CGTYPE::CodeplayHostTask;

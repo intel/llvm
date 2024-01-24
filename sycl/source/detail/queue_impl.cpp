@@ -134,7 +134,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    if (isInOrder()) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (isInOrder() && (getCommandGraph() == nullptr)) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
       // This variable is used to perform explicit dependency management when
@@ -231,7 +235,11 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    if (isInOrder()) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (isInOrder() && (getCommandGraph() == nullptr)) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
       // This variable is used to perform explicit dependency management when
@@ -249,6 +257,17 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
+  // If we have a command graph set we need to capture the advise through normal
+  // queue submission.
+  if (MGraph.lock()) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.mem_advise(Ptr, Length, Advice);
+        },
+        Self, {});
+  }
+
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -278,7 +297,11 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    if (isInOrder()) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (isInOrder() && (getCommandGraph() == nullptr)) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
       // This variable is used to perform explicit dependency management when
@@ -327,7 +350,11 @@ event queue_impl::memcpyToDeviceGlobal(
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    if (isInOrder()) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (isInOrder() && (getCommandGraph() == nullptr)) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
       // This variable is used to perform explicit dependency management when
@@ -376,7 +403,11 @@ event queue_impl::memcpyFromDeviceGlobal(
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    if (isInOrder()) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (isInOrder() && (getCommandGraph() == nullptr)) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
       // This variable is used to perform explicit dependency management when

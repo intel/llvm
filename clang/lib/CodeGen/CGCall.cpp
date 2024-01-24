@@ -1776,14 +1776,21 @@ static void AddAttributesFromFunctionProtoType(ASTContext &Ctx,
       FPT->isNothrow())
     FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
 
-  if (FPT->getAArch64SMEAttributes() & FunctionType::SME_PStateSMEnabledMask)
+  unsigned SMEBits = FPT->getAArch64SMEAttributes();
+  if (SMEBits & FunctionType::SME_PStateSMEnabledMask)
     FuncAttrs.addAttribute("aarch64_pstate_sm_enabled");
-  if (FPT->getAArch64SMEAttributes() & FunctionType::SME_PStateSMCompatibleMask)
+  if (SMEBits & FunctionType::SME_PStateSMCompatibleMask)
     FuncAttrs.addAttribute("aarch64_pstate_sm_compatible");
-  if (FPT->getAArch64SMEAttributes() & FunctionType::SME_PStateZASharedMask)
+
+  // ZA
+  if (FunctionType::getArmZAState(SMEBits) == FunctionType::ARM_Out ||
+      FunctionType::getArmZAState(SMEBits) == FunctionType::ARM_InOut)
     FuncAttrs.addAttribute("aarch64_pstate_za_shared");
-  if (FPT->getAArch64SMEAttributes() & FunctionType::SME_PStateZAPreservedMask)
+  if (FunctionType::getArmZAState(SMEBits) == FunctionType::ARM_Preserves ||
+      FunctionType::getArmZAState(SMEBits) == FunctionType::ARM_In) {
+    FuncAttrs.addAttribute("aarch64_pstate_za_shared");
     FuncAttrs.addAttribute("aarch64_pstate_za_preserved");
+  }
 }
 
 static void AddAttributesFromAssumes(llvm::AttrBuilder &FuncAttrs,
@@ -2509,9 +2516,6 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
 
     if (TargetDecl->hasAttr<ArmLocallyStreamingAttr>())
       FuncAttrs.addAttribute("aarch64_pstate_sm_body");
-
-    if (TargetDecl->hasAttr<ArmNewZAAttr>())
-      FuncAttrs.addAttribute("aarch64_pstate_za_new");
   }
 
   // Attach "no-builtins" attributes to:
@@ -2675,6 +2679,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
   if (IRFunctionArgs.hasSRetArg()) {
     llvm::AttrBuilder SRETAttrs(getLLVMContext());
     SRETAttrs.addStructRetAttr(getTypes().ConvertTypeForMem(RetTy));
+    SRETAttrs.addAttribute(llvm::Attribute::Writable);
+    SRETAttrs.addAttribute(llvm::Attribute::DeadOnUnwind);
     hasUsedSRet = true;
     if (RetAI.getInReg())
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
