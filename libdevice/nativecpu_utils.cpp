@@ -14,9 +14,9 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
+#include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
-#include "CL/__spirv/spirv_ops.hpp"
 
 struct __nativecpu_state {
   size_t MGlobal_id[3];
@@ -127,5 +127,6 @@ DefShuffleINTEL_All(uint64_t, i64, int64_t)
                 DefShuffleINTEL_All(int16_t, i16, int16_t)
                     DefShuffleINTEL_All(uint16_t, i16, int16_t)
                         DefShuffleINTEL_All(double, f64, double)
+                            DefShuffleINTEL_All(float, f32, float)
 
 #endif // __SYCL_NATIVE_CPU__
