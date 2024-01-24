@@ -76,6 +76,7 @@ inline std::string getPlatformName(ur_platform_handle_t platform) {
     std::string name(nameSize, '\0');
     UR_CHECK(urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, nameSize,
                                name.data(), &nameSize));
+    name.pop_back(); // std::string does not need a terminating NULL, remove it here
     return name;
 }
 
@@ -86,6 +87,7 @@ inline std::string getDeviceName(ur_device_handle_t device) {
     std::string name(nameSize, '\0');
     UR_CHECK(urDeviceGetInfo(device, UR_DEVICE_INFO_NAME, nameSize, name.data(),
                              &nameSize));
+    name.pop_back(); // std::string does not need a terminating NULL, remove it here
     return name;
 }
 
@@ -96,6 +98,7 @@ inline std::string getDeviceVersion(ur_device_handle_t device) {
     std::string name(versionSize, '\0');
     UR_CHECK(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION, versionSize,
                              name.data(), &versionSize));
+    name.pop_back(); // std::string does not need a terminating NULL, remove it here
     return name;
 }
 
@@ -107,6 +110,7 @@ inline std::string getDeviceDriverVersion(ur_device_handle_t device) {
     UR_CHECK(urDeviceGetInfo(device, UR_DEVICE_INFO_DRIVER_VERSION,
                              driverVersionSize, name.data(),
                              &driverVersionSize));
+    name.pop_back(); // std::string does not need a terminating NULL, remove it here
     return name;
 }
 
@@ -136,6 +140,7 @@ printLoaderConfigInfo<char[]>(ur_loader_config_handle_t loaderConfig,
     std::string str(size, '\0');
     UR_CHECK_WEAK(
         urLoaderConfigGetInfo(loaderConfig, info, size, str.data(), nullptr));
+    str.pop_back(); // std::string does not need a terminating NULL, remove it here
     std::cout << str << "\n";
 }
 
@@ -179,6 +184,7 @@ inline void printPlatformInfo<char[]>(ur_platform_handle_t platform,
     UR_CHECK_WEAK(urPlatformGetInfo(platform, info, 0, nullptr, &size));
     std::string str(size, '\0');
     UR_CHECK_WEAK(urPlatformGetInfo(platform, info, size, str.data(), nullptr));
+    str.pop_back(); // std::string does not need a terminating NULL, remove it here
     std::cout << str << "\n";
 }
 
@@ -235,6 +241,7 @@ inline void printDeviceInfo<char[]>(ur_device_handle_t device,
     UR_CHECK_WEAK(urDeviceGetInfo(device, info, 0, nullptr, &size));
     std::string str(size, 0);
     UR_CHECK_WEAK(urDeviceGetInfo(device, info, size, str.data(), nullptr));
+    str.pop_back(); // std::string does not need a terminating NULL, remove it here
     std::cout << str << "\n";
 }
 } // namespace urinfo
