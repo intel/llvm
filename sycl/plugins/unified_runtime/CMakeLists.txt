@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eddda12352c27961fb454331f88e05d5335db7ed
-  # Merge: 6892412f 71e7e38e
+  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
+  # Merge: eddda123 2bd41d7b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 12:59:32 2024 +0000
-  #     Merge pull request #1152 from PietroGhg/pietro/barriers
-  #     [NATIVECPU] Handle oneAPI Construction Kit integration in runtime
-  set(UNIFIED_RUNTIME_TAG eddda12352c27961fb454331f88e05d5335db7ed)
+  # Date:   Wed Jan 24 14:27:54 2024 +0000
+  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
+  #     [NATIVECPU] Empty implementation for command buffer fill
+  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
