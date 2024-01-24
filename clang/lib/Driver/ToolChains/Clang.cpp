@@ -5037,7 +5037,12 @@ static bool addSYCLExtraOptions(Compilation &C, const ArgList &Args,
       hasDeviceSanitizer = true;
       continue;
     }
-    CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
+
+    if (A->getOption().matches(options::OPT_mllvm)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back(Args.MakeArgString(A->getValue()));
+    } else
+      CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
   }
   return hasDeviceSanitizer;
 }
@@ -5391,7 +5396,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // only for SPIR based targets.
     if (Triple.isSPIR()) {
       // It cannot be enabled together with a sanitizer
-      if (!Args.getLastArg(options::OPT_fsanitize_EQ) ||
+      if (!Args.getLastArg(options::OPT_fsanitize_EQ) &&
           !hasSYCLDeviceSanitizer)
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
     }
