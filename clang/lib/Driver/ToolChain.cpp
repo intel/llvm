@@ -277,17 +277,15 @@ ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
   // see whether sanitizer is enabled for device/host compilation.
   StringRef OffloadingExtraOptions;
   if (getTriple().isSPIR() && !JobArgs.hasArg(options::OPT_fsanitize_EQ) &&
-      JobArgs.hasArg(options::OPT_target_options_EQ)) {
+      JobArgs.hasArg(options::OPT_target_options_EQ))
     OffloadingExtraOptions =
         JobArgs.getLastArgValue(options::OPT_target_options_EQ);
-  }
 
   if (JobArgs.hasArg(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !JobArgs.hasArg(options::OPT_fsanitize_EQ) &&
-      JobArgs.hasArg(options::OPT_host_options_EQ)) {
+      JobArgs.hasArg(options::OPT_host_options_EQ))
     OffloadingExtraOptions =
         JobArgs.getLastArgValue(options::OPT_host_options_EQ);
-  }
 
   if (!OffloadingExtraOptions.empty()) {
     const Driver &D = getDriver();
