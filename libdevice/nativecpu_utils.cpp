@@ -17,6 +17,7 @@
 #include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
+#include <sycl/types.hpp>
 
 struct __nativecpu_state {
   size_t MGlobal_id[3];
@@ -85,7 +86,7 @@ struct __nativecpu_state {
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL<Type>(                     \
       Type val, unsigned id) noexcept {                                        \
-    return __mux_sub_group_shuffle_##Sfx(val, id);                             \
+    return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)val, id);              \
   }
 
 #define DefShuffleUpINTEL(Type, Sfx, MuxType)                                  \
@@ -94,7 +95,8 @@ struct __nativecpu_state {
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL<Type>(                   \
       Type prev, Type curr, unsigned delta) noexcept {                         \
-    return __mux_sub_group_shuffle_up_##Sfx(prev, curr, delta);                \
+    return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)prev,               \
+                                                  (MuxType)curr, delta);       \
   }
 
 #define DefShuffleDownINTEL(Type, Sfx, MuxType)                                \
@@ -103,7 +105,8 @@ struct __nativecpu_state {
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL<Type>(                 \
       Type curr, Type next, unsigned delta) noexcept {                         \
-    return __mux_sub_group_shuffle_down_##Sfx(curr, next, delta);              \
+    return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)curr,             \
+                                                    (MuxType)next, delta);     \
   }
 
 #define DefShuffleXorINTEL(Type, Sfx, MuxType)                                 \
@@ -112,7 +115,7 @@ struct __nativecpu_state {
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL<Type>(                  \
       Type data, unsigned value) noexcept {                                    \
-    return __mux_sub_group_shuffle_xor_##Sfx(data, value);                     \
+    return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);      \
   }
 
 #define DefShuffleINTEL_All(Type, Sfx, MuxType)                                \
@@ -128,5 +131,20 @@ DefShuffleINTEL_All(uint64_t, i64, int64_t)
                     DefShuffleINTEL_All(uint16_t, i16, int16_t)
                         DefShuffleINTEL_All(double, f64, double)
                             DefShuffleINTEL_All(float, f32, float)
+
+#define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
+  using vt##T##N = sycl::detail::VecStorage<T, N>::DataType;                   \
+  using vt##MuxType##N = sycl::detail::VecStorage<MuxType, N>::DataType;       \
+  DefShuffleINTEL_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
+
+#define DefineShuffleVec2to16(Type, Sfx, MuxType)                              \
+  DefineShuffleVec(Type, 2, Sfx, MuxType)                                      \
+      DefineShuffleVec(Type, 4, Sfx, MuxType)                                  \
+          DefineShuffleVec(Type, 8, Sfx, MuxType)                              \
+              DefineShuffleVec(Type, 16, Sfx, MuxType)
+
+                                DefineShuffleVec2to16(int, i32, int)
+                                    DefineShuffleVec2to16(unsigned, i32, int)
+                                        DefineShuffleVec2to16(float, f32, float)
 
 #endif // __SYCL_NATIVE_CPU__
