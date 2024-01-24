@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7c58060ffdd86e1e342e9bea12834e49aa2cb187
-  # Merge: 4f800802 1b2cd5b3
+  # commit 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e
+  # Merge: 6fb1e547 4b2ac71e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 23 11:29:19 2024 +0000
-  #     Merge pull request #1135 from nrspruit/multi_device_kernel_compilation_main
-  #     [L0] Add support for multi-device kernel compilation
-  set(UNIFIED_RUNTIME_TAG 7c58060ffdd86e1e342e9bea12834e49aa2cb187)
+  # Date:   Wed Jan 24 11:48:06 2024 +0000
+  #     Merge pull request #1070 from pasaulais/pa/dlopen-cupti
+  #     [CUDA] Dynamically load the CUPTI library when tracing
+  set(UNIFIED_RUNTIME_TAG 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
