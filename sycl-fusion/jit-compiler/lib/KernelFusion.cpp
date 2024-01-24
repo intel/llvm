@@ -71,15 +71,15 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
-    const std::vector<std::string> &KernelsToFuse,
-    const std::string &FusedKernelName, ParamIdentList &Identities,
+    const std::vector<SYCLKernelInfo> &KernelInformation,
+    const char *FusedKernelName, ParamIdentList &Identities,
     BarrierFlags BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
-  // Initialize the configuration helper to make the options for this invocation
-  // available (on a per-thread basis).
-  ConfigHelper::setConfig(std::move(JITConfig));
+
+  std::vector<std::string> KernelsToFuse;
+  llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
+                  [](const auto &KI) { return std::string{KI.Name.c_str()}; });
 
   const auto NDRanges = gatherNDRanges(KernelInformation);
 
@@ -190,4 +190,10 @@ FusionResult KernelFusion::fuseKernels(
   }
 
   return FusionResult{FusedKernelInfo};
+}
+
+void KernelFusion::resetConfiguration() { ConfigHelper::reset(); }
+
+void KernelFusion::set(OptionPtrBase *Option) {
+  ConfigHelper::getConfig().set(Option);
 }
