@@ -2606,16 +2606,16 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
                 __ESIMD_NS::simd_mask<N> pred) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
   constexpr lsc_data_size _DS =
       detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
+  constexpr auto Transposed = detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
       __esimd_lsc_load_slm<MsgT, cache_hint::none, cache_hint::none,
-                           _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
+                           AddressScale, ImmOffset, _DS, _VS, Transposed, N>(
           pred.data(), offsets.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
@@ -2630,8 +2630,6 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param pred is predicates.
@@ -2646,21 +2644,21 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
                 __ESIMD_NS::simd<T, N * NElts> pass_thru) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
   constexpr lsc_data_size _DS =
       detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
+  constexpr detail::lsc_data_order Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
       detail::lsc_format_input<MsgT>(pass_thru);
   __ESIMD_NS::simd<MsgT, N * NElts> Result =
       __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
-                                 _AddressScale, _ImmOffset, _DS, _VS,
-                                 _Transposed, N>(pred.data(), offsets.data(),
-                                                 PassThruExpanded.data());
+                                 AddressScale, ImmOffset, _DS, _VS, Transposed,
+                                 N>(pred.data(), offsets.data(),
+                                    PassThruExpanded.data());
   return detail::lsc_format_ret<T>(Result);
 }
 
@@ -3214,12 +3212,12 @@ __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///                   PropertyListT props = {});                   // (slm_ga-1)
+///                   PropertyListT props = {});                   // (slm-ga-1)
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask,
-///                   PropertyListT props = {});                   // (slm_ga-2)
+///                   PropertyListT props = {});                   // (slm-ga-2)
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
-///                   PropertyListT props = {});                   // (slm_ga-3)
+///                   PropertyListT props = {});                   // (slm-ga-3)
 ///
 /// The next 3 functions are similar to the above and were added for
 /// convenience. They assume the VS parameter is set to 1 and do not require
@@ -3228,30 +3226,30 @@ __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
 ///                   simd_mask<N> mask, simd<T, N> pass_thru,
-///                   PropertyListT props = {});                   // (slm_ga-4)
+///                   PropertyListT props = {});                   // (slm-ga-4)
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
-///                   simd_mask<N> mask, PropertyListT props = {});// (slm_ga-5)
+///                   simd_mask<N> mask, PropertyListT props = {});// (slm-ga-5)
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
-///                   PropertyListT props = {});                   // (slm_ga-6)
+///                   PropertyListT props = {});                   // (slm-ga-6)
 ///
-/// The next 3 functions are variations of the first 3 above (slm_ga-1,2,3)
+/// The next 3 functions are variations of the first 3 above (slm-ga-1,2,3)
 /// and were added only to support simd_view instead of simd for byte_offsets
 /// and/or pass_thru operands.
 /// template <typename T, int N, int VS = 1, typename OffsetObjT,
 ///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
 /// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///             PropertyListT props = {});                         // (slm_ga-7)
+///             PropertyListT props = {});                         // (slm-ga-7)
 /// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm_ga-8)
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-ga-8)
 /// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             PropertyListT props = {});                         // (slm_ga-9)
+///             PropertyListT props = {});                         // (slm-ga-9)
 
 /// template <typename T, int N, int VS,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///                   PropertyListT props = {});                   // (slm_ga-1)
+///                   PropertyListT props = {});                   // (slm-ga-1)
 #ifndef __ESIMD_GATHER_SCATTER_LLVM_IR
 /// Supported platforms: DG2, PVC only - Temporary restriction for the variant
 /// with pass_thru operand.
@@ -3307,7 +3305,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask,
-///                   PropertyListT props = {});                   // (slm_ga-2)
+///                   PropertyListT props = {});                   // (slm-ga-2)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements. Access to any element's memory location can be disabled via the
@@ -3356,7 +3354,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
 /// template <typename T, int N, int VS,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N / VS> byte_offsets,
-///                   PropertyListT props = {});                   // (slm_ga-3)
+///                   PropertyListT props = {});                   // (slm-ga-3)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements.
@@ -3384,7 +3382,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, PropertyListT props = {}) {
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
 ///                   simd_mask<N> mask, simd<T, N> pass_thru,
-///                   PropertyListT props = {});                   // (slm_ga-4)
+///                   PropertyListT props = {});                   // (slm-ga-4)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements. Access to any element's memory location can be disabled via the
@@ -3416,7 +3414,7 @@ slm_gather(simd<uint32_t, N> byte_offsets, simd_mask<N> mask,
 /// template <typename T, int N,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
-///                   simd_mask<N> mask, PropertyListT props = {});// (slm_ga-5)
+///                   simd_mask<N> mask, PropertyListT props = {});// (slm-ga-5)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements. Access to any element's memory location can be disabled via the
@@ -3446,7 +3444,7 @@ slm_gather(simd<uint32_t, N> byte_offsets, simd_mask<N> mask,
 /// template <typename T, int N,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> slm_gather(simd<uint32_t, N> byte_offsets,
-///                   PropertyListT props = {});                   // (slm_ga-6)
+///                   PropertyListT props = {});                   // (slm-ga-6)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements.
@@ -3472,7 +3470,7 @@ slm_gather(simd<uint32_t, N> byte_offsets, PropertyListT props = {}) {
 /// simd <T, N> slm_gather(
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 ///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///             PropertyListT props = {});                         // (slm_ga-7)
+///             PropertyListT props = {});                         // (slm-ga-7)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements. Access to any element's memory location can be disabled via the
@@ -3498,7 +3496,9 @@ template <typename T, int N, int VS = 1, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+    detail::is_simd_view_type_v<OffsetObjT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
 slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
            simd_mask<N / VS> mask, simd<T, N> pass_thru,
            PropertyListT props = {}) {
@@ -3507,7 +3507,7 @@ slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 
 /// simd <T, N> slm_gather(
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm_ga-8)
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-ga-8)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements. Access to any element's memory location can be disabled via the
@@ -3531,7 +3531,9 @@ template <typename T, int N, int VS = 1, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+    detail::is_simd_view_type_v<OffsetObjT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
 slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
            simd_mask<N / VS> mask, PropertyListT props = {}) {
   return slm_gather<T, N, VS>(byte_offsets.read(), mask, props);
@@ -3539,7 +3541,7 @@ slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
 
 /// simd <T, N> slm_gather(
 ///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             PropertyListT props = {});                         // (slm_ga-9)
+///             PropertyListT props = {});                         // (slm-ga-9)
 /// Loads ("gathers") elements of the type 'T' from Shared Local Memory
 /// locations addressed by byte offsets \p byte_offsets, and returns the loaded
 /// elements.
@@ -3558,7 +3560,9 @@ template <typename T, int N, int VS = 1, typename OffsetObjT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+    detail::is_simd_view_type_v<OffsetObjT> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
 slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
            PropertyListT props = {}) {
   return slm_gather<T, N, VS>(byte_offsets.read(), props);
