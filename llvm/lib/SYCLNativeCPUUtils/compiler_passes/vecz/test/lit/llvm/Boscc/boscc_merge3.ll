@@ -27,7 +27,7 @@ declare i64 @__mux_get_global_id(i32) #0
 ; Function Attrs: nounwind readnone
 declare spir_func <4 x float> @_Z6vload4mPU3AS1Kf(i64, float addrspace(1)*)
 
-define spir_kernel void @boscc_merge3(float addrspace(1)* %out, i64 %n, float %m) {
+define spir_kernel void @boscc_merge3(float addrspace(1)* %out, i64 noundef %n, float noundef %m) {
 entry:
   %gid0 = tail call i64 @__mux_get_global_id(i32 0) #0
   %gid1 = tail call i64 @__mux_get_global_id(i32 1) #0
