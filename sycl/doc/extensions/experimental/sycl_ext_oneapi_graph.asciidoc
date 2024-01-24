@@ -246,9 +246,10 @@ to define an edge between existing nodes, or using a
 
 Edges can also be created when explicitly adding nodes to the graph through
 existing SYCL mechanisms for expressing dependencies. Data dependencies from
-buffer accessors to existing nodes in the graph are captured as an edge. Using
+accessors to existing nodes in the graph are captured as an edge. Using
 `handler::depends_on()` will also create a graph edge when passed an event
-returned from a queue submission captured by a queue recording to the same graph.
+returned from a queue submission captured by a queue recording to the same
+graph.
 |===
 
 ==== Queue Recording API
@@ -328,6 +329,11 @@ class assume_buffer_outlives_graph {
   public:
     assume_buffer_outlives_graph() = default;
 };
+
+class updatable {
+  public:
+    updatable() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -355,7 +361,23 @@ struct graphs_support;
 } // namespace device
 } // namespace info
 
-class node {};
+template <typename ValueT>
+class dynamic_parameter {
+public:
+  dynamic_parameter(command_graph<graph_state::modifiable> graph);
+
+  void register(int argIndex, const handler& cgh);
+
+  void update_value(const ValueT& newValue);
+};
+
+class node {
+public:
+  node() = delete;
+
+  template <int Dimensions>
+  void update_nd_range(nd_range<Dimensions> executionRange);
+};
 
 // State of a graph
 enum class graph_state {
@@ -399,7 +421,10 @@ public:
 template<>
 class command_graph<graph_state::executable> {
 public:
-    command_graph() = delete;
+  command_graph() = delete;
+
+  void update(node& node);
+  void update(const std::vector<node>& nodes);
 };
 }  // namespace ext::oneapi::experimental
 
@@ -467,9 +492,134 @@ The `node` class provides the {crs}[common reference semantics].
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-  class node {};
+  class node {
+    template <int Dimensions>
+    void update_nd_range(nd_range<Dimensions> executionRange);
+  };
 }
 ----
+
+Table {counter: tableNumber}. Member functions of the `node` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+template <int Dimensions>
+void update_nd_range(nd_range<Dimensions> executionRange);
+----
+| Updates the ND-Range for this node with a new value. This new value will not
+affect any executable graphs this node is part of until it is passed to the
+executable graph's update function.
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating node parameters.
+
+Parameters:
+
+* `executionRange` - The new value for the ND-Range.
+
+Exceptions:
+
+* Throws with error code `nd_range` if `executionRange` is an invalid ND-Range
+  for this node.
+
+* Throws with error code `invalid` if the type of the node is not a kernel
+  execution.
+
+|===
+
+==== Dynamic Parameters
+
+Dynamic parameters are arguments to a node's command-group which can be updated
+by the user after the node has been added to a graph. Updating the value of a
+dynamic parameter will be reflected in the modifiable graph which contains this
+node. These updated nodes can then be passed to an executable graph to update
+it with new values.
+
+The type of the underlying object a dynamic parameter represents is set at
+compile time using a template parameter. This underlying type can be an
+accessor, a pointer to a USM allocation, scalar passed by value, or a raw byte
+representation of the argument. The raw byte representation is intended to
+enable updating arguments set using
+link:../proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+
+Dynamic parameters are registered with nodes in a modifiable graph, with each
+registration associating one or more node arguments to the dynamic parameter
+instance. Registration happens inside the command-group that the node represents
+, and is done using the argument index (known when argument originally set using
+`set_arg()`/`set_args()`). It is valid for a node argument to be registered with
+more than one dynamic parameter instance.
+
+Registration is done by using the argument index (known when argument
+originally set using `set_arg()`/`set_args()`).
+
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating node parameters.
+
+The `dynamic_parameter` class provides the {crs}[common reference semantics].
+
+Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+dynamic_parameter(command_graph<graph_state::modifiable> graph);
+----
+|Constructs a dynamic parameter object that can be registered with node
+arguments.
+
+Parameters:
+
+* `graph` - Graph containing the nodes which will have dynamic parameters.
+
+|
+[source,c++]
+----
+void register(int argIndex, const handler &cgh);
+----
+|Callable only from command-group scope when adding a node to a graph
+using the explicit API. Associate the dynamic parameter
+with the kernel parameter of the node that encapsulates this command-group.
+Parameters are associated by their index which was given when they were
+registered with `handler`.
+
+Parameters:
+
+* `argIndex` - Kernel argument index starting from zero to associate with
+  the dynamic parameter.
+* `handler` - SYCL handler object.
+
+Exceptions:
+
+* Throws with error code `invalid` if `argIndex` is not a valid argument index
+  for the resulting node.
+* Throws with error code `invalid` if the type of the command-group is not a
+  kernel execution.
+* Throws with error code `invalid` if the resulting node is not associated with
+  the graph that this dynamic parameter was created with.
+
+|
+[source,c++]
+----
+void update(const ValueT& newValue);
+----
+
+|Updates parameters in all nodes registered with this dynamic
+parameter to `newValue`. This new value will be reflect immediately in the
+modifiable graph which contains the registered nodes. It is not an
+error if `newValue` is set to the current parameter value in any registered
+nodes.
+
+Parameters:
+
+* `newValue` - Value to update the registered node parameters to.
+
+|===
 
 ==== Depends-On Property
 
@@ -547,6 +697,64 @@ construction.
 graph LR
     Modifiable -->|Finalize| Executable
 ....
+
+==== Executable Graph Update
+
+A graph in the executable state can have the configuration of its nodes modified
+using a concept called graph _update_. This avoids a user having to rebuild and
+finalize a new executable graph when only the inputs & outputs to a graph
+change between submissions. Updates to a graph take effect from the next
+submission of that graph and will not affect any previous submissions or
+in-flight executions of the same graph.
+
+The only type of nodes that are currently supported for updating in a graph are
+kernel execution nodes.
+
+The aspects of a kernel execution node that can be configured during update are:
+
+* Parameters to the kernel.
+* Execution ND-Range of the kernel.
+
+To update an executable graph, the `property::graph::updatable` property must
+have been set when the graph was created during finalization. Otherwise, an
+exception will be thrown if a user tries to update an executable graph. This
+guarantee allows the backend to provide a more optimized implementation, if
+possible.
+
+===== Individual Node Update
+
+Memory parameters to individual nodes in a graph in the `executable` state
+can be updated between graph executions using dynamic parameters. When a
+`dynamic_parameter` instance is created with a modifiable state graph it is
+empty, with no associated kernel arguments. The `dynamic_parameter`
+can be used to update that node argument in the future.
+
+Parameter updates are performed using a `dynamic_parameter` instance by
+calling `dynamic_parameter::update()` to update all the parameters of nodes to
+which the `dynamic_parameter` is registered.
+
+The other node configuration that can be updated is the ND-Range, this can
+be set through `node::update_nd_range()` but does not require any prior
+registration.
+
+These updated nodes can then be passed to 
+`command_graph<graph_state::executable>::update()` which will update the
+executable graph with the current state of the nodes.
+
+Since the structure of the graph became fixed when finalizing, updating
+parameters on a node will not change the already defined dependencies between
+nodes. This is important to note when updating buffer parameters to a node,
+since no edges will be automatically created or removed based on this change.
+Care should be taken that updates of buffer parameters do not change the
+behavior of a graph when executed.
+
+For example, if there are two nodes (NodeA and NodeB) which are connected
+by an edge due to a dependency on the same buffer, both nodes must have
+this buffer parameter updated to the new value. This maintains the correct
+data dependency and prevents unexpected behavior. To achieve this, one
+dynamic parameter for the buffer can be registered with all the nodes which
+use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
+will maintain the graphs data dependencies.
 
 ==== Graph Properties [[graph-properties]]
 
@@ -775,8 +983,9 @@ Preconditions:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. No finalization
-  properties are defined by this extension.
+* `propList` - Optional parameter for passing properties. The only property
+  that is valid to pass here is `property::graph::updatable`, to enable the
+  returned executable graph to be <<executable-graph-update, updated>>.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
@@ -808,7 +1017,70 @@ the file extension is not supported or if the write operation failed.
 
 |===
 
-Table {counter: tableNumber}. Member functions of the `command_graph` class for queue recording.
+Table {counter: tableNumber}. Member functions of the `command_graph` class for
+graph update.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+void update(node& node);
+----
+
+| Updates an executable graph node that corresponds to `node`. `node` must be a
+kernel execution node. Argument values which have associated dynamic parameters
+will be updated, and the ND-range of the node will be updated inside the
+executable graph to reflect the current values in `node`.
+
+Preconditions:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `node` - The node in this graph which will be updated.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was
+  created.
+* Throws with error code `invalid` if `node` is not part of the
+  graph.
+
+|
+[source,c++]
+----
+void update(const std::vector<node>& nodes);
+----
+
+| Updates all executable graph nodes that corresponds to the nodes contained in
+`nodes`. All nodes must be kernel nodes. Argument values which have associated
+dynamic parameters will be updated, and the ND-range of the nodes will be
+updated inside the executable graph to reflect the current values in each node.
+
+Preconditions:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `nodes` - The nodes in this graph which will be updated.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was created.
+* Throws with error code `invalid` if any node in `nodes` is not part of the
+  graph.
+|===
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class for
+queue recording.
 [cols="2a,a"]
 |===
 |Member function|Description
@@ -844,6 +1116,7 @@ Exceptions:
 * Throws synchronously with error code `invalid` if `recordingQueue` is
   associated with a device or context that is different from the device
   and context used on creation of the graph.
+
 |
 [source, c++]
 ----
@@ -1548,6 +1821,82 @@ submitted in its entirety for execution via
   ...
 ----
 
+=== Dynamic Parameter Update
+
+Example showing a graph with a single kernel node that is created using a kernel
+bundle with `handler::set_args()` and having its node arguments updated.
+
+[source,c++]
+----
+...
+
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue myQueue;
+auto myContext = myQueue.get_context();
+auto myDevice = myQueue.get_device();
+
+// USM allocations for kernel input/output
+const size_t n = 1024;
+int *ptrX = malloc_shared<int>(n, myQueue);
+int *ptrY = malloc_device<int>(n, myQueue);
+
+int *ptrZ = malloc_shared<int>(n, myQueue);
+int *ptrQ = malloc_device<int>(n, myQueue);
+
+// Kernel loaded from kernel bundle
+const std::vector<kernel_id> builtinKernelIds =
+      myDevice.get_info<info::device::built_in_kernel_ids>();
+kernel_bundle<bundle_state::executable> myBundle =
+      get_kernel_bundle(myContext, { myDevice }, builtinKernelIds);
+kernel builtinKernel = myBundle.get_kernel(builtinKernelIds[0]);
+
+// Graph containing a two kernels node
+sycl_ext::command_graph myGraph(myContext, myDevice);
+
+// Create graph dynamic parameters
+dynamic_parameter<int*> dynParamInput(myGraph);
+dynamic_parameter<int> dynParamScalar(myGraph);
+
+// First node uses ptrX as an input & output parameter, with operand
+// mySclar as another argument.
+int myScalar = 42;
+node nodeA = myGraph.add([&](handler& cgh) {
+    cgh.set_args(ptrX, ptrY, myScalar);
+    // Register nodeA dynamic parameters
+    dynParamInput.register(0, cgh);  // Argument index 0 is ptrX
+    dynParamScalar.register(2, cgh);  // Argument index 2 is myScalar
+    cgh.parallel_for(range {n}, builtinKernel);
+});
+
+
+// Create an executable graph with the updatable property.
+auto execGraph = myGraph.finalize({sycl_ext::property::graph::updatable});
+
+// Execute graph, then update without needing to wait for it to complete
+myQueue.ext_oneapi_graph(execGraph);
+
+// Change ptrX argument to node A to ptrZ
+dynParamInput.update(ptrZ);
+
+// Change myScalar argument to node A to newScalar
+int newScalar = 12;
+dynParamScalar.update(newScalar);
+
+// Update nodeA in the executable graph with the new parameters
+execGraph.update(nodeA);
+// Execute graph again
+myQueue.ext_oneapi_graph(execGraph);
+myQueue.wait();
+
+sycl::free(ptrX, myQueue);
+sycl::free(ptrY, myQueue);
+sycl::free(ptrZ, myQueue);
+sycl::free(ptrQ, myQueue);
+
+----
+
 == Future Direction [[future-direction]]
 
 This section contains both features of the specification which have been
@@ -1751,6 +2100,23 @@ user to decide the device each command will be processed for, not the SYCL
 runtime.
 
 == Issues
+
+=== Update More Command Types
+
+Support updating arguments to types of nodes other that kernel execution
+commands.
+
+**UNRESOLVED** Should be added for at least memory copy nodes, however
+full scope of support needs to be designed and implemented.
+
+=== Updateable Property Graph Resubmission
+
+It has been suggested that updateable graphs could remove the dependencies
+generated between graphs upon resubmission while a previous submission of the
+same graph is still executing. However, this requires further design discussion 
+to ensure this is desired and makes sense to users.
+
+**UNRESOLVED** Needs more discussion
 
 === Multi Device Graph
 
