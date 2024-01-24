@@ -730,6 +730,12 @@ struct AddressSanitizer {
   void markEscapedLocalAllocas(Function &F);
   void instrumentSyclAllocateLocalMemory(CallInst *CI);
 
+  GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
+                                          StringRef Value,
+                                          unsigned AddressSpace);
+  void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
+                             SmallVector<Value *> &Args);
+
 private:
   friend struct FunctionStackPoisoner;
 
@@ -775,6 +781,7 @@ private:
   Constant *AsanShadowDeviceGlobal;
   Constant *AsanShadowDeviceLocal;
   Constant *AsanShadowDevicePrivate;
+  std::unordered_map<std::string, GlobalVariable *> GlobalStringMap;
 
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
@@ -1267,26 +1274,25 @@ static bool isUnsupportedSPIRAddrspace(Value *Addr, Function *Func) {
   return false;
 }
 
-static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
-                                               StringRef String,
+GlobalVariable *AddressSanitizer::GetOrCreateGlobalString(Module &M, StringRef Name,
+                                               StringRef Value,
                                                unsigned AddressSpace) {
-  static std::unordered_map<std::string, GlobalVariable *> GlobalStringMap;
   GlobalVariable *StringGV = nullptr;
-  if (GlobalStringMap.find(String.str()) != GlobalStringMap.end()) {
-    StringGV = GlobalStringMap[String.str()];
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end()) {
+    StringGV = GlobalStringMap[Value.str()];
   } else {
     auto *Ty =
-        ArrayType::get(Type::getInt8Ty(M.getContext()), String.size() + 1);
+        ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
     StringGV = new GlobalVariable(
         M, Ty, true, GlobalValue::InternalLinkage,
-        ConstantDataArray::getString(M.getContext(), String), Name, nullptr,
+        ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
         GlobalValue::NotThreadLocal, AddressSpace);
-    GlobalStringMap[String.str()] = StringGV;
+    GlobalStringMap[Value.str()] = StringGV;
   }
   return StringGV;
 }
 
-static void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
+void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
                                   SmallVector<Value *> &Args) {
   auto *M = InsertBefore->getModule();
   auto &C = InsertBefore->getContext();

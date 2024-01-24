@@ -78,8 +78,6 @@ static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
     "ERROR: Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
     "%p)\n";
-static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
-    "ERROR: Private shadow memory out-of-bound (ptr: %p -> %p, base: %p)\n";
 
 static const __SYCL_CONSTANT__ char __unsupport_device_type[] =
     "ERROR: Unsupport device type: %d\n";
@@ -94,18 +92,17 @@ static const __SYCL_CONSTANT__ char __unsupport_device_type[] =
 #define AS_LOCAL 3
 #define AS_GENERIC 4
 
-__SYCL_GLOBAL__ void *to_global(void *ptr) {
+namespace {
+
+__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
 }
-__SYCL_LOCAL__ void *to_local(void *ptr) {
+__SYCL_LOCAL__ void *ToLocal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
 }
-
-__SYCL_PRIVATE__ void *to_private(void *ptr) {
+__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
-
-namespace {
 
 inline uptr MemToShadow_CPU(uptr addr, int32_t as) {
   return __AsanShadowMemoryGlobalStart + (addr >> 3);
@@ -128,18 +125,15 @@ inline uptr MemToShadow_DG2(uptr addr, int32_t as) {
   return shadow_ptr;
 }
 
-static __SYCL_CONSTANT__ const char __mem_2_shadow_local[] =
-    "== wgid: %d (%d, %d, %d)\n";
-
 inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
   uptr shadow_ptr = 0;
 
   if (as == AS_GENERIC) {
-    if ((shadow_ptr = (uptr)to_global((void *)addr))) {
+    if ((shadow_ptr = (uptr)ToGlobal((void *)addr))) {
       as = AS_GLOBAL;
-    } else if ((shadow_ptr = (uptr)to_private((void *)addr))) {
+    } else if ((shadow_ptr = (uptr)ToPrivate((void *)addr))) {
       as = AS_PRIVATE;
-    } else if ((shadow_ptr = (uptr)to_local((void *)addr))) {
+    } else if ((shadow_ptr = (uptr)ToLocal((void *)addr))) {
       as = AS_LOCAL;
     } else {
       return 0;
@@ -184,11 +178,6 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
   return shadow_ptr;
 }
 
-static const __SYCL_CONSTANT__ char __mem_to_shadow_nonzero[] =
-    "__mem_to_shadow: %p(%d) -> %p : %p\n";
-static const __SYCL_CONSTANT__ char __mem_to_shadow_zero[] =
-    "__mem_to_shadow: %p(%d) -> %p : --\n";
-
 inline uptr MemToShadow(uptr addr, int32_t as) {
   uptr shadow_ptr = 0;
 
@@ -212,7 +201,7 @@ inline constexpr uptr RoundDownTo(uptr x, uptr boundary) {
   return x & ~(boundary - 1);
 }
 
-bool mem_is_zero(const char *beg, uptr size) {
+bool MemIsZero(const char *beg, uptr size) {
   const char *end = beg + size;
   uptr *aligned_beg = (uptr *)RoundUpTo((uptr)beg, sizeof(uptr));
   uptr *aligned_end = (uptr *)RoundDownTo((uptr)end, sizeof(uptr));
@@ -272,8 +261,6 @@ static void __asan_internal_report_save(
   int Desired = ASAN_REPORT_START;
   if (atomicCompareAndSet(&__DeviceSanitizerReportMem.Flag, Desired,
                           Expected) == Expected) {
-
-    // print_shadow_memory(ptr, as);
 
     int FileLength = 0;
     int FuncLength = 0;
@@ -430,11 +417,11 @@ inline uptr __asan_region_is_poisoned(uptr beg, int32_t as, size_t size) {
 
   // First check the first and the last application bytes,
   // then check the ASAN_SHADOW_GRANULARITY-aligned region by calling
-  // mem_is_zero on the corresponding shadow.
+  // MemIsZero on the corresponding shadow.
   if (!__asan_address_is_poisoned(beg, as) &&
       !__asan_address_is_poisoned(end - 1, as) &&
       (shadow_end <= shadow_beg ||
-       mem_is_zero((const char *)shadow_beg, shadow_end - shadow_beg)))
+       MemIsZero((const char *)shadow_beg, shadow_end - shadow_beg)))
     return 0;
 
   // The fast check failed, so we have a poisoned byte somewhere.
@@ -521,13 +508,6 @@ ASAN_REPORT_ERROR_BYTE(store, true, 16)
 ASAN_REPORT_ERROR_N(load, false)
 ASAN_REPORT_ERROR_N(store, true)
 
-static const __SYCL_CONSTANT__ char __set_shadow_local0[] =
-    "LOCAL: __asan_set_shadow_local_memory(%p, %d, %d)\n";
-static const __SYCL_CONSTANT__ char __set_shadow_local1[] =
-    "LOCAL: memset(%p - %p, 0)\n";
-static const __SYCL_CONSTANT__ char __set_shadow_local2[] =
-    "LOCAL: memset(%p, %d)\n";
-
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_shadow_local_memory(uptr ptr, size_t size,
                                size_t size_with_redzone) {
@@ -547,11 +527,5 @@ __asan_set_shadow_local_memory(uptr ptr, size_t size,
     *shadow_end = user_end - RoundDownTo(user_end, ASAN_SHADOW_GRANULARITY);
   }
 }
-
-DEVICE_EXTERN_C_NOINLINE
-void __asan_init() {}
-
-DEVICE_EXTERN_C_NOINLINE
-void __asan_version_mismatch_check_v8() {}
 
 #endif
