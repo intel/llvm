@@ -58,7 +58,8 @@ public:
   const char *c_str() { return str; }
 
   void allocate(int size) {
-    // reallocation is not prohibited.
+    // This class object is immutable once its memory is allocated. Reallocation
+    // is not allowed.
     assert(str == nullptr &&
            "Error: memory already allocated for this object.");
     str = new char[size];
