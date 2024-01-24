@@ -206,10 +206,10 @@ Calling a virtual member function, which does not belong to any of sets of
 virtual member functions declared to be used is an undefined behavior.
 |===
 
-If a virtual member function is called from device code, both definition and
-declaration of that function must be decorated with the `indirectly_callable`
-property. `SetId` property parameter must match between definition and
-declaration, or otherwise behavior is undefined.
+If a virtual member function is called from device code, all declarations of
+that function must be decorated with the `indirectly_callable` property with
+the same value of `SetId` property parameter, or otherwise behavior is
+undefined.
 
 Applying the `indirectly_callable` property to a SYCL Kernel function is illegal
 and an implementation should produce a diagnostic for that.
