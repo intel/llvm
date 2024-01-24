@@ -9,7 +9,6 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 #define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 
-#include "JITContext.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
@@ -55,16 +54,13 @@ private:
 class KernelFusion {
 
 public:
-  static FusionResult
-  fuseKernels(JITContext &JITCtx, Config &&JITConfig,
-              const std::vector<SYCLKernelInfo> &KernelInformation,
-              const std::vector<std::string> &KernelsToFuse,
-              const std::string &FusedKernelName,
-              jit_compiler::ParamIdentList &Identities,
-              BarrierFlags BarriersFlags,
-              const std::vector<jit_compiler::ParameterInternalization>
-                  &Internalization,
-              const std::vector<jit_compiler::JITConstant> &JITConstants);
+  static FusionResult fuseKernels(
+      Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
+      const char *FusedKernelName, jit_compiler::ParamIdentList &Identities,
+      BarrierFlags BarriersFlags,
+      const std::vector<jit_compiler::ParameterInternalization>
+          &Internalization,
+      const std::vector<jit_compiler::JITConstant> &JITConstants);
 };
 
 } // namespace jit_compiler

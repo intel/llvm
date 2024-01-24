@@ -9,7 +9,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/typedef-arr-size.ll"
 
-@x = dso_local global <16 x i32> zeroinitializer, align 16, !dbg !0
+@x = dso_local addrspace(1) global <16 x i32> zeroinitializer, align 16, !dbg !0
 
 !llvm.dbg.cu = !{!8}
 !llvm.module.flags = !{!11, !12}

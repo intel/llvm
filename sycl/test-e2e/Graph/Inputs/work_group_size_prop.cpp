@@ -85,8 +85,6 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
     return 1;
   }
 
-  return 0;
-
   // Negative test case: Specify local size that does not match required size.
   exp_ext::command_graph GraphN{Queue.get_context(), Queue.get_device()};
   try {

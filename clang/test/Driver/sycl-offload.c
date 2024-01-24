@@ -424,11 +424,6 @@
 // CHK-TOOLS-IMPLIED-OPTS-O0-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-cl-opt-disable"
 // CHK-TOOLS-IMPLIED-OPTS-O2-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-cl-opt-disable"
 
-/// Check for implied options (-ffp-model=precise)
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -ffp-model=precise %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-ROUNDING %s
-// CHK-TOOLS-IMPLIED-ROUNDING: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-cl-fp32-correctly-rounded-divide-sqrt
-
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"

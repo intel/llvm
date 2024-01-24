@@ -309,7 +309,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                             backend::ext_native_cpu);
+                             backend::ext_oneapi_native_cpu);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -348,10 +348,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
-      if (!NativeCPUFound &&
-          (Backend == backend::ext_native_cpu || Backend == backend::all)) {
+      if (!NativeCPUFound && (Backend == backend::ext_oneapi_native_cpu ||
+                              Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                                 backend::ext_native_cpu);
+                                 backend::ext_oneapi_native_cpu);
       }
       PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
@@ -375,9 +375,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
-    if (list.backendCompatible(backend::ext_native_cpu)) {
+    if (list.backendCompatible(backend::ext_oneapi_native_cpu)) {
       PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                               backend::ext_native_cpu);
+                               backend::ext_oneapi_native_cpu);
     }
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   }

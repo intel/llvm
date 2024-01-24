@@ -1167,7 +1167,7 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
     auto *LD = dyn_cast<LoadInst>(Loc->second);
     auto *Placeholder = dyn_cast<GlobalVariable>(LD->getPointerOperand());
     assert(LD && Placeholder &&
-           Placeholder->getName().startswith(KPlaceholderPrefix) &&
+           Placeholder->getName().starts_with(KPlaceholderPrefix) &&
            "A value is translated twice");
     // Replaces placeholders for PHI nodes
     LD->replaceAllUsesWith(V);
@@ -1964,12 +1964,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto *Scalar = transValue(MTS->getScalar(), F, BB);
     auto *Matrix = transValue(MTS->getMatrix(), F, BB);
-
-    if (MTS->getMatrix()->getType()->isTypeCooperativeMatrixKHR()) {
-      return mapValue(BV, transSPIRVBuiltinFromInst(
-                              static_cast<SPIRVInstruction *>(BV), BB));
-    }
-
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto *ColType = cast<ArrayType>(Matrix->getType())->getElementType();
     auto VecSize = cast<FixedVectorType>(ColType)->getNumElements();
@@ -2235,19 +2229,66 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *CC = static_cast<SPIRVCompositeConstruct *>(BV);
     auto Constituents = transValue(CC->getOperands(), F, BB);
     std::vector<Constant *> CV;
+    bool HasRtValues = false;
     for (const auto &I : Constituents) {
-      CV.push_back(dyn_cast<Constant>(I));
+      auto *C = dyn_cast<Constant>(I);
+      CV.push_back(C);
+      if (!HasRtValues && C == nullptr)
+        HasRtValues = true;
     }
+
     switch (static_cast<size_t>(BV->getType()->getOpCode())) {
-    case OpTypeVector:
-      return mapValue(BV, ConstantVector::get(CV));
+    case OpTypeVector: {
+      if (!HasRtValues)
+        return mapValue(BV, ConstantVector::get(CV));
+
+      auto *VT = cast<FixedVectorType>(transType(CC->getType()));
+      Value *NewVec = ConstantVector::getSplat(
+          VT->getElementCount(), PoisonValue::get(VT->getElementType()));
+
+      for (size_t I = 0; I < Constituents.size(); I++) {
+        NewVec = InsertElementInst::Create(NewVec, Constituents[I],
+                                           getInt32(M, I), "", BB);
+      }
+      return mapValue(BV, NewVec);
+    }
     case OpTypeArray: {
       auto *AT = cast<ArrayType>(transType(CC->getType()));
-      return mapValue(BV, ConstantArray::get(AT, CV));
+      if (!HasRtValues)
+        return mapValue(BV, ConstantArray::get(AT, CV));
+
+      AllocaInst *Alloca = new AllocaInst(AT, SPIRAS_Private, "", BB);
+
+      // get pointer to the element of the array
+      // store the result of argument
+      for (size_t I = 0; I < Constituents.size(); I++) {
+        auto *GEP = GetElementPtrInst::Create(
+            AT, Alloca, {getInt32(M, 0), getInt32(M, I)}, "gep", BB);
+        GEP->setIsInBounds(true);
+        new StoreInst(Constituents[I], GEP, false, BB);
+      }
+
+      auto *Load = new LoadInst(AT, Alloca, "load", false, BB);
+      return mapValue(BV, Load);
     }
     case OpTypeStruct: {
       auto *ST = cast<StructType>(transType(CC->getType()));
-      return mapValue(BV, ConstantStruct::get(ST, CV));
+      if (!HasRtValues)
+        return mapValue(BV, ConstantStruct::get(ST, CV));
+
+      AllocaInst *Alloca = new AllocaInst(ST, SPIRAS_Private, "", BB);
+
+      // get pointer to the element of structure
+      // store the result of argument
+      for (size_t I = 0; I < Constituents.size(); I++) {
+        auto *GEP = GetElementPtrInst::Create(
+            ST, Alloca, {getInt32(M, 0), getInt32(M, I)}, "gep", BB);
+        GEP->setIsInBounds(true);
+        new StoreInst(Constituents[I], GEP, false, BB);
+      }
+
+      auto *Load = new LoadInst(ST, Alloca, "load", false, BB);
+      return mapValue(BV, Load);
     }
     case internal::OpTypeJointMatrixINTEL:
     case OpTypeCooperativeMatrixKHR:
@@ -2952,7 +2993,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   // assuming llvm.memset is supported by the device compiler. If this
   // assumption is not safe, we should have a command line option to control
   // this behavior.
-  if (FuncNameRef.startswith("spirv.llvm_memset_p")) {
+  if (FuncNameRef.starts_with("spirv.llvm_memset_p")) {
     // We can't guarantee that the name is correctly mangled due to opaque
     // pointers. Derive the correct name from the function type.
     FuncName =
@@ -3191,7 +3232,7 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
   else
     MangledName =
-        getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys);
+        getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys, Ops);
 
   opaquifyTypedPointers(ArgTys);
 
@@ -3335,7 +3376,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   }
   }
 
-  bool IsRetSigned;
+  bool IsRetSigned = true;
   switch (OC) {
   case OpConvertFToU:
   case OpSatConvertSToU:
@@ -3344,8 +3385,17 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   case OpUDotAccSatKHR:
     IsRetSigned = false;
     break;
+  case OpImageRead:
+  case OpImageSampleExplicitLod: {
+    size_t Idx = getImageOperandsIndex(OC);
+    if (auto Ops = BI->getOperands(); Ops.size() > Idx) {
+      auto ImOp = static_cast<SPIRVConstant *>(Ops[Idx])->getZExtIntValue();
+      IsRetSigned = !(ImOp & ImageOperandsMask::ImageOperandsZeroExtendMask);
+    }
+    break;
+  }
   default:
-    IsRetSigned = true;
+    break;
   }
 
   if (AddRetTypePostfix) {
@@ -3383,8 +3433,7 @@ bool SPIRVToLLVM::translate() {
     auto *BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
-    else
-      transGlobalCtorDtors(BV);
+    transGlobalCtorDtors(BV);
   }
 
   // Then translate all debug instructions.
@@ -4522,6 +4571,11 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
     std::vector<Metadata *> MetadataVec;
     MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
     F->setMetadata(kSPIR2MD::StallEnable, MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(DecorationStallFreeINTEL)) {
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
+    F->setMetadata(kSPIR2MD::StallFree, MDNode::get(*Context, MetadataVec));
   }
   if (BF->hasDecorate(DecorationFuseLoopsInFunctionINTEL)) {
     std::vector<Metadata *> MetadataVec;

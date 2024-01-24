@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit eddda12352c27961fb454331f88e05d5335db7ed
+  # Merge: 6892412f 71e7e38e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG pietro/barriers)
+  # Date:   Wed Jan 24 12:59:32 2024 +0000
+  #     Merge pull request #1152 from PietroGhg/pietro/barriers
+  #     [NATIVECPU] Handle oneAPI Construction Kit integration in runtime
+  set(UNIFIED_RUNTIME_TAG eddda12352c27961fb454331f88e05d5335db7ed)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -96,10 +96,10 @@ elseif(SYCL_PI_UR_SOURCE_DIR)
 else()
   # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
-  if(NOT ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified
-      Runtime source directory has be proivided, either:
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
 
       * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
@@ -119,6 +119,8 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
@@ -141,7 +143,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
@@ -149,6 +150,10 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h

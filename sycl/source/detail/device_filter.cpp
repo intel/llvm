@@ -20,7 +20,8 @@ inline namespace _V1 {
 namespace detail {
 
 std::vector<std::string_view> tokenize(const std::string_view &Filter,
-                                       const std::string &Delim) {
+                                       const std::string &Delim,
+                                       bool ProhibitEmptyTokens = false) {
   std::vector<std::string_view> Tokens;
   size_t Pos = 0;
   size_t LastPos = 0;
@@ -30,6 +31,11 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
 
     if (!Tok.empty()) {
       Tokens.push_back(Tok);
+    } else if (ProhibitEmptyTokens) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "ONEAPI_DEVICE_SELECTOR parsing error. Empty input before '" + Delim +
+              "' delimiter is not allowed.");
     }
     // move the search starting index
     LastPos = Pos + 1;
@@ -39,6 +45,12 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
   if (LastPos < Filter.size()) {
     std::string_view Tok(Filter.data() + LastPos, Filter.size() - LastPos);
     Tokens.push_back(Tok);
+  } else if ((LastPos != 0) && ProhibitEmptyTokens) {
+    // if delimiter is the last sybmol in the string.
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "ONEAPI_DEVICE_SELECTOR parsing error. Empty input after '" + Delim +
+            "' delimiter is not allowed.");
   }
   return Tokens;
 }
@@ -52,10 +64,9 @@ static backend Parse_ODS_Backend(const std::string_view &BackendStr,
   auto SyclBeMap =
       getSyclBeMap(); // <-- std::array<std::pair<std::string, backend>>
                       // [{"level_zero", backend::level_zero}, {"*", ::all}, ...
-  auto It = std::find_if(
-      std::begin(SyclBeMap), std::end(SyclBeMap), [&](auto BePair) {
-        return std::string::npos != BackendStr.find(BePair.first);
-      });
+  auto It =
+      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap),
+                   [&](auto BePair) { return BackendStr == BePair.first; });
 
   if (It == SyclBeMap.end()) {
     // backend is required
@@ -72,17 +83,22 @@ static backend Parse_ODS_Backend(const std::string_view &BackendStr,
 static void Parse_ODS_Device(ods_target &Target,
                              const std::string_view &DeviceStr) {
   // DeviceStr will be: 'gpu', '*', '0', '0.1', 'gpu.*', '0.*', or 'gpu.2', etc.
-  std::vector<std::string_view> DeviceSubTuple = tokenize(DeviceStr, ".");
+  std::vector<std::string_view> DeviceSubTuple =
+      tokenize(DeviceStr, ".", true /* ProhibitEmptyTokens */);
+  if (DeviceSubTuple.empty())
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "ONEAPI_DEVICE_SELECTOR parsing error. Device must be specified.");
+
   std::string_view TopDeviceStr = DeviceSubTuple[0];
 
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
       getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
                               // info::device::type>>
-  auto It = std::find_if(
-      std::begin(DeviceTypeMap), std::end(DeviceTypeMap), [&](auto DtPair) {
-        return std::string::npos != TopDeviceStr.find(DtPair.first);
-      });
+  auto It =
+      std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
+                   [&](auto DtPair) { return TopDeviceStr == DtPair.first; });
   if (It != DeviceTypeMap.end()) {
     Target.DeviceType = It->second;
     // Handle wildcard.
@@ -183,15 +199,20 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
   // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or "opencl:*" but NOT just
   // "opencl".
   for (const auto Entry : Entries) {
-    std::vector<std::string_view> Pair = tokenize(Entry, ":");
-    backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
+    std::vector<std::string_view> Pair =
+        tokenize(Entry, ":", true /* ProhibitEmptyTokens */);
 
-    if (Pair.size() == 1) {
+    if (Pair.empty()) {
+      std::stringstream ss;
+      ss << "Incomplete selector! Backend and device must be specified.";
+      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+    } else if (Pair.size() == 1) {
       std::stringstream ss;
       ss << "Incomplete selector!  Try '" << Pair[0]
          << ":*' if all devices under the backend was original intention.";
       throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     } else if (Pair.size() == 2) {
+      backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
       std::vector<std::string_view> Targets = tokenize(Pair[1], ",");
       for (auto TargetStr : Targets) {
         ods_target DeviceTarget(be);

@@ -1,6 +1,10 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
+
+// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD memory functions accepting compile time properties.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code.
@@ -26,6 +30,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
                  size_t byte_offset64);
 
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &, float *, int byte_offset32,
+                    size_t byte_offset64);
+
 class EsimdFunctor {
 public:
   AccType acc;
@@ -38,6 +46,7 @@ public:
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, local_acc_int, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
+    test_gather_scatter(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -134,31 +143,40 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
   // Verify ACCESSOR-based block_load.
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   auto a1 = block_load<float, N>(acc, props_a);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   auto a2 = block_load<int, N>(acc, byte_offset32, props_a);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   auto a3 = block_load<float, N>(acc, byte_offset64, props_b);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto a4 = block_load<float, N>(acc, mask, props_a);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto a5 = block_load<float, N>(acc, mask, pass_thru, props_b);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto a6 = block_load<float, N>(acc, byte_offset32, mask, props_a);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto a7 = block_load<int, N>(acc, byte_offset64, mask, props_b);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto a8 = block_load<int, N>(acc, byte_offset32, mask, pass_thru, props_a);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto a9 = block_load<int, N>(acc, byte_offset64, mask, pass_thrui, props_b);
 
   // Now try block_load without cache hints and using the mask to verify
@@ -166,13 +184,16 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
   // not power-of-two because only svm/legacy block_load supports
   // non-power-of-two vector lengths now.
 
-  // CHECK: call <4 x float> @llvm.genx.oword.ld.v4f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <4 x float> @llvm.genx.oword.ld.v4f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: load <4 x float>, ptr addrspace(4) {{[^)]+}}, align 16
   auto z1 = block_load<float, 4>(acc, props_c);
 
-  // CHECK: call <8 x i32> @llvm.genx.oword.ld.unaligned.v8i32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.oword.ld.unaligned.v8i32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: load <8 x i32>, ptr addrspace(4) {{[^)]+}}, align 4
   auto z2 = block_load<int, 8>(acc, byte_offset32, props_c);
 
-  // CHECK: call <16 x float> @llvm.genx.oword.ld.v16f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call <16 x float> @llvm.genx.oword.ld.v16f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: load <16 x float>, ptr addrspace(4) {{[^)]+}}, align 16
   auto z3 = block_load<float, 16>(acc, byte_offset64, props_c16);
 
   // Now try SLM block_load() with and without cache hints that are ignored.
@@ -292,39 +313,47 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
     // Accessor
 
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_acc_0 =
         atomic_update<atomic_op::inc, int>(acc, offsets, pred, props_a);
 
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_acc_1 =
         atomic_update<atomic_op::inc, int>(acc, offsets, pred, props_b);
 
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i64> @llvm.genx.lsc.xatomic.bti.v4i64.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 4, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i64> undef, <4 x i64> undef, i32 {{[^)]+}}, <4 x i64> undef)
+    // CHECK-STATELESS: call <4 x i64> @llvm.genx.lsc.xatomic.stateless.v4i64.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 4, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i64> undef, <4 x i64> undef, i32 0, <4 x i64> undef)
     auto res_atomic_acc_2 =
-        atomic_update<atomic_op::inc, int>(acc, offsets, props_a);
+        atomic_update<atomic_op::inc, int64_t>(acc, offsets, props_a);
 
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_acc_3 =
         atomic_update<atomic_op::inc, int>(acc, offsets_view, pred, props_a);
 
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_acc_4 =
         atomic_update<atomic_op::inc, int, VL>(acc, offsets_view, props_a);
 
     // atomic_upate without cache hints:
-    // CHECK:  call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL: call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.inc.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_acc_5 =
         atomic_update<atomic_op::inc, int, VL>(acc, offsets, pred);
 
     // atomic_upate without cache hints and mask:
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.inc.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_acc_6 =
         atomic_update<atomic_op::inc, int, VL>(acc, offsets);
 
     // Try the atomic_update without cache hints, but with non-standard
     // vector length to check that LSC atomic is generated.
-    // CHECK: call <5 x i32> @llvm.genx.lsc.xatomic.bti.v5i32.v5i1.v5i32(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i32> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 {{[^)]+}}, <5 x i32> undef)
+    // CHECK-STATEFUL:  call <5 x i32> @llvm.genx.lsc.xatomic.bti.v5i32.v5i1.v5i32(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i32> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 {{[^)]+}}, <5 x i32> undef)
+    // CHECK-STATELESS: call <5 x i32> @llvm.genx.lsc.xatomic.stateless.v5i32.v5i1.v5i64(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i64> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 0, <5 x i32> undef)
     {
       constexpr int VL = 5;
       simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int);
@@ -377,7 +406,8 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
     // Accessors
 
-    // CHECK-COUNT-8: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL-COUNT-8:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS-COUNT-8: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_9 =
         atomic_update<atomic_op::add, int>(acc, offsets, add, pred, props_a);
 
@@ -403,9 +433,10 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
         acc, offsets_view, add_view, props_a);
 
     // atomic_update without cache hints:
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.add.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.dword.atomic.sub.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.sub.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_17 =
-        atomic_update<atomic_op::add, int>(acc, offsets, add, pred);
+        atomic_update<atomic_op::sub, int>(acc, offsets, add, pred);
   }
 
   // Test atomic update with two operands.
@@ -499,7 +530,8 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
     // Accessors
 
-    //CHECK-COUNT-16: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL-COUNT-16:  call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS-COUNT-16: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
     auto res_atomic_17 = atomic_update<atomic_op::cmpxchg>(
         acc, offsets, swap, compare, pred, props_a);
 
@@ -555,17 +587,20 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       auto compare = swap * 2;
       auto pred = simd_mask<VL>(1);
       // Do not pass the properties.
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
+      // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
+      // CHECK-STATELESS: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
       auto atomic_res0 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           acc, offsets, swap, compare, pred);
       // Now with cache hints.
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
+      // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
+      // CHECK-STATELESS: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
       auto atomic_res1 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           acc, offsets, swap, compare, pred, props_a);
     }
 
     // atomic_update without cache hints
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.cmpxchg.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.dword.atomic.cmpxchg.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-STATELESS: call <4 x i32> @llvm.genx.svm.atomic.cmpxchg.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_33 = atomic_update<atomic_op::cmpxchg, int, VL>(
         acc, offsets, swap, compare, pred);
   }
@@ -834,27 +869,34 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
   // Test accessor block store
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(acc, vals, store_props_a);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store(acc, byte_offset32, valsi, store_props_a);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(acc, byte_offset64, vals, store_props_c);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(acc, vals, mask, store_props_a);
 
-  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store(acc, byte_offset64, valsi, mask, store_props_c);
 
   // Test accessor SVM/legacy block store
 
-  // CHECK: call void @llvm.genx.oword.st.v4f32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.oword.st.v4f32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  // CHECK-STATELESS: store <4 x float> {{[^)]+}}, ptr addrspace(4) {{[^)]+}}, align 16
   block_store(acc, vals, store_props_b);
 
-  // CHECK: call void @llvm.genx.oword.st.v4i32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATEFUL:  call void @llvm.genx.oword.st.v4i32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  // CHECK-STATELESS: store <4 x i32> {{[^)]+}}, ptr addrspace(4) {{[^)]+}}, align 16
   block_store(acc, byte_offset32, valsi, store_props_b);
 
   // Now try SLM block_store() with and without cache hints that are ignored.
@@ -890,4 +932,220 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
   // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store<int, N>(local_acc, byte_offset32, valsi, mask, store_props_c);
   block_store<int, N>(local_acc, byte_offset32, viewi, mask, store_props_c);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z19test_gather_scatter{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
+                    size_t byte_offset64) {
+  properties props_cache_load{cache_hint_L1<cache_hint::uncached>,
+                              cache_hint_L2<cache_hint::uncached>,
+                              alignment<8>};
+
+  properties props_align4{alignment<4>};
+  properties props_align8{alignment<8>};
+  properties props_align16{alignment<16>};
+
+  int *ptri = reinterpret_cast<int *>(ptrf);
+
+  simd<uint32_t, 32> ioffset_n32(byte_offset32, 8);
+  simd<uint64_t, 32> loffset_n32(byte_offset64, 16);
+  auto ioffset_n32_view = ioffset_n32.select<32, 1>();
+  auto loffset_n32_view = loffset_n32.select<32, 1>();
+
+  simd<uint32_t, 16> ioffset_n16(byte_offset32, 8);
+  simd<uint64_t, 16> loffset_n16(byte_offset64, 16);
+  auto ioffset_n16_view = ioffset_n16.select<16, 1>();
+  auto loffset_n16_view = loffset_n16.select<16, 1>();
+
+  simd_mask<32> mask_n32 = 1;
+  simd_mask<16> mask_n16 = 1;
+
+  simd<float, 32> usm;
+  simd<float, 32> acc_res;
+  simd<float, 32> pass_thru;
+  auto pass_thru_view = pass_thru.select<32, 1>();
+
+  // Test USM and ACC gather using this plan:
+  // 1) gather(usm, offsets): offsets is simd or simd_view
+  // 2) gather(usm, offsets, mask): offsets is simd or simd_view
+  // 3) gather(usm, offsets, mask, pass_thru)
+  // 4) gather(usm, ...): same as (1), (2), (3) above, but with VS > 1.
+  // 5) gather(acc, offsets): offsets is simd or simd_view
+  // 6) gather(acc, offsets, mask): offsets is simd or simd_view
+  // 7) gather(acc, offsets, mask, pass_thru)
+  // 8) gather(acc, ...): same as (5), (6), (7) above, but with VS > 1.
+
+  // 1) gather(usm, offsets): offsets is simd or simd_view
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view);
+
+  usm = gather(ptrf, loffset_n32);
+  usm = gather<float, 32>(ptrf, loffset_n32_view);
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, props_align8);
+
+  usm = gather(ptrf, loffset_n32, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, props_align8);
+
+  // 2) gather(usm, offsets, mask): offsets is simd or simd_view
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32);
+
+  usm = gather(ptrf, loffset_n32, mask_n32);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32);
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, props_align8);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, props_align8);
+
+  // 3) gather(usm, offsets, mask, pass_thru)
+  // CHECK-COUNT-8: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, ioffset_n32, mask_n32, pass_thru_view);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru_view);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, loffset_n32, mask_n32, pass_thru_view);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru_view);
+
+  // CHECK-COUNT-8: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, pass_thru, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32, mask_n32, pass_thru_view,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru_view,
+                          props_align8);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, pass_thru, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32, mask_n32, pass_thru_view,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru_view,
+                          props_align8);
+
+  // 4) gather(usm, ...): same as (1), (2), (3) above, but with VS > 1.
+  // CHECK-COUNT-32: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  // 4a) check VS > 1. no 'mask' operand first.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, props_align4);
+
+  // 4b) check VS > 1. Pass the 'mask' operand this time.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_align4);
+
+  // 4c) check VS > 1. Pass the 'mask' and 'pass_thru' operands.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru_view);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru_view);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru_view);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru_view);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru_view,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru_view,
+                             props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru_view,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru_view,
+                             props_align4);
+
+  // 5) gather(acc, offsets): offsets is simd or simd_view
+  // CHECK-STATEFUL-COUNT-8: call <32 x float> @llvm.genx.gather.masked.scaled2.v32f32.v32i32.v32i1(i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x i1> {{[^)]+}})
+  // CHECK-STATEFUL-COUNT-8: call <32 x i32> @llvm.genx.lsc.load.merge.bti.v32i32.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-STATELESS-COUNT-16: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  acc_res = gather<float>(acc, ioffset_n32);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view);
+  acc_res = gather<float>(acc, ioffset_n32, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, props_align4);
+
+  // 6) gather(acc, offsets, mask): offsets is simd or simd_view
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32);
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, props_align4);
+
+  // 7) gather(acc, offsets, mask, pass_thru)
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, pass_thru);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru);
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, pass_thru, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru,
+                              props_align4);
+
+  acc_res = gather<float, 32>(acc, ioffset_n32, mask_n32, pass_thru_view);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru_view);
+  acc_res = gather<float, 32>(acc, ioffset_n32, mask_n32, pass_thru_view,
+                              props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru_view,
+                              props_align4);
+
+  // 8) gather(ac, ...): same as (5), (6), (7) above, but with VS > 1.
+  // CHECK-STATEFUL-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.bti.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-STATELESS-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru);
+  acc_res =
+      gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru,
+                                 props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru_view);
+  acc_res =
+      gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru_view);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru_view,
+                                 props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
+                                 pass_thru_view, props_align4);
 }

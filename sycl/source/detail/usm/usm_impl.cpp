@@ -80,7 +80,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   } else {
     pi_context C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
-    pi_result Error;
+    pi_result Error = PI_ERROR_INVALID_VALUE;
 
     switch (Kind) {
     case alloc::host: {
@@ -155,7 +155,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
   } else {
     pi_context C = CtxImpl->getHandleRef();
     const PluginPtr &Plugin = CtxImpl->getPlugin();
-    pi_result Error;
+    pi_result Error = PI_ERROR_INVALID_VALUE;
     pi_device Id;
 
     switch (Kind) {

@@ -51,6 +51,8 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);
 
+  static bool isRequired() { return true; }
+
 private:
   SPIRV::TranslatorOpts Opts;
 };

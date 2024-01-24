@@ -74,6 +74,21 @@ Additionally, an event dependency between the `KernelFusionCommand` and the fuse
 The fused kernel and the `KernelFusionCommand` are eventually enqueued to the `GraphProcessor`.
 The `KernelFusionCommand` status is set to `COMPLETED`.
 
+### Internalization Behavior
+
+Users can provide hints to perform local and private promotion of arguments when performing fusion. On local promotion, arguments become _local internal_, meaning memory is shared between work-items of the same work-group. On the other hand, on private promotion, they become _private internal_, meaning memory is private to each work-item.
+
+Local internalization is implemented by replacing the pointer to global memory corresponding to the argument to be promoted with a new argument being a pointer to local memory. The size of the local memory region will be `original_size / num_work_groups`, being `original_size` the number of elements in the accessor argument. Note that an ND-range kernel (parametrized by a `sycl::nd_range`) has to be used to perform local internalization.
+
+Private internalization is implemented by dropping the pointer to global memory corresponding to the argument to be promoted and using a pointer to a private memory allocation instead. The size of the private memory allocation will be `original_size / global_size`. Note that a basic kernel (parametrized by a `sycl::range`) can be used to perform private internalization.
+
+As the promoted address space will be potentially smaller than the original one, each access has to be remapped accordingly. Our current approach is to replace each access `ptr + offset` to `ptr + offset % new_size`. Users should be aware of this transformation and write their code carefully, making sure the resulting memory access pattern is legal and respects the original program semantics.
+
+As kernel fusion supports fusing kernel with different ND-ranges, in some cases, internalization will be affected. For both local and private internalization, internalization when fusing kernels with different ND-ranges is allowed as long as the size of the memory allocations replacing the original argument are the same for all kernels using the argument to be promoted. Meaning:
+
+- For local internalization: all kernels specify a local size and `original_size / num_work_groups` is the same for all kernels;
+- For private internalization: `original_size / global_size` is the same for all kernels.
+
 ### Synchronization Behavior
 
 As described in the [kernel fusion extension proposal](https://github.com/intel/llvm/pull/7098), several scenarios require aborting the fusion early to avoid semantic violations or circular dependencies in the execution graph. Essentially, this affects all commands that do not become part of the fusion process, e.g., kernels on other queues, host tasks, or explicit memory operations, that have a dependency on at least one of the kernels in the current fusion list due to a requirement or event dependency.
@@ -154,8 +169,9 @@ The metadata is attached to a function that will become the fused kernel:
 
 - `sycl.kernel.fused`: declare the kernels to fuse. Contains a list of kernel names to fuse.
 - `sycl.kernel.param`: declare identical parameters. Contains a list of tuples, each tuple represents identical arguments and each element of that tuple contains a pair of indexes referencing the kernel index in `sycl.kernel.fused` and the parameter index of that kernel (0 indexed). For instance ((0,1),(2,3)) means the second argument of the first kernel is identical to the fourth argument of the third kernel.
-- `sycl.kernel.promote`: declare identical parameters to be promoted. Contains a list of index (of the fused kernel, after identical arguments elision) and `private` if the argument is to be promoted to private memory or `local` if it is to local.
-- `sycl.kernel.promote.size`: declare the address space size for the promoted memory. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the number of elements.
+- `sycl.kernel.promote`: declare identical parameters to be promoted. Contains a list of strings specifying promotion hints for each argument: `none` for no promotion and `local`/`private` for local/private promotion.
+- `sycl.kernel.promote.localsize`: declare the address space size for the promoted memory. Contains a list specifying the number of elements in the replacement memory allocation for each argument or `""` when no promotion needs to be performed.
+- `sycl.kernel.promote.elemsize`: declare the element size for the promoted memory. Contains a list specifying the element size for each promoted argument or `""` when no promotion needs to be performed.
 - `sycl.kernel.constants`: declare the value of a scalar or aggregate to be used as constant values. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the value as a string. Note: the string is used to store the value, the string is read as a buffer of char and reinterpreted into the value of the argument's type.
 - `sycl.kernel.nd-range`: declare the nd-range to be used by the fused kernel in case work-item remapping was needed. It is a tuple with 4 elements:
    - `num_dims`: scalar integer representing the number of dimensions of the nd-range;

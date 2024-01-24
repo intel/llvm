@@ -38,7 +38,7 @@ int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax, const IdentifierInfo
   // __sycl_detail__ namespace. Should normalization work for
   // attributes not in gnu and clang namespace?
   if (ScopeName != "__sycl_detail__" && Name.size() >= 4 &&
-      Name.startswith("__") && Name.endswith("__"))
+      Name.starts_with("__") && Name.ends_with("__"))
     Name = Name.substr(2, Name.size() - 4);
 
   // Normalize the scope name, but only for gnu and clang attributes.
@@ -107,8 +107,8 @@ static StringRef normalizeAttrName(const IdentifierInfo *Name,
        (NormalizedScopeName.empty() || NormalizedScopeName == "gnu" ||
         NormalizedScopeName == "clang"));
   StringRef AttrName = Name->getName();
-  if (ShouldNormalize && AttrName.size() >= 4 && AttrName.startswith("__") &&
-      AttrName.endswith("__"))
+  if (ShouldNormalize && AttrName.size() >= 4 && AttrName.starts_with("__") &&
+      AttrName.ends_with("__"))
     AttrName = AttrName.slice(2, AttrName.size() - 2);
 
   return AttrName;

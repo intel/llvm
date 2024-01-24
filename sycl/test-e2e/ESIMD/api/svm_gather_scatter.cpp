@@ -54,7 +54,7 @@ template <typename T, int N> bool test(queue &Q) {
   T *Dst = Ptr2.get();
 
   for (int I = 0; I < N; ++I) {
-    Src[I] = I + 1;
+    Src[I] = I + 1 + 0.5;
     Dst[I] = 0;
   }
 

@@ -220,18 +220,6 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
 // CHK-TOOLS-IMPLIED-OPTS-GEN: ocloc{{.*}} "-options" "-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -ffp-model=precise -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-ROUNDING-FPGA %s
-// CHK-TOOLS-IMPLIED-ROUNDING-FPGA: opencl-aot{{.*}} "--bo=-cl-fp32-correctly-rounded-divide-sqrt" "-DFOO1" "-DFOO2"
-
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -ffp-model=precise -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-ROUNDING-CPU %s
-// CHK-TOOLS-IMPLIED-ROUNDING-CPU: opencl-aot{{.*}} "--bo=-cl-fp32-correctly-rounded-divide-sqrt" "-DFOO1" "-DFOO2"
-
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown -ffp-model=precise -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-ROUNDING-GEN %s
-// CHK-TOOLS-IMPLIED-ROUNDING-GEN: ocloc{{.*}} "-options" "-cl-fp32-correctly-rounded-divide-sqrt" "-DFOO1" "-DFOO2"
-
 /// Check -Xsycl-target-linker option passing
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS2 %s

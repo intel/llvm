@@ -62,6 +62,8 @@ class SPIRVLowerSaddWithOverflowPass
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerSaddWithOverflowLegacy : public llvm::ModulePass,

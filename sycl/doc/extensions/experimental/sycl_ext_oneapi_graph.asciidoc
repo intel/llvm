@@ -53,7 +53,9 @@ Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Maxime France-Pillois, Codeplay +
+Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
 
 == Dependencies
 
@@ -371,6 +373,9 @@ public:
   command_graph(const context& syclContext, const device& syclDevice,
                 const property_list& propList = {});
 
+  command_graph(const queue& syclQueue,
+                const property_list& propList = {});
+
   command_graph<graph_state::executable>
   finalize(const property_list& propList = {}) const;
 
@@ -610,8 +615,34 @@ associated with `syclContext`.
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
-* Throws synchronously with error code `invalid` if the backend associated
-with `syclDevice` is not supported.
+|
+[source,c++]
+----
+command_graph(const queue& syclQueue,
+              const property_list& propList = {});
+----
+|Simplified constructor form where `syclQueue` provides the device and context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`.
+
+Preconditions:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclQueue` - Queue which provides the SYCL device and context for the graph,
+  which are immutable characteristics of the graph. All other properties of the
+  queue are ignored for the purposes of graph creation.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the device associated with
+ `syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
 |===
 

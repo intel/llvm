@@ -121,6 +121,9 @@ template <>
 struct is_esimd_arithmetic_type<half_raw_type, void> : std::true_type {};
 #endif // __SYCL_DEVICE_ONLY__
 
+template <>
+struct is_esimd_arithmetic_type<sycl::half, void> : std::true_type {};
+
 // Misc
 inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
   O << static_cast<float>(rhs);

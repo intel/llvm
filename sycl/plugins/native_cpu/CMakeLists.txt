@@ -9,7 +9,6 @@ add_sycl_plugin(native_cpu
     ${UR_NATIVE_CPU_ADAPTER_SOURCES}
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_native_cpu.cpp"

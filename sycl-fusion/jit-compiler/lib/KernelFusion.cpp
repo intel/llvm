@@ -8,7 +8,6 @@
 
 #include "KernelFusion.h"
 #include "Kernel.h"
-#include "KernelIO.h"
 #include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
@@ -72,16 +71,18 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    JITContext &JITCtx, Config &&JITConfig,
-    const std::vector<SYCLKernelInfo> &KernelInformation,
-    const std::vector<std::string> &KernelsToFuse,
-    const std::string &FusedKernelName, ParamIdentList &Identities,
+    Config &&JITConfig, const std::vector<SYCLKernelInfo> &KernelInformation,
+    const char *FusedKernelName, ParamIdentList &Identities,
     BarrierFlags BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
   // Initialize the configuration helper to make the options for this invocation
   // available (on a per-thread basis).
   ConfigHelper::setConfig(std::move(JITConfig));
+
+  std::vector<std::string> KernelsToFuse;
+  llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
+                  [](const auto &KI) { return std::string{KI.Name.c_str()}; });
 
   const auto NDRanges = gatherNDRanges(KernelInformation);
 
@@ -94,15 +95,19 @@ FusionResult KernelFusion::fuseKernels(
 
   bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
 
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
+  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  DeviceArchitecture TargetArch = TargetInfo.getArch();
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
         "Fusion output target format not supported by this build");
   }
 
+  auto &JITCtx = JITContext::getInstance();
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
-  CacheKeyT CacheKey{KernelsToFuse,
+  CacheKeyT CacheKey{TargetArch,
+                     KernelsToFuse,
                      Identities,
                      BarriersFlags,
                      Internalization,
