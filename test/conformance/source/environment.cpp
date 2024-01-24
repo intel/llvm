@@ -188,7 +188,7 @@ void uur::PlatformEnvironment::TearDown() {
 
 PlatformEnvironment::PlatformOptions
 PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
-    PlatformOptions options;
+    PlatformOptions options{};
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
         if (!(std::strcmp(arg, "-h") && std::strcmp(arg, "--help"))) {
@@ -219,7 +219,7 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
 
 DevicesEnvironment::DeviceOptions
 DevicesEnvironment::parseDeviceOptions(int argc, char **argv) {
-    DeviceOptions options;
+    DeviceOptions options{};
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
         if (!(std::strcmp(arg, "-h") && std::strcmp(arg, "--help"))) {
