@@ -14,10 +14,8 @@
 #include <unordered_set>
 
 struct ur_kernel_handle_t_ : _ur_object {
-  ur_kernel_handle_t_(ze_kernel_handle_t Kernel, bool OwnZeHandle,
-                      ur_program_handle_t Program)
-      : Context{nullptr}, Program{Program}, ZeKernel{Kernel},
-        SubmissionsCount{0}, MemAllocs{} {
+  ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
+      : Program{Program}, SubmissionsCount{0}, MemAllocs{} {
     OwnNativeHandle = OwnZeHandle;
   }
 
@@ -36,6 +34,15 @@ struct ur_kernel_handle_t_ : _ur_object {
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
+
+  // Map of L0 kernels created for all the devices for which a UR Program
+  // has been built. It may contain duplicated kernel entries for a root
+  // device and its sub-devices.
+  std::unordered_map<ze_device_handle_t, ze_kernel_handle_t> ZeKernelMap;
+
+  // Vector of L0 kernels. Each entry is unique, so this is used for
+  // destroying the kernels instead of ZeKernelMap
+  std::vector<ze_kernel_handle_t> ZeKernels;
 
   // Counter to track the number of submissions of the kernel.
   // When this value is zero, it means that kernel is not submitted for an

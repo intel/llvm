@@ -108,7 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
           /* IsInternal */ false));
     }
 
-    Queue->synchronize();
+    UR_CALL(Queue->synchronize());
 
     if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);

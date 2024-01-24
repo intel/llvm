@@ -99,6 +99,57 @@ TEST_P(urEnqueueMemBufferMapTest, SuccessPartialMap) {
     }
 }
 
+TEST_P(urEnqueueMemBufferMapTest, SuccesPinnedRead) {
+    const size_t memSize = sizeof(int);
+    const int value = 20;
+
+    ur_mem_handle_t memObj;
+    ASSERT_SUCCESS(urMemBufferCreate(
+        context, UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_HOST_POINTER,
+        memSize, nullptr, &memObj));
+
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, memObj, true, 0, sizeof(int),
+                                           &value, 0, nullptr, nullptr));
+
+    int *host_ptr = nullptr;
+    ASSERT_SUCCESS(urEnqueueMemBufferMap(queue, memObj, true, UR_MAP_FLAG_READ,
+                                         0, sizeof(int), 0, nullptr, nullptr,
+                                         (void **)&host_ptr));
+
+    ASSERT_EQ(*host_ptr, value);
+    ASSERT_SUCCESS(
+        urEnqueueMemUnmap(queue, memObj, host_ptr, 0, nullptr, nullptr));
+
+    ASSERT_SUCCESS(urMemRelease(memObj));
+}
+
+TEST_P(urEnqueueMemBufferMapTest, SuccesPinnedWrite) {
+    const size_t memSize = sizeof(int);
+    const int value = 30;
+
+    ur_mem_handle_t memObj;
+    ASSERT_SUCCESS(urMemBufferCreate(
+        context, UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_HOST_POINTER,
+        memSize, nullptr, &memObj));
+
+    int *host_ptr = nullptr;
+    ASSERT_SUCCESS(urEnqueueMemBufferMap(queue, memObj, true, UR_MAP_FLAG_WRITE,
+                                         0, sizeof(int), 0, nullptr, nullptr,
+                                         (void **)&host_ptr));
+
+    *host_ptr = value;
+
+    ASSERT_SUCCESS(
+        urEnqueueMemUnmap(queue, memObj, host_ptr, 0, nullptr, nullptr));
+
+    int read_value = 0;
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, memObj, true, 0, sizeof(int),
+                                          &read_value, 0, nullptr, nullptr));
+
+    ASSERT_EQ(read_value, value);
+    ASSERT_SUCCESS(urMemRelease(memObj));
+}
+
 TEST_P(urEnqueueMemBufferMapTest, SuccessMultiMaps) {
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
@@ -193,6 +244,8 @@ TEST_P(urEnqueueMemBufferMapTest, InvalidNullPtrEventWaitList) {
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
                                            0, size, 1, &inv_evt, nullptr, &map),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferMapTest, InvalidSize) {
