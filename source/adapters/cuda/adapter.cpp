@@ -11,13 +11,12 @@
 #include <ur_api.h>
 
 #include "common.hpp"
-
-void enableCUDATracing();
-void disableCUDATracing();
+#include "tracing.hpp"
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
+  struct cuda_tracing_context_t_ *TracingCtx = nullptr;
 };
 
 ur_adapter_handle_t_ adapter{};
@@ -28,7 +27,8 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   if (NumEntries > 0 && phAdapters) {
     std::lock_guard<std::mutex> Lock{adapter.Mutex};
     if (adapter.RefCount++ == 0) {
-      enableCUDATracing();
+      adapter.TracingCtx = createCUDATracingContext();
+      enableCUDATracing(adapter.TracingCtx);
     }
 
     *phAdapters = &adapter;
@@ -50,7 +50,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
   std::lock_guard<std::mutex> Lock{adapter.Mutex};
   if (--adapter.RefCount == 0) {
-    disableCUDATracing();
+    disableCUDATracing(adapter.TracingCtx);
+    freeCUDATracingContext(adapter.TracingCtx);
+    adapter.TracingCtx = nullptr;
   }
   return UR_RESULT_SUCCESS;
 }
