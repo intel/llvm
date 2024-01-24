@@ -181,8 +181,6 @@ def do_configure(args):
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
-        "-DSYCL_PI_UR_USE_FETCH_CONTENT=OFF",
-        "-DSYCL_PI_UR_SOURCE_DIR=/localdisk2/yzhao/work/sycl_workspace/unified-runtime"
     ]
 
     if args.l0_headers and args.l0_loader:
