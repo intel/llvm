@@ -157,6 +157,8 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
   }
 }
 
+// TODO: Remove esimd_emulator from ExpectedValue in the next ABI
+// breaking window.
 TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   std::string AllowList;
   for (const auto &SyclBe : sycl::detail::getSyclBeMap()) {

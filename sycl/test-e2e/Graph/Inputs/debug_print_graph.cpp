@@ -12,14 +12,12 @@ int main() {
 
   using T = unsigned short;
 
-  std::vector<T> DataA(Size), DataB(Size), DataC(Size);
-  std::vector<T> DataA2D(Size * Size), DataB2D(Size * Size);
+  std::vector<T> DataA(Size), DataB(Size), DataC(Size), DataD(Size);
 
   std::iota(DataA.begin(), DataA.end(), 1);
   std::iota(DataB.begin(), DataB.end(), 10);
   std::iota(DataC.begin(), DataC.end(), 1000);
-  std::iota(DataA2D.begin(), DataA2D.end(), 1);
-  std::iota(DataB2D.begin(), DataB2D.end(), 10);
+  std::iota(DataD.begin(), DataD.end(), 1);
 
   buffer<T> BufferA{DataA.data(), range<1>{DataA.size()}};
   BufferA.set_write_back(false);
@@ -27,8 +25,6 @@ int main() {
   BufferB.set_write_back(false);
   buffer<T> BufferC{DataC.data(), range<1>{DataC.size()}};
   BufferC.set_write_back(false);
-  buffer BufferA2D{DataA2D.data(), range<2>(Size, Size)};
-  BufferA2D.set_write_back(false);
   {
     exp_ext::command_graph Graph{
         Queue.get_context(),
@@ -45,12 +41,12 @@ int main() {
       CGH.copy(AccB, AccA);
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferA2D.get_access<access::mode::read>(CGH);
-      CGH.copy(AccA, DataB2D.data());
+    auto Last = add_node(Graph, Queue, [&](handler &CGH) {
+      auto Acc = BufferC.get_access<access::mode::read>(CGH);
+      CGH.copy(Acc, DataD.data());
     });
 
-    add_empty_node(Graph, Queue);
+    add_empty_node(Graph, Queue, Last);
 
     Graph.print_graph("graph.dot");
 
