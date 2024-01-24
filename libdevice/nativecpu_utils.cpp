@@ -76,7 +76,36 @@ struct __nativecpu_state {
 #undef DEVICE_EXTERNAL
 #undef DEVICE_EXTERN_C
 #define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
-#define DEVICE_EXTERNAL __attribute__((always_inline))
+#define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
+
+// i1 @__mux_sub_group_any_i1(i1 %x)
+// i1 @__mux_work_group_any_i1(i32 %id, i1 %x)
+// i1 @__mux_vec_group_any_v4i1(<4 x i1> %x)
+
+DEVICE_EXTERN_C bool __mux_work_group_any_i1(unsigned, bool);
+DEVICE_EXTERNAL bool __spirv_GroupAny(unsigned id, bool val) {
+  return __mux_work_group_any_i1(id, val);
+}
+
+DEVICE_EXTERN_C bool __mux_work_group_all_i1(unsigned, bool);
+DEVICE_EXTERNAL bool __spirv_GroupAll(unsigned id, bool val) {
+  return __mux_work_group_all_i1(id, val);
+}
+
+#define DefineBroadCast(Type, Sfx, MuxType)                                    \
+  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                    \
+      int32_t id, MuxType val, int64_t lidx, int64_t lidy, int64_t lidz);      \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,         \
+                                                          int32_t sg_lid);     \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(unsigned g, Type v,              \
+                                              unsigned l) {                    \
+    if (__spv::Scope::Flag::Subgroup == g)                                     \
+      return __mux_sub_group_broadcast_##Sfx(v, l);                            \
+    return Type(); /*TODO*/                                                    \
+  }
+
+DefineBroadCast(int, i32, int32_t) DefineBroadCast(unsigned, i32, int32_t)
+    DefineBroadCast(float, f32, float)
 
 // defining subgroup builtins
 
@@ -123,9 +152,8 @@ struct __nativecpu_state {
       DefShuffleDownINTEL(Type, Sfx, MuxType)                                  \
           DefShuffleXorINTEL(Type, Sfx, MuxType)
 
-DefShuffleINTEL_All(uint64_t, i64, int64_t)
-    DefShuffleINTEL_All(int64_t, i64, int64_t)
-        DefShuffleINTEL_All(int32_t, i32, int32_t)
+        DefShuffleINTEL_All(uint64_t, i64, int64_t) DefShuffleINTEL_All(
+            int64_t, i64, int64_t) DefShuffleINTEL_All(int32_t, i32, int32_t)
             DefShuffleINTEL_All(uint32_t, i32, int32_t)
                 DefShuffleINTEL_All(int16_t, i16, int16_t)
                     DefShuffleINTEL_All(uint16_t, i16, int16_t)
