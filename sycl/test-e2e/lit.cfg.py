@@ -75,8 +75,6 @@ llvm_config.with_system_environment(
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
-        "ASAN_OPTIONS",
-        "SYCL_PREFER_UR"
     ]
 )
 
@@ -600,8 +598,8 @@ for sycl_device in config.sycl_devices:
     # with their test run. It's just us filtering here, so silence them unless
     # we get an exit status.
     try:
-        cmd = "gdb --args {} {} --verbose".format(config.run_launcher or "", sycl_ls)
-        sp = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=False)
+        cmd = "{} {} --verbose".format(config.run_launcher or "", sycl_ls)
+        sp = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True)
         sp.check_returncode()
     except subprocess.CalledProcessError as e:
         # capturing e allows us to see path resolution errors / system
@@ -688,5 +686,3 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
-
-config.substitutions.append( ('%device_sanitizer_flags', "-Xsycl-target-frontend=spir64 -fsanitize=address") )
