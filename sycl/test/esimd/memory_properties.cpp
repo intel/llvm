@@ -962,7 +962,21 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   simd_mask<16> mask_n16 = 1;
 
   simd<float, 32> usm;
+  simd<float, 32> acc_res;
+  simd<float, 32> pass_thru;
+  auto pass_thru_view = pass_thru.select<32, 1>();
 
+  // Test USM and ACC gather using this plan:
+  // 1) gather(usm, offsets): offsets is simd or simd_view
+  // 2) gather(usm, offsets, mask): offsets is simd or simd_view
+  // 3) gather(usm, offsets, mask, pass_thru)
+  // 4) gather(usm, ...): same as (1), (2), (3) above, but with VS > 1.
+  // 5) gather(acc, offsets): offsets is simd or simd_view
+  // 6) gather(acc, offsets, mask): offsets is simd or simd_view
+  // 7) gather(acc, offsets, mask, pass_thru)
+  // 8) gather(acc, ...): same as (5), (6), (7) above, but with VS > 1.
+
+  // 1) gather(usm, offsets): offsets is simd or simd_view
   // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
   usm = gather(ptrf, ioffset_n32);
   usm = gather<float, 32>(ptrf, ioffset_n32_view);
@@ -977,7 +991,7 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   usm = gather(ptrf, loffset_n32, props_align8);
   usm = gather<float, 32>(ptrf, loffset_n32_view, props_align8);
 
-  // Same as above, but with 'mask' operand.
+  // 2) gather(usm, offsets, mask): offsets is simd or simd_view
   // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
   usm = gather(ptrf, ioffset_n32, mask_n32);
   usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32);
@@ -992,8 +1006,38 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   usm = gather(ptrf, loffset_n32, mask_n32, props_align8);
   usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, props_align8);
 
-  // CHECK-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
-  // check VS > 1. no 'mask' operand first.
+  // 3) gather(usm, offsets, mask, pass_thru)
+  // CHECK-COUNT-8: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, ioffset_n32, mask_n32, pass_thru_view);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru_view);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru);
+  usm = gather<float, 32>(ptrf, loffset_n32, mask_n32, pass_thru_view);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru_view);
+
+  // CHECK-COUNT-8: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  usm = gather(ptrf, ioffset_n32, mask_n32, pass_thru, props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32, mask_n32, pass_thru_view,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, ioffset_n32_view, mask_n32, pass_thru_view,
+                          props_align8);
+
+  usm = gather(ptrf, loffset_n32, mask_n32, pass_thru, props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32, mask_n32, pass_thru_view,
+                          props_align8);
+  usm = gather<float, 32>(ptrf, loffset_n32_view, mask_n32, pass_thru_view,
+                          props_align8);
+
+  // 4) gather(usm, ...): same as (1), (2), (3) above, but with VS > 1.
+  // CHECK-COUNT-32: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  // 4a) check VS > 1. no 'mask' operand first.
   usm = gather<float, 32, 2>(ptrf, ioffset_n16);
   usm = gather<float, 32, 2>(ptrf, ioffset_n16_view);
 
@@ -1006,7 +1050,7 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   usm = gather<float, 32, 2>(ptrf, loffset_n16, props_align4);
   usm = gather<float, 32, 2>(ptrf, loffset_n16_view, props_align4);
 
-  // check VS > 1. Pass the 'mask' operand this time.
+  // 4b) check VS > 1. Pass the 'mask' operand this time.
   usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16);
   usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16);
 
@@ -1018,4 +1062,90 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
 
   usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_align4);
   usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_align4);
+
+  // 4c) check VS > 1. Pass the 'mask' and 'pass_thru' operands.
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru_view);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru_view);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru_view);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru_view);
+
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16, mask_n16, pass_thru_view,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, pass_thru_view,
+                             props_align4);
+
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16, mask_n16, pass_thru_view,
+                             props_align4);
+  usm = gather<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, pass_thru_view,
+                             props_align4);
+
+  // 5) gather(acc, offsets): offsets is simd or simd_view
+  // CHECK-STATEFUL-COUNT-8: call <32 x float> @llvm.genx.gather.masked.scaled2.v32f32.v32i32.v32i1(i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x i1> {{[^)]+}})
+  // CHECK-STATEFUL-COUNT-8: call <32 x i32> @llvm.genx.lsc.load.merge.bti.v32i32.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-STATELESS-COUNT-16: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  acc_res = gather<float>(acc, ioffset_n32);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view);
+  acc_res = gather<float>(acc, ioffset_n32, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, props_align4);
+
+  // 6) gather(acc, offsets, mask): offsets is simd or simd_view
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32);
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, props_align4);
+
+  // 7) gather(acc, offsets, mask, pass_thru)
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, pass_thru);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru);
+  acc_res = gather<float>(acc, ioffset_n32, mask_n32, pass_thru, props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru,
+                              props_align4);
+
+  acc_res = gather<float, 32>(acc, ioffset_n32, mask_n32, pass_thru_view);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru_view);
+  acc_res = gather<float, 32>(acc, ioffset_n32, mask_n32, pass_thru_view,
+                              props_align4);
+  acc_res = gather<float, 32>(acc, ioffset_n32_view, mask_n32, pass_thru_view,
+                              props_align4);
+
+  // 8) gather(ac, ...): same as (5), (6), (7) above, but with VS > 1.
+  // CHECK-STATEFUL-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.bti.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-STATELESS-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.stateless.v32i32.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru);
+  acc_res =
+      gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru, props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru,
+                                 props_align4);
+
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru_view);
+  acc_res =
+      gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16, pass_thru_view);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16, mask_n16, pass_thru_view,
+                                 props_align4);
+  acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
+                                 pass_thru_view, props_align4);
 }
