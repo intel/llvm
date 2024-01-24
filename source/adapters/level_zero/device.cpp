@@ -626,11 +626,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
-    // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return ReturnValue.template operator()<size_t>(
-        Device->ZeDeviceComputeProperties->subGroupSizes,
-        Device->ZeDeviceComputeProperties->numSubGroupSizes);
+    return ReturnValue(Device->ZeDeviceComputeProperties->subGroupSizes,
+                       Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
   case UR_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
