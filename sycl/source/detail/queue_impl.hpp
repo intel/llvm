@@ -841,26 +841,35 @@ protected:
     return Event;
   }
 
+  /// Helper function for submitting a memory operation with a handler.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
   template <typename HandlerFuncT>
-  event submitWithHandler(const std::shared_ptr<queue_impl> &Self, const std::vector<event> &DepEvents, HandlerFuncT HandlerFunc);
+  event submitWithHandler(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          HandlerFuncT HandlerFunc);
 
-  /// Performs direct submission of a memory operation.
+  /// Performs submission of a memory operation directly if scheduler can be
+  /// bypassed, or with a handler otherwise.
   ///
   /// \param Self is a shared_ptr to this queue.
   /// \param DepEvents is a vector of dependencies of the operation.
-  /// \param HandlerFunc is a function that submits the operation via the
-  ///        handler (and the scheduler).
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
   /// \param MemMngrFunc is a function that forwards its arguments to the
   ///        appropriate memory manager function.
   /// \param MemMngrArgs are all the arguments that need to be passed to memory
   ///        manager except the last three: dependencies, PI event and
   ///        EventImplPtr are filled out by this helper.
   /// \return an event representing the submitted operation.
-  template <typename HandlerFuncT, typename MemMngrFuncT, typename... MemMngrArgTs>
+  template <typename HandlerFuncT, typename MemMngrFuncT,
+            typename... MemMngrArgTs>
   event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                           const std::vector<event> &DepEvents,
-			  HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc, MemMngrArgTs... MemOpArgs);
+                          HandlerFuncT HandlerFunc, MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait

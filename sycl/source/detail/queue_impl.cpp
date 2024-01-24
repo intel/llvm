@@ -126,8 +126,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   }
 
   return submitMemOpHelper(
-      Self, DepEvents,
-      [&](handler &CGH) {CGH.memset(Ptr, Value, Count);},
+      Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
       Count, Value);
 }
@@ -173,7 +172,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   // If we have a command graph set we need to capture the copy through normal
   // queue submission rather than execute the copy directly.
-  auto HandlerFunc = [&](handler &CGH) {CGH.memcpy(Dest, Src, Count);};
+  auto HandlerFunc = [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); };
   if (MGraph.lock())
     return submitWithHandler(Self, DepEvents, HandlerFunc);
 
@@ -195,7 +194,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const std::vector<event> &DepEvents) {
   // If we have a command graph set we need to capture the advise through normal
   // queue submission.
-  auto HandlerFunc = [&](handler &CGH) {CGH.mem_advise(Ptr, Length, Advice);};
+  auto HandlerFunc = [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); };
   if (MGraph.lock())
     return submitWithHandler(Self, DepEvents, HandlerFunc);
 
@@ -211,7 +210,10 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::vector<event> &DepEvents) {
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](handler &CGH) {CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope, NumBytes, Offset);},
+      [&](handler &CGH) {
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                 NumBytes, Offset);
+      },
       [](const auto &...Args) {
         MemoryManager::copy_to_device_global(Args...);
       },
@@ -224,7 +226,10 @@ event queue_impl::memcpyFromDeviceGlobal(
     size_t Offset, const std::vector<event> &DepEvents) {
   return submitMemOpHelper(
       Self, DepEvents,
-      [&](handler &CGH) {CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope, NumBytes, Offset);},
+      [&](handler &CGH) {
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                   NumBytes, Offset);
+      },
       [](const auto &...Args) {
         MemoryManager::copy_from_device_global(Args...);
       },
@@ -325,11 +330,13 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
 }
 
 template <typename HandlerFuncT>
-event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self, const std::vector<event> &DepEvents, HandlerFuncT HandlerFunc) {
+event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
+                                    const std::vector<event> &DepEvents,
+                                    HandlerFuncT HandlerFunc) {
   return submit(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
-	HandlerFunc(CGH);
+        HandlerFunc(CGH);
       },
       Self, {});
 }
@@ -337,7 +344,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self, con
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
 event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
-				    HandlerFuncT HandlerFunc,
+                                    HandlerFuncT HandlerFunc,
                                     MemOpFuncT MemOpFunc,
                                     MemOpArgTs... MemOpArgs) {
   // We need to submit command and update the last event under same lock if we
@@ -365,7 +372,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
-        auto &EventToStoreIn = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
