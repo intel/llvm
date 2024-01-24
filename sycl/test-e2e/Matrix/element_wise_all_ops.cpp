@@ -5,18 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: cpu, gpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#include "common.hpp"
 
 #define SG_SZ 16
 constexpr size_t TN = 16;

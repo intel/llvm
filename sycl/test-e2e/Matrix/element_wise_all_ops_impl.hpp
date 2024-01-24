@@ -5,24 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-static float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
-
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
                     const float ref) {
@@ -181,9 +163,11 @@ int main() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
-
-  test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
-  test_ewops_c<float, MATRIX_M, MATRIX_N, TM, TN>();
+  queue q;
+  if (is_type_supported_by_device(q, matrix_type::bf16)) {
+    test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
+    test_ewops_c<float, MATRIX_M, MATRIX_N, TM, TN>();
+  }
 
   return 0;
 }
