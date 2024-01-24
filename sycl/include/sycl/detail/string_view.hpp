@@ -41,8 +41,8 @@ public:
   void operator=(std::string &s) { str = s.c_str(); }
   void operator=(const std::string &s) { str = s.c_str(); }
 
-  const char *getPtr() { return str; }
-  const char *getPtr() const { return str; }
+  const char *c_str() { return str; }
+  const char *c_str() const { return str; }
 };
 
 } // namespace detail

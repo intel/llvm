@@ -59,9 +59,11 @@ public:
   // memeber.
   void unmarshall(std::string &strn) { strcpy(str, strn.c_str()); }
 
-  char *getPtr() { return str; }
+  char *c_str() { return str; }
 
   void allocate(int size) {
+    assert(str == nullptr &&
+           "Error: memory already allocated for this object.");
     str = new char[size];
   } // called by libsycl before returning
 };

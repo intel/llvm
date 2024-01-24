@@ -159,7 +159,7 @@ public:
       detail::string_view PropertyName = typeid(Param).name();
       detail::string Info;
       get_platform_info(PropertyName, Info);
-      std::string PlatformInfo = Info.marshall();
+      std::string PlatformInfo = Info.c_str();
       return PlatformInfo;
     }
     return get_info_internal<Param>();

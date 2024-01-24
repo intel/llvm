@@ -259,7 +259,7 @@ public:
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::string getKernelName() { return MKernelName.getPtr(); }
+  std::string getKernelName() { return MKernelName.c_str(); }
 #else
   std::string &getKernelName() { return MKernelName; }
 #endif

@@ -806,7 +806,7 @@ protected:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
-                               Handler.MKernelName.marshall());
+                               Handler.MKernelName.c_str());
 #else
         KernelUsesAssert =
             !(Handler.MKernel && Handler.MKernel->isInterop()) &&

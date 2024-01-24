@@ -231,7 +231,7 @@ public:
       detail::string_view PropertyName = typeid(Param).name();
       detail::string Info; // Libsycl fills this param with property information
       get_device_info(PropertyName, Info);
-      std::string DeviceInfo = Info.marshall();
+      std::string DeviceInfo = Info.c_str();
       return DeviceInfo;
     }
     return get_info_internal<Param>();

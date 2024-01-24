@@ -184,7 +184,7 @@ event handler::finalize() {
         kernel_id KernelID =
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.getPtr());
+                MKernelName.c_str());
 #else
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
 #endif
@@ -247,7 +247,7 @@ event handler::finalize() {
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-          StreamID, MKernel, MCodeLoc, MKernelName.getPtr(), MQueue, MNDRDesc,
+          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
 #else
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
 #endif
@@ -284,7 +284,7 @@ event handler::finalize() {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                                 MKernel, MKernelName.getPtr(), RawEvents,
+                                 MKernel, MKernelName.c_str(), RawEvents,
                                  NewEvent, nullptr, MImpl->MKernelCacheConfig);
 #else
                                  MKernel, MKernelName, RawEvents, NewEvent,
@@ -312,7 +312,7 @@ event handler::finalize() {
             !(MKernel && MKernel->isInterop()) &&
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.getPtr());
+                MKernelName.c_str());
 #else
             detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
 #endif
@@ -351,7 +351,7 @@ event handler::finalize() {
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-        MKernelName.getPtr(), std::move(MStreamStorage),
+        MKernelName.c_str(), std::move(MStreamStorage),
 #else
         MKernelName, std::move(MStreamStorage),
 #endif
@@ -1332,7 +1332,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_read_host_pipe(const detail::string_view &Name,
                                        void *Ptr, size_t Size, bool Block) {
-  MImpl->HostPipeName = Name.getPtr();
+  MImpl->HostPipeName = Name.c_str();
 #else
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
                                        size_t Size, bool Block) {
@@ -1348,7 +1348,7 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_write_host_pipe(const detail::string_view &Name,
                                         void *Ptr, size_t Size, bool Block) {
-  MImpl->HostPipeName = Name.getPtr();
+  MImpl->HostPipeName = Name.c_str();
 #else
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                         size_t Size, bool Block) {
