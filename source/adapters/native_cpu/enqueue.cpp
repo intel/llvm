@@ -7,7 +7,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include <array>
 #include <cstdint>
 
@@ -77,6 +76,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
       for (unsigned g0 = 0; g0 < numWG0; g0++) {
+#ifdef NATIVECPU_USE_OCK
+        state.update(g0, g1, g2);
+        hKernel->_subhandler(hKernel->_args.data(), &state);
+#else
         for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
             for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
@@ -85,6 +88,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             }
           }
         }
+#endif
       }
     }
   }
