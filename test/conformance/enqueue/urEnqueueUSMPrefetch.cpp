@@ -128,4 +128,6 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 1,
                                           &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
