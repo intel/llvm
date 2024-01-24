@@ -66,9 +66,9 @@ bool test(queue Q, uint32_t PMask = ~0) {
            (ResultSIMDByteSize * LocalRange + 127) & ~127;
        slm_init<SLMSize>();
        if (NDId.get_local_id(0) == 0) {
-         simd<Tuint, 4> Vals(GroupID * 1000000, 1);
+         simd<T, 4> Vals(GroupID * 1000000, 1);
          for (int I = 0; I < SLMSize; I += 4 * sizeof(T)) {
-           slm_block_store<Tuint, 4>(I, Vals);
+           slm_block_store<T, 4>(I, Vals);
            Vals += 4;
          }
        }
