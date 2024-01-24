@@ -19,7 +19,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 template <typename T> ESIMD_NOINLINE bool test(queue Q) {
   std::cout << "Testing T=" << esimd_test::type_name<T>() << "...\n";
 
-  constexpr int N = 1;
+  constexpr int N = 8;
 
   constexpr int NumOps = 4;
   constexpr int CSize = NumOps * N;

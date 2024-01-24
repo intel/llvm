@@ -156,28 +156,15 @@ public:
     return lhs = f;                                                            \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<                                                     \
-      std::is_convertible_v<T, float> && std::is_scalar_v<T>, bfloat16>        \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, bfloat16>           \
       &operator op(bfloat16 & lhs, const T & rhs) {                            \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<std::is_convertible_v<T, T> && std::is_scalar_v<T>,  \
-                          bfloat16>                                            \
-      &operator op(T & lhs, const bfloat16 & rhs) {                            \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
-  }                                                                            \
-                                                                               \
-  friend bfloat16 &operator op(bfloat16 & lhs, const sycl::half & rhs) {       \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
-  }                                                                            \
-  friend sycl::half &operator op(sycl::half & lhs, const bfloat16 & rhs) {     \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, T> &operator op(    \
+      T & lhs, const bfloat16 & rhs) {                                         \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
@@ -194,21 +181,13 @@ public:
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<                                                     \
-      std::is_convertible_v<T, float> && std::is_scalar_v<T>, type>            \
-  operator op(const bfloat16 & lhs, const T & rhs) {                           \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
+      const bfloat16 & lhs, const T & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<                                                     \
-      std::is_convertible_v<T, float> && std::is_scalar_v<T>, type>            \
-  operator op(const T & lhs, const bfloat16 & rhs) {                           \
-    return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
-  }                                                                            \
-  friend type operator op(const bfloat16 &lhs, const sycl::half &rhs) {        \
-    return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
-  }                                                                            \
-  friend type operator op(const sycl::half &lhs, const bfloat16 &rhs) {        \
+  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
+      const T & lhs, const bfloat16 & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }
   OP(bfloat16, +)
