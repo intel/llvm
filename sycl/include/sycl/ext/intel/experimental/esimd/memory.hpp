@@ -773,23 +773,10 @@ __ESIMD_API
   return lsc_gather<T, NElts, DS, L1H, L3H>(
       reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred);
 #else
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
-      __esimd_lsc_load_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), si);
-  return detail::lsc_format_ret<T>(Tmp);
-#endif
+  __ESIMD_NS::simd<T, N * NElts> PassThru; // Intentionally unitialized.
+  return __ESIMD_DNS::gather_impl<T, N * NElts, NElts, L1H, L3H, DS>(
+      acc, offsets, pred, PassThru);
+#endif // __ESIMD_FORCE_STATELESS_MEM
 }
 
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -861,25 +848,9 @@ __ESIMD_API
       reinterpret_cast<T *>(acc.get_pointer().get()), offsets, pred, pass_thru);
 
 #else
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  auto SI = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
-      detail::lsc_format_input<MsgT>(pass_thru);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
-      __esimd_lsc_load_merge_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                 _VS, _Transposed, N>(
-          pred.data(), offsets.data(), SI, PassThruExpanded.data());
-  return detail::lsc_format_ret<T>(Result);
-#endif
+  return __ESIMD_DNS::gather_impl<T, N * NElts, NElts, L1H, L3H, DS>(
+      acc, offsets, pred, pass_thru);
+#endif // __ESIMD_FORCE_STATELESS_MEM
 }
 
 #ifdef __ESIMD_FORCE_STATELESS_MEM

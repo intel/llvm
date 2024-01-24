@@ -134,6 +134,8 @@ int main() {
         address_space_cast<
             access::address_space::global_space COMMA access::decorated::yes>(
             &dataChar[idx.get_local_linear_id() * arrSize]))
+
+    free(dataChar, q);
   }
   {
     std::vector<int> data(N);

@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_DYNARRAY_H
 
 #include <algorithm>
+#include <cstring>
 
 namespace jit_compiler {
 
@@ -55,6 +56,14 @@ public:
   const T &operator[](int Idx) const { return Values[Idx]; }
   T &operator[](int Idx) { return Values[Idx]; }
 
+  friend bool operator==(const DynArray<T> &A, const DynArray<T> &B) {
+    return std::equal(A.begin(), A.end(), B.begin(), B.end());
+  }
+
+  friend bool operator!=(const DynArray<T> &A, const DynArray<T> &B) {
+    return !(A == B);
+  }
+
 private:
   T *Values = nullptr;
   size_t Size = 0;
@@ -82,6 +91,24 @@ private:
     Size = Other.Size;
     Other.Size = 0;
   }
+};
+
+///
+/// String-like class that owns its character storage.
+class DynString {
+public:
+  explicit DynString(const char *Str) : Chars{std::strlen(Str) + 1} {
+    std::copy(Str, Str + Chars.size(), Chars.begin());
+  }
+
+  const char *c_str() const { return Chars.begin(); }
+
+  friend bool operator==(const DynString &A, const char *B) {
+    return std::strcmp(A.c_str(), B) == 0;
+  }
+
+private:
+  DynArray<char> Chars;
 };
 
 } // namespace jit_compiler
