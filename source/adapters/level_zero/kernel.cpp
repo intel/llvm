@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "ur_api.h"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -48,6 +49,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ZeKernel = Kernel->ZeKernel;
   } else {
     auto It = Kernel->ZeKernelMap.find(ZeDevice);
+    if (It == Kernel->ZeKernelMap.end()) {
+      /* kernel and queue don't match */
+      return UR_RESULT_ERROR_INVALID_QUEUE;
+    }
     ZeKernel = It->second;
   }
   // Lock automatically releases when this goes out of scope.

@@ -462,8 +462,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
         new ur_program_handle_t_(State, hContext, ZeModuleMap.begin()->second,
                                  ZeBuildLogMap.begin()->second);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
-    (*phProgram)->ZeModuleMap = ZeModuleMap;
-    (*phProgram)->ZeBuildLogMap = ZeBuildLogMap;
+    (*phProgram)->ZeModuleMap = std::move(ZeModuleMap);
+    (*phProgram)->ZeBuildLogMap = std::move(ZeBuildLogMap);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
