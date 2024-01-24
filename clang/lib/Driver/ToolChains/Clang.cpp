@@ -5019,6 +5019,29 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
   }
 }
 
+static bool addSYCLExtraOptions(Compilation &C, const ArgList &Args,
+                                ArgStringList &CmdArgs,
+                                const StringRef &ExtraOpts) {
+  bool hasDeviceSanitizer = false;
+  SmallVector<StringRef, 16> TempSplitVec;
+  ExtraOpts.split(TempSplitVec, ' ', -1, false);
+  const Driver &D = C.getDriver();
+  SmallVector<const char *, 16> OpVec;
+  for (auto Op : TempSplitVec)
+    OpVec.push_back(Args.MakeArgStringRef(Op));
+  bool ContainsError;
+  auto ParsedArgs =
+      const_cast<Driver &>(D).ParseArgStrings(OpVec, true, ContainsError);
+  for (auto A : ParsedArgs) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ)) {
+      hasDeviceSanitizer = true;
+      continue;
+    }
+    CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
+  }
+  return hasDeviceSanitizer;
+}
+
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -5202,7 +5225,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     PF->claim();
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
-
+  bool hasSYCLDeviceSanitizer = false;
   if (IsSYCLOffloadDevice) {
     if (Triple.isNVPTX()) {
       StringRef GPUArchName = JA.getOffloadingArch();
@@ -5319,6 +5342,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
       CmdArgs.push_back("-fsycl-optimize-non-user-code");
     }
+    // User can specify flags passed to SYCL device compilation only via
+    // --target-options.
+    if (Args.hasArg(options::OPT_target_options_EQ)) {
+      StringRef SYCLDeviceExtraOptions =
+          Args.getLastArgValue(options::OPT_target_options_EQ);
+      hasSYCLDeviceSanitizer =
+          addSYCLExtraOptions(C, Args, CmdArgs, SYCLDeviceExtraOptions);
+    }
   }
 
   if (IsSYCL) {
@@ -5360,7 +5391,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // only for SPIR based targets.
     if (Triple.isSPIR()) {
       // It cannot be enabled together with a sanitizer
-      if (!Args.getLastArg(options::OPT_fsanitize_EQ))
+      if (!Args.getLastArg(options::OPT_fsanitize_EQ) ||
+          !hasSYCLDeviceSanitizer)
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
     }
 
@@ -5439,6 +5471,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_MT");
           CmdArgs.push_back("-D_DLL");
         }
+      }
+
+      // User can specify flags passed to SYCL device compilation only via
+      // --target-options.
+      if (Args.hasArg(options::OPT_host_options_EQ)) {
+        StringRef SYCLHostExtraOptions =
+            Args.getLastArgValue(options::OPT_host_options_EQ);
+        addSYCLExtraOptions(C, Args, CmdArgs, SYCLHostExtraOptions);
       }
     }
     // Add any predefined macros associated with intel_gpu* type targets
