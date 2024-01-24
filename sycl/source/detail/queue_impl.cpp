@@ -118,7 +118,6 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-
   if (MGraph.lock()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "The memset feature is not yet available "
@@ -181,7 +180,6 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
   }
-
   return submitMemOpHelper(
       Self, DepEvents, HandlerFunc,
       [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
