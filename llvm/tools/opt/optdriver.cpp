@@ -318,6 +318,8 @@ struct TimeTracerRAII {
 // it exists.
 static bool shouldPinPassToLegacyPM(StringRef Pass) {
   std::vector<StringRef> PassNameExactToIgnore = {
+      "globaloffset",
+      "localaccessortosharedmemory",
       "nvvm-reflect",
       "nvvm-intr-range",
       "amdgpu-simplifylib",
@@ -373,6 +375,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "structurizecfg",
       "fix-irreducible",
       "expand-large-fp-convert",
+      "fpbuiltin-fn-selection",
       "callbrprepare",
   };
   for (const auto &P : PassNamePrefix)
@@ -446,6 +449,16 @@ extern "C" int optMain(
   initializeWriteBitcodePassPass(Registry);
   initializeReplaceWithVeclibLegacyPass(Registry);
   initializeJMCInstrumenterPass(Registry);
+  initializeSYCLLowerWGScopeLegacyPassPass(Registry);
+  initializeSYCLLowerESIMDLegacyPassPass(Registry);
+  initializeSYCLLowerInvokeSimdLegacyPassPass(Registry);
+  initializeSPIRITTAnnotationsLegacyPassPass(Registry);
+  initializeESIMDLowerLoadStorePass(Registry);
+  initializeESIMDVerifierPass(Registry);
+  initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
+  initializeSYCLMutatePrintfAddrspaceLegacyPassPass(Registry);
+  initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
+
 
   SmallVector<PassPlugin, 1> PluginList;
   PassPlugins.setCallback([&](const std::string &PluginPath) {
