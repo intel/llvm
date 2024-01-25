@@ -62,6 +62,7 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
                                            &global_offset, &global_size,
                                            nullptr, 1, &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {

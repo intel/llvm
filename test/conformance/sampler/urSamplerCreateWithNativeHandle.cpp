@@ -29,4 +29,5 @@ TEST_P(urSamplerCreateWithNativeHandleTest, Success) {
     ASSERT_SUCCESS(urSamplerGetInfo(hSampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
                                     sizeof(addr_mode), &addr_mode, nullptr));
     ASSERT_EQ(addr_mode, sampler_desc.addressingMode);
+    ASSERT_SUCCESS(urSamplerRelease(hSampler));
 }

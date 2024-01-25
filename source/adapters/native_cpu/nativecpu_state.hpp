@@ -53,6 +53,12 @@ struct state {
     MGlobal_id[2] =
         MWorkGroup_size[2] * MWorkGroup_id[2] + MLocal_id[2] + MGlobalOffset[2];
   }
+
+  void update(size_t group0, size_t group1, size_t group2) {
+    MWorkGroup_id[0] = group0;
+    MWorkGroup_id[1] = group1;
+    MWorkGroup_id[2] = group2;
+  }
 };
 
 } // namespace native_cpu

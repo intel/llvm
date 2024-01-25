@@ -324,8 +324,8 @@ struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
-        ASSERT_SUCCESS(urProgramCreateWithIL(
-            context, il_binary->data(), il_binary->size(), nullptr, &program));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, &program));
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -1052,8 +1052,8 @@ struct urProgramTest : urQueueTest {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                       il_binary);
-        ASSERT_SUCCESS(urProgramCreateWithIL(
-            context, il_binary->data(), il_binary->size(), nullptr, &program));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, &program));
     }
 
     void TearDown() override {
@@ -1072,9 +1072,8 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
-        ASSERT_SUCCESS(urProgramCreateWithIL(this->context, il_binary->data(),
-                                             il_binary->size(), nullptr,
-                                             &program));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            this->platform, this->context, this->device, *il_binary, &program));
     }
 
     void TearDown() override {
