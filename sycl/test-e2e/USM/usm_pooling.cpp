@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
 }
 
 // CHECK-NOPOOL: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
+// CHECK-NOPOOL-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
 // CHECK-NOPOOL-NEXT:  ZE ---> zeMemFree
@@ -111,6 +112,7 @@ int main(int argc, char *argv[]) {
 // CHECK-NOPOOL-NEXT:  ZE ---> [[API]](
 
 // CHECK-12345: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
+// CHECK-12345-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
 // CHECK-12345-NEXT:  ZE ---> [[API]](
 // CHECK-12345-NEXT:  ZE ---> [[API]](
 // CHECK-12345-NEXT:  ZE ---> zeMemFree
@@ -120,6 +122,7 @@ int main(int argc, char *argv[]) {
 // CHECK-12345-NEXT:  ZE ---> [[API]](
 
 // CHECK-1245: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
+// CHECK-1245-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
 // CHECK-1245-NEXT:  ZE ---> [[API]](
 // CHECK-1245-NEXT:  ZE ---> [[API]](
 // CHECK-1245-NEXT:  ZE ---> zeMemFree
@@ -127,6 +130,7 @@ int main(int argc, char *argv[]) {
 // CHECK-1245-NEXT:  ZE ---> [[API]](
 
 // CHECK-15: Test [[API:zeMemAllocHost|zeMemAllocDevice|zeMemAllocShared]]
+// CHECK-15-NEXT:  ZE ---> zeDeviceGetMemoryAccessProperties
 // CHECK-15-NEXT:  ZE ---> [[API]](
 // CHECK-15-NEXT:  ZE ---> [[API]](
 // CHECK-15-NEXT:  ZE ---> zeMemFree

@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e
-  # Merge: 6fb1e547 4b2ac71e
+  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
+  # Merge: eddda123 2bd41d7b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 11:48:06 2024 +0000
-  #     Merge pull request #1070 from pasaulais/pa/dlopen-cupti
-  #     [CUDA] Dynamically load the CUPTI library when tracing
-  set(UNIFIED_RUNTIME_TAG 5b3750d6d7edc46a8d3956e370d17ffaacad0d6e)
+  # Date:   Wed Jan 24 14:27:54 2024 +0000
+  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
+  #     [NATIVECPU] Empty implementation for command buffer fill
+  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -206,4 +206,14 @@ endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()
