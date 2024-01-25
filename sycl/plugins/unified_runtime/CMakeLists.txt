@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 05c3b0dc2e239678600a16c0567e194dba704f06)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit cdde49630db86e46936287a4ce34780d8d53f0aa
+  # Merge: 9b97a5f6 05c3b0dc
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Jan 25 14:08:22 2024 +0000
+  #     Merge pull request #1277 from pbalcer/l0-coverity-fixes
+  #     [L0] fix coverity issues
+  set(UNIFIED_RUNTIME_TAG cdde49630db86e46936287a4ce34780d8d53f0aa)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
