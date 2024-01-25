@@ -70,11 +70,9 @@ public:
   const char *c_str() { return str; }
 
   friend bool operator==(string &lhs, const std::string &rhs) {
-    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
     return rhs == lhs.c_str();
   }
   friend bool operator==(const std::string &lhs, string &rhs) {
-    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
     return lhs == rhs.c_str();
   }
 
