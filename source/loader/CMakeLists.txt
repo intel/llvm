@@ -103,34 +103,33 @@ if(UR_ENABLE_TRACING)
 endif()
 
 if(UR_ENABLE_SANITIZER)
-    target_sources(ur_loader
-        PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
-    )
-
-    if(WIN32)
+    if(APPLE)
+        message(WARNING "Sanitizer layer isn't supported on macOS")
+    elseif(WIN32)
+        message(WARNING "Sanitizer layer isn't supported on Windows")
+    else()
         target_sources(ur_loader
             PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/windows/san_utils.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
         )
-    else()
+
         target_sources(ur_loader
             PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/san_utils.cpp
         )
-    endif()
 
-    target_include_directories(ur_loader PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../"
-    )
+        target_include_directories(ur_loader PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../"
+        )
+    endif()
 endif()
 
 
