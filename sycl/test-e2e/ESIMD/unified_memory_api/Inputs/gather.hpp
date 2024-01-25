@@ -597,7 +597,7 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
              else if (GlobalID % 4 == 1) // ByteOffset - simd, PassThru - view
                Vals = slm_gather<T, N>(ByteOffsets, Pred, PassThruView, Props);
              else if (GlobalID % 4 == 2) // ByteOffset - view, PassThru - simd
-               Vals = slm_gather<T>(ByteOffsetsView, Pred, PassThru, Props);
+               Vals = slm_gather<T, N>(ByteOffsetsView, Pred, PassThru, Props);
              else // ByteOffset - view, PassThru - view
                Vals =
                    slm_gather<T, N>(ByteOffsetsView, Pred, PassThruView, Props);
