@@ -199,6 +199,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pUserLocalWorkSize = pLocalWorkSize;
     if (!pUserLocalWorkSize) {
         pUserLocalWorkSize = LaunchInfo.LocalWorkSize;
+        // FIXME: This is W/A until urKernelSuggestGroupSize is added
         LaunchInfo.LocalWorkSize[0] = 1;
         LaunchInfo.LocalWorkSize[1] = 1;
         LaunchInfo.LocalWorkSize[2] = 1;
