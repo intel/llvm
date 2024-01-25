@@ -18,6 +18,9 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+namespace offloading {
+
 // SYCL binary image formats supported.
 enum class SYCLBinaryImageFormat {
   BIF_None,   // Undetermined Image kind
@@ -50,8 +53,14 @@ struct SYCLWrappingOptions {
   std::string LinkOptions;
 };
 
+/// Wraps the input bundled images and accompanied data into the module \p M
+/// as global symbols and registers the images with the SYCL Runtime.
+/// \param Options Settings that allows to turn on optional data and settings.
 llvm::Error
 wrapSYCLBinaries(llvm::Module &M, llvm::SmallVector<SYCLImage> &Images,
                  SYCLWrappingOptions Options = SYCLWrappingOptions());
+
+} // namespace offloading
+} // namespace llvm
 
 #endif

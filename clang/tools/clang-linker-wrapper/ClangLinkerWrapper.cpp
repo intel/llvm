@@ -14,12 +14,12 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "SYCLOffloadWrapper.h"
 #include "clang/Basic/Version.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -673,8 +673,8 @@ readPropertyRegistryFromFile(StringRef File) {
 // a_n.bin|a_n.prop|a_n.sym
 //
 // .bin extension might be a bc, spv or other native extension.
-Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
-                                                         const ArgList &Args) {
+Expected<SmallVector<offloading::SYCLImage>>
+readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
   auto TableOrErr = util::SimpleTable::read(TableFile);
   if (!TableOrErr)
     return TableOrErr.takeError();
@@ -688,7 +688,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
         inconvertibleErrorCode(),
         "expected columns in the table: Code, Properties and Symbols");
 
-  SmallVector<SYCLImage> Images;
+  SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
     auto ImageOrErr = readBinaryFile(row.getCell("Code"));
     if (!ImageOrErr)
@@ -703,7 +703,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
     if (!SymbolsOrErr)
       return SymbolsOrErr.takeError();
 
-    SYCLImage Image;
+    offloading::SYCLImage Image;
     Image.Image = std::move(*ImageOrErr);
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
@@ -743,7 +743,7 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
-  for (SYCLImage &Image : Images)
+  for (offloading::SYCLImage &Image : Images)
     Image.Target = Target;
 
   LLVMContext C;
@@ -754,10 +754,10 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   StringRef CompileOptions =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
   StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-  SYCLWrappingOptions WrappingOptions;
+  offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Error E = wrapSYCLBinaries(M, Images, WrappingOptions))
+  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
