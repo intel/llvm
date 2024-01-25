@@ -262,4 +262,7 @@ int main() {
   // 1-D, 2-D and 3-D kernels with different global sizes.
   test({RangeDesc{{10}, R5}, RangeDesc{{10, 1}, {5, 1}},
         RangeDesc{{10, 1, 1}, {5, 1, 1}}});
+
+  // Test global sizes that trigger the rounded range kernel insertion.
+  test({RangeDesc{3000}, RangeDesc{7727}, RangeDesc{4096}});
 }
