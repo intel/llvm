@@ -148,9 +148,12 @@ This allows the Unified Runtime shared library to be updated with additional sym
 Printing API
 ------------
 ## --validate=off
-The header "${x}_print.hpp" contains the "${x}::print" namespace with the output stream operator (<<) overloads for Unified Runtime objects.
+The header "${x}_print.hpp" contains output stream operator (<<) overloads for Unified Runtime objects.
 There is also the "${x}::extras::printFunctionParams" function for printing function parameters. These parameters have to be provided in a \*params_t struct format suitable for
 a given function.
+
+The ${x}_print.h header provides the same functionality with a C interface. Each object has a print function named urPrint<object name without both prefix and suffix>,
+ie. for printing ur_result_t use urPrintResult.
 ## --validate=on
 
 Tracing
@@ -178,6 +181,15 @@ Unified Runtime loader implements tracing support through the `XPTI framework <h
        | **instance**: Unique ID to allow the correlation of the `function_with_args_end` event with the `function_with_args_begin` event.
        | **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value.
      - None
+
+Sanitizers
+---------------------
+
+Unified Runtime loader implements the runtime part of device-side sanitizers: AddressSanitizer (`UR_LAYER_ASAN`), MemorySanitizer (`UR_LAYER_MSAN`, planned), and ThreadSanitizer (`UR_LAYER_TSAN`, planned).
+
+This layer shouldn't be enabled explicitly, for example, by the environment variable `UR_ENABLE_LAYERS`, but is enabled by program's runtime (e.g. SYCL/OpenMP Runtime) when the device code is compiled with flag `-fsanitize=address|memory|thread`.
+
+Currently, AddressSanitizer only supports some of the devices on OpenCL and Level-Zero adapters, and this could be extended to support other devices and adapters if UR virtual memory APIs and shadow memory mapping in libdevice are supported.
 
 Logging
 ---------------------
@@ -260,6 +272,8 @@ Layers currently included with the runtime are as follows:
      - Enables UR_LAYER_PARAMETER_VALIDATION and UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_TRACING
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
+   * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN
+     - Enables the device-side sanitizer layer, see Sanitizers_ for more detail.
 
 Environment Variables
 ---------------------
@@ -273,6 +287,10 @@ Specific environment variables can be set to control the behavior of unified run
 .. envvar:: UR_LOG_NULL
 
    Holds parameters for setting Unified Runtime null adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_SANITIZER
+
+   Holds parameters for setting Unified Runtime sanitizer logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_LOG_VALIDATION
 

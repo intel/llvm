@@ -94,4 +94,6 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
     ASSERT_EQ_RESULT(
         urEnqueueEventsWaitWithBarrier(queue1, 1, &inv_evt, nullptr),
         UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }

@@ -1,47 +1,67 @@
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[ERROR\]: Retained 1 reference\(s\) to handle [0-9xa-fA-F]+
-<VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[ERROR\]: Retained 1 reference\(s\) to handle [0-9xa-fA-F]+
-<VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 2
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[ERROR\]: Retained 2 reference\(s\) to handle [0-9xa-fA-F]+
-<VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
-(.*)
-<VALIDATION>\[ERROR\]: Attempting to retain nonexistent handle [0-9xa-fA-F]+
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 2
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[ERROR\]: Attempting to release nonexistent handle [0-9xa-fA-F]+
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to -1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[ERROR\]: Retained -1 reference\(s\) to handle [0-9xa-fA-F]+
-<VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
-(.*)
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 1
-<VALIDATION>\[ERROR\]: Attempting to release nonexistent handle [0-9xa-fA-F]+
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to -1
-<VALIDATION>\[DEBUG\]: Reference count for handle [0-9xa-fA-F]+ changed to 0
-<VALIDATION>\[ERROR\]: Retained -1 reference\(s\) to handle [0-9xa-fA-F]+
-<VALIDATION>\[ERROR\]: Handle [0-9xa-fA-F]+ was recorded for first time here:
-(.*)
+{{IGNORE}}
+[ RUN      ] urTest.testUrAdapterGetLeak
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[ERROR]: Retained 1 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}
+[ RUN      ] urTest.testUrAdapterRetainLeak
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 2
+<VALIDATION>[ERROR]: Retained 2 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}
+[ RUN      ] urTest.testUrAdapterRetainNonexistent
+<VALIDATION>[ERROR]: Attempting to retain nonexistent handle {{[0-9xa-fA-F]+}}
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextCreateLeak
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[ERROR]: Retained 1 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextRetainLeak
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 2
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[ERROR]: Retained 2 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextRetainNonexistent
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[ERROR]: Attempting to retain nonexistent handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextCreateSuccess
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextRetainSuccess
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 2
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextReleaseLeak
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[ERROR]: Attempting to release nonexistent handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to -1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[ERROR]: Retained -1 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}
+[ RUN      ] valDeviceTest.testUrContextReleaseNonexistent
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
+<VALIDATION>[ERROR]: Attempting to release nonexistent handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to -1
+<VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 0
+<VALIDATION>[ERROR]: Retained -1 reference(s) to handle {{[0-9xa-fA-F]+}}
+<VALIDATION>[ERROR]: Handle {{[0-9xa-fA-F]+}} was recorded for first time here:
+{{IGNORE}}

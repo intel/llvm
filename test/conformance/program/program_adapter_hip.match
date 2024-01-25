@@ -1,4 +1,3 @@
-{{OPT}}Segmentation Fault
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullHandleContext/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramCreateWithNativeHandleTest.InvalidNullPointerProgram/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramGetBuildInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_BUILD_INFO_BINARY_TYPE
@@ -23,3 +22,4 @@
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
 {{OPT}}urProgramLinkTest.Success/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urProgramSetSpecializationConstantsTest.Success/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}{{Segmentation fault|Aborted}}

@@ -15,8 +15,8 @@ TEST_F(urCudaDeviceCreateWithNativeHandle, Success) {
     CUdevice cudaDevice;
     ASSERT_SUCCESS_CUDA(cuDeviceGet(&cudaDevice, 0));
 
-    ur_native_handle_t nativeCuda =
-        reinterpret_cast<ur_native_handle_t>(cudaDevice);
+    ur_native_handle_t nativeCuda = reinterpret_cast<ur_native_handle_t>(
+        static_cast<std::uintptr_t>(cudaDevice));
     ur_device_handle_t urDevice;
     ASSERT_SUCCESS(urDeviceCreateWithNativeHandle(nativeCuda, platform, nullptr,
                                                   &urDevice));
