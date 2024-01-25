@@ -2546,7 +2546,7 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
-  static_assert(sizeof(T) <= 4 && (N == 1 || N == 8 || N == 16 || N == 32),
+  static_assert(sizeof(T) <= 4 && detail::isPowerOf2(N, 32),
                 "Unexpected type or vector length");
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
@@ -2585,6 +2585,42 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
     }
   }
 }
+
+template <typename T, int N, int VS, cache_hint L1H, cache_hint L2H,
+          lsc_data_size DS, typename OffsetT, typename AccessorT>
+__ESIMD_API std::enable_if_t<
+    is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
+    simd<T, N>>
+gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+            simd_mask<N / VS> pred, simd<T, N> pass_thru) {
+  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
+  static_assert(std::is_integral_v<OffsetT>,
+                "Gather must have integral byte_offset type");
+  static_assert(sizeof(OffsetT) <= 4,
+                "Implicit truncation of 64-bit byte_offset to 32-bit is "
+                "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
+                "convert offsets to a 32-bit vector");
+  static_assert(VS == 1 || sizeof(T) >= 4,
+                "VS > 1 is supprted only for 4- and 8-byte elements");
+  check_lsc_vector_size<VS>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::load, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<VS>();
+  constexpr auto Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  auto SI = get_surface_index(acc);
+  simd<uint32_t, N / VS> ByteOffsets32 = convert<uint32_t>(byte_offsets);
+  simd<MsgT, N> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
+  simd<MsgT, N> Result =
+      __esimd_lsc_load_merge_bti<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS,
+                                 LSCVS, Transposed, N / VS>(
+          pred.data(), ByteOffsets32.data(), SI, PassThruExpanded.data());
+  return lsc_format_ret<T>(Result);
+}
+#endif // __ESIMD_FORCE_STATELESS_MEM
 
 /// SLM gather implementation.
 /// Supported platforms: DG2, PVC
@@ -2663,42 +2699,6 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
                                     PassThruExpanded.data());
   return detail::lsc_format_ret<T>(Result);
 }
-
-template <typename T, int N, int VS, cache_hint L1H, cache_hint L2H,
-          lsc_data_size DS, typename OffsetT, typename AccessorT>
-__ESIMD_API std::enable_if_t<
-    is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
-    simd<T, N>>
-gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
-            simd_mask<N / VS> pred, simd<T, N> pass_thru) {
-  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
-  static_assert(std::is_integral_v<OffsetT>,
-                "Gather must have integral byte_offset type");
-  static_assert(sizeof(OffsetT) <= 4,
-                "Implicit truncation of 64-bit byte_offset to 32-bit is "
-                "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
-                "convert offsets to a 32-bit vector");
-  static_assert(VS == 1 || sizeof(T) >= 4,
-                "VS > 1 is supprted only for 4- and 8-byte elements");
-  check_lsc_vector_size<VS>();
-  check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr uint16_t AddressScale = 1;
-  constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
-  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<VS>();
-  constexpr auto Transposed = lsc_data_order::nontranspose;
-  using MsgT = typename lsc_expand_type<T>::type;
-  auto SI = get_surface_index(acc);
-  simd<uint32_t, N / VS> ByteOffsets32 = convert<uint32_t>(byte_offsets);
-  simd<MsgT, N> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
-  simd<MsgT, N> Result =
-      __esimd_lsc_load_merge_bti<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS,
-                                 LSCVS, Transposed, N / VS>(
-          pred.data(), ByteOffsets32.data(), SI, PassThruExpanded.data());
-  return lsc_format_ret<T>(Result);
-}
-#endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace detail
 
