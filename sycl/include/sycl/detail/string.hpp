@@ -37,10 +37,6 @@ class string {
 public:
   string() = default;
 
-  string(std::string &strn) {
-    allocate(strn.length() + 1);
-    strcpy(str, strn.c_str());
-  }
   string(const std::string &strn) {
     allocate(strn.length() + 1);
     strcpy(str, strn.c_str());

@@ -36,7 +36,6 @@ class string_view {
 public:
   string_view() = default;
 
-  string_view(std::string &strn) : str(strn.c_str()) {}
   string_view(const std::string &strn) : str(strn.c_str()) {}
 
   string_view(string_view &&strn) : str(strn.str) {}
