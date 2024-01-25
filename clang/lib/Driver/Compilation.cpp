@@ -60,6 +60,56 @@ Compilation::~Compilation() {
       delete Arg.second;
 }
 
+static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D) {
+  if (!OffloadArgList || (!OffloadArgList->hasArg(options::OPT_Xarch_device) &&
+                          !OffloadArgList->hasArg(options::OPT_Xarch_host)))
+    return;
+
+  bool IsDevice = OffloadArgList->hasArg(options::OPT_Xarch_device);
+  bool NeedHandle = false;
+  std::vector<std::string> XarchValues;
+  XarchValues = IsDevice
+                    ? OffloadArgList->getAllArgValues(options::OPT_Xarch_device)
+                    : OffloadArgList->getAllArgValues(options::OPT_Xarch_host);
+  SmallVector<StringRef, 8> XarchValueRefs;
+  for (auto XarchV : XarchValues) {
+    if (XarchV.find(' ') != std::string::npos) {
+      NeedHandle = true;
+      StringRef XarchVRef(XarchV);
+      SmallVector<StringRef, 8> XarchVecs;
+      XarchVRef.split(XarchVecs, ' ', -1, false);
+      size_t Index;
+      const size_t XSize = XarchVecs.size();
+      for (Index = 0; Index < XSize; ++Index) {
+        if (XarchVecs[Index].compare("-mllvm") == 0) {
+          if (Index < (XSize - 1)) {
+            XarchValueRefs.push_back(OffloadArgList->MakeArgStringRef(
+                (StringRef("-mllvm=") + XarchVecs[Index + 1]).str()));
+            Index++;
+            continue;
+          } else
+            D.Diag(clang::diag::err_drv_missing_argument) << "-mllvm" << 1;
+        } else
+          XarchValueRefs.push_back(
+              OffloadArgList->MakeArgStringRef(XarchVecs[Index]));
+      }
+    } else
+      XarchValueRefs.push_back(StringRef(XarchV));
+  }
+
+  if (NeedHandle) {
+    auto Xarch_OPT =
+        IsDevice ? options::OPT_Xarch_device : options::OPT_Xarch_host;
+    OffloadArgList->eraseArg(Xarch_OPT);
+    for (auto XarchV : XarchValueRefs) {
+      Arg *A = OffloadArgList->MakeSeparateArg(
+          nullptr, D.getOpts().getOption(Xarch_OPT), XarchV);
+      A->claim();
+      OffloadArgList->append(A);
+    }
+  }
+}
+
 const DerivedArgList &
 Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
                                  Action::OffloadKind DeviceOffloadKind) {
@@ -67,6 +117,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     TC = &DefaultToolChain;
 
   DerivedArgList *&Entry = TCArgs[{TC, BoundArch, DeviceOffloadKind}];
+  HandleXarchArgs(TranslatedArgs, getDriver());
   if (!Entry) {
     SmallVector<Arg *, 4> AllocatedArgs;
     DerivedArgList *OffloadArgs = nullptr;
