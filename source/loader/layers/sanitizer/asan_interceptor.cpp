@@ -28,7 +28,8 @@ constexpr int kMemBufferRedzoneMagic = (char)0x84;
 constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
 constexpr auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
-constexpr auto kSPIR_AsanShadowMemoryLocalStart = "__AsanShadowMemoryLocalStart";
+constexpr auto kSPIR_AsanShadowMemoryLocalStart =
+    "__AsanShadowMemoryLocalStart";
 constexpr auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 constexpr auto kSPIR_DeviceType = "__DeviceType";
@@ -262,7 +263,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
     // to host, but it's okay that it isn't defined
-    // FIXME: We must use block operation here
+    // FIXME: We must use block operation here, until we support urEventSetCallback
     auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(LaunchInfo.SPIR_DeviceSanitizerReportMem), 0,
@@ -319,7 +320,8 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
         ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
-        // FIXME: Currently, level-zero doesn't create independent VAs for each contexts
+        // FIXME: Currently, Level-Zero doesn't create independent VAs for each contexts, 
+        // which will cause out-of-resource error when users use multiple contexts
         static uptr ShadowOffset, ShadowOffsetEnd;
 
         if (!ShadowOffset) {
