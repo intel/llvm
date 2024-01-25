@@ -3,6 +3,42 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+if(NOT "${AMD_ARCH}" STREQUAL "" AND "${UR_CONFORMANCE_AMD_ARCH}" STREQUAL "")
+    message(WARNING "Passing the HIP target architecture with AMD_ARCH is deprecated. "
+                    "Please use UR_CONFORMANCE_AMD_ARCH instead.")
+else()
+    set(AMD_ARCH "${UR_CONFORMANCE_AMD_ARCH}")
+endif()
+
+if("${AMD_ARCH}" STREQUAL "" AND "${TARGET_TRIPLES}" MATCHES "amd")
+    find_package(RocmAgentEnumerator)
+    if(NOT ROCM_AGENT_ENUMERATOR_FOUND)
+        message(FATAL_ERROR
+                "rocm_agent_enumerator could not be found so detecting target "
+                "HIP device has failed. Set target device with UR_CONFORMANCE_AMD_ARCH "
+                "or ensure rocm_agent_enumerator is available on the PATH.")
+    endif()
+    execute_process(COMMAND ${ROCM_AGENT_ENUMERATOR} OUTPUT_VARIABLE ROCM_AGENTS)
+    string(REGEX MATCHALL "[A-Za-z0-9]+" ROCM_AGENT_LIST "${ROCM_AGENTS}")
+    # rocm_agent_enumerator will return gfx000 to represent non-amd-gpu devices,
+    # we should skip over these
+    list(GET ROCM_AGENT_LIST 0 FIRST_ROCM_AGENT)
+    if("${FIRST_ROCM_AGENT}" STREQUAL "gfx000")
+        list(POP_FRONT ROCM_AGENT_LIST)
+    endif()
+    list(LENGTH ROCM_AGENT_LIST NUM_ROCM_AGENTS)
+    if(${NUM_ROCM_AGENTS} EQUAL 0)
+        message(FATAL_ERROR
+                "No target HIP devices detected with rocm_agent_enumerator, "
+                "specify a target with the UR_CONFORMANCE_AMD_ARCH variable.")
+    elseif(${NUM_ROCM_AGENTS} GREATER 1)
+        message(FATAL_ERROR
+                "Multiple possible target HIP devices found: ${ROCM_AGENT_LIST} "
+                "please specify which target to use by setting UR_CONFORMANCE_AMD_ARCH.")
+    endif()
+    list(GET ROCM_AGENT_LIST 0 AMD_ARCH)
+endif()
+
 macro(add_device_binary SOURCE_FILE)
     get_filename_component(KERNEL_NAME ${SOURCE_FILE} NAME_WE)
     set(DEVICE_BINARY_DIR "${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/${KERNEL_NAME}")

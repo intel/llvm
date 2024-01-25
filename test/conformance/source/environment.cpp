@@ -281,7 +281,7 @@ DevicesEnvironment::DevicesEnvironment(int argc, char **argv)
             error = "urDeviceGet() failed to get devices.";
             return;
         }
-        for (u_long i = 0; i < count; i++) {
+        for (unsigned i = 0; i < count; i++) {
             size_t size;
             if (urDeviceGetInfo(devices[i], UR_DEVICE_INFO_NAME, 0, nullptr,
                                 &size)) {
@@ -475,6 +475,35 @@ void KernelsEnvironment::LoadSource(
         std::make_shared<std::vector<char>>(std::move(device_binary));
     cached_kernels[kernel_name] = binary_ptr;
     binary_out = binary_ptr;
+}
+
+ur_result_t KernelsEnvironment::CreateProgram(ur_platform_handle_t hPlatform,
+                                              ur_context_handle_t hContext,
+                                              ur_device_handle_t hDevice,
+                                              const std::vector<char> &binary,
+                                              ur_program_handle_t *phProgram) {
+    ur_platform_backend_t backend;
+    if (auto error = urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
+                                       sizeof(ur_platform_backend_t), &backend,
+                                       nullptr)) {
+        return error;
+    }
+    if (backend == UR_PLATFORM_BACKEND_HIP) {
+        // The HIP adapter does not support urProgramCreateWithIL so we need to
+        // use urProgramCreateWithBinary instead.
+        if (auto error = urProgramCreateWithBinary(
+                hContext, hDevice, binary.size(),
+                reinterpret_cast<const uint8_t *>(binary.data()), nullptr,
+                phProgram)) {
+            return error;
+        }
+    } else {
+        if (auto error = urProgramCreateWithIL(
+                hContext, binary.data(), binary.size(), nullptr, phProgram)) {
+            return error;
+        }
+    }
+    return UR_RESULT_SUCCESS;
 }
 
 std::vector<std::string> KernelsEnvironment::GetEntryPointNames(

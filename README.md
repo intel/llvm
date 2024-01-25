@@ -5,6 +5,7 @@
 [![Bandit](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml)
 [![Coverity](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
 [![codecov.io](https://codecov.io/github/oneapi-src/unified-runtime/coverage.svg?branch=main)](https://codecov.io/github/oneapi-src/unified-runtime?branch=master)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/unified-runtime/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/unified-runtime)
 
 <!-- TODO: add general description and purpose of the project -->
 
@@ -125,7 +126,9 @@ List of options provided by CMake:
 | UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
 | UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
+| UR_ENABLE_SANITIZER | Enable device sanitizer layer | ON/OFF | ON |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
+| UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |
@@ -136,6 +139,10 @@ List of options provided by CMake:
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
+| UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |
+| UR_HIP_INCLUDE_DIR | Path of the ROCm HIP include directory | Directory path | `${UR_HIP_ROCM_DIR}/include` |
+| UR_HIP_HSA_INCLUDE_DIRS | Path of the ROCm HSA include directory | Directory path | `${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include` |
+| UR_HIP_LIB_DIR | Path of the ROCm HIP library directory | Directory path | `${UR_HIP_ROCM_DIR}/lib` |
 
 ### Additional make targets
 

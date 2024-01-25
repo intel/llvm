@@ -12,7 +12,11 @@
 
 #include <memory>
 
-#include "ur_util.hpp"
+#if _WIN32
+#include <windows.h>
+#else
+#define HMODULE void *
+#endif
 
 namespace ur_loader {
 
@@ -23,8 +27,9 @@ class LibLoader {
         void operator()(HMODULE handle) { freeAdapterLibrary(handle); }
     };
 
-    static std::unique_ptr<HMODULE, lib_dtor>
-    loadAdapterLibrary(const char *name);
+    using Lib = std::unique_ptr<HMODULE, lib_dtor>;
+
+    static Lib loadAdapterLibrary(const char *name);
 
     static void freeAdapterLibrary(HMODULE handle);
 
