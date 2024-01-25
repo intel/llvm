@@ -127,33 +127,40 @@ event run_kernels(queue Q, const size_t Size, buffer<T> BufferA,
 ///
 /// @return Exit node of the submission sequence.
 template <typename T>
-exp_ext::node
+std::vector<exp_ext::node>
 add_kernels(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
             const size_t Size, buffer<T> BufferA, buffer<T> BufferB,
             buffer<T> BufferC) {
+  std::vector<exp_ext::node> VectorNodes;
   // Read & write Buffer A
-  Graph.add([&](handler &CGH) {
+  auto Node1 = Graph.add([&](handler &CGH) {
     auto DataA = BufferA.template get_access<access::mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { DataA[Id]++; });
   });
 
+  VectorNodes.push_back(Node1);
+
   // Reads Buffer A
   // Read & Write Buffer B
-  Graph.add([&](handler &CGH) {
+  auto Node2 = Graph.add([&](handler &CGH) {
     auto DataA = BufferA.template get_access<access::mode::read>(CGH);
     auto DataB = BufferB.template get_access<access::mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataB[Id] += DataA[Id]; });
   });
 
+  VectorNodes.push_back(Node2);
+
   // Reads Buffer A
   // Read & writes Buffer C
-  Graph.add([&](handler &CGH) {
+  auto Node3 = Graph.add([&](handler &CGH) {
     auto DataA = BufferA.template get_access<access::mode::read>(CGH);
     auto DataC = BufferC.template get_access<access::mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataC[Id] -= DataA[Id]; });
   });
+
+  VectorNodes.push_back(Node3);
 
   // Read & write Buffers B and C
   auto ExitNode = Graph.add([&](handler &CGH) {
@@ -164,7 +171,10 @@ add_kernels(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
       DataC[Id]--;
     });
   });
-  return ExitNode;
+
+  VectorNodes.push_back(ExitNode);
+
+  return VectorNodes;
 }
 
 //// Test Explicit API graph construction with USM.

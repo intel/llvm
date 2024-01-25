@@ -302,6 +302,8 @@ public:
 
   void setEventFromSubmittedExecCommandBuffer(
       bool value, ext::oneapi::experimental::detail::exec_graph_impl *Graph) {
+    std::cout << "setEventFromSubmittedExecCommandBuffer " << value
+              << std::endl;
     MEventFromSubmittedExecCommandBuffer = value;
     MExecGraph = Graph;
   }
@@ -363,7 +365,7 @@ protected:
   /// Indicates that the event results from a command graph submission.
   bool MEventFromSubmittedExecCommandBuffer = false;
   /// Store the executable command graph associated with this event, if any.
-  ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph;
+  ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph = nullptr;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is

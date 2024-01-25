@@ -2571,6 +2571,21 @@ piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
                           pi_uint32 num_events_in_wait_list,
                           const pi_event *event_wait_list, pi_event *event);
 
+/// API to get the profiling information of a graph node.
+/// A Node is identified by a sync-point in a command-buffer.
+/// The sync-point passed in parameter corresponds therefore to the node from
+/// which we want to get the profiling information. returns an error if the node
+/// is found. \param event PI event that has been return from the command-buffer
+/// submission. \param sync_point The sync-point corresponding to the node from
+/// which we want to get the profiling information. \param param_name The name
+/// of the profiling property to query depends on. \param param_value_size Size
+/// in bytes of the profiling property value. \param param_value Value of the
+/// profiling property. \param param_value_size_ret  pointer to the actual size
+/// in bytes returned in param_value of the profiling property.
+__SYCL_EXPORT pi_result piextSyncPointGetProfilingInfo(
+    pi_event event, pi_ext_sync_point sync_point, pi_profiling_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
 /// API to destroy bindless unsampled image handles.
 ///
 /// \param context is the pi_context

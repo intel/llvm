@@ -1351,6 +1351,14 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
       CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
 }
 
+pi_result piextSyncPointGetProfilingInfo(
+    pi_event Event, pi_ext_sync_point SyncPoint, pi_profiling_info ParamName,
+    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
+  return pi2ur::piextSyncPointGetProfilingInfo(Event, SyncPoint, ParamName,
+                                               ParamValueSize, ParamValue,
+                                               ParamValueSizeRet);
+}
+
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) { // missing

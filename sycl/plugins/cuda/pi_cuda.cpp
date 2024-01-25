@@ -1185,6 +1185,14 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
       CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
 }
 
+pi_result piextSyncPointGetProfilingInfo(
+    pi_event Event, pi_ext_sync_point SyncPoint, pi_profiling_info ParamName,
+    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
+  return pi2ur::piextSyncPointGetProfilingInfo(Event, SyncPoint, ParamName,
+                                               ParamValueSize, ParamValue,
+                                               ParamValueSizeRet);
+}
+
 pi_result piextPluginGetOpaqueData(void *opaque_data_param,
                                    void **opaque_data_return) {
   return pi2ur::piextPluginGetOpaqueData(opaque_data_param, opaque_data_return);

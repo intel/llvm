@@ -163,3 +163,4 @@ piextUSMPitchedAlloc
 piextUSMRelease
 piextUSMSharedAlloc
 piextWaitExternalSemaphore
+piextSyncPointGetProfilingInfo

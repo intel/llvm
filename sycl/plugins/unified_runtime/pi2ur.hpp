@@ -4155,12 +4155,9 @@ inline pi_result piEventGetProfilingInfo(pi_event Event,
   return PI_SUCCESS;
 }
 
-inline pi_result piEventGetProfilingInfo(pi_event Event,
-					 pi_ext_sync_point SyncPoint,
-                                         pi_profiling_info ParamName,
-                                         size_t ParamValueSize,
-                                         void *ParamValue,
-                                         size_t *ParamValueSizeRet) {
+inline pi_result piextSyncPointGetProfilingInfo(
+    pi_event Event, pi_ext_sync_point SyncPoint, pi_profiling_info ParamName,
+    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
 
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
@@ -4188,9 +4185,9 @@ inline pi_result piEventGetProfilingInfo(pi_event Event,
     return PI_ERROR_INVALID_PROPERTY;
   }
 
-  std::cout << "Call UR !!!!!" << std::endl;
-  //HANDLE_ERRORS(urEventGetProfilingInfo(UREvent, PropName, ParamValueSize,
-  //                                       ParamValue, ParamValueSizeRet));
+  HANDLE_ERRORS(urSyncPointGetProfilingInfoExp(UREvent, SyncPoint, PropName,
+                                               ParamValueSize, ParamValue,
+                                               ParamValueSizeRet));
 
   return PI_SUCCESS;
 }

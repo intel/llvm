@@ -148,7 +148,7 @@ public:
   /// \return depends on template parameter.
   template <typename Param>
   typename detail::is_event_profiling_info_desc<Param>::return_type
-  get_profiling_info_node(ext::oneapi::experimental::node Node) const;
+  get_profiling_info(ext::oneapi::experimental::node Node) const;
 
   /// Returns the backend associated with this platform.
   ///

@@ -1,0 +1,3 @@
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_submit, ext::oneapi::experimental::node, uint64_t, PI_PROFILING_INFO_COMMAND_SUBMIT)
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_start, ext::oneapi::experimental::node, uint64_t, PI_PROFILING_INFO_COMMAND_START)
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_end, ext::oneapi::experimental::node, uint64_t, PI_PROFILING_INFO_COMMAND_END)

@@ -426,6 +426,14 @@ public:
   void ext_oneapi_graph(command_graph<graph_state::executable>& graph);
 }
 
+// New methods added to the sycl::event class
+class event {
+public:
+  template <typename Param>
+  typename detail::is_event_profiling_info_desc<Param>::return_type
+  get_profiling_info(ext::oneapi::experimental::node Node) const;
+}
+
 }  // namespace sycl
 ----
 
@@ -1106,6 +1114,41 @@ Exceptions:
   from the device and context used on creation of the graph.
 
 |===
+
+==== New Event Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::event` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+template <typename Param>
+typename detail::is_event_profiling_info_desc<Param>::return_type
+event::get_profiling_info(ext::oneapi::experimental::node Node) const;
+----
+
+| Queries the proliling information of a SYCL Graph node for the graph
+  execution associated with this SYCL event. If the requested info is
+  not available when this member function is called due to incompletion of
+  command groups associated with the event, then the call to this member
+  function will block until the requested info is available.
+
+Parameters:
+
+* `Node` - handle to the node for which the profiling information is queried.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this SYCL event is not
+  associated to a graph execution ; or if the queue
+  which submitted the command group this event is associated with was not
+  constructed with the property::queue::enable_profiling property
+
+|===
+
 
 === Thread Safety
 
@@ -1810,8 +1853,10 @@ if used in application code.
 . Using `handler::memadvise` in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Profiling an event returned from graph submission with
-  `event::get_profiling_info()`.
+. Profiling information is not available for graphs that contain host-task nodes.
+. Profiling a node from an event returned from graph submission with
+  `event::get_profiling_info(ext::node)` is only avalaible for
+  the level-zero backend.
 . Level Zero immediate command-lists are not supported, and
   `sycl::ext::intel::property::queue::no_immediate_command_list`
   should be set on construction to any queues an executable

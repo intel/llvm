@@ -278,6 +278,13 @@ void event_impl::checkProfilingPreconditions() const {
         "Profiling information is unavailable as the queue associated with "
         "the event does not have the 'enable_profiling' property.");
   }
+  if (MExecGraph && (MExecGraph->getPartitions().size() > 1)) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling information is not available for "
+        "partitioned graph (i.e. graph that contains a host-task)." +
+            codeToString(PI_ERROR_INVALID_VALUE));
+  }
 }
 
 template <>
@@ -366,35 +373,43 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_submit>(
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
-  if (isEventFromSubmitedExecCommandBuffer()) {
+  if (!isEventFromSubmittedExecCommandBuffer()) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Node profiling information is only available for "
                           "event returned from graph submission" +
                               codeToString(PI_ERROR_INVALID_VALUE));
   }
   checkProfilingPreconditions();
+  // Node profiling is only available for Level-Zero backend.
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Node Profiling info is only available for Level-Zero backend. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+  }
   return MSubmitTime;
 }
 
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_start>(
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
-  if (isEventFromSubmitedExecCommandBuffer()) {
+  if (!isEventFromSubmittedExecCommandBuffer()) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Node profiling information is only available for "
                           "event returned from graph submission" +
                               codeToString(PI_ERROR_INVALID_VALUE));
   }
   checkProfilingPreconditions();
-  // Node profiling is only available for Level-Zero backend
+  // Node profiling is only available for Level-Zero backend.
   if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
-        "Profiling info is not available. " +
+        "Node Profiling info is only available for Level-Zero backend. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   }
   if (!MHostEvent) {
     if (MEvent) {
+      assert((MExecGraph) && "Get Node Profiling Info: MExecGraph is empty");
       sycl::detail::pi::PiExtSyncPoint SyncPoint =
           MExecGraph->getSyncPointFromNode(NodeImpl);
 
@@ -423,22 +438,23 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_start>(
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>(
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl) {
-  if (isEventFromSubmitedExecCommandBuffer()) {
+  if (!isEventFromSubmittedExecCommandBuffer()) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Node profiling information is only available for "
                           "event returned from graph submission" +
                               codeToString(PI_ERROR_INVALID_VALUE));
   }
   checkProfilingPreconditions();
-  // Node profiling is only available for Level-Zero backend
+  // Node profiling is only available for Level-Zero backend.
   if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
-        "Profiling info is not available. " +
+        "Node Profiling info is only available for Level-Zero backend. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   }
   if (!MHostEvent) {
     if (MEvent) {
+      assert((MExecGraph) && "Get Node Profiling Info: MExecGraph is empty");
       sycl::detail::pi::PiExtSyncPoint SyncPoint =
           MExecGraph->getSyncPointFromNode(NodeImpl);
 

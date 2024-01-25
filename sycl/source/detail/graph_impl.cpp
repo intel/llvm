@@ -856,6 +856,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
           NodeImpl->getCGCopy(), Queue);
+      // The event is not associated to a commandBuffer submission but only to a
+      // graph. We therefore set the pointer to the graph to enable appropriate
+      // event handling.
+      NewEvent->setEventFromSubmittedExecCommandBuffer(false, this);
     } else {
       std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
       for (auto &NodeImpl : CurrentPartition->MSchedule) {
@@ -900,6 +904,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
       NewEvent->setStateIncomplete();
       NewEvent->getPreparedDepsEvents() = ScheduledEvents;
+      // The event is not associated to a commandBuffer submission but only to a
+      // graph. We therefore set the pointer to the graph to enable appropriate
+      // event handling.
+      NewEvent->setEventFromSubmittedExecCommandBuffer(false, this);
     }
     CGData.MEvents.push_back(NewEvent);
   }
