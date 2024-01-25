@@ -8423,12 +8423,6 @@ urKernelSuggestMaxCooperativeGroupCountExp(
     uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
 );
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urGetKernelSuggestedLocalWorkSize(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    size_t *pSuggestedLocalWorkSize);
-
 #if !defined(__GNUC__)
 #pragma endregion
 #endif

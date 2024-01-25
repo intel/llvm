@@ -199,10 +199,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pUserLocalWorkSize = pLocalWorkSize;
     if (!pUserLocalWorkSize) {
         pUserLocalWorkSize = LaunchInfo.LocalWorkSize;
-        UR_CALL(
-            context.urDdiTable.KernelExp.pfnGetKernelSuggestedLocalWorkSizeExp(
-                hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-                LaunchInfo.LocalWorkSize));
+        LaunchInfo.LocalWorkSize[0] = 1;
+        LaunchInfo.LocalWorkSize[1] = 1;
+        LaunchInfo.LocalWorkSize[2] = 1;
     }
 
     uint32_t numWork = 1;

@@ -7468,31 +7468,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     return result;
 }
 
-__urdlllocal ur_result_t UR_APICALL urGetKernelSuggestedLocalWorkSize(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    size_t *pSuggestedLocalWorkSize
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
-    auto pfnGetKernelSuggestedLocalWorkSizeExp =
-        dditable->ur.KernelExp.pfnGetKernelSuggestedLocalWorkSizeExp;
-    if (nullptr == pfnGetKernelSuggestedLocalWorkSizeExp) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    // convert loader handle to platform handle
-    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
-    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
-
-    // forward to device-platform
-    result = pfnGetKernelSuggestedLocalWorkSizeExp(hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pSuggestedLocalWorkSize);
-
-    return result;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
@@ -8389,7 +8364,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
             // return pointers to loader's DDIs
             pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
                 ur_loader::urKernelSuggestMaxCooperativeGroupCountExp;
-            pDdiTable->pfnGetKernelSuggestedLocalWorkSizeExp = ur_loader::urGetKernelSuggestedLocalWorkSize;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =

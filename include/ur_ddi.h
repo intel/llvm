@@ -629,16 +629,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t
     ur_kernel_handle_t,
     uint32_t *);
 
-typedef ur_result_t(UR_APICALL *ur_pfnGetKernelSuggestedLocalWorkSizeExp_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, uint32_t,
-    const size_t *, const size_t *,
-    size_t *);
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of KernelExp functions pointers
 typedef struct ur_kernel_exp_dditable_t {
     ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t pfnSuggestMaxCooperativeGroupCountExp;
-    ur_pfnGetKernelSuggestedLocalWorkSizeExp_t pfnGetKernelSuggestedLocalWorkSizeExp;
 } ur_kernel_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
