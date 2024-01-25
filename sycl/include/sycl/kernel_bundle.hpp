@@ -458,7 +458,11 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return detail::get_kernel_id_impl(detail::string_view(KI::getName()));
+#else
   return detail::get_kernel_id_impl(KI::getName());
+#endif
 }
 
 /// \returns a vector with all kernel_id's defined in the application
