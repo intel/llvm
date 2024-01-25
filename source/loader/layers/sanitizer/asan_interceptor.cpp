@@ -320,7 +320,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
         ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
-        // FIXME: Currently, Level-Zero doesn't create independent VAs for each contexts, 
+        // FIXME: Currently, Level-Zero doesn't create independent VAs for each contexts,
         // which will cause out-of-resource error when users use multiple contexts
         static uptr ShadowOffset, ShadowOffsetEnd;
 

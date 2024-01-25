@@ -12,8 +12,8 @@
  */
 
 #include "common.hpp"
-#include <sys/mman.h>
 #include <asm/param.h>
+#include <sys/mman.h>
 
 extern "C" __attribute__((weak)) void __asan_init(void);
 
