@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// This test validates operations between simd vector and scalars for
+// bfloat16 and tfloat32 types that are available only on PVC.
+//===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
