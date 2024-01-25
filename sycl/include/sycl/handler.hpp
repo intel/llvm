@@ -857,7 +857,7 @@ private:
     detail::string_view Name = KernelName;
     verifyUsedKernelBundleInternal(Name);
   }
-  void verifyUsedKernelBundleInternal(detail::string_view &KernelName);
+  void verifyUsedKernelBundleInternal(detail::string_view KernelName);
 #else
   void verifyUsedKernelBundle(const std::string &KernelName);
 #endif
@@ -912,7 +912,11 @@ private:
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      MKernelName = detail::string(KI::getName());
+#else
       MKernelName = KI::getName();
+#endif
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -3423,7 +3427,7 @@ private:
                                 bool Block = false) {
     ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
-  void ext_intel_read_host_pipe(const detail::string_view &Name, void *Ptr,
+  void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                 size_t Size, bool Block = false);
 #else
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
@@ -3441,7 +3445,7 @@ private:
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
-  void ext_intel_write_host_pipe(const detail::string_view &Name, void *Ptr,
+  void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
 #else
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,

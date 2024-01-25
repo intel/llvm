@@ -36,30 +36,53 @@ class string {
 
 public:
   string() = default;
+
+  string(std::string &strn) {
+    allocate(strn.length() + 1);
+    strcpy(str, strn.c_str());
+  }
+  string(const std::string &strn) {
+    allocate(strn.length() + 1);
+    strcpy(str, strn.c_str());
+  }
+
+  string(string &&strn) {
+    allocate(strlen(strn.str) + 1);
+    strcpy(str, strn.str);
+  }
+  string(const string &strn) {
+    allocate(strlen(strn.str) + 1);
+    strcpy(str, strn.str);
+  }
+
+  string &operator=(string &&strn) {
+    allocate(strlen(strn.str) + 1);
+    strcpy(str, strn.str);
+    return *this;
+  }
+  string &operator=(const string &strn) {
+    allocate(strlen(strn.str) + 1);
+    strcpy(str, strn.str);
+    return *this;
+  }
+
   ~string() { delete[] str; }
-
-  bool operator==(const char *st) { return strcmp(str, st) == 0; }
-  bool operator==(std::string &s) { return strcmp(str, s.c_str()) == 0; }
-  bool operator==(const std::string &s) { return strcmp(str, s.c_str()) == 0; }
-
-  void operator=(std::string &s) {
-    allocate(s.length() + 1);
-    unmarshall(s);
-  }
-  void operator=(const char *s) {
-    allocate(strlen(s) + 1);
-    strcpy(str, s);
-  }
-
-  // Libsycl calls this method to copy from std::string to the 'str' data
-  // memeber.
-  void unmarshall(std::string &strn) { strcpy(str, strn.c_str()); }
 
   const char *c_str() { return str; }
 
+  friend bool operator==(string &lhs, const std::string &rhs) {
+    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
+    return rhs == lhs.c_str();
+  }
+  friend bool operator==(const std::string &lhs, string &rhs) {
+    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
+    return lhs == rhs.c_str();
+  }
+
+private:
   void allocate(int size) {
-    // This class object is immutable once its memory is allocated. Reallocation
-    // is not allowed.
+    // This class object is immutable once its memory is allocated.
+    // Reallocation is not allowed.
     assert(str == nullptr &&
            "Error: memory already allocated for this object.");
     str = new char[size];

@@ -227,12 +227,9 @@ public:
                   std::is_same_v<Param, info::device::driver_version> ||
                   std::is_same_v<Param, info::device::version> ||
                   std::is_same_v<Param, info::device::profile>) {
-
-      detail::string_view PropertyName = typeid(Param).name();
-      detail::string Info; // Libsycl fills this param with property information
-      get_device_info(PropertyName, Info);
-      std::string DeviceInfo = Info.c_str();
-      return DeviceInfo;
+      detail::string_view PropertyName(typeid(Param).name());
+      detail::string Info = get_device_info(PropertyName);
+      return Info.c_str();
     }
     return get_info_internal<Param>();
   }
@@ -321,7 +318,7 @@ private:
   typename detail::is_device_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_device_info(detail::string_view &Type, detail::string &Info) const;
+  detail::string get_device_info(detail::string_view Type) const;
 #endif
 };
 

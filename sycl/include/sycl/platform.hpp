@@ -155,12 +155,9 @@ public:
                   std::is_same_v<Param, info::platform::vendor> ||
                   std::is_same_v<Param, info::platform::version> ||
                   std::is_same_v<Param, info::platform::profile>) {
-
-      detail::string_view PropertyName = typeid(Param).name();
-      detail::string Info;
-      get_platform_info(PropertyName, Info);
-      std::string PlatformInfo = Info.c_str();
-      return PlatformInfo;
+      detail::string_view PropertyName(typeid(Param).name());
+      detail::string Info = get_platform_info(PropertyName);
+      return Info.c_str();
     }
     return get_info_internal<Param>();
   }
@@ -231,7 +228,7 @@ private:
   typename detail::is_platform_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  void get_platform_info(detail::string_view &Type, detail::string &Info) const;
+  detail::string get_platform_info(detail::string_view Type) const;
 #endif
 }; // class platform
 } // namespace _V1

@@ -13,8 +13,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// This class  and detail::string_view are intended to support different ABIs
-// between libsycl and the user program.
+// This class  and detail::string are intended to support different ABIs
+// between libsycl and the user program. This class is not inteded to replace
+// std::string for general purpose usage.
 // One most important issue is different ABIs for std::string before
 // C++11-ABI and after C++11-ABI.
 // To address this issue, we define sycl::detail::string_view class.
@@ -29,20 +30,38 @@ namespace detail {
 // a std::string. That's why we need two separate classes, string and
 // string_view.
 class string_view {
-  const char *str; // used to send user's owning std::string to libsycl
+  const char *str =
+      nullptr; // used to send user's owning std::string to libsycl
 
 public:
   string_view() = default;
-  string_view(const char *ptr) : str(ptr) {}
+
   string_view(std::string &strn) : str(strn.c_str()) {}
   string_view(const std::string &strn) : str(strn.c_str()) {}
 
-  bool operator==(const char *st) { return strcmp(str, st) == 0; }
-  void operator=(std::string &s) { str = s.c_str(); }
-  void operator=(const std::string &s) { str = s.c_str(); }
+  string_view(string_view &&strn) : str(strn.str) {}
+  string_view(const string_view &strn) : str(strn.str) {}
+
+  string_view &operator=(string_view &&strn) {
+    str = strn.str;
+    return *this;
+  }
+  string_view &operator=(const string_view &strn) {
+    str = strn.str;
+    return *this;
+  }
 
   const char *c_str() { return str; }
   const char *c_str() const { return str; }
+
+  friend bool operator==(string_view &lhs, const std::string &rhs) {
+    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
+    return rhs == lhs.c_str();
+  }
+  friend bool operator==(const std::string &lhs, string_view &rhs) {
+    // return strcmp(lhs.c_str(), rhs.c_str()) == 0;
+    return lhs == rhs.c_str();
+  }
 };
 
 } // namespace detail

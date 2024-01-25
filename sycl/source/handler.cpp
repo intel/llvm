@@ -862,11 +862,7 @@ void handler::extractArgsAndReqsFromLambda(
 // method inside the library and returns the result.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::string handler::getKernelName() {
-  detail::string Str;
-  std::string Fname = MKernel->get_info<info::kernel::function_name>();
-  Str.allocate(Fname.length() + 1);
-  Str.unmarshall(Fname);
-  return Str;
+  return MKernel->get_info<info::kernel::function_name>();
 }
 #else
 std::string handler::getKernelName() {
@@ -875,7 +871,7 @@ std::string handler::getKernelName() {
 #endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::verifyUsedKernelBundleInternal(detail::string_view &KernelName) {
+void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 #else
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 #endif
@@ -1330,7 +1326,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_intel_read_host_pipe(const detail::string_view &Name,
+void handler::ext_intel_read_host_pipe(const detail::string_view Name,
                                        void *Ptr, size_t Size, bool Block) {
   MImpl->HostPipeName = Name.c_str();
 #else
@@ -1346,7 +1342,7 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_intel_write_host_pipe(const detail::string_view &Name,
+void handler::ext_intel_write_host_pipe(const detail::string_view Name,
                                         void *Ptr, size_t Size, bool Block) {
   MImpl->HostPipeName = Name.c_str();
 #else
