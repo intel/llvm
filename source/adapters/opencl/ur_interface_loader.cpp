@@ -403,8 +403,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
   }
 
   pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
-  pDdiTable->pfnGetKernelSuggestedLocalWorkSizeExp =
-      urGetKernelSuggestedLocalWorkSize;
 
   return UR_RESULT_SUCCESS;
 }
