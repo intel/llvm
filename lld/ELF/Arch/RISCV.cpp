@@ -731,8 +731,14 @@ static bool relax(InputSection &sec) {
       const uint64_t align = PowerOf2Ceil(r.addend + 2);
       // All bytes beyond the alignment boundary should be removed.
       remove = nextLoc - ((loc + align - 1) & -align);
-      assert(static_cast<int32_t>(remove) >= 0 &&
-             "R_RISCV_ALIGN needs expanding the content");
+      // If we can't satisfy this alignment, we've found a bad input.
+      if (LLVM_UNLIKELY(static_cast<int32_t>(remove) < 0)) {
+        errorOrWarn(getErrorLocation((const uint8_t*)loc) +
+                    "insufficient padding bytes for " + lld::toString(r.type) +
+                    ": " + Twine(r.addend) + " bytes available "
+                    "for requested alignment of " + Twine(align) + " bytes");
+        remove = 0;
+      }
       break;
     }
     case R_RISCV_CALL:
@@ -957,8 +963,8 @@ static void mergeArch(RISCVISAInfo::OrderedExtensionMap &mergedExts,
   } else {
     for (const auto &ext : info.getExtensions()) {
       if (auto it = mergedExts.find(ext.first); it != mergedExts.end()) {
-        if (std::tie(it->second.MajorVersion, it->second.MinorVersion) >=
-            std::tie(ext.second.MajorVersion, ext.second.MinorVersion))
+        if (std::tie(it->second.Major, it->second.Minor) >=
+            std::tie(ext.second.Major, ext.second.Minor))
           continue;
       }
       mergedExts[ext.first] = ext.second;
