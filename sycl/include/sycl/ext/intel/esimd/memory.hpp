@@ -2642,20 +2642,19 @@ template <typename T, int NElts, lsc_data_size DS, int N>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
                 __ESIMD_NS::simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr auto Transposed = detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
+  constexpr lsc_data_size _DS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size _VS = to_lsc_vector_size<NElts>();
+  constexpr auto Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
       __esimd_lsc_load_slm<MsgT, cache_hint::none, cache_hint::none,
                            AddressScale, ImmOffset, _DS, _VS, Transposed, N>(
           pred.data(), offsets.data());
-  return detail::lsc_format_ret<T>(Tmp);
+  return lsc_format_ret<T>(Tmp);
 }
 
 /// SLM gather implementation.
@@ -2680,24 +2679,22 @@ __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
                 __ESIMD_NS::simd_mask<N> pred,
                 __ESIMD_NS::simd<T, N * NElts> pass_thru) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
+  constexpr lsc_data_size _DS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size _VS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
   __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
-      detail::lsc_format_input<MsgT>(pass_thru);
+      lsc_format_input<MsgT>(pass_thru);
   __ESIMD_NS::simd<MsgT, N * NElts> Result =
       __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
                                  AddressScale, ImmOffset, _DS, _VS, Transposed,
                                  N>(pred.data(), offsets.data(),
                                     PassThruExpanded.data());
-  return detail::lsc_format_ret<T>(Result);
+  return lsc_format_ret<T>(Result);
 }
 
 } // namespace detail
@@ -3761,7 +3758,6 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
     return __esimd_slm_gather_ld<MsgT, N, Alignment>(
         byte_offsets.data(), mask.data(), PassThru.data());
   } else {
-    static_assert(detail::isPowerOf2(N, 32), "Unsupported vector length");
     detail::LocalAccessorMarker acc;
     return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
   }

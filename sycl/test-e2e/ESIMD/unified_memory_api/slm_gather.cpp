@@ -1,4 +1,4 @@
-//==------- slm_gathercpp - DPC++ ESIMD on-device test --------------------==//
+//==------- slm_gather.cpp - DPC++ ESIMD on-device test --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +15,7 @@
 
 // The test verifies esimd::slm_gather() functions accepting  optional
 // compile-time esimd::properties. The slm_gather() calls in this test do not
-// use VS > 1 (number of loads per offset) to not impose using PVC features.
+// use VS > 1 (number of loads per offset) to not impose using DG2/PVC features.
 
 #include "Inputs/gather.hpp"
 

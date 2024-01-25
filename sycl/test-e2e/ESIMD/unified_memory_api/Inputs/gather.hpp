@@ -671,6 +671,8 @@ template <typename T, TestFeatures Features> bool testSLM(queue Q) {
       Q, 2, AlignElemProps);
   Passed &= testSLM<T, 8, 1, UseMask, !UsePassThru, UseProperties>(
       Q, 3, AlignElemProps);
+  // UsePassThru requires either DG2/PVC or support of llvm.masked.gather LLVM
+  // IR.
 #ifdef __ESIMD_GATHER_SCATTER_LLVM_IR
   Passed &= testSLM<T, 16, 1, UseMask, UsePassThru, UseProperties>(
       Q, 2, AlignElemProps);
