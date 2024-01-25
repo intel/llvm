@@ -226,6 +226,8 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
                                                 src_region, size, size, size,
                                                 size, 1, &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 using urEnqueueMemBufferCopyRectMultiDeviceTest =

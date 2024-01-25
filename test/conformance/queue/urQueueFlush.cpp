@@ -19,6 +19,7 @@ TEST_P(urQueueFlushTest, Success) {
                                            nullptr));
 
     ASSERT_SUCCESS(urQueueFlush(queue));
+    ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 TEST_P(urQueueFlushTest, InvalidNullHandleQueue) {

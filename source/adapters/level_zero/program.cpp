@@ -167,48 +167,55 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
 
   ZeModuleDesc.pBuildFlags = ZeBuildOptions.c_str();
   ZeModuleDesc.pConstants = Shim.ze();
-
-  ze_device_handle_t ZeDevice = phDevices[0]->ZeDevice;
-  ze_context_handle_t ZeContext = hProgram->Context->ZeContext;
-  std::ignore = numDevices;
-  ze_module_handle_t ZeModule = nullptr;
-
   ur_result_t Result = UR_RESULT_SUCCESS;
-  hProgram->State = ur_program_handle_t_::Exe;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                       &ZeModule, &hProgram->ZeBuildLog));
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    // We adjust ur_program below to avoid attempting to release zeModule when
-    // RT calls urProgramRelease().
-    hProgram->State = ur_program_handle_t_::Invalid;
-    Result = ze2urResult(ZeResult);
-    if (ZeModule) {
-      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-      ZeModule = nullptr;
-    }
-  } else {
-    // The call to zeModuleCreate does not report an error if there are
-    // unresolved symbols because it thinks these could be resolved later via a
-    // call to zeModuleDynamicLink.  However, modules created with
-    // urProgramBuild are supposed to be fully linked and ready to use.
-    // Therefore, do an extra check now for unresolved symbols.
-    ZeResult = checkUnresolvedSymbols(ZeModule, &hProgram->ZeBuildLog);
+
+  for (uint32_t i = 0; i < numDevices; i++) {
+    ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
+    ze_context_handle_t ZeContext = hProgram->Context->ZeContext;
+    ze_module_handle_t ZeModuleHandle = nullptr;
+    ze_module_build_log_handle_t ZeBuildLog{};
+
+    hProgram->State = ur_program_handle_t_::Exe;
+    ze_result_t ZeResult =
+        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                         &ZeModuleHandle, &ZeBuildLog));
     if (ZeResult != ZE_RESULT_SUCCESS) {
+      // We adjust ur_program below to avoid attempting to release zeModule when
+      // RT calls urProgramRelease().
       hProgram->State = ur_program_handle_t_::Invalid;
-      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
-                   ? UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
-                   : ze2urResult(ZeResult);
-      if (ZeModule) {
-        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-        ZeModule = nullptr;
+      Result = ze2urResult(ZeResult);
+      if (ZeModuleHandle) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModuleHandle));
+        ZeModuleHandle = nullptr;
       }
+    } else {
+      // The call to zeModuleCreate does not report an error if there are
+      // unresolved symbols because it thinks these could be resolved later via
+      // a call to zeModuleDynamicLink.  However, modules created with
+      // urProgramBuild are supposed to be fully linked and ready to use.
+      // Therefore, do an extra check now for unresolved symbols.
+      ZeResult = checkUnresolvedSymbols(ZeModuleHandle, &ZeBuildLog);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        hProgram->State = ur_program_handle_t_::Invalid;
+        Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                     ? UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+                     : ze2urResult(ZeResult);
+        if (ZeModuleHandle) {
+          ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModuleHandle));
+          ZeModuleHandle = nullptr;
+        }
+      }
+      hProgram->ZeModuleMap.insert(std::make_pair(ZeDevice, ZeModuleHandle));
+      hProgram->ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
     }
   }
 
   // We no longer need the IL / native code.
   hProgram->Code.reset();
-  hProgram->ZeModule = ZeModule;
+  if (!hProgram->ZeModuleMap.empty())
+    hProgram->ZeModule = hProgram->ZeModuleMap.begin()->second;
+  if (!hProgram->ZeBuildLogMap.empty())
+    hProgram->ZeBuildLog = hProgram->ZeBuildLogMap.begin()->second;
   return Result;
 }
 
@@ -292,9 +299,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_program_handle_t
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
-  std::ignore = numDevices;
-  UR_ASSERT(hContext->isValidDevice(phDevices[0]),
-            UR_RESULT_ERROR_INVALID_DEVICE);
+  for (uint32_t i = 0; i < numDevices; i++) {
+    UR_ASSERT(hContext->isValidDevice(phDevices[i]),
+              UR_RESULT_ERROR_INVALID_DEVICE);
+  }
 
   // We do not support any link flags at this time because the Level Zero API
   // does not have any way to pass flags that are specific to linking.
@@ -402,49 +410,60 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     }
+    std::unordered_map<ze_device_handle_t, ze_module_handle_t> ZeModuleMap;
+    std::unordered_map<ze_device_handle_t, ze_module_build_log_handle_t>
+        ZeBuildLogMap;
 
-    // Call the Level Zero API to compile, link, and create the module.
-    ze_device_handle_t ZeDevice = phDevices[0]->ZeDevice;
-    ze_context_handle_t ZeContext = hContext->ZeContext;
-    ze_module_handle_t ZeModule = nullptr;
-    ze_module_build_log_handle_t ZeBuildLog = nullptr;
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                         &ZeModule, &ZeBuildLog));
+    for (uint32_t i = 0; i < numDevices; i++) {
 
-    // We still create a ur_program_handle_t_ object even if there is a
-    // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
-    // is no build log created for other errors, so we don't create an object.
-    UrResult = ze2urResult(ZeResult);
-    if (ZeResult != ZE_RESULT_SUCCESS &&
-        ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
-      return ze2urResult(ZeResult);
-    }
+      // Call the Level Zero API to compile, link, and create the module.
+      ze_device_handle_t ZeDevice = phDevices[i]->ZeDevice;
+      ze_context_handle_t ZeContext = hContext->ZeContext;
+      ze_module_handle_t ZeModule = nullptr;
+      ze_module_build_log_handle_t ZeBuildLog = nullptr;
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                           &ZeModule, &ZeBuildLog));
 
-    // The call to zeModuleCreate does not report an error if there are
-    // unresolved symbols because it thinks these could be resolved later via a
-    // call to zeModuleDynamicLink.  However, modules created with piProgramLink
-    // are supposed to be fully linked and ready to use.  Therefore, do an extra
-    // check now for unresolved symbols.  Note that we still create a
-    // ur_program_handle_t_ if there are unresolved symbols because the
-    // ZeBuildLog tells which symbols are unresolved.
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-      if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-        UrResult =
-            UR_RESULT_ERROR_UNKNOWN; // TODO:
-                                     // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
-      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+      // We still create a ur_program_handle_t_ object even if there is a
+      // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
+      // is no build log created for other errors, so we don't create an object.
+      UrResult = ze2urResult(ZeResult);
+      if (ZeResult != ZE_RESULT_SUCCESS &&
+          ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
         return ze2urResult(ZeResult);
       }
+
+      // The call to zeModuleCreate does not report an error if there are
+      // unresolved symbols because it thinks these could be resolved later via
+      // a call to zeModuleDynamicLink.  However, modules created with
+      // piProgramLink are supposed to be fully linked and ready to use.
+      // Therefore, do an extra check now for unresolved symbols.  Note that we
+      // still create a ur_program_handle_t_ if there are unresolved symbols
+      // because the ZeBuildLog tells which symbols are unresolved.
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
+        if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+          UrResult =
+              UR_RESULT_ERROR_UNKNOWN; // TODO:
+                                       // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+          return ze2urResult(ZeResult);
+        }
+      }
+      ZeModuleMap.insert(std::make_pair(ZeDevice, ZeModule));
+      ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
     }
 
     ur_program_handle_t_::state State = (UrResult == UR_RESULT_SUCCESS)
                                             ? ur_program_handle_t_::Exe
                                             : ur_program_handle_t_::Invalid;
     ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(State, hContext, ZeModule, ZeBuildLog);
+        new ur_program_handle_t_(State, hContext, ZeModuleMap.begin()->second,
+                                 ZeBuildLogMap.begin()->second);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    (*phProgram)->ZeModuleMap = ZeModuleMap;
+    (*phProgram)->ZeBuildLogMap = ZeBuildLogMap;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -715,23 +734,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
     }
 
     // Next check if there is a Level Zero build log.
-    if (Program->ZeBuildLog) {
+    if (Program->ZeBuildLogMap.find(Device->ZeDevice) !=
+        Program->ZeBuildLogMap.end()) {
+      ze_module_build_log_handle_t ZeBuildLog =
+          Program->ZeBuildLogMap.begin()->second;
       size_t LogSize = PropSize;
       ZE2UR_CALL(zeModuleBuildLogGetString,
-                 (Program->ZeBuildLog, &LogSize, ur_cast<char *>(PropValue)));
+                 (ZeBuildLog, &LogSize, ur_cast<char *>(PropValue)));
       if (PropSizeRet) {
         *PropSizeRet = LogSize;
       }
       if (PropValue) {
-        // When the program build fails in urProgramBuild(), we delayed cleaning
-        // up the build log because RT later calls this routine to get the
-        // failed build log.
-        // To avoid memory leaks, we should clean up the failed build log here
-        // because RT does not create sycl::program when urProgramBuild() fails,
-        // thus it won't call urProgramRelease() to clean up the build log.
+        // When the program build fails in urProgramBuild(), we delayed
+        // cleaning up the build log because RT later calls this routine to
+        // get the failed build log. To avoid memory leaks, we should clean up
+        // the failed build log here because RT does not create sycl::program
+        // when urProgramBuild() fails, thus it won't call urProgramRelease()
+        // to clean up the build log.
         if (Program->State == ur_program_handle_t_::Invalid) {
-          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-          Program->ZeBuildLog = nullptr;
+          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
+          Program->ZeBuildLogMap.erase(Device->ZeDevice);
+          ZeBuildLog = nullptr;
         }
       }
       return UR_RESULT_SUCCESS;
@@ -814,15 +837,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 }
 
 ur_program_handle_t_::~ur_program_handle_t_() {
+  if (!resourcesReleased) {
+    ur_release_program_resources(true);
+  }
+}
+
+void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // According to Level Zero Specification, all kernels and build logs
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
-  if (ZeBuildLog) {
-    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
+  if (!deletion) {
+    if (!RefCount.decrementAndTest()) {
+      return;
+    }
   }
+  if (!resourcesReleased) {
+    for (auto &ZeBuildLogPair : this->ZeBuildLogMap) {
+      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLogPair.second));
+    }
 
-  if (ZeModule && OwnZeModule) {
-    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+    if (ZeModule && OwnZeModule) {
+      for (auto &ZeModulePair : this->ZeModuleMap) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+      }
+      this->ZeModuleMap.clear();
+    }
+    resourcesReleased = true;
   }
 }
 
