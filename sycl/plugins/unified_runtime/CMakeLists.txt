@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Wed Jan 10 14:50:23 2024 +0000
   #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
   #     [HIP] Allow custom location of ROCm components
-  set(UNIFIED_RUNTIME_TAG dbbc8e015f29e69674b04c303874627e788305a4)
+  set(UNIFIED_RUNTIME_TAG 699fb4364c459a14e495f295116b48e00784f91a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
