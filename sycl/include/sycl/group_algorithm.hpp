@@ -135,7 +135,7 @@ struct is_complex : public std::false_type {};
 // ---- is_arithmetic_or_complex
 template <typename T>
 using is_arithmetic_or_complex = std::integral_constant<
-    bool, sycl::detail::is_complex<typename std::remove_cv_t<T>>::value ||
+    bool, sycl::detail::is_complex<T>::value ||
               sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
@@ -147,8 +147,8 @@ struct is_vector_arithmetic_or_complex
 // ---- is_plus_or_multiplies_if_complex
 template <typename T, typename BinaryOperation>
 using is_plus_or_multiplies_if_complex = std::integral_constant<
-    bool, (is_complex<T>::value ? (is_plus<T, BinaryOperation>::value ||
-                                   is_multiplies<T, BinaryOperation>::value)
+    bool, (is_complex<T>::value ? (is_plus<std::remove_cv_t<T>, BinaryOperation>::value ||
+                                   is_multiplies<std::remove_cv_t<T>, BinaryOperation>::value)
                                 : std::true_type::value)>;
 
 // used to transform a vector op to a scalar op;
@@ -178,14 +178,14 @@ struct is_max_or_min<sycl::minimum<T>> : std::true_type {};
 // callers of known_identity support complex numbers.
 template <typename T, class BinaryOperation>
 constexpr std::enable_if_t<
-    (is_complex<T>::value && is_plus<T, BinaryOperation>::value), T>
+    (is_complex<T>::value && is_plus<std::remove_cv_t<T>, BinaryOperation>::value), T>
 identity_for_ga_op() {
   return {0, 0};
 }
 
 template <typename T, class BinaryOperation>
 constexpr std::enable_if_t<
-    (is_complex<T>::value && is_multiplies<T, BinaryOperation>::value), T>
+    (is_complex<T>::value && is_multiplies<std::remove_cv_t<T>, BinaryOperation>::value), T>
 identity_for_ga_op() {
   return {1, 0};
 }
@@ -224,7 +224,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   (detail::is_scalar_arithmetic<T>::value ||
                    (detail::is_complex<T>::value &&
-                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                    detail::is_multiplies<std::remove_cv_t<T>, BinaryOperation>::value)) &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -258,7 +258,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_complex<T>::value &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
-                  detail::is_plus<T, BinaryOperation>::value),
+                  detail::is_plus<std::remove_cv_t<T>, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -676,7 +676,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   (detail::is_scalar_arithmetic<T>::value ||
                    (detail::is_complex<T>::value &&
-                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                    detail::is_multiplies<std::remove_cv_t<T>, BinaryOperation>::value)) &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -731,7 +731,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_complex<T>::value &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
-                  detail::is_plus<T, BinaryOperation>::value),
+                  detail::is_plus<std::remove_cv_t<T>, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -917,7 +917,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   (detail::is_scalar_arithmetic<T>::value ||
                    (detail::is_complex<T>::value &&
-                    detail::is_multiplies<T, BinaryOperation>::value)) &&
+                    detail::is_multiplies<std::remove_cv_t<T>, BinaryOperation>::value)) &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
@@ -945,7 +945,7 @@ template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_complex<T>::value &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
-                  detail::is_plus<T, BinaryOperation>::value),
+                  detail::is_plus<std::remove_cv_t<T>, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
