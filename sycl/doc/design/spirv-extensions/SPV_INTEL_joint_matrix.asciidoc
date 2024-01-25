@@ -10,9 +10,15 @@
 :bf16_capability_token: 6437
 :capability_prefetch_name: CooperativeMatrixPrefetchINTEL
 :capability_prefetch_token: 6411
+:capability_checked_name: CooperativeMatrixCheckedInstructionsINTEL
+:capability_checked_token: 6192
 :OpCooperativeMatrixGetElementCoordINTEL_token: 6440
 :OpCooperativeMatrixApplyFunctionINTEL_token: 6448
 :OpCooperativeMatrixPrefetchINTEL_token: 6449
+:OpCooperativeMatrixLoadCheckedINTEL_token: 6193
+:OpCooperativeMatrixStoreCheckedINTEL_token: 6194
+:OpCooperativeMatrixConstructCheckedINTEL_token: 6195
+
 
 :DPCPP_URL: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc
 :bfloat16_conv_url: http://htmlpreview.github.io/?https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_bfloat16_conversion.html
@@ -67,7 +73,7 @@ please let us know!
 [width="40%",cols="25,25"]
 |========================================
 | Last Modified Date | 2023-11-06
-| Revision           | 15
+| Revision           | 16
 |========================================
 
 == Dependencies
@@ -116,6 +122,7 @@ This extension introduces new capabilities:
 {invocation_capability_name}
 {tf32_capability_name}
 {bf16_capability_name}
+{capability_checked_name}
 {capability_prefetch_name}
 ----
 
@@ -137,6 +144,15 @@ OpCooperativeMatrixPrefetchINTEL
 
 ----
 
+Instructions added under the *{capability_checked_name}* capability:
+
+----
+
+OpCooperativeMatrixLoadCheckedINTEL
+OpCooperativeMatrixStoreCheckedINTEL
+OpCooperativeMatrixConstructCheckedINTEL
+
+----
 
 == Token Number Assignments
 
@@ -149,9 +165,13 @@ OpCooperativeMatrixPrefetchINTEL
 |*{tf32_capability_name}*            | {tf32_capability_token}
 |*{bf16_capability_name}*            | {bf16_capability_token}
 |*{capability_prefetch_name}*        | {capability_prefetch_token}
+|*{capability_checked_name}*         | {capability_checked_token}
 |*OpCooperativeMatrixGetElementCoordINTEL* | {OpCooperativeMatrixGetElementCoordINTEL_token}
 |*OpCooperativeMatrixApplyFunctionINTEL*   | {OpCooperativeMatrixApplyFunctionINTEL_token}
 |*OpCooperativeMatrixPrefetchINTEL*        | {OpCooperativeMatrixPrefetchINTEL_token}
+|*OpCooperativeMatrixLoadCheckedINTEL*     | {OpCooperativeMatrixLoadCheckedINTEL_token}
+|*OpCooperativeMatrixStoreCheckedINTEL*    | {OpCooperativeMatrixStoreCheckedINTEL_token}
+|*OpCooperativeMatrixConstructCheckedINTEL*     | {OpCooperativeMatrixConstructCheckedINTEL_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.6 and SPV_KHR_cooperative_matrix, Revision 3
@@ -231,6 +251,13 @@ Uses *BFloat16* in 3.X, Cooperative Matrix Operands +
 Uses *OpCooperativeMatrixPrefetchINTEL* instructions. +
  +
 | *{main_capability_name}* +
+| {capability_checked_token} | *{capability_checked_name}* +
+ +
+Uses *OpCooperativeMatrixLoadCheckedINTEL* and *OpCooperativeMatrixStoreCheckedINTEL*
+instructions. +
+ +
+| *{main_capability_name}* +
+
 |====
 --
 
@@ -259,13 +286,11 @@ whose 'Type' operand is a scalar or vector type. If the *Shader* capability was
 declared, 'Pointer' must point into an array and any *ArrayStride* decoration on
 'Pointer' is ignored. +
  +
-'X offset' must be a constant instruction with scalar 32-bit integer type.
-It specifies offset in bytes along X axis from the 'Pointer' where prefetched
-memory region starts from. +
+'X offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along X axis from the 'Pointer' where the prefetched memory region starts from. +
  +
-'Y offset' must be a constant instruction with scalar 32-bit integer type.
-It specifies offset in bytes along Y axis from the 'Pointer' where prefetched
-memory region starts from. +
+'Y offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along Y axis from the 'Pointer' where the prefetched memory region starts from. +
  +
 'Rows' must be a constant instruction with scalar 32-bit integer type. +
  +
@@ -297,6 +322,169 @@ scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
 'Stride' |
 |=====
 
+[cols="1,1,10*3",width="100%"]
+|=====
+11+|[[OpCooperativeMatrixLoadCheckedINTEL]]*OpCooperativeMatrixLoadCheckedINTEL* +
+ +
+Load a cooperative matrix through a pointer. Global matrix size might be not multiple the size of
+the two-dimentional region that is being loaded, in this case the out-of-bounds elements are
+set to 0. +
+ +
+'Result Type' is the type of the loaded object. It must be a cooperative matrix
+type. +
+ +
+'X offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along X axis from the 'Pointer' where the loaded memory region starts from. +
+ +
+'Y offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along Y axis from the 'Pointer' where the loaded memory region starts from. +
+ +
+'Pointer' is a pointer. Its type must be an *OpTypePointer* whose 'Type' operand
+is a scalar or vector type. If the *Shader* capability was declared, 'Pointer'
+must point into an array and any *ArrayStride* decoration on 'Pointer' is ignored. +
+ +
+'MemoryLayout' specifies how matrix elements are laid out in memory. It must come
+from a 32-bit integer 'constant instruction' whose value corresponds to a
+'Cooperative Matrix Layout'. See the _Cooperative Matrix Layout_ table for
+a description of the layouts and detailed layout-specific rules. +
+ +
+'Height' is the height (number of rows of a big matrix) of the two-dimensional
+region to load the matrix from. It must be a scalar 'integer type'. +
+ +
+'Width' is the width (number of columns of a big matrix) of the two-dimensional
+region to load the matrix from. It must be a scalar 'integer type'. +
+ +
+'Stride' further qualifies how matrix elements are laid out in memory. It must be a
+scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
+ +
+'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
+same as specifying *None*. +
+ +
+For a given dynamic instance of this instruction, all operands of this
+instruction must be the same for all invocations in a given scope instance
+(where the scope is the scope the cooperative matrix type was created with).
+All invocations in a given scope instance must be active or all must be
+inactive. +
+ +
+Note: To specify cache level for *OpCooperativeMatrixLoadCheckedINTEL* one
+can use *CacheControlLoadINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
+ +
+1+|Capability: +
+*{capability_checked_name}*
+1+| 9+variable | {OpCooperativeMatrixLoadCheckedINTEL_token} | '<id>' +
+'Result Type' |'Result <id>' | '<id>' +
+'Pointer' | '<id>' +
+'X offset' | '<id>' +
+'Y offset' | '<id>' +
+'MemoryLayout' | '<id>' +
+'Height' | '<id>' +
+'Width' | Optional '<id>' +
+'Stride' | Optional +
+'Memory Operand' |
+|=====
+
+[cols="1,1,9*3",width="100%"]
+|=====
+10+|[[OpCooperativeMatrixStoreCheckedINTEL]]*OpCooperativeMatrixStoreCheckedINTEL* +
+ +
+Store a cooperative matrix through a pointer. Global matrix size might be not multiple the size of
+the region to which it is stored, in this case the out-of-bounds elements are
+dropped. +
+ +
+'Pointer' is a pointer. Its type must be an *OpTypePointer* whose 'Type' operand
+is a scalar or vector type. If the *Shader* capability was declared, 'Pointer'
+must point into an array and any *ArrayStride* decoration on 'Pointer' is ignored. +
+ +
+'X offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along X axis from the 'Pointer' where the stored memory region starts from. +
+ +
+'Y offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along Y axis from the 'Pointer' where the stored memory region starts from. +
+ +
+'Object' is the object to store. Its type must be a _cooperative matrix_. +
+ +
+'MemoryLayout' specifies how matrix elements are laid out in memory. It must come
+from a 32-bit integer 'constant instruction' whose value corresponds to a
+'Cooperative Matrix Layout'. See the _Cooperative Matrix Layout_ table for
+a description of the layouts and detailed layout-specific rules. +
+ +
+'Height' is the height (number of rows of a big matrix) of the two-dimensional
+region to load the matrix from. It must be a scalar 'integer type'. +
+ +
+'Width' is the width (number of columns of a big matrix) of the two-dimensional
+region to load the matrix from. It must be a scalar 'integer type'. +
+ +
+'Stride' further qualifies how matrix elements are laid out in memory. It must be a
+scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
+ +
+'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
+same as specifying *None*. +
+ +
+For a given dynamic instance of this instruction, all operands of this
+instruction must be the same for all invocations in a given scope instance
+(where the scope is the scope the cooperative matrix type was created with).
+All invocations in a given scope instance must be active or all must be
+inactive. +
+ +
+Note: To specify cache level for *OpCooperativeMatrixStoreCheckedINTEL* one
+can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
+ +
+1+|Capability: +
+*{capability_checked_name}*
+1+| 8+variable | {OpCooperativeMatrixStoreCheckedINTEL_token} | '<id>' +
+'Pointer' | '<id>' +
+'X offset' | '<id>' +
+'Y offset' | '<id>' +
+'Object' | '<id>' +
+'MemoryLayout' | '<id>' +
+'Height' | '<id>' +
+'Width' | Optional '<id>' +
+'Stride' | Optional +
+'Memory Operand' |
+|=====
+
+[cols="1,1,7*3",width="100%"]
+|=====
+8+|[[OpCooperativeMatrixConstructCheckedINTEL]]*OpCooperativeMatrixConstructCheckedINTEL* +
+ +
+Construct a new _cooperative matrix_. It assignes 'Value' to elements in a range from
+'X offset' to 'Height' and 'Y offset' to 'Width' setting the rest elements to zero. +
+ +
+'Result Type' is the type of the constructed object. It must be a cooperative matrix
+type. +
+ +
+'X offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along X axis for the initialized two-dimensional region. +
+ +
+'Y offset' must be a scalar 32-bit integer type. It specifies offset in number of elements
+along Y axis for the initialized two-dimensional region. +
+ +
+'Height' is the height (number of rows of a big matrix) of the initialized two-dimensional region.
+It must be a scalar 'integer type'. +
+ +
+'Width' is the width (number of columns of a big matrix) of the initialized two-dimensional region.
+It must be a scalar 'integer type'. +
+ +
+'Value' is an initializer value for the constructed object. It must have the same type
+as an element type of the 'Result Type'. +
+ +
+For a given dynamic instance of this instruction, all operands of this
+instruction must be the same for all invocations in a given scope instance
+(where the scope is the scope the cooperative matrix type was created with).
+All invocations in a given scope instance must be active or all must be
+inactive. +
+ +
+1+|Capability: +
+*{capability_checked_name}*
+1+| 7 | {OpCooperativeMatrixConstructCheckedINTEL_token} | '<id>' +
+'Result Type' |'Result <id>' | '<id>' +
+'X offset' | '<id>' +
+'Y offset' | '<id>' +
+'Height' | '<id>' +
+'Width' | '<id>' +
+'Value' |
+|=====
+
 ==== 3.42.11. Conversion Instructions
 
 If *{bf16_capability_name}* and *BFloat16ConversionINTEL* capabilities are
@@ -324,8 +512,8 @@ Returns (Row, Column) coordinate of dynamically selected element of a matrix.  +
 contains the row with the selected element, and the second element contains the
 column with the selected element. +
  +
-'Matrix' is an ID of *OpTypeCooperativeMatrixKHR*. The instruction returns the
-element's coordinate of this cooperative matrix type. +
+'Matrix' is a _cooperative matrix_. The instruction returns the
+element's coordinate of the _cooperative matrix_. +
  +
 'Index' must be a 32-bit 'scalar integer'. It is interpreted as an index into the list
 of components owned by this work-item in the cooperative matrix. The behavior is
@@ -342,52 +530,42 @@ that *OpCooperativeMatrixLengthKHR* returns for this work-item. +
 | '<id>' +
 'Matrix'
 | '<id>' +
-'Index'
+'Index' |
 |=====
 
-[cols="1,1,5*3",width="100%"]
+[cols="1,1,4*3",width="100%"]
 |=====
-6+|[[OpCooperativeMatrixApplyFunctionINTEL]]*OpCooperativeMatrixApplyFunctionINTEL* +
+5+|[[OpCooperativeMatrixApplyFunctionINTEL]]*OpCooperativeMatrixApplyFunctionINTEL* +
  +
-Apply the function for each element of the matrix. Results in a new matrix within
+*NOTE* the instruction is experimental. +
+ +
+Apply the function object for each element of the matrix. Results in a new matrix within
 the same scope and with the same number of rows and columns. +
  +
 'Result Type' is the type of the return value of the function. It must be an
-*OpTypeCooperativeMatrix* with the same _Scope_, _Rows_ and _Columns_ as the type of
+*OpTypeCooperativeMatrixKHR* with the same _Scope_, _Rows_ and _Columns_ as the type of
 'Matrix' operand. _Component type_ as well as _Use_ of 'Result Type' and 'Matrix' can
 differ. +
  +
-'Function' is an *OpFunction* instruction whose *OpTypeFunction* operand has _Result Type_
-of scalar _numerical type_. This could be a forward reference. The 'Function' will be
-invoked (_Rows_ - 'Y')_x_(_Cols_ - 'X') times within the cooperative matrix scope. The first parameter of the
-'Function' must be scalar _numerical type_ that corresponds to an element of
-the matrix to which 'Function' is being applied.
+'Function object' must be a *OpTypePointer* with *OpTypeStruct* _Type_.
+The 'Function object' will be invoked within the cooperative matrix scope.
  +
 'Matrix' is a cooperative matrix which elements are used as the first parameter of
 the 'Function'. +
  +
-'Argument N' is the object to copy to parameter N. +
- +
-*Note* the first parameter is omitted in this list of parameters, as it is copied
-from the unique element of the 'Matrix'. Following two parameters must be (X, Y)
-coordinate of a first element of the matrix to apply the function, for example
-(0, 0) would mean, that *OpCooperativeMatrixApplyFunctionINTEL* affects the
-entire matrix. +
- +
 
 1+|Capability: +
 *{invocation_capability_name}*
-1+| 4 + variable | {OpCooperativeMatrixApplyFunctionINTEL_token}
+1+| 4 | {OpCooperativeMatrixApplyFunctionINTEL_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
 | '<id>' +
-'Function'
+'Function object'
 | '<id>' +
 'Matrix'
-| '<id>, <id>, ..., <id>' +
-'Argument 1', 'Argument 2', ..., 'Argument N'
 |=====
+
 
 === Issues
 
@@ -419,4 +597,5 @@ Revision History
 |13|2023-09-25|Dmitry Sidorov|Add convertion instructions for tf32 and bf16
 |14|2023-10-11|Dmitry Sidorov|Add matrix prefetch instruction
 |15|2023-11-06|Dmitry Sidorov|Put deprecation note on OpCooperativeMatrixGetElementCoordINTEL
+|16|2023-11-06|Dmitry Sidorov|Add checked load, store and construct instructions
 |========================================
