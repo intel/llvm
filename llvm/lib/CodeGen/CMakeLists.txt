@@ -79,6 +79,7 @@ add_llvm_component_library(LLVMCodeGen
   FPBuiltinFnSelection.cpp
   FinalizeISel.cpp
   FixupStatepointCallerSaved.cpp
+  FreeMachineFunction.cpp
   FuncletLayout.cpp
   GCMetadata.cpp
   GCMetadataPrinter.cpp
