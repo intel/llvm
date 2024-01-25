@@ -47,8 +47,8 @@ public:
   }
 
   string(string &&strn) {
-    allocate(strlen(strn.str) + 1);
-    strcpy(str, strn.str);
+    str = strn.str;
+    strn.str = nullptr;
   }
   string(const string &strn) {
     allocate(strlen(strn.str) + 1);
