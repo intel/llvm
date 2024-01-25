@@ -740,7 +740,11 @@ protected:
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
-    if (MIsInorder) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (MIsInorder && (getCommandGraph() == nullptr)) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
         return Type == CG::CGTYPE::CodeplayHostTask;
@@ -839,6 +843,21 @@ protected:
     addEvent(Event);
     return Event;
   }
+
+  /// Performs direct submission of a memory operation.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param MemOpFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemOpArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename MemOpFuncT, typename... MemOpArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          MemOpFuncT MemOpFunc, MemOpArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait

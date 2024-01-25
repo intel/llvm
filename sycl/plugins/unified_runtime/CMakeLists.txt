@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
-  # commit c53953ae492587698d5adbab8ffee254d97b6a4e
-  # Merge: 9f88cf88 66d52ace
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
+  # Merge: eddda123 2bd41d7b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 10 14:50:23 2024 +0000
-  #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
-  #     [HIP] Allow custom location of ROCm components
-  set(UNIFIED_RUNTIME_TAG pietro/empty_cmd_buffer_fill)
+  # Date:   Wed Jan 24 14:27:54 2024 +0000
+  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
+  #     [NATIVECPU] Empty implementation for command buffer fill
+  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -206,4 +206,14 @@ endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()

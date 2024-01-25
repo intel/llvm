@@ -704,17 +704,17 @@ static std::string mangleFunction(StringRef FunctionName) {
   // These functions are defined as extern "C" which Demangler that is used
   // fails to handle properly.
   if (isDevicelibFunction(FunctionName)) {
-    if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
+    if (FunctionName.starts_with("__devicelib_ConvertFToBF16INTEL")) {
       return (Twine("_Z31") + FunctionName + "RKf").str();
     }
-    if (FunctionName.startswith("__devicelib_ConvertBF16ToFINTEL")) {
+    if (FunctionName.starts_with("__devicelib_ConvertBF16ToFINTEL")) {
       return (Twine("_Z31") + FunctionName + "RKt").str();
     }
   }
   // Every inserted vstore gets its own function with the same name,
   // so they are mangled with ".[0-9]+". Just use the
   // raw name to pass through the demangler.
-  if (FunctionName.startswith(ESIMD_INSERTED_VSTORE_FUNC_NAME))
+  if (FunctionName.starts_with(ESIMD_INSERTED_VSTORE_FUNC_NAME))
     return ESIMD_INSERTED_VSTORE_FUNC_NAME;
   return FunctionName.str();
 }
@@ -1968,36 +1968,36 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
 
-      if (Name.startswith("__esimd_svm_block_ld") ||
-          Name.startswith("__esimd_slm_block_ld")) {
-        translateBlockLoad(*CI, Name.startswith("__esimd_slm_block_ld"));
+      if (Name.starts_with("__esimd_svm_block_ld") ||
+          Name.starts_with("__esimd_slm_block_ld")) {
+        translateBlockLoad(*CI, Name.starts_with("__esimd_slm_block_ld"));
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_svm_block_st") ||
-          Name.startswith("__esimd_slm_block_st")) {
-        translateBlockStore(*CI, Name.startswith("__esimd_slm_block_st"));
+      if (Name.starts_with("__esimd_svm_block_st") ||
+          Name.starts_with("__esimd_slm_block_st")) {
+        translateBlockStore(*CI, Name.starts_with("__esimd_slm_block_st"));
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_gather_ld") ||
-          Name.startswith("__esimd_slm_gather_ld")) {
-        translateGatherLoad(*CI, Name.startswith("__esimd_slm_gather_ld"));
+      if (Name.starts_with("__esimd_gather_ld") ||
+          Name.starts_with("__esimd_slm_gather_ld")) {
+        translateGatherLoad(*CI, Name.starts_with("__esimd_slm_gather_ld"));
         ToErase.push_back(CI);
         continue;
       }
 
-      if (Name.startswith("__esimd_nbarrier_init")) {
+      if (Name.starts_with("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_pack_mask")) {
+      if (Name.starts_with("__esimd_pack_mask")) {
         translatePackMask(*CI);
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_unpack_mask")) {
+      if (Name.starts_with("__esimd_unpack_mask")) {
         translateUnPackMask(*CI);
         ToErase.push_back(CI);
         continue;
@@ -2006,13 +2006,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // those globals marked as genx_volatile, We can translate
       // them directly into generic load/store inst. In this way
       // those insts can be optimized by llvm ASAP.
-      if (Name.startswith("__esimd_vload")) {
+      if (Name.starts_with("__esimd_vload")) {
         if (translateVLoad(*CI, GVTS)) {
           ToErase.push_back(CI);
           continue;
         }
       }
-      if (Name.startswith("__esimd_vstore")) {
+      if (Name.starts_with("__esimd_vstore")) {
         if (translateVStore(*CI, GVTS)) {
           ToErase.push_back(CI);
           continue;
@@ -2020,7 +2020,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
 
       if (Name.empty() ||
-          (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
+          (!Name.starts_with(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
@@ -2045,7 +2045,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
 
       if (!isa<GlobalVariable>(SpirvGlobal) ||
-          !SpirvGlobal->getName().startswith(SPIRV_INTRIN_PREF))
+          !SpirvGlobal->getName().starts_with(SPIRV_INTRIN_PREF))
         continue;
 
       auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();

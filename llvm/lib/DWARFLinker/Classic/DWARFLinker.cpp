@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/NonRelocatableStringpool.h"
 #include "llvm/DWARFLinker/Classic/DWARFLinkerDeclContext.h"
 #include "llvm/DWARFLinker/Classic/DWARFStreamer.h"
+#include "llvm/DWARFLinker/Utils.h"
 #include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
 #include "llvm/DebugInfo/DWARF/DWARFAcceleratorTable.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -174,20 +175,6 @@ bool DWARFLinker::DIECloner::getDIENames(const DWARFDie &Die,
 /// applying DW_AT_comp_dir.
 static void resolveRelativeObjectPath(SmallVectorImpl<char> &Buf, DWARFDie CU) {
   sys::path::append(Buf, dwarf::toString(CU.find(dwarf::DW_AT_comp_dir), ""));
-}
-
-/// Make a best effort to guess the
-/// Xcode.app/Contents/Developer/Toolchains/ path from an SDK path.
-static SmallString<128> guessToolchainBaseDir(StringRef SysRoot) {
-  SmallString<128> Result;
-  // Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-  StringRef Base = sys::path::parent_path(SysRoot);
-  if (sys::path::filename(Base) != "SDKs")
-    return Result;
-  Base = sys::path::parent_path(Base);
-  Result = Base;
-  Result += "/Toolchains";
-  return Result;
 }
 
 /// Collect references to parseable Swift interfaces in imported
@@ -2048,13 +2035,13 @@ void DWARFLinker::DIECloner::emitDebugAddrSection(
   if (DwarfVersion < 5)
     return;
 
-  if (AddrPool.DieValues.empty())
+  if (AddrPool.getValues().empty())
     return;
 
   MCSymbol *EndLabel = Emitter->emitDwarfDebugAddrsHeader(Unit);
   patchAddrBase(*Unit.getOutputUnitDIE(),
                 DIEInteger(Emitter->getDebugAddrSectionSize()));
-  Emitter->emitDwarfDebugAddrs(AddrPool.DieValues,
+  Emitter->emitDwarfDebugAddrs(AddrPool.getValues(),
                                Unit.getOrigUnit().getAddressByteSize());
   Emitter->emitDwarfDebugAddrsFooter(Unit, EndLabel);
 }
@@ -2880,7 +2867,7 @@ Error DWARFLinker::link() {
     if (TheDwarfEmitter != nullptr) {
       TheDwarfEmitter->emitAbbrevs(Abbreviations, Options.TargetDWARFVersion);
       TheDwarfEmitter->emitStrings(DebugStrPool);
-      TheDwarfEmitter->emitStringOffsets(StringOffsetPool.DieValues,
+      TheDwarfEmitter->emitStringOffsets(StringOffsetPool.getValues(),
                                          Options.TargetDWARFVersion);
       TheDwarfEmitter->emitLineStrings(DebugLineStrPool);
       for (AccelTableKind TableKind : Options.AccelTables) {

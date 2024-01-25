@@ -4258,6 +4258,12 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
+    const ValueDecl *ArrayDecl = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = DRE->getDecl();
+    else if (const auto *ME = dyn_cast<MemberExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = ME->getMemberDecl();
+
     if (SanOpts.has(SanitizerKind::ArrayBounds)) {
       // If the array being accessed has a "counted_by" attribute, generate
       // bounds checking code. The "count" field is at the top level of the
@@ -4298,12 +4304,6 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
         }
       }
     }
-
-    const ValueDecl *ArrayDecl = nullptr;
-    if (const auto *DRE = dyn_cast<DeclRefExpr>(Array->IgnoreParenCasts()))
-      ArrayDecl = DRE->getDecl();
-    else if (const auto *ME = dyn_cast<MemberExpr>(Array->IgnoreParenCasts()))
-      ArrayDecl = ME->getMemberDecl();
 
     // Propagate the alignment from the array itself to the result.
     QualType arrayType = Array->getType();
