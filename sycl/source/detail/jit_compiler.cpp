@@ -823,20 +823,22 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
-  ::jit_compiler::Config JITConfig;
+  ::jit_compiler::KernelFusion::resetConfiguration();
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
-  JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
-  JITConfig.set<::jit_compiler::option::JITEnableCaching>(
+  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableVerbose>(
+      DebugEnabled);
+  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
-  JITConfig.set<::jit_compiler::option::JITTargetInfo>(TargetInfo);
+  ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITTargetInfo>(
+      std::move(TargetInfo));
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      std::move(JITConfig), InputKernelInfo, FusedKernelName.c_str(),
-      ParamIdentities, BarrierFlags, InternalizeParams, JITConstants);
+      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {

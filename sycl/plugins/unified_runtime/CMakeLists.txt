@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit f13e262b053f003639193e8d33ab0e8eaeb8e9d7
+  # commit ad6708065ae519a66d6a194c5ccc128013aee513
   # Author: Isaac Ault <isaac.ault@codeplay.com>
   # Date:   Tue Jan 23 12:34:08 2024 +0000
-  
+  #
   #     [Bindless][Exp] Add Support For Image Arrays
-  set(UNIFIED_RUNTIME_TAG f13e262b053f003639193e8d33ab0e8eaeb8e9d7)
+  set(UNIFIED_RUNTIME_TAG ad6708065ae519a66d6a194c5ccc128013aee513)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
