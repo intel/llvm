@@ -862,7 +862,7 @@ void handler::extractArgsAndReqsFromLambda(
 // method inside the library and returns the result.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::string handler::getKernelName() {
-  return MKernel->get_info<info::kernel::function_name>();
+  return detail::string(MKernel->get_info<info::kernel::function_name>());
 }
 #else
 std::string handler::getKernelName() {
@@ -1328,7 +1328,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_read_host_pipe(const detail::string_view Name,
                                        void *Ptr, size_t Size, bool Block) {
-  MImpl->HostPipeName = Name.c_str();
+  MImpl->HostPipeName = Name.data();
 #else
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
                                        size_t Size, bool Block) {
@@ -1344,7 +1344,7 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_write_host_pipe(const detail::string_view Name,
                                         void *Ptr, size_t Size, bool Block) {
-  MImpl->HostPipeName = Name.c_str();
+  MImpl->HostPipeName = Name.data();
 #else
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                         size_t Size, bool Block) {
