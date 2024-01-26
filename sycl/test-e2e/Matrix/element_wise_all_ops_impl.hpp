@@ -181,16 +181,17 @@ int main() {
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
   for (unsigned int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].atype == matrix_type::bf16 &&
-        (combinations[i].nsize == 0 || combinations[i].nsize == 16)) {
-      test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
-      test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
-      break;
-    } else if (combinations[i].atype == matrix_type::bf16 &&
-               combinations[i].nsize == 8) {
-      test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
-      test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 8>();
-      break;
+    if (combinations[i].atype == matrix_type::bf16) {
+      if (combinations[i].nsize == 0 || combinations[i].nsize == 16) {
+        test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
+        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
+        break;
+      }
+      if (combinations[i].nsize == 8) {
+        test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
+        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 8>();
+        break;
+      }
     }
   }
   return 0;
