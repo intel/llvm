@@ -24,6 +24,7 @@ int main() {
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
 
   int *Dotp = malloc_device<int>(1, QueueA);
+  QueueA.memset(Dotp, 0, sizeof(int)).wait();
 
   const size_t N = 10;
   int *X = malloc_device<int>(N, QueueA);

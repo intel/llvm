@@ -293,7 +293,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
 
   for (auto &F : *M) {
-    if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
+    if (F.getName().starts_with("_Z28__spirv_VectorExtractDynamic") &&
         F.hasStructRetAttr()) {
       auto *SRetTy = F.getParamStructRetType(0);
       if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
@@ -303,7 +303,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
                          "instruction cannot be a structure other than SYCL "
                          "half.");
     }
-    if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
+    if (F.getName().starts_with("_Z27__spirv_VectorInsertDynamic") &&
         F.getArg(1)->getType()->isPointerTy()) {
       auto *ET = F.getParamByValType(1);
       if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
@@ -491,7 +491,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
 
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
-            "fpmath",
             "tbaa",
             "range",
         };

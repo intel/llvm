@@ -347,6 +347,8 @@ set(PACKAGE_BUGREPORT "https://github.com/llvm/llvm-project/issues/")
 
 set(BUG_REPORT_URL "${PACKAGE_BUGREPORT}" CACHE STRING
   "Default URL where bug reports are to be submitted.")
+set(LLDB_BUG_REPORT_URL "${BUG_REPORT_URL}" CACHE STRING
+  "Default URL where lldb bug reports are to be submitted.")
 
 # Configure CPack.
 if(NOT DEFINED CPACK_PACKAGE_INSTALL_DIRECTORY)
@@ -1260,6 +1262,7 @@ if( LLVM_INCLUDE_TESTS )
   add_custom_target(test-depends
       DEPENDS ${LLVM_ALL_LIT_DEPENDS} ${LLVM_ALL_ADDITIONAL_TEST_DEPENDS})
   set_target_properties(test-depends PROPERTIES FOLDER "Tests")
+  add_dependencies(check-all test-depends)
 endif()
 
 if (LLVM_INCLUDE_DOCS)

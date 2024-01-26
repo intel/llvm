@@ -1,7 +1,5 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes=sycl-kernel-fusion\
-; RUN: --sycl-info-path %S/required_work_group_size.yaml -S %s\
-; RUN: | FileCheck %s
+; RUN: -passes=sycl-kernel-fusion -S %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -52,6 +50,15 @@ attributes #3 = { alwaysinline nounwind }
 !16 = !{i32 1, !17, !17, !18}
 !17 = !{i64 1, i64 1, i64 1}
 !18 = !{i64 0, i64 0, i64 0}
+!19 = !{
+  !"Accessor", !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor",
+  !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
+  !"StdLayout", !"StdLayout"
+}
+!20 = !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1}
+!21 = !{!"KernelOne", !19, !20, !{!"reqd_work_group_size", i32 1, i32 1, i32 32}}
+!22 = !{!"KernelTwo", !19, !20}
+!sycl.moduleinfo = !{!21, !22}
 
 ; Test scenario: Fusion of two kernels where one of the kernels 
 ; specifies a "reqd_work_group_size".

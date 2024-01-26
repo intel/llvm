@@ -2296,6 +2296,8 @@ def warn_cxx17_compat_aggregate_init_paren_list : Warning<
 def err_reference_bind_to_bitfield : Error<
   "%select{non-const|volatile}0 reference cannot bind to "
   "bit-field%select{| %1}2">;
+def err_reference_bind_to_bitfield_in_cce : Error<
+  "reference cannot bind to bit-field in converted constant expression">;
 def err_reference_bind_to_vector_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to vector element">;
 def err_reference_bind_to_matrix_element : Error<
@@ -3154,6 +3156,8 @@ def err_musttail_scope : Error<
   "cannot perform a tail call from this return statement">;
 def err_musttail_no_variadic : Error<
   "%0 attribute may not be used with variadic functions">;
+def err_musttail_no_return : Error<
+  "%0 attribute may not be used with no-return-attribute functions">;
 
 def err_nsobject_attribute : Error<
   "'NSObject' attribute is for pointer types only">;
@@ -3204,6 +3208,9 @@ def err_attribute_arm_feature_sve_bits_unsupported : Error<
 def warn_attribute_arm_sm_incompat_builtin : Warning<
   "builtin call has undefined behaviour when called from a %0 function">,
   InGroup<DiagGroup<"undefined-arm-streaming">>;
+def warn_attribute_arm_za_builtin_no_za_state : Warning<
+  "builtin call is not valid when calling from a function without active ZA state">,
+  InGroup<DiagGroup<"undefined-arm-za">>;
 def err_sve_vector_in_non_sve_target : Error<
   "SVE vector type %0 cannot be used in a target without sve">;
 def err_attribute_riscv_rvv_bits_unsupported : Error<
@@ -3460,6 +3467,8 @@ def warn_objc_redundant_literal_use : Warning<
 
 def err_attr_tlsmodel_arg : Error<"tls_model must be \"global-dynamic\", "
   "\"local-dynamic\", \"initial-exec\" or \"local-exec\"">;
+
+def err_attr_codemodel_arg : Error<"code model '%0' is not supported on this target">;
 
 def err_aix_attr_unsupported_tls_model : Error<"TLS model '%0' is not yet supported on AIX">;
 
@@ -3751,6 +3760,12 @@ def err_sme_definition_using_sm_in_non_sme_target : Error<
   "function executed in streaming-SVE mode requires 'sme'">;
 def err_sme_definition_using_za_in_non_sme_target : Error<
   "function using ZA state requires 'sme'">;
+def err_conflicting_attributes_arm_state : Error<
+  "conflicting attributes for state '%0'">;
+def err_unknown_arm_state : Error<
+  "unknown state '%0'">;
+def err_missing_arm_state : Error<
+  "missing state for %0">;
 def err_cconv_change : Error<
   "function declared '%0' here was previously declared "
   "%select{'%2'|without calling convention}1">;
@@ -5192,7 +5207,7 @@ def err_non_type_template_arg_subobject : Error<
 def err_non_type_template_arg_addr_label_diff : Error<
   "template argument / label address difference / what did you expect?">;
 def err_non_type_template_arg_unsupported : Error<
-  "sorry, non-type template argument of type %0 is not yet supported">;
+  "non-type template argument of type %0 is not yet supported">;
 def err_template_arg_not_convertible : Error<
   "non-type template argument of type %0 cannot be converted to a value "
   "of type %1">;
@@ -5245,7 +5260,7 @@ def err_template_arg_not_object_or_func : Error<
 def err_template_arg_not_pointer_to_member_form : Error<
   "non-type template argument is not a pointer to member constant">;
 def err_template_arg_member_ptr_base_derived_not_supported : Error<
-  "sorry, non-type template argument of pointer-to-member type %1 that refers "
+  "non-type template argument of pointer-to-member type %1 that refers "
   "to member %q0 of a different class is not supported yet">;
 def err_template_arg_invalid : Error<
   "non-type template argument '%0' is invalid">;
@@ -6215,12 +6230,20 @@ def err_illegal_initializer_type : Error<"illegal initializer type %0">;
 def ext_init_list_type_narrowing : ExtWarn<
   "type %0 cannot be narrowed to %1 in initializer list">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
+def ext_init_list_type_narrowing_const_reference : ExtWarn<
+  ext_init_list_type_narrowing.Summary>,
+  InGroup<CXX11NarrowingConstReference>, DefaultError, SFINAEFailure;
 def ext_init_list_variable_narrowing : ExtWarn<
   "non-constant-expression cannot be narrowed from type %0 to %1 in "
   "initializer list">, InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
+def ext_init_list_variable_narrowing_const_reference : ExtWarn<
+  ext_init_list_variable_narrowing.Summary>, InGroup<CXX11NarrowingConstReference>, DefaultError, SFINAEFailure;
 def ext_init_list_constant_narrowing : ExtWarn<
   "constant expression evaluates to %0 which cannot be narrowed to type %1">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
+def ext_init_list_constant_narrowing_const_reference : ExtWarn<
+  ext_init_list_constant_narrowing.Summary>,
+  InGroup<CXX11NarrowingConstReference>, DefaultError, SFINAEFailure;
 def warn_init_list_type_narrowing : Warning<
   "type %0 cannot be narrowed to %1 in initializer list in C++11">,
   InGroup<CXX11Narrowing>, DefaultIgnore;
@@ -6486,6 +6509,8 @@ def warn_superclass_variable_sized_type_not_at_end : Warning<
   "field %0 can overwrite instance variable %1 with variable sized type %2"
   " in superclass %3">, InGroup<ObjCFlexibleArray>;
 
+def err_flexible_array_count_not_in_same_struct : Error<
+  "'counted_by' field %0 isn't within the same struct as the flexible array">;
 def err_counted_by_attr_not_on_flexible_array_member : Error<
   "'counted_by' only applies to C99 flexible array members">;
 def err_counted_by_attr_refers_to_flexible_array : Error<
@@ -7047,6 +7072,11 @@ def err_member_decl_does_not_match : Error<
   "does not match any declaration in %1">;
 def err_friend_decl_with_def_arg_must_be_def : Error<
   "friend declaration specifying a default argument must be a definition">;
+def err_friend_decl_with_enclosing_temp_constraint_must_be_def : Error<
+  "friend declaration with a constraint that depends on an enclosing "
+  "template parameter must be a definition">;
+def err_non_temp_friend_decl_with_requires_clause_must_be_def : Error<
+  "non-template friend declaration with a requires clause must be a definition">;
 def err_friend_decl_with_def_arg_redeclared : Error<
   "friend declaration specifying a default argument must be the only declaration">;
 def err_friend_decl_does_not_match : Error<
@@ -8804,7 +8834,7 @@ def err_atomic_op_needs_atomic_int : Error<
   "address argument to atomic operation must be a pointer to "
   "%select{|atomic }0integer (%1 invalid)">;
 def warn_atomic_op_has_invalid_memory_order : Warning<
-  "memory order argument to atomic operation is invalid">,
+  "%select{|success |failure }0memory order argument to atomic operation is invalid">,
   InGroup<DiagGroup<"atomic-memory-ordering">>;
 def err_atomic_op_has_invalid_synch_scope : Error<
   "synchronization scope argument to atomic operation is invalid">;
@@ -9984,10 +10014,10 @@ def warn_new_dangling_initializer_list : Warning<
   "will be destroyed at the end of the full-expression">,
   InGroup<DanglingInitializerList>;
 def warn_unsupported_lifetime_extension : Warning<
-  "sorry, lifetime extension of "
+  "lifetime extension of "
   "%select{temporary|backing array of initializer list}0 created "
-  "by aggregate initialization using default member initializer "
-  "is not supported; lifetime of %select{temporary|backing array}0 "
+  "by aggregate initialization using a default member initializer "
+  "is not yet supported; lifetime of %select{temporary|backing array}0 "
   "will end at the end of the full-expression">, InGroup<Dangling>;
 
 // For non-floating point, expressions of the form x == x or x != x
@@ -11450,6 +11480,8 @@ def err_openmp_vla_in_task_untied : Error<
 def warn_omp_unterminated_declare_target : Warning<
   "expected '#pragma omp end declare target' at end of file to match '#pragma omp %0'">,
   InGroup<SourceUsesOpenMP>;
+def err_ompx_bare_no_grid : Error<
+  "'ompx_bare' clauses requires explicit grid size via 'num_teams' and 'thread_limit' clauses">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {
@@ -12315,7 +12347,7 @@ def warn_unsafe_buffer_variable : Warning<
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def warn_unsafe_buffer_operation : Warning<
   "%select{unsafe pointer operation|unsafe pointer arithmetic|"
-  "unsafe buffer access|function introduces unsafe buffer manipulation}0">,
+  "unsafe buffer access|function introduces unsafe buffer manipulation|unsafe invocation of span::data}0">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def note_unsafe_buffer_operation : Note<
   "used%select{| in pointer arithmetic| in buffer access}0 here">;

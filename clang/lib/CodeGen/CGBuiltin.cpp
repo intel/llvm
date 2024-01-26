@@ -233,19 +233,19 @@ static Value *MakeBinaryAtomicValue(
 
 static Value *EmitNontemporalStore(CodeGenFunction &CGF, const CallExpr *E) {
   Value *Val = CGF.EmitScalarExpr(E->getArg(0));
-  Value *Address = CGF.EmitScalarExpr(E->getArg(1));
+  Address Addr = CGF.EmitPointerWithAlignment(E->getArg(1));
 
   Val = CGF.EmitToMemory(Val, E->getArg(0)->getType());
-  LValue LV = CGF.MakeNaturalAlignAddrLValue(Address, E->getArg(0)->getType());
+  LValue LV = CGF.MakeAddrLValue(Addr, E->getArg(0)->getType());
   LV.setNontemporal(true);
   CGF.EmitStoreOfScalar(Val, LV, false);
   return nullptr;
 }
 
 static Value *EmitNontemporalLoad(CodeGenFunction &CGF, const CallExpr *E) {
-  Value *Address = CGF.EmitScalarExpr(E->getArg(0));
+  Address Addr = CGF.EmitPointerWithAlignment(E->getArg(0));
 
-  LValue LV = CGF.MakeNaturalAlignAddrLValue(Address, E->getType());
+  LValue LV = CGF.MakeAddrLValue(Addr, E->getType());
   LV.setNontemporal(true);
   return CGF.EmitLoadOfScalar(LV, E->getExprLoc());
 }
@@ -896,6 +896,55 @@ CodeGenFunction::evaluateOrEmitBuiltinObjectSize(const Expr *E, unsigned Type,
   return ConstantInt::get(ResType, ObjectSize, /*isSigned=*/true);
 }
 
+const FieldDecl *CodeGenFunction::FindFlexibleArrayMemberField(
+    ASTContext &Ctx, const RecordDecl *RD, StringRef Name, uint64_t &Offset) {
+  const LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
+      getLangOpts().getStrictFlexArraysLevel();
+  unsigned FieldNo = 0;
+  bool IsUnion = RD->isUnion();
+
+  for (const Decl *D : RD->decls()) {
+    if (const auto *Field = dyn_cast<FieldDecl>(D);
+        Field && (Name.empty() || Field->getNameAsString() == Name) &&
+        Decl::isFlexibleArrayMemberLike(
+            Ctx, Field, Field->getType(), StrictFlexArraysLevel,
+            /*IgnoreTemplateOrMacroSubstitution=*/true)) {
+      const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
+      Offset += Layout.getFieldOffset(FieldNo);
+      return Field;
+    }
+
+    if (const auto *Record = dyn_cast<RecordDecl>(D))
+      if (const FieldDecl *Field =
+              FindFlexibleArrayMemberField(Ctx, Record, Name, Offset)) {
+        const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(RD);
+        Offset += Layout.getFieldOffset(FieldNo);
+        return Field;
+      }
+
+    if (!IsUnion && isa<FieldDecl>(D))
+      ++FieldNo;
+  }
+
+  return nullptr;
+}
+
+static unsigned CountCountedByAttrs(const RecordDecl *RD) {
+  unsigned Num = 0;
+
+  for (const Decl *D : RD->decls()) {
+    if (const auto *FD = dyn_cast<FieldDecl>(D);
+        FD && FD->hasAttr<CountedByAttr>()) {
+      return ++Num;
+    }
+
+    if (const auto *Rec = dyn_cast<RecordDecl>(D))
+      Num += CountCountedByAttrs(Rec);
+  }
+
+  return Num;
+}
+
 llvm::Value *
 CodeGenFunction::emitFlexibleArrayMemberSize(const Expr *E, unsigned Type,
                                              llvm::IntegerType *ResType) {
@@ -939,7 +988,6 @@ CodeGenFunction::emitFlexibleArrayMemberSize(const Expr *E, unsigned Type,
       if (const auto *IL = dyn_cast<IntegerLiteral>(Idx)) {
         int64_t Val = IL->getValue().getSExtValue();
         if (Val < 0)
-          // __bdos returns 0 for negative indexes into an array in a struct.
           return getDefaultBuiltinObjectSizeResult(Type, ResType);
 
         if (Val == 0)
@@ -953,54 +1001,84 @@ CodeGenFunction::emitFlexibleArrayMemberSize(const Expr *E, unsigned Type,
   }
 
   // Get the flexible array member Decl.
-  const ValueDecl *FAMDecl = nullptr;
+  const RecordDecl *OuterRD = nullptr;
+  std::string FAMName;
   if (const auto *ME = dyn_cast<MemberExpr>(Base)) {
     // Check if \p Base is referencing the FAM itself.
-    if (const ValueDecl *MD = ME->getMemberDecl()) {
-      const LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
-          getLangOpts().getStrictFlexArraysLevel();
-      if (!Decl::isFlexibleArrayMemberLike(
-              Ctx, MD, MD->getType(), StrictFlexArraysLevel,
-              /*IgnoreTemplateOrMacroSubstitution=*/true))
-        return nullptr;
-
-      FAMDecl = MD;
-    }
+    const ValueDecl *VD = ME->getMemberDecl();
+    OuterRD = VD->getDeclContext()->getOuterLexicalRecordContext();
+    FAMName = VD->getNameAsString();
   } else if (const auto *DRE = dyn_cast<DeclRefExpr>(Base)) {
     // Check if we're pointing to the whole struct.
     QualType Ty = DRE->getDecl()->getType();
     if (Ty->isPointerType())
       Ty = Ty->getPointeeType();
+    OuterRD = Ty->getAsRecordDecl();
 
-    if (const auto *RD = Ty->getAsRecordDecl())
-      // Don't use the outer lexical record because the FAM might be in a
-      // different RecordDecl.
-      FAMDecl = FindFlexibleArrayMemberField(Ctx, RD);
+    // If we have a situation like this:
+    //
+    //     struct union_of_fams {
+    //         int flags;
+    //         union {
+    //             signed char normal_field;
+    //             struct {
+    //                 int count1;
+    //                 int arr1[] __counted_by(count1);
+    //             };
+    //             struct {
+    //                 signed char count2;
+    //                 int arr2[] __counted_by(count2);
+    //             };
+    //         };
+    //    };
+    //
+    // We don't konw which 'count' to use in this scenario:
+    //
+    //     size_t get_size(struct union_of_fams *p) {
+    //         return __builtin_dynamic_object_size(p, 1);
+    //     }
+    //
+    // Instead of calculating a wrong number, we give up.
+    if (OuterRD && CountCountedByAttrs(OuterRD) > 1)
+      return nullptr;
   }
+
+  if (!OuterRD)
+    return nullptr;
+
+  uint64_t Offset = 0;
+  const FieldDecl *FAMDecl =
+      FindFlexibleArrayMemberField(Ctx, OuterRD, FAMName, Offset);
+  Offset = Ctx.toCharUnitsFromBits(Offset).getQuantity();
 
   if (!FAMDecl || !FAMDecl->hasAttr<CountedByAttr>())
     // No flexible array member found or it doesn't have the "counted_by"
     // attribute.
     return nullptr;
 
-  const ValueDecl *CountedByFD = FindCountedByField(Base);
+  const FieldDecl *CountedByFD = FindCountedByField(FAMDecl);
   if (!CountedByFD)
     // Can't find the field referenced by the "counted_by" attribute.
     return nullptr;
 
   // Build a load of the counted_by field.
   bool IsSigned = CountedByFD->getType()->isSignedIntegerType();
-  const Expr *CountedByExpr = BuildCountedByFieldExpr(Base, CountedByFD);
-  Value *CountedByInst = EmitAnyExprToTemp(CountedByExpr).getScalarVal();
-  llvm::Type *CountedByTy = CountedByInst->getType();
+  Value *CountedByInst = EmitCountedByFieldExpr(Base, FAMDecl, CountedByFD);
+  if (!CountedByInst)
+    return getDefaultBuiltinObjectSizeResult(Type, ResType);
+
+  CountedByInst = Builder.CreateIntCast(CountedByInst, ResType, IsSigned);
 
   // Build a load of the index and subtract it from the count.
   Value *IdxInst = nullptr;
   if (Idx) {
+    if (Idx->HasSideEffects(getContext()))
+      // We can't have side-effects.
+      return getDefaultBuiltinObjectSizeResult(Type, ResType);
+
     bool IdxSigned = Idx->getType()->isSignedIntegerType();
     IdxInst = EmitAnyExprToTemp(Idx).getScalarVal();
-    IdxInst = IdxSigned ? Builder.CreateSExtOrTrunc(IdxInst, CountedByTy)
-                        : Builder.CreateZExtOrTrunc(IdxInst, CountedByTy);
+    IdxInst = Builder.CreateIntCast(IdxInst, ResType, IdxSigned);
 
     // We go ahead with the calculation here. If the index turns out to be
     // negative, we'll catch it at the end.
@@ -1012,23 +1090,18 @@ CodeGenFunction::emitFlexibleArrayMemberSize(const Expr *E, unsigned Type,
   const ArrayType *ArrayTy = Ctx.getAsArrayType(FAMDecl->getType());
   CharUnits Size = Ctx.getTypeSizeInChars(ArrayTy->getElementType());
   llvm::Constant *ElemSize =
-      llvm::ConstantInt::get(CountedByTy, Size.getQuantity(), IsSigned);
+      llvm::ConstantInt::get(ResType, Size.getQuantity(), IsSigned);
   Value *FAMSize =
       Builder.CreateMul(CountedByInst, ElemSize, "", !IsSigned, IsSigned);
-  FAMSize = IsSigned ? Builder.CreateSExtOrTrunc(FAMSize, ResType)
-                     : Builder.CreateZExtOrTrunc(FAMSize, ResType);
+  FAMSize = Builder.CreateIntCast(FAMSize, ResType, IsSigned);
   Value *Res = FAMSize;
 
-  if (const auto *DRE = dyn_cast<DeclRefExpr>(Base)) {
+  if (isa<DeclRefExpr>(Base)) {
     // The whole struct is specificed in the __bdos.
-    const RecordDecl *OuterRD =
-        CountedByFD->getDeclContext()->getOuterLexicalRecordContext();
     const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(OuterRD);
 
     // Get the offset of the FAM.
-    CharUnits Offset = Ctx.toCharUnitsFromBits(Ctx.getFieldOffset(FAMDecl));
-    llvm::Constant *FAMOffset =
-        ConstantInt::get(ResType, Offset.getQuantity(), IsSigned);
+    llvm::Constant *FAMOffset = ConstantInt::get(ResType, Offset, IsSigned);
     Value *OffsetAndFAMSize =
         Builder.CreateAdd(FAMOffset, Res, "", !IsSigned, IsSigned);
 
@@ -3294,7 +3367,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Value *AlignmentValue = EmitScalarExpr(E->getArg(1));
     ConstantInt *AlignmentCI = cast<ConstantInt>(AlignmentValue);
     if (AlignmentCI->getValue().ugt(llvm::Value::MaximumAlignment))
-      AlignmentCI = ConstantInt::get(AlignmentCI->getType(),
+      AlignmentCI = ConstantInt::get(AlignmentCI->getIntegerType(),
                                      llvm::Value::MaximumAlignment);
 
     emitAlignmentAssumption(PtrValue, Ptr,
@@ -3490,9 +3563,16 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                                    { Src0->getType(), Src1->getType() });
     return RValue::get(Builder.CreateCall(F, { Src0, Src1 }));
   }
+  case Builtin::BI__builtin_frexpl: {
+    // Linux PPC will not be adding additional PPCDoubleDouble support.
+    // WIP to switch default to IEEE long double. Will emit libcall for
+    // frexpl instead of legalizing this type in the BE.
+    if (&getTarget().getLongDoubleFormat() == &llvm::APFloat::PPCDoubleDouble())
+      break;
+    LLVM_FALLTHROUGH;
+  }
   case Builtin::BI__builtin_frexp:
   case Builtin::BI__builtin_frexpf:
-  case Builtin::BI__builtin_frexpl:
   case Builtin::BI__builtin_frexpf128:
   case Builtin::BI__builtin_frexpf16:
     return RValue::get(emitFrexpBuiltin(*this, E, Intrinsic::frexp));
@@ -9931,8 +10011,8 @@ Value *CodeGenFunction::EmitSVEMaskedStore(const CallExpr *E,
   bool IsQuadStore = false;
 
   switch (IntrinsicID) {
-  case Intrinsic::aarch64_sve_st1uwq:
-  case Intrinsic::aarch64_sve_st1udq:
+  case Intrinsic::aarch64_sve_st1wq:
+  case Intrinsic::aarch64_sve_st1dq:
     AddrMemoryTy = llvm::ScalableVectorType::get(MemEltTy, 1);
     PredTy =
         llvm::ScalableVectorType::get(IntegerType::get(getLLVMContext(), 1), 1);
@@ -10569,6 +10649,30 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
   return nullptr;
 }
 
+static void swapCommutativeSMEOperands(unsigned BuiltinID,
+                                       SmallVectorImpl<Value *> &Ops) {
+  unsigned MultiVec;
+  switch (BuiltinID) {
+  default:
+    return;
+  case SME::BI__builtin_sme_svsumla_za32_s8_vg4x1:
+    MultiVec = 1;
+    break;
+  case SME::BI__builtin_sme_svsumla_za32_s8_vg4x2:
+  case SME::BI__builtin_sme_svsudot_za32_s8_vg1x2:
+    MultiVec = 2;
+    break;
+  case SME::BI__builtin_sme_svsudot_za32_s8_vg1x4:
+  case SME::BI__builtin_sme_svsumla_za32_s8_vg4x4:
+    MultiVec = 4;
+    break;
+  }
+
+  if (MultiVec > 0)
+    for (unsigned I = 0; I < MultiVec; ++I)
+      std::swap(Ops[I + 1], Ops[I + 1 + MultiVec]);
+}
+
 Value *CodeGenFunction::EmitAArch64SMEBuiltinExpr(unsigned BuiltinID,
                                                   const CallExpr *E) {
   auto *Builtin = findARMVectorIntrinsicInMap(AArch64SMEIntrinsicMap, BuiltinID,
@@ -10590,6 +10694,9 @@ Value *CodeGenFunction::EmitAArch64SMEBuiltinExpr(unsigned BuiltinID,
            BuiltinID == SME::BI__builtin_sme_svldr_za ||
            BuiltinID == SME::BI__builtin_sme_svstr_za)
     return EmitSMELdrStr(TypeFlags, Ops, Builtin->LLVMIntrinsic);
+
+  // Handle builtins which require their multi-vector operands to be swapped
+  swapCommutativeSMEOperands(BuiltinID, Ops);
 
   // Should not happen!
   if (Builtin->LLVMIntrinsic == 0)
@@ -10652,6 +10759,26 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   if (HintID != static_cast<unsigned>(-1)) {
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_hint);
     return Builder.CreateCall(F, llvm::ConstantInt::get(Int32Ty, HintID));
+  }
+
+  if (BuiltinID == clang::AArch64::BI__builtin_arm_get_sme_state) {
+    // Create call to __arm_sme_state and store the results to the two pointers.
+    CallInst *CI = EmitRuntimeCall(CGM.CreateRuntimeFunction(
+        llvm::FunctionType::get(StructType::get(CGM.Int64Ty, CGM.Int64Ty), {},
+                                false),
+        "__arm_sme_state"));
+    auto Attrs =
+        AttributeList()
+            .addFnAttribute(getLLVMContext(), "aarch64_pstate_sm_compatible")
+            .addFnAttribute(getLLVMContext(), "aarch64_pstate_za_preserved");
+    CI->setAttributes(Attrs);
+    CI->setCallingConv(
+        llvm::CallingConv::
+            AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2);
+    Builder.CreateStore(Builder.CreateExtractValue(CI, 0),
+                        EmitPointerWithAlignment(E->getArg(0)));
+    return Builder.CreateStore(Builder.CreateExtractValue(CI, 1),
+                               EmitPointerWithAlignment(E->getArg(1)));
   }
 
   if (BuiltinID == clang::AArch64::BI__builtin_arm_rbit) {
@@ -13254,7 +13381,7 @@ Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
     const auto *DR = cast<DeclRefExpr>(CE->getSubExpr());
     const auto *Enumerator = cast<EnumConstantDecl>(DR->getDecl());
 
-    auto &InitVal = Enumerator->getInitVal();
+    auto InitVal = Enumerator->getInitVal();
     std::string InitValStr;
     if (InitVal.isNegative() || InitVal > uint64_t(INT64_MAX))
       InitValStr = std::to_string(InitVal.getSExtValue());
@@ -17124,7 +17251,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     Value *Op1 = EmitScalarExpr(E->getArg(1));
     ConstantInt *AlignmentCI = cast<ConstantInt>(Op0);
     if (AlignmentCI->getValue().ugt(llvm::Value::MaximumAlignment))
-      AlignmentCI = ConstantInt::get(AlignmentCI->getType(),
+      AlignmentCI = ConstantInt::get(AlignmentCI->getIntegerType(),
                                      llvm::Value::MaximumAlignment);
 
     emitAlignmentAssumption(Op1, E->getArg(1),
@@ -17362,7 +17489,8 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
         Op0, llvm::FixedVectorType::get(ConvertType(E->getType()), 2));
 
     if (getTarget().isLittleEndian())
-      Index = ConstantInt::get(Index->getType(), 1 - Index->getZExtValue());
+      Index =
+          ConstantInt::get(Index->getIntegerType(), 1 - Index->getZExtValue());
 
     return Builder.CreateExtractElement(Unpacked, Index);
   }
@@ -18146,6 +18274,45 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
         llvm::Type::getInt1Ty(getLLVMContext()), APInt(1, 0));
     llvm::Function *F = CGM.getIntrinsic(IID, {ArgTy});
     return Builder.CreateCall(F, {Addr, Val, ZeroI32, ZeroI32, ZeroI1});
+  }
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_i32:
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_v2i32:
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_v4f16:
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_v4i16:
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_v8f16:
+  case AMDGPU::BI__builtin_amdgcn_global_load_tr_v8i16: {
+
+    llvm::Type *ArgTy;
+    switch (BuiltinID) {
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_i32:
+      ArgTy = llvm::Type::getInt32Ty(getLLVMContext());
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_v2i32:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getInt32Ty(getLLVMContext()), 2);
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_v4f16:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getHalfTy(getLLVMContext()), 4);
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_v4i16:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getInt16Ty(getLLVMContext()), 4);
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_v8f16:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getHalfTy(getLLVMContext()), 8);
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_load_tr_v8i16:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getInt16Ty(getLLVMContext()), 8);
+      break;
+    }
+
+    llvm::Value *Addr = EmitScalarExpr(E->getArg(0));
+    llvm::Function *F =
+        CGM.getIntrinsic(Intrinsic::amdgcn_global_load_tr, {ArgTy});
+    return Builder.CreateCall(F, {Addr});
   }
   case AMDGPU::BI__builtin_amdgcn_read_exec:
     return EmitAMDGCNBallotForExec(*this, E, Int64Ty, Int64Ty, false);

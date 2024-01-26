@@ -8,7 +8,6 @@
 
 #include "KernelFusion.h"
 #include "Kernel.h"
-#include "KernelIO.h"
 #include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
@@ -35,7 +34,7 @@ static FusionResult errorToFusionResult(llvm::Error &&Err,
                           // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return FusionResult{ErrMsg.str()};
+  return FusionResult{ErrMsg.str().c_str()};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -72,18 +71,16 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    JITContext &JITCtx, Config &&JITConfig,
-    const std::vector<SYCLKernelInfo> &KernelInformation,
-    const std::vector<std::string> &KernelsToFuse,
-    const std::string &FusedKernelName, ParamIdentList &Identities,
-    BarrierFlags BarriersFlags,
-    const std::vector<jit_compiler::ParameterInternalization> &Internalization,
-    const std::vector<jit_compiler::JITConstant> &Constants) {
-  // Initialize the configuration helper to make the options for this invocation
-  // available (on a per-thread basis).
-  ConfigHelper::setConfig(std::move(JITConfig));
+    View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+    View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+    View<ParameterInternalization> Internalization,
+    View<jit_compiler::JITConstant> Constants) {
 
-  const auto NDRanges = gatherNDRanges(KernelInformation);
+  std::vector<std::string> KernelsToFuse;
+  llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
+                  [](const auto &KI) { return std::string{KI.Name.c_str()}; });
+
+  const auto NDRanges = gatherNDRanges(KernelInformation.to<llvm::ArrayRef>());
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
@@ -103,13 +100,14 @@ FusionResult KernelFusion::fuseKernels(
         "Fusion output target format not supported by this build");
   }
 
+  auto &JITCtx = JITContext::getInstance();
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
   CacheKeyT CacheKey{TargetArch,
                      KernelsToFuse,
-                     Identities,
+                     Identities.to<std::vector>(),
                      BarriersFlags,
-                     Internalization,
-                     Constants,
+                     Internalization.to<std::vector>(),
+                     Constants.to<std::vector>(),
                      IsHeterogeneousList
                          ? std::optional<std::vector<NDRange>>{NDRanges}
                          : std::optional<std::vector<NDRange>>{std::nullopt}};
@@ -148,9 +146,12 @@ FusionResult KernelFusion::fuseKernels(
 
   // Add information about the kernel that should be fused as metadata into the
   // LLVM module.
-  FusedFunction FusedKernel{
-      FusedKernelName, KernelsToFuse, std::move(Identities),
-      Internalization, Constants,     NDRanges};
+  FusedFunction FusedKernel{FusedKernelName,
+                            KernelsToFuse,
+                            Identities.to<llvm::ArrayRef>(),
+                            Internalization.to<llvm::ArrayRef>(),
+                            Constants.to<llvm::ArrayRef>(),
+                            NDRanges};
   FusedFunctionList FusedKernelList;
   FusedKernelList.push_back(FusedKernel);
   llvm::Expected<std::unique_ptr<llvm::Module>> NewModOrError =
@@ -191,4 +192,10 @@ FusionResult KernelFusion::fuseKernels(
   }
 
   return FusionResult{FusedKernelInfo};
+}
+
+void KernelFusion::resetConfiguration() { ConfigHelper::reset(); }
+
+void KernelFusion::set(OptionPtrBase *Option) {
+  ConfigHelper::getConfig().set(Option);
 }

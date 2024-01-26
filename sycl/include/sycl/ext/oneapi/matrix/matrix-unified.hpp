@@ -24,8 +24,8 @@
 #include <sycl/exception.hpp>                 // for runtime_error
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseEnumToString
 #include <sycl/ext/oneapi/matrix/query-types.hpp> // for convertTypeToMatrixTypeString
-#include <sycl/marray.hpp>                                 // for marray
-#include <sycl/multi_ptr.hpp>                              // for multi_ptr
+#include <sycl/marray.hpp>                        // for marray
+#include <sycl/multi_ptr.hpp>                     // for multi_ptr
 
 #include <cstring>     // for size_t, memcpy
 #include <stdint.h>    // for uint32_t
@@ -165,34 +165,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
-  switch (Layout) {
-  default:
-    assert(false && "Invalid Memory Layout!");
-  case layout::row_major:
-    res.spvm = __spirv_JointMatrixLoadINTEL<
-        DecorT, S, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, stride, __spv::MatrixLayout::RowMajor,
-        spv_scope_traits<Group>::value);
-    break;
-  case layout::col_major:
-    res.spvm = __spirv_JointMatrixLoadINTEL<
-        DecorT, S, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, stride, __spv::MatrixLayout::ColumnMajor,
-        spv_scope_traits<Group>::value);
-    break;
-  case layout::ext_intel_packed:
-    res.spvm = __spirv_JointMatrixLoadINTEL<
-        DecorT, S, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, stride, __spv::MatrixLayout::Packed,
-        spv_scope_traits<Group>::value);
-    break;
-  }
+  res.spvm = __spirv_JointMatrixLoadINTEL<
+      DecorT, S, NumRows, NumCols,
+      spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -250,6 +228,83 @@ joint_matrix_load(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
+template <typename Group, typename S, typename T, size_t NumRows,
+          size_t NumCols, typename PropertyListT,
+          std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value,
+                           bool> = true>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
+    Group sg,
+    joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
+    size_t stride, sycl::ext::oneapi::experimental::matrix::layout Layout) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
+#else
+  std::ignore = sg;
+  T *Ptr = src.get();
+  res.spvm = __spirv_JointMatrixLoadINTEL<
+      T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = res;
+  std::ignore = src;
+  std::ignore = stride;
+  std::ignore = Layout;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+template <
+    typename Group, typename S, typename T, use Use, size_t NumRows,
+    size_t NumCols, matrix::layout Layout, typename PropertyListT,
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
+                         (std::is_same<S, precision::tf32>::value &&
+                          std::is_same<std::remove_const_t<T>, float>::value),
+                     bool> = true>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
+    Group sg, joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
+    size_t stride) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  throw runtime_error("Use joint_matrix_load on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  throw runtime_error("Use joint_matrix_load on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
+#else
+  std::ignore = sg;
+  T *Ptr = src.get();
+  res.spvm =
+      __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
+                                   spv_matrix_use_traits<Use>::value,
+                                   spv_matrix_layout_traits<Layout>::value>(
+          Ptr, stride, spv_matrix_layout_traits<Layout>::value,
+          spv_scope_traits<Group>::value);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = res;
+  std::ignore = src;
+  std::ignore = stride;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
@@ -275,34 +330,49 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
-  switch (Layout) {
-  default:
-    assert(false && "Invalid Memory Layout!");
-  case layout::row_major:
-    __spirv_JointMatrixStoreINTEL<
-        DecorT, T, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::RowMajor,
-        spv_scope_traits<Group>::value);
-    break;
-  case layout::col_major:
-    __spirv_JointMatrixStoreINTEL<
-        DecorT, T, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
-        spv_scope_traits<Group>::value);
-    break;
-  case layout::ext_intel_packed:
-    __spirv_JointMatrixStoreINTEL<
-        DecorT, T, NumRows, NumCols,
-        spv_matrix_use_traits<use::accumulator>::value,
-        spv_matrix_layout_traits<layout::dynamic>::value>(
-        Ptr, src.spvm, stride, __spv::MatrixLayout::Packed,
-        spv_scope_traits<Group>::value);
-    break;
-  }
+  __spirv_JointMatrixStoreINTEL<
+      DecorT, T, NumRows, NumCols,
+      spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, src.spvm, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
+  std::ignore = Layout;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          typename PropertyListT>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group sg,
+    const joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+                       sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        &src,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dst,
+    size_t stride, sycl::ext::oneapi::experimental::matrix::layout Layout) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  throw runtime_error("Use joint_matrix_store on multi_ptr on Nvidia device.",
+                      PI_ERROR_INVALID_DEVICE);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  throw runtime_error("Use joint_matrix_store on multi_ptr on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
+#else
+  std::ignore = sg;
+  T *Ptr = dst.get();
+  __spirv_JointMatrixStoreINTEL<
+      T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, src.spvm, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -429,6 +499,46 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
   return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
+
+template <size_t NumRows, size_t NumCols, typename Group, typename T,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
+                      sycl::ext::oneapi::experimental::matrix::layout Layout,
+                      Properties properties = {}) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  std::ignore = properties;
+  throw runtime_error(
+      "joint_matrix_prefetch is not supported on Nvidia device.",
+      PI_ERROR_INVALID_DEVICE);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  std::ignore = sg;
+  std::ignore = properties;
+  throw runtime_error("joint_matrix_prefetch is not supported on AMD device.",
+                      PI_ERROR_INVALID_DEVICE);
+#else
+  std::ignore = sg;
+  auto prop = properties.template get_property<prefetch_hint_key>();
+  // Will be removed once SPIRV implementation also uses offsetpointer
+  size_t coordX = 0;
+  size_t coordY = 0;
+  __spirv_JointMatrixPrefetchINTEL<T, NumRows, NumCols>(
+      Ptr, coordX, coordY, detail::PropertyMetaInfo<decltype(prop)>::value,
+      sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = Ptr;
+  std::ignore = stride;
+  std::ignore = Layout;
+  std::ignore = properties;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi

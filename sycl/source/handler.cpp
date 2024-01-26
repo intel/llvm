@@ -306,6 +306,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
@@ -1455,6 +1456,13 @@ std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
     return PiResult;
   }
   return {};
+}
+
+std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
+  auto ImmRess = getMaxWorkGroups();
+  if (ImmRess)
+    return {*ImmRess, true};
+  return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
 } // namespace _V1

@@ -1,4 +1,4 @@
-// REQUIRES: fusion, gpu, (hip || cuda)
+// REQUIRES: gpu, (hip || cuda)
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --implicit-check-not "WRONG a VALUE" --implicit-check-not "WRONG b VALUE"
 // XFAIL: *

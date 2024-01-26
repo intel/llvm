@@ -716,6 +716,22 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void setExternalEvent(const event &Event) {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MInOrderExternalEvent = Event;
+  }
+
+  std::optional<event> popExternalEvent() {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    std::optional<event> Result = std::nullopt;
+    std::swap(Result, MInOrderExternalEvent);
+    return Result;
+  }
+
+  const std::vector<event> &
+  getExtendDependencyList(const std::vector<event> &DepEvents,
+                          std::vector<event> &MutableVec);
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
@@ -724,15 +740,19 @@ protected:
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
-    if (MIsInorder) {
+    // When a queue is recorded by a graph, the dependencies are managed in the
+    // graph implementaton. Additionally, CG recorded for a graph are outside of
+    // the in-order queue execution sequence. Therefore, these CG must not
+    // update MLastEvent.
+    if (MIsInorder && (getCommandGraph() == nullptr)) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
         return Type == CG::CGTYPE::CodeplayHostTask;
       };
 
       // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+      // Hence, here is are locks for thread-safety.
+      std::lock_guard<std::mutex> LastEventLock{MLastEventMtx};
 
       if (MLastCGType == CG::CGTYPE::None)
         MLastCGType = Type;
@@ -743,6 +763,13 @@ protected:
 
       if (NeedSeparateDependencyMgmt)
         Handler.depends_on(MLastEvent);
+
+      // If there is an external event set, add it as a dependency and clear it.
+      // We do not need to hold the lock as MLastEventMtx will ensure the last
+      // event reflects the corresponding external event dependence as well.
+      std::optional<event> ExternalEvent = popExternalEvent();
+      if (ExternalEvent)
+        Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
 
@@ -816,6 +843,21 @@ protected:
     addEvent(Event);
     return Event;
   }
+
+  /// Performs direct submission of a memory operation.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param MemOpFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemOpArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename MemOpFuncT, typename... MemOpArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          MemOpFuncT MemOpFunc, MemOpArgTs... MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
@@ -893,6 +935,13 @@ protected:
 
   // the fallback implementation of profiling info
   bool MFallbackProfiling = false;
+
+  // This event can be optionally provided by users for in-order queues to add
+  // an additional dependency for the subsequent submission in to the queue.
+  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // NOTE: std::optional must not be exposed in the ABI.
+  std::optional<event> MInOrderExternalEvent;
+  mutable std::mutex MInOrderExternalEventMtx;
 
 public:
   // Queue constructed with the discard_events property

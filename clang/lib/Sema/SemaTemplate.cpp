@@ -39,7 +39,6 @@
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/SaveAndRestore.h"
 
 #include <iterator>
 #include <optional>
@@ -1499,7 +1498,7 @@ NamedDecl *Sema::ActOnNonTypeTemplateParameter(Scope *S, Declarator &D,
                                           unsigned Position,
                                           SourceLocation EqualLoc,
                                           Expr *Default) {
-  TypeSourceInfo *TInfo = GetTypeForDeclarator(D, S);
+  TypeSourceInfo *TInfo = GetTypeForDeclarator(D);
 
   // Check that we have valid decl-specifiers specified.
   auto CheckValidDeclSpecifiers = [this, &D] {
@@ -1825,6 +1824,15 @@ static void SetNestedNameSpecifier(Sema &S, TagDecl *T,
     T->setQualifierInfo(SS.getWithLocInContext(S.Context));
 }
 
+// Returns the template parameter list with all default template argument
+// information.
+static TemplateParameterList *GetTemplateParameterList(TemplateDecl *TD) {
+  // Make sure we get the template parameter list from the most
+  // recent declaration, since that is the only one that is guaranteed to
+  // have all the default template argument information.
+  return cast<TemplateDecl>(TD->getMostRecentDecl())->getTemplateParameters();
+}
+
 DeclResult Sema::CheckClassTemplate(
     Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
     CXXScopeSpec &SS, IdentifierInfo *Name, SourceLocation NameLoc,
@@ -2062,13 +2070,13 @@ DeclResult Sema::CheckClassTemplate(
   if (!(TUK == TUK_Friend && CurContext->isDependentContext()) &&
       CheckTemplateParameterList(
           TemplateParams,
-          PrevClassTemplate
-              ? PrevClassTemplate->getMostRecentDecl()->getTemplateParameters()
-              : nullptr,
+          PrevClassTemplate ? GetTemplateParameterList(PrevClassTemplate)
+                            : nullptr,
           (SS.isSet() && SemanticContext && SemanticContext->isRecord() &&
            SemanticContext->isDependentContext())
               ? TPC_ClassTemplateMember
-              : TUK == TUK_Friend ? TPC_FriendClassTemplate : TPC_ClassTemplate,
+          : TUK == TUK_Friend ? TPC_FriendClassTemplate
+                              : TPC_ClassTemplate,
           SkipBody))
     Invalid = true;
 
@@ -2299,7 +2307,7 @@ struct ConvertConstructorToDeductionGuideTransform {
     //    -- The template parameters are the template parameters of the class
     //       template followed by the template parameters (including default
     //       template arguments) of the constructor, if any.
-    TemplateParameterList *TemplateParams = Template->getTemplateParameters();
+    TemplateParameterList *TemplateParams = GetTemplateParameterList(Template);
     if (FTD) {
       TemplateParameterList *InnerParams = FTD->getTemplateParameters();
       SmallVector<NamedDecl *, 16> AllParams;
@@ -2425,7 +2433,7 @@ struct ConvertConstructorToDeductionGuideTransform {
       Params.push_back(NewParam);
     }
 
-    return buildDeductionGuide(Template->getTemplateParameters(), nullptr,
+    return buildDeductionGuide(GetTemplateParameterList(Template), nullptr,
                                ExplicitSpecifier(), TSI, Loc, Loc, Loc);
   }
 
@@ -2579,15 +2587,15 @@ private:
                           : ParamTy->isRValueReferenceType() ? VK_XValue
                                                              : VK_PRValue);
     }
+    // Handle arrays and functions decay.
+    auto NewType = NewDI->getType();
+    if (NewType->isArrayType() || NewType->isFunctionType())
+      NewType = SemaRef.Context.getDecayedType(NewType);
 
-    ParmVarDecl *NewParam = ParmVarDecl::Create(SemaRef.Context, DC,
-                                                OldParam->getInnerLocStart(),
-                                                OldParam->getLocation(),
-                                                OldParam->getIdentifier(),
-                                                NewDI->getType(),
-                                                NewDI,
-                                                OldParam->getStorageClass(),
-                                                NewDefArg.get());
+    ParmVarDecl *NewParam = ParmVarDecl::Create(
+        SemaRef.Context, DC, OldParam->getInnerLocStart(),
+        OldParam->getLocation(), OldParam->getIdentifier(), NewType, NewDI,
+        OldParam->getStorageClass(), NewDefArg.get());
     NewParam->setScopeInfo(OldParam->getFunctionScopeDepth(),
                            OldParam->getFunctionScopeIndex());
     SemaRef.CurrentInstantiationScope->InstantiatedLocal(OldParam, NewParam);
@@ -3991,14 +3999,9 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
     if (Inst.isInvalid())
       return QualType();
 
-    {
-      Sema::ContextRAII SavedContext(*this, Pattern->getDeclContext());
-      if (RebuildingTypesInCurrentInstantiation)
-        SavedContext.pop();
-      CanonType =
-          SubstType(Pattern->getUnderlyingType(), TemplateArgLists,
-                    AliasTemplate->getLocation(), AliasTemplate->getDeclName());
-    }
+    CanonType = SubstType(Pattern->getUnderlyingType(),
+                          TemplateArgLists, AliasTemplate->getLocation(),
+                          AliasTemplate->getDeclName());
     if (CanonType.isNull()) {
       // If this was enable_if and we failed to find the nested type
       // within enable_if in a SFINAE context, dig out the specific
@@ -5962,12 +5965,7 @@ bool Sema::CheckTemplateArgumentList(
   // template.
   TemplateArgumentListInfo NewArgs = TemplateArgs;
 
-  // Make sure we get the template parameter list from the most
-  // recent declaration, since that is the only one that is guaranteed to
-  // have all the default template argument information.
-  TemplateParameterList *Params =
-      cast<TemplateDecl>(Template->getMostRecentDecl())
-          ->getTemplateParameters();
+  TemplateParameterList *Params = GetTemplateParameterList(Template);
 
   SourceLocation RAngleLoc = NewArgs.getRAngleLoc();
 
@@ -9231,10 +9229,8 @@ void Sema::CheckConceptRedefinition(ConceptDecl *NewDecl,
 /// that has just been explicitly specialized.
 static void StripImplicitInstantiation(NamedDecl *D, bool MinGW) {
   if (MinGW || (isa<FunctionDecl>(D) &&
-                cast<FunctionDecl>(D)->isFunctionTemplateSpecialization())) {
-    D->dropAttr<DLLImportAttr>();
-    D->dropAttr<DLLExportAttr>();
-  }
+                cast<FunctionDecl>(D)->isFunctionTemplateSpecialization()))
+    D->dropAttrs<DLLImportAttr, DLLExportAttr>();
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
     FD->setInlineSpecified(false);
@@ -10523,7 +10519,7 @@ DeclResult Sema::ActOnExplicitInstantiation(Scope *S,
     S = S->getParent();
 
   // Determine the type of the declaration.
-  TypeSourceInfo *T = GetTypeForDeclarator(D, S);
+  TypeSourceInfo *T = GetTypeForDeclarator(D);
   QualType R = T->getType();
   if (R.isNull())
     return true;
@@ -11398,8 +11394,6 @@ TypeSourceInfo *Sema::RebuildTypeInCurrentInstantiation(TypeSourceInfo *T,
   if (!T || !T->getType()->isInstantiationDependentType())
     return T;
 
-  llvm::SaveAndRestore DisableContextSwitchForTypeAliases(
-      RebuildingTypesInCurrentInstantiation, true);
   CurrentInstantiationRebuilder Rebuilder(*this, Loc, Name);
   return Rebuilder.TransformType(T);
 }
