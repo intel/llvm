@@ -273,37 +273,6 @@ ToolChain::getMultilibFlags(const llvm::opt::ArgList &Args) const {
 
 SanitizerArgs
 ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
-  // For SYCL compiler, needs to check --target-options/--host-options to
-  // see whether sanitizer is enabled for device/host compilation.
-  StringRef OffloadingExtraOptions;
-  if (getTriple().isSPIR() && !JobArgs.hasArg(options::OPT_fsanitize_EQ) &&
-      JobArgs.hasArg(options::OPT_target_options_EQ))
-    OffloadingExtraOptions =
-        JobArgs.getLastArgValue(options::OPT_target_options_EQ);
-
-  if (JobArgs.hasArg(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
-      !JobArgs.hasArg(options::OPT_fsanitize_EQ) &&
-      JobArgs.hasArg(options::OPT_host_options_EQ))
-    OffloadingExtraOptions =
-        JobArgs.getLastArgValue(options::OPT_host_options_EQ);
-
-  if (!OffloadingExtraOptions.empty()) {
-    const Driver &D = getDriver();
-    SmallVector<StringRef, 16> TempSplitVec;
-    OffloadingExtraOptions.split(TempSplitVec, ' ', -1, false);
-    SmallVector<const char *, 16> OpVec;
-    for (auto Op : TempSplitVec)
-      OpVec.push_back(JobArgs.MakeArgStringRef(Op));
-    bool ContainsError;
-    auto ParsedArgs =
-        const_cast<Driver &>(D).ParseArgStrings(OpVec, true, ContainsError);
-    if (ParsedArgs.hasArg(options::OPT_fsanitize_EQ)) {
-      SanitizerArgs SanArgs(*this, ParsedArgs, !SanitizerArgsChecked);
-      SanitizerArgsChecked = true;
-      return SanArgs;
-    }
-  }
-
   SanitizerArgs SanArgs(*this, JobArgs, !SanitizerArgsChecked);
   SanitizerArgsChecked = true;
   return SanArgs;

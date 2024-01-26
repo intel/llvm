@@ -1288,16 +1288,6 @@ def fno_gpu_sanitize : Flag<["-"], "fno-gpu-sanitize">, Group<f_Group>;
 def offload_compress : Flag<["--"], "offload-compress">,
   HelpText<"Compress offload device binaries (HIP only)">;
 def no_offload_compress : Flag<["--"], "no-offload-compress">;
-
-def target_options_EQ : Joined<["--"], "target-options=">,
-  Visibility<[ClangOption]>, MetaVarName<"<arg>">,
-  HelpText<"Specify single or a group of flags via quoted string used in compilation for "
-           "offloading target device code.">;
-
-def host_options_EQ : Joined<["--"], "host-options=">,
-  Visibility<[ClangOption]>, MetaVarName<"<arg>">,
-  HelpText<"Specify single or a group of flags via quoted string used in compilation for "
-           "host code.">;
 }
 
 // CUDA options
