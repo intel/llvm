@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstring>
+#include <string>
 
 #pragma once
 
@@ -18,11 +19,13 @@ namespace detail {
 // different ABIs between libsycl and the user program.
 // This class is not inteded to replace std::string for general purpose usage.
 class string {
-  char *str =
-      nullptr; // set from libsycl to return a std::string to a user program
+  char *str = nullptr;
 
 public:
-  string() = default;
+  string() {
+    allocate(1);
+    *str = '\0';
+  }
 
   string(const std::string_view &strn) {
     allocate(strn.length() + 1);

@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <string>
+
 #pragma once
 
 namespace sycl {
@@ -17,8 +19,7 @@ namespace detail {
 // This class is not inteded to replace std::string_view for general purpose
 // usage.
 class string_view {
-  const char *str =
-      nullptr; // used to send user's owning std::string to libsycl
+  const char *str = nullptr;
 
 public:
   string_view() = default;
