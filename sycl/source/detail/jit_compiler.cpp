@@ -210,7 +210,11 @@ static std::optional<size_t> getLocalSize(NDRDescT NDRange,
          "Unexpected range rounding");
   auto NumElementsMem = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size();
   if (Target == Promotion::Private) {
-    auto NumWorkItems = UserGlobalSize.value_or(NDRange.GlobalSize.size());
+    if (UserGlobalSize.has_value()) {
+      // Only the first dimension is affected by range rounding.
+      NDRange.GlobalSize[0] = *UserGlobalSize;
+    }
+    auto NumWorkItems = NDRange.GlobalSize.size();
     // For private internalization, the local size is
     // (Number of elements in buffer)/(number of work-items)
     return NumElementsMem / NumWorkItems;
@@ -706,13 +710,18 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     std::optional<size_t> UserGlobalSize;
     if ((KernelName.find("_ZTSN4sycl3_V16detail18RoundedRangeKernel") == 0 ||
          KernelName.find("_ZTSN4sycl3_V16detail19__pf_kernel_wrapper") == 0) &&
-        !Args.empty() &&
-        Args[0].MType == kernel_param_kind_t::kind_std_layout && Args[0].MPtr &&
-        Args[0].MSize == sizeof(size_t)) {
-      size_t UGS = *reinterpret_cast<size_t *>(Args[0].MPtr);
-      assert(KernelCG->MNDRDesc.Dims == 1 &&
-             UGS < KernelCG->MNDRDesc.GlobalSize[0]);
-      UserGlobalSize = UGS;
+        !Args.empty()) {
+      auto &A0 = Args[0];
+      int Dims = KernelCG->MNDRDesc.Dims;
+      if (A0.MPtr && A0.MSize == (Dims * sizeof(size_t)) &&
+          A0.MType == kernel_param_kind_t::kind_std_layout) {
+        size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
+        // Range-rounding only applies to the first dimension.
+        assert(UGS[0] > KernelCG->MNDRDesc.GlobalSize[1]);
+        assert(Dims < 2 || UGS[1] == KernelCG->MNDRDesc.GlobalSize[1]);
+        assert(Dims < 3 || UGS[2] == KernelCG->MNDRDesc.GlobalSize[2]);
+        UserGlobalSize = UGS[0];
+      }
     }
 
     ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};

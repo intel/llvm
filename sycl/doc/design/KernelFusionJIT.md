@@ -307,10 +307,10 @@ transparent for fusion, meaning the generated wrapper kernel with the rounded up
 range will be used.
 
 [Private internalization](#internalization-behavior) is supported when fusing
-such kernels. We use the original, unrounded global size when computing the
-private memory size. As range rounding only applies to basic kernels
-(parametrized by a `sycl::range`), local internalization is not affected by the
-range rounding transformation.
+such kernels. We use the original, unrounded global size in dimension 0 when
+computing the private memory size. As range rounding only applies to basic
+kernels (parametrized by a `sycl::range`), local internalization is not affected
+by the range rounding transformation.
 
 ### Unsupported SYCL constructs
 

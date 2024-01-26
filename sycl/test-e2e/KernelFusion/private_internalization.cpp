@@ -1,5 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:512 %{run} %t.out
 
 // Test complete fusion with private internalization specified on the
 // accessors.
@@ -71,7 +71,8 @@ int main() {
   test<512>();
 
   // Test prime size large enough to trigger rounded-range kernel insertion.
-  test<7727>();
+  // Note that we lower the RR threshold when running this test.
+  test<523>();
 
   return 0;
 }
