@@ -5440,7 +5440,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_DLL");
         }
       }
-
     }
     // Add any predefined macros associated with intel_gpu* type targets
     // passed in with -fsycl-targets
