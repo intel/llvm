@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: cpu, gpu
+// Due to current bug in A750
+// UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-#define SG_SZ 16
-constexpr size_t TN = 16;
 
 #include "element_wise_all_ops_impl.hpp"
