@@ -712,8 +712,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
          KernelName.find("_ZTSN4sycl3_V16detail19__pf_kernel_wrapper") == 0) &&
         !Args.empty()) {
       auto &A0 = Args[0];
-      int Dims = KernelCG->MNDRDesc.Dims;
-      if (A0.MPtr && A0.MSize == (Dims * sizeof(size_t)) &&
+      auto Dims = KernelCG->MNDRDesc.Dims;
+      if (A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
           A0.MType == kernel_param_kind_t::kind_std_layout) {
         size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
         // Range-rounding only applies to the first dimension.
