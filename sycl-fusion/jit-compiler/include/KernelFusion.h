@@ -9,59 +9,57 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 #define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 
+#include "DynArray.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
+#include "View.h"
+
 #include <cassert>
-#include <string>
-#include <variant>
-#include <vector>
 
 namespace jit_compiler {
 
 class FusionResult {
 public:
-  explicit FusionResult(std::string &&ErrorMessage)
-      : Type{FusionResultType::FAILED}, Value{std::move(ErrorMessage)} {}
+  explicit FusionResult(const char *ErrorMessage)
+      : Type{FusionResultType::FAILED}, KernelInfo{},
+        ErrorMessage{ErrorMessage} {}
 
-  explicit FusionResult(SYCLKernelInfo KernelInfo, bool Cached = false)
+  explicit FusionResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
       : Type{(Cached) ? FusionResultType::CACHED : FusionResultType::NEW},
-        Value{std::forward<SYCLKernelInfo>(KernelInfo)} {}
+        KernelInfo(KernelInfo), ErrorMessage{} {}
 
   bool failed() const { return Type == FusionResultType::FAILED; }
 
   bool cached() const { return Type == FusionResultType::CACHED; }
 
-  const std::string &getErrorMessage() const {
-    assert(failed() && std::holds_alternative<std::string>(Value) &&
-           "No error message present");
-    return std::get<std::string>(Value);
+  const char *getErrorMessage() const {
+    assert(failed() && "No error message present");
+    return ErrorMessage.c_str();
   }
 
   const SYCLKernelInfo &getKernelInfo() const {
-    assert(!failed() && std::holds_alternative<SYCLKernelInfo>(Value) &&
-           "No kernel info");
-    return std::get<SYCLKernelInfo>(Value);
+    assert(!failed() && "No kernel info");
+    return KernelInfo;
   }
 
 private:
   enum class FusionResultType { FAILED, CACHED, NEW };
-  FusionResultType Type;
 
-  std::variant<std::string, SYCLKernelInfo> Value;
+  FusionResultType Type;
+  SYCLKernelInfo KernelInfo;
+  DynString ErrorMessage;
 };
 
 class KernelFusion {
 
 public:
   static FusionResult
-  fuseKernels(const std::vector<SYCLKernelInfo> &KernelInformation,
-              const char *FusedKernelName,
-              jit_compiler::ParamIdentList &Identities,
+  fuseKernels(View<SYCLKernelInfo> KernelInformation,
+              const char *FusedKernelName, View<ParameterIdentity> Identities,
               BarrierFlags BarriersFlags,
-              const std::vector<jit_compiler::ParameterInternalization>
-                  &Internalization,
-              const std::vector<jit_compiler::JITConstant> &JITConstants);
+              View<ParameterInternalization> Internalization,
+              View<jit_compiler::JITConstant> JITConstants);
 
   /// Clear all previously set options.
   static void resetConfiguration();

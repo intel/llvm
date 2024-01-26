@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include <set>
 
 using namespace llvm;

@@ -440,7 +440,7 @@ static ParamIterator preProcessArguments(
     std::vector<::jit_compiler::ParameterInternalization> &InternalizeParams,
     std::vector<::jit_compiler::JITConstant> &JITConstants,
     ParamList &NonIdenticalParams,
-    ::jit_compiler::ParamIdentList &ParamIdentities) {
+    std::vector<::jit_compiler::ParameterIdentity> &ParamIdentities) {
 
   // Unused arguments are still in the list at this point (because we
   // need them for accessor handling), but there's not pre-processing
@@ -810,7 +810,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // can be constant-propagated by the JIT compiler.
   std::vector<::jit_compiler::ParameterInternalization> InternalizeParams;
   std::vector<::jit_compiler::JITConstant> JITConstants;
-  ::jit_compiler::ParamIdentList ParamIdentities;
+  std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
   for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
     PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, InternalizeParams,
@@ -840,9 +840,10 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   ::jit_compiler::KernelFusion::set<::jit_compiler::option::JITTargetInfo>(
       std::move(TargetInfo));
 
+  using ::jit_compiler::View;
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
-      InternalizeParams, JITConstants);
+      View{InputKernelInfo}, FusedKernelName.c_str(), View(ParamIdentities),
+      BarrierFlags, View(InternalizeParams), View(JITConstants));
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
