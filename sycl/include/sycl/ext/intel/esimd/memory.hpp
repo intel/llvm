@@ -2934,15 +2934,21 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 /// to 1. This variant is added for convenience and let user omit the template
 /// arguments and call the function as
 /// 'gather(acc, byte_offsets, mask, pass_thru);'.
+// Dev note: the mask type was turned into template parameter `MaskT` to
+// avoid the conflicts of this prototype with the old gather() function
+// accepting a 'global_offset' parameter and avoid 'ambiguous call' errors
+// for calls like this: gather(acc, byte_offsets_simd, 0, mask);
 template <typename T, int N, typename AccessorT, typename OffsetT,
+          typename MaskT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     (detail::is_device_accessor_with_v<AccessorT,
                                        detail::accessor_mode_cap::can_read> &&
+     std::is_same_v<MaskT, simd_mask<N>> &&
      ext::oneapi::experimental::is_property_list_v<PropertyListT>),
     simd<T, N>>
-gather(AccessorT acc, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
+gather(AccessorT acc, simd<OffsetT, N> byte_offsets, MaskT mask,
        simd<T, N> pass_thru, PropertyListT props = {}) {
   return gather<T, N, 1>(acc, byte_offsets, mask, pass_thru, props);
 }
@@ -2954,6 +2960,10 @@ gather(AccessorT acc, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
 /// This function is identical to (acc-ga-2) except that vector size is fixed
 /// to 1. This variant is added for convenience and let user omit the template
 /// arguments and call the function as 'gather(acc, byte_offsets, mask);'.
+// Dev note: the mask type was turned into template parameter `MaskT` to
+// avoid the conflicts of this prototype with the old gather() function
+// accepting a 'global_offset' parameter and avoid 'ambiguous call' errors
+// for calls like this: gather(acc, byte_offsets_simd, 0);
 template <typename T, int N, typename AccessorT, typename OffsetT,
           typename MaskT,
           typename PropertyListT =
@@ -2961,8 +2971,8 @@ template <typename T, int N, typename AccessorT, typename OffsetT,
 __ESIMD_API std::enable_if_t<
     (detail::is_device_accessor_with_v<AccessorT,
                                        detail::accessor_mode_cap::can_read> &&
-     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-     std::is_same_v<MaskT, simd_mask<N>>),
+     std::is_same_v<MaskT, simd_mask<N>> &&
+     ext::oneapi::experimental::is_property_list_v<PropertyListT>),
     simd<T, N>>
 gather(AccessorT acc, simd<OffsetT, N> byte_offsets, MaskT mask,
        PropertyListT props = {}) {
