@@ -1,6 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %{run} %t.out
-// XFAIL: (windows && level_zero)
 
 #include <sycl/sycl.hpp>
 

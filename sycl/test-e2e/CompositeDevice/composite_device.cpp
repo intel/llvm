@@ -2,7 +2,6 @@
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMBINED %{run} %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE %{run} %t.out
 // RUN: env ZE_FLAT_DEVICE_HIERARCHY=FLAT %{run} %t.out
-// XFAIL: (windows && level_zero)
 
 #include <sycl/sycl.hpp>
 
