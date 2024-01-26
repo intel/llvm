@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <optional>
 #include <string.h>
 
 #include "command_buffer.hpp"
@@ -1129,6 +1130,7 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCountExternal = 0;
   RefCount.reset();
   CommandList = std::nullopt;
+  completionBatch = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;

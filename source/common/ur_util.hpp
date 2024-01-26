@@ -8,6 +8,7 @@
  *
  */
 
+#include <algorithm>
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
@@ -87,9 +88,23 @@ inline std::string create_library_path(const char *name, const char *path) {
 ///////////////////////////////////////////////////////////////////////////////
 std::optional<std::string> ur_getenv(const char *name);
 
-inline bool getenv_tobool(const char *name) {
+inline bool getenv_tobool(const char *name, bool def = false) {
+    if (auto env = ur_getenv(name); env) {
+        std::transform(env->begin(), env->end(), env->begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        auto true_str = {"y", "yes", "t", "true", "1"};
+        return std::find(true_str.begin(), true_str.end(), *env) !=
+               true_str.end();
+    }
+
+    return def;
+}
+
+inline std::optional<uint64_t> getenv_to_unsigned(const char *name) try {
     auto env = ur_getenv(name);
-    return env.has_value();
+    return env ? std::optional(std::stoi(*env)) : std::nullopt;
+} catch (...) {
+    return std::nullopt;
 }
 
 static void throw_wrong_format_vec(const char *env_var_name,

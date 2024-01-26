@@ -222,6 +222,10 @@ struct ur_event_handle_t_ : _ur_object {
 
   // Get the host-visible event or create one and enqueue its signal.
   ur_result_t getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
+
+  // completion batch for this event. Only used for out-of-order immediate
+  // command lists.
+  std::optional<ur_completion_batch_it> completionBatch;
 };
 
 // Helper function to implement zeHostSynchronize.
