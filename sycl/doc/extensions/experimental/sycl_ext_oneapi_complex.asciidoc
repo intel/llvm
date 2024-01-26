@@ -57,12 +57,12 @@ defines a SYCL complex extension based on but independent of the `std::complex`
 interface.
 
 The proposed framework not only encompasses complex support for traditional use
-cases but also accommodate for advanced mathematical features and data
+cases but also accommodates for advanced mathematical features and data
 structures.
 
 Specifically, we propose to incorporate complex support for `sycl::marray`.
 This addition will empower developers to store complex numbers seamlessly
-within arrays, opening up new possibilities for data manipulation and
+within a `sycl::marray`, opening up new possibilities for data manipulation and
 computation.
 
 Furthermore, this extension involves overloading existing mathematical
@@ -224,28 +224,23 @@ public:
 
 === Marray Complex Class Specialization
 
-This proposal also introduces the specialization of the marray class to
-support SYCL complex. The marray class undergoes slight modification for this
-specialization, primarily involving the removal of operators that are
-inapplicable. No new functions or operators are introduced to the marray class.
+This proposal also introduces the specialization of the `sycl::marray` class to
+support SYCL `complex`. The `marray` class undergoes slight modification for
+this specialization, primarily involving the removal of operators that are
+inapplicable. No new functions or operators are introduced to the `marray`
+class.
 
-The marray complex specialization maintains the principles of trivial
+The `complex`'s `marray` specialization maintains the principles of trivial
 copyability (as seen in the <<Complex Class, `complex` class description>>),
 with the `is_device_copyable` type trait resolving to `std::true_type`.
 
-The marray definition used within this proposal assumes that any operator the
-`sycl::marray` class defines is only implemented if the marray's value type
-also implements the operator.
-
-For instance,
-`sycl::marray<sycl::ext::oneapi::experimental::complex<T>, NumElements>` does
-not implement the modulus operator since
-`sycl::ext::oneapi::experimental::complex<T>` does not support it.
+The `marray` specialization for `complex<T>` deletes any operator that is not
+supported by `complex<T>`.
 
 ```C++
 namespace sycl {
 
-// Specialization of exiting `marray` class for `sycl::ext::oneapi::experimental::complex`
+// Specialization of the existing `marray` class for `sycl::ext::oneapi::experimental::complex`
 template <typename T, std::size_t NumElements>
 class marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> {
 public:
@@ -337,7 +332,8 @@ Specifically, it adds support for `abs`, `acos`, `asin`, `atan`, `acosh`,
 `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
 
 Additionally, this extension introduces support for the `real` and `imag` free
-functions, which the real and imaginary component, respectively.
+functions, which returns the real and imaginary component of a number,
+respectively.
 
 These functions are available in both host and device code, and each math
 function should follow the C++ standard for handling `NaN` and `Inf` values.
@@ -440,8 +436,8 @@ template <class T> complex<T> tan(const complex<T> &);
 
 === Element-Wise Mathematical operations
 
-In harmony with the complex scalar operations, this proposal extends
-furthermore the `sycl::ext::oneapi::experimental`` namespace math functions
+In harmony with the `complex` scalar operations, this proposal extends
+furthermore the `sycl::ext::oneapi::experimental` namespace math functions
 to accept `sycl::marray<complex<T>>` for a range of SYCL math functions.
 
 Specifically, it adds support for `abs`, `acos`, `asin`, `atan`, `acosh`,
@@ -449,20 +445,20 @@ Specifically, it adds support for `abs`, `acos`, `asin`, `atan`, `acosh`,
 `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
 
 Additionally, this extension introduces support for the `real` and `imag` free
-functions, which return marrays of scalar values representing the real and
-imaginary components, respectively.
+functions, which return a `sycl::marray` of scalar values representing the real
+and imaginary components, respectively.
 
-In scenarios where mathematical functions involve both marray and scalar
+In scenarios where mathematical functions involve both `marray` and scalar
 parameters, two sets of overloads are introduced marray-scalar and
 scalar-marray.
 
 These mathematical operations are designed to execute element-wise across the
-marray, ensuring that each operation is applied to every element within the
-marray.
+`marray`, ensuring that each operation is applied to every element within the
+`sycl::marray`.
 
 Moreover, this proposal includes overloads for mathematical functions between
-marrays and scalar inputs. In these cases, the operations are executed across
-the entire marray, with the scalar value held constant.
+`marray` and scalar inputs. In these cases, the operations are executed across
+the entire `marray`, with the scalar value held constant.
 
 For consistency, these functions are available in both host and device code,
 and each math function should follow the C++ standard for handling `NaN` and
