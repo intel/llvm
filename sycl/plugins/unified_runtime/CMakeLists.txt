@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
   # commit 6032f6fde37eeadcc3f12c10460e3ffec161dd33
   # Merge: 92f44da3 f9ad3d42
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Mon Jan 22 12:30:12 2024 +0000
   #     Merge pull request #1259 from igchor/fix_sync
   #     [L0] do not ignore returned values from zeHostSynchronize
-  set(UNIFIED_RUNTIME_TAG 6032f6fde37eeadcc3f12c10460e3ffec161dd33)
+  set(UNIFIED_RUNTIME_TAG sanitizer-pr-cpu-local)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
