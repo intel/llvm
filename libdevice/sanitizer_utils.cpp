@@ -25,6 +25,16 @@ using u16 = unsigned short;
 #define ASAN_SHADOW_SCALE 3
 #define ASAN_SHADOW_GRANULARITY (1ULL << ASAN_SHADOW_SCALE)
 
+
+DeviceGlobal<uptr> __AsanShadowMemoryGlobalStart;
+DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
+DeviceGlobal<uptr> __AsanShadowMemoryLocalStart;
+DeviceGlobal<uptr> __AsanShadowMemoryLocalEnd;
+
+DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
+
+DeviceGlobal<DeviceType> __DeviceType;
+
 #if defined(__SPIR__)
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -39,14 +49,7 @@ extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
 #endif
 
-SPIR_GLOBAL uptr __AsanShadowMemoryGlobalStart;
-SPIR_GLOBAL uptr __AsanShadowMemoryGlobalEnd;
-SPIR_GLOBAL uptr __AsanShadowMemoryLocalStart;
-SPIR_GLOBAL uptr __AsanShadowMemoryLocalEnd;
 
-SPIR_GLOBAL DeviceSanitizerReport __DeviceSanitizerReportMem;
-
-SPIR_GLOBAL DeviceType __DeviceType;
 
 // These magic values are written to shadow for better error
 // reporting.
@@ -65,7 +68,6 @@ const int kSharedLocalRedzoneMagic = (char)0xa1;
 const int kPrivateLeftRedzoneMagic = (char)0xf1;
 const int kPrivateMidRedzoneMagic = (char)0xf2;
 const int kPrivateRightRedzoneMagic = (char)0xf3;
-
 
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
     "%p(%d) -> %p:";
@@ -152,7 +154,7 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
 
     if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
       __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
-                         __AsanShadowMemoryGlobalStart);
+                         (uptr)__AsanShadowMemoryGlobalStart);
       shadow_ptr = 0;
     }
   } else if (as == AS_CONSTANT) { // constant
@@ -170,7 +172,7 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
 
     if (shadow_ptr > __AsanShadowMemoryLocalEnd) {
       __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr, wg_lid,
-                         __AsanShadowMemoryLocalStart);
+                         (uptr)__AsanShadowMemoryLocalStart);
       shadow_ptr = 0;
     }
   }
@@ -186,7 +188,7 @@ inline uptr MemToShadow(uptr addr, int32_t as) {
   } else if (__DeviceType == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
   } else {
-    __spirv_ocl_printf(__unsupport_device_type, __DeviceType);
+    __spirv_ocl_printf(__unsupport_device_type, (int)__DeviceType);
     return shadow_ptr;
   }
 
@@ -259,7 +261,7 @@ static void __asan_internal_report_save(
 
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
-  if (atomicCompareAndSet(&__DeviceSanitizerReportMem.Flag, Desired,
+  if (atomicCompareAndSet(&__DeviceSanitizerReportMem.get().Flag, Desired,
                           Expected) == Expected) {
 
     int FileLength = 0;
@@ -272,8 +274,8 @@ static void __asan_internal_report_save(
       for (auto *C = func; *C != '\0'; ++C, ++FuncLength)
         ;
 
-    int MaxFileIdx = sizeof(__DeviceSanitizerReportMem.File) - 1;
-    int MaxFuncIdx = sizeof(__DeviceSanitizerReportMem.Func) - 1;
+    int MaxFileIdx = sizeof(__DeviceSanitizerReportMem.get().File) - 1;
+    int MaxFuncIdx = sizeof(__DeviceSanitizerReportMem.get().Func) - 1;
 
     if (FileLength < MaxFileIdx)
       MaxFileIdx = FileLength;
@@ -281,29 +283,29 @@ static void __asan_internal_report_save(
       MaxFuncIdx = FuncLength;
 
     for (int Idx = 0; Idx < MaxFileIdx; ++Idx)
-      __DeviceSanitizerReportMem.File[Idx] = file[Idx];
-    __DeviceSanitizerReportMem.File[MaxFileIdx] = '\0';
+      __DeviceSanitizerReportMem.get().File[Idx] = file[Idx];
+    __DeviceSanitizerReportMem.get().File[MaxFileIdx] = '\0';
 
     for (int Idx = 0; Idx < MaxFuncIdx; ++Idx)
-      __DeviceSanitizerReportMem.Func[Idx] = func[Idx];
-    __DeviceSanitizerReportMem.Func[MaxFuncIdx] = '\0';
+      __DeviceSanitizerReportMem.get().Func[Idx] = func[Idx];
+    __DeviceSanitizerReportMem.get().Func[MaxFuncIdx] = '\0';
 
-    __DeviceSanitizerReportMem.Line = line;
-    __DeviceSanitizerReportMem.GID0 = __spirv_GlobalInvocationId_x();
-    __DeviceSanitizerReportMem.GID1 = __spirv_GlobalInvocationId_y();
-    __DeviceSanitizerReportMem.GID2 = __spirv_GlobalInvocationId_z();
-    __DeviceSanitizerReportMem.LID0 = __spirv_LocalInvocationId_x();
-    __DeviceSanitizerReportMem.LID1 = __spirv_LocalInvocationId_y();
-    __DeviceSanitizerReportMem.LID2 = __spirv_LocalInvocationId_z();
+    __DeviceSanitizerReportMem.get().Line = line;
+    __DeviceSanitizerReportMem.get().GID0 = __spirv_GlobalInvocationId_x();
+    __DeviceSanitizerReportMem.get().GID1 = __spirv_GlobalInvocationId_y();
+    __DeviceSanitizerReportMem.get().GID2 = __spirv_GlobalInvocationId_z();
+    __DeviceSanitizerReportMem.get().LID0 = __spirv_LocalInvocationId_x();
+    __DeviceSanitizerReportMem.get().LID1 = __spirv_LocalInvocationId_y();
+    __DeviceSanitizerReportMem.get().LID2 = __spirv_LocalInvocationId_z();
 
-    __DeviceSanitizerReportMem.IsWrite = is_write;
-    __DeviceSanitizerReportMem.AccessSize = access_size;
-    __DeviceSanitizerReportMem.ErrorType = error_type;
-    __DeviceSanitizerReportMem.MemoryType = memory_type;
-    __DeviceSanitizerReportMem.IsRecover = is_recover;
+    __DeviceSanitizerReportMem.get().IsWrite = is_write;
+    __DeviceSanitizerReportMem.get().AccessSize = access_size;
+    __DeviceSanitizerReportMem.get().ErrorType = error_type;
+    __DeviceSanitizerReportMem.get().MemoryType = memory_type;
+    __DeviceSanitizerReportMem.get().IsRecover = is_recover;
 
     // Show we've done copying
-    atomicStore(&__DeviceSanitizerReportMem.Flag, ASAN_REPORT_FINISH);
+    atomicStore(&__DeviceSanitizerReportMem.get().Flag, ASAN_REPORT_FINISH);
   }
 }
 

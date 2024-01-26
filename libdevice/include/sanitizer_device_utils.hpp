@@ -13,19 +13,36 @@
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header
 
-#ifdef __SPIR__
+template <typename T>
+class
 #ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
+      __sycl_detail__::add_ir_attributes_global_variable(
+          "sycl-device-global-size", "sycl-device-image-scope", 8, nullptr)]]
+#endif
+    DeviceGlobal {
+public:
+  DeviceGlobal() = default;
+  DeviceGlobal(const DeviceGlobal &) = delete;
+  DeviceGlobal(const DeviceGlobal &&) = delete;
+  DeviceGlobal &operator=(const DeviceGlobal &) = delete;
+  DeviceGlobal &operator=(const DeviceGlobal &&) = delete;
 
-// declaration
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryGlobalStart;
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryGlobalEnd;
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryLocalStart;
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryLocalEnd;
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryPrivateStart;
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uintptr_t __AsanShadowMemoryPrivateEnd;
+  DeviceGlobal &operator=(const T newValue) noexcept {
+    val = newValue;
+    return *this;
+  }
+
+  operator T &() noexcept { return val; }
+
+  operator const T &() const noexcept { return val; }
+
+  T &get() noexcept { return val; }
+
+  const T &get() const noexcept { return val; }
+
+private:
+  T val;
+};
 
 enum DeviceType : uintptr_t { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ DeviceType __DeviceType;
-
-#endif
-#endif

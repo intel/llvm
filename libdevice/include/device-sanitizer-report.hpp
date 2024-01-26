@@ -12,8 +12,6 @@
 
 #include <cinttypes>
 
-#ifdef __SPIR__
-
 enum class DeviceSanitizerErrorType : int32_t {
   UNKNOWN,
   OUT_OF_BOUND,
@@ -58,19 +56,3 @@ struct DeviceSanitizerReport {
   bool IsRecover = false;
 };
 
-#ifndef SPIR_GLOBAL_VAR
-#ifdef __SYCL_DEVICE_ONLY__
-#define SPIR_GLOBAL_VAR __attribute__((sycl_global_var))
-#else
-#warning "SPIR_GLOBAL_VAR not defined in host mode. Defining as empty macro."
-#define SPIR_GLOBAL_VAR
-#endif
-#endif
-
-#define __SYCL_GLOBAL__ __attribute__((opencl_global))
-
-// declaration
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ DeviceSanitizerReport
-    __DeviceSanitizerReportMem;
-
-#endif
