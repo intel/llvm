@@ -45,8 +45,6 @@ public:
     return *this;
   }
   string &operator=(const string &strn) {
-    delete[] str;
-    str = nullptr;
     allocate(strlen(strn.str) + 1);
     strcpy(str, strn.str);
     return *this;
