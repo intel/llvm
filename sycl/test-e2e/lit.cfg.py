@@ -686,3 +686,5 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
+
+config.substitutions.append( ('%device_sanitizer_flags', "-Xsycl-target-frontend -fsanitize=address") )
