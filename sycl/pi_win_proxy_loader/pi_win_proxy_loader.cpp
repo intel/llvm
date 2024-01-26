@@ -180,7 +180,6 @@ __declspec(dllexport) void *getPreloadedPlugin(
     match =
         std::find_if(dllMap.begin(), dllMap.end(),
                      [&](const std::pair<std::filesystem::path, void *> &v) {
-                       std::error_code ec;
                        return v.first.filename() == PluginPath.filename();
                      });
   }
