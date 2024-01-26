@@ -444,7 +444,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      // The RegisterAllocMode metadata only supports these cases.
+      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+      // PropVal.
       if (PropVal != 0 && PropVal != 128 && PropVal != 256)
         return std::nullopt;
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
