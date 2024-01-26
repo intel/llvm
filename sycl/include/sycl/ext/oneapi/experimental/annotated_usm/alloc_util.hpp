@@ -106,8 +106,8 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
                     is_valid_property<T *, Prop>::value,
                 "Found invalid compile-time property in the property list.");
   // check if a runtime property is valid for malloc
-  static_assert(!detail::IsRuntimeProperty<Prop>::value ||
-                    IsRuntimePropertyValid<Prop>::value,
+  static_assert(!detail::IsRuntimePropertyValue<Prop>::value ||
+                    IsRuntimePropertyValid<typename Prop::key_t>::value,
                 "Found invalid runtime property in the property list.");
 };
 

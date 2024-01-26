@@ -26,12 +26,19 @@ inline constexpr cache_config_enum large_slm =
 inline constexpr cache_config_enum large_data =
     cache_config_enum::large_data;
 
-struct cache_config {
-  cache_config(cache_config_enum v) : value(v) {}
-  cache_config_enum value;
+struct cache_config_key {
+  using value_t = oneapi::experimental::property_value<cache_config_key>;
 };
-
-using cache_config_key = cache_config;
+using cache_config = cache_config_key::value_t;
+} // namespace ext::intel::experimental
+namespace ext::oneapi::experimental {
+template <> struct property_value<intel::experimental::cache_config_key> {
+  using key_t = intel::experimental::cache_config_key;
+  property_value(intel::experimental::cache_config_enum v) : value(v) {}
+  intel::experimental::cache_config_enum value;
+};
+} // namespace ext::oneapi::experimental
+namespace ext::intel::experimental {
 
 inline bool operator==(const cache_config &lhs,
                        const cache_config &rhs) {

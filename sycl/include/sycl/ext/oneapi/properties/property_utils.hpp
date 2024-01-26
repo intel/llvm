@@ -62,6 +62,8 @@ struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
 template <typename PropertyT>
 struct IsCompileTimePropertyValue : std::false_type {};
 
+template <typename PropertyT>
+struct IsRuntimePropertyValue : std::false_type {};
 // Checks if a type is either a runtime property or if it is a compile-time
 // property
 template <typename T> struct IsProperty {
@@ -73,7 +75,7 @@ template <typename T> struct IsProperty {
 // property_value with a valid compile-time property
 template <typename T> struct IsPropertyValue {
   static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
+      IsRuntimePropertyValue<T>::value || IsCompileTimePropertyValue<T>::value;
 };
 
 // Checks that all types in a tuple are valid properties.

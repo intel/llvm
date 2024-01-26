@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <sycl/sycl.hpp>
+
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -30,8 +32,13 @@ struct boo_key {
   template <typename... Ts> using value_t = property_value<boo_key, Ts...>;
 };
 
-struct foo {
-  constexpr foo(int v) : value(v) {}
+struct foo_key {
+  using value_t = property_value<foo_key>;
+};
+using foo = property_value<foo_key>;
+template <> struct property_value<foo_key> {
+  using key_t = foo_key;
+  constexpr property_value(int v) : value(v) {}
   int value;
 };
 
@@ -40,13 +47,15 @@ inline bool operator==(const foo &lhs, const foo &rhs) {
 }
 inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 
-struct foz {
-  constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
+struct foz_key {
+  using value_t = property_value<foz_key>;
+};
+using foz = property_value<foz_key>;
+template <> struct property_value<foz_key> {
+  using key_t = foz_key;
+  constexpr property_value(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
-  constexpr foz(const foz &f) {
-    value1 = f.value1;
-    value2 = f.value2;
-  }
+  constexpr property_value(const foz &f) : value1(f.value1), value2(f.value2) {}
   float value1;
   bool value2;
 };
@@ -56,11 +65,16 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 }
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
-struct fir {
+struct fir_key {
+  using value_t = property_value<fir_key>;
+};
+using fir = property_value<fir_key>;
+template <> struct property_value<fir_key> {
+  using key_t = fir_key;
   // Intentionally not constexpr to test for properties that cannot be constexpr
-  fir(float v1, bool v2) : value1(v1), value2(v2) {}
+  property_value(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
-  fir(const foz &f) {
+  property_value(const foz &f) {
     value1 = f.value1;
     value2 = f.value2;
   }
@@ -76,10 +90,6 @@ inline bool operator!=(const fir &lhs, const fir &rhs) { return !(lhs == rhs); }
 inline constexpr bar_key::value_t bar;
 template <int K> inline constexpr baz_key::value_t<K> baz;
 template <typename... Ts> inline constexpr boo_key::value_t<Ts...> boo;
-
-using foo_key = foo;
-using foz_key = foz;
-using fir_key = fir;
 
 template <> struct is_property_key<bar_key> : std::true_type {};
 template <> struct is_property_key<baz_key> : std::true_type {};
