@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2024 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -102,7 +102,7 @@ name: "$x_kernel_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of a queue object"
-class: $xPlatform
+class: $xQueue
 name: "$x_queue_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
