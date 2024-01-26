@@ -103,7 +103,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
   assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
 }
 
-// Avoid same kernel name for different Sg sizes
+// Avoid same kernel name for different types
 template <typename T, class name> class ewops_a {};
 template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
 void test_ewops_a() {
@@ -135,7 +135,7 @@ void test_ewops_a() {
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
-// Avoid same kernel name for different Sg sizes
+// Avoid same kernel name for different types and numbers of columns
 template <typename T, size_t COLS, class name> class ewops_c {};
 template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
 void test_ewops_c() {
@@ -171,18 +171,17 @@ void test_ewops_c() {
 
 int main() {
   static constexpr size_t TM = 8;
-  static constexpr size_t TK = 16;
 
   static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = /*TN*/ 16 * 2;
-  static constexpr size_t MATRIX_K = TK * 2;
+  static constexpr size_t MATRIX_N = 32;
+  static constexpr size_t MATRIX_K = 32;
   queue q;
   std::vector<combination> combinations =
       q.get_device()
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
   if (unsigned int i = get_combination_index(q, matrix_type::bf16) != -1) {
-    test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
+    test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
     if (combinations[i].nsize == 0 || combinations[i].nsize == 16)
       test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
     else
