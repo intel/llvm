@@ -448,6 +448,8 @@ event handler::finalize() {
     if (!MSubgraphNode) {
       event GraphCompletionEvent =
           MExecGraph->enqueue(MQueue, std::move(CGData));
+      sycl::detail::getSyclObjImpl(GraphCompletionEvent)
+          ->setExecGraph(MExecGraph);
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }

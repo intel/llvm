@@ -96,7 +96,8 @@ event::get_profiling_info() const {
 
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
-event::get_profiling_info(ext::oneapi::experimental::node Node) const {
+event::ext_oneapi_get_profiling_info(
+    ext::oneapi::experimental::node Node) const {
   if (impl->getCommandGraph()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Profiling information is unavailable for events "
@@ -126,9 +127,11 @@ event::get_profiling_info(ext::oneapi::experimental::node Node) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, param_type, ReturnT, PiCode)  \
+#define __SYCL_PARAM_TRAITS_SPEC_PARAMT(DescType, Desc, ParamType, ReturnT,    \
+                                        PiCode)                                \
   template __SYCL_EXPORT ReturnT                                               \
-      event::get_profiling_info<info::DescType::Desc>(param_type) const;
+      event::ext_oneapi_get_profiling_info<info::DescType::Desc>(ParamType)    \
+          const;
 
 #include <sycl/info/ext_oneapi_graph_node_profiling_traits.def>
 

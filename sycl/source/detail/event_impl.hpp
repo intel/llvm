@@ -300,16 +300,17 @@ public:
     return MGraph.lock();
   }
 
-  void setEventFromSubmittedExecCommandBuffer(
-      bool value, ext::oneapi::experimental::detail::exec_graph_impl *Graph) {
-    std::cout << "setEventFromSubmittedExecCommandBuffer " << value
-              << std::endl;
-    MEventFromSubmittedExecCommandBuffer = value;
-    MExecGraph = Graph;
+  void setEventFromSubmittedExecGraph(bool value) {
+    MEventFromSubmittedExecGraph = value;
   }
 
-  bool isEventFromSubmittedExecCommandBuffer() const {
-    return MEventFromSubmittedExecCommandBuffer;
+  void setExecGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl> Ptr) {
+    MExecGraph = Ptr;
+  }
+
+  bool isEventFromSubmittedExecGraph() const {
+    return MEventFromSubmittedExecGraph;
   }
 
 protected:
@@ -363,9 +364,9 @@ protected:
   /// This event is also be stored in the graph so a weak_ptr is used.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// Indicates that the event results from a command graph submission.
-  bool MEventFromSubmittedExecCommandBuffer = false;
+  bool MEventFromSubmittedExecGraph = false;
   /// Store the executable command graph associated with this event, if any.
-  ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph = nullptr;
+  std::weak_ptr<ext::oneapi::experimental::detail::exec_graph_impl> MExecGraph;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is

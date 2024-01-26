@@ -19,14 +19,12 @@
 #endif
 
 bool verifyProfiling(event &Event, exp_ext::node &Node) {
-  auto Submit =
-      Event.get_profiling_info<sycl::info::event_profiling::command_submit>(
-          Node);
-  auto Start =
-      Event.get_profiling_info<sycl::info::event_profiling::command_start>(
-          Node);
-  auto End =
-      Event.get_profiling_info<sycl::info::event_profiling::command_end>(Node);
+  auto Submit = Event.ext_oneapi_get_profiling_info<
+      sycl::info::event_profiling::command_submit>(Node);
+  auto Start = Event.ext_oneapi_get_profiling_info<
+      sycl::info::event_profiling::command_start>(Node);
+  auto End = Event.ext_oneapi_get_profiling_info<
+      sycl::info::event_profiling::command_end>(Node);
 
 #if GRAPH_TESTS_VERBOSE_PRINT
   std::cout << "Submit = " << Submit << std::endl;
@@ -182,17 +180,12 @@ int main() {
             .get_profiling_info<sycl::info::event_profiling::command_end>();
 
     assert(verifyProfiling(CopyEvent, NodeCopy));
-    auto NodeCopySubmit =
-        CopyEvent
-            .get_profiling_info<sycl::info::event_profiling::command_submit>(
-                NodeCopy);
-    auto NodeCopyStart =
-        CopyEvent
-            .get_profiling_info<sycl::info::event_profiling::command_start>(
-                NodeCopy);
-    auto NodeCopyEnd =
-        CopyEvent.get_profiling_info<sycl::info::event_profiling::command_end>(
-            NodeCopy);
+    auto NodeCopySubmit = CopyEvent.ext_oneapi_get_profiling_info<
+        sycl::info::event_profiling::command_submit>(NodeCopy);
+    auto NodeCopyStart = CopyEvent.ext_oneapi_get_profiling_info<
+        sycl::info::event_profiling::command_start>(NodeCopy);
+    auto NodeCopyEnd = CopyEvent.ext_oneapi_get_profiling_info<
+        sycl::info::event_profiling::command_end>(NodeCopy);
 
     assert((CopySubmit == NodeCopySubmit) && "Copy submit times differ");
     assert((CopyStart == NodeCopyStart) && "Copy start times differ");
@@ -218,18 +211,12 @@ int main() {
 
       assert(verifyProfiling(KernelEvent1, Nodes[i]));
 
-      NodeSubmit[i] =
-          KernelEvent1
-              .get_profiling_info<sycl::info::event_profiling::command_submit>(
-                  Nodes[i]);
-      NodeStart[i] =
-          KernelEvent1
-              .get_profiling_info<sycl::info::event_profiling::command_start>(
-                  Nodes[i]);
-      NodeEnd[i] =
-          KernelEvent1
-              .get_profiling_info<sycl::info::event_profiling::command_end>(
-                  Nodes[i]);
+      NodeSubmit[i] = KernelEvent1.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_submit>(Nodes[i]);
+      NodeStart[i] = KernelEvent1.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_start>(Nodes[i]);
+      NodeEnd[i] = KernelEvent1.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_end>(Nodes[i]);
 
       GlobalRuntime += (NodeEnd[i] - NodeStart[i]);
     }
@@ -289,18 +276,12 @@ int main() {
 
       assert(verifyProfiling(KernelEvent2, Nodes[i]));
 
-      NodeSubmit2[i] =
-          KernelEvent2
-              .get_profiling_info<sycl::info::event_profiling::command_submit>(
-                  Nodes[i]);
-      NodeStart2[i] =
-          KernelEvent2
-              .get_profiling_info<sycl::info::event_profiling::command_start>(
-                  Nodes[i]);
-      NodeEnd2[i] =
-          KernelEvent2
-              .get_profiling_info<sycl::info::event_profiling::command_end>(
-                  Nodes[i]);
+      NodeSubmit2[i] = KernelEvent2.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_submit>(Nodes[i]);
+      NodeStart2[i] = KernelEvent2.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_start>(Nodes[i]);
+      NodeEnd2[i] = KernelEvent2.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_end>(Nodes[i]);
 
       GlobalRuntime2 += (NodeEnd2[i] - NodeStart2[i]);
     }

@@ -131,7 +131,7 @@ public:
   typename detail::is_event_profiling_info_desc<Param>::return_type
   get_profiling_info() const;
 
-  /// Queries the proliling information of a SYCL Graph node for the graph
+  /// Queries the profiling information of a SYCL Graph node for the graph
   /// execution associated with this SYCL event.
   ///
   /// If this SYCL event is not associated to a graph execution, an
@@ -148,7 +148,7 @@ public:
   /// \return depends on template parameter.
   template <typename Param>
   typename detail::is_event_profiling_info_desc<Param>::return_type
-  get_profiling_info(ext::oneapi::experimental::node Node) const;
+  ext_oneapi_get_profiling_info(ext::oneapi::experimental::node Node) const;
 
   /// Returns the backend associated with this platform.
   ///

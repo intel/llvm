@@ -1011,14 +1011,16 @@ public:
   /// Returns the SyncPoint associated to the node passed in parameter for this
   /// exec graph.
   /// @param Node shared pointer to the node to look for.
-  /// @return the associated SyncPoint if it exists.
+  /// @return the associated SyncPoint if it exists. It throws an exception if
+  /// the node was not found.
   sycl::detail::pi::PiExtSyncPoint
   getSyncPointFromNode(std::shared_ptr<node_impl> Node) const {
     auto SyncPoint = MPiSyncPoints.find(Node);
-    if (SyncPoint != MPiSyncPoints.end()) {
-      return SyncPoint->second;
+    if (SyncPoint == MPiSyncPoints.end()) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "The node was not found in this exec graph. ");
     }
-    return -1;
+    return SyncPoint->second;
   }
 
 private:

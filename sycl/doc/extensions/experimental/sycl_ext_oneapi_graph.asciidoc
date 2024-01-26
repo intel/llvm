@@ -430,8 +430,7 @@ public:
 class event {
 public:
   template <typename Param>
-  typename detail::is_event_profiling_info_desc<Param>::return_type
-  get_profiling_info(ext::oneapi::experimental::node Node) const;
+  typename Param::return_type ext_oneapi_get_profiling_info(ext::oneapi::experimental::node Node) const;
 }
 
 }  // namespace sycl
@@ -1126,11 +1125,10 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::event` c
 [source,c++]
 ----
 template <typename Param>
-typename detail::is_event_profiling_info_desc<Param>::return_type
-event::get_profiling_info(ext::oneapi::experimental::node Node) const;
+typename Param::return_type event::ext_oneapi_get_profiling_info(ext::oneapi::experimental::node Node) const;
 ----
 
-| Queries the proliling information of a SYCL Graph node for the graph
+| Queries the profiling information of a SYCL Graph node for the graph
   execution associated with this SYCL event. If the requested info is
   not available when this member function is called due to incompletion of
   command groups associated with the event, then the call to this member
@@ -1138,14 +1136,17 @@ event::get_profiling_info(ext::oneapi::experimental::node Node) const;
 
 Parameters:
 
-* `Node` - handle to the node for which the profiling information is queried.
+* `Node` - Handle to the node for which the profiling information is queried.
 
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this SYCL event is not
-  associated to a graph execution ; or if the queue
-  which submitted the command group this event is associated with was not
-  constructed with the property::queue::enable_profiling property
+  associated to a graph execution.
+* Throws synchronously with error code `invalid` if the queue on which 
+  the graph is submitted was not constructed with 
+  the property::queue::enable_profiling property.
+* Throws synchronously with error code `invalid` if `Node` is not associated 
+  to the graph that was executed by event.
 
 |===
 

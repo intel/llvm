@@ -38,10 +38,12 @@ int main() {
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
     // Add host_task to create a second partition.
-    auto HostNode = add_node(
-        KernelGraph, Queue, [&](handler &CGH) { CGH.host_task([=]() {}); });
+    auto HostNode = add_node(KernelGraph, Queue,
+                             [&](handler &CGH) { CGH.host_task([=]() {}); });
 
     auto Nodes = add_kernels(KernelGraph, Size, BufferA, BufferB, BufferC);
+
+    KernelGraph.make_edge(HostNode, Nodes[0]);
 
     auto KernelGraphExec = KernelGraph.finalize();
 
@@ -83,10 +85,8 @@ int main() {
     // get Submit timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeSubmit =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_submit>(
-                  Nodes[0]);
+      auto NodeSubmit = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_submit>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }
@@ -94,10 +94,8 @@ int main() {
     // get Start timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeStart =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_start>(
-                  Nodes[0]);
+      auto NodeStart = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_start>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }
@@ -105,10 +103,53 @@ int main() {
     // get End timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeEnd =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_end>(
-                  Nodes[0]);
+      auto NodeEnd = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_end>(Nodes[0]);
+    } catch (sycl::exception &Exception) {
+      ExceptionCode = Exception.code();
+    }
+    assert(ExceptionCode == sycl::errc::invalid);
+
+    exp_ext::command_graph SecondGraph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
+
+    // Add nodes
+    auto SecondGraphNodes =
+        add_kernels(SecondGraph, Size, BufferA, BufferB, BufferC);
+
+    auto SecondGraphExec = SecondGraph.finalize();
+
+    // Run graphs
+    auto SecondGraphEvent = Queue.submit(
+        [&](handler &CGH) { CGH.ext_oneapi_graph(SecondGraphExec); });
+    Queue.wait_and_throw();
+
+    // Query profiling of a node that do not belong to the executed graph.
+    // get Submit timestamp should NOT work
+    ExceptionCode = make_error_code(sycl::errc::success);
+    try {
+      auto NodeSubmit = SecondGraphEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_submit>(Nodes[0]);
+    } catch (sycl::exception &Exception) {
+      ExceptionCode = Exception.code();
+    }
+    assert(ExceptionCode == sycl::errc::invalid);
+    // get Start timestamp should NOT work
+    ExceptionCode = make_error_code(sycl::errc::success);
+    try {
+      auto NodeStart = SecondGraphEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_start>(Nodes[0]);
+    } catch (sycl::exception &Exception) {
+      ExceptionCode = Exception.code();
+    }
+    assert(ExceptionCode == sycl::errc::invalid);
+    // get End timestamp should NOT work
+    ExceptionCode = make_error_code(sycl::errc::success);
+    try {
+      auto NodeEnd = SecondGraphEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_end>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }

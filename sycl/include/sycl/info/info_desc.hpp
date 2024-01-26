@@ -36,6 +36,11 @@ namespace info {
   struct Desc {                                                                \
     using return_type = ReturnT;                                               \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_PARAMT(DescType, Desc, ParamType, ReturnT,    \
+                                        PiCode)                                \
+  struct Desc {                                                                \
+    using return_type = ReturnT;                                               \
+  };
 // A.1 Platform information desctiptors
 namespace platform {
 // TODO Despite giving this deprecation warning, we're still yet to implement
@@ -155,7 +160,11 @@ namespace event {
 namespace event_profiling {
 #include <sycl/info/event_profiling_traits.def>
 } // namespace event_profiling
+namespace ext_oneapi_event_profiling {
+#include <sycl/info/ext_oneapi_graph_node_profiling_traits.def>
+} // namespace ext_oneapi_event_profiling
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_PARAMT
 
 // Provide an alias to the return type for each of the info parameters
 template <typename T, T param> class param_traits {};

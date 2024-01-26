@@ -57,10 +57,8 @@ int main() {
     // get Submit timestamp should NOT work for backend other than level-zero
     std::error_code ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeSubmit =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_submit>(
-                  Nodes[0]);
+      auto NodeSubmit = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_submit>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }
@@ -68,10 +66,8 @@ int main() {
     // get Start timestamp should NOT work for backend other than level-zero
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeStart =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_start>(
-                  Nodes[0]);
+      auto NodeStart = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_start>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }
@@ -79,10 +75,8 @@ int main() {
     // get End timestamp should NOT work for backend other than level-zero
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeEnd =
-          KernelEvent
-              .get_profiling_info<sycl::info::event_profiling::command_end>(
-                  Nodes[0]);
+      auto NodeEnd = KernelEvent.ext_oneapi_get_profiling_info<
+          sycl::info::event_profiling::command_end>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
     }
