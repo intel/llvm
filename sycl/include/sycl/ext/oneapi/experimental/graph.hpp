@@ -342,6 +342,9 @@ private:
   /// @param Impl Detail implementation class to construct object with.
   command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : modifiable_command_graph(Impl) {}
+
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 template <>
