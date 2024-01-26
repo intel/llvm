@@ -8,7 +8,7 @@ jobs:
   close-issues:
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/stale@v7
+    - uses: actions/stale@v9
       with:
         stale-issue-message: 'This issue is stale because it has been open 180 days with no activity. Remove stale label or comment or this will be automatically closed in 30 days.'
         close-issue-message: 'This issue was closed because it has been stalled for 30 days with no activity. Please, re-open if the issue still exists.'
