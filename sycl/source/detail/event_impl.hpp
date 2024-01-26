@@ -102,7 +102,7 @@ public:
   /// \return depends on template parameter.
   template <typename Param> typename Param::return_type get_profiling_info();
 
-  /// Queries the proliling information of a SYCL Graph node for the graph
+  /// Queries the profiling information of a SYCL Graph node for the graph
   /// execution associated with this event.
   ///
   /// If the requested info is not available when this member function is
@@ -300,8 +300,8 @@ public:
     return MGraph.lock();
   }
 
-  void setEventFromSubmittedExecGraph(bool value) {
-    MEventFromSubmittedExecGraph = value;
+  void setEventFromSubmittedExecGraph(bool Value) {
+    MEventFromSubmittedExecGraph = Value;
   }
 
   void setExecGraph(

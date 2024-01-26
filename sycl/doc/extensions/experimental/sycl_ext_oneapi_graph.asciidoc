@@ -430,7 +430,7 @@ public:
 class event {
 public:
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_profiling_info(ext::oneapi::experimental::node Node) const;
+  typename Param::return_type ext_oneapi_get_profiling_info(node Node) const;
 }
 
 }  // namespace sycl
@@ -1125,7 +1125,8 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::event` c
 [source,c++]
 ----
 template <typename Param>
-typename Param::return_type event::ext_oneapi_get_profiling_info(ext::oneapi::experimental::node Node) const;
+typename Param::return_type 
+event::ext_oneapi_get_profiling_info(node Node) const;
 ----
 
 | Queries the profiling information of a SYCL Graph node for the graph
@@ -1144,7 +1145,7 @@ Exceptions:
   associated to a graph execution.
 * Throws synchronously with error code `invalid` if the queue on which 
   the graph is submitted was not constructed with 
-  the property::queue::enable_profiling property.
+  the `property::queue::enable_profiling` property.
 * Throws synchronously with error code `invalid` if `Node` is not associated 
   to the graph that was executed by event.
 

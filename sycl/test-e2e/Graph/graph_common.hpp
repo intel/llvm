@@ -125,7 +125,7 @@ event run_kernels(queue Q, const size_t Size, buffer<T> BufferA,
 /// @param BufferB Second input/output to use in kernels.
 /// @param BufferC Third input/output to use in kernels.
 ///
-/// @return Exit node of the submission sequence.
+/// @return Vector containing the nodes of the submission sequence.
 template <typename T>
 std::vector<exp_ext::node>
 add_kernels(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,

@@ -48,14 +48,14 @@ int main() {
     auto KernelGraphExec = KernelGraph.finalize();
 
     // Run graphs
-    auto KernelEvent = Queue.submit(
+    auto GraphEvent = Queue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
     Queue.wait_and_throw();
 
     // get Submit timestamp should NOT work
     std::error_code ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto Submit = KernelEvent.get_profiling_info<
+      auto Submit = GraphEvent.get_profiling_info<
           sycl::info::event_profiling::command_submit>();
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
@@ -65,7 +65,7 @@ int main() {
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto Start =
-          KernelEvent
+          GraphEvent
               .get_profiling_info<sycl::info::event_profiling::command_start>();
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
@@ -75,7 +75,7 @@ int main() {
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto End =
-          KernelEvent
+          GraphEvent
               .get_profiling_info<sycl::info::event_profiling::command_end>();
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
@@ -85,7 +85,7 @@ int main() {
     // get Submit timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeSubmit = KernelEvent.ext_oneapi_get_profiling_info<
+      auto NodeSubmit = GraphEvent.ext_oneapi_get_profiling_info<
           sycl::info::event_profiling::command_submit>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
@@ -94,7 +94,7 @@ int main() {
     // get Start timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeStart = KernelEvent.ext_oneapi_get_profiling_info<
+      auto NodeStart = GraphEvent.ext_oneapi_get_profiling_info<
           sycl::info::event_profiling::command_start>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();
@@ -103,7 +103,7 @@ int main() {
     // get End timestamp should NOT work
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
-      auto NodeEnd = KernelEvent.ext_oneapi_get_profiling_info<
+      auto NodeEnd = GraphEvent.ext_oneapi_get_profiling_info<
           sycl::info::event_profiling::command_end>(Nodes[0]);
     } catch (sycl::exception &Exception) {
       ExceptionCode = Exception.code();

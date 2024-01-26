@@ -278,12 +278,16 @@ void event_impl::checkProfilingPreconditions() const {
         "Profiling information is unavailable as the queue associated with "
         "the event does not have the 'enable_profiling' property.");
   }
-  if (isEventFromSubmittedExecGraph() && (MExecGraph.lock()->getPartitions().size() > 1)) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "Profiling information is not available for "
-        "partitioned graph (i.e. graph that contains a host-task)." +
-            codeToString(PI_ERROR_INVALID_VALUE));
+  if (isEventFromSubmittedExecGraph()) {
+    if (auto ExecGraphSP = MExecGraph.lock()) {
+      if (ExecGraphSP->getPartitions().size() > 1) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::invalid),
+            "Profiling information is not available for "
+            "partitioned graph (i.e. graph that contains a host-task)." +
+                codeToString(PI_ERROR_INVALID_VALUE));
+      }
+    }
   }
 }
 
@@ -388,10 +392,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_submit>(
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   }
 
-  if (!MExecGraph.expired()) {
+  if (auto ExecGraphSP = MExecGraph.lock()) {
     // check if the node belongs to the graph.
     try {
-      MExecGraph.lock()->getSyncPointFromNode(NodeImpl);
+      ExecGraphSP->getSyncPointFromNode(NodeImpl);
     } catch (...) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::invalid),
