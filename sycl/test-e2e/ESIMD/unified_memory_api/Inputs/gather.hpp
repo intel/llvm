@@ -509,14 +509,14 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        uint32_t LocalElemOffset = LocalID * N;
 
        // Allocate a bit more to safely initialize it with 4-element chunks.
-       constexpr uint32_t SLMSize = (Threads * N + 4) * sizeof(T);
+       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
        slm_init<SLMSize>();
 
        if (LocalID == 0) {
-         for (int I = 0; I < Threads * N; I += 4) {
-           simd<T, 4> InVec(In + GlobalElemOffset + I);
-           properties props_align1{alignment<1>};
-           slm_block_store(I * sizeof(T), InVec, props_align1);
+         for (int I = 0; I < Threads * N; I += 8) {
+           simd<T, 8> InVec(In + GlobalElemOffset + I);
+           simd<uint32_t, 8> offsets(I * sizeof(T), sizeof(T));
+           slm_scatter<T>(offsets, InVec);
          }
        }
        barrier();
