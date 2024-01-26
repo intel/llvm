@@ -178,15 +178,12 @@ int main() {
       q.get_device()
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
-  for (int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].atype == matrix_type::bf16) {
-      test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
-      if (combinations[i].nsize == 0 || combinations[i].nsize == 16)
-        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
-      else
-        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 8>();
-      return 0;
-    }
+  if (unsigned int i = get_combination_index(q, matrix_type::bf16) != -1) {
+    test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
+    if (combinations[i].nsize == 0 || combinations[i].nsize == 16)
+      test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
+    else
+      test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 8>();
   }
   return 0;
 }

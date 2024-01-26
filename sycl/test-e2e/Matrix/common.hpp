@@ -181,17 +181,17 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   return true;
 }
 
-bool is_type_supported_by_device(queue q, matrix_type type) {
+unsigned int get_combination_index(queue q, matrix_type type) {
   std::vector<combination> combinations =
       q.get_device()
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
-  for (int i = 0; i < combinations.size(); i++) {
+  for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].atype == type) {
-      return true;
+      return i;
     }
   }
-  return false;
+  return -1;
 }
 
 template <typename KernelName> size_t get_sg_size(queue q) {
