@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: cpu, gpu
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
-// SG size = 32 is unsupported on DG2
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out

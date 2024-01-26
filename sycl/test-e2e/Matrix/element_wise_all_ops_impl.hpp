@@ -171,7 +171,7 @@ int main() {
   static constexpr size_t TK = 16;
 
   static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = 16 * 2;
+  static constexpr size_t MATRIX_N = /*TN*/ 16 * 2;
   static constexpr size_t MATRIX_K = TK * 2;
   queue q;
   std::vector<combination> combinations =
