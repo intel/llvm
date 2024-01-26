@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
-  # Merge: eddda123 2bd41d7b
+  # commit cdde49630db86e46936287a4ce34780d8d53f0aa
+  # Merge: 9b97a5f6 05c3b0dc
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 14:27:54 2024 +0000
-  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
-  #     [NATIVECPU] Empty implementation for command buffer fill
-  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
+  # Date:   Thu Jan 25 14:08:22 2024 +0000
+  #     Merge pull request #1277 from pbalcer/l0-coverity-fixes
+  #     [L0] fix coverity issues
+  set(UNIFIED_RUNTIME_TAG cdde49630db86e46936287a4ce34780d8d53f0aa)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
