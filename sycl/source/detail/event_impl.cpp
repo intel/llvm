@@ -76,14 +76,6 @@ void event_impl::waitInternal() {
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
-
-  if (MHostTaskNativeEvents.size()) {
-    auto Plugin = getPlugin();
-    for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {
-      Plugin->call<PiApiKind::piEventsWait>(1,
-                                            &HostTaskNativeEventImpl->MEvent);
-    }
-  }
 }
 
 void event_impl::setComplete() {
@@ -459,6 +451,8 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
                 MPreparedDepsEvents.end());
   Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
                 MPreparedHostDepsEvents.end());
+  Result.insert(Result.end(), MHostTaskNativeEvents.begin(),
+                MHostTaskNativeEvents.end());
 
   return Result;
 }

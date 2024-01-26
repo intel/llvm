@@ -295,6 +295,18 @@ public:
     return MPreparedDepsEvents;
   }
 
+  // This will return the MPreparedDepsEvents as well as any
+  // HostTaskNativeEvents that an EventImplPtr might hold
+  const std::vector<EventImplPtr> getAllPreparedDepsEvents() const {
+    std::vector<EventImplPtr> RetEvents = MPreparedDepsEvents;
+    for (auto &DepEvent : MPreparedHostDepsEvents)
+      if (DepEvent->hasHostTaskNativeEvents())
+        RetEvents.insert(RetEvents.end(),
+                         DepEvent->getHostTaskNativeEvents().begin(),
+                         DepEvent->getHostTaskNativeEvents().end());
+    return RetEvents;
+  }
+
   // XPTI instrumentation. Copy code location details to the internal struct.
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();

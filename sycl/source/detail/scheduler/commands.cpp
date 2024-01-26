@@ -1052,7 +1052,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1148,7 +1148,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -1215,7 +1215,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1336,7 +1336,7 @@ void MapMemObject::emitInstrumentationData() {
 
 pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1420,7 +1420,7 @@ bool UnMapMemObject::producesPiEvent() const {
 
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1528,7 +1528,7 @@ bool MemCpyCommand::producesPiEvent() const {
 
 pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1591,7 +1591,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 
 pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1683,7 +1683,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
 pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
@@ -1715,7 +1715,8 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 
 pi_int32 EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  auto DepEvents = getAllPreparedDepsEvents();
+  waitForEvents(MQueue, DepEvents, MEvent->getHandleRef());
 
   return PI_SUCCESS;
 }
@@ -2713,7 +2714,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   if (!RawEvents.empty()) {
@@ -2866,7 +2867,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents(); // Why is this not called if the current
                                  // command group is a HT?
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
