@@ -25,7 +25,6 @@ using u16 = unsigned short;
 #define ASAN_SHADOW_SCALE 3
 #define ASAN_SHADOW_GRANULARITY (1ULL << ASAN_SHADOW_SCALE)
 
-
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalStart;
 DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
 DeviceGlobal<uptr> __AsanShadowMemoryLocalStart;
@@ -48,8 +47,6 @@ __spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
 #endif
-
-
 
 // These magic values are written to shadow for better error
 // reporting.

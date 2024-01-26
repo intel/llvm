@@ -778,8 +778,6 @@ private:
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
   FunctionCallee AsanSetShadowDeviceLocalFunc;
   Constant *AsanShadowGlobal;
-  Constant *AsanShadowDeviceGlobal;
-  Constant *AsanShadowDeviceLocal;
   Constant *AsanShadowDevicePrivate;
   std::unordered_map<std::string, GlobalVariable *> GlobalStringMap;
 
@@ -1265,7 +1263,7 @@ static bool isUnsupportedSPIRAddrspace(Value *Addr, Function *Func) {
       return true;
     }
   } else {
-    // FIXME: Check kernel argments instead of value's name
+    // FIXME: Check kernel arguments instead of value's name
     auto Name = Addr->getName();
     if (Name == "_arg_NumWorkItems" || Name == "_arg_KernelFunc") {
       return true;
@@ -2947,21 +2945,6 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
                                            ArrayType::get(IRB.getInt8Ty(), 0));
 
   if (TargetTriple.isSPIR()) {
-    AsanShadowDeviceGlobal =
-        M.getOrInsertGlobal("__AsanShadowMemoryGlobalStart", IntptrTy, [&] {
-          return new GlobalVariable(M, IntptrTy, true,
-                                    GlobalVariable::ExternalLinkage, nullptr,
-                                    "__AsanShadowMemoryGlobalStart", nullptr,
-                                    GlobalVariable::NotThreadLocal, 1);
-        });
-
-    AsanShadowDeviceLocal =
-        M.getOrInsertGlobal("__AsanShadowMemoryLocalStart", IntptrTy, [&] {
-          return new GlobalVariable(M, IntptrTy, true,
-                                    GlobalVariable::ExternalLinkage, nullptr,
-                                    "__AsanShadowMemoryLocalStart", nullptr,
-                                    GlobalVariable::NotThreadLocal, 1);
-        });
     AsanShadowDevicePrivate =
         M.getOrInsertGlobal("__AsanShadowMemoryPrivateStart", IntptrTy, [&] {
           return new GlobalVariable(M, IntptrTy, true,

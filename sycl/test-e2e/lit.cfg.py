@@ -687,4 +687,6 @@ try:
 except ImportError:
     pass
 
-config.substitutions.append( ('%device_sanitizer_flags', "-Xsycl-target-frontend -fsanitize=address") )
+config.substitutions.append(
+    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
+)

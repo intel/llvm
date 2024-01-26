@@ -1,4 +1,5 @@
-//==-- device-sanitizer-report.hpp - Structure and declaration for assert support --==//
+//==-- device-sanitizer-report.hpp - Structure and declaration for assert
+// support --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -55,4 +56,3 @@ struct DeviceSanitizerReport {
 
   bool IsRecover = false;
 };
-
