@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cdde49630db86e46936287a4ce34780d8d53f0aa
-  # Merge: 9b97a5f6 05c3b0dc
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
+  # Merge: b66cf9b1 0e37380e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 25 14:08:22 2024 +0000
-  #     Merge pull request #1277 from pbalcer/l0-coverity-fixes
-  #     [L0] fix coverity issues
-  set(UNIFIED_RUNTIME_TAG cdde49630db86e46936287a4ce34780d8d53f0aa)
+  # Date:   Fri Jan 26 12:20:20 2024 +0000
+  #     Merge pull request #1205 from ykhatav/ur_dependentload
+  #     [UR] add dependent-load flag to exclude CWD from default search path …
+  set(UNIFIED_RUNTIME_TAG 51d7180c344bbc2f942533e5fc51b0b04871f8d5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
