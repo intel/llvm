@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
-  # Merge: eddda123 2bd41d7b
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
+  # Merge: b66cf9b1 0e37380e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 14:27:54 2024 +0000
-  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
-  #     [NATIVECPU] Empty implementation for command buffer fill
-  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
+  # Date:   Fri Jan 26 12:20:20 2024 +0000
+  #     Merge pull request #1205 from ykhatav/ur_dependentload
+  #     [UR] add dependent-load flag to exclude CWD from default search path …
+  set(UNIFIED_RUNTIME_TAG 51d7180c344bbc2f942533e5fc51b0b04871f8d5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
