@@ -56,13 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/ykhatav/my-fork-unified-runtime")
-  # commit 8d1486a607666763413fea3c70b74a3dd8f73c0d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Mon Dec 18 13:15:43 2023 +0000
-  #     Merge pull request #939 from steffenlarsen/steffen/virtual_mem_adapters
-  #     [UR][CUDA][L0][HIP] Add virtual memory adapter implementations
-  set(UNIFIED_RUNTIME_TAG 0e37380e7a180431fa968fe1826cc5bbf15a3a5a)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
+  # Merge: b66cf9b1 0e37380e
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Jan 26 12:20:20 2024 +0000
+  #     Merge pull request #1205 from ykhatav/ur_dependentload
+  #     [UR] add dependent-load flag to exclude CWD from default search path …
+  set(UNIFIED_RUNTIME_TAG 51d7180c344bbc2f942533e5fc51b0b04871f8d5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
