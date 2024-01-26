@@ -571,7 +571,9 @@ bool device_impl::has(aspect Aspect) const {
     // Check a macro to verify whether the extension that allows code to query
     // the architecture of the device is implemented.
 #ifndef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE
-    return false;
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
+        "SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE is not supported!");
 #else
     using arch = sycl::ext::oneapi::experimental::architecture;
     const std::vector<arch> supported_archs = {
@@ -583,11 +585,10 @@ bool device_impl::has(aspect Aspect) const {
             return const_cast<device_impl *>(this)->extOneapiArchitectureIs(a);
           });
     } catch (const sycl::exception &e) {
-      // The extension that allows code to query the architecture is implemented
-      // however the architecture of this specific device cannot be queried.
-      // Return false because the supported_archs form a subset of the
-      // architectures that can be queried.
-      return false;
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE is supported but the"
+          "architecture of this device cannot be queried!");
     }
 #endif
   }
