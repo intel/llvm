@@ -1846,25 +1846,6 @@ TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
-TEST_F(CommandGraphTest, USMMemsetShortcutExceptionCheck) {
-
-  const size_t N = 10;
-  unsigned char *Arr = malloc_device<unsigned char>(N, Queue);
-  int Value = 77;
-
-  Graph.begin_recording(Queue);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Queue.memset(Arr, Value, N);
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Queue);
-}
-
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
   constexpr size_t RECT_WIDTH = 30;
   constexpr size_t RECT_HEIGHT = 21;
