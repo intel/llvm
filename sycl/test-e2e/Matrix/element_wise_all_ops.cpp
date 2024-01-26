@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: cpu, gpu
-// Due to current bug in A750
+// Test is flaky/timeouts on some variants of DG2 and temporary disabled. Needs
+// to be investigated.
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
