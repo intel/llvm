@@ -328,10 +328,24 @@ public:
   }
 
   void addHostTaskNativeEvent(EventImplPtr Event) {
+    // We need to keep track of which native events refer to
+    // this one host task event, we do that so we can correctly
+    // return the vec of native events when calling get_native
     MHostTaskNativeEvents.push_back(Event);
+    // We also add to the PreparedDepsEvents so that we can do standard
+    // dependency analysis
+    MPreparedDepsEvents.push_back(Event);
   }
 
-  bool backendSet() const { return MHostTaskNativeEvents.size() > 0; }
+  bool hasHostTaskNativeEvents() const {
+    return MHostTaskNativeEvents.size() > 0;
+  }
+
+  bool backendSet() const { return hasHostTaskNativeEvents(); }
+
+  const std::vector<EventImplPtr> &getHostTaskNativeEvents() const {
+    return MHostTaskNativeEvents;
+  }
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 

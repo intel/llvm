@@ -67,8 +67,12 @@ void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
         /*OwnNativeHandle*/ true, &Ev);
     auto EventImpl = std::make_shared<detail::event_impl>(
         Ev, detail::createSyclObjFromImpl<context>(MContext));
-    // TODO: Do I need to call things like setContextImpl, setStateIncomplete,
-    // setSubmissionTime?
+    // TODO: Do I need to call things like:
+    // setContextImpl     -> No because we are constructing the EventImpl with
+    //                       a context
+    // setStateIncomplete -> Not sure
+    // setSubmissionTime  -> Not sure
+    // More...?
     MEvent->addHostTaskNativeEvent(EventImpl);
   }
 }
