@@ -132,6 +132,9 @@ public:
   ///        it's pointing to is then set according to the outcome.
   void waitInternal(bool *Success = nullptr);
 
+  /// Waits for the event with respect to device type.
+  void waitForHostTaskNativeEvents();
+
   /// Marks this event as completed.
   void setComplete();
 
