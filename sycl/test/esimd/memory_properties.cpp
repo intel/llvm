@@ -966,6 +966,8 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   simd<float, 32> pass_thru;
   auto pass_thru_view = pass_thru.select<32, 1>();
 
+  auto usm_view = usm.select<32, 1>();
+
   // Test USM and ACC gather using this plan:
   // 1) gather(usm, offsets): offsets is simd or simd_view
   // 2) gather(usm, offsets, mask): offsets is simd or simd_view
@@ -1148,4 +1150,44 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
                                  props_align4);
   acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
                                  pass_thru_view, props_align4);
+
+  // CHECK-COUNT-4: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32f32(<32 x i1> {{[^)]+}}, i32 0, <32 x i64> {{[^)]+}}, <32 x float> {{[^)]+}})
+  scatter(ptrf, ioffset_n32, usm, mask_n32);
+
+  scatter(ptrf, ioffset_n32, usm);
+
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(ptrf, ioffset_n32, usm, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v32i1.v32i64.v32i32(<32 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32, usm, props_cache_load);
+
+  scatter(ptrf, ioffset_n32_view, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32_view, usm, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, mask_n32, props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, props_cache_load);
+
+  // VS > 1
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, mask_n16, props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, props_cache_load);
 }
