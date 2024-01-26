@@ -515,7 +515,8 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        if (LocalID == 0) {
          for (int I = 0; I < Threads * N; I += 4) {
            simd<T, 4> InVec(In + GlobalElemOffset + I);
-           slm_block_store(I * sizeof(T), InVec);
+           properties props_align1{alignment<1>};
+           slm_block_store(I * sizeof(T), InVec, props_align1);
          }
        }
        barrier();
@@ -715,12 +716,10 @@ template <typename T, TestFeatures Features> bool testACC(queue Q) {
   bool Passed = true;
   Passed &= testACC<T, 1, 1, !UseMask, !UsePassThru, !UseProperties>(
       Q, 2, AlignElemProps);
-#ifdef __ESIMD_FORCE_STATELESS_MEM
   Passed &= testACC<T, 2, 1, UseMask, !UsePassThru, !UseProperties>(
       Q, 2, AlignElemProps);
   Passed &= testACC<T, 4, 1, UseMask, !UsePassThru, !UseProperties>(
       Q, 2, AlignElemProps);
-#endif // __ESIMD_FORCE_STATELESS_MEM
   Passed &= testACC<T, 8, 1, UseMask, !UsePassThru, !UseProperties>(
       Q, 3, AlignElemProps);
   Passed &= testACC<T, 16, 1, UseMask, !UsePassThru, UseProperties>(

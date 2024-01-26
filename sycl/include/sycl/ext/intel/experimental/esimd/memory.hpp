@@ -556,7 +556,8 @@ template <typename T, int NElts = 1,
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
                __ESIMD_NS::simd_mask<N> pred = 1) {
-  return __ESIMD_DNS::slm_gather_impl<T, NElts, DS>(offsets, pred);
+  __ESIMD_NS::simd<T, N * NElts> pass_thru;
+  return __ESIMD_DNS::slm_gather_impl<T, NElts, DS>(offsets, pred, pass_thru);
 }
 
 /// SLM gather.

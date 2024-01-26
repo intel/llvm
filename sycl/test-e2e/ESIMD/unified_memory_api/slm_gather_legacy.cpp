@@ -5,10 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// GPU driver had an error in handling of SLM aligned block_loads/stores,
-// which has been fixed only in "1.3.26816", and in win/opencl version going
-// _after_ 101.4575.
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
 // Use per-kernel compilation to have more information about failing cases.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

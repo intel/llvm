@@ -1214,8 +1214,7 @@ test_slm_gather_scatter(int byte_offset32) {
                               props_align8);
 
   // 4) slm_gather(...): same as (1), (2), (3) above, but with VS > 1.
-  // CHECK-COUNT-8: call <32 x i32> @llvm.genx.lsc.load.slm.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}})
-  // CHECK-COUNT-8: call <32 x i32> @llvm.genx.lsc.load.merge.slm.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  // CHECK-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.slm.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
   // 4a) check VS > 1. no 'mask' operand first.
   slm = slm_gather<float, 32, 2>(ioffset_n16);
   slm = slm_gather<float, 32, 2>(ioffset_n16_view);
