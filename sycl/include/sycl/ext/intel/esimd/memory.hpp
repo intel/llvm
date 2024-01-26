@@ -2636,8 +2636,8 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param pred is predicates.
 /// @param pass_thru values copied to the result when the corresponding
-/// element of \p pred is zero..
-/// @return is a vector of type T and size N * NElts
+/// element of \p pred is zero.
+/// @return is a vector of type T and size N * NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS, int N>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
@@ -3715,9 +3715,9 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
 
   if constexpr (VS > 1 || (!detail::isPowerOf2(N, 32) &&
                            !detail::isMaskedGatherScatterLLVMAvailable())) {
-    simd<T, N> pass_thru;
+    simd<T, N> PassThru; // Intentionally undefined
     return detail::slm_gather_impl<T, VS, detail::lsc_data_size::default_size>(
-        byte_offsets, mask, pass_thru);
+        byte_offsets, mask, PassThru);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
     using MsgT = detail::__raw_t<T>;
     simd<MsgT, N> PassThru; // it is intentionally undefined
