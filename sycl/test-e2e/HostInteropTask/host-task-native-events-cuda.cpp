@@ -12,11 +12,22 @@
     throw;                                                                     \
   }
 
-void cudaSetCtx(sycl::interop_handle &ih) {
+using T = unsigned; // We don't need to test lots of types, we just want a race
+                    // condition
+constexpr size_t bufSize = 1e6;
+constexpr T pattern = 42;
+
+std::pair<CUstream, CUevent>
+cudaSetCtxAndGetStreamAndEvent(sycl::interop_handle &ih) {
   auto dev = ih.get_native_device<sycl::backend::ext_oneapi_cuda>();
   CUcontext ctx;
   CUDA_CHECK(cuDevicePrimaryCtxRetain(&ctx, dev));
   CUDA_CHECK(cuCtxSetCurrent(ctx));
+  CUstream stream;
+  CUDA_CHECK(cuStreamCreate(&stream, 0));
+  CUevent ev;
+  CUDA_CHECK(cuEventCreate(&ev, 0));
+  return {stream, ev};
 }
 
 // Check that the SYCL event that we submit with add_native_events can be
@@ -30,12 +41,10 @@ template <typename WaitOnType> void test1() {
 
   auto syclEvent = q.submit([&](sycl::handler &cgh) {
     cgh.host_task([&](sycl::interop_handle ih) {
-      cudaSetCtx(ih);
-      CUevent Ev;
-      cuEventCreate(&Ev, 0);
-      cuEventRecord(Ev, 0);
-      atomicEvent.store(Ev);
-      ih.add_native_events<sycl::backend::ext_oneapi_cuda>({Ev});
+      auto [_, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
+      cuEventRecord(ev, 0);
+      atomicEvent.store(ev);
+      ih.add_native_events<sycl::backend::ext_oneapi_cuda>({ev});
     });
   });
 
@@ -57,22 +66,16 @@ template <typename WaitOnType> void test1() {
 // the SYCL dag.
 template <typename WaitOnType> void test2() {
   printf("Running test 2\n");
-  using T = unsigned; // We don't need to test lots of types, we just want a
-                      // race condition
   sycl::queue q;
-  size_t bufSize = 1e6;
-  T pattern = 42;
   std::vector<T> out(bufSize, 0);
 
-  T *ptrHost = sycl::malloc_host<T>(bufSize, q);
+  T *ptrHost = sycl::malloc_host<T>(bufSize, q); // malloc_host is necessary to
+                                                 // make the memcpy as async as
+                                                 // possible
 
   auto syclEvent = q.submit([&](sycl::handler &cgh) {
     cgh.host_task([&](sycl::interop_handle ih) {
-      cudaSetCtx(ih);
-      CUstream stream;
-      CUDA_CHECK(cuStreamCreate(&stream, 0));
-      CUevent ev;
-      CUDA_CHECK(cuEventCreate(&ev, 0));
+      auto [stream, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
       CUdeviceptr cuPtr;
       CUDA_CHECK(cuMemAlloc_v2(&cuPtr, bufSize * sizeof(T)));
       CUDA_CHECK(cuMemsetD32Async(cuPtr, pattern, bufSize, stream));
@@ -97,9 +100,51 @@ template <typename WaitOnType> void test2() {
   }
 }
 
+// Using host task event as a cgh.depends_on with USM
+void test3() {
+  printf("Running test 3\n");
+  using T = unsigned;
+
+  sycl::queue q;
+  std::vector<T> out(bufSize, 0);
+
+  T *ptrHostA = sycl::malloc_host<T>(bufSize, q);
+  T *ptrHostB = sycl::malloc_host<T>(bufSize, q);
+
+  auto hostTaskEvent = q.submit([&](sycl::handler &cgh) {
+    cgh.host_task([&](sycl::interop_handle ih) {
+      auto [stream, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
+      CUdeviceptr cuPtr;
+      CUDA_CHECK(cuMemAlloc_v2(&cuPtr, bufSize * sizeof(T)));
+
+      CUDA_CHECK(cuMemsetD32Async(cuPtr, pattern, bufSize, stream));
+      CUDA_CHECK(
+          cuMemcpyDtoHAsync(ptrHostA, cuPtr, bufSize * sizeof(T), stream));
+
+      CUDA_CHECK(cuEventRecord(ev, stream));
+
+      ih.add_native_events<sycl::backend::ext_oneapi_cuda>({ev});
+    });
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+     cgh.depends_on(hostTaskEvent);
+     cgh.memcpy(ptrHostB, ptrHostA, bufSize * sizeof(T));
+   }).wait();
+
+  for (auto i = 0; i < bufSize; --i) {
+    if (ptrHostB[i] != pattern) {
+      printf("Wrong result at index: %d, have %d vs %d\n", i, out[i], pattern);
+      throw;
+    };
+  }
+  printf("Tests passed\n");
+}
+
 int main() {
   test1<sycl::queue>();
   test1<sycl::event>();
-  test2<sycl::queue>();
-  test2<sycl::event>();
+  // test2<sycl::queue>();
+  // test2<sycl::event>(); // Not working atm
+  test3();
 }

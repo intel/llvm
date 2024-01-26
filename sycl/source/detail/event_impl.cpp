@@ -407,27 +407,20 @@ pi_native_handle event_impl::getNative() {
   }
   if (MContext->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  pi_native_handle Handle = 0;
+  if (auto HandleRef = getHandleRef())
+    Plugin->call<PiApiKind::piextEventGetNativeHandle>(HandleRef, &Handle);
   return Handle;
 }
 
 std::vector<pi_native_handle> event_impl::getNativeVector() {
-  if (!is_host())
-    return {getNative()};
+  // If there is a native event return that. This will also initialize context
+  if (auto nativeEvent = getNative())
+    return {nativeEvent};
 
-  ensureContextInitialized();
-
-  auto Plugin = getPlugin();
-  if (!MIsInitialized) {
-    MIsInitialized = true;
-    auto TempContext = MContext.get()->getHandleRef();
-    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
-  }
-  if (MContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  std::vector<pi_native_handle> HandleVec;
   // Return native events sumbitted via host task interop
+  auto Plugin = getPlugin();
+  std::vector<pi_native_handle> HandleVec;
   for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {
     pi_native_handle Handle;
     Plugin->call<PiApiKind::piextEventGetNativeHandle>(
