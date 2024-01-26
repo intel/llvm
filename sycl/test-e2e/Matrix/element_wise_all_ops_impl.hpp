@@ -103,65 +103,68 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
   assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
 }
 
+// Avoid same kernel name for different Sg sizes
+template <typename T, class name> class ewops_a {};
 template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
 void test_ewops_a() {
 
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_add>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_add>>(
       T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_sub>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_sub>>(
       T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_mul>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_mul>>(
       T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_div>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_div>>(
       T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_logical>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_logical>>(
       T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_eq>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_eq>>(
       T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_ne>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_ne>>(
       T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_gt>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_gt>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_lt>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_lt>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_ge>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_ge>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
-  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, class a_le>(
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_le>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
 // Avoid same kernel name for different Sg sizes
-template <size_t COLS, class name> class ewops_c {};
+template <typename T, size_t COLS, class name> class ewops_c {};
 template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
 void test_ewops_c() {
 
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_add>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_add>>(
       T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_sub>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_sub>>(
       T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_mul>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_mul>>(
       T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_div>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_div>>(
       T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_logical>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SCOLS, class c_logical>>(
       T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_eq>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_eq>>(
       T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_ne>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_ne>>(
       T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_gt>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_gt>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_lt>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_lt>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_ge>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_ge>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<SCOLS, class c_le>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_le>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
