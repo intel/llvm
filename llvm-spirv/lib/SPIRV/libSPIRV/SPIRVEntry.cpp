@@ -612,7 +612,7 @@ SPIRVEntryPoint::SPIRVEntryPoint(SPIRVModule *TheModule,
                                  SPIRVExecutionModelKind TheExecModel,
                                  SPIRVId TheId, const std::string &TheName,
                                  std::vector<SPIRVId> Variables)
-    : SPIRVAnnotation(TheModule->get<SPIRVFunction>(TheId),
+    : SPIRVAnnotation(OpEntryPoint, TheModule->get<SPIRVFunction>(TheId),
                       getSizeInWords(TheName) + Variables.size() + 3),
       ExecModel(TheExecModel), Name(TheName), Variables(Variables) {}
 
@@ -681,7 +681,8 @@ SPIRVForward *SPIRVAnnotationGeneric::getOrCreateTarget() const {
 }
 
 SPIRVName::SPIRVName(const SPIRVEntry *TheTarget, const std::string &TheStr)
-    : SPIRVAnnotation(TheTarget, getSizeInWords(TheStr) + 2), Str(TheStr) {}
+    : SPIRVAnnotation(OpName, TheTarget, getSizeInWords(TheStr) + 2),
+      Str(TheStr) {}
 
 void SPIRVName::encode(spv_ostream &O) const { getEncoder(O) << Target << Str; }
 

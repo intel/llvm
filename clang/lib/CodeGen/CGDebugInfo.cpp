@@ -1980,7 +1980,7 @@ llvm::DISubprogram *CGDebugInfo::CreateCXXMemberFunction(
   int ThisAdjustment = 0;
 
   if (VTableContextBase::hasVtableSlot(Method)) {
-    if (Method->isPure())
+    if (Method->isPureVirtual())
       SPFlags |= llvm::DISubprogram::SPFlagPureVirtual;
     else
       SPFlags |= llvm::DISubprogram::SPFlagVirtual;
@@ -6027,6 +6027,18 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
                                        const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
+    // Make an exception for typedefs in system header files.  Generate debug
+    // information for these decls because these are rare (thus they will not
+    // greatly increase debug size) and a user could rely on these typedefs
+    // during debugging. For example uid_t in in "sys/types.h" can be used in
+    // the gdb command:
+    //
+    //    print ruid == (uid_t)-1
+    //
+    // This occurs in GDB test gdb.reverse/getresuid-reverse.c
+    if (isa<TypedefDecl>(D))
+      return false;
+
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug)
       return true;

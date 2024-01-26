@@ -329,7 +329,7 @@ private:
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
-  std::string Name;
+  DynString Name;
 
   SYCLArgumentDescriptor Args;
 
@@ -339,13 +339,12 @@ struct SYCLKernelInfo {
 
   SYCLKernelBinaryInfo BinaryInfo;
 
-  SYCLKernelInfo(const std::string &KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
-                 const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+  SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
+                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
 
-  SYCLKernelInfo(const std::string &KernelName, size_t NumArgs)
+  SYCLKernelInfo(const char *KernelName, size_t NumArgs)
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
@@ -366,8 +365,9 @@ public:
 
   SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
     auto It =
-        std::find_if(Kernels.begin(), Kernels.end(),
-                     [&](SYCLKernelInfo &K) { return K.Name == KernelName; });
+        std::find_if(Kernels.begin(), Kernels.end(), [&](SYCLKernelInfo &K) {
+          return K.Name == KernelName.c_str();
+        });
     return (It != Kernels.end()) ? &*It : nullptr;
   }
 
