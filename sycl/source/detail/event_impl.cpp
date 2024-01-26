@@ -78,6 +78,13 @@ void event_impl::waitInternal() {
     Event->wait(Event);
 }
 
+void event_impl::waitForHostTaskNativeEvents() {
+  // This should only be called if we wait on a queue or a SYCL user
+  // event. It should not be called to managed device dependencies
+  for (const EventImplPtr &Event : MHostTaskNativeEvents)
+    Event->wait(Event);
+}
+
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
     {
@@ -250,6 +257,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
+
+  if (MHostTaskNativeEvents.size())
+    waitForHostTaskNativeEvents();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

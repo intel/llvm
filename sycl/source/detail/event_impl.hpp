@@ -111,6 +111,9 @@ public:
   /// Waits for the event with respect to device type.
   void waitInternal();
 
+  /// Waits for the event with respect to device type.
+  void waitForHostTaskNativeEvents();
+
   /// Marks this event as completed.
   void setComplete();
 

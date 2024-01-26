@@ -144,7 +144,7 @@ void test3() {
 int main() {
   test1<sycl::queue>();
   test1<sycl::event>();
-  // test2<sycl::queue>();
-  // test2<sycl::event>(); // Not working atm
+  test2<sycl::queue>();
+  test2<sycl::event>();
   test3();
 }
