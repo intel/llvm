@@ -577,7 +577,7 @@ bool device_impl::has(aspect Aspect) const {
           supported_archs.begin(), supported_archs.end(), [=](const arch a) {
             return const_cast<device_impl *>(this)->extOneapiArchitectureIs(a);
           });
-    } catch (const sycl::exception &e) {
+    } catch (const sycl::exception &) {
       // If we're here it means the device does not support architecture
       // querying
       return false;
