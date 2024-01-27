@@ -54,8 +54,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    // TODO: what should be the implementation on the host? nd_item can be used
-    // only in device code, so technically it's a dead code. Right?
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -87,6 +86,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -148,6 +148,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -162,6 +163,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -176,6 +178,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -191,6 +194,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
@@ -502,6 +506,7 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
 #else
+    assert(false && "nd_item methods can't be used on the host!");
     return {};
 #endif
   }
