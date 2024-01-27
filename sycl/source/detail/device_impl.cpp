@@ -568,15 +568,6 @@ bool device_impl::has(aspect Aspect) const {
            (this->getBackend() == backend::opencl);
   }
   case aspect::ext_intel_matrix: {
-#ifndef SYCL_EXT_INTEL_MATRIX
-    throw sycl::exception(sycl::errc::feature_not_supported,
-                          "SYCL_EXT_INTEL_MATRIX extension is not supported!");
-#else
-#ifndef SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE
-    throw sycl::exception(
-        sycl::errc::feature_not_supported,
-        "SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE extension is not supported!");
-#else
     using arch = sycl::ext::oneapi::experimental::architecture;
     const std::vector<arch> supported_archs = {
         arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
@@ -587,13 +578,10 @@ bool device_impl::has(aspect Aspect) const {
             return const_cast<device_impl *>(this)->extOneapiArchitectureIs(a);
           });
     } catch (const sycl::exception &e) {
-      throw sycl::exception(
-          sycl::errc::feature_not_supported,
-          "SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE extension is supported but the"
-          "architecture of this device cannot be queried!");
+      // If we're here it means the device does not support architecture
+      // querying
+      return false;
     }
-#endif
-#endif
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
