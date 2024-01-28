@@ -734,7 +734,7 @@ struct AddressSanitizer {
                                           StringRef Value,
                                           unsigned AddressSpace);
   void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
-                             SmallVector<Value *> &Args);
+                             SmallVectorImpl<Value *> &Args);
 
 private:
   friend struct FunctionStackPoisoner;
@@ -779,7 +779,7 @@ private:
   FunctionCallee AsanSetShadowDeviceLocalFunc;
   Constant *AsanShadowGlobal;
   Constant *AsanShadowDevicePrivate;
-  std::unordered_map<std::string, GlobalVariable *> GlobalStringMap;
+  StringMap<GlobalVariable *> GlobalStringMap;
 
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
@@ -1245,56 +1245,44 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static bool isUnsupportedSPIRAddrspace(Value *Addr, Function *Func) {
+static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  if (PtrTy->getPointerAddressSpace() != 0) {
-    // Skip SPIR-V built-in varibles
-    StringRef Name;
-    if (auto *CE = dyn_cast<ConstantExpr>(Addr)) {
-      const auto OpCode = CE->getOpcode();
-      if (OpCode == Instruction::GetElementPtr ||
-          OpCode == Instruction::AddrSpaceCast) {
-        Name = CE->getOperand(0)->getName();
-      }
-    } else {
-      Name = Addr->getName();
-    }
-    if (Name.starts_with("__spirv_BuiltIn")) {
-      return true;
-    }
-  } else {
-    // FIXME: Check kernel arguments instead of value's name
-    auto Name = Addr->getName();
-    if (Name == "_arg_NumWorkItems" || Name == "_arg_KernelFunc") {
-      return true;
-    }
+  // Private address space: skip kernel arguments
+  if (PtrTy->getPointerAddressSpace() == 0) {
+    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+           isa<Argument>(Addr);
   }
-  return false;
+
+  // All the rest address spaces: skip SPIR-V built-in varibles
+  auto *OrigValue = Addr->stripPointerCasts();
+  return OrigValue->getName().starts_with("__spirv_BuiltIn");
 }
 
 GlobalVariable *AddressSanitizer::GetOrCreateGlobalString(Module &M, StringRef Name,
                                                StringRef Value,
                                                unsigned AddressSpace) {
   GlobalVariable *StringGV = nullptr;
-  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end()) {
-    StringGV = GlobalStringMap[Value.str()];
-  } else {
-    auto *Ty =
-        ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-    StringGV = new GlobalVariable(
-        M, Ty, true, GlobalValue::InternalLinkage,
-        ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
-        GlobalValue::NotThreadLocal, AddressSpace);
-    GlobalStringMap[Value.str()] = StringGV;
-  }
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value.str());
+
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  StringGV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value.str()] = StringGV;
+
   return StringGV;
 }
 
-void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
-                                  SmallVector<Value *> &Args) {
+void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
+                                             Value *Addr,
+                                             SmallVectorImpl<Value *> &Args) {
   auto *M = InsertBefore->getModule();
   auto &C = InsertBefore->getContext();
   auto &Loc = InsertBefore->getDebugLoc();
+
+  // SPIR constant address space
   constexpr unsigned ConstantAS = 2;
   auto *I8PtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
 
@@ -1436,17 +1424,17 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 }
 
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
-  // Instrument accesses from different address spaces only for AMDGPU.
   Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
+  // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIR()) {
-    // SPIR has its own rules to filter the instrument accesses, it also filters
-    // some AS=0 instructions
-    if (isUnsupportedSPIRAddrspace(Ptr, Inst->getFunction())) {
+    if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
+      return true;
+  } else {
+    // Instrument accesses from different address spaces only for AMDGPU.
+    if (PtrTy->getPointerAddressSpace() != 0 &&
+        !(TargetTriple.isAMDGPU() && !isUnsupportedAMDGPUAddrspace(Ptr))) {
       return true;
     }
-  } else if (PtrTy->getPointerAddressSpace() != 0 &&
-             !(TargetTriple.isAMDGPU() && !isUnsupportedAMDGPUAddrspace(Ptr))) {
-    return true;
   }
 
   // Ignore swifterror addresses.
@@ -1928,7 +1916,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *> Args;
+        SmallVector<Value *, 5> Args;
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
         IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex],
@@ -2008,7 +1996,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   if (UseCalls) {
     if (Exp == 0) {
       if (TargetTriple.isSPIR()) {
-        SmallVector<Value *> Args;
+        SmallVector<Value *, 6> Args;
         Args.push_back(AddrLong);
         Args.push_back(Size);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
@@ -2832,27 +2820,31 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
+  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
+  if (TargetTriple.isSPIR()) {
+    AsanCtorFunction = nullptr;
+    AsanDtorFunction = nullptr;
+  }
+
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
 
   // Put the constructor and destructor in comdat if both
   // (1) global instrumentation is not TU-specific
   // (2) target is ELF.
-  if (!TargetTriple.isSPIR()) { // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
-    if (UseCtorComdat && TargetTriple.isOSBinFormatELF() && CtorComdat) {
-      if (AsanCtorFunction) {
-        AsanCtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleCtorName));
-        appendToGlobalCtors(M, AsanCtorFunction, Priority, AsanCtorFunction);
-      }
-      if (AsanDtorFunction) {
-        AsanDtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleDtorName));
-        appendToGlobalDtors(M, AsanDtorFunction, Priority, AsanDtorFunction);
-      }
-    } else {
-      if (AsanCtorFunction)
-        appendToGlobalCtors(M, AsanCtorFunction, Priority);
-      if (AsanDtorFunction)
-        appendToGlobalDtors(M, AsanDtorFunction, Priority);
+  if (UseCtorComdat && TargetTriple.isOSBinFormatELF() && CtorComdat) {
+    if (AsanCtorFunction) {
+      AsanCtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleCtorName));
+      appendToGlobalCtors(M, AsanCtorFunction, Priority, AsanCtorFunction);
     }
+    if (AsanDtorFunction) {
+      AsanDtorFunction->setComdat(M.getOrInsertComdat(kAsanModuleDtorName));
+      appendToGlobalDtors(M, AsanDtorFunction, Priority, AsanDtorFunction);
+    }
+  } else {
+    if (AsanCtorFunction)
+      appendToGlobalCtors(M, AsanCtorFunction, Priority);
+    if (AsanDtorFunction)
+      appendToGlobalDtors(M, AsanDtorFunction, Priority);
   }
 
   return true;
@@ -3053,8 +3045,9 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     return false;
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
-  if (F.getName().starts_with("__asan_") ||
-      F.getName().contains("__sycl_service_kernel__"))
+  if (F.getName().starts_with("__asan_"))
+    return false;
+  if (F.getName().contains("__sycl_service_kernel__"))
     return false;
 
   bool FunctionModified = false;
@@ -3141,7 +3134,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
             NoReturnCalls.push_back(CB);
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-          if (TargetTriple.isSPIR() &&
+          if (TargetTriple.isSPIR() && CI->getCalledFunction() &&
               CI->getCalledFunction()->getCallingConv() ==
                   llvm::CallingConv::SPIR_FUNC &&
               CI->getCalledFunction()->getName() ==
