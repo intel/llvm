@@ -1258,9 +1258,8 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   return OrigValue->getName().starts_with("__spirv_BuiltIn");
 }
 
-GlobalVariable *AddressSanitizer::GetOrCreateGlobalString(Module &M, StringRef Name,
-                                               StringRef Value,
-                                               unsigned AddressSpace) {
+GlobalVariable *AddressSanitizer::GetOrCreateGlobalString(
+    Module &M, StringRef Name, StringRef Value, unsigned AddressSpace) {
   GlobalVariable *StringGV = nullptr;
   if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
     return GlobalStringMap.at(Value.str());
@@ -1424,13 +1423,13 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 }
 
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
-  Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIR()) {
     if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
+    Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
     if (PtrTy->getPointerAddressSpace() != 0 &&
         !(TargetTriple.isAMDGPU() && !isUnsupportedAMDGPUAddrspace(Ptr))) {
       return true;
@@ -3045,8 +3044,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     return false;
   if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
   if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
-  if (F.getName().starts_with("__asan_"))
-    return false;
+  if (F.getName().starts_with("__asan_")) return false;
   if (F.getName().contains("__sycl_service_kernel__"))
     return false;
 
