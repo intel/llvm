@@ -131,7 +131,7 @@ using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 ///
 /// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  explicit SYCLArgumentDescriptor(size_t NumArgs)
+  explicit SYCLArgumentDescriptor(size_t NumArgs = 0)
       : Kinds(NumArgs), UsageMask(NumArgs){};
 
   DynArray<ParameterKind> Kinds;
@@ -338,6 +338,8 @@ struct SYCLKernelInfo {
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
+
+  SYCLKernelInfo() = default;
 
   SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
                  const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
