@@ -66,9 +66,9 @@ bool test(queue Q, uint32_t PMask = ~0) {
            (ResultSIMDByteSize * LocalRange + 127) & ~127;
        slm_init<SLMSize>();
        if (NDId.get_local_id(0) == 0) {
-         simd<T, 4> Vals(GroupID * 1000000, 1);
+         simd<Tuint, 4> Vals(GroupID * 1000000, 1);
          for (int I = 0; I < SLMSize; I += 4 * sizeof(T)) {
-           slm_block_store<T, 4>(I, Vals);
+           slm_block_store<Tuint, 4>(I, Vals);
            Vals += 4;
          }
        }
@@ -120,11 +120,11 @@ bool test(queue Q, uint32_t PMask = ~0) {
       uint32_t LID = I % (LocalRange * VL * NChannels);
       uint32_t GID = I / VL;
       bool Pred = (GID & 0x1) == 0;
-      T ExpectedVal = GroupId * 1000000 + LID;
+      Tuint ExpectedVal = GroupId * 1000000 + LID;
       if (TestMergeOperand && !Pred)
-        ExpectedVal = GID + (I % VL);
+        ExpectedVal = sycl::bit_cast<Tuint>((T)(GID + (I % VL)));
 
-      if (Out[I] != ExpectedVal && NErrors++ < 32) {
+      if (sycl::bit_cast<Tuint>(Out[I]) != ExpectedVal && NErrors++ < 32) {
         std::cout << "Error: " << I << ": Value = " << Out[I]
                   << ", Expected value = " << ExpectedVal << std::endl;
       }
