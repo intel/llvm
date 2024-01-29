@@ -322,7 +322,7 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
   };
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context, &CheckEvent](const sycl::event &Event) {
+                     [&CheckEvent](const sycl::event &Event) {
                        return CheckEvent(Event);
                      });
 }
