@@ -184,8 +184,7 @@ bool BasicMem2RegPass::promoteAlloca(AllocaInst *Alloca) const {
       ToDelete.push_back(Store);
       DIBuilder DIB(*Alloca->getModule(), /*AllowUnresolved*/ false);
 #if LLVM_VERSION_GREATER_EQUAL(18, 0)
-      SmallVector<DbgDeclareInst *, 1> DbgIntrinsics;
-      findDbgDeclares(DbgIntrinsics, Alloca);
+      auto DbgIntrinsics = findDbgDeclares(Alloca);
 #elif LLVM_VERSION_GREATER_EQUAL(17, 0)
       auto DbgIntrinsics = FindDbgDeclareUses(Alloca);
 #else
