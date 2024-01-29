@@ -176,7 +176,12 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+
+  if (Bin)
+    ImageId = reinterpret_cast<std::uintptr_t>(Bin) + ImageCounter++;
 }
+
+uintptr_t RTDeviceBinaryImage::ImageCounter = 1;
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
