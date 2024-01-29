@@ -18,7 +18,3 @@ void unloadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx);
 
 void enableCUDATracing(cuda_tracing_context_t_ *Ctx);
 void disableCUDATracing(cuda_tracing_context_t_ *Ctx);
-
-// Deprecated. Will be removed once pi_cuda has been updated to use the variant
-// that takes a context pointer.
-void enableCUDATracing();
