@@ -407,11 +407,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
     //
     // It is possible to get to here and still have an open command list
     // if no wait or finish ever occurred for this queue.
-    if (auto Res = Queue->executeAllOpenCommandLists())
-      return Res;
+    auto Res = Queue->executeAllOpenCommandLists();
 
     // Make sure all commands get executed.
-    UR_CALL(Queue->synchronize());
+    if (Res == UR_RESULT_SUCCESS)
+      UR_CALL(Queue->synchronize());
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
