@@ -134,7 +134,7 @@ public:
   /// Queries the profiling information of a SYCL Graph node for the graph
   /// execution associated with this SYCL event.
   ///
-  /// If this SYCL event is not associated to a graph execution, an
+  /// If this SYCL event is not associated with a graph execution, an
   /// invalid_object_error SYCL exception is thrown. If the requested info is
   /// not available when this member function is called due to incompletion of
   /// command groups associated with the event, then the call to this member
@@ -143,8 +143,8 @@ public:
   /// constructed with the property::queue::enable_profiling property, an
   /// invalid_object_error SYCL exception is thrown.
   ///
-  /// \param Node is the handle to the node for which the profiling information
-  /// is queried.
+  /// \param Node Node object for which the profiling information
+  /// is being queried.
   /// \return depends on template parameter.
   template <typename Param>
   typename detail::is_event_profiling_info_desc<Param>::return_type

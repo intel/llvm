@@ -1137,17 +1137,17 @@ event::ext_oneapi_get_profiling_info(node Node) const;
 
 Parameters:
 
-* `Node` - Handle to the node for which the profiling information is queried.
+* `Node` - Node object for which the profiling information is being queried.
 
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this SYCL event is not
-  associated to a graph execution.
+  associated with a graph execution.
 * Throws synchronously with error code `invalid` if the queue on which 
-  the graph is submitted was not constructed with 
+  the graph was submitted was not constructed with 
   the `property::queue::enable_profiling` property.
 * Throws synchronously with error code `invalid` if `Node` is not associated 
-  to the graph that was executed by event.
+  with the graph exectution represented by this event.
 
 |===
 
