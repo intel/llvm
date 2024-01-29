@@ -149,9 +149,10 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 14.43 Added piextSyncPointGetProfilingInfo
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 42
+#define _PI_H_VERSION_MINOR 43
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -2575,13 +2576,16 @@ piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
 /// A Node is identified by a sync-point in a command-buffer.
 /// The sync-point passed in parameter corresponds therefore to the node from
 /// which we want to get the profiling information. returns an error if the node
-/// is found. \param event PI event that has been return from the command-buffer
-/// submission. \param sync_point The sync-point corresponding to the node from
-/// which we want to get the profiling information. \param param_name The name
-/// of the profiling property to query depends on. \param param_value_size Size
-/// in bytes of the profiling property value. \param param_value Value of the
-/// profiling property. \param param_value_size_ret  pointer to the actual size
-/// in bytes returned in param_value of the profiling property.
+/// is found.
+/// \param event PI event that has been return from the command-buffer
+/// submission.
+/// \param sync_point The sync-point corresponding to the node from which
+/// we want to get the profiling information.
+/// \param param_name The name of the profiling property to query depends on.
+/// \param param_value_size Size in bytes of the profiling property value.
+/// \param param_value Value of the profiling property.
+/// \param param_value_size_ret  pointer to the actual size in bytes returned
+/// in param_value of the profiling property.
 __SYCL_EXPORT pi_result piextSyncPointGetProfilingInfo(
     pi_event event, pi_ext_sync_point sync_point, pi_profiling_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);

@@ -206,7 +206,7 @@ int main() {
     std::vector<uint64_t> NodeSubmit(Nodes.size());
     std::vector<uint64_t> NodeStart(Nodes.size());
     std::vector<uint64_t> NodeEnd(Nodes.size());
-    uint64_t GlobalRuntime;
+    uint64_t GlobalRuntime = 0;
     for (int i = 0; i < Nodes.size(); i++) {
 
       assert(verifyProfiling(KernelEvent1, Nodes[i]));
@@ -250,8 +250,9 @@ int main() {
 
     assert(((NodeEnd[3] - NodeStart[0]) == (End - Start)) &&
            "Global Runtime differ");
-    // The graph node addtional time to handle sychornization. So the sum of
-    // node runtimes should be slightly lower than the whole graph runtime.
+    // The execution time of the whole graph comprises the execution time of the
+    // nodes + an additional time to manage synchronization. So the sum of node
+    // runtimes should be slightly less than the whole graph runtime.
     assert(GlobalRuntime <= (End - Start));
 
     // Checks profiling times for two executions of the same graph.
@@ -271,7 +272,7 @@ int main() {
     std::vector<uint64_t> NodeSubmit2(Nodes.size());
     std::vector<uint64_t> NodeStart2(Nodes.size());
     std::vector<uint64_t> NodeEnd2(Nodes.size());
-    uint64_t GlobalRuntime2;
+    uint64_t GlobalRuntime2 = 0;
     for (int i = 0; i < Nodes.size(); i++) {
 
       assert(verifyProfiling(KernelEvent2, Nodes[i]));

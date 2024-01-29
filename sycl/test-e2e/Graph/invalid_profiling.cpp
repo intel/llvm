@@ -1,6 +1,6 @@
 // REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 2>&1
+// RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
 
 // This test checks exception throwing if profiling an event returned

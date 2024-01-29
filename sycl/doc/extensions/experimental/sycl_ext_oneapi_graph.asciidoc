@@ -1857,7 +1857,7 @@ if used in application code.
 . Using sycl streams in a graph node.
 . Profiling information is not available for graphs that contain host-task nodes.
 . Profiling a node from an event returned from graph submission with
-  `event::get_profiling_info(ext::node)` is only avalaible for
+  `event::ext_oneapi_get_profiling_info(ext::node)` is only avalaible for
   the level-zero backend.
 . Level Zero immediate command-lists are not supported, and
   `sycl::ext::intel::property::queue::no_immediate_command_list`
