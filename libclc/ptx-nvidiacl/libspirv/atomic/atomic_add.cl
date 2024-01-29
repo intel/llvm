@@ -72,10 +72,12 @@ Memory order is stored in the lowest 5 bits */                                  
         }                                                                                                                                                     \
         break;                                                                                                                                                \
       case SequentiallyConsistent:                                                                                                                            \
-        __CLC_NVVM_FENCE_SC_SM70()                                                                                                                            \
-        __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                      \
-                                     ADDR_SPACE_NV, _acq_rel)                                                                                                 \
-        break;                                                                                                                                                \
+        if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                               \
+          __CLC_NVVM_FENCE_SC_SM70()                                                                                                                          \
+          __CLC_NVVM_ATOMIC_IMPL_ORDER(double, double, d, add, ADDR_SPACE,                                                                                    \
+                                       ADDR_SPACE_NV, _acq_rel)                                                                                               \
+          break;                                                                                                                                              \
+        }                                                                                                                                                     \
       }                                                                                                                                                       \
       __builtin_trap();                                                                                                                                       \
       __builtin_unreachable();                                                                                                                                \
