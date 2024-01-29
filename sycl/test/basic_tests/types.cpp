@@ -205,6 +205,18 @@ void checkVariousVecUnaryOps() {
   checkVecUnaryOps(vd1);
   sycl::vec<double, 16> vd{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
   checkVecUnaryOps(vd);
+
+  sycl::vec<sycl::half, 1> vh1{1};
+  checkVecUnaryOps(vh1);
+  sycl::vec<sycl::half, 16> vh{0, 4, 5, -9, 0, 4, 5, -9,
+                               0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vh);
+
+  sycl::vec<sycl::ext::oneapi::bfloat16, 1> vbf1{1};
+  checkVecUnaryOps(vbf1);
+  sycl::vec<sycl::ext::oneapi::bfloat16, 16> vbf{0, 4, 5, -9, 0, 4, 5, -9,
+                                                 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vbf);
 }
 
 int main() {

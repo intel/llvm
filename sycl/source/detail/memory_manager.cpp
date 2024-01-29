@@ -194,15 +194,15 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
   // We only want to instrument piEnqueueMemBufferMap
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
-    xpti::utils::finally _{[&] {
-      emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
-                           0 /* guard zone */, CorrID);
-    }};
+  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+  xpti::utils::finally _{[&] {
+    emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
+                         0 /* guard zone */, CorrID);
+  }};
 #endif
-    Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
-        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
-        Event, RetMap);
+  Plugin->call<PiApiKind::piEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
+                                                 Offset, Size, NumEvents,
+                                                 WaitList, Event, RetMap);
 }
 
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
@@ -1692,6 +1692,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  (void)Size;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -1708,6 +1709,33 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   }
   throw runtime_error("Not supported configuration of fill requested",
                       PI_ERROR_INVALID_OPERATION);
+}
+
+void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
+    size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferPrefetchUSM>(
+      CommandBuffer, Mem, Length, _pi_usm_migration_flags(0), Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, const void *Mem,
+    size_t Length, pi_mem_advice Advice,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in advise_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferAdviseUSM>(
+      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
+      OutSyncPoint);
 }
 
 void MemoryManager::copy_image_bindless(

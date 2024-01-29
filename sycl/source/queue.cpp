@@ -82,6 +82,20 @@ ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
              : ext::oneapi::experimental::queue_state::executing;
 }
 
+ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::modifiable>
+queue::ext_oneapi_get_graph() const {
+  auto Graph = impl->getCommandGraph();
+  if (!Graph)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
+
+  return sycl::detail::createSyclObjFromImpl<
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
+}
+
 bool queue::is_host() const {
   bool IsHost = impl->is_host();
   assert(!IsHost && "queue::is_host should not be called in implementation.");
@@ -200,8 +214,16 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order())
+  if (is_in_order()) {
+    // The last command recorded in the graph is not tracked by the queue but by
+    // the graph itself. We must therefore search for the last node/event in the
+    // graph.
+    if (auto Graph = impl->getCommandGraph()) {
+      auto LastEvent = Graph->getEventForNode(Graph->getLastInorderNode(impl));
+      return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
+    }
     return impl->getLastEvent();
+  }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
 }
@@ -217,8 +239,16 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  if (is_in_order() && WaitList.empty())
+  if (is_in_order() && WaitList.empty()) {
+    // The last command recorded in the graph is not tracked by the queue but by
+    // the graph itself. We must therefore search for the last node/event in the
+    // graph.
+    if (auto Graph = impl->getCommandGraph()) {
+      auto LastEvent = Graph->getEventForNode(Graph->getLastInorderNode(impl));
+      return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
+    }
     return impl->getLastEvent();
+  }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                 CodeLoc);
@@ -298,6 +328,32 @@ bool queue::device_has(aspect Aspect) const {
 bool queue::ext_codeplay_supports_fusion() const {
   return impl->has_property<
       ext::codeplay::experimental::property::queue::enable_fusion>();
+}
+
+event queue::ext_oneapi_get_last_event() const {
+  if (!is_in_order())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_last_event() can only be called on in-order queues.");
+  if (impl->MDiscardEvents)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_last_event() cannot be called on queues with the "
+        "ext::oneapi::property::queue::discard_events property.");
+  return impl->getLastEvent();
+}
+
+void queue::ext_oneapi_set_external_event(const event &external_event) {
+  if (!is_in_order())
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "ext_oneapi_set_external_event() can only be called "
+                          "on in-order queues.");
+  if (impl->MDiscardEvents)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_set_external_event() cannot be called on queues with the "
+        "ext::oneapi::property::queue::discard_events property.");
+  return impl->setExternalEvent(external_event);
 }
 
 } // namespace _V1

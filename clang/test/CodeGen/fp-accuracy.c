@@ -475,7 +475,7 @@ void f1(float a, float b) {
 // CHECK-SPIR: attributes #[[ATTR_SYCL3]] = {{.*}}"fpbuiltin-max-error"="6.0"
 // CHECK-SPIR: attributes #[[ATTR_SYCL4]] = {{.*}}"fpbuiltin-max-error"="16.0"
 // CHECK-SPIR: attributes #[[ATTR_SYCL5]] = {{.*}}"fpbuiltin-max-error"="3.0"
-// CHECK-SPIR: attributes #[[ATTR_SYCL6]] = {{.*}}"fpbuiltin-max-error"="0.0"
+// CHECK-SPIR: attributes #[[ATTR_SYCL6]] = {{.*}}"fpbuiltin-max-error"="0.5"
 // CHECK-SPIR: attributes #[[ATTR_SYCL7]] = {{.*}}"fpbuiltin-max-error"="2.5"
 // CHECK-SPIR: attributes #[[ATTR_SYCL8]] = {{.*}}"fpbuiltin-max-error"="2.0"
 
