@@ -473,21 +473,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
     };
 
     switch (propName) {
-    case UR_IMAGE_INFO_FORMAT:
-      ur_image_channel_type_t ChannelType;
+    case UR_IMAGE_INFO_FORMAT: {
+      ur_image_channel_type_t ChannelType{};
       UR_CHECK_ERROR(cuda2urFormat(ArrayInfo.Format, &ChannelType));
       return ReturnValue(
           ur_image_format_t{UR_IMAGE_CHANNEL_ORDER_RGBA, ChannelType});
+    }
     case UR_IMAGE_INFO_WIDTH:
       return ReturnValue(ArrayInfo.Width);
     case UR_IMAGE_INFO_HEIGHT:
       return ReturnValue(ArrayInfo.Height);
     case UR_IMAGE_INFO_DEPTH:
       return ReturnValue(ArrayInfo.Depth);
-    case UR_IMAGE_INFO_ELEMENT_SIZE:
-      size_t Size;
+    case UR_IMAGE_INFO_ELEMENT_SIZE: {
+      size_t Size = 0;
       UR_CHECK_ERROR(cudaFormatToElementSize(ArrayInfo.Format, &Size));
       return ReturnValue(Size);
+    }
     case UR_IMAGE_INFO_ROW_PITCH:
     case UR_IMAGE_INFO_SLICE_PITCH:
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
