@@ -3017,9 +3017,7 @@ class AssertInfoCopier;
  */
 event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
-  using AHBufT = buffer<detail::AssertHappened, 1>;
-
-  AHBufT &Buffer = Self.getAssertHappenedBuffer();
+  buffer<detail::AssertHappened, 1> Buffer{1};
 
   event CopierEv, CheckerEv, PostCheckerEv;
   auto CopierCGF = [&](handler &CGH) {
