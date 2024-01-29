@@ -137,7 +137,7 @@ jobs:
           echo "Unsupported extension"
           exit 1
         fi
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         sparse-checkout: |
           devops/actions
@@ -227,7 +227,7 @@ jobs:
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}

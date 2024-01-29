@@ -68,7 +68,7 @@ jobs:
       github.event.pull_request.draft == false &&
       github.event.pull_request.commits < 10
     steps:
-      - uses: actions/labeler@v4
+      - uses: actions/labeler@v5
         with:
           configuration-path: .github/new-prs-labeler.yml
           # workaround for https://github.com/actions/labeler/issues/112
