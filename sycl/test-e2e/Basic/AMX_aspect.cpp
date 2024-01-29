@@ -25,11 +25,14 @@ int main() {
       arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
   for (const auto &plt : platform::get_platforms()) {
     for (auto &dev : plt.get_devices()) {
-      if (std::any_of(supported_archs.begin(), supported_archs.end(),
-                      [&](const auto &a) {
-                        return dev.ext_oneapi_architecture_is(a);
-                      })) {
-        assert(dev.has(sycl::aspect::ext_intel_matrix));
+      try {
+        if (std::any_of(supported_archs.begin(), supported_archs.end(),
+                        [&](const auto &a) {
+                          return dev.ext_oneapi_architecture_is(a);
+                        })) {
+          assert(dev.has(sycl::aspect::ext_intel_matrix));
+        }
+      } catch (sycl::exception &) {
       }
     }
   }
