@@ -313,8 +313,8 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return llvm::any_of(M.functions(), [](const Function *F) {
-    return F->getName().starts_with("__asan_");
+  return llvm::any_of(M.functions(), [](const Function& F) {
+    return F.getName().starts_with("__asan_");
   });
 }
 
