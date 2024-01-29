@@ -1,0 +1,3 @@
+urContextReleaseTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+urContextRetainTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+urContextSetExtendedDeleterTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
