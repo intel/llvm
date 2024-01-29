@@ -230,7 +230,8 @@ jobs:
 
   examples-build-hw:
     name: Build - examples on HW
-    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    # if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    if: false  # temporaily disabled due to conda env setup issues
     strategy:
       matrix:
         adapter: [
