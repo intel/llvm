@@ -33,3 +33,4 @@
 {{OPT}}urEnqueueUSMMemcpy2DNegativeTest.InvalidSize/Intel_R__OpenCL___{{.*}}
 {{OPT}}urEnqueueUSMMemcpy2DNegativeTest.InvalidEventWaitList/Intel_R__OpenCL___{{.*}}
 {{OPT}}urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/Intel_R__OpenCL___{{.*}}
+{{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/Intel_R__OpenCL___{{.*}}_UsePoolEnabled
