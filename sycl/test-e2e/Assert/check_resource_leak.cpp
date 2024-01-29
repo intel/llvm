@@ -15,10 +15,11 @@ sycl::ext::oneapi::experimental::device_global<int32_t> dg;
 
 int main() {
   sycl::queue q;
-  q.submit([&](sycl::handler& cgh) {
+  q.submit([&](sycl::handler &cgh) {
      sycl::range<1> R{16};
      cgh.parallel_for(sycl::nd_range<1>{R, R}, [=](sycl::nd_item<1> ndi) {
-       if (ndi.get_global_linear_id() == 0) dg.get() = 42;
+       if (ndi.get_global_linear_id() == 0)
+         dg.get() = 42;
        auto sg = sycl::ext::oneapi::experimental::this_sub_group();
        auto active = sycl::ext::oneapi::group_ballot(sg, 1);
      });
