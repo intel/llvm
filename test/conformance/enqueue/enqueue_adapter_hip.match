@@ -1,4 +1,3 @@
-{{OPT}}{{Segmentation fault|Aborted}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
@@ -85,3 +84,4 @@
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 {{OPT}}urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}{{Segmentation fault|Aborted}}

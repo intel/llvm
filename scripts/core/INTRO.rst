@@ -148,9 +148,12 @@ This allows the Unified Runtime shared library to be updated with additional sym
 Printing API
 ------------
 ## --validate=off
-The header "${x}_print.hpp" contains the "${x}::print" namespace with the output stream operator (<<) overloads for Unified Runtime objects.
+The header "${x}_print.hpp" contains output stream operator (<<) overloads for Unified Runtime objects.
 There is also the "${x}::extras::printFunctionParams" function for printing function parameters. These parameters have to be provided in a \*params_t struct format suitable for
 a given function.
+
+The ${x}_print.h header provides the same functionality with a C interface. Each object has a print function named urPrint<object name without both prefix and suffix>,
+ie. for printing ur_result_t use urPrintResult.
 ## --validate=on
 
 Tracing
