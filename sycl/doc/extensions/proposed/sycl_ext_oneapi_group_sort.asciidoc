@@ -516,6 +516,7 @@ namespace sycl::ext::oneapi::experimental {
         template<typename T>
         static size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (3)
+
         template<typename T>
         static size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (4)
@@ -539,6 +540,7 @@ namespace sycl::ext::oneapi::experimental {
 
         static size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (8)
+
         static size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (9)
     };
@@ -564,6 +566,7 @@ namespace sycl::ext::oneapi::experimental {
 
         static std::size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (13)
+
         static std::size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (14)
     };
