@@ -12,12 +12,11 @@
 #include "DynArray.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <string>
-#include <vector>
+#include <functional>
+#include <type_traits>
 
 namespace jit_compiler {
 
@@ -348,33 +347,6 @@ struct SYCLKernelInfo {
 
   SYCLKernelInfo(const char *KernelName, size_t NumArgs)
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
-};
-
-///
-/// Represents a SPIR-V translation unit containing SYCL kernels by the
-/// KernelInfo for each of the contained kernels.
-class SYCLModuleInfo {
-public:
-  using KernelInfoList = std::vector<SYCLKernelInfo>;
-
-  void addKernel(SYCLKernelInfo &Kernel) { Kernels.push_back(Kernel); }
-
-  KernelInfoList &kernels() { return Kernels; }
-
-  bool hasKernelFor(const std::string &KernelName) {
-    return getKernelFor(KernelName) != nullptr;
-  }
-
-  SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
-    auto It =
-        std::find_if(Kernels.begin(), Kernels.end(), [&](SYCLKernelInfo &K) {
-          return K.Name == KernelName.c_str();
-        });
-    return (It != Kernels.end()) ? &*It : nullptr;
-  }
-
-private:
-  KernelInfoList Kernels;
 };
 
 } // namespace jit_compiler
