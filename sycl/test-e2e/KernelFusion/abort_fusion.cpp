@@ -96,13 +96,15 @@ int main() {
       q, nd_range<1>{range<1>{dataSize}, range<1>{16}},
       nd_range<1>{range<1>{dataSize}, range<1>{8}});
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NEXT: Illegal ND-range combination
+  // CHECK-NEXT: Detailed information:
+  // CHECK-NEXT: Cannot fuse kernels with different local sizes
   // CHECK: COMPUTATION OK
 
   // Scenario: An empty fusion list should not be classified as having
   // incompatible ND ranges.
   emptyFusionList(q);
-  // CHECK-NOT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NOT: Illegal ND-range combination
   // CHECK: WARNING: Fusion list is empty
 
   // Scenario: Fusing two kernels that would lead to non-uniform work-group
@@ -110,7 +112,9 @@ int main() {
   performFusion<class Kernel1_4, class Kernel2_4>(
       q, nd_range<1>{range<1>{9}, range<1>{3}}, range<1>{dataSize});
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK-NEXT: Cannot fuse kernels with different offsets or local sizes
+  // CHECK-NEXT: Illegal ND-range combination
+  // CHECK-NEXT: Detailed information:
+  // CHECK-NEXT: Cannot fuse kernels whose fusion would yield non-uniform work-group sizes
   // CHECK: COMPUTATION OK
 
   return 0;
