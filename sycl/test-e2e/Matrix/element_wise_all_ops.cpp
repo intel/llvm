@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: cpu, gpu
+// REQUIRES: cpu || gpu
 // Test is flaky/timeouts on some variants of DG2 and temporary disabled. Needs
 // to be investigated.
 // UNSUPPORTED: gpu-intel-dg2
