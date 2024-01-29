@@ -17,7 +17,12 @@
 #include <sycl/detail/pi.hpp>
 
 // Forward declarations
-void enableCUDATracing();
+struct cuda_tracing_context_t_;
+
+void enableCUDATracing(cuda_tracing_context_t_ *ctx);
+void disableCUDATracing(cuda_tracing_context_t_ *ctx);
+cuda_tracing_context_t_ *createCUDATracingContext();
+void freeCUDATracingContext(cuda_tracing_context_t_ *Ctx);
 
 //-- PI API implementation
 extern "C" {
@@ -1237,7 +1242,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   std::memset(&(PluginInit->PiFunctionTable), 0,
               sizeof(PluginInit->PiFunctionTable));
 
-  enableCUDATracing();
+  cuda_tracing_context_t_ *Ctx = createCUDATracingContext();
+  enableCUDATracing(Ctx);
 
 // Forward calls to CUDA RT.
 #define _PI_API(api)                                                           \
