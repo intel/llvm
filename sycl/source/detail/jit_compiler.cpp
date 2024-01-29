@@ -713,15 +713,16 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         !Args.empty()) {
       auto &A0 = Args[0];
       auto Dims = KernelCG->MNDRDesc.Dims;
-      if (A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
-          A0.MType == kernel_param_kind_t::kind_std_layout) {
-        size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
-        // Range-rounding only applies to the first dimension.
-        assert(UGS[0] > KernelCG->MNDRDesc.GlobalSize[1]);
-        assert(Dims < 2 || UGS[1] == KernelCG->MNDRDesc.GlobalSize[1]);
-        assert(Dims < 3 || UGS[2] == KernelCG->MNDRDesc.GlobalSize[2]);
-        UserGlobalSize = UGS[0];
-      }
+      assert(A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
+             A0.MType == kernel_param_kind_t::kind_std_layout &&
+             "Unexpected signature for rounded range kernel");
+
+      size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
+      // Range-rounding only applies to the first dimension.
+      assert(UGS[0] > KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 2 || UGS[1] == KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 3 || UGS[2] == KernelCG->MNDRDesc.GlobalSize[2]);
+      UserGlobalSize = UGS[0];
     }
 
     ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};
