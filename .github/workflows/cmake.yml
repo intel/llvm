@@ -166,10 +166,11 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: CUDA, triplet: nvptx64-nvidia-cuda, platform: ""},
-          {name: HIP, triplet: amdgcn-amd-amdhsa, platform: ""},
-          {name: L0, triplet: spir64, platform: ""},
-          {name: OPENCL, triplet: spir64, platform: "Intel(R) OpenCL"}
+          {name: CUDA, platform: ""},
+          {name: HIP, platform: ""},
+          {name: L0, platform: ""},
+          {name: OPENCL, platform: "Intel(R) OpenCL"},
+          {name: NATIVE_CPU, platform: ""}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -201,8 +202,7 @@ jobs:
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
-        -DUR_CONFORMANCE_TARGET_TRIPLES=${{matrix.adapter.triplet}}
-        ${{ matrix.adapter.name == 'HIP' && '-DAMD_ARCH=gfx1030' || '' }} 
+        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }} 
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
@@ -231,7 +231,8 @@ jobs:
 
   examples-build-hw:
     name: Build - examples on HW
-    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    # if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    if: false  # temporaily disabled due to conda env setup issues
     strategy:
       matrix:
         adapter: [

@@ -82,4 +82,6 @@ TEST_P(urEnqueueReadHostPipeTest, InvalidEventWaitList) {
                                            /*blocking*/ true, &buffer, size, 1,
                                            &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }

@@ -26,6 +26,9 @@ TEST_P(urQueueFinishTest, Success) {
     ASSERT_SUCCESS(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
                                   sizeof(exec_status), &exec_status, nullptr));
     ASSERT_EQ(exec_status, UR_EXECUTION_INFO_COMPLETE);
+
+    ASSERT_SUCCESS(urMemRelease(buffer));
+    ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urQueueFinishTest, InvalidNullHandleQueue) {

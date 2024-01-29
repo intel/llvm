@@ -66,6 +66,18 @@ struct TestParameters2D {
     size_t height;
 };
 
+inline std::string USMKindToString(USMKind kind) {
+    switch (kind) {
+    case USMKind::Device:
+        return "Device";
+    case USMKind::Host:
+        return "Host";
+    case USMKind::Shared:
+    default:
+        return "Shared";
+    }
+}
+
 template <typename T>
 inline std::string
 print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
@@ -73,10 +85,14 @@ print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
+    auto src_kind = std::get<1>(std::get<1>(info.param));
+    auto dst_kind = std::get<2>(std::get<1>(info.param));
     test_name << platform_device_name << "__pitch__"
-              << std::get<1>(info.param).pitch << "__width__"
-              << std::get<1>(info.param).width << "__height__"
-              << std::get<1>(info.param).height;
+              << std::get<0>(std::get<1>(info.param)).pitch << "__width__"
+              << std::get<0>(std::get<1>(info.param)).width << "__height__"
+              << std::get<0>(std::get<1>(info.param)).height << "__src__"
+              << USMKindToString(src_kind) << "__dst__"
+              << USMKindToString(dst_kind);
     return test_name.str();
 }
 

@@ -17,6 +17,7 @@ context_t d_context;
 
 //////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
+    platform = get();
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Global.pfnAdapterGet = [](uint32_t NumAdapters,
                                          ur_adapter_handle_t *phAdapters,
@@ -28,7 +29,7 @@ context_t::context_t() {
             *pNumAdapters = 1;
         }
         if (nullptr != phAdapters) {
-            *reinterpret_cast<void **>(phAdapters) = d_context.get();
+            *reinterpret_cast<void **>(phAdapters) = d_context.platform;
         }
 
         return UR_RESULT_SUCCESS;
@@ -48,7 +49,7 @@ context_t::context_t() {
                 *pNumPlatforms = 1;
             }
             if (nullptr != phPlatforms) {
-                *reinterpret_cast<void **>(phPlatforms) = d_context.get();
+                *reinterpret_cast<void **>(phPlatforms) = d_context.platform;
             }
             return UR_RESULT_SUCCESS;
         };
@@ -120,48 +121,59 @@ context_t::context_t() {
         };
 
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.Device.pfnGetInfo =
-        [](ur_device_handle_t, ur_device_info_t infoType, size_t propSize,
-           void *pDeviceInfo, size_t *pPropSizeRet) {
-            switch (infoType) {
-            case UR_DEVICE_INFO_TYPE:
-                if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {
-                    return UR_RESULT_ERROR_INVALID_SIZE;
-                }
-
-                if (pDeviceInfo != nullptr) {
-                    *reinterpret_cast<ur_device_type_t *>(pDeviceInfo) =
-                        UR_DEVICE_TYPE_GPU;
-                }
-                if (pPropSizeRet != nullptr) {
-                    *pPropSizeRet = sizeof(ur_device_type_t);
-                }
-                break;
-
-            case UR_DEVICE_INFO_NAME: {
-                char deviceName[] = "Null Device";
-                if (pDeviceInfo && propSize < sizeof(deviceName)) {
-                    return UR_RESULT_ERROR_INVALID_SIZE;
-                }
-                if (pDeviceInfo != nullptr) {
-#if defined(_WIN32)
-                    strncpy_s(reinterpret_cast<char *>(pDeviceInfo), propSize,
-                              deviceName, sizeof(deviceName));
-#else
-                    strncpy(reinterpret_cast<char *>(pDeviceInfo), deviceName,
-                            propSize);
-#endif
-                }
-                if (pPropSizeRet != nullptr) {
-                    *pPropSizeRet = sizeof(deviceName);
-                }
-            } break;
-
-            default:
-                return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    urDdiTable.Device.pfnGetInfo = [](ur_device_handle_t,
+                                      ur_device_info_t infoType,
+                                      size_t propSize, void *pDeviceInfo,
+                                      size_t *pPropSizeRet) {
+        switch (infoType) {
+        case UR_DEVICE_INFO_TYPE:
+            if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
             }
-            return UR_RESULT_SUCCESS;
-        };
+
+            if (pDeviceInfo != nullptr) {
+                *reinterpret_cast<ur_device_type_t *>(pDeviceInfo) =
+                    UR_DEVICE_TYPE_GPU;
+            }
+            if (pPropSizeRet != nullptr) {
+                *pPropSizeRet = sizeof(ur_device_type_t);
+            }
+            break;
+
+        case UR_DEVICE_INFO_NAME: {
+            char deviceName[] = "Null Device";
+            if (pDeviceInfo && propSize < sizeof(deviceName)) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            if (pDeviceInfo != nullptr) {
+#if defined(_WIN32)
+                strncpy_s(reinterpret_cast<char *>(pDeviceInfo), propSize,
+                          deviceName, sizeof(deviceName));
+#else
+                strncpy(reinterpret_cast<char *>(pDeviceInfo), deviceName,
+                        propSize);
+#endif
+            }
+            if (pPropSizeRet != nullptr) {
+                *pPropSizeRet = sizeof(deviceName);
+            }
+        } break;
+        case UR_DEVICE_INFO_PLATFORM: {
+            if (pDeviceInfo && propSize < sizeof(pDeviceInfo)) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            if (pDeviceInfo != nullptr) {
+                *reinterpret_cast<void **>(pDeviceInfo) = d_context.platform;
+            }
+            if (pPropSizeRet != nullptr) {
+                *pPropSizeRet = sizeof(intptr_t);
+            }
+        } break;
+        default:
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+        return UR_RESULT_SUCCESS;
+    };
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.USM.pfnHostAlloc = [](ur_context_handle_t, const ur_usm_desc_t *,

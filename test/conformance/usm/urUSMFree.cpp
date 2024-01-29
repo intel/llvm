@@ -30,6 +30,7 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
 
     ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
+    ASSERT_SUCCESS(urEventRelease(event));
 }
 TEST_P(urUSMFreeTest, SuccessHostAlloc) {
     ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
@@ -52,6 +53,7 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 
     ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
+    ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
@@ -81,6 +83,7 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
 
     ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
+    ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urUSMFreeTest, InvalidNullContext) {

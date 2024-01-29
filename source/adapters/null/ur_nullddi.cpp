@@ -375,6 +375,30 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_DEVICE_INFO_PLATFORM: {
+                ur_platform_handle_t *handles =
+                    reinterpret_cast<ur_platform_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_platform_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_platform_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_DEVICE_INFO_PARENT_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_device_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -662,6 +686,21 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
             pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_CONTEXT_INFO_DEVICES: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_device_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -983,6 +1022,21 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
             pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_MEM_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -1110,6 +1164,21 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
             pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_SAMPLER_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -1298,6 +1367,30 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
                                     pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_USM_ALLOC_INFO_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_device_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_USM_ALLOC_INFO_POOL: {
+                ur_usm_pool_handle_t *handles =
+                    reinterpret_cast<ur_usm_pool_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_usm_pool_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_usm_pool_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -1391,6 +1484,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
             pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_USM_POOL_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -1897,6 +2005,30 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
             pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_PROGRAM_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_PROGRAM_INFO_DEVICES: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_device_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -2118,6 +2250,30 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
             pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_KERNEL_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_KERNEL_INFO_PROGRAM: {
+                ur_program_handle_t *handles =
+                    reinterpret_cast<ur_program_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_program_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_program_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -2429,6 +2585,39 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
             pfnGetInfo(hQueue, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_QUEUE_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_QUEUE_INFO_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_device_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_QUEUE_INFO_DEVICE_DEFAULT: {
+                ur_queue_handle_t *handles =
+                    reinterpret_cast<ur_queue_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_queue_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_queue_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
@@ -2617,6 +2806,30 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
             pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_EVENT_INFO_COMMAND_QUEUE: {
+                ur_queue_handle_t *handles =
+                    reinterpret_cast<ur_queue_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_queue_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_queue_handle_t>(d_context.get());
+                }
+            } break;
+            case UR_EVENT_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = propSize / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    handles[i] =
+                        reinterpret_cast<ur_context_handle_t>(d_context.get());
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
     }
 
     return result;
