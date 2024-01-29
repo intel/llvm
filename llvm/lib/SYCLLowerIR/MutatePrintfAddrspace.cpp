@@ -78,7 +78,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
-    if (!F.getName().startswith("_Z18__spirv_ocl_printf"))
+    if (!F.getName().starts_with("_Z18__spirv_ocl_printf"))
       continue;
     if (F.getArg(0)->getType() == CASLiteralType)
       // No need to replace the literal type and its printf users

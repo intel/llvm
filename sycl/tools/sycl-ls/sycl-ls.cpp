@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
 
   bool SuppressNumberPrinting = false;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
     std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
@@ -128,6 +129,7 @@ int main(int argc, char **argv) {
               << std::endl;
     SuppressNumberPrinting = true;
   }
+#endif
 
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {

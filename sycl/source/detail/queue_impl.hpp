@@ -211,7 +211,7 @@ public:
 #endif
   }
 
-  event getLastEvent() const;
+  event getLastEvent();
 
 private:
   void queue_impl_interop(sycl::detail::pi::PiQueue PiQueue) {
@@ -396,12 +396,14 @@ public:
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
+    event ResEvent;
     try {
-      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
+      ResEvent = submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
-                                      PostProcess);
+      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                          Loc, PostProcess);
     }
+    return discard_or_return(ResEvent);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -416,7 +418,8 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    auto ResEvent = submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    return discard_or_return(ResEvent);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -707,6 +710,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
+    MGraphLastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -730,9 +734,11 @@ public:
 
   const std::vector<event> &
   getExtendDependencyList(const std::vector<event> &DepEvents,
-                          std::vector<event> &MutableVec);
+                          std::vector<event> &MutableVec,
+                          std::unique_lock<std::mutex> &QueueLock);
 
 protected:
+  event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
 
@@ -741,24 +747,21 @@ protected:
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
-
-      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return Type == CG::CGTYPE::CodeplayHostTask;
-      };
-
       // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is are locks for thread-safety.
-      std::lock_guard<std::mutex> LastEventLock{MLastEventMtx};
-
-      if (MLastCGType == CG::CGTYPE::None)
-        MLastCGType = Type;
-      // Also handles case when sync model changes. E.g. Last is host, new is
-      // kernel.
-      bool NeedSeparateDependencyMgmt =
-          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
-
-      if (NeedSeparateDependencyMgmt)
-        Handler.depends_on(MLastEvent);
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      // This dependency is needed for the following purposes:
+      //    - host tasks are handled by the runtime and cannot be implicitly
+      //    synchronized by the backend.
+      //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
+      //    by a host task. This dependency allows to build the enqueue order in
+      //    the RT but will not be passed to the backend. See getPIEvents in
+      //    Command.
+      auto &EventToBuildDeps =
+          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+      if (EventToBuildDeps)
+        Handler.depends_on(
+            createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
 
       // If there is an external event set, add it as a dependency and clear it.
       // We do not need to hold the lock as MLastEventMtx will ensure the last
@@ -768,9 +771,7 @@ protected:
         Handler.depends_on(*ExternalEvent);
 
       EventRet = Handler.finalize();
-
-      MLastEvent = EventRet;
-      MLastCGType = Type;
+      EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
       EventRet = Handler.finalize();
   }
@@ -840,6 +841,36 @@ protected:
     return Event;
   }
 
+  /// Helper function for submitting a memory operation with a handler.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
+  template <typename HandlerFuncT>
+  event submitWithHandler(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          HandlerFuncT HandlerFunc);
+
+  /// Performs submission of a memory operation directly if scheduler can be
+  /// bypassed, or with a handler otherwise.
+  ///
+  /// \param Self is a shared_ptr to this queue.
+  /// \param DepEvents is a vector of dependencies of the operation.
+  /// \param HandlerFunc is a function that submits the operation with a
+  ///        handler.
+  /// \param MemMngrFunc is a function that forwards its arguments to the
+  ///        appropriate memory manager function.
+  /// \param MemMngrArgs are all the arguments that need to be passed to memory
+  ///        manager except the last three: dependencies, PI event and
+  ///        EventImplPtr are filled out by this helper.
+  /// \return an event representing the submitted operation.
+  template <typename HandlerFuncT, typename MemMngrFuncT,
+            typename... MemMngrArgTs>
+  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                          const std::vector<event> &DepEvents,
+                          HandlerFuncT HandlerFunc, MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs... MemOpArgs);
+
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(const detail::code_location &CodeLoc,
@@ -892,13 +923,12 @@ protected:
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
   // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MLastEventMtx
-  event MLastEvent;
-  mutable std::mutex MLastEventMtx;
-  // Used for in-order queues in pair with MLastEvent
-  // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
-  // backend. Using type to setup explicit sync between host and pi tasks.
-  CG::CGTYPE MLastCGType = CG::CGTYPE::None;
+  // Access to the event should be guarded with MMutex
+  EventImplPtr MLastEventPtr;
+  // Same as above but for graph begin-end recording cycle.
+  // Track deps within graph commands separately.
+  // Protected by common queue object mutex MMutex.
+  EventImplPtr MGraphLastEventPtr;
 
   const bool MIsInorder;
 
