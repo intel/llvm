@@ -56,7 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+#  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit d06ba9d9c539dc712444c6db95dfe1629bd5f7d8
   # Merge:  e1414e1 35b6a5e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
@@ -64,7 +65,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     Merge pull request #1035 from Bensuo/cmd-buffer-profiling-l0
   #     [EXP][CMDBUF] Add support for recovering CommandBuffer profiling
   #     information
-  set(UNIFIED_RUNTIME_TAG d06ba9d9c539dc712444c6db95dfe1629bd5f7d8)
+  set(UNIFIED_RUNTIME_TAG c03887e9e04ae07642fb74e3b8444acf84ec2d63)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
