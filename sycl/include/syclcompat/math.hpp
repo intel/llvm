@@ -39,7 +39,7 @@
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
-#include <sycl/ext/oneapi/experimental/sycl_complex.hpp>
+#include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 
 namespace syclcompat {
 namespace detail {
