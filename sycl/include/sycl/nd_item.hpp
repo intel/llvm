@@ -41,7 +41,7 @@ namespace ext::oneapi::experimental {
 template <int Dimensions> class root_group;
 }
 
-#if __INTEL_PREVIEW_BREAKING_CHANGES || 1
+#if __INTEL_PREVIEW_BREAKING_CHANGES
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.
 ///
