@@ -6,7 +6,7 @@
 //
 //===------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || gpu-intel-dg2
-// RUN: %{build} -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies esimd::scatter() functions accepting USM pointer
