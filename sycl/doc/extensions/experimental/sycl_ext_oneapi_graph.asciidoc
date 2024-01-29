@@ -610,7 +610,7 @@ void update(const ValueT& newValue);
 ----
 
 |Updates parameters in all nodes registered with this dynamic
-parameter to `newValue`. This new value will be reflect immediately in the
+parameter to `newValue`. This new value will be reflected immediately in the
 modifiable graph which contains the registered nodes. It is not an
 error if `newValue` is set to the current parameter value in any registered
 nodes.
