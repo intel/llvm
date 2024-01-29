@@ -574,9 +574,8 @@ bool device_impl::has(aspect Aspect) const {
         arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
     try {
       return std::any_of(
-          supported_archs.begin(), supported_archs.end(), [=](const arch a) {
-            return const_cast<device_impl *>(this)->extOneapiArchitectureIs(a);
-          });
+          supported_archs.begin(), supported_archs.end(),
+          [=](const arch a) { return this->extOneapiArchitectureIs(a); });
     } catch (const sycl::exception &) {
       // If we're here it means the device does not support architecture
       // querying
