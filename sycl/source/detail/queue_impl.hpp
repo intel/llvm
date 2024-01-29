@@ -744,8 +744,7 @@ protected:
 
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
-                       event &EventRet) {
+  void finalizeHandler(HandlerType &Handler, event &EventRet) {
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
@@ -831,11 +830,11 @@ protected:
             !(Handler.MKernel && Handler.MKernel->isInterop()) &&
             ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
 
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
     addEvent(Event);
     return Event;
