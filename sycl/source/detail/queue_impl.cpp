@@ -302,7 +302,7 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
                                 ContextImplPtr Context) {
   auto CheckEvent = [&Context](const sycl::event &Event) {
     const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-    // Events that don't have an initialized context are throwaway evemts that
+    // Events that don't have an initialized context are throwaway events that
     // don't represent actual dependencies. Calling getContextImpl() would set
     // their context, which we wish to avoid as it is expensive.
     if (!SyclEventImplPtr->isContextInitialized() &&
