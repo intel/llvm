@@ -1,5 +1,5 @@
 // Failing due to old driver
-// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
+// REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 //
