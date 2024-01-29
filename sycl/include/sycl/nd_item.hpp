@@ -468,6 +468,21 @@ public:
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest and
+  /// returns a SYCL device_event which can be used to wait on the completion
+  /// of the copy.
+  /// Permitted types for DestDataT are all scalar and vector types. SrcDataT
+  /// must be either the same as DestDataT or const DestDataT.
+  template <typename DestDataT, typename SrcDataT>
+  typename std::enable_if_t<
+      std::is_same_v<DestDataT, std::remove_const_t<SrcDataT>>, device_event>
+  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
+                        decorated_local_ptr<SrcDataT> src,
+                        size_t numElements) const {
+    return async_work_group_copy(dest, src, numElements, 1);
+  }
+
   template <typename... eventTN> void wait_for(eventTN... events) const {
     waitForHelper(events...);
   }
