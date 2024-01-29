@@ -9,10 +9,13 @@
 #ifndef SYCL_FUSION_COMMON_KERNEL_H
 #define SYCL_FUSION_COMMON_KERNEL_H
 
+#include "DynArray.h"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -107,17 +110,7 @@ struct SYCLKernelBinaryInfo {
 };
 
 ///
-/// Describe a SYCL/OpenCL kernel attribute by its name and values.
-struct SYCLKernelAttribute {
-  using AttributeValueList = std::vector<std::string>;
-
-  SYCLKernelAttribute(std::string Name)
-      : AttributeName{std::move(Name)}, Values{} {}
-
-  std::string AttributeName;
-  AttributeValueList Values;
-};
-
+/// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
@@ -132,20 +125,18 @@ enum ArgUsage : uint8_t {
 };
 
 ///
-/// Encode usage of parameters for the actual kernel function.
-using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
+/// Expose the enum's underlying type because it simplifies bitwise operations.
+using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 
 ///
-/// Describe the list of arguments by their kind.
+/// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  std::vector<ParameterKind> Kinds;
+  explicit SYCLArgumentDescriptor(size_t NumArgs = 0)
+      : Kinds(NumArgs), UsageMask(NumArgs){};
 
-  ArgUsageMask UsageMask;
+  DynArray<ParameterKind> Kinds;
+  DynArray<ArgUsageUT> UsageMask;
 };
-
-///
-/// List of SYCL/OpenCL kernel attributes.
-using AttributeList = std::vector<SYCLKernelAttribute>;
 
 ///
 /// Class to model a three-dimensional index.
@@ -186,6 +177,48 @@ private:
   static constexpr size_t Size = 3;
   size_t Values[Size];
 };
+
+///
+/// Describe a SYCL/OpenCL kernel attribute by its kind and values.
+struct SYCLKernelAttribute {
+  enum class AttrKind { Invalid, ReqdWorkGroupSize, WorkGroupSizeHint };
+
+  static constexpr auto ReqdWorkGroupSizeName = "reqd_work_group_size";
+  static constexpr auto WorkGroupSizeHintName = "work_group_size_hint";
+
+  static AttrKind parseKind(const char *Name) {
+    auto Kind = AttrKind::Invalid;
+    if (std::strcmp(Name, ReqdWorkGroupSizeName) == 0) {
+      Kind = AttrKind::ReqdWorkGroupSize;
+    } else if (std::strcmp(Name, WorkGroupSizeHintName) == 0) {
+      Kind = AttrKind::WorkGroupSizeHint;
+    }
+    return Kind;
+  }
+
+  AttrKind Kind;
+  Indices Values;
+
+  SYCLKernelAttribute() : Kind(AttrKind::Invalid) {}
+  SYCLKernelAttribute(AttrKind Kind, const Indices &Values)
+      : Kind(Kind), Values(Values) {}
+
+  const char *getName() const {
+    assert(Kind != AttrKind::Invalid);
+    switch (Kind) {
+    case AttrKind::ReqdWorkGroupSize:
+      return ReqdWorkGroupSizeName;
+    case AttrKind::WorkGroupSizeHint:
+      return WorkGroupSizeHintName;
+    default:
+      return "__invalid__";
+    }
+  }
+};
+
+///
+/// List of SYCL/OpenCL kernel attributes.
+using SYCLAttributeList = DynArray<SYCLKernelAttribute>;
 
 ///
 /// Class to model SYCL nd_range
@@ -296,24 +329,25 @@ private:
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
-  std::string Name;
+  DynString Name;
 
   SYCLArgumentDescriptor Args;
 
-  AttributeList Attributes;
+  SYCLAttributeList Attributes;
 
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
 
-  SYCLKernelInfo(const std::string &KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
-                 const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+  SYCLKernelInfo() = default;
 
-  explicit SYCLKernelInfo(const std::string &KernelName)
-      : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
+  SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
+                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
+
+  SYCLKernelInfo(const char *KernelName, size_t NumArgs)
+      : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
 ///
@@ -333,8 +367,9 @@ public:
 
   SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
     auto It =
-        std::find_if(Kernels.begin(), Kernels.end(),
-                     [&](SYCLKernelInfo &K) { return K.Name == KernelName; });
+        std::find_if(Kernels.begin(), Kernels.end(), [&](SYCLKernelInfo &K) {
+          return K.Name == KernelName.c_str();
+        });
     return (It != Kernels.end()) ? &*It : nullptr;
   }
 

@@ -19,6 +19,7 @@ on:
     - '**.md'
     - '**.rst'
     - '.github/workflows/sycl_windows_*.yml'
+    - '.github/workflows/sycl_macos_*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -94,3 +95,37 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
 
+
+  test-perf:
+    needs: [build, detect_changes]
+    if: |
+      always() && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
+          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Perf tests on Intel GEN12 Graphics system
+            runner: '["Linux", "gen12"]'
+          - name: Perf tests on Intel Arc A-Series Graphics system
+            runner: '["Linux", "arc"]'
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix. runner }}
+      image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      target_devices: all
+      reset_gpu: true
+
+      env: '{"LIT_FILTER":"PerformanceTests/"}'
+      extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+
+      ref: ${{ github.sha }}
+      merge_ref: ''
+
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}

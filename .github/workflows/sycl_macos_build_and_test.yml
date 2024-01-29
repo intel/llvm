@@ -29,11 +29,11 @@ jobs:
     steps:
     - name: Install dependencies
       run: brew install ccache ninja
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.build_ref }}
         path: src
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: build_cache_${{ inputs.build_cache_suffix }}
         key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-${{ github.sha }}
