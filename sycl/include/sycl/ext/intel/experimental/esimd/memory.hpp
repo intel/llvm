@@ -556,20 +556,8 @@ template <typename T, int NElts = 1,
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
                __ESIMD_NS::simd_mask<N> pred = 1) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
-      __esimd_lsc_load_slm<MsgT, cache_hint::none, cache_hint::none,
-                           _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data());
-  return detail::lsc_format_ret<T>(Tmp);
+  __ESIMD_NS::simd<T, N * NElts> pass_thru;
+  return __ESIMD_DNS::slm_gather_impl<T, NElts, DS>(offsets, pred, pass_thru);
 }
 
 /// SLM gather.
@@ -595,24 +583,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
                __ESIMD_NS::simd_mask<N> pred,
                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
-      detail::lsc_format_input<MsgT>(pass_thru);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
-      __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
-                                 _AddressScale, _ImmOffset, _DS, _VS,
-                                 _Transposed, N>(pred.data(), offsets.data(),
-                                                 PassThruExpanded.data());
-  return detail::lsc_format_ret<T>(Result);
+  return __ESIMD_DNS::slm_gather_impl<T, NElts, DS>(offsets, pred, pass_thru);
 }
 
 /// Transposed SLM gather with 1 channel.
