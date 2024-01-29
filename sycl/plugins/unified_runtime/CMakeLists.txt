@@ -65,7 +65,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Fri Jan 26 12:20:20 2024 +0000
   #     Merge pull request #1205 from ykhatav/ur_dependentload
   #     [UR] add dependent-load flag to exclude CWD from default search path …
-  set(UNIFIED_RUNTIME_TAG c03887e9e04ae07642fb74e3b8444acf84ec2d63)
+  set(UNIFIED_RUNTIME_TAG d0e7f0e90e934e8c2d87f3f48e1d9b009b821827)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
