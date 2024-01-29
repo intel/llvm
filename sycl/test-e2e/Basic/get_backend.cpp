@@ -1,5 +1,5 @@
 // Sporadic fails on DG2
-// TODO: Renable when internal ticket is resolved
+// TODO: Reenable when internal ticket is resolved
 // UNSUPPORTED: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
