@@ -12,13 +12,12 @@ target triple = "spir64-unknown-unknown"
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E10FillBuffer = comdat any
 
 @__spirv_BuiltInLocalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
-; CHECK: __AsanShadowMemoryGlobalStart
+; CHECK: __AsanShadowMemoryPrivateStart
 
 ; Function Attrs: convergent mustprogress norecurse nounwind sanitize_address uwtable
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E10FillBuffer(ptr addrspace(1) noundef align 8 %_arg_Sum, ptr addrspace(1) noundef align 8 %_arg_Accessor, ptr noundef byval(%"class.sycl::_V1::range") align 8 %_arg_Accessor1, ptr noundef byval(%"class.sycl::_V1::range") align 8 %_arg_Accessor2, ptr noundef byval(%"class.sycl::_V1::id") align 8 %_arg_Accessor3) local_unnamed_addr #0 comdat !srcloc !65 !kernel_arg_buffer_location !66 !kernel_arg_runtime_aligned !67 !kernel_arg_exclusive_ptr !67 !sycl_fixed_targets !68 {
 entry:
   %0 = load i64, ptr %_arg_Accessor3, align 8
-  ; CHECK: __asan_load8
   %1 = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationId, align 32, !noalias !68
   %call.i10 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 noundef 16, i64 noundef 4) #5, !noalias !69
   ; CHECK: __asan_set_shadow_local_memory
