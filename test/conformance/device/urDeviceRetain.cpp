@@ -40,7 +40,7 @@ TEST_F(urDeviceRetainTest, SuccessSubdevices) {
             1,
         };
 
-        ur_device_handle_t sub_device;
+        ur_device_handle_t sub_device = nullptr;
         ASSERT_SUCCESS(
             urDevicePartition(device, &properties, 1, &sub_device, nullptr));
 
