@@ -3,7 +3,6 @@
 //
 
 #include "common.hpp"
-#include <iostream>
 struct test {
   int a;
   int *b;
@@ -84,7 +83,6 @@ int main() {
   auto a_ptr = annotated_arg{a};
   for (int i = 0; i < 8; i++)
     a_ptr[i] = i;
-  std::cout << "Hello!" << std::endl;
   int *b = nullptr;
   try {
     b = malloc_shared<int>(4, Q);
