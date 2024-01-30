@@ -73,7 +73,6 @@ void performFusion(queue &q, Range1 R1, Range2 R2) {
   size_t numErrors = 0;
   size_t size = getSize(R1);
   for (size_t i = 0; i < size; ++i) {
-    std::cout << i << "\n";
     if (out[i] != ((i + 5) * 2)) {
       ++numErrors;
     }
