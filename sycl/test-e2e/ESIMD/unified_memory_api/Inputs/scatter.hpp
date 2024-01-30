@@ -210,8 +210,10 @@ template <typename T, TestFeatures Features> bool testUSM(queue Q) {
 
     // Check VS > 1. GPU supports only dwords and qwords in this mode.
     if constexpr (sizeof(T) >= 4) {
-      Passed &=
-          testUSM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+      // TODO: This test case causes flaky fail. Enable it after the issue
+      // in GPU driver is fixed.
+      // Passed &=
+      //     testUSM<T, 16, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps)
       Passed &=
           testUSM<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=

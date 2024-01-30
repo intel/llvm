@@ -1463,7 +1463,7 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  using CstT = typename detail::lsc_bitcast_type<T>::type;
+  using CstT = __ESIMD_DNS::uint_type_t<sizeof(T)>;
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<CstT>();
   __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, _AddressScale,
                         _ImmOffset, _DS, _VS, _Transposed, N>(
@@ -1585,7 +1585,7 @@ lsc_scatter(AccessorTy acc,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  using _CstT = typename detail::lsc_bitcast_type<T>::type;
+  using _CstT = __ESIMD_DNS::uint_type_t<sizeof(T)>;
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
   auto si = __ESIMD_NS::get_surface_index(acc);
   __esimd_lsc_store_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,

@@ -647,16 +647,6 @@ template <typename T> struct lsc_expand_type {
       std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
 };
 
-template <typename T> struct lsc_bitcast_type {
-public:
-  using type = std::conditional_t<
-      sizeof(T) == 1, uint8_t,
-      std::conditional_t<
-          sizeof(T) == 2, uint16_t,
-          std::conditional_t<sizeof(T) == 4, uint32_t,
-                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
-};
-
 } // namespace detail
 
 } // namespace ext::intel::esimd

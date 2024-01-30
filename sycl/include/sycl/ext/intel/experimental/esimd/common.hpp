@@ -104,7 +104,7 @@ template <typename T> struct lsc_expand_type {
 
 template <typename T> struct lsc_bitcast_type {
 public:
-  using type = __ESIMD_DNS::lsc_bitcast_type<T>::type;
+  using type = __ESIMD_DNS::uint_type_t<sizeof(T)>;
 };
 
 } // namespace detail
