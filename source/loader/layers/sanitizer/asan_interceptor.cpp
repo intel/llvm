@@ -14,8 +14,6 @@
 #include "asan_interceptor.hpp"
 #include "ur_sanitizer_layer.hpp"
 
-#include <dlfcn.h>
-
 namespace ur_sanitizer_layer {
 
 namespace {
@@ -365,20 +363,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
         // Poison shadow memory outside of asan runtime is not allowed, so we
         // need to avoid memset's call from being intercepted.
-        static void *memset_ptr = []() {
-            void *handle = dlopen("libc.so.6", RTLD_LAZY);
-            if (!handle) {
-                context.logger.error("dlopen failed: {}", dlerror());
-                return (void *)nullptr;
-            }
-            void *ptr = dlsym(handle, "memset");
-            if (!ptr) {
-                context.logger.error("dlsym failed: {}", dlerror());
-                return (void *)nullptr;
-            }
-            return ptr;
-        }();
-
+        static void *memset_ptr = GetMemFunctionPointer("memset");
         assert(nullptr != memset_ptr);
         ((void *(*)(void *, int, size_t))memset_ptr)(
             (void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);

@@ -13,6 +13,7 @@
 
 #include "common.hpp"
 #include <asm/param.h>
+#include <dlfcn.h>
 #include <sys/mman.h>
 
 extern "C" __attribute__((weak)) void __asan_init(void);
@@ -65,6 +66,18 @@ bool DestroyShadowMem() {
         return false;
     }
     return true;
+}
+
+void *GetMemFunctionPointer(const char *FuncName) {
+    void *handle = dlopen("libc.so.6", RTLD_LAZY);
+    if (!handle) {
+        return (void *)nullptr;
+    }
+    void *ptr = dlsym(handle, FuncName);
+    if (!ptr) {
+        return (void *)nullptr;
+    }
+    return ptr;
 }
 
 } // namespace ur_sanitizer_layer
