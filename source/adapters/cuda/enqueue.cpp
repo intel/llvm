@@ -245,13 +245,14 @@ setKernelParams(const ur_context_handle_t Context,
           return UR_RESULT_SUCCESS;
         };
 
-        size_t KernelLocalWorkGroupSize = 0;
+        size_t KernelLocalWorkGroupSize = 1;
         for (size_t Dim = 0; Dim < WorkDim; Dim++) {
           auto Err = IsValid(Dim);
           if (Err != UR_RESULT_SUCCESS)
             return Err;
-          // If no error then sum the total local work size per dim.
-          KernelLocalWorkGroupSize += LocalWorkSize[Dim];
+          // If no error then compute the total local work size as a product of
+          // all dims.
+          KernelLocalWorkGroupSize *= LocalWorkSize[Dim];
         }
 
         if (hasExceededMaxRegistersPerBlock(Device, Kernel,
