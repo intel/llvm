@@ -297,17 +297,14 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
     }
   }
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-      std::get<BufferMem>(hMem->Mem).getPtr(hDevice));
+      std::get<BufferMem>(hMem->Mem).getPtr(Device));
 #elif defined(__HIP_PLATFORM_AMD__)
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-      std::get<BufferMem>(hMem->Mem).getPtr(hDevice));
+      std::get<BufferMem>(hMem->Mem).getPtr(Device));
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
   return UR_RESULT_SUCCESS;
-}
-
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
