@@ -2403,7 +2403,7 @@ private:
   struct ForRangeInit {
     SourceLocation ColonLoc;
     ExprResult RangeExpr;
-
+    SmallVector<MaterializeTemporaryExpr *, 8> LifetimeExtendTemps;
     bool ParsedForRangeDecl() { return !ColonLoc.isInvalid(); }
   };
   struct ForRangeInfo : ForRangeInit {
@@ -3606,6 +3606,10 @@ private:
   bool ParseOpenACCSizeExpr();
   /// Parses a comma delimited list of 'size-expr's.
   bool ParseOpenACCSizeExprList();
+  /// Parses a 'gang-arg-list', used for the 'gang' clause.
+  bool ParseOpenACCGangArgList();
+  /// Parses a 'gang-arg', used for the 'gang' clause.
+  bool ParseOpenACCGangArg();
 
 private:
   //===--------------------------------------------------------------------===//
