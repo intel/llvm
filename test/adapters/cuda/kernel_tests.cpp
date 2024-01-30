@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "kernel.hpp"
-#include <uur/fixtures.h>
+#include "uur/fixtures.h"
+#include "uur/raii.h"
 
 using cudaKernelTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(cudaKernelTest);
@@ -72,19 +73,16 @@ const char *threeParamsTwoLocal = "\n\
 
 TEST_P(cudaKernelTest, CreateProgramAndKernel) {
 
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)ptxSource,
-                                             nullptr, &program));
+                                             nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
     ASSERT_NE(kernel, nullptr);
-
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
@@ -117,16 +115,16 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
 
     ur_program_properties_t programProps{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
                                          nullptr, 1, &reqdWorkGroupSizeMDProp};
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)ptxSource,
-                                             &programProps, &program));
+                                             &programProps, program.ptr()));
     ASSERT_NE(program, nullptr);
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
 
     size_t compileWGSize[3] = {0};
     ASSERT_SUCCESS(urKernelGetGroupInfo(
@@ -136,21 +134,18 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
     for (int i = 0; i < 3; i++) {
         ASSERT_EQ(compileWGSize[i], reqdWorkGroupSizeMD[i + 2]);
     }
-
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(cudaKernelTest, URKernelArgumentSimple) {
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)ptxSource,
-                                             nullptr, &program));
+                                             nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
     ASSERT_NE(kernel, nullptr);
 
     int number = 10;
@@ -161,21 +156,18 @@ TEST_P(cudaKernelTest, URKernelArgumentSimple) {
 
     int storedValue = *static_cast<const int *>(kernelArgs[0]);
     ASSERT_EQ(storedValue, number);
-
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)ptxSource,
-                                             nullptr, &program));
+                                             nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
     ASSERT_NE(kernel, nullptr);
 
     int number = 10;
@@ -193,27 +185,24 @@ TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
     ASSERT_EQ(kernelArgs2.size(), 1 + NumberOfImplicitArgsCUDA);
     storedValue = *static_cast<const int *>(kernelArgs2[0]);
     ASSERT_EQ(storedValue, otherNumber);
-
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(cudaKernelTest, URKernelDispatch) {
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)ptxSource,
-                                             nullptr, &program));
+                                             nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
     ASSERT_NE(kernel, nullptr);
 
     const size_t memSize = 1024u;
-    ur_mem_handle_t buffer = nullptr;
+    uur::raii::Mem buffer = nullptr;
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, &buffer));
+                                     nullptr, buffer.ptr()));
     ASSERT_NE(buffer, nullptr);
     ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
 
@@ -225,32 +214,28 @@ TEST_P(cudaKernelTest, URKernelDispatch) {
                                          globalWorkOffset, globalWorkSize,
                                          localWorkSize, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
-
-    ASSERT_SUCCESS(urMemRelease(buffer));
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(cudaKernelTest, URKernelDispatchTwo) {
-    ur_program_handle_t program = nullptr;
+    uur::raii::Program program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
                                              (const uint8_t *)twoParams,
-                                             nullptr, &program));
+                                             nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    ur_kernel_handle_t kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "twoParamKernel", &kernel));
+    uur::raii::Kernel kernel = nullptr;
+    ASSERT_SUCCESS(urKernelCreate(program, "twoParamKernel", kernel.ptr()));
     ASSERT_NE(kernel, nullptr);
 
     const size_t memSize = 1024u;
-    ur_mem_handle_t buffer1 = nullptr;
-    ur_mem_handle_t buffer2 = nullptr;
+    uur::raii::Mem buffer1 = nullptr;
+    uur::raii::Mem buffer2 = nullptr;
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, &buffer1));
+                                     nullptr, buffer1.ptr()));
     ASSERT_NE(buffer1, nullptr);
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, &buffer2));
+                                     nullptr, buffer2.ptr()));
     ASSERT_NE(buffer1, nullptr);
     ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer1));
     ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 1, nullptr, buffer2));
@@ -263,9 +248,4 @@ TEST_P(cudaKernelTest, URKernelDispatchTwo) {
                                          globalWorkOffset, globalWorkSize,
                                          localWorkSize, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
-
-    ASSERT_SUCCESS(urMemRelease(buffer1));
-    ASSERT_SUCCESS(urMemRelease(buffer2));
-    ASSERT_SUCCESS(urKernelRelease(kernel));
-    ASSERT_SUCCESS(urProgramRelease(program));
 }
