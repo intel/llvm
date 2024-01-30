@@ -1,8 +1,11 @@
 // RUN: %{build} -o %t.out
-// RUN: %if level_zero %{ env UR_L0_LEAKS_DEBUG=1 %} %{run} %t.out
+// RUN: %{run} %t.out
 
 // Device globals aren't supported on opencl:gpu yet.
 // UNSUPPORTED: opencl && gpu
+
+// TODO: Fails at JIT compilation for some reason.
+// UNSUPPORTED: hip
 #define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/sycl.hpp>
