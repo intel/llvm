@@ -140,7 +140,7 @@ template <typename T, typename Expected> inline void checkVecNotReturnType() {
   using OpNotResult = decltype(std::declval<Vector>().operator!());
 #endif
   static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
-                "Incorrect vec::operator! return type");
+                "Incorrect operator! return type");
 }
 
 // the math built-in testing ensures that the vec binary ops get tested,
