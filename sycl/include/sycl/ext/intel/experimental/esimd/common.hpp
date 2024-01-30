@@ -102,11 +102,6 @@ template <typename T> struct lsc_expand_type {
   using type = __ESIMD_DNS::lsc_expand_type<T>::type;
 };
 
-template <typename T> struct lsc_bitcast_type {
-public:
-  using type = __ESIMD_DNS::uint_type_t<sizeof(T)>;
-};
-
 } // namespace detail
 
 /// L1 or L3 cache hint kinds.
