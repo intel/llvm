@@ -72,9 +72,12 @@ template <typename WaitOnType> void test2() {
     cgh.depends_on(syclEvent1);
     cgh.host_task([&](sycl::interop_handle ih) {
       cudaSetCtxAndGetStreamAndEvent(ih);
-      for (auto &cudaEv :
-           ih.get_native_events<sycl::backend::ext_oneapi_cuda>())
+      auto nativeEvents =
+          ih.get_native_events<sycl::backend::ext_oneapi_cuda>();
+      assert(nativeEvents.size());
+      for (auto &cudaEv : nativeEvents) {
         CUDA_CHECK(cuEventSynchronize(cudaEv));
+      }
     });
   });
 
@@ -112,9 +115,12 @@ template <typename WaitOnType> void test3() {
     cgh.depends_on(syclEvent1);
     cgh.host_task([&](sycl::interop_handle ih) {
       auto [stream, _] = cudaSetCtxAndGetStreamAndEvent(ih);
-      for (auto &cudaEv :
-           ih.get_native_events<sycl::backend::ext_oneapi_cuda>())
+      auto nativeEvents =
+          ih.get_native_events<sycl::backend::ext_oneapi_cuda>();
+      assert(nativeEvents.size());
+      for (auto &cudaEv : nativeEvents) {
         CUDA_CHECK(cuStreamWaitEvent(stream, cudaEv, 0));
+      }
 
       CUDA_CHECK(cuMemcpyDtoHAsync(ptrHostB,
                                    reinterpret_cast<CUdeviceptr>(ptrDevice),
