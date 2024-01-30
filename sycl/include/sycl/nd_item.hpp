@@ -199,7 +199,10 @@ public:
 #endif
   }
 
-  nd_range<Dimensions> get_nd_range() const { return nd_range<Dimensions>(); }
+  nd_range<Dimensions> get_nd_range() const {
+    return nd_range<Dimensions>(get_global_range(), get_local_range(),
+                                get_offset());
+  }
 
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
