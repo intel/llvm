@@ -94,7 +94,7 @@ static void Parse_ODS_Device(ods_target &Target,
 
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
-      getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
+      getODSDeviceTypeMap(); // <-- std::array<std::pair<std::string,
                               // info::device::type>>
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
@@ -262,7 +262,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
   if (Target.DeviceType) {
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getODSDeviceTypeMap();
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),
         [&](auto Pair) { return (Pair.second == Target.DeviceType); });

@@ -161,7 +161,21 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// Array is used by ONEAPI_DEVICE_SELECTOR.
+// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
+// is removed.
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getODSDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 5>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"fpga", info::device_type::accelerator},
+                            {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
+
+// Array is used by SYCL_DEVICE_ALLOWLIST.
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
 const std::array<std::pair<std::string, info::device_type>, 6> &

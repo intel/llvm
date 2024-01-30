@@ -15,7 +15,7 @@
     ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=opencl:cpu ./binx.bin
 
-    ONEAPI_DEVICE_SELECTOR=opecl:acc ../binx.bin    <--  does not support image
+    ONEAPI_DEVICE_SELECTOR=opencl:fpga ../binx.bin    <--  does not support image
    operations at this time.
 
 */
