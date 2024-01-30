@@ -105,4 +105,6 @@ bool SetupShadowMem();
 
 bool DestroyShadowMem();
 
+void *GetMemFunctionPointer(const char *);
+
 } // namespace ur_sanitizer_layer
