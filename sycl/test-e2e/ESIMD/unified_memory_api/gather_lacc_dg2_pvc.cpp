@@ -1,5 +1,4 @@
-//==------- gather_lacc_dg2_pvc.cpp - DPC++ ESIMD on-device test
-//------------==//
+//==------- gather_lacc_dg2_pvc.cpp - DPC++ ESIMD on-device test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 
 // Use per-kernel compilation to have more information about failing cases.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
