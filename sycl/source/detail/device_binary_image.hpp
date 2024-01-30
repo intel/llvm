@@ -242,7 +242,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange HostPipes;
 
 private:
-  static uintptr_t ImageCounter;
+  static std::atomic<uintptr_t> ImageCounter;
   uintptr_t ImageId;
 };
 
