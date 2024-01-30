@@ -32,22 +32,30 @@ public:
 private:
   std::size_t GlobalLinearSize;
   bool IsHeterogeneousList;
+  // Sorted vector acting as a map.
   SmallVector<std::pair<Indices, size_t>> FreqMap;
 };
 } // namespace
 
 void IndicesFrequenceMap::add(const Indices &I) {
+  // From algorithm:
+  // 1. A range is greater than another range if it contains more elements (see
+  // linearize());
   std::size_t GLS = NDRange::linearize(I);
   if (FreqMap.empty()) {
     GlobalLinearSize = GLS;
     FreqMap.emplace_back(I, 1);
     return;
   }
+
   if (GLS < GlobalLinearSize) {
+    // Do not add to map
     IsHeterogeneousList = true;
     return;
   }
+
   if (GLS == GlobalLinearSize) {
+    // Add to map. Keep it sorted.
     auto *Iter = lower_bound(FreqMap, I,
                              [](const std::pair<Indices, size_t> &P,
                                 const Indices &I) { return P.first < I; });
@@ -62,6 +70,7 @@ void IndicesFrequenceMap::add(const Indices &I) {
     return;
   }
   // GLS > GlobalLinearSize
+  // Clear map. This is the new maximum.
   GlobalLinearSize = GLS;
   IsHeterogeneousList = true;
   FreqMap.clear();
@@ -73,12 +82,17 @@ const Indices &IndicesFrequenceMap::getMax() const {
                           [](const auto &LHS, const auto &RHS) {
                             const auto LHSN = LHS.second;
                             const auto RHSN = RHS.second;
+                            // From algorithm:
+                            // 2. Else if it appears more times in the input
+                            // list of ranges;
                             if (LHSN < RHSN) {
                               return true;
                             }
                             if (LHSN > RHSN) {
                               return false;
                             }
+                            // 3. Else if it is greater in lexicographical
+                            // order.
                             return LHS.first < RHS.first;
                           })
       ->first;
