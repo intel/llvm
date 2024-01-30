@@ -61,7 +61,7 @@ jobs:
             ghcr.io/${{ github.repository }}/ubuntu2204_build:${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2204_build:latest
 
-  # This job produces a Docker container with the latest versions of Intel
+  # This job produces a Docker container with the released versions of Intel
   # drivers, that can be found on GitHub.
   drivers_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
@@ -99,8 +99,8 @@ jobs:
             tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
             fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
             cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
-  # This job produces a Docker container with the latest versions of Intel
-  # drivers, that can be found on GitHub.
+  # This job produces a Docker container with the released versions of Intel
+  # drivers and latest IGC version that can be found on GitHub.
   drivers_image_ubuntu2204_unstable:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
@@ -123,11 +123,17 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_intel_drivers
+          file: ubuntu2204_intel_drivers_dev_igfx
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable
-          # build-args:empty, so we automatically take the "latest" tags as
-          # unstable
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers_dev_igfx:latest-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers_dev_igfx:latest
+          build-args: |
+            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
+            igc_dev_hash=${{fromJson(steps.deps.outputs.deps).linux.igc_dev.github_hash}}
+            cm_tag=${{fromJson(steps.deps.outputs.deps).linux.cm.github_tag}}
+            level_zero_tag=${{fromJson(steps.deps.outputs.deps).linux.level_zero.github_tag}}
+            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
+            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
+            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
