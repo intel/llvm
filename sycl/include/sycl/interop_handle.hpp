@@ -39,6 +39,11 @@ class DispatchHostTask;
 class queue_impl;
 class device_impl;
 class context_impl;
+
+// Needed for get_native_events to check if backend_return_t<Backend, event> is
+// a vector
+template <typename T> struct is_std_vector : std::false_type {};
+template <typename T> struct is_std_vector<std::vector<T>> : std::true_type {};
 } // namespace detail
 
 class queue;
@@ -197,13 +202,48 @@ public:
                                  PI_ERROR_INVALID_MEM_OBJECT);
     // All native events can be cast to void*, we use this as a generic entry
     // point to source library
-    std::vector<void *> NativeEventHolders(NativeEvents.size());
+    std::vector<pi_native_handle> NativeEventHolders(NativeEvents.size());
     for (auto i = 0; i < NativeEvents.size(); ++i)
-      NativeEventHolders[i] = reinterpret_cast<void *>(NativeEvents[i]);
+      NativeEventHolders[i] =
+          reinterpret_cast<pi_native_handle>(NativeEvents[i]);
     return addNativeEvents(NativeEventHolders);
 #else
     // we believe this won't be ever called on device side
     return;
+#endif
+  }
+
+  // Gets all the native events that the host task depends on, and that are
+  // still active
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, event> get_native_events() {
+#ifndef __SYCL_DEVICE_ONLY__
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw invalid_object_error("Incorrect backend argument was passed",
+                                 PI_ERROR_INVALID_MEM_OBJECT);
+    // All native events can be cast to void*, we use this as a generic entry
+    // point to source library
+    std::vector<pi_native_handle> NativeEventHolders = getNativeEvents();
+    backend_return_t<Backend, event>
+        RetNativeEvents; // This may be a vector of native events or a single
+                         //  native event, depending on the backend
+    if constexpr (detail::is_std_vector<
+                      backend_return_t<Backend, event>>::value) {
+      using ValueT = typename backend_return_t<Backend, event>::value_type;
+      for (auto i = 0; i < NativeEventHolders.size(); ++i)
+        RetNativeEvents.push_back(
+            reinterpret_cast<ValueT>(NativeEventHolders[i]));
+    } else {
+      RetNativeEvents = reinterpret_cast<backend_return_t<Backend, event>>(
+          NativeEventHolders[0]);
+    }
+    return RetNativeEvents;
+#else
+    // we believe this won't be ever called on device side
+    return {};
 #endif
   }
 
@@ -241,7 +281,8 @@ private:
   getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
-  __SYCL_EXPORT void addNativeEvents(std::vector<void *> &);
+  __SYCL_EXPORT void addNativeEvents(std::vector<pi_native_handle> &);
+  __SYCL_EXPORT std::vector<pi_native_handle> getNativeEvents() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
