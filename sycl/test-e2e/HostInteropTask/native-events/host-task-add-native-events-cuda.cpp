@@ -3,32 +3,14 @@
 // RUN: %{build} -o %t.out -lcuda
 // RUN: %{run} %t.out
 
+#include "host-task-native-events-cuda.hpp"
 #include <cuda.h>
 #include <sycl/sycl.hpp>
-
-#define CUDA_CHECK(expr)                                                       \
-  if (auto var = expr; var != CUDA_SUCCESS) {                                  \
-    printf(#expr " failed, returned val %d\n", var);                           \
-    throw;                                                                     \
-  }
 
 using T = unsigned; // We don't need to test lots of types, we just want a race
                     // condition
 constexpr size_t bufSize = 1e6;
 constexpr T pattern = 42;
-
-std::pair<CUstream, CUevent>
-cudaSetCtxAndGetStreamAndEvent(sycl::interop_handle &ih) {
-  auto dev = ih.get_native_device<sycl::backend::ext_oneapi_cuda>();
-  CUcontext ctx;
-  CUDA_CHECK(cuDevicePrimaryCtxRetain(&ctx, dev));
-  CUDA_CHECK(cuCtxSetCurrent(ctx));
-  CUstream stream;
-  CUDA_CHECK(cuStreamCreate(&stream, 0));
-  CUevent ev;
-  CUDA_CHECK(cuEventCreate(&ev, 0));
-  return {stream, ev};
-}
 
 // Check that the SYCL event that we submit with add_native_events can be
 // retrieved later through get_native(syclEvent)
@@ -48,11 +30,7 @@ template <typename WaitOnType> void test1() {
     });
   });
 
-  if constexpr (std::is_same_v<WaitOnType, sycl::queue>) {
-    q.wait();
-  } else if constexpr (std::is_same_v<WaitOnType, sycl::event>) {
-    syclEvent.wait();
-  }
+  waitHelper<WaitOnType>(syclEvent, q);
 
   auto nativeEvents =
       sycl::get_native<sycl::backend::ext_oneapi_cuda>(syclEvent);
@@ -87,21 +65,12 @@ template <typename WaitOnType> void test2() {
       ih.add_native_events<sycl::backend::ext_oneapi_cuda>({ev});
     });
   });
-  if constexpr (std::is_same_v<WaitOnType, sycl::queue>) {
-    q.wait();
-  } else if constexpr (std::is_same_v<WaitOnType, sycl::event>) {
-    syclEvent.wait();
-  }
-  for (auto i = 0; i < bufSize; ++i) {
-    if (ptrHost[i] != pattern) {
-      printf("Wrong result at index: %d, have %d vs %d\n", i, out[i], pattern);
-      throw;
-    };
-  }
+  waitHelper<WaitOnType>(syclEvent, q);
+  checkResults(ptrHost, bufSize, pattern);
 }
 
 // Using host task event as a cgh.depends_on with USM
-void test3() {
+template <typename WaitOnType> void test3() {
   printf("Running test 3\n");
   using T = unsigned;
 
@@ -127,17 +96,54 @@ void test3() {
     });
   });
 
-  q.submit([&](sycl::handler &cgh) {
-     cgh.depends_on(hostTaskEvent);
-     cgh.memcpy(ptrHostB, ptrHostA, bufSize * sizeof(T));
-   }).wait();
+  auto syclEvent = q.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(hostTaskEvent);
+    cgh.memcpy(ptrHostB, ptrHostA, bufSize * sizeof(T));
+  });
 
-  for (auto i = 0; i < bufSize; --i) {
-    if (ptrHostB[i] != pattern) {
-      printf("Wrong result at index: %d, have %d vs %d\n", i, out[i], pattern);
-      throw;
-    };
+  waitHelper<WaitOnType>(syclEvent, q);
+  checkResults(ptrHostB, bufSize, pattern);
+  printf("Tests passed\n");
+}
+
+// Using host task event with implicit DAG from buffer accessor model
+template <typename WaitOnType> void test4() {
+  printf("Running test 4\n");
+  using T = unsigned;
+
+  sycl::queue q;
+
+  T *ptrHostIn = sycl::malloc_host<T>(bufSize, q);
+  T *ptrHostOut = sycl::malloc_host<T>(bufSize, q);
+
+  // Dummy buffer to create dependencies between commands. Use a host malloc
+  // for host ptr to make sure the buffer has pinned memory
+  sycl::buffer<T, 1> buf{
+      ptrHostIn, bufSize, {sycl::property::buffer::use_host_ptr{}}};
+
+  q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{buf, sycl::write_only};
+
+    cgh.host_task([&](sycl::interop_handle ih) {
+      auto accPtr = ih.get_native_mem<sycl::backend::ext_oneapi_cuda>(acc);
+      auto [stream, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
+
+      CUDA_CHECK(cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(accPtr),
+                                  pattern, bufSize, stream));
+      CUDA_CHECK(cuEventRecord(ev, stream));
+
+      ih.add_native_events<sycl::backend::ext_oneapi_cuda>({ev});
+    });
+  });
+
+  {
+    sycl::host_accessor hostAcc{buf};
+    for (auto i = 0; i < bufSize; ++i)
+      ptrHostOut[i] = hostAcc[i];
   }
+
+  q.wait();
+  checkResults(ptrHostOut, bufSize, pattern);
   printf("Tests passed\n");
 }
 
@@ -146,5 +152,9 @@ int main() {
   test1<sycl::event>();
   test2<sycl::queue>();
   test2<sycl::event>();
-  test3();
+  test3<sycl::queue>();
+  test3<sycl::event>();
+  // test4<sycl::queue>(); Fails with `SyclObject.impl && "every constructor
+  //                       should create an impl"' failed.
+  // test4<sycl::event>();
 }

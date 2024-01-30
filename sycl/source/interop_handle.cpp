@@ -52,7 +52,8 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
-void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
+void interop_handle::addNativeEvents(
+    std::vector<pi_native_handle> &NativeEvents) {
   auto Plugin = MQueue->getPlugin();
 
   if (!MEvent->backendSet()) {
@@ -63,18 +64,36 @@ void interop_handle::addNativeEvents(std::vector<void *> &NativeEvents) {
   for (auto i = 0; i < NativeEvents.size(); ++i) {
     detail::pi::PiEvent Ev;
     Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
-        (pi_native_handle)NativeEvents[i], MContext->getHandleRef(),
+        NativeEvents[i], MContext->getHandleRef(),
         /*OwnNativeHandle*/ true, &Ev);
     auto EventImpl = std::make_shared<detail::event_impl>(
         Ev, detail::createSyclObjFromImpl<context>(MContext));
     // TODO: Do I need to call things like:
-    // setContextImpl     -> No because we are constructing the EventImpl with
-    //                       a context
     // setStateIncomplete -> Not sure
     // setSubmissionTime  -> Not sure
     // More...?
     MEvent->addHostTaskNativeEvent(EventImpl);
   }
+}
+
+std::vector<pi_native_handle> interop_handle::getNativeEvents() const {
+  if (!MEvent->backendSet()) {
+    MEvent->setContextImpl(MContext);
+  }
+  // What if the events here have not yet been enqueued? I will need to wait on
+  // them. That is probably already done?
+  //
+  // Moreover what are the usual requirements of the host task launch?
+  //
+  // Do all dependent events need to be complete, or just enqueued? I suspect it
+  // is the former, and we want the latter in the case that we are using these
+  // entry points. We will maybe need a new host task entry point.
+  std::vector<pi_native_handle> RetEvents;
+  for (auto &DepEvent : MEvent->getWaitList()) {
+    auto NativeEvents = DepEvent->getNativeVector();
+    RetEvents.insert(RetEvents.end(), NativeEvents.begin(), NativeEvents.end());
+  }
+  return RetEvents;
 }
 
 } // namespace _V1
