@@ -2678,7 +2678,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->has_discard_events_support() &&
+      (MQueue->supportsDiscardingPiEvents() &&
        MCommandGroup->getRequirements().size() == 0)
           ? nullptr
           : &MEvent->getHandleRef();
@@ -2825,11 +2825,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardEvent = (MQueue->has_discard_events_support() &&
-                       MCommandGroup->getRequirements().size() == 0);
+  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
+                         MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
-      DiscardEvent ? nullptr : &MEvent->getHandleRef();
-  detail::EventImplPtr EventImpl = DiscardEvent ? nullptr : MEvent;
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
 
