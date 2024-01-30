@@ -266,6 +266,7 @@ public:
 
   bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
   bool hasUniformWorkGroupSizes() const {
+    assert(hasSpecificLocalSize() && "Local size must be specified");
     for (int I = 0; I < Dimensions; ++I) {
       if (GlobalSize[I] % LocalSize[I] != 0) {
         return false;
