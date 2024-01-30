@@ -40,7 +40,6 @@ bool CheckResult(sycl::vec<T1, N> V, T2 Ref) {
     using VecT = sycl::vec<T, N>;                                              \
     using ResT = sycl::vec<std::conditional_t<IS_RELOP, rel_t<T>, T>, N>;      \
     constexpr T RefVal = 2;                                                    \
-    int Failures = 0;                                                          \
     VecT InVec{static_cast<T>(RefVal)};                                        \
     {                                                                          \
       VecT OutVecsDevice[2];                                                   \
