@@ -1,4 +1,5 @@
 // REQUIRES: linux
+// UNSUPPORTED: gpu, cuda, hip
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
@@ -34,7 +35,7 @@ int main() {
   // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on USM Host Memory
   // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on USM Shared Memory
   // CHECK: {{READ of size 1 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(12345, 0, 0\)}}
-  // CHECK: {{  #0 .* .*parallel_for_char.cpp:}}[[@LINE-8]]
+  // CHECK: {{  #0 .* .*test.cpp:}}[[@LINE-8]]
 
   return 0;
 }
