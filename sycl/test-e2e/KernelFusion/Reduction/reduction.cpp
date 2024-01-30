@@ -42,14 +42,11 @@ int main() {
                        });
     });
 
-    complete_fusion_with_check(
-        fw, ext::codeplay::experimental::property::no_barriers{});
+    complete_fusion_with_check(fw);
   }
 
   constexpr int expectedMax = dataSize - 1;
   constexpr int expectedSum = dataSize * expectedMax / 2;
-
-  std::cerr << sumRes << "\n";
 
   assert(maxRes == expectedMax && "Unexpected max value");
   assert(sumRes == expectedSum && "Unexpected sum value");
