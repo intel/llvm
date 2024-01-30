@@ -14,6 +14,8 @@
 #include "asan_interceptor.hpp"
 #include "ur_sanitizer_layer.hpp"
 
+#include <dlfcn.h>
+
 namespace ur_sanitizer_layer {
 
 namespace {
@@ -353,11 +355,6 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
     ur_event_handle_t DepEvent, ur_event_handle_t *OutEvent) {
 
-    uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
-    const ur_event_handle_t *EventsWaitList = DepEvent ? &DepEvent : nullptr;
-    ur_event_handle_t InternalEvent{};
-    ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
@@ -366,22 +363,39 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
         uptr ShadowEnd =
             MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr + Size - 1);
 
-        const char Pattern[] = {(char)Value};
-        auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
-            Queue, (void *)ShadowBegin, 1, Pattern, ShadowEnd - ShadowBegin + 1,
-            NumEventsInWaitList, EventsWaitList, Event);
+        // Poison shadow memory outside of asan runtime is not allowed, so we
+        // need to avoid memset's call from being intercepted.
+        static void *memset_ptr = []() {
+            void *handle = dlopen("libc.so.6", RTLD_LAZY);
+            if (!handle) {
+                context.logger.error("dlopen failed: {}", dlerror());
+                return (void *)nullptr;
+            }
+            void *ptr = dlsym(handle, "memset");
+            if (!ptr) {
+                context.logger.error("dlsym failed: {}", dlerror());
+                return (void *)nullptr;
+            }
+            return ptr;
+        }();
+
+        assert(nullptr != memset_ptr);
+        ((void *(*)(void *, int, size_t))memset_ptr)(
+            (void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
         context.logger.debug(
-            "enqueueMemSetShadow (addr={}, count={}, value={}): {}",
+            "enqueueMemSetShadow (addr={}, count={}, value={})",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-            (void *)(size_t)Value, URes);
-        if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error("urEnqueueUSMFill(): {}", URes);
-            return URes;
-        }
+            (void *)(size_t)Value);
     } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
         uptr ShadowEnd =
             MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+
+        uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
+        const ur_event_handle_t *EventsWaitList =
+            DepEvent ? &DepEvent : nullptr;
+        ur_event_handle_t InternalEvent{};
+        ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
         {
             static const size_t PageSize = [Context, Device]() {
