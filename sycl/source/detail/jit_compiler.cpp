@@ -712,7 +712,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
          KernelName.find("_ZTSN4sycl3_V16detail19__pf_kernel_wrapper") == 0) &&
         !Args.empty()) {
       auto &A0 = Args[0];
-      auto Dims = KernelCG->MNDRDesc.Dims;
+      [[maybe_unused]] auto Dims = KernelCG->MNDRDesc.Dims;
       assert(A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
              A0.MType == kernel_param_kind_t::kind_std_layout &&
              "Unexpected signature for rounded range kernel");
