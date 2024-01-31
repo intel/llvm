@@ -75,6 +75,9 @@ MyStruct<T> operator<<(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
 
 int main() {
   queue Q;
+  if (!Q.get_device().has(aspect::usm_shared_allocations)) {
+    return 0;
+  }
 
   auto *a = malloc_shared<int>(8, Q);
   auto a_ptr = annotated_arg{a};
