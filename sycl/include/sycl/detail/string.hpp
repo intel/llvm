@@ -28,8 +28,10 @@ public:
   }
 
   string(const std::string_view &strn) {
-    allocate(strn.length() + 1);
-    strcpy(str, strn.data());
+    int len = strn.length();
+    allocate(len + 1);
+    strn.copy(str, len);
+    str[len] = '\0';
   }
 
   string(string &&strn) {
@@ -54,8 +56,9 @@ public:
   }
 
   string &operator=(const std::string_view &strn) {
-    allocate(strn.length() + 1);
-    strcpy(str, strn.data());
+    int len = strn.length();
+    allocate(len + 1);
+    strn.copy(str, len);
     return *this;
   }
 
