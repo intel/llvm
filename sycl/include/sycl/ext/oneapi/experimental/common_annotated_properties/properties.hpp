@@ -83,6 +83,8 @@ struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
 template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
+template <int K>
+struct propagateToPtrAnnotation<alignment_key::value_t<K>> : std::true_type {};
 
 namespace detail {
 

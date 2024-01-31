@@ -476,8 +476,8 @@ a|
 T* get() const noexcept;
 ----
 |
-Returns the underlying raw pointer. The raw pointer will not retain the
-annotations.
+Returns the underlying raw pointer. Implementations are free to propagate information from properties of
+an annotated_ptr to the raw pointer.
 
 // --- ROW BREAK ---
 a|

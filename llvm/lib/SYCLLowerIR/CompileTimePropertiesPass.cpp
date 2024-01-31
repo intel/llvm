@@ -780,11 +780,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
-    // sycl-alignment is converted to align on
-    // previous parseAlignmentAndApply(), dropping here
-    if (PropName == "sycl-alignment")
-      continue;
-
     auto DecorIt = SpirvDecorMap.find(*PropName);
     if (DecorIt == SpirvDecorMap.end())
       continue;

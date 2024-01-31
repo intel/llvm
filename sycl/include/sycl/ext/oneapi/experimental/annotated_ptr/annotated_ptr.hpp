@@ -75,14 +75,6 @@ struct annotationHelper<I, detail::properties_t<P...>> {
         detail::PropertyMetaInfo<P>::value...);
   }
 
-  // static I load(I *ptr) {
-  //   return *annotate(ptr);
-  // }
-
-  // template <class O> static I store(I *ptr, O &&Obj) {
-  //   return *annotate(ptr) = std::forward<O>(Obj);
-  // }
-
   static I load(I *ptr) {
     return *__builtin_intel_sycl_ptr_annotation(
         ptr, detail::PropertyMetaInfo<P>::name...,
@@ -136,16 +128,6 @@ public:
   T operator=(const annotated_ref<O, P> &Ref) const {
     O t2 = Ref.operator O();
     return *this = t2;
-  }
-
-  // address-of operator
-  T *operator&() const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, detail::annotation_filter<Props...>>::annotate(
-        m_Ptr);
-#else
-    return *m_Ptr;
-#endif
   }
 
   // propagate compound operators
