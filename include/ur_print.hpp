@@ -11175,6 +11175,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phMem));
 
     os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
     os << ".phNativeMem = ";
 
     ur::details::printPtr(os,
