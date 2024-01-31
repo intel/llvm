@@ -56,9 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  # DO NOT MERGE
-  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG get-native-mem-on-device2)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7
+  # Merge: 40517d2b fc1f3066
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jan 31 10:38:07 2024 +0000
+  #     Merge pull request #1226 from hdelan/get-native-mem-on-device2
+  #     [UR] Add extra param to urMemGetNativeHandle
+  set(UNIFIED_RUNTIME_TAG d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
