@@ -173,7 +173,7 @@ jit_compiler::FusedNDRange::get(ArrayRef<NDRange> NDRanges) {
 
     // Work-items in the same work-group in the original ND-ranges must be in
     // the same work-group in the fused one.
-    if (LocalSize && any_of(NDRanges, [Fused](const NDRange &NDR) {
+    if (LocalSize && any_of(NDRanges, [&Fused](const NDRange &NDR) {
           return NDR.hasSpecificLocalSize() && requireIDRemapping(Fused, NDR);
         })) {
       return createStringError(
