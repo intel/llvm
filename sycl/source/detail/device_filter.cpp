@@ -95,7 +95,7 @@ static void Parse_ODS_Device(ods_target &Target,
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
       getODSDeviceTypeMap(); // <-- std::array<std::pair<std::string,
-                              // info::device::type>>
+                             // info::device::type>>
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
                    [&](auto DtPair) { return TopDeviceStr == DtPair.first; });
