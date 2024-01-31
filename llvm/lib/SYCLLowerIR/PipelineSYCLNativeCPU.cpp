@@ -11,42 +11,46 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
-#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
 #include "compiler/utils/device_info.h"
+#include "compiler/utils/prepare_barriers_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
 #include "vecz/pass.h"
 #include "vecz/vecz_target_info.h"
-#include "compiler/utils/prepare_barriers_pass.h"
-#include "compiler/utils/sub_group_analysis.h"
-#include "compiler/utils/work_item_loops_pass.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #endif
 
 using namespace llvm;
 using namespace sycl::utils;
 
-cl::opt<bool> ForceNoTail("native-cpu-force-no-tail", cl::init(false),
-    cl::desc("Never emit the peeling loop for vectorized kernels,"
-    "even when the local size is not known to be a multiple of the vector width"));
+cl::opt<bool>
+    ForceNoTail("native-cpu-force-no-tail", cl::init(false),
+                cl::desc("Never emit the peeling loop for vectorized kernels,"
+                         "even when the local size is not known to be a "
+                         "multiple of the vector width"));
 
-cl::opt<bool> IsDebug("native-cpu-debug", cl::init(false),
+cl::opt<bool> IsDebug(
+    "native-cpu-debug", cl::init(false),
     cl::desc("Emit extra alloca instructions to preserve the value of live"
-    "variables between barriers"));
-cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(8), cl::desc("Vector width for SYCL Native CPU vectorizer, defaults to 8"));
-void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
-                                   ModuleAnalysisManager &MAM, unsigned OptLevel, bool DisableVecz) {
+             "variables between barriers"));
+cl::opt<unsigned> NativeCPUVeczWidth(
+    "ncpu-vecz-width", cl::init(8),
+    cl::desc("Vector width for SYCL Native CPU vectorizer, defaults to 8"));
+void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
+    llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM, unsigned OptLevel,
+    bool DisableVecz) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
-  if(OptLevel != 0 && !DisableVecz) {
+  if (OptLevel != 0 && !DisableVecz) {
     MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
     MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
     auto queryFunc =
@@ -78,11 +82,11 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &M
 
   // Run optimization passes after all the changes we made to the kernels.
   // Todo: check optimization level from clang
-  // Todo: maybe we could find a set of relevant passes instead of re-running the full 
-  // optimization pipeline.
+  // Todo: maybe we could find a set of relevant passes instead of re-running
+  // the full optimization pipeline.
   PassBuilder PB;
   OptimizationLevel Level;
-  switch(OptLevel) {
+  switch (OptLevel) {
   case 0:
     Level = OptimizationLevel::O0;
     break;

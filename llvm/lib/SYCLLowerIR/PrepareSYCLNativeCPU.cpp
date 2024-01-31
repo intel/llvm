@@ -308,7 +308,7 @@ static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
-  // Todo: we should probably cache the state thread local load here 
+  // Todo: we should probably cache the state thread local load here
   // to avoid re-emitting it for each builtin
   if (StateTLS) {
     IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
@@ -347,12 +347,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   CurrentStatePointerTLS = nullptr;
 
   // check if any of the kernels is called by some other function.
-  // This can happen e.g. with OCK, where wrapper functions are 
+  // This can happen e.g. with OCK, where wrapper functions are
   // created around the original kernel.
   bool KernelIsCalled = false;
-  for(auto& K : OldKernels) {
-    for(auto& U : K->uses()){
-      if(isa<CallBase>(U.getUser())) {
+  for (auto &K : OldKernels) {
+    for (auto &U : K->uses()) {
+      if (isa<CallBase>(U.getUser())) {
         KernelIsCalled = true;
       }
     }
@@ -395,18 +395,18 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 #ifdef NATIVECPU_USE_OCK
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
     OldF->setName(Name);
-    // if vectorization occurred, at this point we have a wrapper function that 
-    // runs the vectorized kernel and peels using the scalar kernel. We make it so
-    // this wrapper steals the original kernel name.
-    std::optional<compiler::utils::LinkMetadataResult> veczR = compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
-    if(veczR) {
+    // if vectorization occurred, at this point we have a wrapper function that
+    // runs the vectorized kernel and peels using the scalar kernel. We make it
+    // so this wrapper steals the original kernel name.
+    std::optional<compiler::utils::LinkMetadataResult> veczR =
+        compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
+    if (veczR) {
       auto ScalarF = veczR.value().first;
       OldF->takeName(ScalarF);
       ScalarF->setName(OldF->getName() + "_scalar");
-    }
-    else if(Name != OldF->getName()) {
+    } else if (Name != OldF->getName()) {
       auto RealKernel = M.getFunction(Name);
-      if(RealKernel) {
+      if (RealKernel) {
         // the real kernel was not inlined in the wrapper, steal its name
         OldF->takeName(RealKernel);
       } else {
