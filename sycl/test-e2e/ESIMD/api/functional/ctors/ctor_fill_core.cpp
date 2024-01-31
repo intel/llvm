@@ -114,8 +114,20 @@ int main(int, char **) {
       const auto types = get_tested_types<tested_types::fp>();
       {
         const auto base_values =
+            ctors::get_init_values_pack<init_val::negative>();
+        const auto step_values =
+            ctors::get_init_values_pack<init_val::positive>();
+        passed &= for_all_combinations<ctors::run_test>(
+            types, sizes, contexts, base_values, step_values, queue);
+      }
+      // The test cases below have never been guaranteed to work some certain
+      // way with base and step values set to inf or non. They may or may not
+      // work as expected by the checks in this test.
+      {
+        const auto base_values =
             ctors::get_init_values_pack<init_val::neg_inf>();
-        const auto step_values = ctors::get_init_values_pack<init_val::max>();
+        const auto step_values =
+            ctors::get_init_values_pack<init_val::positive>();
         passed &= for_all_combinations<ctors::run_test>(
             types, sizes, contexts, base_values, step_values, queue);
       }
