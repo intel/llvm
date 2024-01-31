@@ -1,4 +1,4 @@
-// REQUIRE: usm_shared_allocations
+// REQUIRES: usm_shared_allocations
 // This test ensures that this_id returns the correct value
 // even when a kernel is wrapped in a range rounding kernel.
 // RUN: %{build} -o %t.out

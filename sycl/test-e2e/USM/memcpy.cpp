@@ -279,7 +279,7 @@ int main() {
     TEST_MEMCPY(inArray, init_on_host, outArray, check_on_device)
   }
 
-  if (dev.get_info<info::device::usm_host_allocations>() &&
+  if (dev.get_info<info::device::usm_shared_allocations>() &&
       dev.get_info<info::device::usm_device_allocations>()) {
     // Test shared to device
     USM_MALLOC(inArray, shared)

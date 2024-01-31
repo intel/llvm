@@ -29,7 +29,7 @@
 //
 //
 // ===---------------------------------------------------------------------===//
-
+// REQUIRES: usm_shared_allocations
 #ifdef _WIN32
 #include <windows.h>
 #else

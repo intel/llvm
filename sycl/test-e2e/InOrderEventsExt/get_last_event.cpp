@@ -34,7 +34,7 @@ int main() {
   Failed += Check(Q, "host_task", [&]() {
     return Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
   });
-  if (!Q.get_device().has(aspect::usm_shared_allocations))
+  if (!Q.get_device().has(sycl::aspect::usm_shared_allocations))
     return Failed;
   constexpr size_t N = 64;
   int *Data1 = sycl::malloc_shared<int>(N, Q);

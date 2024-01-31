@@ -84,7 +84,8 @@ int main() {
                       [&]() { return MHost(q, property_list{}); },
                       [&]() { return MHost(ctx, property_list{}); }});
 
-  if (q.get_device().has(aspect::usm_shared_allocations)) {
+  if (d.has(aspect::usm_shared_allocations) &&
+      q.get_device().has(aspect::usm_shared_allocations)) {
     auto MShared = [&](auto... args) {
       return malloc_shared(sizeof(std::max_align_t), args...);
     };
@@ -153,7 +154,8 @@ int main() {
   CheckAll(Align, std::tuple{[&]() { return THost(q); },
                              [&]() { return THost(ctx); }});
 
-  if (q.get_device().has(aspect::usm_shared_allocations)) {
+  if (d.has(aspect::usm_shared_allocations) &&
+      q.get_device().has(aspect::usm_shared_allocations)) {
     auto TShared = [&](auto... args) {
       return malloc_shared<Aligned>(1, args...);
     };

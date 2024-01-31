@@ -37,7 +37,7 @@ static constexpr int MAX_ITER_NUM2 = 10;
 void TestHelper(sycl::queue Q,
                 const std::function<void(sycl::range<1> Range, int *Harray,
                                          sycl::buffer<int, 1> Buf)> &Function) {
-  if (!Q.get_device().has(aspect::usm_shared_allocation))
+  if (!Q.get_device().has(aspect::usm_shared_allocations))
     return;
   int *Harray = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(Harray != nullptr);
