@@ -170,3 +170,4 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
     EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
     EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
   }
+}
