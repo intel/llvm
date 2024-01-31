@@ -54,7 +54,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -86,7 +87,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -148,7 +150,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -163,7 +166,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -178,7 +182,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -194,7 +199,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -524,7 +530,8 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
 #else
-    assert(false && "nd_item methods can't be used on the host!");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
