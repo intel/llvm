@@ -59,6 +59,7 @@ public:
     int len = strn.length();
     allocate(len + 1);
     strn.copy(str, len);
+    str[len] = '\0';
     return *this;
   }
 
