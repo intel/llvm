@@ -1,5 +1,6 @@
-// Failing due to old driver
-// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
+// Sporadic fails on DG2
+// TODO: Reenable when internal ticket is resolved
+// UNSUPPORTED: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 //
@@ -21,7 +22,7 @@ bool check(backend be) {
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
-  case backend::ext_native_cpu:
+  case backend::ext_oneapi_native_cpu:
     return true;
   default:
     return false;

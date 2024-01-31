@@ -753,8 +753,9 @@ void CodeGenFunction::StartObjCMethod(const ObjCMethodDecl *OMD,
                                       const ObjCContainerDecl *CD) {
   SourceLocation StartLoc = OMD->getBeginLoc();
   FunctionArgList args;
+
   // Check if we should generate debug info for this method.
-  if (OMD->hasAttr<NoDebugAttr>())
+  if (OMD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(OMD, CGM))
     DebugInfo = nullptr; // disable debug info indefinitely for this function
 
   llvm::Function *Fn = CGM.getObjCRuntime().GenerateMethod(OMD, CD);
@@ -3941,6 +3942,8 @@ static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
     return llvm::MachO::PLATFORM_TVOS;
   case llvm::Triple::WatchOS:
     return llvm::MachO::PLATFORM_WATCHOS;
+  case llvm::Triple::XROS:
+    return llvm::MachO::PLATFORM_XROS;
   case llvm::Triple::DriverKit:
     return llvm::MachO::PLATFORM_DRIVERKIT;
   default:
@@ -4024,6 +4027,9 @@ static bool isFoundationNeededForDarwinAvailabilityCheck(
   case llvm::Triple::MacOSX:
     FoundationDroppedInVersion = VersionTuple(/*Major=*/10, /*Minor=*/15);
     break;
+  case llvm::Triple::XROS:
+    // XROS doesn't need Foundation.
+    return false;
   case llvm::Triple::DriverKit:
     // DriverKit doesn't need Foundation.
     return false;

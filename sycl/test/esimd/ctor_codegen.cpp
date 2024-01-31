@@ -17,7 +17,7 @@ SYCL_EXTERNAL auto foo(double i) SYCL_ESIMD_FUNCTION {
 //   CHECK: {{[^,]*}} %[[I:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd<double, 2> val({ i, i });
   return val;
-// CHECK: %[[V0:[a-zA-Z0-9_\.]+]] = insertelement <2 x double> undef, double %[[I]], i64 0
+// CHECK: %[[V0:[a-zA-Z0-9_\.]+]] = insertelement <2 x double> poison, double %[[I]], i64 0
 // CHECK-NEXT: %[[V1:[a-zA-Z0-9_\.]+]] = shufflevector <2 x double> %[[V0]], <2 x double> poison, <2 x i32> zeroinitializer
 // CHECK-NEXT: store <2 x double> %[[V1]], ptr addrspace(4) %[[RES]]
 // CHECK-NEXT: ret void

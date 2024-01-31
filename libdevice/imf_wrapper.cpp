@@ -1960,4 +1960,36 @@ float __imf_fdiv_rz(float x, float y) { return __devicelib_imf_fdiv_rz(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 float __imf_frcp_rz(float x) { return __devicelib_imf_fdiv_rz(1.0f, x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rd(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rd(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rd(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rn(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rn(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rn(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_ru(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_ru(float x, float y, float z) {
+  return __devicelib_imf_fmaf_ru(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rz(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rz(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rz(x, y, z);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

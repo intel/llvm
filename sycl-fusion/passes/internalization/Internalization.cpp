@@ -14,6 +14,7 @@
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/TypeSwitch.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/PatternMatch.h>
 #include <llvm/Support/WithColor.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 
@@ -25,6 +26,7 @@
 #define DEBUG_TYPE "sycl-fusion"
 
 using namespace llvm;
+using namespace PatternMatch;
 
 constexpr static StringLiteral PrivatePromotion{"private"};
 constexpr static StringLiteral LocalPromotion{"local"};
@@ -187,27 +189,49 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 }
 
 ///
+/// If \p GEPI represents a constant offset in bytes, return it, otherwise
+/// return an empty value.
+static std::optional<unsigned> getConstantByteOffset(GetElementPtrInst *GEPI,
+                                                     const DataLayout &DL) {
+  MapVector<Value *, APInt> VariableOffsets;
+  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
+  APInt ConstantOffset = APInt::getZero(IW);
+  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
+      VariableOffsets.empty()) {
+    return ConstantOffset.getZExtValue();
+  }
+  return {};
+}
+
+///
 /// When performing internalization, GEP instructions must be remapped, as the
 /// address space has changed from N to N / LocalSize.
 static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
   IRBuilder<> Builder{GEPI};
-  Value *C0 = Builder.getInt64(0);
-
-  auto NIdx = GEPI->getNumIndices();
-  if (NIdx > 1) {
-    // `GEPI` indexes into an aggregate. If the first index is 0, the base
-    // pointer is used as-is and we do not need to perform remapping. This is
-    // the common case.
-    // TODO: Support non-zero pointer offset, too. If the pointer operand is
-    //       a GEP as well, we must check if the source element types match.
-    assert(GEPI->idx_begin()->get() == C0);
-    return;
-  }
 
   if (PromInfo.LocalSize == 1) {
     // Squash the index and let instcombine clean-up afterwards.
-    GEPI->idx_begin()->set(C0);
+    GEPI->idx_begin()->set(Builder.getInt64(0));
     return;
+  }
+
+  // GEPs with constant offset may be marked for remapping even if their element
+  // size differs from the accessor's element size. However we know that the
+  // offset is a multiple of the latter. Rewrite the instruction to represent a
+  // number of _elements_ to make it compatible with other GEPs in the current
+  // chain.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+  if (SrcElemTySz != PromInfo.ElemSize) {
+    auto COff = getConstantByteOffset(GEPI, DL);
+    // This is special case #2 in `getGEPKind`.
+    assert(COff.has_value() && *COff % PromInfo.ElemSize == 0 &&
+           GEPI->getNumIndices() == 1);
+    auto *IntTypeWithSameWidthAsAccessorElementType =
+        Builder.getIntNTy(PromInfo.ElemSize * 8);
+    GEPI->setSourceElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->setResultElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->idx_begin()->set(Builder.getInt64(*COff / PromInfo.ElemSize));
   }
 
   // An individual `GEP(ptr, offset)` is rewritten as
@@ -290,6 +314,47 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
   return Error::success();
 }
 
+enum GEPKind { INVALID = 0, NEEDS_REMAPPING, ADDRESSES_INTO_AGGREGATE };
+
+static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
+  assert(GEPI->getNumIndices() >= 1 && "No-op GEP encountered");
+
+  // Inspect the GEP's source element type.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+
+  // `GEPI`'s first index is selecting elements. Unless it is constant zero, we
+  // have to remap. If there are more indices, we start to address into an
+  // aggregate type.
+  if (SrcElemTySz == PromInfo.ElemSize) {
+    int Kind = INVALID;
+    if (!match(GEPI->idx_begin()->get(), m_ZeroInt()))
+      Kind |= NEEDS_REMAPPING;
+    if (GEPI->getNumIndices() >= 2)
+      Kind |= ADDRESSES_INTO_AGGREGATE;
+    assert(Kind != INVALID && "No-op GEP encountered");
+    return Kind;
+  }
+
+  // We can handle a mismatch between `GEPI`'s element size and the accessors
+  // element size if `GEPI` represents a constant offset.
+  if (auto COff = getConstantByteOffset(GEPI, DL)) {
+    if (*COff < PromInfo.ElemSize) {
+      // Special case #1: The offset is less than the element size, hence we're
+      // addressing into an aggregrate and no remapping is required.
+      return ADDRESSES_INTO_AGGREGATE;
+    }
+    if (*COff % PromInfo.ElemSize == 0 && GEPI->getNumIndices() == 1) {
+      // Special case #2: The offset is a multiple of the element size, meaning
+      // `GEPI` selects an element and is subject to remapping.
+      return NEEDS_REMAPPING;
+    }
+  }
+
+  // We don't know what `GEPI` addresses; bail out.
+  return INVALID;
+}
+
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
                                           const Value *Val,
                                           const PromotionInfo &PromInfo,
@@ -299,12 +364,17 @@ Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
     // required.
     return Error::success();
   }
-  // Recurse to check all users of the GEP. We are either already in
-  // `InAggregate` mode, or inspect the current instruction. Recall that a GEP's
-  // first index is used to step through the base pointer, whereas any
-  // additional indices represent addressing into an aggregrate type.
+
+  // Inspect the current instruction.
+  auto Kind = getGEPKind(GEPI, PromInfo);
+  if (Kind == INVALID) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Unsupported pointer arithmetic");
+  }
+
+  // Recurse to check all users of the GEP.
   return canPromoteValue(GEPI, PromInfo,
-                         InAggregate || GEPI->getNumIndices() >= 2);
+                         InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
 }
 
 Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
@@ -423,15 +493,17 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
                                        bool InAggregate) const {
   // Not PointerType is unreachable. Other case is caught in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
-    if (!InAggregate)
+    auto Kind = getGEPKind(GEPI, PromInfo);
+    assert(Kind != INVALID);
+
+    if (!InAggregate && (Kind & NEEDS_REMAPPING)) {
       remap(GEPI, PromInfo);
+    }
     GEPI->mutateType(PointerType::get(GEPI->getContext(), AS));
-    // Recurse to promote to all users of the GEP. We are either already in
-    // `InAggregate` mode, or inspect the current instruction. Recall that a
-    // GEP's first index is used to step through the base pointer, whereas any
-    // additional indices represent addressing into an aggregrate type.
+
+    // Recurse to promote to all users of the GEP.
     return promoteValue(GEPI, PromInfo,
-                        InAggregate || GEPI->getNumIndices() >= 2);
+                        InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
   }
 }
 
@@ -630,7 +702,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
     // Use the argument usage mask to provide feedback to the runtime which
     // arguments have been promoted to private or local memory and which have
     // been eliminated in the process (private promotion).
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       const auto &MDS = cast<MDString>(I.value().get())->getString();
       if (MDS == PrivatePromotion) {

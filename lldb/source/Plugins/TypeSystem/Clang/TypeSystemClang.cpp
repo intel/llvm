@@ -7183,6 +7183,9 @@ TypeSystemClang::GetTemplateArgumentKind(lldb::opaque_compiler_type_t type,
 
   case clang::TemplateArgument::Pack:
     return eTemplateArgumentKindPack;
+
+  case clang::TemplateArgument::StructuralValue:
+    return eTemplateArgumentKindStructuralValue;
   }
   llvm_unreachable("Unhandled clang::TemplateArgument::ArgKind");
 }
@@ -7608,7 +7611,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
       nullptr /*expr*/, is_explicit ? clang::ExplicitSpecKind::ResolvedTrue
                                     : clang::ExplicitSpecKind::ResolvedFalse);
 
-  if (name.startswith("~")) {
+  if (name.starts_with("~")) {
     cxx_dtor_decl =
         clang::CXXDestructorDecl::CreateDeserialized(getASTContext(), 0);
     cxx_dtor_decl->setDeclContext(cxx_record_decl);
@@ -8368,7 +8371,7 @@ clang::EnumConstantDecl *TypeSystemClang::AddEnumerationValueToEnumerationType(
   if (name && name[0])
     enumerator_decl->setDeclName(&getASTContext().Idents.get(name));
   enumerator_decl->setType(clang::QualType(enutype, 0));
-  enumerator_decl->setInitVal(value);
+  enumerator_decl->setInitVal(getASTContext(), value);
   SetMemberOwningModule(enumerator_decl, enutype->getDecl());
 
   if (!enumerator_decl)

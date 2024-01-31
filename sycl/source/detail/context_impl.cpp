@@ -32,7 +32,9 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
-      MContext(nullptr), MPlatform(), MPropList(PropList),
+      MContext(nullptr),
+      MPlatform(detail::getSyclObjImpl(Device.get_platform())),
+      MPropList(PropList),
       MHostContext(detail::getSyclObjImpl(Device)->is_host()),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
@@ -100,6 +102,10 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
             Platform->getOrMakeDeviceImpl(Dev, Platform)));
       }
       MPlatform = Platform;
+    } else {
+      throw invalid_parameter_error(
+          "No devices in the provided device list and native context.",
+          PI_ERROR_INVALID_VALUE);
     }
   }
   // TODO catch an exception and put it to list of asynchronous exceptions

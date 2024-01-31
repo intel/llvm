@@ -45,7 +45,9 @@
 #include "clang/Driver/XRayArgs.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
@@ -732,6 +734,17 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     CmdArgs.push_back("-fcoverage-mapping");
   }
 
+  if (Args.hasFlag(options::OPT_fmcdc_coverage, options::OPT_fno_mcdc_coverage,
+                   false)) {
+    if (!Args.hasFlag(options::OPT_fcoverage_mapping,
+                      options::OPT_fno_coverage_mapping, false))
+      D.Diag(clang::diag::err_drv_argument_only_allowed_with)
+          << "-fcoverage-mcdc"
+          << "-fcoverage-mapping";
+
+    CmdArgs.push_back("-fcoverage-mcdc");
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_ffile_compilation_dir_EQ,
                                options::OPT_fcoverage_compilation_dir_EQ)) {
     if (A->getOption().matches(options::OPT_ffile_compilation_dir_EQ))
@@ -982,11 +995,21 @@ static bool ContainsAppendFooterAction(const Action *A) {
   return false;
 }
 
-static bool hasClangPchSignature(const Driver &D, StringRef Path) {
-  if (llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MemBuf =
-          D.getVFS().getBufferForFile(Path))
-    return (*MemBuf)->getBuffer().starts_with("CPCH");
-  return false;
+static bool maybeHasClangPchSignature(const Driver &D, StringRef Path) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MemBuf =
+      D.getVFS().getBufferForFile(Path);
+  if (!MemBuf)
+    return false;
+  llvm::file_magic Magic = llvm::identify_magic((*MemBuf)->getBuffer());
+  if (Magic == llvm::file_magic::unknown)
+    return false;
+  // Return true for both raw Clang AST files and object files which may
+  // contain a __clangast section.
+  if (Magic == llvm::file_magic::clang_ast)
+    return true;
+  Expected<std::unique_ptr<llvm::object::ObjectFile>> Obj =
+      llvm::object::ObjectFile::createObjectFile(**MemBuf, Magic);
+  return !Obj.takeError();
 }
 
 static bool gchProbe(const Driver &D, StringRef Path) {
@@ -998,14 +1021,14 @@ static bool gchProbe(const Driver &D, StringRef Path) {
     std::error_code EC;
     for (llvm::vfs::directory_iterator DI = D.getVFS().dir_begin(Path, EC), DE;
          !EC && DI != DE; DI = DI.increment(EC)) {
-      if (hasClangPchSignature(D, DI->path()))
+      if (maybeHasClangPchSignature(D, DI->path()))
         return true;
     }
     D.Diag(diag::warn_drv_pch_ignoring_gch_dir) << Path;
     return false;
   }
 
-  if (hasClangPchSignature(D, Path))
+  if (maybeHasClangPchSignature(D, Path))
     return true;
   D.Diag(diag::warn_drv_pch_ignoring_gch_file) << Path;
   return false;
@@ -1633,7 +1656,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
         << Triple.getArchName();
 
   StringRef Scope, Key;
-  bool IndirectBranches;
+  bool IndirectBranches, BranchProtectionPAuthLR, GuardedControlStack;
 
   if (A->getOption().matches(options::OPT_msign_return_address_EQ)) {
     Scope = A->getValue();
@@ -1642,6 +1665,8 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << A->getSpelling() << Scope;
     Key = "a_key";
     IndirectBranches = false;
+    BranchProtectionPAuthLR = false;
+    GuardedControlStack = false;
   } else {
     StringRef DiagMsg;
     llvm::ARM::ParsedBranchProtection PBP;
@@ -1653,7 +1678,9 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
           << "b-key" << A->getAsString(Args);
     Scope = PBP.Scope;
     Key = PBP.Key;
+    BranchProtectionPAuthLR = PBP.BranchProtectionPAuthLR;
     IndirectBranches = PBP.BranchTargetEnforcement;
+    GuardedControlStack = PBP.GuardedControlStack;
   }
 
   CmdArgs.push_back(
@@ -1661,8 +1688,13 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
   if (!Scope.equals("none"))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-msign-return-address-key=") + Key));
+  if (BranchProtectionPAuthLR)
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-mbranch-protection-pauth-lr")));
   if (IndirectBranches)
     CmdArgs.push_back("-mbranch-target-enforce");
+  if (GuardedControlStack)
+    CmdArgs.push_back("-mguarded-control-stack");
 }
 
 void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
@@ -2203,12 +2235,9 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
     StringRef Arch = riscv::getRISCVArch(Args, Triple);
     auto ISAInfo = llvm::RISCVISAInfo::parseArchString(
         Arch, /*EnableExperimentalExtensions*/ true);
-    if (!ISAInfo) {
-      // Ignore parsing error.
-      consumeError(ISAInfo.takeError());
-    } else {
+    // Ignore parsing error.
+    if (!errorToBool(ISAInfo.takeError()))
       MinVLen = (*ISAInfo)->getMinVLen();
-    }
 
     // If the value is "zvl", use MinVLen from march. Otherwise, try to parse
     // as integer as long as we have a MinVLen.
@@ -2819,9 +2848,22 @@ static void EmitComplexRangeDiag(const Driver &D,
         << EnumComplexRangeToStr(Range1) << EnumComplexRangeToStr(Range2);
 }
 
-static std::string RenderComplexRangeOption(std::string Range) {
+static std::string
+RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
   std::string ComplexRangeStr = "-complex-range=";
-  ComplexRangeStr += Range;
+  switch (Range) {
+  case LangOptions::ComplexRangeKind::CX_Full:
+    ComplexRangeStr += "full";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Limited:
+    ComplexRangeStr += "limited";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Fortran:
+    ComplexRangeStr += "fortran";
+    break;
+  default:
+    assert(0 && "Unexpected range option");
+  }
   return ComplexRangeStr;
 }
 
@@ -2872,7 +2914,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef Float16ExcessPrecision = "";
   StringRef BFloat16ExcessPrecision = "";
   StringRef FPAccuracy = "";
-  LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_Full;
+  LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
+  std::string ComplexRangeStr = "";
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -2893,23 +2936,19 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_fcx_limited_range: {
       EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Limited);
       Range = LangOptions::ComplexRangeKind::CX_Limited;
-      std::string ComplexRangeStr = RenderComplexRangeOption("limited");
-      if (!ComplexRangeStr.empty())
-        CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
       break;
     }
     case options::OPT_fno_cx_limited_range:
+      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_fcx_fortran_rules: {
       EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Fortran);
       Range = LangOptions::ComplexRangeKind::CX_Fortran;
-      std::string ComplexRangeStr = RenderComplexRangeOption("fortran");
-      if (!ComplexRangeStr.empty())
-        CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
       break;
     }
     case options::OPT_fno_cx_fortran_rules:
+      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_ffp_model_EQ: {
@@ -3188,9 +3227,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       SeenUnsafeMathModeOption = true;
       // ffast-math enables fortran rules for complex multiplication and
       // division.
-      std::string ComplexRangeStr = RenderComplexRangeOption("limited");
-      if (!ComplexRangeStr.empty())
-        CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
+      Range = LangOptions::ComplexRangeKind::CX_Limited;
       break;
     }
     case options::OPT_fno_fast_math:
@@ -3348,13 +3385,17 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                    options::OPT_fstrict_float_cast_overflow, false))
     CmdArgs.push_back("-fno-strict-float-cast-overflow");
 
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_limited_range))
+  if (Range != LangOptions::ComplexRangeKind::CX_None)
+    ComplexRangeStr = RenderComplexRangeOption(Range);
+  if (!ComplexRangeStr.empty())
+    CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
+  if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fcx_fortran_rules))
+  if (Args.hasArg(options::OPT_fcx_fortran_rules))
     CmdArgs.push_back("-fcx-fortran-rules");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_limited_range))
+  if (Args.hasArg(options::OPT_fno_cx_limited_range))
     CmdArgs.push_back("-fno-cx-limited-range");
-  if (const Arg *A = Args.getLastArg(options::OPT_fno_cx_fortran_rules))
+  if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
 }
 
@@ -3655,6 +3696,20 @@ static void RenderTrivialAutoVarInitOptions(const Driver &D,
       D.Diag(diag::err_drv_trivial_auto_var_init_stop_after_invalid_value);
     CmdArgs.push_back(
         Args.MakeArgString("-ftrivial-auto-var-init-stop-after=" + Val));
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_ftrivial_auto_var_init_max_size)) {
+    if (!Args.hasArg(options::OPT_ftrivial_auto_var_init) ||
+        StringRef(
+            Args.getLastArg(options::OPT_ftrivial_auto_var_init)->getValue()) ==
+            "uninitialized")
+      D.Diag(diag::err_drv_trivial_auto_var_init_max_size_missing_dependency);
+    A->claim();
+    StringRef Val = A->getValue();
+    if (std::stoi(Val.str()) <= 0)
+      D.Diag(diag::err_drv_trivial_auto_var_init_max_size_invalid_value);
+    CmdArgs.push_back(
+        Args.MakeArgString("-ftrivial-auto-var-init-max-size=" + Val));
   }
 }
 
@@ -4561,6 +4616,10 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     if (checkDebugInfoOption(Args.getLastArg(options::OPT_fdebug_macro), Args,
                              D, TC))
       CmdArgs.push_back("-debug-info-macro");
+
+  // -fno-system-debug turns off debug info generation for system headers
+  if (Args.hasArg(options::OPT_fno_system_debug))
+    CmdArgs.push_back("-fno-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
   const auto *PubnamesArg =
@@ -5487,9 +5546,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool UnifiedLTO = false;
   if (IsUsingLTO) {
     UnifiedLTO = Args.hasFlag(options::OPT_funified_lto,
-                              options::OPT_fno_unified_lto, Triple.isPS()) ||
-                 Args.hasFlag(options::OPT_ffat_lto_objects,
-                              options::OPT_fno_fat_lto_objects, false);
+                              options::OPT_fno_unified_lto, Triple.isPS());
     if (UnifiedLTO)
       CmdArgs.push_back("-funified-lto");
   }
@@ -5550,7 +5607,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     if (IsSYCLOffloadDevice && IsSYCLNativeCPU) {
       CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-sycl-native-cpu-rename");
+      CmdArgs.push_back("-sycl-native-cpu-backend");
     }
 
     // Also ignore explicit -force_cpusubtype_ALL option.
@@ -6467,20 +6524,24 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Arg *A = Args.getLastArg(options::OPT_mlarge_data_threshold_EQ)) {
-    if (!Triple.isX86()) {
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getOption().getName() << TripleStr;
-    } else {
-      bool IsMediumCM = false;
-      if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ))
-        IsMediumCM = StringRef(A->getValue()) == "medium";
-      if (!IsMediumCM) {
+  if (Triple.getArch() == llvm::Triple::x86_64) {
+    bool IsMediumCM = false;
+    bool IsLargeCM = false;
+    if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ)) {
+      IsMediumCM = StringRef(A->getValue()) == "medium";
+      IsLargeCM = StringRef(A->getValue()) == "large";
+    }
+    if (Arg *A = Args.getLastArg(options::OPT_mlarge_data_threshold_EQ)) {
+      if (!IsMediumCM && !IsLargeCM) {
         D.Diag(diag::warn_drv_large_data_threshold_invalid_code_model)
             << A->getOption().getRenderName();
       } else {
         A->render(Args, CmdArgs);
       }
+    } else if (IsMediumCM) {
+      CmdArgs.push_back("-mlarge-data-threshold=65536");
+    } else if (IsLargeCM) {
+      CmdArgs.push_back("-mlarge-data-threshold=0");
     }
   }
 
@@ -7052,7 +7113,28 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden_static_local_var,
                            options::OPT_fno_visibility_inlines_hidden_static_local_var);
-  Args.AddLastArg(CmdArgs, options::OPT_fvisibility_global_new_delete_hidden);
+
+  // -fvisibility-global-new-delete-hidden is a deprecated spelling of
+  // -fvisibility-global-new-delete=force-hidden.
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fvisibility_global_new_delete_hidden)) {
+    D.Diag(diag::warn_drv_deprecated_arg)
+        << A->getAsString(Args)
+        << "-fvisibility-global-new-delete=force-hidden";
+  }
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fvisibility_global_new_delete_EQ,
+                          options::OPT_fvisibility_global_new_delete_hidden)) {
+    if (A->getOption().matches(options::OPT_fvisibility_global_new_delete_EQ)) {
+      A->render(Args, CmdArgs);
+    } else {
+      assert(A->getOption().matches(
+          options::OPT_fvisibility_global_new_delete_hidden));
+      CmdArgs.push_back("-fvisibility-global-new-delete=force-hidden");
+    }
+  }
+
   Args.AddLastArg(CmdArgs, options::OPT_ftlsmodel_EQ);
 
   if (Args.hasFlag(options::OPT_fnew_infallible,
@@ -7154,6 +7236,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fopenmp-assume-no-nested-parallelism");
       if (Args.hasArg(options::OPT_fopenmp_offload_mandatory))
         CmdArgs.push_back("-fopenmp-offload-mandatory");
+      if (Args.hasArg(options::OPT_fopenmp_force_usm))
+        CmdArgs.push_back("-fopenmp-force-usm");
       break;
     default:
       // By default, if Clang doesn't know how to generate useful OpenMP code
@@ -9946,7 +10030,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     SmallVector<std::string> Parts{
         "file=" + File.str(),
         "triple=" + TC->getTripleString(),
-        "arch=" + getProcessorFromTargetID(TC->getTriple(), Arch).str(),
+        "arch=" + Arch.str(),
         "kind=" + Kind.str(),
     };
 
@@ -10283,7 +10367,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
-      !T.isNVPTX() && !T.isAMDGPU())
+      !T.isNVPTX() && !T.isAMDGPU() &&
+      !isSYCLNativeCPU(getToolChain(), C.getDefaultToolChain()))
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
@@ -10292,7 +10377,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (!(T.isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (T.isNVPTX())
+  if (T.isNVPTX() || T.isAMDGCN())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR

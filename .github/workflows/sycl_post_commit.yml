@@ -5,6 +5,7 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
+    - sycl-rel-**
 
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     - .github/workflows/sycl_post_commit.yml
     - .github/workflows/sycl_linux_build.yml
     - .github/workflows/sycl_linux_run_tests.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
@@ -45,16 +47,33 @@ jobs:
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+          # Performance tests below. Specifics:
+          #  - only run performance tests (use LIT_FILTER env)
+          #  - ask llvm-lit to show all the output, even for PASS (-a)
+          #  - run in single thread (-j 1)
+          #  - enable the tests in LIT (--param enable-perf-tests=True)
+          #  - run on all available devices.
+          - name: Perf tests on Intel GEN12 Graphics system
+            runner: '["Linux", "gen12"]'
+            env: '{"LIT_FILTER":"PerformanceTests/"}'
+            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+            target_devices: all
+          - name: Perf tests on Intel Arc A-Series Graphics system
+            runner: '["Linux", "arc"]'
+            env: '{"LIT_FILTER":"PerformanceTests/"}'
+            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+            target_devices: all
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
       image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-      target_devices: ext_oneapi_level_zero:gpu
+      target_devices: ${{ matrix.target_devices || 'ext_oneapi_level_zero:gpu' }}
       reset_gpu: true
 
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      env: ${{ matrix.env || '{}' }}
 
       ref: ${{ github.sha }}
       merge_ref: ''

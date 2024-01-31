@@ -291,9 +291,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
 
   // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
   // We do NOT attempt to support both simultaneously.
@@ -301,16 +301,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "ONEAPI_DEVICE_SELECTOR cannot be used in "
                           "conjunction with SYCL_DEVICE_FILTER");
-  } else if (!FilterList && !OdsTargetList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::ext_oneapi_level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
-    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
-    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                             backend::ext_native_cpu);
-  } else if (FilterList) {
+  }
+  if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
@@ -348,13 +340,26 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
-      if (!NativeCPUFound &&
-          (Backend == backend::ext_native_cpu || Backend == backend::all)) {
+      if (!NativeCPUFound && (Backend == backend::ext_oneapi_native_cpu ||
+                              Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                                 backend::ext_native_cpu);
+                                 backend::ext_oneapi_native_cpu);
       }
       PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
+    return PluginNames;
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  if (!OdsTargetList) {
+    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                             backend::ext_oneapi_level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
+    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
+    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
+                             backend::ext_oneapi_native_cpu);
+
   } else {
     ods_target_list &list = *OdsTargetList;
     if (list.backendCompatible(backend::opencl)) {
@@ -368,16 +373,18 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
       PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
                                backend::ext_intel_esimd_emulator);
     }
+#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
-    if (list.backendCompatible(backend::ext_native_cpu)) {
+    if (list.backendCompatible(backend::ext_oneapi_native_cpu)) {
       PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                               backend::ext_native_cpu);
+                               backend::ext_oneapi_native_cpu);
     }
     PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   }
