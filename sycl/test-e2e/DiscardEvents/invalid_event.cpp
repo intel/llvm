@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocations
 // Same hang as on Basic/barrier_order.cpp tracked in
 // https://github.com/intel/llvm/issues/7330.
 // UNSUPPORTED: opencl && gpu

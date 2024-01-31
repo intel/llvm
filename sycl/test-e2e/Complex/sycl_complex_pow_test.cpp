@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocations
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out

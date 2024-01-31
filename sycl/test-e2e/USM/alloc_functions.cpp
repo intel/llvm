@@ -84,14 +84,17 @@ int main() {
                       [&]() { return MHost(q, property_list{}); },
                       [&]() { return MHost(ctx, property_list{}); }});
 
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
   auto MShared = [&](auto... args) {
     return malloc_shared(sizeof(std::max_align_t), args...);
   };
+  
   CheckAll(FAlign,
            std::tuple{[&]() { return MShared(q); },
                       [&]() { return MShared(d, ctx); },
                       [&]() { return MShared(q, property_list{}); },
                       [&]() { return MShared(d, ctx, property_list{}); }});
+}
 
   auto ADevice = [&](size_t Align, auto... args) {
     return aligned_alloc_device(Align, sizeof(std::max_align_t), args...);
@@ -150,11 +153,13 @@ int main() {
   CheckAll(Align, std::tuple{[&]() { return THost(q); },
                              [&]() { return THost(ctx); }});
 
-  auto TShared = [&](auto... args) {
+  if (q.get_device().has(aspect::usm_shared_allocations)) {  
+auto TShared = [&](auto... args) {
     return malloc_shared<Aligned>(1, args...);
   };
   CheckAll(Align, std::tuple{[&]() { return TShared(q); },
                              [&]() { return TShared(d, ctx); }});
+}
 
   auto ATDevice = [&](size_t Align, auto... args) {
     return aligned_alloc_device<Aligned>(Align, 1, args...);

@@ -95,30 +95,31 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
+  if (InOrderQueue.get_device().has(aspect::usm_shared_allocations)) {
+    auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
 
-  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+    event Ev1 = InOrderQueue.submit(
+        [&](sycl::handler &CGH) { CGH.memset(buf, 0, sizeof(buf[0])); });
 
-  event Ev1 = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.memset(buf, 0, sizeof(buf[0])); });
+    event Ev2 = InOrderQueue.submit([&](sycl::handler &CGH) {
+      CGH.use_kernel_bundle(ExecBundle);
+      CGH.single_task<TestKernel<>>([] {});
+    });
 
-  event Ev2 = InOrderQueue.submit([&](sycl::handler &CGH) {
-    CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {});
-  });
+    {
+      std::unique_lock lk(CvMutex);
+      ready = true;
+    }
+    Cv.notify_one();
 
-  {
-    std::unique_lock lk(CvMutex);
-    ready = true;
+    InOrderQueue.wait();
+
+    ASSERT_EQ(ExecutedCommands.size(), 2u);
+    EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
+    EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+    EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
+    EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
   }
-  Cv.notify_one();
-
-  InOrderQueue.wait();
-
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
@@ -148,24 +149,25 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
+  if (InOrderQueue.get_device().has(aspect::usm_shared_allocations)) {
+    auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
 
-  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+    event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
 
-  event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
+    event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
 
-  event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
+    {
+      std::unique_lock lk(CvMutex);
+      ready = true;
+    }
+    Cv.notify_one();
 
-  {
-    std::unique_lock lk(CvMutex);
-    ready = true;
+    InOrderQueue.wait();
+
+    ASSERT_EQ(ExecutedCommands.size(), 2u);
+    EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
+    EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+    EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
+    EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
   }
-  Cv.notify_one();
-
-  InOrderQueue.wait();
-
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }

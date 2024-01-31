@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocation
 // Temporarily add explicit '-O2' to avoid GPU hang issue with O0 optimization.
 // RUN: %{build} -fno-sycl-id-queries-fit-in-int -O2 -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out

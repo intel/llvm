@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocations
 // CPU and ACC not yet supported:
 // Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
 // REQUIRES: gpu

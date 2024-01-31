@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocations
 // DISABLED: aspect-atomic64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

@@ -1,3 +1,4 @@
+// REQUIRES: usm_shared_allocations
 // REQUIRES: gpu
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
