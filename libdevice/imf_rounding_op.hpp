@@ -1569,4 +1569,7 @@ template <typename FTy> FTy __fp_fma(FTy x, FTy y, FTy z, int rd) {
   }
 }
 
+static float __fp_sqrt(float x) {
+  return 0.f;
+}
 #endif
