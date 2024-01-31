@@ -331,8 +331,8 @@ A default value is chosen by the implementation.
 | response_capacity | A `task_sequence` invocation is allowed to write its
 results and completion status to the results data structure of the
 `task_sequence` if there is sufficient capacity to accommodate it. A
-`response_capacity` of N indicates the minimum capacity required for the results
-data structure such that the oldest N invocations of the `task_sequence` can be
+`response_capacity` of N indicates that the results
+data structure should be sized such that the oldest N invocations of the `task_sequence` can be
 successfully written to the results data structure. When an invocation is able
 to write its result to the results data structure, it can transition from an
 outstanding state to a completed state. At least one outstanding `async` call
