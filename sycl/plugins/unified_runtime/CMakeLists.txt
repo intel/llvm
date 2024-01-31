@@ -56,15 +56,9 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9babc4d092a92c1036791d26ef328e5eeaf19803
-  # Merge: 3be8f205 90498ec5
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Thu Feb 8 15:44:54 2024 +0000
-  #     Merge pull request #1321 from pbalcer/adapter-compute-constructor
-  #     [L0] move adapter init into its constructor from urAdapterGet
-  set(UNIFIED_RUNTIME_TAG 9babc4d092a92c1036791d26ef328e5eeaf19803)
-  
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 24066e4aafd64db0b0f75495d4492a41f768ba0f)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
