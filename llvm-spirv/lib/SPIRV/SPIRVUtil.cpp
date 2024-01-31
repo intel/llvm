@@ -206,7 +206,7 @@ bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
         std::string(kSPIRVTypeName::PrefixAndDelim) + BaseTyName.str();
     if (FullName != N)
       N = N + kSPIRVTypeName::Delimiter;
-    if (FullName.startswith(N)) {
+    if (FullName.starts_with(N)) {
       if (Postfix)
         *Postfix = FullName.drop_front(N.size());
       return true;
@@ -222,9 +222,9 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::half")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::half")) {
       return true;
     }
   }
@@ -238,9 +238,9 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     StringRef Name = ST->getName();
     if (!Name.consume_front("class."))
       return false;
-    if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
-         Name.startswith("__sycl_internal::")) &&
-        Name.endswith("::bfloat16")) {
+    if ((Name.starts_with("sycl::") || Name.starts_with("cl::sycl::") ||
+         Name.starts_with("__sycl_internal::")) &&
+        Name.ends_with("::bfloat16")) {
       return true;
     }
   }
@@ -309,28 +309,13 @@ Scope getArgAsScope(CallInst *CI, unsigned I) {
   return static_cast<Scope>(getArgAsInt(CI, I));
 }
 
-Decoration getArgAsDecoration(CallInst *CI, unsigned I) {
-  return static_cast<Decoration>(getArgAsInt(CI, I));
-}
-
-std::string decorateSPIRVFunction(const std::string &S) {
-  return std::string(kSPIRVName::Prefix) + S + kSPIRVName::Postfix;
-}
-
-StringRef undecorateSPIRVFunction(StringRef S) {
-  assert(S.find(kSPIRVName::Prefix) == 0);
-  const size_t Start = strlen(kSPIRVName::Prefix);
-  auto End = S.rfind(kSPIRVName::Postfix);
-  return S.substr(Start, End - Start);
-}
-
 std::string prefixSPIRVName(const std::string &S) {
   return std::string(kSPIRVName::Prefix) + S;
 }
 
 StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix) {
   const size_t Start = strlen(kSPIRVName::Prefix);
-  if (!R.startswith(kSPIRVName::Prefix))
+  if (!R.starts_with(kSPIRVName::Prefix))
     return R;
   R = R.drop_front(Start);
   R.split(Postfix, "_", -1, false);
@@ -373,7 +358,7 @@ SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target) {
   if (Postfix == kSPIRVPostfix::Sat)
     return new SPIRVDecorate(spv::DecorationSaturatedConversion, Target);
 
-  if (Postfix.startswith(kSPIRVPostfix::Rt))
+  if (Postfix.starts_with(kSPIRVPostfix::Rt))
     return new SPIRVDecorate(spv::DecorationFPRoundingMode, Target,
                              map<SPIRVFPRoundingModeKind>(Postfix.str()));
 
@@ -386,18 +371,6 @@ SPIRVValue *addDecorations(SPIRVValue *Target,
     if (auto *Dec = mapPostfixToDecorate(I, Target))
       Target->addDecorate(Dec);
   return Target;
-}
-
-std::string getPostfix(Decoration Dec, unsigned Value) {
-  switch (Dec) {
-  default:
-    llvm_unreachable("not implemented");
-    return "unknown";
-  case spv::DecorationSaturatedConversion:
-    return kSPIRVPostfix::Sat;
-  case spv::DecorationFPRoundingMode:
-    return rmap<std::string>(static_cast<SPIRVFPRoundingModeKind>(Value));
-  }
 }
 
 std::string getPostfixForReturnType(CallInst *CI, bool IsSigned) {
@@ -413,7 +386,7 @@ std::string getPostfixForReturnType(const Type *PRetTy, bool IsSigned,
 // Enqueue kernel, kernel query, pipe and address space cast built-ins
 // are not mangled.
 bool isNonMangledOCLBuiltin(StringRef Name) {
-  if (!Name.startswith("__"))
+  if (!Name.starts_with("__"))
     return false;
 
   return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
@@ -427,7 +400,7 @@ Op getSPIRVFuncOC(StringRef S, SmallVectorImpl<std::string> *Dec) {
   if (!oclIsBuiltin(S, Name))
     Name = S;
   StringRef R(Name);
-  if ((!Name.startswith(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
+  if ((!Name.starts_with(kSPIRVName::Prefix) && !isNonMangledOCLBuiltin(S)) ||
       !getByName(dePrefixSPIRVName(R, Postfix).str(), OC)) {
     return OpNop;
   }
@@ -457,13 +430,13 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     DemangledName = Name.drop_front(2);
     return true;
   }
-  if (!Name.startswith("_Z"))
+  if (!Name.starts_with("_Z"))
     return false;
   // OpenCL C++ built-ins are declared in cl namespace.
   // TODO: consider using 'St' abbriviation for cl namespace mangling.
   // Similar to ::std:: in C++.
   if (IsCpp) {
-    if (!Name.startswith("_ZN"))
+    if (!Name.starts_with("_ZN"))
       // Attempt to demangle as C. This is useful for "extern C" functions
       // that have manually mangled names.
       return false;
@@ -560,11 +533,6 @@ bool containsUnsignedAtomicType(StringRef Name) {
       Name[Loc + strlen(kMangledName::AtomicPrefixIncoming)]);
 }
 
-Constant *castToVoidFuncPtr(Function *F) {
-  auto *T = getVoidFuncPtrType(F->getParent());
-  return ConstantExpr::getBitCast(F, T);
-}
-
 bool hasArrayArg(Function *F) {
   for (auto I = F->arg_begin(), E = F->arg_end(); I != E; ++I) {
     LLVM_DEBUG(dbgs() << "[hasArrayArg] " << *I << '\n');
@@ -578,7 +546,7 @@ bool hasArrayArg(Function *F) {
 /// Convert a struct name from the name given to it in Itanium name mangling to
 /// the name given to it as an LLVM opaque struct.
 static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
-  assert(MangledStructName.startswith("ocl_") &&
+  assert(MangledStructName.starts_with("ocl_") &&
          "Not a valid builtin OpenCL mangled name");
   // Bare structure type that starts with ocl_ is a builtin opencl type.
   // See clang/lib/CodeGen/CGOpenCLRuntime for how these map to LLVM types
@@ -597,7 +565,7 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
   if (LlvmStructName.empty()) {
     LlvmStructName = "opencl.";
     LlvmStructName += MangledStructName.substr(4); // Strip off ocl_
-    if (!MangledStructName.endswith("_t"))
+    if (!MangledStructName.ends_with("_t"))
       LlvmStructName += "_t";
   }
   return LlvmStructName;
@@ -702,7 +670,7 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
     // pointer element types, the only relevant names are those corresponding
     // to the OpenCL special types (which all begin with "ocl_").
     StringRef Arg(stringify(Name));
-    if (Arg.startswith("ocl_")) {
+    if (Arg.starts_with("ocl_")) {
       const std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
       PointeeTy = GetStructType(StructName);
     } else if (Arg.consume_front("__spirv_")) {
@@ -751,9 +719,9 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
           StructName += NameSuffixPair.second;
         }
         PointeeTy = GetStructType(StructName);
-      } else if (MangledStructName.startswith("opencl.")) {
+      } else if (MangledStructName.starts_with("opencl.")) {
         PointeeTy = GetStructType(MangledStructName);
-      } else if (MangledStructName.startswith("ocl_")) {
+      } else if (MangledStructName.starts_with("ocl_")) {
         const std::string StructName =
             demangleBuiltinOpenCLTypeName(MangledStructName);
         PointeeTy = TypedPointerType::get(GetStructType(StructName), 0);
@@ -796,8 +764,8 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
   // If there's no mangled name, we can't do anything. Also, if there's no
   // parameters, do nothing.
   StringRef Name = F->getName();
-  if (!Name.startswith("_Z") || F->arg_empty())
-    return Name.startswith("_Z");
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return Name.starts_with("_Z");
 
   Module *M = F->getParent();
   auto GetStructType = [&](StringRef Name) {
@@ -901,6 +869,46 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
     *ArgIter++ = DemangledTy;
   }
   return DemangledSuccessfully;
+}
+
+bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
+                           SmallVectorImpl<ParamSignedness> &ArgSignedness) {
+  using namespace llvm::itanium_demangle;
+  StringRef Name = F->getName();
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return false;
+
+  ManglingParser<DefaultAllocator> Demangler(Name.begin(), Name.end());
+  // If it's not a function name encoding, bail out.
+  auto *RootNode = dyn_cast_or_null<FunctionEncoding>(Demangler.parse());
+  if (!RootNode)
+    return false;
+
+  auto GetSignedness = [](const itanium_demangle::Node *N) {
+    if (!N)
+      return ParamSignedness::Unknown;
+    if (const auto *Vec = dyn_cast<itanium_demangle::VectorType>(N))
+      N = Vec->getBaseType();
+    if (const auto *Name = dyn_cast<NameType>(N)) {
+      StringRef Arg(stringify(Name));
+      if (Arg.starts_with("unsigned"))
+        return ParamSignedness::Unsigned;
+      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
+          Arg.equals("long"))
+        return ParamSignedness::Signed;
+    }
+    return ParamSignedness::Unknown;
+  };
+  RetSignedness = GetSignedness(RootNode->getReturnType());
+  ArgSignedness.resize(F->arg_size());
+  for (const auto &[I, ParamType] : llvm::enumerate(RootNode->getParams())) {
+    if (F->getArg(I)->getType()->isIntOrIntVectorTy())
+      ArgSignedness[I] = GetSignedness(ParamType);
+    else
+      ArgSignedness[I] = ParamSignedness::Unknown;
+  }
+
+  return true;
 }
 
 CallInst *mutateCallInst(
@@ -1030,10 +1038,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
   Ops.push_back(Vec);
 }
 
-Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
-  return ConstantExpr::getBitCast(V, PointerType::get(V->getContext(), Addr));
-}
-
 PointerType *getInt8PtrTy(PointerType *T) {
   return PointerType::get(T->getContext(), T->getAddressSpace());
 }
@@ -1046,14 +1050,6 @@ Value *castToInt8Ptr(Value *V, Instruction *Pos) {
 IntegerType *getSizetType(Module *M) {
   return IntegerType::getIntNTy(M->getContext(),
                                 M->getDataLayout().getPointerSizeInBits(0));
-}
-
-Type *getVoidFuncType(Module *M) {
-  return FunctionType::get(Type::getVoidTy(M->getContext()), false);
-}
-
-Type *getVoidFuncPtrType(Module *M, unsigned AddrSpace) {
-  return PointerType::get(getVoidFuncType(M), AddrSpace);
 }
 
 ConstantInt *getInt64(Module *M, int64_t Value) {
@@ -1161,17 +1157,8 @@ std::tuple<unsigned, unsigned, std::string> getSPIRVSource(Module *M) {
   return Tup;
 }
 
-ConstantInt *mapUInt(Module *M, ConstantInt *I,
-                     std::function<unsigned(unsigned)> F) {
-  return ConstantInt::get(I->getType(), F(I->getZExtValue()), false);
-}
-
-ConstantInt *mapSInt(Module *M, ConstantInt *I, std::function<int(int)> F) {
-  return ConstantInt::get(I->getType(), F(I->getSExtValue()), true);
-}
-
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecoratedName) {
-  if (!F->hasName() || !F->getName().startswith(kSPIRVName::Prefix))
+  if (!F->hasName() || !F->getName().starts_with(kSPIRVName::Prefix))
     return false;
   UndecoratedName = F->getName();
   return true;
@@ -1324,9 +1311,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     auto Name = Ty->getStructName();
     std::string Tmp;
 
-    if (Name.startswith(kLLVMTypeName::StructPrefix))
+    if (Name.starts_with(kLLVMTypeName::StructPrefix))
       Name = Name.drop_front(strlen(kLLVMTypeName::StructPrefix));
-    if (Name.startswith(kSPIRVTypeName::PrefixAndDelim)) {
+    if (Name.starts_with(kSPIRVTypeName::PrefixAndDelim)) {
       Name = Name.substr(sizeof(kSPIRVTypeName::PrefixAndDelim) - 1);
       Tmp = Name.str();
       auto Pos = Tmp.find(kSPIRVTypeName::Delimiter); // first dot
@@ -1381,7 +1368,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     } else if (auto *StructTy = dyn_cast<StructType>(ET)) {
       LLVM_DEBUG(dbgs() << "ptr to struct: " << *Ty << '\n');
       auto TyName = StructTy->getStructName();
-      if (TyName.startswith(kSPR2TypeName::OCLPrefix)) {
+      if (TyName.starts_with(kSPR2TypeName::OCLPrefix)) {
         auto DelimPos = TyName.find_first_of(kSPR2TypeName::Delimiter,
                                              strlen(kSPR2TypeName::OCLPrefix));
         if (DelimPos != StringRef::npos)
@@ -1538,35 +1525,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-std::string getSPIRVImageSampledTypeName(SPIRVType *Ty) {
-  switch (Ty->getOpCode()) {
-  case OpTypeVoid:
-    return kSPIRVImageSampledTypeName::Void;
-  case OpTypeInt:
-    if (Ty->getIntegerBitWidth() == 32) {
-      if (static_cast<SPIRVTypeInt *>(Ty)->isSigned())
-        return kSPIRVImageSampledTypeName::Int;
-      else
-        return kSPIRVImageSampledTypeName::UInt;
-    }
-    break;
-  case OpTypeFloat:
-    switch (Ty->getFloatBitWidth()) {
-    case 16:
-      return kSPIRVImageSampledTypeName::Half;
-    case 32:
-      return kSPIRVImageSampledTypeName::Float;
-    default:
-      break;
-    }
-    break;
-  default:
-    break;
-  }
-  llvm_unreachable("Invalid sampled type for image");
-  return std::string();
-}
-
 // ToDo: Find a way to represent uint sampled type in LLVM, maybe an
 //      opaque type.
 Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
@@ -1618,7 +1576,7 @@ std::string getImageBaseTypeName(StringRef Name) {
   SmallVector<StringRef, 4> SubStrs;
   const char Delims[] = {kSPR2TypeName::Delimiter, 0};
   Name.split(SubStrs, Delims);
-  if (Name.startswith(kSPR2TypeName::OCLPrefix)) {
+  if (Name.starts_with(kSPR2TypeName::OCLPrefix)) {
     Name = SubStrs[1];
   } else {
     Name = SubStrs[0];
@@ -1629,6 +1587,18 @@ std::string getImageBaseTypeName(StringRef Name) {
     ImageTyName.erase(ImageTyName.size() - 5, 3);
 
   return ImageTyName;
+}
+
+size_t getImageOperandsIndex(Op OpCode) {
+  switch (OpCode) {
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+    return 2;
+  case OpImageWrite:
+    return 3;
+  default:
+    return ~0U;
+  }
 }
 
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
@@ -1668,20 +1638,6 @@ bool eraseIfNoUse(Function *F) {
     Changed = true;
   }
   return Changed;
-}
-
-void eraseIfNoUse(Value *V) {
-  if (!V->use_empty())
-    return;
-  if (Constant *C = dyn_cast<Constant>(V)) {
-    C->destroyConstant();
-    return;
-  }
-  if (Instruction *I = dyn_cast<Instruction>(V)) {
-    if (!I->mayHaveSideEffects())
-      I->eraseFromParent();
-  }
-  eraseIfNoUse(dyn_cast<Function>(V));
 }
 
 bool eraseUselessFunctions(Module *M) {
@@ -1814,7 +1770,7 @@ bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp) {
   if (!oclIsBuiltin(CI->getCalledFunction()->getName(), DemangledName))
     return false;
   StringRef S = DemangledName;
-  if (!S.startswith(kSPIRVName::Prefix))
+  if (!S.starts_with(kSPIRVName::Prefix))
     return false;
   S = S.drop_front(strlen(kSPIRVName::Prefix));
   auto Loc = S.find(kSPIRVPostfix::Divider);
@@ -2306,8 +2262,9 @@ bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp) {
 namespace {
 class SPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
-  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys)
-      : OC(OC), ArgTys(ArgTys) {}
+  SPIRVFriendlyIRMangleInfo(spv::Op OC, ArrayRef<Type *> ArgTys,
+                            ArrayRef<SPIRVValue *> Ops)
+      : OC(OC), ArgTys(ArgTys), Ops(Ops) {}
 
   void init(StringRef UniqUnmangledName) override {
     UnmangledName = UniqUnmangledName.str();
@@ -2467,6 +2424,15 @@ public:
     case OpSUDotAccSatKHR:
       addUnsignedArg(1);
       break;
+    case OpImageWrite: {
+      size_t Idx = getImageOperandsIndex(OC);
+      if (Ops.size() > Idx) {
+        auto ImOp = static_cast<SPIRVConstant *>(Ops[Idx])->getZExtIntValue();
+        if (ImOp & ImageOperandsMask::ImageOperandsZeroExtendMask)
+          addUnsignedArg(2);
+      }
+      break;
+    }
     default:;
       // No special handling is needed
     }
@@ -2475,6 +2441,7 @@ public:
 private:
   spv::Op OC;
   ArrayRef<Type *> ArgTys;
+  ArrayRef<SPIRVValue *> Ops;
 };
 class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
@@ -2544,19 +2511,10 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 }
 
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC,
-                                           ArrayRef<Type *> ArgTys) {
-  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys,
+                                           ArrayRef<SPIRVValue *> Ops) {
+  SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
-}
-
-template <typename T>
-MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
-  if (V->getOpCode() != OpConstant)
-    return nullptr;
-  uint64_t Const = static_cast<SPIRVConstant *>(V)->getZExtIntValue();
-  std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
-  return MetadataAsValue::get(C, MDString::get(C, Str));
 }
 
 } // namespace SPIRV

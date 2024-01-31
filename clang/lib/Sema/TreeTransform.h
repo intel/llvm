@@ -674,6 +674,10 @@ public:
                                       Qualifiers ThisTypeQuals,
                                       Fn TransformExceptionSpec);
 
+  template <typename Fn>
+  QualType TransformAttributedType(TypeLocBuilder &TLB, AttributedTypeLoc TL,
+                                   Fn TransformModifiedType);
+
   bool TransformExceptionSpec(SourceLocation Loc,
                               FunctionProtoType::ExceptionSpecInfo &ESI,
                               SmallVectorImpl<QualType> &Exceptions,
@@ -1378,7 +1382,7 @@ public:
   StmtResult RebuildAttributedStmt(SourceLocation AttrLoc,
                                    ArrayRef<const Attr *> Attrs,
                                    Stmt *SubStmt) {
-    if (SemaRef.CheckRebuiltCodeAlignStmtAttributes(Attrs))
+    if (SemaRef.CheckRebuiltStmtAttributes(Attrs))
       return StmtError();
     if (SemaRef.CheckRebuiltAttributedStmtAttributes(Attrs))
       return StmtError();
@@ -3932,6 +3936,7 @@ public:
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
     case TemplateArgument::Declaration:
+    case TemplateArgument::StructuralValue:
     case TemplateArgument::Pack:
     case TemplateArgument::TemplateExpansion:
     case TemplateArgument::NullPtr:
@@ -4601,7 +4606,8 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
 
   case TemplateArgument::Integral:
   case TemplateArgument::NullPtr:
-  case TemplateArgument::Declaration: {
+  case TemplateArgument::Declaration:
+  case TemplateArgument::StructuralValue: {
     // Transform a resolved template argument straight to a resolved template
     // argument. We get here when substituting into an already-substituted
     // template type argument during concept satisfaction checking.
@@ -4628,9 +4634,15 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     else if (Arg.getKind() == TemplateArgument::NullPtr)
       Output = TemplateArgumentLoc(TemplateArgument(NewT, /*IsNullPtr=*/true),
                                    TemplateArgumentLocInfo());
-    else
+    else if (Arg.getKind() == TemplateArgument::Declaration)
       Output = TemplateArgumentLoc(TemplateArgument(NewD, NewT),
                                    TemplateArgumentLocInfo());
+    else if (Arg.getKind() == TemplateArgument::StructuralValue)
+      Output = TemplateArgumentLoc(
+          TemplateArgument(getSema().Context, NewT, Arg.getAsStructuralValue()),
+          TemplateArgumentLocInfo());
+    else
+      llvm_unreachable("unexpected template argument kind");
 
     return false;
   }
@@ -6105,12 +6117,11 @@ QualType
 TreeTransform<Derived>::TransformFunctionProtoType(TypeLocBuilder &TLB,
                                                    FunctionProtoTypeLoc TL) {
   SmallVector<QualType, 4> ExceptionStorage;
-  TreeTransform *This = this; // Work around gcc.gnu.org/PR56135.
   return getDerived().TransformFunctionProtoType(
       TLB, TL, nullptr, Qualifiers(),
       [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
-        return This->getDerived().TransformExceptionSpec(
-            TL.getBeginLoc(), ESI, ExceptionStorage, Changed);
+        return getDerived().TransformExceptionSpec(TL.getBeginLoc(), ESI,
+                                                   ExceptionStorage, Changed);
       });
 }
 
@@ -6216,6 +6227,13 @@ bool TreeTransform<Derived>::TransformExceptionSpec(
 
   // Instantiate a dynamic noexcept expression, if any.
   if (isComputedNoexcept(ESI.Type)) {
+    // Update this scrope because ContextDecl in Sema will be used in
+    // TransformExpr.
+    auto *Method = dyn_cast_if_present<CXXMethodDecl>(ESI.SourceTemplate);
+    Sema::CXXThisScopeRAII ThisScope(
+        SemaRef, Method ? Method->getParent() : nullptr,
+        Method ? Method->getMethodQualifiers() : Qualifiers{},
+        Method != nullptr);
     EnterExpressionEvaluationContext Unevaluated(
         getSema(), Sema::ExpressionEvaluationContext::ConstantEvaluated);
     ExprResult NoexceptExpr = getDerived().TransformExpr(ESI.NoexceptExpr);
@@ -7078,12 +7096,12 @@ TreeTransform<Derived>::TransformElaboratedType(TypeLocBuilder &TLB,
   return Result;
 }
 
-template<typename Derived>
+template <typename Derived>
+template <typename Fn>
 QualType TreeTransform<Derived>::TransformAttributedType(
-                                                TypeLocBuilder &TLB,
-                                                AttributedTypeLoc TL) {
+    TypeLocBuilder &TLB, AttributedTypeLoc TL, Fn TransformModifiedTypeFn) {
   const AttributedType *oldType = TL.getTypePtr();
-  QualType modifiedType = getDerived().TransformType(TLB, TL.getModifiedLoc());
+  QualType modifiedType = TransformModifiedTypeFn(TLB, TL.getModifiedLoc());
   if (modifiedType.isNull())
     return QualType();
 
@@ -7125,6 +7143,15 @@ QualType TreeTransform<Derived>::TransformAttributedType(
   AttributedTypeLoc newTL = TLB.push<AttributedTypeLoc>(result);
   newTL.setAttr(newAttr);
   return result;
+}
+
+template <typename Derived>
+QualType TreeTransform<Derived>::TransformAttributedType(TypeLocBuilder &TLB,
+                                                         AttributedTypeLoc TL) {
+  return getDerived().TransformAttributedType(
+      TLB, TL, [&](TypeLocBuilder &TLB, TypeLoc ModifiedLoc) -> QualType {
+        return getDerived().TransformType(TLB, ModifiedLoc);
+      });
 }
 
 template <typename Derived>
@@ -7747,7 +7774,11 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
     if (Then.isInvalid())
       return StmtError();
   } else {
-    Then = new (getSema().Context) NullStmt(S->getThen()->getBeginLoc());
+    // Discarded branch is replaced with empty CompoundStmt so we can keep
+    // proper source location for start and end of original branch, so
+    // subsequent transformations like CoverageMapping work properly
+    Then = new (getSema().Context)
+        CompoundStmt(S->getThen()->getBeginLoc(), S->getThen()->getEndLoc());
   }
 
   // Transform the "else" branch.
@@ -7756,6 +7787,13 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
     Else = getDerived().TransformStmt(S->getElse());
     if (Else.isInvalid())
       return StmtError();
+  } else if (S->getElse() && ConstexprConditionValue &&
+             *ConstexprConditionValue) {
+    // Same thing here as with <then> branch, we are discarding it, we can't
+    // replace it with NULL nor NullStmt as we need to keep for source location
+    // range, for CoverageMapping
+    Else = new (getSema().Context)
+        CompoundStmt(S->getElse()->getBeginLoc(), S->getElse()->getEndLoc());
   }
 
   if (!getDerived().AlwaysRebuild() &&
@@ -13710,23 +13748,47 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   // transformed parameters.
   TypeSourceInfo *NewCallOpTSI = nullptr;
   {
-    TypeSourceInfo *OldCallOpTSI = E->getCallOperator()->getTypeSourceInfo();
-    auto OldCallOpFPTL =
-        OldCallOpTSI->getTypeLoc().getAs<FunctionProtoTypeLoc>();
+    auto OldCallOpTypeLoc =
+        E->getCallOperator()->getTypeSourceInfo()->getTypeLoc();
 
+    auto TransformFunctionProtoTypeLoc =
+        [this](TypeLocBuilder &TLB, FunctionProtoTypeLoc FPTL) -> QualType {
+      SmallVector<QualType, 4> ExceptionStorage;
+      return this->TransformFunctionProtoType(
+          TLB, FPTL, nullptr, Qualifiers(),
+          [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
+            return TransformExceptionSpec(FPTL.getBeginLoc(), ESI,
+                                          ExceptionStorage, Changed);
+          });
+    };
+
+    QualType NewCallOpType;
     TypeLocBuilder NewCallOpTLBuilder;
-    SmallVector<QualType, 4> ExceptionStorage;
-    TreeTransform *This = this; // Work around gcc.gnu.org/PR56135.
-    QualType NewCallOpType = TransformFunctionProtoType(
-        NewCallOpTLBuilder, OldCallOpFPTL, nullptr, Qualifiers(),
-        [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
-          return This->TransformExceptionSpec(OldCallOpFPTL.getBeginLoc(), ESI,
-                                              ExceptionStorage, Changed);
-        });
+
+    if (auto ATL = OldCallOpTypeLoc.getAs<AttributedTypeLoc>()) {
+      NewCallOpType = this->TransformAttributedType(
+          NewCallOpTLBuilder, ATL,
+          [&](TypeLocBuilder &TLB, TypeLoc TL) -> QualType {
+            return TransformFunctionProtoTypeLoc(
+                TLB, TL.castAs<FunctionProtoTypeLoc>());
+          });
+    } else {
+      auto FPTL = OldCallOpTypeLoc.castAs<FunctionProtoTypeLoc>();
+      NewCallOpType = TransformFunctionProtoTypeLoc(NewCallOpTLBuilder, FPTL);
+    }
+
     if (NewCallOpType.isNull())
       return ExprError();
     NewCallOpTSI =
         NewCallOpTLBuilder.getTypeSourceInfo(getSema().Context, NewCallOpType);
+  }
+
+  ArrayRef<ParmVarDecl *> Params;
+  if (auto ATL = NewCallOpTSI->getTypeLoc().getAs<AttributedTypeLoc>()) {
+    Params = ATL.getModifiedLoc().castAs<FunctionProtoTypeLoc>().getParams();
+  } else {
+    auto FPTL = NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>();
+    Params = FPTL.getParams();
   }
 
   getSema().CompleteLambdaCallOperator(
@@ -13734,8 +13796,7 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
       E->getCallOperator()->getInnerLocStart(),
       E->getCallOperator()->getTrailingRequiresClause(), NewCallOpTSI,
       E->getCallOperator()->getConstexprKind(),
-      E->getCallOperator()->getStorageClass(),
-      NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>().getParams(),
+      E->getCallOperator()->getStorageClass(), Params,
       E->hasExplicitResultType());
 
   getDerived().transformAttrs(E->getCallOperator(), NewCallOperator);
@@ -13758,9 +13819,16 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   getSema().PushExpressionEvaluationContext(
       Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
 
+  Sema::CodeSynthesisContext C;
+  C.Kind = clang::Sema::CodeSynthesisContext::LambdaExpressionSubstitution;
+  C.PointOfInstantiation = E->getBody()->getBeginLoc();
+  getSema().pushCodeSynthesisContext(C);
+
   // Instantiate the body of the lambda expression.
   StmtResult Body =
       Invalid ? StmtError() : getDerived().TransformLambdaBody(E, E->getBody());
+
+  getSema().popCodeSynthesisContext();
 
   // ActOnLambda* will pop the function scope for us.
   FuncScopeCleanup.disable();

@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # persist-credentials: false allows us to use our own credentials for
           # pushing to the repository.  Otherwise, the default github actions token

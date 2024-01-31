@@ -22,3 +22,9 @@ _SPIRV_OP(InvalidWordCount,
 _SPIRV_OP(Requires1_1, "Feature requires SPIR-V 1.1 or greater:")
 _SPIRV_OP(RequiresExtension,
           "Feature requires the following SPIR-V extension:\n")
+_SPIRV_OP(InvalidMagicNumber,
+          "Invalid Magic Number.")
+_SPIRV_OP(InvalidVersionNumber,
+          "Invalid Version Number.")
+_SPIRV_OP(UnspecifiedMemoryModel, "Unspecified Memory Model.")
+_SPIRV_OP(RepeatedMemoryModel, "Expects a single OpMemoryModel instruction.")

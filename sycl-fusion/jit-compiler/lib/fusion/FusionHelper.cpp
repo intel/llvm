@@ -22,8 +22,8 @@ static Metadata *getConstantIntMD(llvm::LLVMContext &LLVMContext, T Val) {
 }
 
 static Metadata *getConstantMD(llvm::LLVMContext &LLVMCtx,
-                               llvm::StringRef Data) {
-  return MDString::get(LLVMCtx, Data);
+                               const jit_compiler::DynArray<char> &Data) {
+  return MDString::get(LLVMCtx, StringRef{Data.begin(), Data.size()});
 }
 
 static Metadata *getMDParam(LLVMContext &LLVMCtx,
@@ -47,6 +47,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
   const char *ParameterMDKind = "sycl.kernel.param";
   const char *InternalizationMDKind = "sycl.kernel.promote";
   const char *InternalizationLSMDKind = "sycl.kernel.promote.localsize";
+  const char *InternalizationESMDKind = "sycl.kernel.promote.elemsize";
   const char *ConstantsMDKind = "sycl.kernel.constants";
   // The function type of each kernel stub is identical ("void()"),
   // the fusion pass will insert the correct arguments based on
@@ -91,7 +92,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     {
       const auto MDFromND = [&LLVMCtx](const auto &ND) {
         auto MDFromIndices = [&LLVMCtx](const auto &Ind) -> Metadata * {
-          std::array<Metadata *, jit_compiler::Indices{}.size()> MD{nullptr};
+          std::array<Metadata *, jit_compiler::Indices::size()> MD{nullptr};
           std::transform(
               Ind.begin(), Ind.end(), MD.begin(),
               [&LLVMCtx](auto I) { return getConstantIntMD(LLVMCtx, I); });
@@ -107,10 +108,11 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
       // Attach ND-range of the fused kernel
       assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
-      F->setMetadata(SYCLKernelFusion::NDRangeMDKey, MDFromND(FF.FusedNDRange));
+      F->setMetadata(SYCLKernelFusion::NDRangeMDKey,
+                     MDFromND(FF.FusedNDRange.getNDR()));
 
       // Attach ND-ranges of each kernel to be fused
-      const auto SrcNDRanges = FF.NDRanges;
+      const auto SrcNDRanges = FF.FusedNDRange.getNDRanges();
       SmallVector<Metadata *> Nodes;
       std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
                      std::back_inserter(Nodes), MDFromND);
@@ -149,6 +151,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
       if (!Internalization.empty()) {
         SmallVector<Metadata *> MDInternalizationKind;
         SmallVector<Metadata *> MDInternalizationLocalSize;
+        SmallVector<Metadata *> MDInternalizationElemSize;
         const auto EmplaceBackIntern = [&](const auto &Info, auto Str) {
           std::array<Metadata *, 2> MDs;
           MDs[0] = getMDParam(LLVMCtx, Info.Param);
@@ -156,6 +159,8 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
           MDInternalizationKind.emplace_back(MDNode::get(LLVMCtx, MDs));
           MDs[1] = getConstantIntMD<std::size_t>(LLVMCtx, Info.LocalSize);
           MDInternalizationLocalSize.emplace_back(MDNode::get(LLVMCtx, MDs));
+          MDs[1] = getConstantIntMD<std::size_t>(LLVMCtx, Info.ElemSize);
+          MDInternalizationElemSize.emplace_back(MDNode::get(LLVMCtx, MDs));
         };
         for (const auto &Info : Internalization) {
           constexpr StringLiteral LocalInternalizationStr{"local"};
@@ -177,10 +182,13 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
         }
         assert(!F->hasMetadata(InternalizationMDKind));
         assert(!F->hasMetadata(InternalizationLSMDKind));
+        assert(!F->hasMetadata(InternalizationESMDKind));
         F->setMetadata(InternalizationMDKind,
                        MDNode::get(LLVMCtx, MDInternalizationKind));
         F->setMetadata(InternalizationLSMDKind,
                        MDNode::get(LLVMCtx, MDInternalizationLocalSize));
+        F->setMetadata(InternalizationESMDKind,
+                       MDNode::get(LLVMCtx, MDInternalizationElemSize));
       }
     }
 

@@ -145,7 +145,7 @@ jobs:
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.ref }}
         sparse-checkout: |
@@ -197,7 +197,7 @@ jobs:
         rm env_before env_after
     - name: Download SYCL toolchain
       if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.sycl_toolchain_artifact }}
     - name: Debug prints [workflow_run]
@@ -207,7 +207,7 @@ jobs:
         ls
     - name: Download SYCL toolchain [workflow_run]
       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const name = '${{ inputs.sycl_toolchain_artifact }}'

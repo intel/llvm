@@ -466,6 +466,8 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationMediaBlockIOINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStallEnableINTEL,
                {CapabilityFPGAClusterAttributesINTEL});
+  ADD_VEC_INIT(DecorationStallFreeINTEL,
+               {CapabilityFPGAClusterAttributesV2INTEL});
   ADD_VEC_INIT(DecorationFuseLoopsInFunctionINTEL, {CapabilityLoopFuseINTEL});
   ADD_VEC_INIT(DecorationMathOpDSPModeINTEL, {CapabilityFPGADSPControlINTEL});
   ADD_VEC_INIT(DecorationInitiationIntervalINTEL,

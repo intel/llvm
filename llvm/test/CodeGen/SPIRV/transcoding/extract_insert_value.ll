@@ -1,5 +1,8 @@
 ; RUN: llc -O0 -mtriple=spirv32-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
+; TODO(#60133): Requires updates following opaque pointer migration.
+; XFAIL: *
+
 ;; Check 'LLVM ==> SPIR-V' conversion of extractvalue/insertvalue.
 
 %struct.arr = type { [7 x float] }

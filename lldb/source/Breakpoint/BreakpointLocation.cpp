@@ -473,10 +473,10 @@ bool BreakpointLocation::ClearBreakpointSite() {
     // physical implementation of the breakpoint as well if there are no more
     // owners.  Otherwise just remove this owner.
     if (process_sp)
-      process_sp->RemoveOwnerFromBreakpointSite(GetBreakpoint().GetID(),
-                                                GetID(), m_bp_site_sp);
+      process_sp->RemoveConstituentFromBreakpointSite(GetBreakpoint().GetID(),
+                                                      GetID(), m_bp_site_sp);
     else
-      m_bp_site_sp->RemoveOwner(GetBreakpoint().GetID(), GetID());
+      m_bp_site_sp->RemoveConstituent(GetBreakpoint().GetID(), GetID());
 
     m_bp_site_sp.reset();
     return true;
@@ -649,11 +649,11 @@ void BreakpointLocation::SendBreakpointLocationChangedEvent(
   if (!m_being_created && !m_owner.IsInternal() &&
       m_owner.GetTarget().EventTypeHasListeners(
           Target::eBroadcastBitBreakpointChanged)) {
-    Breakpoint::BreakpointEventData *data = new Breakpoint::BreakpointEventData(
+    auto data_sp = std::make_shared<Breakpoint::BreakpointEventData>(
         eventKind, m_owner.shared_from_this());
-    data->GetBreakpointLocationCollection().Add(shared_from_this());
+    data_sp->GetBreakpointLocationCollection().Add(shared_from_this());
     m_owner.GetTarget().BroadcastEvent(Target::eBroadcastBitBreakpointChanged,
-                                       data);
+                                       data_sp);
   }
 }
 

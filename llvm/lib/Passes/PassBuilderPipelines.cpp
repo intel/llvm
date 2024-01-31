@@ -833,7 +833,7 @@ void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
   Options.DoCounterPromotion = true;
   Options.UseBFIInPromotion = IsCS;
   Options.Atomic = AtomicCounterUpdate;
-  MPM.addPass(InstrProfiling(Options, IsCS));
+  MPM.addPass(InstrProfilingLoweringPass(Options, IsCS));
 }
 
 void PassBuilder::addPGOInstrPassesForO0(
@@ -860,7 +860,7 @@ void PassBuilder::addPGOInstrPassesForO0(
   Options.DoCounterPromotion = false;
   Options.UseBFIInPromotion = IsCS;
   Options.Atomic = AtomicCounterUpdate;
-  MPM.addPass(InstrProfiling(Options, IsCS));
+  MPM.addPass(InstrProfilingLoweringPass(Options, IsCS));
 }
 
 static InlineParams getInlineParamsFromOptLevel(OptimizationLevel Level) {
@@ -1503,7 +1503,8 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   MPM.addPass(ConstantMergePass());
 
   if (PTO.CallGraphProfile && !LTOPreLink)
-    MPM.addPass(CGProfilePass());
+    MPM.addPass(CGProfilePass(LTOPhase == ThinOrFullLTOPhase::FullLTOPostLink ||
+                              LTOPhase == ThinOrFullLTOPhase::ThinLTOPostLink));
 
   // TODO: Relative look table converter pass caused an issue when full lto is
   // enabled. See https://reviews.llvm.org/D94355 for more details.
@@ -1559,11 +1560,22 @@ ModulePassManager
 PassBuilder::buildFatLTODefaultPipeline(OptimizationLevel Level, bool ThinLTO,
                                         bool EmitSummary) {
   ModulePassManager MPM;
-  MPM.addPass(EmbedBitcodePass(ThinLTO, EmitSummary,
-                               ThinLTO
-                                   ? buildThinLTOPreLinkDefaultPipeline(Level)
-                                   : buildLTOPreLinkDefaultPipeline(Level)));
-  MPM.addPass(buildPerModuleDefaultPipeline(Level));
+  if (ThinLTO)
+    MPM.addPass(buildThinLTOPreLinkDefaultPipeline(Level));
+  else
+    MPM.addPass(buildLTOPreLinkDefaultPipeline(Level));
+  MPM.addPass(EmbedBitcodePass(ThinLTO, EmitSummary));
+
+  // Use the ThinLTO post-link pipeline with sample profiling
+  if (ThinLTO && PGOOpt && PGOOpt->Action == PGOOptions::SampleUse)
+    MPM.addPass(buildThinLTODefaultPipeline(Level, /*ImportSummary=*/nullptr));
+  else {
+    // otherwise, just use module optimization
+    MPM.addPass(
+        buildModuleOptimizationPipeline(Level, ThinOrFullLTOPhase::None));
+    // Emit annotation remarks.
+    addAnnotationRemarksPass(MPM);
+  }
   return MPM;
 }
 
@@ -1990,7 +2002,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     MPM.addPass(MergeFunctionsPass());
 
   if (PTO.CallGraphProfile)
-    MPM.addPass(CGProfilePass());
+    MPM.addPass(CGProfilePass(/*InLTOPostLink=*/true));
 
   invokeFullLinkTimeOptimizationLastEPCallbacks(MPM, Level);
 

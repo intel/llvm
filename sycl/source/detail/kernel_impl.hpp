@@ -195,7 +195,7 @@ private:
   bool MIsInterop = false;
   std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
-  std::mutex *MCacheMutex;
+  std::mutex *MCacheMutex = nullptr;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
