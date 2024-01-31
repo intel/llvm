@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
-#include "llvm/BinaryFormat/MsgPack.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -30,22 +29,13 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
-#include <functional>
-#include <numeric>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -61,9 +51,7 @@ using namespace sycl::utils;
 
 namespace {
 
-void fixCallingConv(Function *F) {
-  F->setCallingConv(llvm::CallingConv::C);
-}
+void fixCallingConv(Function *F) { F->setCallingConv(llvm::CallingConv::C); }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
                             Type *StatePtrType, llvm::Constant *StateArgTLS) {
@@ -225,8 +213,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy =
-      FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
@@ -308,6 +295,7 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
     Builder.CreateRetVoid();
     Res = F;
   }
+  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   return Res;
 }
 
@@ -459,10 +447,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       // CallInstructions in it have debug info, otherwise we end up with
       // invalid IR after inlining.
       if (I->getFunction()->hasMetadata("dbg")) {
-        I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
-                                       I->getFunction()->getSubprogram()));
-        if (I->getMetadata("dbg"))
-          NewI->setDebugLoc(I->getDebugLoc());
+        if (!I->getMetadata("dbg")) {
+          I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
+                                         I->getFunction()->getSubprogram()));
+        }
+        NewI->setDebugLoc(I->getDebugLoc());
       }
       ToRemove.push_back(std::make_pair(I, NewI));
     }
@@ -495,7 +484,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // function will not be executed (since it has been inlined) and so we can
   // just define __mux_work_group_barrier as a no-op to avoid linker errors.
   // Todo: currently we can't remove the function here even if it has no uses,
-  // because we may still emit a declaration for in the offload-wrapper.
+  // because we may still emit a declaration for it in the offload-wrapper.
   auto BarrierF =
       M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
   if (BarrierF && BarrierF->isDeclaration()) {

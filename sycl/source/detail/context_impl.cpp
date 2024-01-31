@@ -32,7 +32,9 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
-      MContext(nullptr), MPlatform(), MPropList(PropList),
+      MContext(nullptr),
+      MPlatform(detail::getSyclObjImpl(Device.get_platform())),
+      MPropList(PropList),
       MHostContext(detail::getSyclObjImpl(Device)->is_host()),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
@@ -71,31 +73,40 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
 context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
                            async_handler AsyncHandler, const PluginPtr &Plugin,
+                           const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime)
-    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler), MDevices(),
-      MContext(PiContext), MPlatform(), MHostContext(false),
-      MSupportBufferLocationByDevices(NotChecked) {
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
+      MDevices(DeviceList), MContext(PiContext), MPlatform(),
+      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+  if (!MDevices.empty()) {
+    MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
+  } else {
+    std::vector<sycl::detail::pi::PiDevice> DeviceIds;
+    uint32_t DevicesNum = 0;
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call<PiApiKind::piContextGetInfo>(
+        MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+        nullptr);
+    DeviceIds.resize(DevicesNum);
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call<PiApiKind::piContextGetInfo>(
+        MContext, PI_CONTEXT_INFO_DEVICES,
+        sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0],
+        nullptr);
 
-  std::vector<sycl::detail::pi::PiDevice> DeviceIds;
-  uint32_t DevicesNum = 0;
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piContextGetInfo>(
-      MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
-      nullptr);
-  DeviceIds.resize(DevicesNum);
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piContextGetInfo>(
-      MContext, PI_CONTEXT_INFO_DEVICES,
-      sizeof(sycl::detail::pi::PiDevice) * DevicesNum, &DeviceIds[0], nullptr);
-
-  if (!DeviceIds.empty()) {
-    std::shared_ptr<detail::platform_impl> Platform =
-        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
-    for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
-      MDevices.emplace_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+    if (!DeviceIds.empty()) {
+      std::shared_ptr<detail::platform_impl> Platform =
+          platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+      for (sycl::detail::pi::PiDevice Dev : DeviceIds) {
+        MDevices.emplace_back(createSyclObjFromImpl<device>(
+            Platform->getOrMakeDeviceImpl(Dev, Platform)));
+      }
+      MPlatform = Platform;
+    } else {
+      throw invalid_parameter_error(
+          "No devices in the provided device list and native context.",
+          PI_ERROR_INVALID_VALUE);
     }
-    MPlatform = Platform;
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
@@ -447,7 +458,7 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
-  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+  KernelProgramCache::ProgramBuildResultPtr BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
@@ -471,12 +482,18 @@ std::optional<sycl::detail::pi::PiProgram> context_impl::getProgramForDevImgs(
       assert(KeyMappingsIt != KeyMap.end());
       auto CachedProgIt = Cache.find(KeyMappingsIt->second);
       assert(CachedProgIt != Cache.end());
-      BuildRes = &CachedProgIt->second;
+      BuildRes = CachedProgIt->second;
     }
   }
   if (!BuildRes)
     return std::nullopt;
-  return *MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
+  using BuildState = KernelProgramCache::BuildState;
+  BuildState NewState = BuildRes->waitUntilTransition();
+  if (NewState == BuildState::BS_Failed)
+    throw compile_program_error(BuildRes->Error.Msg, BuildRes->Error.Code);
+
+  assert(NewState == BuildState::BS_Done);
+  return BuildRes->Val;
 }
 
 std::optional<sycl::detail::pi::PiProgram>

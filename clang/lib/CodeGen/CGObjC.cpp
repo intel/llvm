@@ -753,8 +753,9 @@ void CodeGenFunction::StartObjCMethod(const ObjCMethodDecl *OMD,
                                       const ObjCContainerDecl *CD) {
   SourceLocation StartLoc = OMD->getBeginLoc();
   FunctionArgList args;
+
   // Check if we should generate debug info for this method.
-  if (OMD->hasAttr<NoDebugAttr>())
+  if (OMD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(OMD, CGM))
     DebugInfo = nullptr; // disable debug info indefinitely for this function
 
   llvm::Function *Fn = CGM.getObjCRuntime().GenerateMethod(OMD, CD);
@@ -827,11 +828,8 @@ static void emitStructGetterCall(CodeGenFunction &CGF, ObjCIvarDecl *ivar,
   //                  sizeof (Type of Ivar), isAtomic, false);
   CallArgList args;
 
-  llvm::Value *dest =
-      CGF.Builder.CreateBitCast(CGF.ReturnValue.getPointer(), CGF.VoidPtrTy);
+  llvm::Value *dest = CGF.ReturnValue.getPointer();
   args.add(RValue::get(dest), Context.VoidPtrTy);
-
-  src = CGF.Builder.CreateBitCast(src, CGF.VoidPtrTy);
   args.add(RValue::get(src), Context.VoidPtrTy);
 
   CharUnits size = CGF.getContext().getTypeSizeInChars(ivar->getType());
@@ -1098,7 +1096,6 @@ static void emitCPPObjectAtomicGetterCall(CodeGenFunction &CGF,
   llvm::Value *ivarAddr =
       CGF.EmitLValueForIvar(CGF.TypeOfSelfObject(), CGF.LoadObjCSelf(), ivar, 0)
           .getPointer(CGF);
-  ivarAddr = CGF.Builder.CreateBitCast(ivarAddr, CGF.Int8PtrTy);
   args.add(RValue::get(ivarAddr), CGF.getContext().VoidPtrTy);
 
   // Third argument is the helper function.
@@ -1340,7 +1337,6 @@ static void emitStructSetterCall(CodeGenFunction &CGF, ObjCMethodDecl *OMD,
                      argVar->getType().getNonReferenceType(), VK_LValue,
                      SourceLocation());
   llvm::Value *argAddr = CGF.EmitLValue(&argRef).getPointer(CGF);
-  argAddr = CGF.Builder.CreateBitCast(argAddr, CGF.Int8PtrTy);
   args.add(RValue::get(argAddr), CGF.getContext().VoidPtrTy);
 
   // The third argument is the sizeof the type.
@@ -1377,7 +1373,6 @@ static void emitCPPObjectAtomicSetterCall(CodeGenFunction &CGF,
   llvm::Value *ivarAddr =
       CGF.EmitLValueForIvar(CGF.TypeOfSelfObject(), CGF.LoadObjCSelf(), ivar, 0)
           .getPointer(CGF);
-  ivarAddr = CGF.Builder.CreateBitCast(ivarAddr, CGF.Int8PtrTy);
   args.add(RValue::get(ivarAddr), CGF.getContext().VoidPtrTy);
 
   // The second argument is the address of the parameter variable.
@@ -1386,7 +1381,6 @@ static void emitCPPObjectAtomicSetterCall(CodeGenFunction &CGF,
                      argVar->getType().getNonReferenceType(), VK_LValue,
                      SourceLocation());
   llvm::Value *argAddr = CGF.EmitLValue(&argRef).getPointer(CGF);
-  argAddr = CGF.Builder.CreateBitCast(argAddr, CGF.Int8PtrTy);
   args.add(RValue::get(argAddr), CGF.getContext().VoidPtrTy);
 
   // Third argument is the helper function.
@@ -3685,7 +3679,6 @@ void CodeGenFunction::EmitExtendGCLifetime(llvm::Value *object) {
                                                    /* constraints */ "r",
                                                    /* side effects */ true);
 
-  object = Builder.CreateBitCast(object, VoidPtrTy);
   EmitNounwindRuntimeCall(extender, object);
 }
 
@@ -3949,6 +3942,8 @@ static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
     return llvm::MachO::PLATFORM_TVOS;
   case llvm::Triple::WatchOS:
     return llvm::MachO::PLATFORM_WATCHOS;
+  case llvm::Triple::XROS:
+    return llvm::MachO::PLATFORM_XROS;
   case llvm::Triple::DriverKit:
     return llvm::MachO::PLATFORM_DRIVERKIT;
   default:
@@ -4032,6 +4027,9 @@ static bool isFoundationNeededForDarwinAvailabilityCheck(
   case llvm::Triple::MacOSX:
     FoundationDroppedInVersion = VersionTuple(/*Major=*/10, /*Minor=*/15);
     break;
+  case llvm::Triple::XROS:
+    // XROS doesn't need Foundation.
+    return false;
   case llvm::Triple::DriverKit:
     // DriverKit doesn't need Foundation.
     return false;

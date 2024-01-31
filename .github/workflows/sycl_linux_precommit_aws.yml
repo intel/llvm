@@ -18,7 +18,7 @@ jobs:
   create-check:
     runs-on: [Linux, build]
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             const sha = context.payload.workflow_run.head_sha
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-20.04
     environment: aws
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           sparse-checkout: devops/actions/aws-ec2
       - run: npm install ./devops/actions/aws-ec2
@@ -59,7 +59,7 @@ jobs:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
       # No idea why but that seems to work and be in sync with the main
       # pre-commit workflow.
@@ -75,7 +75,7 @@ jobs:
     if: always()
     runs-on: [Linux, build]
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             const sha = context.payload.workflow_run.head_sha
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-20.04
     environment: aws
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           sparse-checkout: devops/actions/aws-ec2
       - run: npm install ./devops/actions/aws-ec2

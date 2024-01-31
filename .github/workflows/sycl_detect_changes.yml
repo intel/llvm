@@ -55,10 +55,12 @@ jobs:
             drivers:
               - devops/dependencies.json
               - devops/scripts/install_drivers.sh
+            perf-tests:
+              - sycl/test-e2e/PerformanceTests/**
 
       - name: Set output
         id: result
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             console.log("Number of files changed:");

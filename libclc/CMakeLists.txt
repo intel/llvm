@@ -116,19 +116,63 @@ execute_process( COMMAND ${LLVM_CONFIG} "--bindir"
 # These were not properly reported in early LLVM and we don't need them
 list( APPEND LLVM_CXX_FLAGS -fno-rtti -fno-exceptions )
 
+# List containing all the toolchain variables.
+list( APPEND BINARY_VARIABLES LLVM_CLANG LLVM_AS LLVM_LINK LLVM_OPT LLVM_SPIRV
+      LIBCLC_REMANGLER )
+# List containing all the names of toolchain binaries.
+# NOTE: both lists (BINARY_VARIABLES and BINARY_NAMES) must be in sync.
+list( APPEND BINARY_NAMES clang llvm-as llvm-link opt llvm-spirv
+      libclc-remangler )
+
+# find_program needs the variable to be cleared in order to perform a search.
+# Make sure that the cached entries are cleared as well.
+function( ClearVariables BINARY_VARIABLES_LIST )
+  foreach( V ${BINARY_VARIABLES_LIST} )
+    unset( ${V} CACHE )
+    unset( ${V} PARENT_SCOPE )
+  endforeach( V )
+endfunction()
+
+# Use find_program to locate toolchain binaries.
+function( FindToolBinary BINARY_VARIABLES_LIST BINARY_NAMES_LIST PATH_NAME )
+  list( LENGTH BINARY_NAMES_LIST COUNT )
+  math( EXPR COUNT "${COUNT}-1" )
+  foreach( I RANGE ${COUNT} )
+    list( GET BINARY_VARIABLES_LIST ${I} BV )
+    list( GET BINARY_NAMES_LIST ${I} BN )
+    find_program( ${BV} ${BN} PATHS ${PATH_NAME} NO_DEFAULT_PATH )
+  endforeach( I )
+endfunction()
+
+# Use custom toolchain to build libclc, this can be useful when dealing with
+# debug builds, that do not need libclc bitcode to be built using debug tools.
+if ( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+  message( WARNING "Using custom LLVM tools to build libclc: "
+    "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
+    " make sure that the tools are up to date." )
+
+  # First clear the variables,
+  ClearVariables( "${BINARY_VARIABLES}" )
+  # then set.
+  FindToolBinary( "${BINARY_VARIABLES}" "${BINARY_NAMES}"
+    ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
+
+  if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+      OR NOT LIBCLC_REMANGLER )
+    message( FATAL_ERROR "Custom toolchain incomplete!" )
+  endif()
+endif()
+
 # Print LLVM variables
 message( "LLVM libdir: ${LLVM_LIBRARY_DIR}" )
 message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
-find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_OPT opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_TOOLS_BINARY_DIR}
-							NO_DEFAULT_PATH )
+# It's OK to call find program again, if the variables have been set in the
+# custom location clause, find_program returns immediately.
+FindToolBinary( "${BINARY_VARIABLES}" "${BINARY_NAMES}"
+  ${LLVM_TOOLS_BINARY_DIR} )
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
@@ -190,17 +234,15 @@ set( cypress_aliases hemlock )
 set( barts_aliases turks caicos )
 set( cayman_aliases aruba )
 set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
-	mullins tonga iceland carrizo fiji stoney polaris10 polaris11 )
-
-# Support for gfx9 was added in LLVM 5.0 (r295554)
-if( ${LLVM_VERSION} VERSION_GREATER "4.99.99" )
-	set( tahiti_aliases ${tahiti_aliases} gfx900 gfx902 )
-endif()
-
-# Support for Vega12 and Vega20 was added in LLVM 7 (r331215)
-if( ${LLVM_VERSION} VERSION_GREATER "6.99.99" )
-	set( tahiti_aliases ${tahiti_aliases} gfx904 gfx906 )
-endif()
+	mullins tonga tongapro iceland carrizo fiji stoney polaris10 polaris11
+	gfx602 gfx705 gfx805
+	gfx900 gfx902 gfx904 gfx906 gfx908 gfx909 gfx90a gfx90c gfx940 gfx941 gfx942
+	gfx1010 gfx1011 gfx1012 gfx1013
+	gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036
+	gfx1100 gfx1101 gfx1102 gfx1103
+	gfx1150 gfx1151
+	gfx1200 gfx1201
+)
 
 # pkg-config file
 configure_file( libclc.pc.in libclc.pc @ONLY )

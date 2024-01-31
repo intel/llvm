@@ -18,7 +18,7 @@
 
 ; CHECK-LLVM: define spir_func void @foo() #0 !dbg ![[#Func1:]] {
 ; CHECK-LLVM: entry:
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr nocapture @str) #0, !dbg ![[#Puts1Loc:]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture @str) #0, !dbg ![[#Puts1Loc:]]
 ; CHECK-LLVM:   ret void, !dbg ![[#Ret1:]]
 ; CHECK-LLVM: }
 
@@ -26,8 +26,8 @@
 ; CHECK-LLVM: entry:
 ; CHECK-LLVM:   call void @llvm.dbg.value(metadata i32 %argc, metadata ![[#Fun2Param1:]], metadata !DIExpression()), !dbg ![[#Fun2Param1Loc:]]
 ; CHECK-LLVM:   call void @llvm.dbg.value(metadata ptr %argv, metadata ![[#Fun2Param2:]], metadata !DIExpression(DW_OP_deref, DW_OP_deref)), !dbg ![[#Fun2Param2Loc:]]
-; CHECK-LLVM:   %0 = bitcast ptr @str1 to ptr, !dbg ![[#Puts2Loc:]]
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr nocapture %0) #0, !dbg ![[#Puts2Loc]]
+; CHECK-LLVM:   %0 = bitcast ptr addrspace(1) @str1 to ptr addrspace(1), !dbg ![[#Puts2Loc:]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture %0) #0, !dbg ![[#Puts2Loc]]
 ; CHECK-LLVM:   call spir_func void @foo() #0, !dbg ![[#CallFoo:]]
 ; CHECK-LLVM:   ret i32 0, !dbg ![[#Ret2:]]
 ; CHECK-LLVM: }
@@ -65,23 +65,23 @@ target triple = "spir64-unknown-unknown"
 
 ; ModuleID = 'test.bc'
 
-@str = private unnamed_addr constant [4 x i8] c"FOO\00"
-@str1 = private unnamed_addr constant [6 x i8] c"Main!\00"
+@str = private unnamed_addr addrspace(1) constant [4 x i8] c"FOO\00"
+@str1 = private unnamed_addr addrspace(1) constant [6 x i8] c"Main!\00"
 
 define void @foo() nounwind !dbg !5 {
 entry:
-  %puts = tail call i32 @puts(ptr @str), !dbg !23
+  %puts = tail call i32 @puts(ptr addrspace(1) @str), !dbg !23
   ret void, !dbg !25
 }
 
-declare i32 @puts(ptr nocapture) nounwind
+declare i32 @puts(ptr addrspace(1) nocapture) nounwind
 
 define i32 @main(i32 %argc, ptr nocapture %argv) nounwind !dbg !12 {
 entry:
   tail call void @llvm.dbg.value(metadata i32 %argc, metadata !21, metadata !DIExpression()), !dbg !26
   ; Avoid talking about the pointer size in debug info because that's target dependent
   tail call void @llvm.dbg.value(metadata ptr %argv, metadata !22, metadata !DIExpression(DW_OP_deref, DW_OP_deref)), !dbg !27
-  %puts = tail call i32 @puts(ptr @str1), !dbg !28
+  %puts = tail call i32 @puts(ptr addrspace(1) @str1), !dbg !28
   tail call void @foo() nounwind, !dbg !30
   ret i32 0, !dbg !31
 }

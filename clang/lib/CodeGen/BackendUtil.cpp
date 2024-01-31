@@ -44,6 +44,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/ProfileData/InstrProfCorrelator.h"
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
@@ -69,7 +70,6 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
-#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -115,26 +115,29 @@ static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
     cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
 
-static cl::opt<bool> SYCLNativeCPUBackend(
-    "sycl-native-cpu-backend", cl::init(false),
-    cl::desc("Run the backend passes for SYCL Native CPU"));
-
-static cl::opt<bool> SYCLNativeCPUNoVecz(
-    "sycl-native-cpu-no-vecz", cl::init(false),
-    cl::desc("Disable vectorizer for SYCL Native CPU"));
+extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
 
 // Re-link builtin bitcodes after optimization
 cl::opt<bool> ClRelinkBuiltinBitcodePostop(
     "relink-builtin-bitcode-postop", cl::Optional,
     cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
 
-}
+static cl::opt<bool> SYCLNativeCPUBackend(
+    "sycl-native-cpu-backend", cl::init(false),
+    cl::desc("Run the backend passes for SYCL Native CPU"));
+} // namespace llvm
+
+static cl::opt<bool> SYCLNativeCPUNoVecz(
+    "sycl-native-cpu-no-vecz", cl::init(false),
+    cl::desc("Disable vectorizer for SYCL Native CPU"));
 
 namespace {
 
 // Default filename used for profile generation.
 std::string getDefaultProfileGenName() {
-  return DebugInfoCorrelate ? "default_%m.proflite" : "default_%m.profraw";
+  return DebugInfoCorrelate || ProfileCorrelate != InstrProfCorrelator::NONE
+             ? "default_%m.proflite"
+             : "default_%m.profraw";
 }
 
 class EmitAssemblyHelper {
@@ -227,7 +230,7 @@ public:
   void EmitAssembly(BackendAction Action,
                     std::unique_ptr<raw_pwrite_stream> OS);
 };
-}
+} // namespace
 
 static SanitizerCoverageOptions
 getSancovOptsFromCGOpts(const CodeGenOptions &CGOpts) {
@@ -922,7 +925,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           << PluginFN << toString(PassPlugin.takeError());
     }
   }
-  for (auto PassCallback : CodeGenOpts.PassBuilderCallbacks)
+  for (const auto &PassCallback : CodeGenOpts.PassBuilderCallbacks)
     PassCallback(PB);
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
@@ -1050,7 +1053,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             getInstrProfOptions(CodeGenOpts, LangOpts))
       PB.registerPipelineStartEPCallback(
           [Options](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(InstrProfiling(*Options, false));
+            MPM.addPass(InstrProfilingLoweringPass(*Options, false));
           });
 
     // TODO: Consider passing the MemoryProfileOutput to the pass builder via
@@ -1143,7 +1146,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     /*EmitLTOSummary=*/true));
       }
-
     } else {
       // Emit a module summary by default for Regular LTO except for ld64
       // targets
@@ -1166,16 +1168,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
   }
   if (CodeGenOpts.FatLTO) {
-    // Set module flags, like EnableSplitLTOUnit and UnifiedLTO, since FatLTO
+    // Set the EnableSplitLTOUnit and UnifiedLTO module flags, since FatLTO
     // uses a different action than Backend_EmitBC or Backend_EmitLL.
-    if (!TheModule->getModuleFlag("ThinLTO"))
-      TheModule->addModuleFlag(Module::Error, "ThinLTO",
-                               uint32_t(CodeGenOpts.PrepareForThinLTO));
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
     if (CodeGenOpts.UnifiedLTO && !TheModule->getModuleFlag("UnifiedLTO"))
-      TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
+      TheModule->addModuleFlag(llvm::Module::Error, "UnifiedLTO", uint32_t(1));
   }
 
   // Print a textual, '-passes=' compatible, representation of pipeline if

@@ -17,6 +17,12 @@ themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
 
+## Important Disclaimer
+
+SYCLcompat state is experimental. Its functionalities have been implemented but
+are not assured to remain consistent in the future. The API is subject to
+potential disruptions with new updates, so exercise caution when using it.
+
 ## Notice
 
 Copyright © 2023-2023 Codeplay Software Limited. All rights reserved.

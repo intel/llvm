@@ -83,7 +83,7 @@ static constexpr char MuxBarrier[] = "__mux_work_group_barrier";
 
 Function *getReplaceFunc(Module &M, StringRef Name) {
   LLVMContext &Ctx = M.getContext();
-  static auto *MuxFTy =
+  auto *MuxFTy =
       FunctionType::get(Type::getInt64Ty(Ctx), {Type::getInt32Ty(Ctx)}, false);
   auto F = M.getOrInsertFunction(Name, MuxFTy);
   return cast<Function>(F.getCallee());
@@ -93,11 +93,11 @@ Function *getMuxBarrierFunc(Module &M) {
   // void __mux_work_group_barrier(i32 %id, i32 %scope, i32 %semantics)
   LLVMContext &Ctx = M.getContext();
   auto *Int32Ty = Type::getInt32Ty(Ctx);
-  static auto *MuxFTy = FunctionType::get(Type::getVoidTy(Ctx),
-                                          {Int32Ty, Int32Ty, Int32Ty}, false);
+  auto *MuxFTy = FunctionType::get(Type::getVoidTy(Ctx),
+                                   {Int32Ty, Int32Ty, Int32Ty}, false);
   auto FCallee = M.getOrInsertFunction(MuxBarrier, MuxFTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
-  if(!F) {
+  if (!F) {
     report_fatal_error("Error while inserting mux builtins");
   }
   return F;

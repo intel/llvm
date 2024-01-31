@@ -88,6 +88,8 @@ int main() {
 
 // (Program cache releases)
 // CHECK-CACHE: piKernelRelease
-// CHECK-CACHE: piProgramRelease
 // CHECK-CACHE: piKernelRelease
+// CHECK-CACHE: piKernelRelease
+// CHECK-CACHE: piProgramRelease
+// CHECK-CACHE: piProgramRelease
 // CHECK-CACHE: piProgramRelease

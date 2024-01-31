@@ -16,14 +16,8 @@
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
 // generic work-group split barrier
-__ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag) __ESIMD_INTRIN_END;
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Create an explicit data and GPU scoreboard dependency.
@@ -39,27 +33,13 @@ __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 ///
 /// @param thread_count  - number of threads, ignored in 'wait' mode
 __ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
-                                     uint8_t thread_count)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                                     uint8_t thread_count) __ESIMD_INTRIN_END;
 
 /// Initialize number of named barriers for a kernel
 /// Available only on PVC
 ///
 /// @param count  - number of named barriers
-__ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
 
 /// Raw send signal to perform signal operation on named barriers
 /// Available only on PVC
@@ -79,14 +59,8 @@ __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count)
 template <typename Ty, int N>
 __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
     uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
-    __ESIMD_DNS::vector_type_t<Ty, N> msg_var, uint16_t pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::vector_type_t<Ty, N> msg_var,
+    uint16_t pred = 1) __ESIMD_INTRIN_END;
 
 /// Surface-based prefetch gather.
 /// Supported platforms: DG2, PVC
@@ -114,14 +88,7 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
 __ESIMD_INTRIN void
 __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                         SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                         SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
 /// USM pointer prefetch gather.
 /// Supported platforms: DG2, PVC
@@ -143,16 +110,9 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN void
-__esimd_lsc_prefetch_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                               __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
@@ -191,14 +151,7 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
                              uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
-                             int SurfacePitch, int X, int Y)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                             int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block prefetch.
 /// Supported platforms: PVC
@@ -230,14 +183,7 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
-    int SurfaceHeight, int SurfacePitch, int X, int Y)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    int SurfaceHeight, int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block store.
 /// Supported platforms: PVC
@@ -272,133 +218,26 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
+__ESIMD_INTRIN void __esimd_lsc_store2d_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    int SurfaceHeight, int SurfacePitch, int X, int Y,
+    __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
+
+/// Memory fence.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Kind is the Sfid shaded function.
+/// @tparam FenceOp is the fence operation.
+/// @tparam Scope is the operation scope.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
+          __ESIMD_ENS::lsc_scope Scope, int N>
 __ESIMD_INTRIN void
-__esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
-                              uintptr_t Ptr, int SurfaceWidth,
-                              int SurfaceHeight, int SurfacePitch, int X, int Y,
-                              __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
-/// SLM atomic.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Ty is element type.
-/// @tparam InternalOp is operation type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param offsets is the zero-based offsets.
-template <typename Ty, int InternalOpOp, __ESIMD_ENS::cache_hint L1H,
-          __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
 
-/// SLM atomic.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Ty is element type.
-/// @tparam InternalOp is operation type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param offsets is the zero-based offsets.
-/// @param src0 is the first atomic operand.
-template <typename Ty, int InternalOp, __ESIMD_ENS::cache_hint L1H,
-          __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_xatomic_slm_1(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-/// SLM atomic.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Ty is element type.
-/// @tparam InternalOp is operation type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param offsets is the zero-based offsets.
-/// @param src0 is the first atomic operand.
-/// @param src1 is the second atomic operand.
-template <typename Ty, int InternalOp, __ESIMD_ENS::cache_hint L1H,
-          __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_xatomic_slm_2(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-__ESIMD_INTRIN void __esimd_slm_free(uint32_t id)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

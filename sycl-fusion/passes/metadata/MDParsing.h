@@ -12,7 +12,7 @@
 namespace llvm {
 template <typename T> inline Expected<T> metadataToUInt(const Metadata *MD) {
   if (auto *C = dyn_cast<ConstantAsMetadata>(MD)) {
-    return C->getValue()->getUniqueInteger().getZExtValue();
+    return static_cast<T>(C->getValue()->getUniqueInteger().getZExtValue());
   }
   {
     std::string Msg{"Invalid metadata format: "};

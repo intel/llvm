@@ -1,6 +1,5 @@
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
-; RUN: -passes=sycl-kernel-fusion\
-; RUN: --sycl-info-path %S/check-remapping.yaml -S %s\
+; RUN: -passes=sycl-kernel-fusion -S %s\
 ; RUN: | FileCheck %s
 
 ; This tests checks that SPIR-V builtins are correctly remapped when fusing
@@ -447,3 +446,12 @@ attributes #4 = { willreturn nounwind }
 !44 = !{i64 100, i64 100, i64 100}
 !45 = !{i64 10, i64 10, i64 10}
 !46 = !{i64 0, i64 0, i64 0}
+!47 = !{
+  !"KernelOne",
+  !{!"Accessor", !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor",
+    !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
+    !"StdLayout", !"StdLayout"},
+  !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1},
+  !{!"work_group_size_hint", i32 1, i32 1, i32 64}
+}
+!sycl.moduleinfo = !{!47}
