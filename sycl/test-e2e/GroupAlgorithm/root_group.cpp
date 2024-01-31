@@ -33,7 +33,7 @@ void testQueriesAndProperties() {
 
 void testRootGroup() {
   sycl::queue q;
-  if (!q.get_device().has(aspect::usm_shared_allocations))
+  if (!q.get_device().has(sycl::aspect::usm_shared_allocations))
     return;
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
@@ -68,7 +68,7 @@ void testRootGroup() {
 
 void testRootGroupFunctions() {
   sycl::queue q;
-  if (!q.get_device().has(aspect::usm_shared_allocations))
+  if (!q.get_device().has(sycl::aspect::usm_shared_allocations))
     return;
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());

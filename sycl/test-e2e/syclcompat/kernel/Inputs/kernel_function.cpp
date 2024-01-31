@@ -29,7 +29,6 @@
 //
 //
 // ===---------------------------------------------------------------------===//
-// REQUIRES: usm_shared_allocations
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -110,7 +109,7 @@ void test_kernel_functor_ptr() {
 
   int sharedSize = 10;
   void **param = nullptr, **extra = nullptr;
-
+  if (!q_ct1->get_device().has(sycl::aspect::usm_shared_allocations) return;
   int *dev = sycl::malloc_shared<int>(16, *q_ct1);
   for (int i = 0; i < 16; i++) {
     dev[i] = 0;
