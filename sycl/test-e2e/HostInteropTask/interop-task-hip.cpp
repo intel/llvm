@@ -26,7 +26,7 @@ void checkBufferValues(BufferT Buffer, ValueT Value) {
   for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
-                << ", expected val = " << Value << std::endl;
+                << ", expected val = " << Value << '\n';
       assert(0 && "Invalid data in the buffer");
     }
   }

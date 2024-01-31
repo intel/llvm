@@ -84,7 +84,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     }
 
     pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, nullptr,
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, /*Dev*/nullptr,
                                                      &Handle);
     Handles.push_back(Handle);
   }
