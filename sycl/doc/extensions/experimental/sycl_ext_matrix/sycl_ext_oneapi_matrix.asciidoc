@@ -303,11 +303,11 @@ void joint_matrix_store(Group g,
    const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
    multi_ptr<T2, Space, IsDecorated> dest, size_t stride, layout Layout);
 
-template <typename Group, typename T, size_t Rows, size_t Cols,
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
           typename PropertyListT>
 void joint_matrix_store(Group g,
-   const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   annotated_ptr<T, PropertyListT> dest, size_t stride, layout Layout);
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   annotated_ptr<T2, PropertyListT> dest, size_t stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -320,7 +320,7 @@ written in a row (`row_major`), column major (`col_major`)
 fashion. `stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major layout.
 
-The overload of `joint_matrix_store` take
+The overload of `joint_matrix_store` takes
 `sycl::ext::oneapi::experimental::annotated_ptr` as argument instead
 of `sycl::multi_ptr`. The property list associated with the
 `annotated_ptr` argument represents the compile-time constant
