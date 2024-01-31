@@ -50,7 +50,7 @@ uint8_t highbit(const uint32_t x) {
       31, 15, 28, 21, 19, 10, 12, 6,  14, 27, 9,  5,  26, 8, 25, 24,
   };
   return tab[(uint32_t)(x * deBruijn_magic) >> 27];
-};
+}
 
 // Returns a value extended or truncated to match the size type of the target.
 // This will return the original value if it is already the correct size.
