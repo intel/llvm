@@ -34,7 +34,7 @@
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>  // for image_mem_handle
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/graph.hpp>       // for graph_state
+#include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
 #include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
 #include <sycl/handler.hpp>                             // for handler, isDev...
 #include <sycl/id.hpp>                                  // for id
@@ -315,6 +315,11 @@ public:
   /// \return State the queue is currently in.
   ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
 
+  /// \return Graph when the queue is recording.
+  ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::modifiable>
+  ext_oneapi_get_graph() const;
+
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(
       "is_host() is deprecated as the host device is no longer supported.")
@@ -356,11 +361,9 @@ public:
       }
     };
 
-    auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
 #else
-    auto Event = submit_impl(CGF, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -395,12 +398,10 @@ public:
       }
     };
 
-    auto Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                       PostProcess);
 #else
-    auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, SecondaryQueue, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -2814,6 +2815,7 @@ private:
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.
+  /// TODO: move to impl class in the next ABI Breaking window
   event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
