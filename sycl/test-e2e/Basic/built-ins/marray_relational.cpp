@@ -111,6 +111,61 @@ int main() {
   TEST2(sycl::any, int, EXPECTED(bool, false), 3, ma7);
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, ma8, ma9, ma10);
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0, 8.0), 3, ma5, ma6, c);
+  {
+    // Extra tests for select/bitselect due to special handling required for
+    // integer return types.
+
+    auto Test = [&](auto F, auto Expected, auto... Args) {
+      std::tuple ArgsTuple{Args...};
+      auto Result = std::apply(F, ArgsTuple);
+      static_assert(std::is_same_v<decltype(Expected), decltype(Result)>);
+
+      // Note: operator==(vec, vec) return vec.
+      auto Equal = [](auto x, auto y) {
+        return std::equal(x.begin(), x.end(), y.begin());
+      };
+
+      assert(Equal(Result, Expected));
+
+      sycl::buffer<bool, 1> ResultBuf{1};
+      deviceQueue.submit([&](sycl::handler &cgh) {
+        sycl::accessor Result{ResultBuf, cgh};
+        cgh.single_task([=]() {
+          auto R = std::apply(F, ArgsTuple);
+          static_assert(std::is_same_v<decltype(Expected), decltype(R)>);
+          Result[0] = Equal(R, Expected);
+        });
+      });
+      assert(sycl::host_accessor{ResultBuf}[0]);
+    };
+
+    sycl::marray<char, 2> a{0b1100, 0b0011};
+    sycl::marray<char, 2> b{0b0011, 0b1100};
+    sycl::marray<char, 2> c{0b1010, 0b1010};
+    sycl::marray<char, 2> r{0b0110, 0b1001};
+
+    auto BitSelect = [](auto... xs) { return sycl::bitselect(xs...); };
+    Test(BitSelect, r, a, b, c);
+    // Input values/results above are positive, so use the same values for
+    // signed/unsigned char tests.
+    [&](auto... xs) {
+      Test(BitSelect, sycl::marray<signed char, 2>{xs}...);
+    }(r, a, b, c);
+    [&](auto... xs) {
+      Test(BitSelect, sycl::marray<unsigned char, 2>{xs}...);
+    }(r, a, b, c);
+
+    auto Select = [](auto... xs) { return sycl::select(xs...); };
+    sycl::marray<bool, 2> c2{false, true};
+    sycl::marray<char, 2> r2{a[0], b[1]};
+    Test(Select, r2, a, b, c2);
+    [&](auto... xs) {
+      Test(Select, sycl::marray<signed char, 2>{xs}..., c2);
+    }(r2, a, b);
+    [&](auto... xs) {
+      Test(Select, sycl::marray<unsigned char, 2>{xs}..., c2);
+    }(r2, a, b);
+  }
 
   return 0;
 }
