@@ -312,11 +312,7 @@ template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
 
 public:
   static bool get() {
-#ifdef WIN32
-    constexpr bool DefaultValue = false;
-#else
     constexpr bool DefaultValue = true;
-#endif
 
     const char *ValStr = getCachedValue();
 

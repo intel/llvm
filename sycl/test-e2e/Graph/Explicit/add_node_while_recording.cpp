@@ -1,12 +1,17 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if (level_zero && linux) %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if (level_zero && windows) %{env UR_L0_LEAKS_DEBUG=1 env SYCL_ENABLE_DEFAULT_CONTEXTS=0 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Tests attempting to add a node to a command_graph while it is being
 // recorded to by a queue is an error.
+
+// On Windows, the DLLs are detached/teardown before the static global of the default context 
+// is released. This may cause the UR_L0 leak detector to report a leak.
+// We avoid this by not using the default context on Windows when running the leak check  
 
 #include "../graph_common.hpp"
 
@@ -40,7 +45,7 @@ int main() {
     Success = (StdErrc == static_cast<int>(errc::invalid));
   }
   assert(Success);
-
+  
   Graph.end_recording();
   return 0;
 }
