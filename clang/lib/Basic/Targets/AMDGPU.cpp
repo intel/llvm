@@ -291,6 +291,7 @@ void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
                         Twine("\"") + Twine(CanonName) + Twine("\""));
     Builder.defineMacro("__amdgcn_target_id__",
                         Twine("\"") + Twine(*getTargetID()) + Twine("\""));
+    Builder.defineMacro("__CUDA_ARCH__", "0");
     for (auto F : getAllPossibleTargetIDFeatures(getTriple(), CanonName)) {
       auto Loc = OffloadArchFeatures.find(F);
       if (Loc != OffloadArchFeatures.end()) {
