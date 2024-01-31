@@ -950,10 +950,10 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
-  // Host tasks cannot participate in fusion. They take the regular route. If
-  // they create any requirement or event dependency on any of the kernels in
-  // the fusion list, this will lead to cancellation of the fusion in the
-  // GraphProcessor.
+  // Only device kernel command groups can participate in fusion. Otherwise,
+  // command groups take the regular route. If they create any requirement or
+  // event dependency on any of the kernels in the fusion list, this will lead
+  // to cancellation of the fusion in the GraphProcessor.
   auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
   if (isInFusionMode(QUniqueID)) {
     if (NewCmd->isFusable()) {
@@ -1016,7 +1016,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       std::string s;
       std::stringstream ss(s);
       ss << "Not fusing '" << NewCmd->getTypeString()
-         << "' command group. Can only fuse device kernel command groups";
+         << "' command group. Can only fuse device kernel command groups.";
       printFusionWarning(ss.str());
     }
   }

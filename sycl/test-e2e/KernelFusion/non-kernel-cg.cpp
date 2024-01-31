@@ -9,7 +9,6 @@
 
 // Test non-kernel device command groups are not fused
 
-#include "sycl/detail/pi.h"
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -26,7 +25,7 @@ int main() {
   auto *src = malloc_device<float>(count, q);
 
   {
-    // CHECK: Not fusing 'copy acc to ptr' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'copy acc to ptr' command group. Can only fuse device kernel command groups.
     buffer<float> src(dataSize);
     std::shared_ptr<float> dst(new float[dataSize]);
     fw.start_fusion();
@@ -38,7 +37,7 @@ int main() {
   }
 
   {
-    // CHECK: Not fusing 'copy ptr to acc' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'copy ptr to acc' command group. Can only fuse device kernel command groups.
     buffer<float> dst(dataSize);
     std::shared_ptr<float> src(new float[dataSize]);
     fw.start_fusion();
@@ -50,7 +49,7 @@ int main() {
   }
 
   {
-    // CHECK: Not fusing 'copy acc to acc' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'copy acc to acc' command group. Can only fuse device kernel command groups.
     buffer<float> dst(dataSize);
     buffer<float> src(dataSize);
     fw.start_fusion();
@@ -63,14 +62,14 @@ int main() {
   }
 
   {
-    // CHECK: Not fusing 'barrier' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'barrier' command group. Can only fuse device kernel command groups.
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.ext_oneapi_barrier(); });
     fw.complete_fusion();
   }
 
   {
-    // CHECK: Not fusing 'barrier waitlist' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'barrier waitlist' command group. Can only fuse device kernel command groups.
     buffer<float> dst(dataSize);
     buffer<float> src(dataSize);
     std::vector<event> event_list;
@@ -85,7 +84,7 @@ int main() {
   }
 
   {
-    // CHECK: Not fusing 'fill' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'fill' command group. Can only fuse device kernel command groups.
     buffer<float> dst(dataSize);
     fw.start_fusion();
     q.submit([&](handler &cgh) {
@@ -96,21 +95,21 @@ int main() {
   }
 
   {
-    // CHECK: Not fusing 'copy usm' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'copy usm' command group. Can only fuse device kernel command groups.
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.memcpy(dst, src, count); });
     fw.complete_fusion();
   }
 
   {
-    // CHECK: Not fusing 'fill usm' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'fill usm' command group. Can only fuse device kernel command groups.
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.fill(dst, Pattern, count); });
     fw.complete_fusion();
   }
 
   {
-    // CHECK: Not fusing 'prefetch usm' command group. Can only fuse device kernel command groups
+    // CHECK: Not fusing 'prefetch usm' command group. Can only fuse device kernel command groups.
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.prefetch(dst, count); });
     fw.complete_fusion();
