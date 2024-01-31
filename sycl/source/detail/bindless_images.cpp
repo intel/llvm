@@ -398,15 +398,15 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(imgMem.get_handle().raw_handle, 0 /*pitch*/, sampler,
-                      desc, syclDevice, syclContext);
+  return create_image(imgMem.get_handle(), sampler, desc, syclDevice,
+                      syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::queue &syclQueue) {
-  return create_image(imgMem.get_handle().raw_handle, 0 /*pitch*/, sampler,
-                      desc, syclQueue.get_device(), syclQueue.get_context());
+  return create_image(imgMem.get_handle(), sampler, desc,
+                      syclQueue.get_device(), syclQueue.get_context());
 }
 
 __SYCL_EXPORT sampled_image_handle
