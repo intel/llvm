@@ -1,7 +1,13 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out
+// XFAIL: hip
 
-// Test fusion of non-kernel device command groups is aborted.
+// COM: Test fails on hip due to unsupported CG kinds being tested. This test
+// only checks fusion does not crash on non-kernel CG (target independent test),
+// so having multiple CG kinds has higher priority than running the test on all
+// backends.
+
+// Test non-kernel device command groups are not fused
 
 #include "sycl/detail/pi.h"
 #include <sycl/sycl.hpp>
