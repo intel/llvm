@@ -264,12 +264,19 @@ public:
   constexpr int getDimensions() const { return Dimensions; }
 
   bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+  bool hasUniformWorkGroupSizes() const {
+    assert(hasSpecificLocalSize() && "Local size must be specified");
+    for (int I = 0; I < Dimensions; ++I) {
+      if (GlobalSize[I] % LocalSize[I] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
     return LHS.Dimensions == RHS.Dimensions &&
-           LHS.GlobalSize == RHS.GlobalSize &&
-           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
-            LHS.LocalSize == RHS.LocalSize) &&
+           LHS.GlobalSize == RHS.GlobalSize && LHS.LocalSize == RHS.LocalSize &&
            LHS.Offset == RHS.Offset;
   }
 
@@ -292,19 +299,11 @@ public:
       return false;
     }
 
-    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize < RHS.LocalSize) {
       return true;
     }
-    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize > RHS.LocalSize) {
       return false;
-    }
-    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
-      if (LHS.LocalSize < RHS.LocalSize) {
-        return true;
-      }
-      if (LHS.LocalSize > RHS.LocalSize) {
-        return false;
-      }
     }
 
     return LHS.Offset < RHS.Offset;
