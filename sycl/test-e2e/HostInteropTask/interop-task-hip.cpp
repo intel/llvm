@@ -82,53 +82,8 @@ void init(buffer<DataT, 1> &B1, buffer<DataT, 1> &B2, queue &Q) {
   });
 }
 
-// A test that uses HIP interop to copy data from buffer A to buffer B, by
-// getting HIP ptrs and calling the hipMemcpyWithStream. Then run a SYCL
-// kernel that modifies the data in place for B, e.g. increment one, then copy
-// back to buffer A. Run it on a loop, to ensure the dependencies and the
-// reference counting of the objects is not leaked.
-void test1(queue &Q) {
-  static constexpr int COUNT = 4;
-  buffer<int, 1> Buffer1{BUFFER_SIZE};
-  buffer<int, 1> Buffer2{BUFFER_SIZE};
-
-  // Init the buffer with a'priori invalid data.
-  init<int, -1, -2>(Buffer1, Buffer2, Q);
-
-  // Repeat a couple of times.
-  for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    copy(Buffer1, Buffer2, Q);
-    modify(Buffer2, Q);
-    copy(Buffer2, Buffer1, Q);
-  }
-
-  checkBufferValues(Buffer1, COUNT - 1);
-  checkBufferValues(Buffer2, COUNT - 1);
-}
-
-// Same as above, but performing each command group on a separate SYCL queue
-// (on the same or different devices). This ensures the dependency tracking
-// works well but also there is no accidental side effects on other queues.
-void test2(queue &Q) {
-  static constexpr int COUNT = 4;
-  buffer<int, 1> Buffer1{BUFFER_SIZE};
-  buffer<int, 1> Buffer2{BUFFER_SIZE};
-
-  // Init the buffer with a'priori invalid data.
-  init<int, -1, -2>(Buffer1, Buffer2, Q);
-
-  // Repeat a couple of times.
-  for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    copy(Buffer1, Buffer2, Q);
-    modify(Buffer2, Q);
-    copy(Buffer2, Buffer1, Q);
-  }
-  checkBufferValues(Buffer1, COUNT - 1);
-  checkBufferValues(Buffer2, COUNT - 1);
-}
-
 // Check that a single host-interop-task with a buffer will work.
-void test3(queue &Q) {
+void test_ht_buffer(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
@@ -138,29 +93,33 @@ void test3(queue &Q) {
   });
 }
 
-// Test that SYCL RT models dependencies correctly when composing host tasks
-// with a parallel_for
-void test4(queue &Q) {
+// A test that uses HIP interop to copy data from buffer A to buffer B, by
+// getting HIP ptrs and calling the hipMemcpyWithStream. Then run a SYCL
+// kernel that modifies the data in place for B, e.g. increment one, then copy
+// back to buffer A. Run it on a loop, to ensure the dependencies and the
+// reference counting of the objects is not leaked.
+void test_ht_kernel_dependencies(queue &Q) {
+  static constexpr int COUNT = 4;
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
-  Q.submit([&](handler &CGH) {
-    auto Acc = Buffer1.template get_access<mode::write>(CGH);
+  // Init the buffer with a'priori invalid data.
+  init<int, -1, -2>(Buffer1, Buffer2, Q);
 
-    auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<class Test5Init>(Acc.get_count(), Kernel);
-  });
+  // Repeat a couple of times.
+  for (size_t Idx = 0; Idx < COUNT; ++Idx) {
+    copy(Buffer1, Buffer2, Q);
+    modify(Buffer2, Q);
+    copy(Buffer2, Buffer1, Q);
+  }
 
-  copy(Buffer1, Buffer2, Q);
-
-  checkBufferValues(Buffer2, static_cast<int>(123));
+  checkBufferValues(Buffer1, COUNT - 1);
+  checkBufferValues(Buffer2, COUNT - 1);
 }
 
 void tests(queue &Q) {
-  test1(Q);
-  test2(Q);
-  test3(Q);
-  test4(Q);
+  test_ht_buffer(Q);
+  test_ht_kernel_dependencies(Q);
 }
 
 int main() {
