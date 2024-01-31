@@ -259,6 +259,15 @@ static cl_int mapURProgramBuildInfoToCL(ur_program_build_info_t URPropName) {
 static ur_program_binary_type_t
 mapCLBinaryTypeToUR(cl_program_binary_type binaryType) {
   switch (binaryType) {
+  default:
+    // If we don't understand what OpenCL gave us, return NONE.
+    // TODO: Emit a warning to the user.
+    [[fallthrough]];
+  case CL_PROGRAM_BINARY_TYPE_INTERMEDIATE:
+    // The INTERMEDIATE binary type is defined by the cl_khr_spir extension
+    // which we shouldn't encounter but do. Semantically this binary type is
+    // equivelent to NONE as they both require compilation.
+    [[fallthrough]];
   case CL_PROGRAM_BINARY_TYPE_NONE:
     return UR_PROGRAM_BINARY_TYPE_NONE;
   case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
@@ -267,8 +276,6 @@ mapCLBinaryTypeToUR(cl_program_binary_type binaryType) {
     return UR_PROGRAM_BINARY_TYPE_LIBRARY;
   case CL_PROGRAM_BINARY_TYPE_EXECUTABLE:
     return UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
-  default:
-    return UR_PROGRAM_BINARY_TYPE_FORCE_UINT32;
   }
 }
 
