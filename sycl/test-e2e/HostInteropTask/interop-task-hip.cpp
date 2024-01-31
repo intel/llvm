@@ -26,8 +26,8 @@ void checkBufferValues(BufferT Buffer, ValueT Value) {
   for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
-                << ", expected val = " << Value << '\n';
-      assert(0 && "Invalid data in the buffer");
+                << ", expected val = " << Value << std::endl;
+      exit(1);
     }
   }
 }
@@ -138,6 +138,8 @@ void test3(queue &Q) {
   });
 }
 
+// Test that SYCL RT models dependencies correctly when composing host tasks
+// with a parallel_for
 void test4(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
