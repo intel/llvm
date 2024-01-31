@@ -103,6 +103,10 @@ TEST_P(urProgramGetInfoTest, Success) {
         ASSERT_STRNE(returned_kernel_names, "");
         break;
     }
+    case UR_PROGRAM_INFO_IL: {
+        ASSERT_EQ(property_value, *il_binary.get());
+        break;
+    }
     default:
         break;
     }
