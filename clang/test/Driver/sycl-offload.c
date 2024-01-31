@@ -632,7 +632,7 @@
 // only the last option is considered
 // RUN:   %clang    -### -fsycl -O2 -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
 // RUN:   %clang_cl -### -fsycl /O2 /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
-// CHK-POST-LINK-OPT-LEVEL-O0: sycl-post-link{{.*}} "-O0"
+// CHK-POST-LINK-OPT-LEVEL-O0: sycl-post-link{{.*}} "-O2"
 // CHK-POST-LINK-OPT-LEVEL-O1: sycl-post-link{{.*}} "-O1"
 // CHK-POST-LINK-OPT-LEVEL-O2: sycl-post-link{{.*}} "-O2"
 // CHK-POST-LINK-OPT-LEVEL-O3: sycl-post-link{{.*}} "-O3"

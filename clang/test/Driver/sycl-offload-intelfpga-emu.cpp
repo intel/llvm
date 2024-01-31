@@ -251,6 +251,6 @@
 // RUN:   %clang_cl -### -fintelfpga -Zi -Od -Xs "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // CHK-TOOLS-IMPLIED-OPTS: clang{{.*}} "-fsycl-is-device"{{.*}} "-O0"
-// CHK-TOOLS-IMPLIED-OPTS: sycl-post-link{{.*}} "-O0"
+// CHK-TOOLS-IMPLIED-OPTS: sycl-post-link{{.*}} "-O2"
 // CHK-TOOLS-IMPLIED-OPTS: opencl-aot{{.*}} "--bo=-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 

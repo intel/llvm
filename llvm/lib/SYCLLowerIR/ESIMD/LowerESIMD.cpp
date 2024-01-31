@@ -1803,6 +1803,15 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
     }
 
+    // If we are splitting by ESIMD, we are guarenteed the entire
+    // module only contains ESIMD code, so remove optnone/noinline
+    // from ALL functions as VC does not support these attributes
+    // and programs produce wrong answers or crash if they are kept.
+    if (!ModuleContainsScalarCode && !F.hasFnAttribute("CMGenxSIMT")) {
+      F.removeFnAttr(Attribute::NoInline);
+      F.removeFnAttr(Attribute::OptimizeNone);
+    }
+
     // TODO: The next code and comment was placed to ESIMDLoweringPass
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
@@ -1907,17 +1916,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSetImpl<Type *> &GVTS) {
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
-
-  // The VC backend doesn't support debugging, and trying to use
-  // non-optimized code often produces crashes or wrong answers.
-  // The recommendation from the VC team was always optimize code,
-  // even if the user requested no optimization. We already drop
-  // debugging flags in the SYCL runtime, so also drop optnone and
-  // noinline here.
-  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
-    F.removeFnAttr(Attribute::OptimizeNone);
-    F.removeFnAttr(Attribute::NoInline);
-  }
 
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {

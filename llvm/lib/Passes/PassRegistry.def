@@ -150,6 +150,7 @@ MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
 MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
 MODULE_PASS("esimd-remove-host-code", ESIMDRemoveHostCodePass());
+MODULE_PASS("esimd-remove-optnone-noinline", ESIMDRemoveOptnoneNoinlinePass());
 MODULE_PASS("sycl-propagate-aspects-usage", SYCLPropagateAspectsUsagePass())
 MODULE_PASS("sycl-propagate-joint-matrix-usage", SYCLPropagateJointMatrixUsagePass())
 MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())

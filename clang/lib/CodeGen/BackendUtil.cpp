@@ -955,6 +955,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
+        if (Level == OptimizationLevel::O0)
+          MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
         MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });

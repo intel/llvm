@@ -10308,8 +10308,11 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
 static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    // Pass -O2 when the user passes -O0 due to IGC
+    // debugging limitation. Note this only effects
+    // ESIMD code.
     if (A->getOption().matches(options::OPT_O0))
-      return "-O0";
+      return "-O2";
 
     if (A->getOption().matches(options::OPT_Ofast))
       return "-O3";
