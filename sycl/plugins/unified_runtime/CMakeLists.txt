@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
-  # Merge: b66cf9b1 0e37380e
+  # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
+  # Merge: edb281f3 5fc41099
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jan 26 12:20:20 2024 +0000
-  #     Merge pull request #1205 from ykhatav/ur_dependentload
-  #     [UR] add dependent-load flag to exclude CWD from default search path …
-  set(UNIFIED_RUNTIME_TAG 51d7180c344bbc2f942533e5fc51b0b04871f8d5)
+  # Date:   Tue Jan 30 12:31:44 2024 +0000
+  #     Merge pull request #1168 from Seanst98/sean/unique-addr-mode-per-dim-adapters
+  #     [Bindless][CUDA] Unique addressing modes per dimension
+  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

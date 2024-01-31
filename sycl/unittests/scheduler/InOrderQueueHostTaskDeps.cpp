@@ -91,7 +91,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
-      std::unique_lock lk(CvMutex);
+      std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
@@ -106,11 +106,11 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
       CGH.single_task<TestKernel<>>([] {});
     });
 
-    {
-      std::unique_lock lk(CvMutex);
-      ready = true;
-    }
-    Cv.notify_one();
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
 
     InOrderQueue.wait();
 
@@ -145,7 +145,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
-      std::unique_lock lk(CvMutex);
+      std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
@@ -156,18 +156,17 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
     event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
 
-    {
-      std::unique_lock lk(CvMutex);
-      ready = true;
-    }
-    Cv.notify_one();
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
 
     InOrderQueue.wait();
 
-    ASSERT_EQ(ExecutedCommands.size(), 2u);
-    EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-    EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-    EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-    EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
-  }
+  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }

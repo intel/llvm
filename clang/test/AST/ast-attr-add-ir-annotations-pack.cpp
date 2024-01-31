@@ -252,12 +252,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate3
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -265,20 +262,23 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:           value: Int 1
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 1
@@ -290,10 +290,10 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate3 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (const ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (const ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate3 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -303,18 +303,16 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate3
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate3 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (const ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (const ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate3 'void (ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0]> &&'
   ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> InstantiatedCWAFS5;
   ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> InstantiatedCWAFS6;
 
@@ -354,12 +352,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate4
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -370,20 +365,23 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Names
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:           value: Int 1
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 1
@@ -395,10 +393,10 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate4 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (const ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (const ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0], &AttrName3[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate4 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -408,18 +406,16 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate4
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate4 'void () noexcept' inline default trivial
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (const ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (const ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate4 'void (ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0]> &&'
   ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> InstantiatedCWAFS7;
   ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> InstantiatedCWAFS8;
 
@@ -447,10 +443,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate5
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -458,20 +452,22 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate5 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrVal1[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrVal1[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrVal1[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrVal1[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate5 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -481,14 +477,10 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate5
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -496,32 +488,36 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate5 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate5 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -531,18 +527,12 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate5
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -550,44 +540,50 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate5 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate5 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -597,24 +593,19 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate5
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate5 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate5 'void (ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &&'
   ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> InstantiatedCWAFS9;
   ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> InstantiatedCWAFS10;
   ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> InstantiatedCWAFS11;
@@ -647,10 +638,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate6
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -661,20 +650,22 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate6 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrVal1[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrVal1[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrVal1[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrVal1[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate6 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -684,14 +675,10 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate6
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -702,32 +689,36 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} col:26 referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate6 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrVal1[0], &AttrVal2[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate6 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -737,18 +728,12 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate6
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -759,44 +744,50 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName1' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[6]' lvalue Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:         ConstantExpr {{.*}} 'const char *'
   // CHECK-NEXT:           value: LValue
   // CHECK-NEXT:           SubstNonTypeTemplateParmExpr {{.*}} 'const char *'
   // CHECK-NEXT:             NonTypeTemplateParmDecl {{.*}} referenced 'const char *' depth 0 index 0 ... Strs
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} 'const char *' <ArrayToPointerDecay>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'const char[5]' lvalue Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:             ConstantExpr {{.*}} 'const char *'
+  // CHECK-NEXT:               value: LValue
+  // CHECK-NEXT:               OpaqueValueExpr {{.*}} 'const char *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate6 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0], &AttrVal3[0]> &&'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl {{.*}} struct ClassWithAnnotFieldTemplate6 definition
   // CHECK-NEXT:     DefinitionData
   // CHECK-NEXT:       DefaultConstructor
@@ -806,24 +797,19 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
-  // CHECK-NEXT:       TemplateArgument decl
-  // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
+  // CHECK-NEXT:       TemplateArgument
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate6
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate6 'void () noexcept'
   // CHECK-NEXT:       CompoundStmt
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &'
-  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &&)'
-  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> &&'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'const ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &'
+  // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit constexpr ClassWithAnnotFieldTemplate6 'void (ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &&)'
+  // CHECK-NEXT:       ParmVarDecl {{.*}} 'ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]> &&'
   ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> InstantiatedCWAFS13;
   ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> InstantiatedCWAFS14;
   ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> InstantiatedCWAFS15;
