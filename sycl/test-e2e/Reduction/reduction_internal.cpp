@@ -80,7 +80,8 @@ static void test(RedStorage &Storage, RangeTy Range) {
          cgh, Range, ext::oneapi::experimental::empty_properties_t{}, RedSycl,
          [=](auto Item, auto &Red) { Red.combine(T{1}); });
    }).wait();
-  if (!q.get_device().has(aspect::usm_shared_allocations)) return;
+  if (!q.get_device().has(aspect::usm_shared_allocations))
+    return;
   auto *Result = malloc_shared<T>(1, q);
   q.submit([&](handler &cgh) {
      auto RedAcc = GetRedAcc(cgh);

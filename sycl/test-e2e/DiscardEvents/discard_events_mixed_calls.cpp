@@ -37,7 +37,8 @@ static constexpr int MAX_ITER_NUM2 = 10;
 void TestHelper(sycl::queue Q,
                 const std::function<void(sycl::range<1> Range, int *Harray,
                                          sycl::buffer<int, 1> Buf)> &Function) {
-  if (!Q.get_device().has(aspect::usm_shared_allocation)) return;
+  if (!Q.get_device().has(aspect::usm_shared_allocation))
+    return;
   int *Harray = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(Harray != nullptr);
   for (size_t i = 0; i < BUFFER_SIZE; ++i) {
@@ -114,36 +115,36 @@ void RunTest_USM_Accessor(sycl::queue Q) {
 }
 
 void RunTest_Accessor_USM(sycl::queue Q) {
-  TestHelper(
-      Q, [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
-        {
-          sycl::host_accessor HostAcc(Buf);
-          for (size_t i = 0; i < BUFFER_SIZE; ++i) {
-            HostAcc[i] = 0;
-          }
-        }
+  TestHelper(Q,
+             [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
+               {
+                 sycl::host_accessor HostAcc(Buf);
+                 for (size_t i = 0; i < BUFFER_SIZE; ++i) {
+                   HostAcc[i] = 0;
+                 }
+               }
 
-        for (int i = 0; i < MAX_ITER_NUM1; ++i)
-          IfTrueIncrementBufferAndUSM(Q, Range, Harray, Buf, (i));
+               for (int i = 0; i < MAX_ITER_NUM1; ++i)
+                 IfTrueIncrementBufferAndUSM(Q, Range, Harray, Buf, (i));
 
-        for (int i = 0; i < MAX_ITER_NUM2; ++i)
-          IfTrueIncrementUSM(Q, Range, Harray, (MAX_ITER_NUM1 + i));
+               for (int i = 0; i < MAX_ITER_NUM2; ++i)
+                 IfTrueIncrementUSM(Q, Range, Harray, (MAX_ITER_NUM1 + i));
 
-        Q.wait();
+               Q.wait();
 
-        // check results
-        for (size_t i = 0; i < BUFFER_SIZE; ++i) {
-          int expected = MAX_ITER_NUM1 + MAX_ITER_NUM2;
-          assert(Harray[i] == expected);
-        }
-        {
-          sycl::host_accessor HostAcc(Buf, sycl::read_only);
-          for (size_t i = 0; i < BUFFER_SIZE; ++i) {
-            int expected = MAX_ITER_NUM1;
-            assert(HostAcc[i] == expected);
-          }
-        }
-      });
+               // check results
+               for (size_t i = 0; i < BUFFER_SIZE; ++i) {
+                 int expected = MAX_ITER_NUM1 + MAX_ITER_NUM2;
+                 assert(Harray[i] == expected);
+               }
+               {
+                 sycl::host_accessor HostAcc(Buf, sycl::read_only);
+                 for (size_t i = 0; i < BUFFER_SIZE; ++i) {
+                   int expected = MAX_ITER_NUM1;
+                   assert(HostAcc[i] == expected);
+                 }
+               }
+             });
 }
 
 void RunTest_Mixed(sycl::queue Q) {

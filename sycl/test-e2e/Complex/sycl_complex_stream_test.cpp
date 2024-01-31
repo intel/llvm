@@ -7,7 +7,8 @@
 
 template <typename T> struct test_sycl_stream_operator {
   bool operator()(sycl::queue &Q, cmplx<T> init) {
-    if (!Q.get_device().has(aspect::usm_shared_allocations)) return true;
+    if (!Q.get_device().has(aspect::usm_shared_allocations))
+      return true;
     auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
     cplx_out[0] = experimental::complex<T>(init.re, init.im);
 

@@ -140,7 +140,8 @@ TEST_F(QueueID, QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());
-  if (!Q0.get_device().has(aspect::usm_shared_allocations)) return;
+  if (!Q0.get_device().has(aspect::usm_shared_allocations))
+    return;
   unsigned char *AllocSrc = (unsigned char *)sycl::malloc_shared(1, Q0);
   unsigned char *AllocDst = (unsigned char *)sycl::malloc_shared(1, Q0);
   Q0.memset(AllocSrc, 42, 1).wait();
