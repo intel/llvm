@@ -348,7 +348,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   // check if any of the kernels is called by some other function.
   // This can happen e.g. with OCK, where wrapper functions are 
-  // created around the origianl kernel.
+  // created around the original kernel.
   bool KernelIsCalled = false;
   for(auto& K : OldKernels) {
     for(auto& U : K->uses()){

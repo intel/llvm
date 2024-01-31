@@ -50,15 +50,15 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &M
     MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
     MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
     auto queryFunc =
-        [](llvm::Function &F, llvm::ModuleAnalysisManager &,
+        [](const llvm::Function &F, const llvm::ModuleAnalysisManager &,
            llvm::SmallVectorImpl<vecz::VeczPassOptions> &Opts) -> bool {
       if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
         return false;
       }
       compiler::utils::VectorizationFactor VF(NativeCPUVeczWidth, false);
       vecz::VeczPassOptions VPO;
-      VPO.factor = VF;
-      Opts.emplace_back(VPO);
+      VPO.factor = std::move(VF);
+      Opts.emplace_back(std::move(VPO));
       return true;
     };
     MAM.registerPass([&] { return vecz::VeczPassOptionsAnalysis(queryFunc); });
