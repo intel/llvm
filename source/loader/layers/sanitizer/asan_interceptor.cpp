@@ -149,7 +149,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     // For memory release
     {
         std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
-        ContextInfo->AllocatedUSMMap[AllocBegin] = AllocInfo;
+        ContextInfo->AllocatedUSMMap[AllocBegin] = std::move(AllocInfo);
     }
 
     context.logger.info(
