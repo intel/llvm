@@ -91,7 +91,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
-      std::unique_lock lk(CvMutex);
+      std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
@@ -107,7 +107,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   });
 
   {
-    std::unique_lock lk(CvMutex);
+    std::unique_lock<std::mutex> lk(CvMutex);
     ready = true;
   }
   Cv.notify_one();
@@ -144,7 +144,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
-      std::unique_lock lk(CvMutex);
+      std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
@@ -156,7 +156,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
 
   {
-    std::unique_lock lk(CvMutex);
+    std::unique_lock<std::mutex> lk(CvMutex);
     ready = true;
   }
   Cv.notify_one();

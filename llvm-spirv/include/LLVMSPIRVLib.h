@@ -106,6 +106,35 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg);
 
+struct SPIRVModuleReport {
+  SPIRV::VersionNumber Version;
+  uint32_t MemoryModel;
+  uint32_t AddrModel;
+  std::vector<std::string> Extensions;
+  std::vector<std::string> ExtendedInstructionSets;
+  std::vector<uint32_t> Capabilities;
+};
+/// \brief Partially load SPIR-V from the stream and decode only selected
+/// instructions that are needed to retrieve general information
+/// about the module. If this call fails, readSPIRVModule is
+/// expected to fail as well.
+/// \returns nullopt on failure.
+std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS);
+std::optional<SPIRVModuleReport> getSpirvReport(std::istream &IS, int &ErrCode);
+
+struct SPIRVModuleTextReport {
+  std::string Version;
+  std::string MemoryModel;
+  std::string AddrModel;
+  std::vector<std::string> Extensions;
+  std::vector<std::string> ExtendedInstructionSets;
+  std::vector<std::string> Capabilities;
+};
+/// \brief Create a human-readable form of the report returned by a call to
+/// getSpirvReport by decoding its binary fields.
+/// \returns String with the human-readable report.
+SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report);
+
 } // End namespace SPIRV
 
 namespace llvm {

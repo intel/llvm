@@ -2005,7 +2005,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       StorageClass = SPIRSPIRVAddrSpaceMap::map(AddressSpace);
       if (StorageClass == StorageClassFunction) {
         std::stringstream SS;
-        SS << "Global variable can not have Function storage class. "
+        SS << "Global variable cannot have Function storage class. "
            << "Consider setting a proper address space.\n "
            << "Original LLVM value:\n"
            << toString(GV);
