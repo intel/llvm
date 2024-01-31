@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
-  # Merge: edb281f3 5fc41099
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 30 12:31:44 2024 +0000
-  #     Merge pull request #1168 from Seanst98/sean/unique-addr-mode-per-dim-adapters
-  #     [Bindless][CUDA] Unique addressing modes per dimension
-  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/kbenzie/unified-runtime")
+  set(UNIFIED_RUNTIME_TAG 5e513738c7698efe048fe601cff0eab6878aae55)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
