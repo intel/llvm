@@ -85,7 +85,7 @@ bool IncrementPtr(const char **fmt) {
 GlobalVariable *GetNewFormatStringAsGlobalVar(
     Module &module, GlobalVariable *const string_value,
     const std::string &new_format_string) {
-  const ArrayRef<uint8_t> Elts((uint8_t *)new_format_string.data(),
+  const ArrayRef<uint8_t> Elts((const uint8_t *)new_format_string.data(),
                                new_format_string.size());
   Constant *new_format_string_const =
       ConstantDataArray::get(module.getContext(), Elts);

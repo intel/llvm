@@ -705,7 +705,7 @@ std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
   }
   return std::nullopt;
 }
-};  // namespace
+}  // namespace
 
 bool VectorizationContext::defineInternalBuiltin(Function *F) {
   assert(F->isDeclaration() && "builtin is already defined");
