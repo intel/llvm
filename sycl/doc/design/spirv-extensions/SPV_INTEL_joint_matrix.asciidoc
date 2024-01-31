@@ -476,7 +476,7 @@ inactive. +
  +
 1+|Capability: +
 *{capability_checked_name}*
-1+| 7 | {OpCooperativeMatrixConstructCheckedINTEL_token} | '<id>' +
+1+| 8 | {OpCooperativeMatrixConstructCheckedINTEL_token} | '<id>' +
 'Result Type' |'Result <id>' | '<id>' +
 'X offset' | '<id>' +
 'Y offset' | '<id>' +
