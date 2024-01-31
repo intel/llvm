@@ -361,11 +361,9 @@ public:
       }
     };
 
-    auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
 #else
-    auto Event = submit_impl(CGF, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -400,12 +398,10 @@ public:
       }
     };
 
-    auto Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                       PostProcess);
 #else
-    auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, SecondaryQueue, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -2819,6 +2815,7 @@ private:
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.
+  /// TODO: move to impl class in the next ABI Breaking window
   event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command

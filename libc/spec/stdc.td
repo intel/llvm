@@ -480,6 +480,7 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"sqrt", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"sqrtf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
           FunctionSpec<"sqrtl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>]>,
+          FunctionSpec<"sqrtf128", RetValSpec<Float128Type>, [ArgSpec<Float128Type>]>, 
 
           FunctionSpec<"trunc", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"truncf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
@@ -847,6 +848,15 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  HeaderSpec Float = HeaderSpec<
+      "float.h",
+      [
+        Macro<"FLT_MANT_DIG">,
+        Macro<"DBL_MANT_DIG">,
+        Macro<"LDBL_MANT_DIG">,
+      ]
+  >;
+
   NamedType SigAtomicT = NamedType<"sig_atomic_t">;
   HeaderSpec Signal = HeaderSpec<
       "signal.h",
@@ -1149,6 +1159,7 @@ def StdC : StandardSpec<"stdc"> {
     CType,
     Errno,
     Fenv,
+    Float,
     Math,
     String,
     StdIO,
