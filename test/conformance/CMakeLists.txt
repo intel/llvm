@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-option(UR_TEST_DEVICES_COUNT "Count of devices on which CTS will be run" 1)
-option(UR_TEST_PLATFORMS_COUNT "Count of platforms on which CTS will be run" 1)
+set(UR_TEST_DEVICES_COUNT 1 CACHE STRING "Count of devices on which CTS will be run")
+set(UR_TEST_PLATFORMS_COUNT 1 CACHE STRING "Count of platforms on which CTS will be run")
 
 function(add_test_adapter name adapter)
     set(TEST_TARGET_NAME test-${name})
