@@ -3,6 +3,7 @@
 //
 
 #include "common.hpp"
+
 struct test {
   int a;
   int *b;
@@ -75,40 +76,21 @@ MyStruct<T> operator<<(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
 int main() {
   queue Q;
 
-  int *a = nullptr;
-  try {
-    a = malloc_shared<int>(8, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *a = malloc_shared<int>(8, Q);
   auto a_ptr = annotated_arg{a};
   for (int i = 0; i < 8; i++)
     a_ptr[i] = i;
-  int *b = nullptr;
-  try {
-    b = malloc_shared<int>(4, Q);
-  } catch (sycl::exception &) {
-  }
+
+  auto *b = malloc_shared<int>(4, Q);
   auto b_ptr = annotated_arg{b};
 
-  test *c = nullptr;
-  try {
-    c = malloc_shared<test>(1, Q);
-  } catch (sycl::exception &) {
-  }
-  c->b = nullptr;
-  try {
-    c->b = malloc_shared<int>(1, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *c = malloc_shared<test>(1, Q);
+  c->b = malloc_shared<int>(1, Q);
   auto c_ptr = annotated_arg{c};
   c_ptr->a = 0;
   c_ptr->b[0] = 0;
 
-  int *d = nullptr;
-  try {
-    d = malloc_shared<int>(4, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *d = malloc_shared<int>(4, Q);
   auto d_ptr = annotated_arg{d};
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
@@ -119,62 +101,26 @@ int main() {
   annotated_arg<MyStruct<int>> g = MyStruct(3);
   annotated_arg<MyStruct<int>> h = MyStruct(2);
 
-  MyStruct<int> *r1 = nullptr;
-  try {
-    r1 = malloc_shared<MyStruct<int>>(5, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<int> *r2 = nullptr;
-  try {
-    r2 = malloc_shared<MyStruct<int>>(5, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<int> *r3 = nullptr;
-  try {
-    r3 = malloc_shared<MyStruct<int>>(5, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *r1 = malloc_shared<MyStruct<int>>(5, Q);
+  auto *r2 = malloc_shared<MyStruct<int>>(5, Q);
+  auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
   // testing logical overloaded operators
   annotated_arg<MyStruct<bool>> m = MyStruct(true);
   annotated_arg<MyStruct<bool>> n = MyStruct(false);
 
-  MyStruct<bool> *r4 = nullptr;
-  try {
-    r4 = malloc_shared<MyStruct<bool>>(3, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<bool> *r5 = nullptr;
-  try {
-    r5 = malloc_shared<MyStruct<bool>>(3, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<bool> *r6 = nullptr;
-  try {
-    r6 = malloc_shared<MyStruct<bool>>(3, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *r4 = malloc_shared<MyStruct<bool>>(3, Q);
+  auto *r5 = malloc_shared<MyStruct<bool>>(3, Q);
+  auto *r6 = malloc_shared<MyStruct<bool>>(3, Q);
 
   // testing bit shift overloaded operators
   annotated_arg<MyStruct<int>> x = MyStruct(1);
   annotated_arg<MyStruct<int>> y = MyStruct(2);
   annotated_arg<MyStruct<int>> z = MyStruct(4);
 
-  MyStruct<int> *r7 = nullptr;
-  try {
-    r7 = malloc_shared<MyStruct<int>>(2, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<int> *r8 = nullptr;
-  try {
-    r8 = malloc_shared<MyStruct<int>>(2, Q);
-  } catch (sycl::exception &) {
-  }
-  MyStruct<int> *r9 = nullptr;
-  try {
-    r9 = malloc_shared<MyStruct<int>>(2, Q);
-  } catch (sycl::exception &) {
-  }
+  auto *r7 = malloc_shared<MyStruct<int>>(2, Q);
+  auto *r8 = malloc_shared<MyStruct<int>>(2, Q);
+  auto *r9 = malloc_shared<MyStruct<int>>(2, Q);
 
   Q.single_task([=]() {
      a_ptr[0] += 1;
