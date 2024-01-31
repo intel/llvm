@@ -567,6 +567,21 @@ bool device_impl::has(aspect Aspect) const {
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl);
   }
+  case aspect::ext_intel_matrix: {
+    using arch = sycl::ext::oneapi::experimental::architecture;
+    const std::vector<arch> supported_archs = {
+        arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
+        arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
+    try {
+      return std::any_of(
+          supported_archs.begin(), supported_archs.end(),
+          [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+    } catch (const sycl::exception &) {
+      // If we're here it means the device does not support architecture
+      // querying
+      return false;
+    }
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
