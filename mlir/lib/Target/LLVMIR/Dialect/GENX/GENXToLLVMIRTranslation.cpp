@@ -150,12 +150,17 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
   TypeRange opTypes = op->getOperandTypes();
 
   llvm::Value *a = moduleTranslation.lookupValue(op.getA());
-  auto *aTy = llvm::FixedVectorType::get(builder.getInt16Ty(), op.getRc());
+  auto *aOrigTy = cast<llvm::FixedVectorType>(a->getType());
+  auto bitWidth = aOrigTy->getNumElements() * aOrigTy->getElementType()->getScalarSizeInBits();
+  auto *aTy = llvm::FixedVectorType::get(builder.getInt32Ty(), bitWidth / 32);
   if (a->getType() != aTy)
     a = builder.CreateBitCast(a, aTy);
 
   llvm::Value *b = moduleTranslation.lookupValue(op.getB());
-  auto *bTy = llvm::FixedVectorType::get(builder.getInt32Ty(), 8);
+
+  auto *bOrigTy = cast<llvm::FixedVectorType>(b->getType());
+  bitWidth = bOrigTy->getNumElements() * bOrigTy->getElementType()->getScalarSizeInBits();
+  auto *bTy = llvm::FixedVectorType::get(builder.getInt32Ty(), bitWidth / 32);
   if (b->getType() != bTy)
     b = builder.CreateBitCast(b, bTy);
 

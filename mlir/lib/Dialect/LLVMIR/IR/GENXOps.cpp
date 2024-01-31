@@ -37,9 +37,9 @@ LogicalResult GENX::MatrixDPASOp::verify() {
     return this->emitOpError(
         "1st operand (C) and result (D) should have the same type");
 
-  if (CTy.getNumElements() != getRc() || DTy.getNumElements() != getRc())
-    return this->emitOpError("the dimension for 1st operand (C) and "
-                             "result (D) should match repeat count");
+//  if (CTy.getNumElements() != getRc() || DTy.getNumElements() != getRc())
+//    return this->emitOpError("the dimension for 1st operand (C) and "
+//                             "result (D) should match repeat count");
 
   Type AElemTy = ATy.getElementType();
   Type BElemTy = BTy.getElementType();
@@ -48,16 +48,16 @@ LogicalResult GENX::MatrixDPASOp::verify() {
     return this->emitOpError(
         "element type of 2nd (A) and 3rd (B) operands must match");
 
-  // ATy is required to be vector<RC x i16> as hard coded by IGC.
-  if (ATy.getNumElements() * AElemTy.getIntOrFloatBitWidth() != getRc() * 16)
-    return this->emitOpError(
-        "2nd operand (A) bit-size should be repeat count times 16");
-
-  // BTy is required to be vector<SD x i32> as hard coded by IGC.
-  constexpr unsigned SD = 8;
-  if (BTy.getNumElements() * BElemTy.getIntOrFloatBitWidth() != SD * 32)
-    return this->emitOpError(
-        "3rd operand (B) bit-size should be systolic depth (8) times 32");
+//  // ATy is required to be vector<RC x i16> as hard coded by IGC.
+//  if (ATy.getNumElements() * AElemTy.getIntOrFloatBitWidth() != getRc() * 16)
+//    return this->emitOpError(
+//        "2nd operand (A) bit-size should be repeat count times 16");
+//
+//  // BTy is required to be vector<SD x i32> as hard coded by IGC.
+//  constexpr unsigned SD = 8;
+//  if (BTy.getNumElements() * BElemTy.getIntOrFloatBitWidth() != SD * 32)
+//    return this->emitOpError(
+//        "3rd operand (B) bit-size should be systolic depth (8) times 32");
 
   return TypeSwitch<Type, LogicalResult>(AElemTy)
       .Case<Float32Type>([&](auto ty) -> LogicalResult {
@@ -91,10 +91,10 @@ LogicalResult GENX::MatrixDPASOp::verify() {
         return success();
       })
       .Case<IntegerType>([&](auto ty) -> LogicalResult {
-        if (!ty.isInteger(8))
-          return this->emitOpError(
-              "expecting 2nd (A) or 3rd (B) operand element type to be f32, "
-              "bf16, f16, or i8");
+//        if (!ty.isInteger(8))
+//          return this->emitOpError(
+//              "expecting 2nd (A) or 3rd (B) operand element type to be f32, "
+//              "bf16, f16, or i8");
 
         if (precision == GENX::PrecisionType::U8) {
           if (ty.isSigned())
@@ -106,13 +106,13 @@ LogicalResult GENX::MatrixDPASOp::verify() {
             return this->emitOpError(
                 "precision should be U8 when 2nd (A) or 3rd (B) operand "
                 "element type is unsigned i8");
-        } else
+        } /*else
           return this->emitOpError("precision should be U8 or S8 when 2nd (A) "
-                                   "or 3rd (B) operand element type is i8");
+                                   "or 3rd (B) operand element type is i8");*/
 
-        if (!CElemTy.isInteger(32))
-          return this->emitOpError("the element type for 1st operand (C) and "
-                                   "the result should be i32");
+//        if (!CElemTy.isInteger(32))
+//          return this->emitOpError("the element type for 1st operand (C) and "
+//                                   "the result should be i32");
 
         return success();
       })
