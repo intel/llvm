@@ -8,7 +8,7 @@
 
 #define GRAPH_E2E_EXPLICIT
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int main() {
   device Dev;
