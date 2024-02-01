@@ -157,10 +157,9 @@ __SYCL_EXPORT void *aligned_alloc(
 ///
 // Helper function used to determine if the Alignment argument is a power of 2
 ///
-inline size_t is_not_power_of_two (size_t Alignment) {
+inline size_t is_not_power_of_two(size_t Alignment) {
   return (Alignment & (Alignment - 1));
 }
-
 
 ///
 // Template forms
@@ -191,8 +190,8 @@ T *aligned_alloc_device(
     return nullptr;
   }
   return static_cast<T *>(aligned_alloc_device(max(Alignment, alignof(T)),
-                                                 Count * sizeof(T), Dev, Ctxt,
-                                                 PropList, CodeLoc));
+                                               Count * sizeof(T), Dev, Ctxt,
+                                               PropList, CodeLoc));
 }
 
 template <typename T>
@@ -204,7 +203,7 @@ T *aligned_alloc_device(
     return nullptr;
   }
   return aligned_alloc_device<T>(Alignment, Count, Q.get_device(),
-                                   Q.get_context(), PropList, CodeLoc);
+                                 Q.get_context(), PropList, CodeLoc);
 }
 
 template <typename T>
@@ -248,8 +247,8 @@ T *aligned_alloc_host(
     return nullptr;
   }
   return static_cast<T *>(aligned_alloc_host(std ::max(Alignment, alignof(T)),
-                                               Count * sizeof(T), Ctxt,
-                                               PropList, CodeLoc));
+                                             Count * sizeof(T), Ctxt, PropList,
+                                             CodeLoc));
 }
 
 template <typename T>
@@ -261,7 +260,7 @@ T *aligned_alloc_host(
     return nullptr;
   }
   return aligned_alloc_host<T>(Alignment, Count, Q.get_context(), PropList,
-                                 CodeLoc);
+                               CodeLoc);
 }
 
 template <typename T>
@@ -273,8 +272,8 @@ T *aligned_alloc_shared(
     return nullptr;
   }
   return static_cast<T *>(aligned_alloc_shared(max(Alignment, alignof(T)),
-                                                 Count * sizeof(T), Dev, Ctxt,
-                                                 PropList, CodeLoc));
+                                               Count * sizeof(T), Dev, Ctxt,
+                                               PropList, CodeLoc));
 }
 
 template <typename T>
@@ -286,7 +285,7 @@ T *aligned_alloc_shared(
     return nullptr;
   }
   return aligned_alloc_shared<T>(Alignment, Count, Q.get_device(),
-                                   Q.get_context(), PropList, CodeLoc);
+                                 Q.get_context(), PropList, CodeLoc);
 }
 
 template <typename T>
@@ -316,8 +315,8 @@ T *aligned_alloc(
     return nullptr;
   }
   return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
-                                          Count * sizeof(T), Dev, Ctxt, Kind,
-                                          PropList, CodeLoc));
+                                        Count * sizeof(T), Dev, Ctxt, Kind,
+                                        PropList, CodeLoc));
 }
 
 template <typename T>
@@ -329,7 +328,7 @@ T *aligned_alloc(
     return nullptr;
   }
   return aligned_alloc<T>(Alignment, Count, Q.get_device(), Q.get_context(),
-                            Kind, PropList, CodeLoc);
+                          Kind, PropList, CodeLoc);
 }
 
 // Device copy enhancement APIs, prepare_for and release_from USM.

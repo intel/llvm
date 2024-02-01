@@ -1,12 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // E2E tests for annotated USM allocation functions with alignment arguments
-// that are not powers of 2. Note this test does not work on gpu because some
-// tests expect to return nullptr, e.g. when the alignment argument is not a
-// power of 2, while the gpu runtime has different behavior
+// that are not powers of 2.
 
 #include <sycl/sycl.hpp>
 
@@ -52,8 +48,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   };
 
   // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line,
-                         int Case) {
+  auto check_null = [&q](auto AllocFn, int Line, int Case) {
     decltype(AllocFn()) Ptr = AllocFn();
     auto v = reinterpret_cast<uintptr_t>(Ptr);
     if (v != 0) {
