@@ -13,7 +13,6 @@
 #include <complex>
 #include <numeric>
 
-// clang-format on
 using namespace sycl;
 using namespace ext::oneapi::experimental;
 using namespace ext::intel::experimental;
@@ -53,8 +52,8 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   };
 
   // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line = __builtin_LINE(),
-                         int Case = 0) {
+  auto check_null = [&q](auto AllocFn, int Line,
+                         int Case) {
     decltype(AllocFn()) Ptr = AllocFn();
     auto v = reinterpret_cast<uintptr_t>(Ptr);
     if (v != 0) {
@@ -93,10 +92,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ATShared(11, dev, Ctx); },
       [&]() { return ATAnnotated(15, q, alloc::device); },
       [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
-
-  // aligned_alloc<T>(17, N, q, ...);
-  // aligned_alloc_device<int>(17, N, q);
-  // aligned_alloc<int>(17, N, q, alloc::host);
 }
 
 int main() {
