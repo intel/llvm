@@ -51,7 +51,7 @@ add_sycl_plugin(cuda
     ${XPTI_LIBS}
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
-    UnifiedMallocFramework
+    UnifiedMemoryFramework
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 
