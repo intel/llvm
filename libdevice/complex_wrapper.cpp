@@ -8,7 +8,7 @@
 
 #include "device_complex.h"
 
-#if defined(__SPIR__) || defined(__SYCL_NATIVE_CPU__)
+#ifdef __SPIR__
 
 DEVICE_EXTERN_C_INLINE
 float cimagf(float __complex__ z) { return __devicelib_cimagf(z); }

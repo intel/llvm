@@ -15,7 +15,7 @@
 #define EXTERN_C
 #endif // __cplusplus
 
-#if defined(__SPIR__) || defined(__NVPTX__) || defined(__SYCL_NATIVE_CPU__)
+#if defined(__SPIR__) || defined(__NVPTX__)
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__

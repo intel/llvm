@@ -10,7 +10,7 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__SYCL_NATIVE_CPU__)
+#ifdef __SPIR__
 
 // TODO: This needs to be more robust.
 // clang doesn't recognize the c11 CMPLX macro, but it does have
