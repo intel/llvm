@@ -56,14 +56,13 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cd97e172cbbfc411fccb0b80e0fff6f9126574f4
-  # Merge: bd745d10 2a9ded6f
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Feb 2 14:24:16 2024 +0000
-  #     Merge pull request #1249 from GeorgeWeb/georgi/hip_memadvise_coarse_grained
-  #     [HIP] Implement coarse-grained memory advice for the HIP adapter
-  set(UNIFIED_RUNTIME_TAG cd97e172cbbfc411fccb0b80e0fff6f9126574f4)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pasaulais/unified-runtime")
+  # commit 1cf4a4e99e0ae80ce888589022077bc613f4cfed
+  # Author: Pierre-Andre Saulais <pierre-andre@codeplay.com>
+  # Date:   Mon Jan 29 17:18:52 2024 +0000
+  #
+  #    [CUDA] Remove unused function variant
+  set(UNIFIED_RUNTIME_TAG 1cf4a4e99e0ae80ce888589022077bc613f4cfed)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
