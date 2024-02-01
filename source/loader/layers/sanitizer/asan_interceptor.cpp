@@ -363,10 +363,15 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
         // Poison shadow memory outside of asan runtime is not allowed, so we
         // need to avoid memset's call from being intercepted.
-        static void *memset_ptr = GetMemFunctionPointer("memset");
-        assert(nullptr != memset_ptr);
-        ((void *(*)(void *, int, size_t))memset_ptr)(
-            (void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+        static auto MemSet =
+            (void *(*)(void *, int, size_t))GetMemFunctionPointer("memset");
+        if (!MemSet) {
+            context.logger.error(
+                "Failed to get 'memset' function from libc.so.6");
+            return UR_RESULT_ERROR_UNKNOWN;
+        }
+
+        MemSet((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
         context.logger.debug(
             "enqueueMemSetShadow (addr={}, count={}, value={})",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
