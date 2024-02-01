@@ -125,7 +125,7 @@ constexpr char AmdGPU[] = "amd_gpu_";
 template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
-  if (Target.startswith(GPUArh)) {
+  if (Target.starts_with(GPUArh)) {
     return resolveGenDevice(Target);
   }
   return  std::nullopt;
