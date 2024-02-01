@@ -263,3 +263,102 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
         ASSERT_EQ(val, output) << "Result on queue " << i << " did not match!";
     }
 }
+
+struct urEnqueueKernelLaunchUSMLinkedList
+    : uur::urKernelTestWithParam<uur::BoolTestParam> {
+    struct Node {
+        Node() : next(nullptr), num(0xDEADBEEF) {}
+
+        Node *next;
+        uint32_t num;
+    };
+
+    void SetUp() override {
+        program_name = "usm_ll";
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urKernelTestWithParam<uur::BoolTestParam>::SetUp());
+
+        use_pool = getParam().value;
+        ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+        ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
+                                     0};
+        if (use_pool) {
+            ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
+        }
+    }
+
+    void TearDown() override {
+        auto *list_cur = list_head;
+        while (list_cur) {
+            auto *list_next = list_cur->next;
+            ASSERT_SUCCESS(urUSMFree(context, list_cur));
+            list_cur = list_next;
+        }
+
+        if (queue) {
+            ASSERT_SUCCESS(urQueueRelease(queue));
+        }
+
+        if (pool) {
+            ASSERT_SUCCESS(urUSMPoolRelease(pool));
+        }
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urKernelTestWithParam<uur::BoolTestParam>::TearDown());
+    }
+
+    size_t global_size = 1;
+    size_t global_offset = 0;
+    Node *list_head = nullptr;
+    const int num_nodes = 4;
+    bool use_pool = false;
+    ur_usm_pool_handle_t pool = nullptr;
+    ur_queue_handle_t queue;
+};
+
+UUR_TEST_SUITE_P(
+    urEnqueueKernelLaunchUSMLinkedList,
+    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+
+TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
+    ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
+    ASSERT_SUCCESS(
+        uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
+    if (!(shared_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
+        GTEST_SKIP() << "Shared USM is not supported.";
+    }
+
+    // Build linked list with USM allocations
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, pool,
+                                    sizeof(Node),
+                                    reinterpret_cast<void **>(&list_head)));
+    ASSERT_NE(list_head, nullptr);
+    Node *list_cur = list_head;
+    for (int i = 0; i < num_nodes; i++) {
+        list_cur->num = i * 2;
+        if (i < num_nodes - 1) {
+            ASSERT_SUCCESS(
+                urUSMSharedAlloc(context, device, nullptr, pool, sizeof(Node),
+                                 reinterpret_cast<void **>(&list_cur->next)));
+            ASSERT_NE(list_cur->next, nullptr);
+        } else {
+            list_cur->next = nullptr;
+        }
+        list_cur = list_cur->next;
+    }
+
+    // Run kernel which will iterate the list and modify the values
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &list_head));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
+                                         &global_size, nullptr, 0, nullptr,
+                                         nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // Verify values
+    list_cur = list_head;
+    for (int i = 0; i < num_nodes; i++) {
+        ASSERT_EQ(list_cur->num, i * 4 + 1);
+        list_cur = list_cur->next;
+    }
+}

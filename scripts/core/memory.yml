@@ -432,6 +432,10 @@ params:
       name: hMem
       desc: |
             [in] handle of the mem.
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: |
+            [in] handle of the device that the native handle will be resident on.
     - type: $x_native_handle_t*
       name: phNativeMem
       desc: |

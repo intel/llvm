@@ -1071,7 +1071,8 @@ struct urProgramTest : urQueueTest {
 template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+                                                      il_binary);
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             this->platform, this->context, this->device, *il_binary, &program));
     }
