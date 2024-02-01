@@ -144,7 +144,11 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
-      Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
+      // When doing buffer interop we don't know what device the memory should
+      // be resident on, so pass nullptr for Device param. Buffer interop may
+      // not be supported by all backends.
+      Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(
+          *RetMem, /*Dev*/ nullptr, &Ptr);
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
@@ -167,7 +171,11 @@ void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem) {
   // Do not make unnecessary PI calls without instrumentation enabled
   if (xptiTraceEnabled()) {
     pi_native_handle PtrHandle = 0;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
+                                                     &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
