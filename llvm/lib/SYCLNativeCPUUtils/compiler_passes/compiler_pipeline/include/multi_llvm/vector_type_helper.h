@@ -35,14 +35,14 @@ inline llvm::Type *getVectorElementType(const llvm::Type *ty) {
   return llvm::cast<llvm::VectorType>(ty)->getElementType();
 }
 
-inline unsigned getVectorNumElements(llvm::Type *ty) {
+inline uint64_t getVectorNumElements(llvm::Type *ty) {
   assert(ty->getTypeID() == llvm::Type::FixedVectorTyID &&
          "Not a fixed vector type");
   return llvm::cast<llvm::FixedVectorType>(ty)
       ->getElementCount()
       .getFixedValue();
 }
-inline unsigned getVectorNumElements(const llvm::Type *ty) {
+inline uint64_t getVectorNumElements(const llvm::Type *ty) {
   assert(ty->getTypeID() == llvm::Type::FixedVectorTyID &&
          "Not a fixed vector type");
   return llvm::cast<llvm::FixedVectorType>(ty)

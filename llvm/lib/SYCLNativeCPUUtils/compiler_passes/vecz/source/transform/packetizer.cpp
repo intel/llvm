@@ -3658,19 +3658,19 @@ ValuePacket Packetizer::Impl::packetizeInsertElement(
     if (Indices != Index) {
       Type *IdxTy = Index->getType();
       SmallVector<Constant *, 16> Offsets;
-      for (unsigned i = 0; i < Width; ++i) {
+      for (size_t i = 0; i < Width; ++i) {
         Offsets.push_back(ConstantInt::get(IdxTy, i * ScalarWidth));
       }
       Value *Add = B.CreateAdd(Indices, ConstantVector::get(Offsets));
 
-      for (unsigned i = 0; i < Width; ++i) {
+      for (size_t i = 0; i < Width; ++i) {
         Value *ExtractElt =
             (Elts != Elt) ? B.CreateExtractElement(Elts, B.getInt32(i)) : Elt;
         Value *ExtractIdx = B.CreateExtractElement(Add, B.getInt32(i));
         Result = B.CreateInsertElement(Result, ExtractElt, ExtractIdx, Name);
       }
     } else {
-      for (unsigned i = 0; i < Width; ++i) {
+      for (size_t i = 0; i < Width; ++i) {
         Value *ExtractElt =
             (Elts != Elt) ? B.CreateExtractElement(Elts, B.getInt32(i)) : Elt;
         Value *InsertIdx = B.CreateAdd(Index, B.getInt32(i * ScalarWidth));

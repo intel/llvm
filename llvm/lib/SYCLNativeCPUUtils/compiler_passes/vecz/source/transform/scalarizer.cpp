@@ -486,8 +486,8 @@ Value *Scalarizer::scalarizeOperandsBitCast(BitCastInst *BC) {
   Type *DstAsIntTy = DstTy;
   Type *SrcEleTy = VecSrcTy->getElementType();
   Type *SrcEleAsIntTy = SrcEleTy;
-  const unsigned SrcEleBits = SrcEleTy->getScalarSizeInBits();
-  const unsigned DstBits = DstTy->getPrimitiveSizeInBits();
+  const uint64_t SrcEleBits = SrcEleTy->getScalarSizeInBits();
+  const uint64_t DstBits = DstTy->getPrimitiveSizeInBits();
   if (!DstTy->isIntegerTy()) {
     DstAsIntTy = IntegerType::get(BC->getContext(), DstBits);
   }
@@ -1068,8 +1068,8 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
     Value *SrcAsInt = Src;
     Type *DstEleTy = VecDstTy->getElementType();
     Type *DstEleAsIntTy = DstEleTy;
-    const unsigned SrcBits = SrcTy->getPrimitiveSizeInBits();
-    const unsigned LaneBits = DstEleTy->getPrimitiveSizeInBits();
+    const uint64_t SrcBits = SrcTy->getPrimitiveSizeInBits();
+    const uint64_t LaneBits = DstEleTy->getPrimitiveSizeInBits();
     if (!SrcTy->isIntegerTy()) {
       SrcAsIntTy = SrcTy->getIntNTy(BC->getContext(), SrcBits);
       SrcAsInt = B.CreateBitCast(SrcAsInt, SrcAsIntTy);
