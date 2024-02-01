@@ -9,14 +9,12 @@ using namespace ext::intel::experimental;
 
 using load_hint = annotated_ptr<
     float, decltype(properties(
-               alignment<8>,
                read_hint<cache_control<cache_mode::cached, cache_level::L1>,
                          cache_control<cache_mode::uncached, cache_level::L2,
                                        cache_level::L3>>))>;
 using load_assertion = annotated_ptr<
     int,
     decltype(properties(
-        alignment<8>,
         read_assertion<cache_control<cache_mode::constant, cache_level::L1>,
                        cache_control<cache_mode::invalidate, cache_level::L2,
                                      cache_level::L3>>))>;
