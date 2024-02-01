@@ -24,15 +24,27 @@ get_platform_info_string_impl(sycl::detail::pi::PiPlatform Plt,
                               pi_platform_info PiCode) {
   size_t ResultSize;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, 0, nullptr,
-                                             &ResultSize);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piPlatformGetInfo>(Plt, PiCode, 0,
+                                                         nullptr, &ResultSize);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get info command not supported by backend.");
+  }
   if (ResultSize == 0) {
     return "";
   }
+
   std::unique_ptr<char[]> Result(new char[ResultSize]);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, ResultSize,
-                                             Result.get(), nullptr);
+  PiResult = Plugin->call_nocheck<PiApiKind::piPlatformGetInfo>(
+      Plt, PiCode, ResultSize, Result.get(), nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Platform get info command not supported by backend.");
+  }
   return Result.get();
 }
 // The platform information methods

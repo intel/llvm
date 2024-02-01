@@ -229,8 +229,16 @@ private:
     sycl::detail::pi::PiDevice DevicePI{};
     const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piQueueGetInfo>(
+            MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI,
+            nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Queue get info command not supported by backend.");
+    }
+
     MDevice = MContext->findMatchingDeviceImpl(DevicePI);
     if (MDevice == nullptr) {
       throw sycl::exception(

@@ -26,8 +26,16 @@ get_event_profiling_info(sycl::detail::pi::PiEvent Event,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piEventGetProfilingInfo>(
-      Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piEventGetProfilingInfo>(
+          Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event get info not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   return Result;
 }
 
@@ -38,8 +46,16 @@ typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piEventGetInfo>(Event, PiInfoCode<Param>::value,
-                                          sizeof(Result), &Result, nullptr);
+  sycl::detail::pi::PiResult PiResult =
+      Plugin->call_nocheck<PiApiKind::piEventGetInfo>(
+          Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event get info not supported by backend.");
+  } else {
+    Plugin->checkPiResult(PiResult);
+  }
   return Result;
 }
 

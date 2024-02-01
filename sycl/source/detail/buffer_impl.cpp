@@ -84,7 +84,16 @@ buffer_impl::getNativeVector(backend BackendName) const {
     }
 
     pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextMemGetNativeHandle>(NativeMem,
+                                                                 &Handle);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Mem get native handle command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     Handles.push_back(Handle);
   }
 

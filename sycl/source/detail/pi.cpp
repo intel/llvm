@@ -196,8 +196,16 @@ void contextSetExtendedDeleter(const sycl::context &context,
   auto impl = getSyclObjImpl(context);
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
   const auto &Plugin = impl->getPlugin();
-  Plugin->call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
-                                                          user_data);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
+          contextHandle, func, user_data);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Context set extended deleter command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
 }
 
 std::string platformInfoToString(pi_platform_info info) {

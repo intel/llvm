@@ -54,14 +54,29 @@ bool event_impl::is_host() {
 }
 
 event_impl::~event_impl() {
-  if (MEvent)
-    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+  if (MEvent) {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<PiApiKind::piEventRelease>(MEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      assert(!"Event release command not supported by backend.");
+    } else {
+      getPlugin()->checkPiResult(Result);
+    }
+  }
 }
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
-    getPlugin()->call<PiApiKind::piEventsWait>(1, &MEvent);
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Event wait command not supported by backend.");
+    } else {
+      getPlugin()->checkPiResult(Result);
+    }
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -143,9 +158,18 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
   }
 
   sycl::detail::pi::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
-      &TempContext, nullptr);
+  sycl::detail::pi::PiResult Result =
+      getPlugin()->call_nocheck<PiApiKind::piEventGetInfo>(
+          MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+          &TempContext, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event get info not supported by backend.");
+  } else {
+    getPlugin()->checkPiResult(Result);
+  }
+
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
@@ -405,10 +429,21 @@ pi_native_handle event_impl::getNative() {
     auto TempContext = MContext.get()->getHandleRef();
     Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
-  if (MContext->getBackend() == backend::opencl)
+  if (MContext->getBackend() == backend::opencl) {
     Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
+  }
+
   pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextEventGetNativeHandle>(getHandleRef(),
+                                                                 &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 
@@ -448,11 +483,28 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   // Check if the task for this event has already been submitted.
   pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
-      nullptr);
+  sycl::detail::pi::PiResult Result =
+      getPlugin()->call_nocheck<PiApiKind::piEventGetInfo>(
+          MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32),
+          &Status, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Event get info not supported by backend.");
+  } else {
+    getPlugin()->checkPiResult(Result);
+  }
+
   if (Status == PI_EVENT_QUEUED) {
-    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+    Result = getPlugin()->call_nocheck<PiApiKind::piQueueFlush>(
+        Queue->getHandleRef());
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Queue flush command not supported by backend.");
+    } else {
+      getPlugin()->checkPiResult(Result);
+    }
   }
   MIsFlushed = true;
 }
