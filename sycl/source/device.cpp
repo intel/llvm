@@ -162,6 +162,23 @@ detail::string device::get_device_info(detail::string_view Type) const {
   }
   return detail::string(Info);
 }
+
+std::vector<detail::string>
+device::get_device_info_vector(detail::string_view Type) const {
+  std::vector<std::string> Info;
+  if (Type == typeid(info::device::extensions).name()) {
+    Info = impl->template get_info<info::device::extensions>();
+  } else {
+    throw sycl::invalid_parameter_error(
+        "unsupported device info vector requested", PI_ERROR_INVALID_OPERATION);
+  }
+
+  std::vector<detail::string> Result;
+  for (std::string &Str : Info) {
+    Result.push_back(detail::string(Str.c_str()));
+  }
+  return Result;
+}
 #else
 template <typename Param>
 typename detail::is_device_info_desc<Param>::return_type

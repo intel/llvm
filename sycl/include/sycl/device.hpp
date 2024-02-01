@@ -230,6 +230,15 @@ public:
       detail::string_view PropertyName(typeid(Param).name());
       detail::string Info = get_device_info(PropertyName);
       return Info.c_str();
+    } else if constexpr (std::is_same_v<Param, info::device::extensions>) {
+      // return value is std::vector<std::string>
+      detail::string_view PropertyName(typeid(Param).name());
+      std::vector<detail::string> Info = get_device_info_vector(PropertyName);
+      std::vector<std::string> Res;
+      for (detail::string &Str : Info) {
+        Res.push_back(Str.c_str());
+      }
+      return Res;
     }
     return get_info_internal<Param>();
   }
@@ -319,6 +328,8 @@ private:
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
   detail::string get_device_info(detail::string_view Type) const;
+  std::vector<detail::string>
+  get_device_info_vector(detail::string_view Type) const;
 #endif
 };
 
