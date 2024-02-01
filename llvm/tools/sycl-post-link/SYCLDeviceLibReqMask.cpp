@@ -696,7 +696,7 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
     return 0;
   uint32_t ReqMask = 0;
   for (const Function &SF : M) {
-    if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
+    if (SF.getName().starts_with(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
       uint32_t DeviceLibBits = getDeviceLibBits(SF.getName().str());
       ReqMask |= DeviceLibBits;

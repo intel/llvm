@@ -1596,7 +1596,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")
-                     .endswith("sycl::_V1::ext::intel::esimd::simd"))
+                     .ends_with("sycl::_V1::ext::intel::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
@@ -1604,7 +1604,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
       assert(
           GTy->getName()
               .rtrim(".0123456789")
-              .endswith("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
+              .ends_with("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());
