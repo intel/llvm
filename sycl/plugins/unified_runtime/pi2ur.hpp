@@ -1999,14 +1999,10 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
 
-  auto urResult =
-      urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
-                       UrInputPrograms, Options, UrProgram);
-  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
-                             Options, UrProgram);
-  }
-  return ur2piResult(urResult);
+  HANDLE_ERRORS(urProgramLink(UrContext, NumDevices, UrDevices,
+                              NumInputPrograms, UrInputPrograms, Options,
+                              UrProgram));
+  return PI_SUCCESS;
 }
 
 inline pi_result piProgramCompile(
@@ -2038,12 +2034,8 @@ inline pi_result piProgramCompile(
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
 
-  auto urResult =
-      urProgramCompileExp(UrProgram, NumDevices, UrDevices, Options);
-  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    urResult = urProgramCompile(UrContext, UrProgram, Options);
-  }
-  return ur2piResult(urResult);
+  HANDLE_ERRORS(urProgramCompile(UrProgram, NumDevices, UrDevices, Options));
+  return PI_SUCCESS;
 }
 
 inline pi_result
@@ -2068,12 +2060,8 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
 
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
-
-  auto urResult = urProgramBuildExp(UrProgram, NumDevices, UrDevices, Options);
-  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    urResult = urProgramBuild(UrContext, UrProgram, Options);
-  }
-  return ur2piResult(urResult);
+  HANDLE_ERRORS(urProgramBuild(UrProgram, NumDevices, UrDevices, Options));
+  return PI_SUCCESS;
 }
 
 inline pi_result piextProgramSetSpecializationConstant(pi_program Program,
