@@ -60,9 +60,7 @@ using namespace sycl::utils;
 
 namespace {
 
-void fixCallingConv(Function *F) {
-  F->setCallingConv(llvm::CallingConv::C);
-}
+void fixCallingConv(Function *F) { F->setCallingConv(llvm::CallingConv::C); }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
                             Type *StatePtrType, llvm::Constant *StateArgTLS) {
@@ -306,8 +304,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy =
-      FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
@@ -420,6 +417,7 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
     Builder.CreateRetVoid();
     Res = F;
   }
+  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   return Res;
 }
 
@@ -518,49 +516,32 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
   SmallVector<Function *> NewKernels;
-  auto cloneAndAddKernel = [&](Function *OldF, bool TakeName) {
+  for (auto &OldF : OldKernels) {
+#ifdef NATIVECPU_USE_OCK
+    // The OCK creates a wrapper function around the original kernel with
+    // the WorkItemLoopsPass.
+    // At runtime, we want to run the wrapper function, therefore we
+    // make it so the wrapper steals the original kernel name.
+    auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
+    if (Name != OldF->getName()) {
+      auto RealKernel = M.getFunction(Name);
+      if (RealKernel) {
+        // the real kernel was not inlined in the wrapper, steal its name
+        OldF->takeName(RealKernel);
+      } else {
+        // the real kernel has been inlined, just use the name
+        OldF->setName(Name);
+      }
+    }
+#endif
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
-    if (TakeName)
-      NewF->takeName(OldF);
+    NewF->takeName(OldF);
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     ModuleChanged = true;
   };
-
-#ifdef NATIVECPU_USE_OCK
-  {
-    // First we find the original kernels that have the same names
-    // as the work item loop kernels. If the original kernel is called
-    // by the workitem loop kernel, clone it and change its name so
-    // it can't clash with the workitem loop kernel.
-    SmallVector<Function *> ProcessedKernels;
-    for (auto &OldF : OldKernels) {
-      auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-      if (Name != OldF->getName()) {
-        auto RealKernel = M.getFunction(Name);
-        if (RealKernel) {
-          ProcessedKernels.push_back(RealKernel);
-          if (RealKernel->getNumUses() == 0) {
-            // todo: check if this kernel can be safely removed
-          }
-          cloneAndAddKernel(RealKernel, false);
-        }
-        OldF->setName(Name);
-        assert(OldF->getName() == Name);
-      }
-    }
-
-    for (Function *f : ProcessedKernels)
-      OldKernels.erase(std::remove(OldKernels.begin(), OldKernels.end(), f),
-                       OldKernels.end());
-  }
-#endif
-
-  for (auto &OldF : OldKernels) {
-    cloneAndAddKernel(OldF, true);
-  }
 
   StructType *NativeCPUArgDescType =
       StructType::create({PointerType::getUnqual(M.getContext())});
@@ -585,10 +566,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       // CallInstructions in it have debug info, otherwise we end up with
       // invalid IR after inlining.
       if (I->getFunction()->hasMetadata("dbg")) {
-        I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
-                                       I->getFunction()->getSubprogram()));
-        if (I->getMetadata("dbg"))
-          NewI->setDebugLoc(I->getDebugLoc());
+        if (!I->getMetadata("dbg")) {
+          I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
+                                         I->getFunction()->getSubprogram()));
+        }
+        NewI->setDebugLoc(I->getDebugLoc());
       }
       ToRemove.push_back(std::make_pair(I, NewI));
     }
@@ -621,7 +603,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // function will not be executed (since it has been inlined) and so we can
   // just define __mux_work_group_barrier as a no-op to avoid linker errors.
   // Todo: currently we can't remove the function here even if it has no uses,
-  // because we may still emit a declaration for in the offload-wrapper.
+  // because we may still emit a declaration for it in the offload-wrapper.
   auto BarrierF =
       M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
   if (BarrierF && BarrierF->isDeclaration()) {

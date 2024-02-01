@@ -143,11 +143,44 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int mem_reg[64];
 
-  //expected-warning@+1{{attribute 'fpga_memory' is already applied}}
-  [[intel::fpga_memory]] [[intel::fpga_memory]] unsigned int mem_mem[64];
+  // Check to see if there's a duplicate attribute with same Default values
+  // already applied to the declaration.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::fpga_memory]]
+  [[intel::fpga_memory]] unsigned int mem_mem[64]; // OK
 
   //expected-warning@+1 {{unknown attribute 'memory' ignored}}
   [[intelfpga::memory]] unsigned int memory_var[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  // Diagnostic is emitted because the arguments mismatch.
+  //expected-warning@+2{{attribute 'fpga_memory' is already applied with different arguments}}
+  [[intel::fpga_memory("MLAB")]] // expected-note {{previous attribute is here}}
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_block_ram[32];
+
+  // Check to see if there's a duplicate attribute with same values
+  // already applied to the declaration.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::fpga_memory("MLAB")]]
+  [[intel::fpga_memory("MLAB")]] unsigned int mem_mlab[32]; // OK
+
+  [[intel::fpga_memory("BLOCK_RAM")]]
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_block[32]; // OK
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  // Diagnostic is emitted because the arguments mismatch.
+  //expected-warning@+2{{attribute 'fpga_memory' is already applied with different arguments}}
+  [[intel::fpga_memory]] // expected-note {{previous attribute is here}}
+  [[intel::fpga_memory("MLAB")]] unsigned int mem_mlabs[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  // Diagnostic is emitted because the arguments mismatch.
+  //expected-warning@+2{{attribute 'fpga_memory' is already applied with different arguments}}
+  [[intel::fpga_memory("BLOCK_RAM")]] // expected-note {{previous attribute is here}}
+  [[intel::fpga_memory]] unsigned int mem_mlabs_block_ram[64];
 
   // **bankwidth
   //expected-warning@+1 {{unknown attribute 'bankwidth' ignored}}

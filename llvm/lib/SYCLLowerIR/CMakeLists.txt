@@ -13,11 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Gregory Fine <gregory.fine@intel.com>
-    # Date:   Wed Nov 29 14:55:24 2023 PST
 
-    # Fixed build failure related to upstream changes
-    set(LLVMGenXIntrinsics_GIT_TAG b16218b8a00c5c1d4db32085dfab4d5eb9a03ad7)
+    # Date:   Dec 14, 2023
+    # Add support for XeHPCVG platform
+    set(LLVMGenXIntrinsics_GIT_TAG da892e1982b6c25b9a133f85b4ac97142d8a3def)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

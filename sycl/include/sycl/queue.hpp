@@ -34,7 +34,7 @@
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>  // for image_mem_handle
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/graph.hpp>       // for graph_state
+#include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
 #include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
 #include <sycl/handler.hpp>                             // for handler, isDev...
 #include <sycl/id.hpp>                                  // for id
@@ -315,6 +315,11 @@ public:
   /// \return State the queue is currently in.
   ext::oneapi::experimental::queue_state ext_oneapi_get_state() const;
 
+  /// \return Graph when the queue is recording.
+  ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::modifiable>
+  ext_oneapi_get_graph() const;
+
   /// \return true if this queue is a SYCL host queue.
   __SYCL2020_DEPRECATED(
       "is_host() is deprecated as the host device is no longer supported.")
@@ -356,11 +361,9 @@ public:
       }
     };
 
-    auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
 #else
-    auto Event = submit_impl(CGF, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -395,12 +398,10 @@ public:
       }
     };
 
-    auto Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-    return discard_or_return(Event);
+    return submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                       PostProcess);
 #else
-    auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-    return discard_or_return(Event);
+    return submit_impl(CGF, SecondaryQueue, CodeLoc);
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -412,9 +413,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -427,10 +426,7 @@ public:
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
       const std::vector<event> &WaitList,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                  CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -2788,6 +2784,10 @@ public:
 
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
+  event ext_oneapi_get_last_event() const;
+
+  void ext_oneapi_set_external_event(const event &external_event);
+
 private:
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
@@ -2815,6 +2815,7 @@ private:
 
   /// Checks if the event needs to be discarded and if so, discards it and
   /// returns a discarded event. Otherwise, it returns input event.
+  /// TODO: move to impl class in the next ABI Breaking window
   event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
@@ -2964,7 +2965,9 @@ private:
         Rest...);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
+#endif
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -3018,9 +3021,7 @@ class AssertInfoCopier;
  */
 event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
-  using AHBufT = buffer<detail::AssertHappened, 1>;
-
-  AHBufT &Buffer = Self.getAssertHappenedBuffer();
+  buffer<detail::AssertHappened, 1> Buffer{1};
 
   event CopierEv, CheckerEv, PostCheckerEv;
   auto CopierCGF = [&](handler &CGH) {

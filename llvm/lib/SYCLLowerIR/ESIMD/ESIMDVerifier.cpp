@@ -150,10 +150,10 @@ public:
 
           // We are interested in functions defined in SYCL namespace, but
           // outside of ESIMD namespaces.
-          if (!Name.startswith("sycl::_V1::") ||
-              Name.startswith("sycl::_V1::detail::") ||
-              Name.startswith("sycl::_V1::ext::intel::esimd::") ||
-              Name.startswith("sycl::_V1::ext::intel::experimental::esimd::"))
+          if (!Name.starts_with("sycl::_V1::") ||
+              Name.starts_with("sycl::_V1::detail::") ||
+              Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+              Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::"))
             continue;
 
           // Check if function name matches any allowed SYCL function name.

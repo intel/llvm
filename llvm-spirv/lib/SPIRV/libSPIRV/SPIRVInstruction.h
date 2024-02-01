@@ -2823,9 +2823,6 @@ public:
 
 protected:
   void setOpWords(const std::vector<SPIRVWord> &OpsArg) override;
-
-private:
-  size_t getImageOperandsIndex() const;
 };
 
 #define _SPIRV_OP(x, ...)                                                      \
@@ -3010,10 +3007,7 @@ _SPIRV_OP(SUDotAccSatKHR, true, 6, true, 3)
 class SPIRVBitOp : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions))
-      return getVec(CapabilityBitInstructions);
-
-    return getVec(CapabilityShader);
+    return getVec(CapabilityBitInstructions);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -3834,7 +3828,7 @@ protected:
                    " 64-bit type or two element vector of 32-bit type\n");
   }
 };
-#define _SPIRV_OP(x, ...) typedef SPIRVReadClockKHRInstBase<Op##x> SPIRV##x;
+#define _SPIRV_OP(x) typedef SPIRVReadClockKHRInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(ReadClockKHR)
 #undef _SPIRV_OP
 

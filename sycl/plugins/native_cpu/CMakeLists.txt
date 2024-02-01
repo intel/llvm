@@ -9,7 +9,6 @@ add_sycl_plugin(native_cpu
     ${UR_NATIVE_CPU_ADAPTER_SOURCES}
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_native_cpu.cpp"
@@ -29,7 +28,13 @@ if(NATIVECPU_USE_OCK)
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
    GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-   GIT_TAG        sycl_native_experimental
+   # commit 558b76cd6080107a2d65f7e37468f3d01eef80f7
+   # Merge: a5ec372f 542ee121
+   # Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
+   # Date:   Tue Jan 30 12:53:39 2024 +0100
+   # Merge pull request #322 from PietroGhg/pietro/update_30_jan
+   # Update sycl_native_experimental branch
+   GIT_TAG 558b76cd6080107a2d65f7e37468f3d01eef80f7
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
@@ -44,7 +49,7 @@ if(NATIVECPU_USE_OCK)
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
-  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-utils)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline)
   target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
 
 endif()

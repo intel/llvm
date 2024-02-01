@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %if ext_oneapi_level_zero || ext_oneapi_cuda %{ %{run} %t.out 2>&1 | FileCheck %s %} %else %{ %{run} %t.out %}
+// RUN: %if level_zero || cuda %{ %{run} %t.out 2>&1 | FileCheck %s %} %else %{ %{run} %t.out %}
 //
 // CHECK: complete
 //

@@ -47,6 +47,15 @@ int main() {
   sycl::device Dev;
   sycl::queue Queue(Dev);
   // clang-format off
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl::marray<sycl::half, 2> MHalfD2   = {1.f, 2.f};
+  sycl::marray<sycl::half, 2> MHalfD2_2 = {3.f, 5.f};
+  sycl::marray<sycl::half, 3> MHalfD3   = {1.f, 2.f, 3.f};
+  sycl::marray<sycl::half, 3> MHalfD3_2 = {1.f, 5.f, 7.f};
+  sycl::marray<sycl::half, 4> MHalfD4   = {1.f, 2.f, 3.f, 4.f};
+  sycl::marray<sycl::half, 4> MHalfD4_2 = {1.f, 5.f, 7.f, 4.f};
+#endif
+
   sycl::marray<float, 2> MFloatD2   = {1.f, 2.f};
   sycl::marray<float, 2> MFloatD2_2 = {3.f, 5.f};
   sycl::marray<float, 3> MFloatD3   = {1.f, 2.f, 3.f};
@@ -62,6 +71,15 @@ int main() {
   sycl::marray<double, 4> MDoubleD4_2 = {1.0, 5.0, 7.0, 4.0};
   // clang-format on
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (Dev.has(sycl::aspect::fp16)) {
+    TEST(sycl::cross, sycl::half, 3, EXPECTED(sycl::half, -1.f, -4.f, 3.f), 0,
+         MHalfD3, MHalfD3_2);
+    TEST(sycl::cross, sycl::half, 4, EXPECTED(sycl::half, -1.f, -4.f, 3.f, 0.f),
+         0, MHalfD4, MHalfD4_2);
+  }
+#endif
+
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, MFloatD3,
        MFloatD3_2);
   TEST(sycl::cross, float, 4, EXPECTED(float, -1.f, -4.f, 3.f, 0.f), 0,
@@ -73,14 +91,30 @@ int main() {
          MDoubleD4, MDoubleD4_2);
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (Dev.has(sycl::aspect::fp16)) {
+    TEST2(sycl::dot, sycl::half, 13.f, 0, MHalfD2, MHalfD2_2);
+    TEST2(sycl::dot, sycl::half, 32.f, 0, MHalfD3, MHalfD3_2);
+    TEST2(sycl::dot, sycl::half, 48.f, 0, MHalfD4, MHalfD4_2);
+  }
+#endif
+
   TEST2(sycl::dot, float, 13.f, 0, MFloatD2, MFloatD2_2);
   TEST2(sycl::dot, float, 32.f, 0, MFloatD3, MFloatD3_2);
   TEST2(sycl::dot, float, 48.f, 0, MFloatD4, MFloatD4_2);
   if (Dev.has(sycl::aspect::fp64)) {
-    TEST2(sycl::dot, double, 13, 0, MDoubleD2, MDoubleD2_2);
-    TEST2(sycl::dot, double, 32, 0, MDoubleD3, MDoubleD3_2);
-    TEST2(sycl::dot, double, 48, 0, MDoubleD4, MDoubleD4_2);
+    TEST2(sycl::dot, double, 13.0, 0, MDoubleD2, MDoubleD2_2);
+    TEST2(sycl::dot, double, 32.0, 0, MDoubleD3, MDoubleD3_2);
+    TEST2(sycl::dot, double, 48.0, 0, MDoubleD4, MDoubleD4_2);
   }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (Dev.has(sycl::aspect::fp16)) {
+    TEST2(sycl::length, sycl::half, 2.236f, 1e-3, MHalfD2);
+    TEST2(sycl::length, sycl::half, 3.742f, 1e-3, MHalfD3);
+    TEST2(sycl::length, sycl::half, 5.477f, 1e-3, MHalfD4);
+  }
+#endif
 
   TEST2(sycl::length, float, 2.236068f, 1e-6, MFloatD2);
   TEST2(sycl::length, float, 3.741657f, 1e-6, MFloatD3);
@@ -91,6 +125,14 @@ int main() {
     TEST2(sycl::length, double, 5.477225, 1e-6, MDoubleD4);
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (Dev.has(sycl::aspect::fp16)) {
+    TEST2(sycl::distance, sycl::half, 3.605f, 1e-3, MHalfD2, MHalfD2_2);
+    TEST2(sycl::distance, sycl::half, 5.f, 0, MHalfD3, MHalfD3_2);
+    TEST2(sycl::distance, sycl::half, 5.f, 0, MHalfD4, MHalfD4_2);
+  }
+#endif
+
   TEST2(sycl::distance, float, 3.605551f, 1e-6, MFloatD2, MFloatD2_2);
   TEST2(sycl::distance, float, 5.f, 0, MFloatD3, MFloatD3_2);
   TEST2(sycl::distance, float, 5.f, 0, MFloatD4, MFloatD4_2);
@@ -99,6 +141,18 @@ int main() {
     TEST2(sycl::distance, double, 5.0, 0, MDoubleD3, MDoubleD3_2);
     TEST2(sycl::distance, double, 5.0, 0, MDoubleD4, MDoubleD4_2);
   }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (Dev.has(sycl::aspect::fp16)) {
+    TEST(sycl::normalize, sycl::half, 2,
+         EXPECTED(sycl::half, 0.447213f, 0.894427f), 1e-6, MHalfD2);
+    TEST(sycl::normalize, sycl::half, 3,
+         EXPECTED(sycl::half, 0.267261f, 0.534522f, 0.801784f), 1e-6, MHalfD3);
+    TEST(sycl::normalize, sycl::half, 4,
+         EXPECTED(sycl::half, 0.182574f, 0.365148f, 0.547723f, 0.730297f), 1e-6,
+         MHalfD4);
+  }
+#endif
 
   TEST(sycl::normalize, float, 2, EXPECTED(float, 0.447213f, 0.894427f), 1e-6,
        MFloatD2);

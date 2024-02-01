@@ -40,7 +40,7 @@ constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
 constexpr char SYCLNATIVECPUKERNEL[] = ".NativeCPUKernel";
 constexpr char SYCLNATIVECPUPREFIX[] = "__dpcpp_nativecpu";
 inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
-  if (S.startswith(SYCLNATIVECPUPREFIX) || S.endswith(SYCLNATIVECPUKERNEL))
+  if (S.starts_with(SYCLNATIVECPUPREFIX) || S.ends_with(SYCLNATIVECPUKERNEL))
     return S;
   return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
 }

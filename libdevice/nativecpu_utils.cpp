@@ -175,4 +175,34 @@ DefineBroadCast(int, i32, int32_t) DefineBroadCast(unsigned, i32, int32_t)
                                     DefineShuffleVec2to16(unsigned, i32, int)
                                         DefineShuffleVec2to16(float, f32, float)
 
+#define GEN_u32(bname, muxname)\
+  DEVICE_EXTERN_C uint32_t muxname();\
+  DEVICE_EXTERNAL uint32_t bname() { return muxname(); }
+  // subgroup
+    GEN_u32(__spirv_SubgroupLocalInvocationId,
+            __mux_get_sub_group_local_id)
+    GEN_u32(__spirv_SubgroupMaxSize, __mux_get_max_sub_group_size)
+    GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id)
+    GEN_u32(__spirv_NumSubgroups, __mux_get_num_sub_groups)
+    GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size)
+
+//I64_I32
+#define GEN_p(bname, muxname, arg)\
+  DEVICE_EXTERN_C uint64_t muxname(uint32_t);\
+  DEVICE_EXTERNAL uint64_t bname() { return muxname(arg); }
+
+#define GEN_xyz(bname, ncpu_name)\
+  GEN_p(bname ## _x, ncpu_name, 0)\
+  GEN_p(bname ## _y, ncpu_name, 1)\
+  GEN_p(bname ## _z, ncpu_name, 2)
+
+
+    GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id)
+    GEN_xyz(__spirv_GlobalSize, __mux_get_global_size)
+    GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset)
+    GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id)
+    GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups)
+    GEN_xyz(__spirv_WorkgroupSize, __mux_get_local_size)
+    GEN_xyz(__spirv_WorkgroupId, __mux_get_group_id)
+
 #endif // __SYCL_NATIVE_CPU__

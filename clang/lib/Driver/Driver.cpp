@@ -91,6 +91,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -192,14 +193,14 @@ std::string Driver::GetResourcesPath(StringRef BinaryPath,
                             CLANG_VERSION_MAJOR_STRING);
   }
 
-  return std::string(P.str());
+  return std::string(P);
 }
 
 Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
-    : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
-      SaveTemps(SaveTempsNone), DumpDeviceCode(false), BitcodeEmbed(EmbedNone),
+    : Diags(Diags), VFS(std::move(VFS)), DumpDeviceCode(false), Mode(GCCMode),
+      SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
       ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
@@ -710,10 +711,15 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     if (Args.hasArg(options::OPT_march_EQ) ||
         Args.hasArg(options::OPT_mcpu_EQ)) {
       StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
-      if (ArchName.starts_with_insensitive("rv32"))
-        Target.setArch(llvm::Triple::riscv32);
-      else if (ArchName.starts_with_insensitive("rv64"))
-        Target.setArch(llvm::Triple::riscv64);
+      auto ISAInfo = llvm::RISCVISAInfo::parseArchString(
+          ArchName, /*EnableExperimentalExtensions=*/true);
+      if (!llvm::errorToBool(ISAInfo.takeError())) {
+        unsigned XLen = (*ISAInfo)->getXLen();
+        if (XLen == 32)
+          Target.setArch(llvm::Triple::riscv32);
+        else if (XLen == 64)
+          Target.setArch(llvm::Triple::riscv64);
+      }
     }
   }
 
@@ -1661,10 +1667,23 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
       A->claim();
 
-      // TODO: Specify Vulkan target environment somewhere in the triple.
       if (Args.hasArg(options::OPT_spirv)) {
         llvm::Triple T(TargetTriple);
         T.setArch(llvm::Triple::spirv);
+        T.setOS(llvm::Triple::Vulkan);
+
+        // Set specific Vulkan version if applicable.
+        if (const Arg *A = Args.getLastArg(options::OPT_fspv_target_env_EQ)) {
+          const llvm::StringSet<> ValidValues = {"vulkan1.2", "vulkan1.3"};
+          if (ValidValues.contains(A->getValue())) {
+            T.setOSName(A->getValue());
+          } else {
+            Diag(diag::err_drv_invalid_value)
+                << A->getAsString(Args) << A->getValue();
+          }
+          A->claim();
+        }
+
         TargetTriple = T.str();
       }
     } else {
@@ -1784,6 +1803,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const ToolChain &TC = getToolChain(
       *UArgs, computeTargetTriple(*this, TargetTriple, *UArgs));
 
+  if (TC.getTriple().isAndroid()) {
+    llvm::Triple Triple = TC.getTriple();
+    StringRef TripleVersionName = Triple.getEnvironmentVersionString();
+
+    if (Triple.getEnvironmentVersion().empty() && TripleVersionName != "") {
+      Diags.Report(diag::err_drv_triple_version_invalid)
+          << TripleVersionName << TC.getTripleString();
+      ContainsError = true;
+    }
+  }
+
   // Report warning when arm64EC option is overridden by specified target
   if ((TC.getTriple().getArch() != llvm::Triple::aarch64 ||
        TC.getTriple().getSubArch() != llvm::Triple::AArch64SubArch_arm64ec) &&
@@ -1811,7 +1841,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_be:
     case llvm::Triple::aarch64_32:
-      if (TC.getTriple().getEnvironmentName().startswith("eabi")) {
+      if (TC.getTriple().getEnvironmentName().starts_with("eabi")) {
         Diag(diag::warn_target_unrecognized_env)
             << TargetTriple
             << (TC.getTriple().getArchName().str() + "-none-elf");
@@ -1926,7 +1956,7 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
   // (or /Library/Logs/DiagnosticReports for root) and has the filename pattern
   // clang-<VERSION>_<YYYY-MM-DD-HHMMSS>_<hostname>.crash.
   path::home_directory(CrashDiagDir);
-  if (CrashDiagDir.startswith("/var/root"))
+  if (CrashDiagDir.starts_with("/var/root"))
     CrashDiagDir = "/";
   path::append(CrashDiagDir, "Library/Logs/DiagnosticReports");
   int PID =
@@ -1944,7 +1974,7 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
   for (fs::directory_iterator File(CrashDiagDir, EC), FileEnd;
        File != FileEnd && !EC; File.increment(EC)) {
     StringRef FileName = path::filename(File->path());
-    if (!FileName.startswith(Name))
+    if (!FileName.starts_with(Name))
       continue;
     if (fs::status(File->path(), FileStatus))
       continue;
@@ -1955,7 +1985,7 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
     // The first line should start with "Process:", otherwise this isn't a real
     // .crash file.
     StringRef Data = CrashFile.get()->getBuffer();
-    if (!Data.startswith("Process:"))
+    if (!Data.starts_with("Process:"))
       continue;
     // Parse parent process pid line, e.g: "Parent Process: clang-4.0 [79141]"
     size_t ParentProcPos = Data.find("Parent Process:");
@@ -2184,7 +2214,7 @@ void Driver::generateCompilationDiagnostics(
       ReproCrashFilename = TempFile.first;
       llvm::sys::path::replace_extension(ReproCrashFilename, ".crash");
     }
-    if (StringRef(TempFile.first).endswith(".cache")) {
+    if (StringRef(TempFile.first).ends_with(".cache")) {
       // In some cases (modules) we'll dump extra data to help with reproducing
       // the crash into a directory next to the output.
       VFS = llvm::sys::path::filename(TempFile.first);
@@ -2218,7 +2248,7 @@ void Driver::generateCompilationDiagnostics(
       ScriptOS << "\n# Additional information: " << AdditionalInformation
                << "\n";
     if (Report)
-      Report->TemporaryFiles.push_back(std::string(Script.str()));
+      Report->TemporaryFiles.push_back(std::string(Script));
     Diag(clang::diag::note_drv_command_failed_diag_msg) << Script;
   }
 
@@ -2347,12 +2377,6 @@ int Driver::ExecuteCompilation(
 
 void Driver::PrintHelp(bool ShowHidden) const {
   llvm::opt::Visibility VisibilityMask = getOptionVisibilityMask();
-
-  // TODO: We're overriding the mask for flang here to keep this NFC for the
-  // option refactoring, but what we really need to do is annotate the flags
-  // that Flang uses.
-  if (IsFlangMode())
-    VisibilityMask = llvm::opt::Visibility(options::FlangOption);
 
   std::string Usage = llvm::formatv("{0} [options] file...", Name).str();
   getOpts().printHelp(llvm::outs(), Usage.c_str(), DriverTitle.c_str(),
@@ -2483,7 +2507,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
   // Distinguish "--autocomplete=-someflag" and "--autocomplete=-someflag,"
   // because the latter indicates that the user put space before pushing tab
   // which should end up in a file completion.
-  const bool HasSpace = PassedFlags.endswith(",");
+  const bool HasSpace = PassedFlags.ends_with(",");
 
   // Parse PassedFlags by "," as all the command-line flags are passed to this
   // function separated by ","
@@ -2523,7 +2547,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
 
   // When flag ends with '=' and there was no value completion, return empty
   // string and fall back to the file autocompletion.
-  if (SuggestedCompletions.empty() && !Cur.endswith("=")) {
+  if (SuggestedCompletions.empty() && !Cur.ends_with("=")) {
     // If the flag is in the form of "--autocomplete=-foo",
     // we were requested to print out all option names that start with "-foo".
     // For example, "--autocomplete=-fsyn" is expanded to "-fsyntax-only".
@@ -2535,7 +2559,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
     // TODO: Find a good way to add them to OptTable instead and them remove
     // this code.
     for (StringRef S : DiagnosticIDs::getDiagnosticFlags())
-      if (S.startswith(Cur))
+      if (S.starts_with(Cur))
         SuggestedCompletions.push_back(std::string(S));
   }
 
@@ -3022,7 +3046,7 @@ bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
   // so we can't downgrade diagnostics for `/GR-` from an error to a warning
   // in cc mode. (We can in cl mode because cl.exe itself only warns on
   // unknown flags.)
-  if (IsCLMode() && Ty == types::TY_Object && !Value.startswith("/"))
+  if (IsCLMode() && Ty == types::TY_Object && !Value.starts_with("/"))
     return true;
 
   Diag(clang::diag::err_drv_no_such_file) << Value;
@@ -3698,6 +3722,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
       // FPGA binaries with AOCX or AOCR sections are not considered fat
       // static archives.
       return !(hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCR) ||
+               hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCR_EMU) ||
                hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCX));
     }
   return false;
@@ -5377,12 +5402,14 @@ class OffloadingActionBuilder final {
                 OWA->setCompileStep(false);
               ActionList BundlingActions;
               BundlingActions.push_back(DeviceWrappingAction);
-              DeviceAction =
-                  C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
-              // We created a bundled section for the wrapped images that
-              // are not compiled.  Create another image set that are
-              // compiled.  This set would be extracted for feeding into
-              // the offline compilation step when consumed.
+
+              // Wrap and compile the wrapped device device binary.  This will
+              // be used later when consumed as the input .bc file to retain
+              // the symbols and properties associated.
+              DeviceAction = C.MakeAction<OffloadWrapperJobAction>(
+                  BundlingActions, types::TY_Object);
+              if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                OWA->setOffloadKind(Action::OFK_Host);
               Action *CompiledDeviceAction =
                   C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
                                                         types::TY_Object);
@@ -5762,12 +5789,14 @@ class OffloadingActionBuilder final {
                   OWA->setCompileStep(false);
                 ActionList BundlingActions;
                 BundlingActions.push_back(DeviceWrappingAction);
-                DeviceAction =
-                    C.MakeAction<OffloadBundlingJobAction>(BundlingActions);
-                // We created a bundled section for the wrapped images that
-                // are not compiled.  Create another image set that are
-                // compiled.  This set would be extracted for feeding into
-                // the offline compilation step when consumed.
+
+                // Wrap and compile the wrapped device device binary.  This will
+                // be used later when consumed as the input .bc file to retain
+                // the symbols and properties associated.
+                DeviceAction = C.MakeAction<OffloadWrapperJobAction>(
+                    BundlingActions, types::TY_Object);
+                if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
+                  OWA->setOffloadKind(Action::OFK_Host);
                 Action *CompiledDeviceAction =
                     C.MakeAction<OffloadWrapperJobAction>(WrapperInputs,
                                                           types::TY_Object);
@@ -6203,6 +6232,27 @@ class OffloadingActionBuilder final {
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
           continue;
+        // If any section found is an 'image' based object that was created
+        // with the intention of not requiring the matching SYCL target, do
+        // not emit the diagnostic.
+        if (SyclTarget.TC->getTriple().isSPIR()) {
+          bool SectionFound = false;
+          for (auto Section : UniqueSections) {
+            if (SectionFound)
+              break;
+            SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_fpga",
+                                                    "spir64_x86_64"};
+            for (auto ArchStr : ArchList) {
+              std::string Arch(ArchStr + "_image");
+              if (Section.find(Arch) != std::string::npos) {
+                SectionFound = true;
+                break;
+              }
+            }
+          }
+          if (SectionFound)
+            continue;
+        }
         // Didn't find any matches, return the full list for the diagnostic.
         SmallString<128> ArchListStr;
         int Cnt = 0;
@@ -8048,10 +8098,11 @@ Action *Driver::ConstructPhaseAction(
   case phases::Backend: {
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
       types::ID Output;
-      if (Args.hasArg(options::OPT_S))
+      if (Args.hasArg(options::OPT_ffat_lto_objects))
+        Output = Args.hasArg(options::OPT_emit_llvm) ? types::TY_LTO_IR
+                                                     : types::TY_PP_Asm;
+      else if (Args.hasArg(options::OPT_S))
         Output = types::TY_LTO_IR;
-      else if (Args.hasArg(options::OPT_ffat_lto_objects))
-        Output = types::TY_PP_Asm;
       else
         Output = types::TY_LTO_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
@@ -9672,17 +9723,17 @@ std::string Driver::GetFilePath(StringRef Name, const ToolChain &TC) const {
   SmallString<128> R(ResourceDir);
   llvm::sys::path::append(R, Name);
   if (llvm::sys::fs::exists(Twine(R)))
-    return std::string(R.str());
+    return std::string(R);
 
   SmallString<128> P(TC.getCompilerRTPath());
   llvm::sys::path::append(P, Name);
   if (llvm::sys::fs::exists(Twine(P)))
-    return std::string(P.str());
+    return std::string(P);
 
   SmallString<128> D(Dir);
   llvm::sys::path::append(D, "..", Name);
   if (llvm::sys::fs::exists(Twine(D)))
-    return std::string(D.str());
+    return std::string(D);
 
   if (auto P = SearchPaths(TC.getLibraryPaths()))
     return *P;
@@ -9719,11 +9770,11 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
     if (llvm::sys::fs::is_directory(PrefixDir)) {
       SmallString<128> P(PrefixDir);
       if (ScanDirForExecutable(P, Name))
-        return std::string(P.str());
+        return std::string(P);
     } else {
       SmallString<128> P((PrefixDir + Name).str());
       if (llvm::sys::fs::can_execute(Twine(P)))
-        return std::string(P.str());
+        return std::string(P);
     }
   }
 
@@ -9739,7 +9790,7 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
     for (const auto &Path : List) {
       SmallString<128> P(Path);
       if (ScanDirForExecutable(P, TargetSpecificExecutable))
-        return std::string(P.str());
+        return std::string(P);
     }
 
     // Fall back to the path
@@ -9759,7 +9810,7 @@ std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
     return "";
   }
 
-  return std::string(Path.str());
+  return std::string(Path);
 }
 
 std::string Driver::GetUniquePath(StringRef BaseName, StringRef Ext) const {
@@ -9782,7 +9833,7 @@ std::string Driver::GetTemporaryDirectory(StringRef Prefix) const {
     return "";
   }
 
-  return std::string(Path.str());
+  return std::string(Path);
 }
 
 std::string Driver::GetClPchPath(Compilation &C, StringRef BaseName) const {
@@ -9804,7 +9855,7 @@ std::string Driver::GetClPchPath(Compilation &C, StringRef BaseName) const {
       Output = BaseName;
     llvm::sys::path::replace_extension(Output, ".pch");
   }
-  return std::string(Output.str());
+  return std::string(Output);
 }
 
 const ToolChain &Driver::getToolChain(const ArgList &Args,
@@ -9824,6 +9875,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
     case llvm::Triple::IOS:
     case llvm::Triple::TvOS:
     case llvm::Triple::WatchOS:
+    case llvm::Triple::XROS:
     case llvm::Triple::DriverKit:
       TC = std::make_unique<toolchains::DarwinClang>(*this, Target, Args);
       break;
@@ -10112,18 +10164,15 @@ bool Driver::GetReleaseVersion(StringRef Str, unsigned &Major, unsigned &Minor,
     return false;
   if (Str.empty())
     return true;
-  if (Str[0] != '.')
+  if (!Str.consume_front("."))
     return false;
-
-  Str = Str.drop_front(1);
 
   if (Str.consumeInteger(10, Minor))
     return false;
   if (Str.empty())
     return true;
-  if (Str[0] != '.')
+  if (!Str.consume_front("."))
     return false;
-  Str = Str.drop_front(1);
 
   if (Str.consumeInteger(10, Micro))
     return false;
@@ -10151,9 +10200,8 @@ bool Driver::GetReleaseVersion(StringRef Str,
     Digits[CurDigit] = Digit;
     if (Str.empty())
       return true;
-    if (Str[0] != '.')
+    if (!Str.consume_front("."))
       return false;
-    Str = Str.drop_front(1);
     CurDigit++;
   }
 
@@ -10251,7 +10299,7 @@ llvm::StringRef clang::driver::getDriverMode(StringRef ProgName,
       getDriverOptTable().getOption(options::OPT_driver_mode).getPrefixedName();
   llvm::StringRef Opt;
   for (StringRef Arg : Args) {
-    if (!Arg.startswith(OptName))
+    if (!Arg.starts_with(OptName))
       continue;
     Opt = Arg;
   }
@@ -10292,7 +10340,7 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   else
     Tokenizer = &llvm::cl::TokenizeGNUCommandLine;
 
-  if (MarkEOLs && Args.size() > 1 && StringRef(Args[1]).startswith("-cc1"))
+  if (MarkEOLs && Args.size() > 1 && StringRef(Args[1]).starts_with("-cc1"))
     MarkEOLs = false;
 
   llvm::cl::ExpansionContext ECtx(Alloc, Tokenizer);
@@ -10306,7 +10354,7 @@ llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
   // If -cc1 came from a response file, remove the EOL sentinels.
   auto FirstArg = llvm::find_if(llvm::drop_begin(Args),
                                 [](const char *A) { return A != nullptr; });
-  if (FirstArg != Args.end() && StringRef(*FirstArg).startswith("-cc1")) {
+  if (FirstArg != Args.end() && StringRef(*FirstArg).starts_with("-cc1")) {
     // If -cc1 came from a response file, remove the EOL sentinels.
     if (MarkEOLs) {
       auto newEnd = std::remove(Args.begin(), Args.end(), nullptr);

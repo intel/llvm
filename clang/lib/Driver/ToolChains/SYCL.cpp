@@ -17,6 +17,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include <algorithm>
 #include <sstream>
 
 using namespace clang::driver;
@@ -313,6 +314,21 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (SanitizeVal == "address")
         addLibraries(SYCLDeviceSanitizerLibs);
     }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    bool IsDeviceAsanEnabled = false;
+    auto SyclFEArg = Args.getAllArgValues(options::OPT_Xsycl_frontend);
+    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
+                                      "-fsanitize=address") > 0);
+    if (!IsDeviceAsanEnabled) {
+      auto SyclFEArgEq = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
+      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
+                                        "-fsanitize=address") > 0);
+    }
+    if (IsDeviceAsanEnabled)
+      addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
 
@@ -896,7 +912,12 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Case("amd_gpu_gfx904", "gfx904")
           .Case("amd_gpu_gfx906", "gfx906")
           .Case("amd_gpu_gfx908", "gfx908")
+          .Case("amd_gpu_gfx909", "gfx909")
           .Case("amd_gpu_gfx90a", "gfx90a")
+          .Case("amd_gpu_gfx90c", "gfx90c")
+          .Case("amd_gpu_gfx940", "gfx940")
+          .Case("amd_gpu_gfx941", "gfx941")
+          .Case("amd_gpu_gfx942", "gfx942")
           .Case("amd_gpu_gfx1010", "gfx1010")
           .Case("amd_gpu_gfx1011", "gfx1011")
           .Case("amd_gpu_gfx1012", "gfx1012")
@@ -904,7 +925,18 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Case("amd_gpu_gfx1030", "gfx1030")
           .Case("amd_gpu_gfx1031", "gfx1031")
           .Case("amd_gpu_gfx1032", "gfx1032")
+          .Case("amd_gpu_gfx1033", "gfx1033")
           .Case("amd_gpu_gfx1034", "gfx1034")
+          .Case("amd_gpu_gfx1035", "gfx1035")
+          .Case("amd_gpu_gfx1036", "gfx1036")
+          .Case("amd_gpu_gfx1100", "gfx1100")
+          .Case("amd_gpu_gfx1101", "gfx1101")
+          .Case("amd_gpu_gfx1102", "gfx1102")
+          .Case("amd_gpu_gfx1103", "gfx1103")
+          .Case("amd_gpu_gfx1150", "gfx1150")
+          .Case("amd_gpu_gfx1151", "gfx1151")
+          .Case("amd_gpu_gfx1200", "gfx1200")
+          .Case("amd_gpu_gfx1201", "gfx1201")
           .Default("");
   return Device;
 }
@@ -960,7 +992,12 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx904", "AMD_GPU_GFX904")
                       .Case("gfx906", "AMD_GPU_GFX906")
                       .Case("gfx908", "AMD_GPU_GFX908")
+                      .Case("gfx909", "AMD_GPU_GFX909")
                       .Case("gfx90a", "AMD_GPU_GFX90A")
+                      .Case("gfx90c", "AMD_GPU_GFX90C")
+                      .Case("gfx940", "AMD_GPU_GFX940")
+                      .Case("gfx941", "AMD_GPU_GFX941")
+                      .Case("gfx942", "AMD_GPU_GFX942")
                       .Case("gfx1010", "AMD_GPU_GFX1010")
                       .Case("gfx1011", "AMD_GPU_GFX1011")
                       .Case("gfx1012", "AMD_GPU_GFX1012")
@@ -968,7 +1005,18 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx1030", "AMD_GPU_GFX1030")
                       .Case("gfx1031", "AMD_GPU_GFX1031")
                       .Case("gfx1032", "AMD_GPU_GFX1032")
+                      .Case("gfx1033", "AMD_GPU_GFX1033")
                       .Case("gfx1034", "AMD_GPU_GFX1034")
+                      .Case("gfx1035", "AMD_GPU_GFX1035")
+                      .Case("gfx1036", "AMD_GPU_GFX1036")
+                      .Case("gfx1100", "AMD_GPU_GFX1100")
+                      .Case("gfx1101", "AMD_GPU_GFX1101")
+                      .Case("gfx1102", "AMD_GPU_GFX1102")
+                      .Case("gfx1103", "AMD_GPU_GFX1103")
+                      .Case("gfx1150", "AMD_GPU_GFX1150")
+                      .Case("gfx1151", "AMD_GPU_GFX1151")
+                      .Case("gfx1200", "AMD_GPU_GFX1200")
+                      .Case("gfx1201", "AMD_GPU_GFX1201")
                       .Default("");
   if (!Ext.empty()) {
     Macro = "__SYCL_TARGET_";
@@ -1014,6 +1062,35 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
+// Unsupported options for device compilation
+//  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
+//  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
+//  -fcs-profile-generate -forder-file-instrumentation
+static std::vector<OptSpecifier> getUnsupportedOpts(void) {
+  std::vector<OptSpecifier> UnsupportedOpts = {
+      options::OPT_fsanitize_EQ,
+      options::OPT_fcf_protection_EQ,
+      options::OPT_fprofile_generate,
+      options::OPT_fprofile_generate_EQ,
+      options::OPT_fno_profile_generate,
+      options::OPT_ftest_coverage,
+      options::OPT_fno_test_coverage,
+      options::OPT_fcoverage_mapping,
+      options::OPT_fno_coverage_mapping,
+      options::OPT_fprofile_instr_generate,
+      options::OPT_fprofile_instr_generate_EQ,
+      options::OPT_fprofile_arcs,
+      options::OPT_fno_profile_arcs,
+      options::OPT_fno_profile_instr_generate,
+      options::OPT_fcreate_profile,
+      options::OPT_fprofile_instr_use,
+      options::OPT_fprofile_instr_use_EQ,
+      options::OPT_forder_file_instrumentation,
+      options::OPT_fcs_profile_generate,
+      options::OPT_fcs_profile_generate_EQ};
+  return UnsupportedOpts;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1023,17 +1100,19 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
-  // All sanitizer options are not currently supported, except AddressSanitizer
-  for (auto *A : Args.filtered(options::OPT_fsanitize_EQ,
-                               options::OPT_fcf_protection_EQ)) {
-    if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
-        A->getValues().size() == 1) {
-      std::string SanitizeVal = A->getValue();
-      if (SanitizeVal == "address")
-        continue;
+  for (OptSpecifier Opt : getUnsupportedOpts()) {
+    if (const Arg *A = Args.getLastArg(Opt)) {
+      // All sanitizer options are not currently supported, except
+      // AddressSanitizer
+      if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
+          A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        if (SanitizeVal == "address")
+          continue;
+      }
+      D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
+          << A->getAsString(Args) << getTriple().str();
     }
-    D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
-        << A->getAsString(Args) << getTriple().str();
   }
 }
 
@@ -1059,27 +1138,28 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   for (Arg *A : Args) {
     // Filter out any options we do not want to pass along to the device
     // compilation.
-    auto Opt(A->getOption().getID());
-    switch (Opt) {
-    case options::OPT_fsanitize_EQ:
-      if (A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address") {
-          if (IsNewDAL)
-            DAL->append(A);
-          continue;
+    auto Opt(A->getOption());
+    bool Unsupported = false;
+    for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
+      if (Opt.matches(UnsupportedOpt)) {
+        if (Opt.getID() == options::OPT_fsanitize_EQ &&
+            A->getValues().size() == 1) {
+          std::string SanitizeVal = A->getValue();
+          if (SanitizeVal == "address") {
+            if (IsNewDAL)
+              DAL->append(A);
+            continue;
+          }
         }
+        if (!IsNewDAL)
+          DAL->eraseArg(Opt.getID());
+        Unsupported = true;
       }
-      [[fallthrough]];
-    case options::OPT_fcf_protection_EQ:
-      if (!IsNewDAL)
-        DAL->eraseArg(Opt);
-      break;
-    default:
-      if (IsNewDAL)
-        DAL->append(A);
-      break;
     }
+    if (Unsupported)
+      continue;
+    if (IsNewDAL)
+      DAL->append(A);
   }
   // Strip out -O0 for FPGA Hardware device compilation.
   if (getDriver().IsFPGAHWMode() &&
@@ -1241,7 +1321,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // For AOT, Use ocloc's per-device options flag with the correct ocloc
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+            {DeviceName, Args.MakeArgString(BackendOptName)});
       } else if (Triple.isSPIR() &&
                  Triple.getSubArch() == llvm::Triple::NoSubArch) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
@@ -1260,8 +1340,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     StringRef DeviceName = "pvc";
     StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
     if (IsGen)
-      PerDeviceArgs.push_back(
-          {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+      PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
     else if (Triple.isSPIR() &&
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +

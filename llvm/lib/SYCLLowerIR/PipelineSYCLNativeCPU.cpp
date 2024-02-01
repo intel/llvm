@@ -38,7 +38,7 @@ cl::opt<bool>
 cl::opt<bool> IsDebug(
     "native-cpu-debug", cl::init(false),
     cl::desc("Emit extra alloca instructions to preserve the value of live"
-             "vriables between barriers"));
+             "variables between barriers"));
 
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM) {

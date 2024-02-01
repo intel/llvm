@@ -126,7 +126,7 @@ public:
 
   void GetDescription(Stream *s, lldb::DescriptionLevel level);
   void Dump(Stream *s) const override;
-  void DumpSnapshots(Stream *s, const char *prefix = nullptr) const;
+  bool DumpSnapshots(Stream *s, const char *prefix = nullptr) const;
   void DumpWithLevel(Stream *s, lldb::DescriptionLevel description_level) const;
   Target &GetTarget() { return m_target; }
   const Status &GetError() { return m_error; }
@@ -234,8 +234,6 @@ private:
   void SetID(lldb::watch_id_t id) { m_id = id; }
 
   void SendWatchpointChangedEvent(lldb::WatchpointEventType eventKind);
-
-  void SendWatchpointChangedEvent(WatchpointEventData *data);
 
   Watchpoint(const Watchpoint &) = delete;
   const Watchpoint &operator=(const Watchpoint &) = delete;
