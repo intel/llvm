@@ -54,5 +54,5 @@ attributes #1 = { nounwind readnone }
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT: %conv = trunc i64 %gid to i32
-; CHECK-NEXT: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 3
+; CHECK-NEXT: %arrayidx = getelementptr inbounds {{i32|i8}}, ptr addrspace(1) %out, i64 {{3|12}}
 ; CHECK-NEXT: store i32 %conv, ptr addrspace(1) %arrayidx, align 4

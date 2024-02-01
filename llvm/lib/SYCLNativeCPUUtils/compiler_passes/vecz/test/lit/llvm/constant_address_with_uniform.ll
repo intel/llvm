@@ -36,6 +36,6 @@ entry:
 ; CHECK: define spir_kernel void @__vecz_v4_test
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %gid = call i32 @__mux_get_global_id(i32 0)
-; CHECK-NEXT: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i32 3
+; CHECK-NEXT: %arrayidx = getelementptr inbounds {{i32|i8}}, ptr addrspace(1) %out, i32 {{3|12}}
 ; CHECK: store i32 %gid, ptr addrspace(1) %arrayidx, align 4
 ; CHECK: store <4 x ptr addrspace(1)> %{{.+}}, ptr addrspace(1) %{{.+}}
