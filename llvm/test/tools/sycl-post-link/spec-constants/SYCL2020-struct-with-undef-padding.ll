@@ -83,6 +83,7 @@ attributes #4 = { convergent }
 ; CHECK-IR: ![[#MN3]] = !{%struct.coeff2_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [7 x i8] undef, i8 undef }}
 
 ; CHECK-PROP: [SYCL/specialization constants]
+; CHECK-PROP-NEXT: df991fa0adf9bad8____ZL8coeff_id2=2|
 ; CHECK-PROP-NEXT: ef880fa09cf7a9d7____ZL8coeff_id=2|
 
 ; CHECK-PROP: [SYCL/specialization constants default values]

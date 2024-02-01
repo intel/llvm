@@ -33,7 +33,7 @@
 #ifndef LLVM_SUPPORT_PROPERTYSETIO_H
 #define LLVM_SUPPORT_PROPERTYSETIO_H
 
-#include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -175,14 +175,18 @@ private:
   } Val;
 };
 
-// A property set. Preserves insertion order when iterating elements.
-using PropertySet = MapVector<StringRef, PropertyValue>;
+/// A property set. Doesn't preserves order of elements.
+using PropertySet = StringMap<PropertyValue>;
 
-// A "registry" of multiple property sets. Maps a property set name to its
-// contents. Can be read/written.
+/// A registry of property sets. Maps a property set name to its
+/// content.
+///
+/// The order of keys is not preserved because Hash Map is used.
+/// However, write() method prints content sorted by Category names
+/// and sorted by keys. This is made only for testing, don't rely on this.
 class PropertySetRegistry {
 public:
-  using MapTy = MapVector<StringRef, PropertySet>;
+  using MapTy = StringMap<PropertySet>;
 
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
@@ -199,44 +203,50 @@ public:
   static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
 
-  // Function for bulk addition of an entire property set under given category
-  // (property set name).
+  /// Function for bulk addition of an entire property set in the given
+  /// \p Category .
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
-    using KeyTy = typename MapTy::value_type::first_type;
-    static_assert(std::is_same<typename std::remove_const<KeyTy>::type,
-                               llvm::StringRef>::value,
-                  "wrong key type");
-
     assert(PropSetMap.find(Category) == PropSetMap.end() &&
            "category already added");
     auto &PropSet = PropSetMap[Category];
 
     for (const auto &Prop : Props)
-      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
+      PropSet.insert_or_assign(Prop.first, PropertyValue(Prop.second));
   }
 
-  // Function to add a property to a given category (property set name).
+  /// Function for bulk addition of an entire property set in the given \p
+  /// Category .
+  template <typename ValueTy>
+  void add(StringRef Category, const StringMap<ValueTy> &Props) {
+    assert(PropSetMap.find(Category) == PropSetMap.end() &&
+           "category already added");
+    auto &PropSet = PropSetMap[Category];
+
+    for (const auto &Prop : Props)
+      PropSet.insert_or_assign(Prop.first(), PropertyValue(Prop.getValue()));
+  }
+
+  /// Adds the given \p PropVal with the given \p PropName into the given \p
+  /// Category .
   template <typename T>
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
     PropSet.insert({PropName, PropertyValue(PropVal)});
   }
 
-  // Parses and creates a property set registry.
+  /// Parses from the given \p Buf a property set registry.
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);
 
-  // Dumps a property set registry to a stream.
+  /// Dumps the property set registry to the given \p Out stream.
   void write(raw_ostream &Out) const;
 
-  // Start iterator of all preperty sets in the registry.
   MapTy::const_iterator begin() const { return PropSetMap.begin(); }
-  // End iterator of all preperty sets in the registry.
   MapTy::const_iterator end() const { return PropSetMap.end(); }
 
-  // Retrieves a property set with given name.
+  /// Retrieves a property set with given \p Name .
   PropertySet &operator[](StringRef Name) { return PropSetMap[Name]; }
-  // Constant access to the underlying map.
+  /// Constant access to the underlying map.
   const MapTy &getPropSets() const { return PropSetMap; }
 
 private:

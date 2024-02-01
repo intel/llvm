@@ -453,7 +453,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       if (KernelReqdWorkGroupSize.empty())
         continue;
       MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
+      ProgramMetadata.insert_or_assign(MetadataNames.back(),
+                                       KernelReqdWorkGroupSize);
     }
 
     // Add global_id_mapping information with mapping between device-global
@@ -464,11 +465,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
 
       StringRef GlobalID = getGlobalVariableUniqueId(GV);
       MetadataNames.push_back(GlobalID.str() + "@global_id_mapping");
-      ProgramMetadata.insert({MetadataNames.back(), GV.getName()});
+      ProgramMetadata.insert_or_assign(MetadataNames.back(), GV.getName());
     }
   }
   if (MD.isESIMD()) {
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("isEsimdImage",
+                                                           true);
   }
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
@@ -534,17 +536,18 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     }
 
     if (OptLevel != -1)
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"optLevel", OptLevel});
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("optLevel",
+                                                             OptLevel);
   }
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
-      PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
+      PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert_or_assign(FName, true);
   }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"asanUsed", true});
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("asanUsed", true);
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
@@ -560,8 +563,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   if (MD.isSpecConstantDefault())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"specConstsReplacedWithDefault", 1});
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign(
+        "specConstsReplacedWithDefault", 1);
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);

@@ -96,8 +96,8 @@ attributes #5 = { nounwind }
 ; Most important information from the corresponding encoded data is the size of
 ; the specialization constants, i.e. 8 and 1 bytes respectively.
 ; CHECK: [SYCL/specialization constants]
-; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
 ; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2|gBAAAAAAAAQAAAAAAAAAAEAAAAA
+; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
 
 ; Ensure that the default values are correct.
 ; IBAAAAAAAAAFAAAAjBAAAEA is decoded to "0x48 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14

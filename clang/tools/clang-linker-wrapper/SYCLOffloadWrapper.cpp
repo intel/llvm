@@ -418,7 +418,7 @@ struct Wrapper {
   addPropertySetToModule(const PropertySet &PropSet) {
     SmallVector<Constant *> PropInits;
     for (const auto &Prop : PropSet) {
-      Constant *PropName = addStringToModule(Prop.first, "prop");
+      Constant *PropName = addStringToModule(Prop.first(), "prop");
       Constant *PropValAddr = nullptr;
       Constant *PropType =
           ConstantInt::get(Type::getInt32Ty(C), Prop.second.getType());
@@ -497,7 +497,7 @@ struct Wrapper {
       std::pair<Constant *, Constant *> Props =
           addPropertySetToModule(PropSet.second);
       // get the next the middle column element
-      auto *Category = addStringToModule(PropSet.first, "SYCL_PropSetName");
+      auto *Category = addStringToModule(PropSet.first(), "SYCL_PropSetName");
       PropSetsInits.push_back(ConstantStruct::get(SyclPropSetTy, Category,
                                                   Props.first, Props.second));
     }
