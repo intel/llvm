@@ -102,25 +102,25 @@ llvm.func @genx.fptofp(%a: f32, %b: f16) {
 // -----
 
 llvm.func @genx.dpas.f32(%c : vector<8xf32>, %a : vector<4xf32>, %b : vector<8xf32>) {
-  // CHECK-DAG:  [[A:%.*]] = bitcast <4 x float> %1 to <8 x i16>
+  // CHECK-DAG:  [[A:%.*]] = bitcast <4 x float> %1 to <4 x i32>
   // CHECK-DAG:  [[B:%.*]] = bitcast <8 x float> %2 to <8 x i32>
-  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v8i16.v8i32(<8 x float> %0, <8 x i16> [[A]], <8 x i32> [[B]], i32 8, i32 8, i32 8, i32 8, i1 false)
+  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v4i32.v8i32(<8 x float> %0, <4 x i32> [[A]], <8 x i32> [[B]], i32 8, i32 8, i32 8, i32 8, i1 false)
   %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<TF32>, pb=#genx.precision_type<TF32>, rc=8:i32} : (vector<8xf32>, vector<4xf32>, vector<8xf32>) -> vector<8xf32>
   llvm.return
 }
 
 llvm.func @genx.dpas.f16(%c : vector<8xf32>, %a : vector<8xf16>, %b : vector<16xf16>) {
-  // CHECK-DAG:  [[A:%.*]] = bitcast <8 x half> %1 to <8 x i16>
+  // CHECK-DAG:  [[A:%.*]] = bitcast <8 x half> %1 to <4 x i32>
   // CHECK-DAG:  [[B:%.*]] = bitcast <16 x half> %2 to <8 x i32>
-  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v8i16.v8i32(<8 x float> %0, <8 x i16> [[A]], <8 x i32> [[B]], i32 10, i32 10, i32 8, i32 8, i1 false)
+  // CHECK-NEXT: call <8 x float> @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v4i32.v8i32(<8 x float> %0, <4 x i32> [[A]], <8 x i32> [[B]], i32 10, i32 10, i32 8, i32 8, i1 false)
   %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<FP16>, pb=#genx.precision_type<FP16>, rc=8:i32} : (vector<8xf32>, vector<8xf16>, vector<16xf16>) -> vector<8xf32>
   llvm.return
 }
 
 llvm.func @genx.dpas.i8(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<32xi8>) {
-  // CHECK-DAG:  [[A:%.*]] = bitcast <16 x i8> %1 to <8 x i16>
+  // CHECK-DAG:  [[A:%.*]] = bitcast <16 x i8> %1 to <4 x i32>
   // CHECK-DAG:  [[B:%.*]] = bitcast <32 x i8> %2 to <8 x i32>
-  // CHECK-NEXT: call <8 x i32> @llvm.genx.GenISA.sub.group.dpas.v8i32.v8i32.v8i16.v8i32(<8 x i32> %0, <8 x i16> [[A]], <8 x i32> [[B]], i32 4, i32 4, i32 8, i32 8, i1 false)
+  // CHECK-NEXT: call <8 x i32> @llvm.genx.GenISA.sub.group.dpas.v8i32.v8i32.v4i32.v8i32(<8 x i32> %0, <4 x i32> [[A]], <8 x i32> [[B]], i32 4, i32 4, i32 8, i32 8, i1 false)
   %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<S8>, pb=#genx.precision_type<S8>, rc=8:i32} : (vector<8xi32>, vector<16xi8>, vector<32xi8>) -> vector<8xi32>
   llvm.return
 }
