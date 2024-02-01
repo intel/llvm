@@ -75,22 +75,42 @@ Adapter Change Process
     accompanied by a corresponding update in the *intel/llvm* pull request as
     indicated in step 2, so the testing is always up-to-date.
 
-6.  The Unified Runtime maintainers *must* ensure that step 5 has been carried
-    out and that all pre-merge testing has passed before accepting the
+6.  Once the *oneapi-src/unified-runtime* pull request has been approved by at
+    least one member of each relevant code-owner team:
+
+    *   Make the *intel/llvm* pull request ready to review (remove draft) in
+        order to gain approvals from all code-owners to ensure step 8 can
+        progress quickly when the time comes.
+
+    *   Add the *ready to merge* label to the *oneapi-src/unified-runtime* pull
+        request.
+
+7.  The Unified Runtime maintainers *must* ensure that step 5 has been carried
+    out and that all pre-merge testing has passed before merging the
     *oneapi-src/unified-runtime* pull request.
 
-7.  Once the *oneapi-src/unified-runtime* pull request is accepted:
+    *   The oldest pull requests with the *ready to merge* label will be
+        prioritized.
+
+    *   Contact the Unified Runtime maintainers if a pull request should be
+        given a higher priority.
+
+8.  Once the *oneapi-src/unified-runtime* pull request has been merged:
 
     *   Reverse the change to `UNIFIED_RUNTIME_REPO`_ made in step 2.
+
     *   Update the `UNIFIED_RUNTIME_TAG`_ to point at the
         *oneapi-src/unified-runtime* commit/tag containing the merged adapter
         changes.
+
     *   Update the pull request description, linking to any other *intel/llvm*
         pull requests who's changes have been merged into
         *oneapi-src/unified-runtime* but have not yet been merge into
         *intel/llvm*.
-    *   Mark the *intel/llvm* pull request as ready for review and follow their
-        review process.
+
+    *   A Unified Runtime maintainer may facilitate these steps either by
+        making suggestions on the *intel/llvm* pull request or by making those
+        changes directly.
 
 .. _oneapi-src/unified-runtime:
    https://github.com/oneapi-src/unified-runtime
