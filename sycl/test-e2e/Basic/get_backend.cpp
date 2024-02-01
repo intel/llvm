@@ -1,5 +1,6 @@
-// Failing due to old driver
-// REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
+// Sporadic fails on DG2
+// TODO: Reenable when internal ticket is resolved
+// UNSUPPORTED: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 //
