@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
-  # Merge: eddda123 2bd41d7b
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
+  # Merge: edb281f3 5fc41099
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 14:27:54 2024 +0000
-  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
-  #     [NATIVECPU] Empty implementation for command buffer fill
-  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
+  # Date:   Tue Jan 30 12:31:44 2024 +0000
+  #     Merge pull request #1168 from Seanst98/sean/unique-addr-mode-per-dim-adapters
+  #     [Bindless][CUDA] Unique addressing modes per dimension
+  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

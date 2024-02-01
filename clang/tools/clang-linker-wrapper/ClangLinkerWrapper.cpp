@@ -1127,7 +1127,8 @@ std::unique_ptr<lto::LTO> createLTO(
     const ArgList &Args, const std::vector<std::string> &Features,
     ModuleHook Hook = [](size_t, const Module &) { return true; }) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  // We need to remove AMD's target-id from the processor if present.
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ).split(":").first;
   lto::Config Conf;
   lto::ThinBackend Backend;
   // TODO: Handle index-only thin-LTO
@@ -1508,7 +1509,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
   case OFK_Cuda:
     if (Error Err = offloading::wrapCudaBinary(
             M, BuffersToWrap.front(),
-            offloading::getOffloadEntryArray(M, "cuda_offloading_entries")))
+            offloading::getOffloadEntryArray(M, "cuda_offloading_entries"),
+            /*Suffix=*/"", /*EmitSurfacesAndTextures=*/false))
       return std::move(Err);
     break;
   case OFK_HIP:
@@ -1659,27 +1661,17 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
 
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime.
-Expected<SmallVector<StringRef>>
-linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
-                       const InputArgList &Args, char **Argv, int Argc) {
+Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
+    SmallVectorImpl<SmallVector<OffloadFile>> &LinkerInputFiles,
+    const InputArgList &Args, char **Argv, int Argc) {
   llvm::TimeTraceScope TimeScope("Handle all device input");
-
-  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile>> InputMap;
-  for (auto &File : LinkerInputFiles)
-    InputMap[File].emplace_back(std::move(File));
-  LinkerInputFiles.clear();
-
-  SmallVector<SmallVector<OffloadFile>> InputsForTarget;
-  for (auto &[ID, Input] : InputMap)
-    InputsForTarget.emplace_back(std::move(Input));
-  InputMap.clear();
 
   std::mutex ImageMtx;
   DenseMap<OffloadKind, SmallVector<OffloadingImage>> Images;
   // Create a binary image of each offloading image and embed it into a new
   // object file.
   SmallVector<StringRef> WrappedOutput;
-  auto Err = parallelForEachError(InputsForTarget, [&](auto &Input) -> Error {
+  auto Err = parallelForEachError(LinkerInputFiles, [&](auto &Input) -> Error {
     llvm::TimeTraceScope TimeScope("Link device input");
 
     // Each thread needs its own copy of the base arguments to maintain
@@ -1982,8 +1974,9 @@ Expected<bool> getSymbols(StringRef Image, OffloadKind Kind, bool IsArchive,
 /// Search the input files and libraries for embedded device offloading code
 /// and add it to the list of files to be linked. Files coming from static
 /// libraries are only added to the input if they are used by an existing
-/// input file.
-Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
+/// input file. Returns a list of input files intended for a single linking job.
+Expected<SmallVector<SmallVector<OffloadFile>>>
+getDeviceInput(const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("ExtractDeviceCode");
 
   StringRef Root = Args.getLastArgValue(OPT_sysroot_EQ);
@@ -1995,7 +1988,7 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
   StringSaver Saver(Alloc);
 
   // Try to extract device code from the linker input files.
-  SmallVector<OffloadFile> InputFiles;
+  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile>> InputFiles;
   DenseMap<OffloadFile::TargetID, DenseMap<StringRef, Symbol>> Syms;
   bool WholeArchive = Args.hasArg(OPT_wholearchive_flag) ? true : false;
   for (const opt::Arg *Arg : Args.filtered(
@@ -2051,25 +2044,39 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
     while (Extracted) {
       Extracted = false;
       for (OffloadFile &Binary : Binaries) {
+        // If the binary was previously extracted it will be set to null.
         if (!Binary.getBinary())
           continue;
 
-        // If we don't have an object file for this architecture do not
-        // extract.
-        if (IsArchive && !WholeArchive && !Syms.count(Binary))
-          continue;
+        SmallVector<OffloadFile::TargetID> CompatibleTargets = {Binary};
+        for (const auto &[ID, Input] : InputFiles)
+          if (object::areTargetsCompatible(Binary, ID))
+            CompatibleTargets.emplace_back(ID);
 
-        Expected<bool> ExtractOrErr =
-            getSymbols(Binary.getBinary()->getImage(),
-                       Binary.getBinary()->getOffloadKind(), IsArchive, Saver,
-                       Syms[Binary]);
-        if (!ExtractOrErr)
-          return ExtractOrErr.takeError();
+        for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
+          // Only extract an if we have an an object matching this target.
+          if (IsArchive && !WholeArchive && !InputFiles.count(ID))
+            continue;
 
-        Extracted = !WholeArchive && *ExtractOrErr;
+          Expected<bool> ExtractOrErr = getSymbols(
+              Binary.getBinary()->getImage(),
+              Binary.getBinary()->getOffloadKind(), IsArchive, Saver, Syms[ID]);
+          if (!ExtractOrErr)
+            return ExtractOrErr.takeError();
 
-        if (!IsArchive || WholeArchive || Extracted)
-          InputFiles.emplace_back(std::move(Binary));
+          Extracted = !WholeArchive && *ExtractOrErr;
+
+          // Skip including the file if it is an archive that does not resolve
+          // any symbols.
+          if (IsArchive && !WholeArchive && !Extracted)
+            continue;
+
+          // If another target needs this binary it must be copied instead.
+          if (Index == CompatibleTargets.size() - 1)
+            InputFiles[ID].emplace_back(std::move(Binary));
+          else
+            InputFiles[ID].emplace_back(Binary.copy());
+        }
 
         // If we extracted any files we need to check all the symbols again.
         if (Extracted)
@@ -2082,10 +2089,14 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
     auto FileOrErr = getInputBitcodeLibrary(Library);
     if (!FileOrErr)
       return FileOrErr.takeError();
-    InputFiles.push_back(std::move(*FileOrErr));
+    InputFiles[*FileOrErr].push_back(std::move(*FileOrErr));
   }
 
-  return std::move(InputFiles);
+  SmallVector<SmallVector<OffloadFile>> InputsForTarget;
+  for (auto &[ID, Input] : InputFiles)
+    InputsForTarget.emplace_back(std::move(Input));
+
+  return std::move(InputsForTarget);
 }
 
 } // namespace

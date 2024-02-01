@@ -61,43 +61,41 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   //  host      | yes - always, separate sync management
   //  host      | yes - always, separate sync management
   //  kernel    | yes - change of sync approach
-  //  kernel    | no  - sync between pi calls must be done by backend
+  //  kernel    | yes - sync between pi calls must be done by backend, but we
+  //  still add dependency to handle the right order due to host task. This
+  //  dependency will not be sent to backend. It is checked in
+  //  SchedulerTest.InOrderQueueCrossDeps
   //  host      | yes - always, separate sync management
 
   sycl::event Event;
   // host task
   {
     LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
-  }
-  // host task
-  {
-    LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
-  }
-  // kernel task
-  {
-    LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::Kernel, Event);
-  }
-  // kernel task
-  {
-    LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::Kernel, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
   // host task
   {
     LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(
-        MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // kernel task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // kernel task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // host task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
 }

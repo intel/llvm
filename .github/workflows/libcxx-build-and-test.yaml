@@ -23,8 +23,8 @@ on:
       - 'cmake/**'
       - '.github/workflows/libcxx-build-and-test.yaml'
   schedule:
-    # Run nightly at 8 AM UTC (or roughly 3 AM eastern)
-    - cron: '0 3 * * *'
+    # Run nightly at 08:00 UTC (aka 00:00 Pacific, aka 03:00 Eastern)
+    - cron: '0 8 * * *'
 
 permissions:
   contents: read # Default everything to read-only
@@ -75,7 +75,7 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
           ENABLE_CLANG_TIDY: ${{ matrix.clang_tidy }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ matrix.config }}-${{ matrix.cxx }}-results
@@ -124,7 +124,7 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
           ENABLE_CLANG_TIDY: ${{ matrix.clang_tidy }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()  # Upload artifacts even if the build or test suite fails
         with:
           name: ${{ matrix.config }}-results
@@ -189,7 +189,7 @@ jobs:
           CC: clang-18
           CXX: clang++-18
           ENABLE_CLANG_TIDY: "OFF"
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ matrix.config }}-results
