@@ -1282,7 +1282,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   constexpr unsigned ConstantAS = 2;
-  auto *I8PtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
+  Type *I8PtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
 
   // Address Space
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1291,7 +1291,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // File & Line
   if (Loc) {
-    auto FileName = Loc->getFilename();
+    StringRef FileName = Loc->getFilename();
     auto *FileNameGV =
         GetOrCreateGlobalString(*M, "__asan_file", FileName, ConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, I8PtrTy));
