@@ -402,7 +402,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) || (InputFilename.count('-') < 2))
+          !InputFilename.ends_with(LibPostfix) ||
+          (InputFilename.count('-') < 2))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =

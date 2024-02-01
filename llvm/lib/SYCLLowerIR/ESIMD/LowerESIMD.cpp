@@ -1604,7 +1604,8 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
       assert(
           GTy->getName()
               .rtrim(".0123456789")
-              .ends_with("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
+              .ends_with(
+                  "sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());
