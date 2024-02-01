@@ -15,9 +15,11 @@
 /// Sampler property layout:
 /// |     <bits>     | <usage>
 /// -----------------------------------
-/// |  31 30 ... 6   | N/A
-/// |       5        | mip filter mode
-/// |     4 3 2      | addressing mode
+/// |  31 30 ... 12  | N/A
+/// |       11       | mip filter mode
+/// |    10 9 8      | addressing mode 3
+/// |     7 6 5      | addressing mode 2
+/// |     4 3 2      | addressing mode 1
 /// |       1        | filter mode
 /// |       0        | normalize coords
 struct ur_sampler_handle_t_ {
@@ -50,7 +52,12 @@ struct ur_sampler_handle_t_ {
     return static_cast<ur_sampler_addressing_mode_t>((Props >> 2) & 0b111);
   }
 
+  ur_sampler_addressing_mode_t getAddressingModeDim(size_t i) const noexcept {
+    return static_cast<ur_sampler_addressing_mode_t>((Props >> (2 + (i * 3))) &
+                                                     0b111);
+  }
+
   ur_sampler_filter_mode_t getMipFilterMode() const noexcept {
-    return static_cast<ur_sampler_filter_mode_t>((Props >> 5) & 0b1);
+    return static_cast<ur_sampler_filter_mode_t>((Props >> 11) & 0b1);
   }
 };

@@ -331,8 +331,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   return mapCLErrorToUR(RetErr);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
+    ur_mem_handle_t hMem, ur_device_handle_t, ur_native_handle_t *phNativeMem) {
   return getNativeHandle(hMem, phNativeMem);
 }
 

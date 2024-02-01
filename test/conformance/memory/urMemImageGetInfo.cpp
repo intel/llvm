@@ -27,7 +27,7 @@ UUR_TEST_SUITE_P(urMemImageGetInfoTest,
 
 TEST_P(urMemImageGetInfoTest, Success) {
     ur_image_info_t info = getParam();
-    size_t size;
+    size_t size = 0;
     ASSERT_SUCCESS(urMemImageGetInfo(image, info, 0, nullptr, &size));
     ASSERT_NE(size, 0);
 
