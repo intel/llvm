@@ -426,12 +426,12 @@ void DivergenceResult::markByAll(BasicBlock &src) {
           const auto *const DLoopTag = basicBlockTags[DIndex].loop;
           // If we are not in a loop, or the loop we live in does not diverge
           // nor does the one englobing us if it exists, then mark by_all.
-          Loop *parentLoop;
-          if (!DLoopTag || (!DLoopTag->isLoopDivergent() &&
-                            (!(parentLoop = DLoopTag->loop->getParentLoop()) ||
-                             isByAll(*parentLoop->getHeader())))) {
-            queue.push(DIndex);
+          if (DLoopTag) {
+            if (DLoopTag->isLoopDivergent()) continue;
+            Loop *parentLoop = DLoopTag->loop->getParentLoop();
+            if (parentLoop && !isByAll(*parentLoop->getHeader())) continue;
           }
+          queue.push(DIndex);
         }
       }
     }
