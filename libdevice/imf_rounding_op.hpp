@@ -11,6 +11,7 @@
 #define __LIBDEVICE_IMF_ROUNDING_OP_H__
 #include "imf_impl_utils.hpp"
 #include <limits>
+
 template <typename Ty>
 static Ty __handling_fp_overflow(unsigned z_sig, int rd) {
   typedef typename __iml_fp_config<Ty>::utype UTy;
@@ -1569,7 +1570,115 @@ template <typename FTy> FTy __fp_fma(FTy x, FTy y, FTy z, int rd) {
   }
 }
 
-static float __fp_sqrt(float x) {
-  return 0.f;
+template <typename UTy> UTy integer_sqrt(UTy n, bool &is_squares) {
+  UTy x{n}, c{0}, d{1};
+  d = d << (sizeof(UTy) * 8 - 2);
+  while (d > n)
+    d = d >> 2;
+
+  while (d != 0) {
+    if (x >= (c + d)) {
+      x -= (c + d);
+      c = (c >> 1) + d;
+    } else
+      c = c >> 1;
+    d = d >> 2;
+  }
+
+  if (c * c > n)
+    c -= 1;
+  if (c * c == n)
+    is_squares = true;
+  else
+    is_squares = false;
+  return c;
+}
+
+template <typename FTy> FTy __fp_sqrt(FTy x, int rd) {
+  typedef typename __iml_fp_config<FTy>::utype UTy;
+  typedef typename __iml_get_double_size_unsigned<UTy>::utype DSUTy;
+  constexpr int fra_digits = std::numeric_limits<FTy>::digits - 1;
+  UTy x_bit = __builtin_bit_cast(UTy, x);
+  UTy x_exp = (x_bit & __iml_fp_config<FTy>::pos_inf_bits) >> fra_digits;
+  UTy x_fra = x_bit & __iml_fp_config<FTy>::fra_mask;
+  UTy x_sig = x_bit >> (sizeof(FTy) * 8 - 1);
+  DSUTy Bit1(1);
+  constexpr UTy NAN_BITS = __iml_fp_config<FTy>::nan_bits;
+  constexpr UTy INF_BITS = __iml_fp_config<FTy>::pos_inf_bits;
+
+  if ((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra != 0x0))
+    return __builtin_bit_cast(FTy, NAN_BITS);
+
+  if ((x_exp == 0x0) && (x_fra == 0x0))
+    return __builtin_bit_cast(FTy, static_cast<UTy>(0x0));
+
+  if (x_sig == 1)
+    return __builtin_bit_cast(FTy, NAN_BITS);
+
+  if ((x_exp == __iml_fp_config<FTy>::exp_mask) && (x_fra == 0x0))
+    return __builtin_bit_cast(FTy, INF_BITS);
+
+  // For all postive subnormal and normal values, the result of sqrt
+  // is a normal value.
+  int32_t sx_exp = x_exp;
+  if (sx_exp == 0x0)
+    sx_exp = 1 - __iml_fp_config<FTy>::bias;
+  else
+    sx_exp -= __iml_fp_config<FTy>::bias;
+
+  DSUTy fra_holder{x_fra};
+  if (x_exp != 0)
+    fra_holder = (Bit1 << fra_digits) | fra_holder;
+  sx_exp -= fra_digits;
+
+  // 2^x_exp * 1.mant can be represented as: 2^(x_exp - 52) * fra_holder
+  // for normal value and 2^-1022 * 0.mant can be represented as:
+  // 2^(-1074) * fra_holder for subnormal value. For fp32, 2^x_exp * 1.mant
+  // can be represented as: 2^(x_exp - 23) * fra_holder for normal value and
+  // 2^-126 * 0.mant can be represented as 2^-149 * fra_holder for subnormal.
+  // fra_holder is a non-zero value.
+  size_t lz = 0;
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    lz = 127 - fra_holder.ui128_msb_pos();
+  else
+    lz = 63 - get_msb_pos(fra_holder);
+
+  fra_holder = fra_holder << lz;
+  sx_exp -= lz;
+  if (static_cast<uint32_t>(sx_exp) & 0x1) {
+    sx_exp += 1;
+    fra_holder = fra_holder >> 1;
+  }
+
+  bool is_squares = false;
+  DSUTy sqrt_fra = integer_sqrt<DSUTy>(fra_holder, is_squares);
+  sx_exp = sx_exp / 2;
+
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
+    lz = 127 - sqrt_fra.ui128_msb_pos();
+  else
+    lz = 63 - get_msb_pos(sqrt_fra);
+  UTy fra1 =
+      static_cast<UTy>(sqrt_fra >> (sizeof(DSUTy) * 8 - lz - fra_digits - 1));
+  fra1 = fra1 & __iml_fp_config<FTy>::fra_mask;
+  sx_exp += sizeof(DSUTy) * 8 - 1 - lz + __iml_fp_config<FTy>::bias;
+
+  size_t grs_nsbit = sizeof(FTy) * 16 - lz - 1 - fra_digits;
+  uint32_t grs_bits =
+      static_cast<uint32_t>(sqrt_fra & ((Bit1 << grs_nsbit) - Bit1));
+  uint32_t s_bits =
+      grs_bits & static_cast<uint32_t>((Bit1 << (grs_nsbit - 3)) - Bit1);
+  grs_bits = grs_bits >> (grs_nsbit - 3);
+  if ((s_bits > 0) || !is_squares)
+    grs_bits |= 0x1;
+
+  uint32_t rb = __handling_rounding(0U, static_cast<uint32_t>(fra1), grs_bits, rd);
+  fra1 += rb;
+  if (fra1 > __iml_fp_config<FTy>::fra_mask) {
+    fra1 = 0x0;
+    sx_exp++;
+  }
+  return __builtin_bit_cast(FTy,
+                            (static_cast<UTy>(sx_exp) << fra_digits) | fra1);
 }
 #endif
