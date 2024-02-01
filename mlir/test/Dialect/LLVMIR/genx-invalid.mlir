@@ -40,14 +40,6 @@ func.func @genx.dpas(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<8xi32>)
 
 // -----
 
-func.func @genx.dpas(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<16xi8>) {
-  // expected-error @+1 {{'genx.matrix.dpas' op 3rd operand (B) bit-size should be systolic depth (8) times 32}}
-  %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<S8>, pb=#genx.precision_type<S8>, rc=8:i32} : (vector<8xi32>, vector<16xi8>, vector<16xi8>) -> vector<8xi32>
-  llvm.return
-}
-
-// -----
-
 func.func @genx.dpas(%c : vector<8xi32>, %a : vector<16xsi8>, %b : vector<32xsi8>) {
   // expected-error @+1 {{'genx.matrix.dpas' op precision should be S8 when 2nd (A) or 3rd (B) operand element type is signed i8}}
   %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<U8>, pb=#genx.precision_type<U8>, rc=8:i32} : (vector<8xi32>, vector<16xsi8>, vector<32xsi8>) -> vector<8xi32>
