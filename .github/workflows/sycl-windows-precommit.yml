@@ -16,9 +16,9 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    - '.github/workflows/sycl_linux_*.yml'
-    - '.github/workflows/sycl_precommit_aws.yml'
-    - '.github/workflows/sycl_macos_*.yml'
+    - '.github/workflows/sycl-linux-*.yml'
+    - '.github/workflows/sycl-precommit-aws.yml'
+    - '.github/workflows/sycl-macos-*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -32,14 +32,14 @@ concurrency:
 
 jobs:
   detect_changes:
-    uses: ./.github/workflows/sycl_detect_changes.yml
+    uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
     needs: [detect_changes]
     if: |
       always() && success()
       && github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build.yml
+    uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
 
@@ -50,7 +50,7 @@ jobs:
       always()
       && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl_windows_run_tests.yml
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'

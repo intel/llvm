@@ -8404,6 +8404,9 @@ def : CLFlag<"O1">, Alias<_SLASH_O>, AliasArgs<["1"]>,
   HelpText<"Optimize for size  (like /Og     /Os /Oy /Ob2 /GF /Gy)">;
 def : CLFlag<"O2">, Alias<_SLASH_O>, AliasArgs<["2"]>,
   HelpText<"Optimize for speed (like /Og /Oi /Ot /Oy /Ob2 /GF /Gy)">;
+def : CLFlag<"O3">, Alias<_SLASH_O>, AliasArgs<["3"]>,
+  HelpText<"Optimize for maximum speed and enable more aggressive optimizations"
+  " that may not improve performance on some programs">;
 def : CLFlag<"Ob0">, Alias<_SLASH_O>, AliasArgs<["b0"]>,
   HelpText<"Disable function inlining">;
 def : CLFlag<"Ob1">, Alias<_SLASH_O>, AliasArgs<["b1"]>,

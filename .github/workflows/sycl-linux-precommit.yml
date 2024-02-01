@@ -18,8 +18,8 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    - '.github/workflows/sycl_windows_*.yml'
-    - '.github/workflows/sycl_macos_*.yml'
+    - '.github/workflows/sycl-windows-*.yml'
+    - '.github/workflows/sycl-macos-*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -30,12 +30,12 @@ concurrency:
 
 jobs:
   detect_changes:
-    uses: ./.github/workflows/sycl_detect_changes.yml
+    uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
     needs: [detect_changes]
     if: always() && success()
-    uses: ./.github/workflows/sycl_linux_build.yml
+    uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
       merge_ref: ''
@@ -75,7 +75,7 @@ jobs:
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":"Matrix/"}'
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
@@ -111,7 +111,7 @@ jobs:
             runner: '["Linux", "gen12"]'
           - name: Perf tests on Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}

@@ -12,26 +12,32 @@
 #include "Kernel.h"
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Error.h"
 
 namespace jit_compiler {
-///
-/// Combine a list of ND-ranges, obtaining the resulting "fused" ND-range.
-NDRange combineNDRanges(llvm::ArrayRef<NDRange> NDRanges);
+class FusedNDRange {
+public:
+  static llvm::Expected<FusedNDRange> get(llvm::ArrayRef<NDRange> NDRanges);
 
-inline llvm::ArrayRef<NDRange>::const_iterator
-findSpecifiedLocalSize(llvm::ArrayRef<NDRange> NDRanges) {
-  return llvm::find_if(
-      NDRanges, [](const auto &ND) { return ND.hasSpecificLocalSize(); });
-}
+  const NDRange &getNDR() const { return NDR; }
+  llvm::ArrayRef<NDRange> getNDRanges() const { return NDRanges; }
+  bool isHeterogeneousList() const { return IsHeterogeneousList; }
+
+private:
+  FusedNDRange() = default;
+  FusedNDRange(const NDRange &NDR, bool IsHeterogeneousList,
+               llvm::ArrayRef<NDRange> NDRanges)
+      : NDR(NDR), IsHeterogeneousList(IsHeterogeneousList), NDRanges(NDRanges) {
+  }
+
+  NDRange NDR;
+  bool IsHeterogeneousList;
+  llvm::ArrayRef<NDRange> NDRanges;
+};
 
 ///
 /// Returns whether the input list of ND-ranges is heterogeneous or not.
 bool isHeterogeneousList(llvm::ArrayRef<NDRange> NDRanges);
-
-///
-/// Return whether a combination of ND-ranges is valid for fusion.
-bool isValidCombination(llvm::ArrayRef<NDRange> NDRanges);
 
 ///
 /// Return whether ID remapping will be needed.

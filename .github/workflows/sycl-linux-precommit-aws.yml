@@ -54,7 +54,7 @@ jobs:
 
   e2e-cuda:
     needs: [aws-start]
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'

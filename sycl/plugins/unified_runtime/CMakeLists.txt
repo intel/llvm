@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 73d85ef9f48ec4d1f213066a31ed7e4402b5499b
-  # Merge: e46dc359 7985d3ee
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7
+  # Merge: 40517d2b fc1f3066
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jan 29 14:26:08 2024 +0000
-  #     Merge pull request #1289 from nrspruit/fix_multiDevice
-  #     [L0] Fix native kernel usage, multi device kernel pointer and WorkSize
-  set(UNIFIED_RUNTIME_TAG 73d85ef9f48ec4d1f213066a31ed7e4402b5499b)
+  # Date:   Wed Jan 31 10:38:07 2024 +0000
+  #     Merge pull request #1226 from hdelan/get-native-mem-on-device2
+  #     [UR] Add extra param to urMemGetNativeHandle
+  set(UNIFIED_RUNTIME_TAG d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
