@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/kbenzie/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG 5e513738c7698efe048fe601cff0eab6878aae55)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 9363574db721d2388c7d76a10edb128764872352
+  # Merge: 553a6b82 5e513738
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 1 11:50:16 2024 +0000
+  #     Merge pull request #1302 from kbenzie/benie/cl-binary-type-intermediate
+  #     [CL] Handle INTERMEDIATE binary type
+  set(UNIFIED_RUNTIME_TAG 9363574db721d2388c7d76a10edb128764872352)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
