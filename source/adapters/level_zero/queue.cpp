@@ -1207,6 +1207,12 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         // Turn into a more informative end-user error.
         return UR_RESULT_ERROR_UNKNOWN;
       }
+      // Reset Command List and erase the Fence forcing the user to resubmit
+      // their commands.
+      std::vector<ur_event_handle_t> EventListToCleanup;
+      resetCommandList(CommandList, true, EventListToCleanup, false);
+      CleanupEventListFromResetCmdList(EventListToCleanup,
+                                       true /* QueueLocked */);
       return ze2urResult(ZeResult);
     }
   }
