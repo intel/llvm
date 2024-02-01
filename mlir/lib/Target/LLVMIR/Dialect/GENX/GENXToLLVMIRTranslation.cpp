@@ -134,11 +134,10 @@ createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
   // TODO: Add verifier.
   assert(srcTySizeInBits != resTySizeInBits &&
          "Expecting first argument and result size to be different");
-  llvm::Intrinsic::ID id;
-  if (srcTySizeInBits > resTySizeInBits)
-    id = llvm::Intrinsic::experimental_constrained_fptrunc;
-  else
-    id = llvm::Intrinsic::experimental_constrained_fpext;
+  llvm::Intrinsic::ID id =
+      srcTySizeInBits > resTySizeInBits
+          ? llvm::Intrinsic::experimental_constrained_fptrunc
+          : id = llvm::Intrinsic::experimental_constrained_fpext;
 
   return builder.CreateConstrainedFPCast(id, args[0], resTy, nullptr, "",
                                          nullptr, rounding);
