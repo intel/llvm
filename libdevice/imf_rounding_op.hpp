@@ -1672,7 +1672,8 @@ template <typename FTy> FTy __fp_sqrt(FTy x, int rd) {
   if ((s_bits > 0) || !is_squares)
     grs_bits |= 0x1;
 
-  uint32_t rb = __handling_rounding(0U, static_cast<uint32_t>(fra1), grs_bits, rd);
+  uint32_t rb =
+      __handling_rounding(0U, static_cast<uint32_t>(fra1), grs_bits, rd);
   fra1 += rb;
   if (fra1 > __iml_fp_config<FTy>::fra_mask) {
     fra1 = 0x0;
