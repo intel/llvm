@@ -151,6 +151,15 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
+template <typename T, typename F>
+void matrix_apply(unsigned int rows, unsigned int cols, T *src, F &&lambda) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      lambda(src[i * cols + j]);
+    }
+  }
+}
+
 template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
@@ -170,8 +179,9 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix." << "i: " << i
-                    << ", j: " << j << ", Ref: " << ref[i * cols + j]
+          std::cout << "Incorrect result in matrix."
+                    << "i: " << i << ", j: " << j
+                    << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }
