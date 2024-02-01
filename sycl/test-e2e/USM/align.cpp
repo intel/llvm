@@ -90,7 +90,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ATDevice(3, q); }, [&]() { return ATDevice(5, dev, Ctx); },
       [&]() { return ATHost(7, q); }, [&]() { return ATHost(9, Ctx); },
       [&]() { return ATShared(1919, q); },
-      [&]() { return ATShared(0, dev, Ctx); },
+      [&]() { return ATShared(11, dev, Ctx); },
       [&]() { return ATAnnotated(15, q, alloc::device); },
       [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
 
