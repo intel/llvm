@@ -80,14 +80,14 @@ llvm.func @genx.sub_group_shuffle() {
 
 llvm.func @genx.fptofp(%a: f32, %b: f16) {
   // CHECK-LABEL: genx.fptofp
-  // CHECK: call half @llvm.genx.GenISA.ftof.rte.f16.f32(float %0)
-  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtn.f16.f32(float %0)
-  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtp.f16.f32(float %0)
-  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtz.f16.f32(float %0)
-  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rte.f32.f16(half %1)
-  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtn.f32.f16(half %1)
-  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtp.f32.f16(half %1)
-  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtz.f32.f16(half %1)
+  // CHECK: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.tonearest", metadata !"fpexcept.strict")
+  // CHECK-NEXT: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.downward", metadata !"fpexcept.strict")
+  // CHECK-NEXT: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.upward", metadata !"fpexcept.strict")
+  // CHECK-NEXT: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.towardzero", metadata !"fpexcept.strict")
+  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
+  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
+  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
+  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
   %0 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTE>} : f32 to f16
   %1 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTN>} : f32 to f16
   %2 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTP>} : f32 to f16

@@ -106,37 +106,42 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
 static llvm::CallInst *
 createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
                    LLVM::ModuleTranslation &moduleTranslation) {
-  llvm::Module *module = builder.GetInsertBlock()->getModule();
-  TypeRange opTypes = op->getOperandTypes();
-
-  auto intrinsic = llvm::GenISAIntrinsic::ID::no_intrinsic;
+  // TODO: Remove GENX::RoundingMode and use llvm::RoundingMode directly.
+  llvm::RoundingMode rounding;
   switch (op.getRoundingMode()) {
   case GENX::RoundingMode::RTE:
-    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rte;
+    rounding = llvm::RoundingMode::NearestTiesToEven;
     break;
   case GENX::RoundingMode::RTN:
-    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtn;
+    rounding = llvm::RoundingMode::TowardNegative;
     break;
   case GENX::RoundingMode::RTP:
-    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtp;
+    rounding = llvm::RoundingMode::TowardPositive;
     break;
   case GENX::RoundingMode::RTZ:
-    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtz;
+    rounding = llvm::RoundingMode::TowardZero;
     break;
   default:
     llvm_unreachable("Unhandled rounding mode");
   }
 
-  llvm::Function *fn = llvm::GenISAIntrinsic::getDeclaration(
-      module, intrinsic,
-      {moduleTranslation.convertType(op->getResultTypes()[0]),
-       moduleTranslation.convertType(opTypes[0])});
-  assert(fn && "GenISAIntrinsic::getDeclaration() returns NULL");
-
   SmallVector<llvm::Value *> args = {
       moduleTranslation.lookupValue(op.getArg())};
 
-  return builder.CreateCall(fn, args);
+  llvm::Type *resTy = moduleTranslation.convertType(op->getResultTypes()[0]);
+  unsigned resTySizeInBits = resTy->getScalarSizeInBits();
+  unsigned srcTySizeInBits = args[0]->getType()->getScalarSizeInBits();
+  // TODO: Add verifier.
+  assert(srcTySizeInBits != resTySizeInBits &&
+         "Expecting first argument and result size to be different");
+  llvm::Intrinsic::ID id;
+  if (srcTySizeInBits > resTySizeInBits)
+    id = llvm::Intrinsic::experimental_constrained_fptrunc;
+  else
+    id = llvm::Intrinsic::experimental_constrained_fpext;
+
+  return builder.CreateConstrainedFPCast(id, args[0], resTy, nullptr, "",
+                                         nullptr, rounding);
 }
 
 //===----------------------------------------------------------------------===//
