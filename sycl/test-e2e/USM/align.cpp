@@ -1,8 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: gpu
+
 // E2E tests for annotated USM allocation functions with alignment arguments
-// that are not powers of 2.
+// that are not powers of 2. Note this test does not work on gpu because some
+// tests expect to return nullptr, e.g. when the alignment argument is not a
+// power of 2, while the gpu runtime has different behavior
 
 #include <sycl/sycl.hpp>
 
