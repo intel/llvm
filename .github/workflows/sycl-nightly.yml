@@ -8,7 +8,7 @@ on:
 jobs:
   ubuntu2204_build:
     if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build.yml
+    uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
@@ -59,7 +59,7 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: ext_oneapi_cuda:gpu
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
@@ -74,7 +74,7 @@ jobs:
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   build-win:
-    uses: ./.github/workflows/sycl_windows_build.yml
+    uses: ./.github/workflows/sycl-windows-build.yml
     if: github.repository == 'intel/llvm'
     with:
       retention-days: 90
@@ -89,7 +89,7 @@ jobs:
       always()
       && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl_windows_run_tests.yml
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'

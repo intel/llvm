@@ -7,7 +7,7 @@ on:
     branches:
     - sycl
     paths:
-    - '.github/workflows/gh_pages.yml'
+    - '.github/workflows/sycl-docs.yml'
     - 'clang/docs/**'
     - 'sycl/doc/**'
 
