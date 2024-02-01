@@ -51,11 +51,10 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
-#include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
-#include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -69,8 +68,8 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/HipStdPar/HipStdPar.h"
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -123,9 +122,9 @@ cl::opt<bool> ClRelinkBuiltinBitcodePostop(
     "relink-builtin-bitcode-postop", cl::Optional,
     cl::desc("Re-link builtin bitcodes after optimization."), cl::init(false));
 
-static cl::opt<bool> SYCLNativeCPURename(
-    "sycl-native-cpu-rename", cl::init(false),
-    cl::desc("Rename kernel functions for SYCL Native CPU"));
+static cl::opt<bool> SYCLNativeCPUBackend(
+    "sycl-native-cpu-backend", cl::init(false),
+    cl::desc("Run the backend passes for SYCL Native CPU"));
 } // namespace llvm
 
 namespace {
@@ -1067,8 +1066,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
                                       PrepareForLTO || PrepareForThinLTO));
     } else if (CodeGenOpts.FatLTO) {
-      assert(CodeGenOpts.UnifiedLTO && "FatLTO requires UnifiedLTO");
-      MPM.addPass(PB.buildFatLTODefaultPipeline(Level));
+      MPM.addPass(PB.buildFatLTODefaultPipeline(
+          Level, PrepareForThinLTO,
+          PrepareForThinLTO || shouldEmitRegularLTOSummary()));
     } else if (PrepareForThinLTO) {
       MPM.addPass(PB.buildThinLTOPreLinkDefaultPipeline(Level));
     } else if (PrepareForLTO) {
@@ -1077,8 +1077,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
     }
 
-    if (SYCLNativeCPURename)
-      MPM.addPass(RenameKernelSYCLNativeCPUPass());
+    if (SYCLNativeCPUBackend) {
+      sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM);
+    }
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
       if (LangOpts.EnableDAEInSpirKernels)
@@ -1107,10 +1108,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
-
-      if (LangOpts.SYCLIsNativeCPU) {
-        MPM.addPass(PrepareSYCLNativeCPUPass());
-      }
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline
@@ -1172,9 +1169,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
-    // FatLTO always means UnifiedLTO
-    if (!TheModule->getModuleFlag("UnifiedLTO"))
-      TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
+    if (CodeGenOpts.UnifiedLTO && !TheModule->getModuleFlag("UnifiedLTO"))
+      TheModule->addModuleFlag(llvm::Module::Error, "UnifiedLTO", uint32_t(1));
   }
 
   // Print a textual, '-passes=' compatible, representation of pipeline if

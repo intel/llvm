@@ -652,6 +652,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct bindless_image_sampler {
 
+  // Assign addressing mode to all dimensions
   bindless_image_sampler(sycl::addressing_mode addressing,
                          sycl::coordinate_normalization_mode coordinate,
                          sycl::filtering_mode filtering);
@@ -663,7 +664,20 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  // Specific addressing modes per dimension
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering);
+
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         sycl::filtering_mode mipmapFiltering,
+                         float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                         float maxAnisotropy);
+
+
+  sycl::addressing_mode addressing[3] = {sycl::addressing_mode::none};
   sycl::coordinate_normalization_mode coordinate =
       sycl::coordinate_normalization_mode::unnormalized;
   sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
@@ -680,6 +694,10 @@ The `bindless_image_sampler` shall be default constructible and follow by-value
 semantics. The value for the addressing mode, `addressing_mode::none`, 
 represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
 `addressing_mode::repeat`.
+
+`addressing[3]` defines the addressing mode per texture dimension. A 
+`bindless_image_sampler` can be constructed with a singular 
+`sycl::addressing_mode`, where this parameter will define all dimensions.
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -2086,4 +2104,6 @@ These features still need to be handled:
                    user-defined type.
 |5.1|2024-01-17| - Added overload for `ext_oneapi_copy` enabling device to device
                    copies using `image_mem_handle`.
+|5.1|2023-12-06| - Added unique addressing modes per dimension to the 
+                   `bindless_image_sampler`
 |======================

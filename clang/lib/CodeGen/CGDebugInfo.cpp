@@ -2256,6 +2256,14 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
           TheCU, Name, TTy, defaultParameter, V));
     } break;
+    case TemplateArgument::StructuralValue: {
+      QualType T = TA.getStructuralValueType();
+      llvm::DIType *TTy = getOrCreateType(T, Unit);
+      llvm::Constant *V = ConstantEmitter(CGM).emitAbstract(
+          SourceLocation(), TA.getAsStructuralValue(), T);
+      TemplateParams.push_back(DBuilder.createTemplateValueParameter(
+          TheCU, Name, TTy, defaultParameter, V));
+    } break;
     case TemplateArgument::Template: {
       std::string QualName;
       llvm::raw_string_ostream OS(QualName);
@@ -5457,6 +5465,8 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
             // feasible some day.
             return TA.getAsIntegral().getBitWidth() <= 64 &&
                    IsReconstitutableType(TA.getIntegralType());
+          case TemplateArgument::StructuralValue:
+            return false;
           case TemplateArgument::Type:
             return IsReconstitutableType(TA.getAsType());
           default:
@@ -6027,6 +6037,18 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
                                        const CodeGenModule &CGM) {
   // Declaration is in system file
   if (CGM.getContext().getSourceManager().isInSystemHeader(D->getLocation())) {
+    // Make an exception for typedefs in system header files.  Generate debug
+    // information for these decls because these are rare (thus they will not
+    // greatly increase debug size) and a user could rely on these typedefs
+    // during debugging. For example uid_t in in "sys/types.h" can be used in
+    // the gdb command:
+    //
+    //    print ruid == (uid_t)-1
+    //
+    // This occurs in GDB test gdb.reverse/getresuid-reverse.c
+    if (isa<TypedefDecl>(D))
+      return false;
+
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug)
       return true;

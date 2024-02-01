@@ -282,11 +282,11 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
             .Default(false);
       };
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
-          Id && !Id->getName().startswith("__spirv_") &&
-          !Id->getName().startswith("__sycl_") &&
-          !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
-          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL") &&
-          !Id->getName().startswith("__assert_fail") &&
+          Id && !Id->getName().starts_with("__spirv_") &&
+          !Id->getName().starts_with("__sycl_") &&
+          !Id->getName().starts_with("__devicelib_ConvertBF16ToFINTEL") &&
+          !Id->getName().starts_with("__devicelib_ConvertFToBF16INTEL") &&
+          !Id->getName().starts_with("__assert_fail") &&
           !isMsvcMathFn(Id->getName())) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
@@ -7614,7 +7614,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     // Extract the return type from the (builtin) function pointer type.
     // FIXME Several builtins still have setType in
     // Sema::CheckBuiltinFunctionCall. One should review their definitions in
-    // Builtins.def to ensure they are correct before removing setType calls.
+    // Builtins.td to ensure they are correct before removing setType calls.
     QualType FnPtrTy = Context.getPointerType(FDecl->getType());
     Result = ImpCastExprToType(Fn, FnPtrTy, CK_BuiltinFnToFnPtr).get();
     ResultTy = FDecl->getCallResultType();

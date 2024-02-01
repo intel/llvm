@@ -33,6 +33,8 @@ test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_gather_scatter(AccType &, float *, int byte_offset32,
                     size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_slm_gather_scatter(int byte_offset32);
 
 class EsimdFunctor {
 public:
@@ -47,6 +49,7 @@ public:
     test_atomic_update(acc, local_acc_int, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_gather_scatter(acc, ptr, byte_offset32, byte_offset64);
+    test_slm_gather_scatter(byte_offset32);
   }
 };
 
@@ -966,6 +969,8 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   simd<float, 32> pass_thru;
   auto pass_thru_view = pass_thru.select<32, 1>();
 
+  auto usm_view = usm.select<32, 1>();
+
   // Test USM and ACC gather using this plan:
   // 1) gather(usm, offsets): offsets is simd or simd_view
   // 2) gather(usm, offsets, mask): offsets is simd or simd_view
@@ -1148,4 +1153,154 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
                                  props_align4);
   acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
                                  pass_thru_view, props_align4);
+
+  // CHECK-COUNT-4: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32f32(<32 x i1> {{[^)]+}}, i32 0, <32 x i64> {{[^)]+}}, <32 x float> {{[^)]+}})
+  scatter(ptrf, ioffset_n32, usm, mask_n32);
+
+  scatter(ptrf, ioffset_n32, usm);
+
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(ptrf, ioffset_n32, usm, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v32i1.v32i64.v32i32(<32 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32, usm, props_cache_load);
+
+  scatter(ptrf, ioffset_n32_view, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32_view, usm, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, mask_n32, props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, props_cache_load);
+
+  // VS > 1
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, mask_n16, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, props_cache_load);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z23test_slm_gather_scatter{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_slm_gather_scatter(int byte_offset32) {
+
+  properties props_align4{alignment<4>};
+  properties props_align8{alignment<8>};
+
+  simd<uint32_t, 32> ioffset_n32(byte_offset32, 8);
+  auto ioffset_n32_view = ioffset_n32.select<32, 1>();
+
+  simd<uint32_t, 16> ioffset_n16(byte_offset32, 8);
+  auto ioffset_n16_view = ioffset_n16.select<16, 1>();
+
+  simd_mask<32> mask_n32 = 1;
+  simd_mask<16> mask_n16 = 1;
+
+  simd<float, 32> slm;
+  simd<float, 32> pass_thru;
+  auto pass_thru_view = pass_thru.select<32, 1>();
+
+  // Test SLM gather using this plan:
+  // 1) slm_gather(offsets): offsets is simd or simd_view
+  // 2) slm_gather(offsets, mask): offsets is simd or simd_view
+  // 3) slm_gather( offsets, mask, pass_thru)
+  // 4) slm_gather(...): same as (1), (2), (3) above, but with VS > 1.
+
+  // 1) slm_gather(offsets): offsets is simd or simd_view
+  // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32);
+  slm = slm_gather<float, 32>(ioffset_n32_view);
+
+  // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32, props_align8);
+  slm = slm_gather<float, 32>(ioffset_n32_view, props_align8);
+
+  // 2) slm_gather(offsets, mask): offsets is simd or simd_view
+  // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32, mask_n32);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32);
+
+  // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32, mask_n32, props_align8);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32, props_align8);
+
+  // 3) slm_gather(offsets, mask, pass_thru)
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32, mask_n32, pass_thru);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32, pass_thru);
+  slm = slm_gather<float, 32>(ioffset_n32, mask_n32, pass_thru_view);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32, pass_thru_view);
+
+  // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm = slm_gather<float>(ioffset_n32, mask_n32, pass_thru, props_align8);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32, pass_thru,
+                              props_align8);
+  slm = slm_gather<float, 32>(ioffset_n32, mask_n32, pass_thru_view,
+                              props_align8);
+  slm = slm_gather<float, 32>(ioffset_n32_view, mask_n32, pass_thru_view,
+                              props_align8);
+
+  // 4) slm_gather(...): same as (1), (2), (3) above, but with VS > 1.
+  // CHECK-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.slm.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  // 4a) check VS > 1. no 'mask' operand first.
+  slm = slm_gather<float, 32, 2>(ioffset_n16);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view);
+
+  slm = slm_gather<float, 32, 2>(ioffset_n16, props_align4);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, props_align4);
+
+  // 4b) check VS > 1. Pass the 'mask' operand this time.
+  slm = slm_gather<float, 32, 2>(ioffset_n16, mask_n16);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16);
+
+  slm = slm_gather<float, 32, 2>(ioffset_n16, mask_n16, props_align4);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, props_align4);
+
+  // 4c) check VS > 1. Pass the 'mask' and 'pass_thru' operands.
+  slm = slm_gather<float, 32, 2>(ioffset_n16, mask_n16, pass_thru);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru);
+  slm = slm_gather<float, 32, 2>(ioffset_n16, mask_n16, pass_thru_view);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru_view);
+
+  slm =
+      slm_gather<float, 32, 2>(ioffset_n16, mask_n16, pass_thru, props_align4);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru,
+                                 props_align4);
+  slm = slm_gather<float, 32, 2>(ioffset_n16, mask_n16, pass_thru_view,
+                                 props_align4);
+  slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru_view,
+                                 props_align4);
 }

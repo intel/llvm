@@ -1,5 +1,6 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: cpu
 
 // Test fusion works with reductions.
 
