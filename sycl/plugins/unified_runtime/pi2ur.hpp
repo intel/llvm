@@ -3087,7 +3087,7 @@ inline pi_result piextMemGetNativeHandle(pi_mem Mem,
 
   ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
   ur_native_handle_t NativeMem{};
-  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, &NativeMem));
+  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, nullptr, &NativeMem));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
 

@@ -1282,7 +1282,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   constexpr unsigned ConstantAS = 2;
-  Type *I8PtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
+  PointerType *ConstASPtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
 
   // Address Space
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1294,10 +1294,10 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
     StringRef FileName = Loc->getFilename();
     auto *FileNameGV =
         GetOrCreateGlobalString(*M, "__asan_file", FileName, ConstantAS);
-    Args.push_back(ConstantExpr::getPointerCast(FileNameGV, I8PtrTy));
+    Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
-    Args.push_back(ConstantPointerNull::get(I8PtrTy));
+    Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
   }
 
@@ -1305,7 +1305,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   auto FuncName = InsertBefore->getFunction()->getName();
   auto *FuncNameGV = GetOrCreateGlobalString(*M, "__asan_func",
                                              demangle(FuncName), ConstantAS);
-  Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, I8PtrTy));
+  Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
 Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB) {
