@@ -22,63 +22,61 @@ class string {
   char *str = nullptr;
 
 public:
-  string() {
-    allocate(1);
-    *str = '\0';
+  string() noexcept {
+    str = new char[1];
+    *str = 0;
   }
-
-  string(const std::string_view &strn) {
-    int len = strn.length();
-    allocate(len + 1);
-    strn.copy(str, len);
-    str[len] = '\0';
-  }
-
-  string(string &&strn) {
-    str = strn.str;
-    strn.str = nullptr;
-  }
-  string(const string &strn) {
-    allocate(strlen(strn.str) + 1);
-    strcpy(str, strn.str);
-  }
-
-  string &operator=(string &&strn) {
-    delete[] str;
-    str = strn.str;
-    strn.str = nullptr;
-    return *this;
-  }
-  string &operator=(const string &strn) {
-    allocate(strlen(strn.str) + 1);
-    strcpy(str, strn.str);
-    return *this;
-  }
-
-  string &operator=(const std::string_view &strn) {
-    int len = strn.length();
-    allocate(len + 1);
-    strn.copy(str, len);
-    str[len] = '\0';
-    return *this;
-  }
-
   ~string() { delete[] str; }
 
-  const char *c_str() { return str; }
-  const char *c_str() const { return str; }
+  string(const std::string_view &strn) noexcept {
+    size_t len = strn.length();
+    str = new char[len + 1];
+    strn.copy(str, len);
+    str[len] = 0;
+  }
 
-  friend bool operator==(const string &lhs, const std::string_view &rhs) {
+  friend void swap(string &lhs, string &rhs) noexcept {
+    std::swap(lhs.str, rhs.str);
+  }
+
+  string(string &&other) noexcept { swap(*this, other); }
+  string(const string &other) noexcept {
+    size_t len = strlen(other.str);
+    str = new char[len + 1];
+    strcpy(str, other.str);
+  }
+
+  string &operator=(string &&other) noexcept {
+    swap(*this, other);
+    return *this;
+  }
+  string &operator=(const string &other) noexcept {
+    size_t len = strlen(other.str);
+    delete[] str;
+    str = new char[len + 1];
+    strcpy(str, other.str);
+    return *this;
+  }
+
+  string &operator=(const std::string_view &strn) noexcept {
+    int len = strn.length();
+    delete[] str;
+    str = new char[len + 1];
+    strn.copy(str, len);
+    str[len] = 0;
+    return *this;
+  }
+
+  const char *c_str() noexcept { return str; }
+  const char *c_str() const noexcept { return str; }
+
+  friend bool operator==(const string &lhs,
+                         const std::string_view &rhs) noexcept {
     return rhs == lhs.c_str();
   }
-  friend bool operator==(const std::string_view &lhs, const string &rhs) {
+  friend bool operator==(const std::string_view &lhs,
+                         const string &rhs) noexcept {
     return lhs == rhs.c_str();
-  }
-
-private:
-  void allocate(int size) {
-    delete[] str;
-    str = new char[size];
   }
 };
 
