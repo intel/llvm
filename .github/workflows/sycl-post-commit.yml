@@ -12,10 +12,10 @@ on:
     - sycl
     - sycl-devops-pr/**
     paths:
-    - .github/workflows/sycl_post_commit.yml
-    - .github/workflows/sycl_linux_build.yml
-    - .github/workflows/sycl_linux_run_tests.yml
-    - .github/workflows/sycl_macos_build_and_test.yml
+    - .github/workflows/sycl-post-commit.yml
+    - .github/workflows/sycl-linux-build.yml
+    - .github/workflows/sycl-linux-run-tests.yml
+    - .github/workflows/sycl-macos-build-and-test.yml
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
@@ -23,7 +23,7 @@ jobs:
   build-lin:
     name: Linux (Self build + shared libraries + no-assertions)
     if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build.yml
+    uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: sprod_shared
@@ -63,7 +63,7 @@ jobs:
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
@@ -87,7 +87,7 @@ jobs:
       always()
       && success()
       && github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build.yml
+    uses: ./.github/workflows/sycl-windows-build.yml
 
   e2e-win:
     needs: build-win
@@ -96,7 +96,7 @@ jobs:
       always()
       && !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl_windows_run_tests.yml
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
@@ -105,4 +105,4 @@ jobs:
   macos_default:
     name: macOS
     if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_macos_build_and_test.yml
+    uses: ./.github/workflows/sycl-macos-build-and-test.yml

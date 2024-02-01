@@ -48,7 +48,7 @@ jobs:
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: ext_oneapi_cuda:gpu
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
@@ -62,7 +62,7 @@ jobs:
 
   aws_start:
     name: AWS Start
-    uses: ./.github/workflows/sycl_aws.yml
+    uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
       mode: start
@@ -71,7 +71,7 @@ jobs:
   linux_e2e_on_nightly_aws:
     name: '[AWS][CUDA] E2E on Nightly'
     needs: [aws_start]
-    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: CUDA
       runner: '["aws-cuda_${{ github.run_id }}-${{ github.run_attempt }}"]'
@@ -86,7 +86,7 @@ jobs:
     name: AWS Stop
     needs: [aws_start, linux_e2e_on_nightly_aws]
     if: always()
-    uses: ./.github/workflows/sycl_aws.yml
+    uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
       mode: stop
