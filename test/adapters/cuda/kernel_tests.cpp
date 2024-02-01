@@ -74,9 +74,9 @@ const char *threeParamsTwoLocal = "\n\
 TEST_P(cudaKernelTest, CreateProgramAndKernel) {
 
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)ptxSource,
-                                             nullptr, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)ptxSource,
+        nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
@@ -116,9 +116,9 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
     ur_program_properties_t programProps{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
                                          nullptr, 1, &reqdWorkGroupSizeMDProp};
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)ptxSource,
-                                             &programProps, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)ptxSource,
+        &programProps, program.ptr()));
     ASSERT_NE(program, nullptr);
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
@@ -138,9 +138,9 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
 
 TEST_P(cudaKernelTest, URKernelArgumentSimple) {
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)ptxSource,
-                                             nullptr, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)ptxSource,
+        nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
@@ -160,9 +160,9 @@ TEST_P(cudaKernelTest, URKernelArgumentSimple) {
 
 TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)ptxSource,
-                                             nullptr, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)ptxSource,
+        nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
@@ -189,9 +189,9 @@ TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
 
 TEST_P(cudaKernelTest, URKernelDispatch) {
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)ptxSource,
-                                             nullptr, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)ptxSource,
+        nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
@@ -218,9 +218,9 @@ TEST_P(cudaKernelTest, URKernelDispatch) {
 
 TEST_P(cudaKernelTest, URKernelDispatchTwo) {
     uur::raii::Program program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, sizeof(ptxSource),
-                                             (const uint8_t *)twoParams,
-                                             nullptr, program.ptr()));
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        context, device, std::strlen(ptxSource), (const uint8_t *)twoParams,
+        nullptr, program.ptr()));
     ASSERT_NE(program, nullptr);
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
