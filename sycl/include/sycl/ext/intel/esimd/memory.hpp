@@ -854,24 +854,6 @@ scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
   scatter<T, N, VS>(p, byte_offsets.read(), vals, Mask, props);
 }
 
-/// A variation of \c scatter API with \c offsets represented as \c simd_view
-/// object.
-///
-/// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
-///   or \c 32.
-/// @param p The base address.
-/// @param offsets A simd_view of 32-bit or 64-bit offsets in bytes. For each
-/// lane \c i,   ((byte*)p + offsets[i]) must be element size aligned.
-/// @param vals The vector to scatter.
-/// @param mask The access mask, defaults to all 1s.
-///
-template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
-__ESIMD_API void scatter(Tx *p, simd_view<OffsetObjT, RegionTy> offsets,
-                         simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  scatter<Tx, N, 1>(p, offsets.read(), vals, mask);
-}
-
 /// A variation of \c scatter API with \c offsets represented as scalar.
 ///
 /// @tparam Tx Element type, must be of size 4 or less.
