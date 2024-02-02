@@ -1,7 +1,7 @@
 // Don't use normal %{run} as we need to control cache directory removal and
 // cannot do that reliably when number of devices is unknown.
 //
-// REQUIRES: level_zero
+// REQUIRES: level_zero, ocloc
 //
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{build_cmd} = %{build}
