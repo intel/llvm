@@ -1219,7 +1219,7 @@ test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
   acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16,
                                  pass_thru_view, props_align4);
 
-  // Validate that a new API doesn't conflict with the new API.
+  // Validate that a new API doesn't conflict with the old API.
   // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
   acc_res = gather<float, 32>(local_acc, ioffset_n32, 0);
   acc_res = gather<float, 32>(local_acc, ioffset_n32, 0, mask_n32);
