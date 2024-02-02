@@ -396,7 +396,7 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
              Name == NativeCPUSetSubgroupId ||
              Name == NativeCPUSetMaxSubgroupSize) {
     Res = addSetSubGroupValFunc(M, Name, StateType);
-  } else if (Name.startswith(GetPrefix)) {
+  } else if (Name.starts_with(GetPrefix)) {
     Res = addGetFunc(M, Name, StateType);
   } else if (Name == NativeCPUSetLocalId) {
     Res = addSetLocalIdFunc(M, Name, StateType);

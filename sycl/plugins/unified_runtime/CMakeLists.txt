@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:orion/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
+  # commit d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7
+  # Merge: 40517d2b fc1f3066
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
+  # Date:   Wed Jan 31 10:38:07 2024 +0000
+  #     Merge pull request #1226 from hdelan/get-native-mem-on-device2
+  #     [UR] Add extra param to urMemGetNativeHandle
   set(UNIFIED_RUNTIME_TAG uwe/subgroups2)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)

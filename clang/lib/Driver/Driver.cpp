@@ -3518,7 +3518,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   // manner than the OpenMP processing.  We should try and refactor this
   // to use the OpenMP flow (adding -l<name> to the llvm-link step)
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
-    if (!LibName.startswith("-l"))
+    if (!LibName.starts_with("-l"))
       return false;
     for (auto &LPath : LibPaths) {
       if (!IsStatic) {
@@ -3663,7 +3663,7 @@ static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
   bool Ret =
-      (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
           ? true
           : false;
   return Ret;
@@ -8098,9 +8098,9 @@ Action *Driver::ConstructPhaseAction(
   case phases::Backend: {
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
       types::ID Output;
-      if (Args.hasArg(options::OPT_ffat_lto_objects))
-        Output = Args.hasArg(options::OPT_emit_llvm) ? types::TY_LTO_IR
-                                                     : types::TY_PP_Asm;
+      if (Args.hasArg(options::OPT_ffat_lto_objects) &&
+          !Args.hasArg(options::OPT_emit_llvm))
+        Output = types::TY_PP_Asm;
       else if (Args.hasArg(options::OPT_S))
         Output = types::TY_LTO_IR;
       else
