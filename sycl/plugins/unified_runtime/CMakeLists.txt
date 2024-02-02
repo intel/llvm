@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit c6b0a240c40dd385631d03315f3b9d020bf31e3a
-  # Merge: 5d5c8106 0631330a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Feb 1 10:47:43 2024 +0100
-  #     Merge pull request #1210 from AllanZyne/sanitizer-pr-cpu-local
-  #     [DeviceSanitizer] Support detecting out-of-bounds error on CPU Device & Static Local Memory
-  set(UNIFIED_RUNTIME_TAG c6b0a240c40dd385631d03315f3b9d020bf31e3a)
+  # commit 9363574db721d2388c7d76a10edb128764872352
+  # Merge: 553a6b82 5e513738
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 1 11:50:16 2024 +0000
+  #     Merge pull request #1302 from kbenzie/benie/cl-binary-type-intermediate
+  #     [CL] Handle INTERMEDIATE binary type
+  set(UNIFIED_RUNTIME_TAG 9363574db721d2388c7d76a10edb128764872352)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

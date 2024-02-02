@@ -48,8 +48,20 @@ jobs:
             target_devices: opencl:gpu
             reset_gpu: true
 
-          - name: OCL CPU
-            runner: '["Linux", "x86-cpu"]'
+          - name: OCL CPU (AMD)
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001
+            target_devices: opencl:cpu
+
+          - name: OCL CPU (Intel/GEN12)
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001
+            target_devices: opencl:cpu
+
+          - name: OCL CPU (Intel/Arc)
+            runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001
             target_devices: opencl:cpu
