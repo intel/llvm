@@ -1303,4 +1303,43 @@ test_slm_gather_scatter(int byte_offset32) {
                                  props_align4);
   slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru_view,
                                  props_align4);
+
+  // Test SLM scatter using this plan:
+  // 1) slm_scatter(offsets): offsets is simd or simd_view
+  // 2) slm_scatter(offsets, mask): offsets is simd or simd_view
+  // 4) slm_scatter(...): same as (1), (2) above, but with VS > 1.
+
+  // 1) slm_scatter(offsets): offsets is simd or simd_view
+  // CHECK-COUNT-2: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm_scatter<float>(ioffset_n32, slm);
+  slm_scatter<float, 32>(ioffset_n32_view, slm);
+
+  // CHECK-COUNT-2: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm_scatter<float>(ioffset_n32, slm, props_align8);
+  slm_scatter<float, 32>(ioffset_n32_view, slm, props_align8);
+
+  // 2) slm_gather(offsets, mask): offsets is simd or simd_view
+  // CHECK-COUNT-2: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm_scatter<float>(ioffset_n32, slm, mask_n32);
+  slm_scatter<float, 32>(ioffset_n32_view, slm, mask_n32);
+
+  // CHECK-COUNT-2: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  slm_scatter<float>(ioffset_n32, slm, mask_n32, props_align8);
+  slm_scatter<float, 32>(ioffset_n32_view, slm, mask_n32, props_align8);
+
+  // 4) slm_gather(...): same as (1), (2), above, but with VS > 1.
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.slm.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32>{{[^)]+}}, i32 0)
+  // 4a) check VS > 1. no 'mask' operand first.
+  slm_scatter<float, 32, 2>(ioffset_n16, slm);
+  slm_scatter<float, 32, 2>(ioffset_n16_view, slm);
+
+  slm_scatter<float, 32, 2>(ioffset_n16, slm, props_align4);
+  slm_scatter<float, 32, 2>(ioffset_n16_view, slm, props_align4);
+
+  // 4b) check VS > 1. Pass the 'mask' operand this time.
+  slm_scatter<float, 32, 2>(ioffset_n16, slm, mask_n16);
+  slm_scatter<float, 32, 2>(ioffset_n16_view, slm, mask_n16);
+
+  slm_scatter<float, 32, 2>(ioffset_n16, slm, mask_n16, props_align4);
+  slm_scatter<float, 32, 2>(ioffset_n16_view, slm, mask_n16, props_align4);
 }
