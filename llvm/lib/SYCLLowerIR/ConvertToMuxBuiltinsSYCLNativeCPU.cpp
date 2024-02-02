@@ -42,19 +42,6 @@ static void fixFunctionAttributes(Function *F) {
   F->addFnAttr("frame-pointer", "none");
 }
 
-// Builtin signature type
-enum class BT_Sig {
-  B1_I32_B1,   // B1(I32, B1)
-  I32_I32_I32, // I32(I32, I32)
-  F64_F64_I32, // F64(F64, I32)
-  F64_F64_F64_I32, // F64(F64, F64, I32)
-};
-
-struct bt_info {
-  BT_Sig type;
-  unsigned args[1];
-};
-
 static inline bool isForVisualStudio(StringRef TripleStr) {
   llvm::Triple Triple(TripleStr);
   return Triple.isKnownWindowsMSVCEnvironment();
@@ -63,36 +50,6 @@ static inline bool isForVisualStudio(StringRef TripleStr) {
 static constexpr char SPIRVBarrier[] = "_Z22__spirv_ControlBarrierjjj";
 static constexpr char SPIRVBarrierWin[] = "?__spirv_ControlBarrier@@YAXIII@Z";
 static constexpr char MuxBarrier[] = "__mux_work_group_barrier";
-
-static FunctionType *getFuncType(BT_Sig FType, LLVMContext &Ctx) {
-  switch (FType) {
-  case BT_Sig::B1_I32_B1:
-    return FunctionType::get(Type::getInt1Ty(Ctx),
-                             {Type::getInt32Ty(Ctx), Type::getInt1Ty(Ctx)},
-                             false);
-  case BT_Sig::I32_I32_I32:
-    return FunctionType::get(Type::getInt32Ty(Ctx),
-                             {Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx)},
-                             false);
-  case BT_Sig::F64_F64_I32: // F64(F64, I32)
-    return FunctionType::get(Type::getDoubleTy(Ctx),
-      { Type::getDoubleTy(Ctx), Type::getInt32Ty(Ctx) },
-      false);
-  case BT_Sig::F64_F64_F64_I32: // F64(F64, F64, I32)
-    return FunctionType::get(Type::getDoubleTy(Ctx),
-      { Type::getDoubleTy(Ctx), Type::getDoubleTy(Ctx), Type::getInt32Ty(Ctx) },
-      false);
-  }
-  report_fatal_error("Unsupported Value in SYCL Native CPU\n");
-  return nullptr;
-}
-
-Function *getReplaceFunc(Module &M, StringRef Name, BT_Sig FType) {
-  LLVMContext &Ctx = M.getContext();
-  auto *MuxFTy = getFuncType(FType, Ctx);
-  auto F = M.getOrInsertFunction(Name, MuxFTy);
-  return cast<Function>(F.getCallee());
-}
 
 Function *getMuxBarrierFunc(Module &M) {
   // void __mux_work_group_barrier(i32 %id, i32 %scope, i32 %semantics)
@@ -164,24 +121,6 @@ static bool replaceBarriers(Module &M, bool VSMangling) {
   SPIRVBarrierFunc->eraseFromParent();
 
   return true;
-}
-
-llvm::SmallVector<llvm::Value *>
-MakeCallArgs(const std::pair<StringRef, bt_info> &E, Module &M,
-             const CallInst &CI) {
-  const auto &ArgInfo = E.second;
-  switch (ArgInfo.type) {
-  case BT_Sig::I32_I32_I32: {
-    return {CI.getArgOperand(0), CI.getArgOperand(1)};
-  }
-  case BT_Sig::F64_F64_I32:
-    return { CI.getArgOperand(0), CI.getArgOperand(1) };
-  case BT_Sig::F64_F64_F64_I32:
-    return { CI.getArgOperand(0), CI.getArgOperand(1), CI.getArgOperand(2) };
-  case BT_Sig::B1_I32_B1: // todo
-  ;//case BT_Sig::I32_void:; // todo
-  }
-  return {};
 }
 
 } // namespace
