@@ -78,9 +78,10 @@ USMFreeImpl([[maybe_unused]] ur_context_handle_t hContext, void *pMem) {
 #else
     const auto Type = hipPointerAttributeType.memoryType;
 #endif
-    UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost,
+    UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost ||
+                  Type == hipMemoryTypeManaged,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-    if (Type == hipMemoryTypeDevice) {
+    if (Type == hipMemoryTypeDevice || Type == hipMemoryTypeManaged) {
       UR_CHECK_ERROR(hipFree(pMem));
     }
     if (Type == hipMemoryTypeHost) {
