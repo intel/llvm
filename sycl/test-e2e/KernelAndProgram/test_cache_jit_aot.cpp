@@ -15,7 +15,8 @@
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 //
-// Now try to substitute the cached image and verify it is actually taken and the code/binary there is executed.
+// Now try to substitute the cached image and verify it is actually taken and
+// the code/binary there is executed.
 // RUN: mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{build_cmd} -DVALUE=2 -o %t.out
@@ -31,7 +32,8 @@
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 //
-// Now try to substitute the cached image and verify it is actually taken and the code/binary there is executed.
+// Now try to substitute the cached image and verify it is actually taken and
+// the code/binary there is executed.
 // RUN: mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{build_cmd} -DVALUE=2 -o %t.out
@@ -47,7 +49,8 @@
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
 //
-// Now try to substitute the cached image and verify it is actually taken and the code/binary there is executed.
+// Now try to substitute the cached image and verify it is actually taken and
+// the code/binary there is executed.
 // RUN: mv %t/cache_dir/*/*/*/*/*.bin %t.value1.bin
 // RUN: rm -rf %t/cache_dir/*
 // RUN: %{build_cmd} -DVALUE=2 -o %t.out
@@ -73,12 +76,12 @@
 int main() {
   for (int i = 0; i < 3; ++i) {
     sycl::buffer<int, 1> b{1};
-    sycl::queue{}.submit([&](sycl::handler &cgh) {
-      sycl::accessor acc{b, cgh};
-      cgh.single_task([=]() {
-        acc[0] = VALUE;
-      });
-    }).wait();
+    sycl::queue{}
+        .submit([&](sycl::handler &cgh) {
+          sycl::accessor acc{b, cgh};
+          cgh.single_task([=]() { acc[0] = VALUE; });
+        })
+        .wait();
     std::cout << "Result (" << i << "): " << sycl::host_accessor{b}[0]
               << std::endl;
   }
