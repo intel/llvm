@@ -3958,7 +3958,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
   static_assert(Alignment >= sizeof(T),
                 "slm_gather() requires at least element-size alignment");
 
-  if constexpr (VS > 1 || (!detail::isPowerOf2(N, 32) &&
+  if constexpr (VS > 1 || (!(detail::isPowerOf2(N, 32) && sizeof(T) <= 4) &&
                            !detail::isMaskedGatherScatterLLVMAvailable())) {
     simd<T, N> PassThru; // Intentionally undefined
     return detail::slm_gather_impl<T, VS, detail::lsc_data_size::default_size>(
@@ -4251,7 +4251,7 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
                 "slm_scatter() requires at least element-size alignment");
 
   // Use LSC lowering if VS > 1.
-  if constexpr (VS > 1) {
+  if constexpr (VS > 1 || !(detail::isPowerOf2(N, 32) && sizeof(T) <= 4)) {
     __ESIMD_DNS::slm_scatter_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, vals, mask);
   } else {
