@@ -19,7 +19,7 @@ namespace utils {
 
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM,
-                                   unsigned OptLevel, bool DisableVecz);
+                                   unsigned OptLevel);
 const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_get_global_id";
 const constexpr char NativeCPUGlobaRange[] =
     "__dpcpp_nativecpu_get_global_range";

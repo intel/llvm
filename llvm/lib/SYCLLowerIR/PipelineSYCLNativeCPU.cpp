@@ -31,26 +31,32 @@
 using namespace llvm;
 using namespace sycl::utils;
 
-cl::opt<bool>
+static cl::opt<bool>
     ForceNoTail("native-cpu-force-no-tail", cl::init(false),
                 cl::desc("Never emit the peeling loop for vectorized kernels,"
                          "even when the local size is not known to be a "
                          "multiple of the vector width"));
 
-cl::opt<bool> IsDebug(
+static cl::opt<bool> IsDebug(
     "native-cpu-debug", cl::init(false),
     cl::desc("Emit extra alloca instructions to preserve the value of live"
              "variables between barriers"));
-cl::opt<unsigned> NativeCPUVeczWidth(
-    "ncpu-vecz-width", cl::init(8),
+
+static cl::opt<unsigned> NativeCPUVeczWidth(
+    "sycl-native-cpu-vecz-width", cl::init(8),
     cl::desc("Vector width for SYCL Native CPU vectorizer, defaults to 8"));
+
+static cl::opt<bool>
+    SYCLNativeCPUNoVecz("sycl-native-cpu-no-vecz", cl::init(false),
+                        cl::desc("Disable vectorizer for SYCL Native CPU"));
+
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
-    llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM, unsigned OptLevel,
-    bool DisableVecz) {
+    llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
+    unsigned OptLevel) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
-  if (OptLevel != 0 && !DisableVecz) {
+  if (OptLevel != 0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
     MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
     auto queryFunc =

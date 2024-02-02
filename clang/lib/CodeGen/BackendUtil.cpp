@@ -127,10 +127,6 @@ static cl::opt<bool> SYCLNativeCPUBackend(
     cl::desc("Run the backend passes for SYCL Native CPU"));
 } // namespace llvm
 
-static cl::opt<bool>
-    SYCLNativeCPUNoVecz("sycl-native-cpu-no-vecz", cl::init(false),
-                        cl::desc("Disable vectorizer for SYCL Native CPU"));
-
 namespace {
 
 // Default filename used for profile generation.
@@ -1082,8 +1078,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (SYCLNativeCPUBackend) {
-      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
-          MPM, MAM, Level.getSpeedupLevel(), SYCLNativeCPUNoVecz);
+      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM,
+                                                       Level.getSpeedupLevel());
     }
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
