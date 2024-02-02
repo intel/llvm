@@ -12,6 +12,9 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "backtrace.hpp"
+#include "device_sanitizer_report.hpp"
+#include "ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -24,6 +27,7 @@ constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
 constexpr int kUsmHostRedzoneMagic = (char)0x82;
 constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
+constexpr int kUsmFreedMagic = (char)0x85;
 
 constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
@@ -102,6 +106,76 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
     return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
+ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
+                                     const void *MemPtr) {
+    ur_device_handle_t Device;
+    [[maybe_unused]] auto Result = context.urDdiTable.USM.pfnGetMemAllocInfo(
+        Context, MemPtr, UR_USM_ALLOC_INFO_DEVICE, sizeof(Device), &Device,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+    return Device;
+}
+
+void ReportBadFree(uptr Addr, std::shared_ptr<USMAllocInfo> AllocInfo) {
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: attempting free on address which "
+        "was not malloc()-ed: {}",
+        Addr);
+
+    if (!AllocInfo) { // maybe Addr is host allocated memory
+        context.logger.always("maybe allocated on Host Memory");
+    } else {
+        switch (AllocInfo->Type) {
+        case USMMemoryType::HOST:
+            context.logger.always("maybe allocated on Host USM here:");
+            break;
+        case USMMemoryType::SHARE:
+            context.logger.always("maybe allocated on Shared USM here:");
+            break;
+        case USMMemoryType::DEVICE:
+            context.logger.always("maybe allocated on Device USM here:");
+            break;
+        default:
+            context.logger.always("maybe allocated on Unknown Memory here:");
+        }
+        for (unsigned i = 0; i < AllocInfo->AllocStack.size(); ++i) {
+            auto Line = AllocInfo->AllocStack[i];
+            context.logger.always(" #{} {}", i, Line);
+        }
+    }
+
+    exit(1);
+}
+
+}
+
+void ReportDoubleFree(uptr Addr, std::vector<BacktraceLine> Stack, std::shared_ptr<USMAllocInfo> AllocInfo) {
+
+}
+
+void ReportUseAfterFree(uptr Addr, std::shared_ptr<USMAllocInfo> AllocInfo) {}
+
+void ReportGenericError(DeviceSanitizerReport &Report,
+                        ur_kernel_handle_t Kernel) {
+    const char *File = Report.File[0] ? Report.File : "<unknown file>";
+    const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
+    auto KernelName = getKernelName(Kernel);
+
+    context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
+                          DeviceSanitizerFormat(Report.ErrorType),
+                          DeviceSanitizerFormat(Report.MemoryType));
+    context.logger.always(
+        "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
+        "{}, {})",
+        Report.IsWrite ? "WRITE" : "READ", Report.AccessSize,
+        KernelName.c_str(), Report.LID0, Report.LID1, Report.LID2, Report.GID0,
+        Report.GID1, Report.GID2);
+    context.logger.always("  #0 {} {}:{}", Func, File, Report.Line);
+    if (!Report.IsRecover) {
+        exit(1);
+    }
+}
+
 } // namespace
 
 SanitizerInterceptor::SanitizerInterceptor()
@@ -173,8 +247,14 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     *ResultPtr = reinterpret_cast<void *>(UserBegin);
 
-    auto AllocInfo = std::make_shared<USMAllocInfo>(
-        USMAllocInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type});
+    auto AllocInfo =
+        std::make_shared<USMAllocInfo>(USMAllocInfo{AllocBegin,
+                                                    UserBegin,
+                                                    UserEnd,
+                                                    NeededSize,
+                                                    Type,
+                                                    GetCurrentBacktrace(),
+                                                    {}});
 
     // For updating shadow memory
     if (DeviceInfo) { // device/shared USM
@@ -210,27 +290,53 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     auto Addr = reinterpret_cast<uptr>(Ptr);
     // Find the last element is not greater than key
-    auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound((uptr)Addr);
+    auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound(Addr);
     if (AllocInfoIt == ContextInfo->AllocatedUSMMap.begin()) {
-        context.logger.error(
-            "Can't find release pointer({}) in AllocatedAddressesMap", Ptr);
+        ReportBadFree(Addr, nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     --AllocInfoIt;
     auto &AllocInfo = AllocInfoIt->second;
-
     context.logger.debug("USMAllocInfo(AllocBegin={}, UserBegin={})",
                          AllocInfo->AllocBegin, AllocInfo->UserBegin);
 
-    if (Addr != AllocInfo->UserBegin) {
-        context.logger.error("Releasing pointer({}) is not match to {}", Ptr,
-                             AllocInfo->UserBegin);
+    auto AllocType = AllocInfo->Type;
+
+    if (AllocType == USMMemoryType::RELEASED) {
+        ReportDoubleFree(Addr, AllocInfo);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    // TODO: Update shadow memory
-    return context.urDdiTable.USM.pfnFree(Context,
-                                          (void *)AllocInfo->AllocBegin);
+    if (Addr != AllocInfo->UserBegin) {
+        ReportBadFree(Addr, AllocInfo);
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    AllocInfo->Type = USMMemoryType::RELEASED;
+    AllocInfo->ReleaseStack = GetCurrentBacktrace();
+
+    auto Device =
+        getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
+
+    // auto Res =
+    //     context.urDdiTable.USM.pfnFree(Context, (void *)AllocInfo->AllocBegin);
+    // if (Res != UR_RESULT_SUCCESS) {
+    //     return Res;
+    // }
+
+    if (AllocType == USMMemoryType::HOST) {
+        for (auto &pair : ContextInfo->DeviceMap) {
+            auto DeviceInfo = pair.second;
+            std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
+            DeviceInfo->AllocInfos.emplace_back(AllocInfo);
+        }
+    } else {
+        auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
+        std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
+        DeviceInfo->AllocInfos.emplace_back(AllocInfo);
+    }
+
+    return UR_RESULT_SUCCESS;
 }
 
 ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
@@ -276,23 +382,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         if (!AH->Flag) {
             return;
         }
-
-        const char *File = AH->File[0] ? AH->File : "<unknown file>";
-        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
-        auto KernelName = getKernelName(Kernel);
-
-        context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
-                              DeviceSanitizerFormat(AH->ErrorType),
-                              DeviceSanitizerFormat(AH->MemoryType));
-        context.logger.always(
-            "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
-            "{}, {})",
-            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, KernelName.c_str(),
-            AH->LID0, AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-        context.logger.always("  #0 {} {}:{}", Func, File, AH->Line);
-        if (!AH->IsRecover) {
-            exit(1);
-        }
+        ReportGenericError(*AH, Kernel);
     }
 }
 
@@ -479,6 +569,13 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ur_queue_handle_t Queue, std::shared_ptr<USMAllocInfo> &AllocInfo,
     ur_event_handle_t &LastEvent) {
+    if (AllocInfo->Type == USMMemoryType::RELEASED) {
+        UR_CALL(enqueueMemSetShadow(Context, Device, Queue,
+                                    AllocInfo->AllocBegin, AllocInfo->AllocSize,
+                                    kUsmFreedMagic, LastEvent, &LastEvent));
+        return UR_RESULT_SUCCESS;
+    }
+
     // Init zero
     UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->AllocBegin,
                                 AllocInfo->AllocSize, 0, LastEvent,
