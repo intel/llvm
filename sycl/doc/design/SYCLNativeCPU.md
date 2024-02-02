@@ -74,7 +74,7 @@ Note that a number of `e2e` tests are currently still failing.
 With the integration of the OneAPI Construction Kit, the SYCL Native CPU target gained support for Whole Function Vectorization.\\
 Whole Function Vectorization is enabled by default, and can be controlled through these compiler options:
 * `-mllvm -sycl-native-cpu-no-vecz`: disable Whole Function Vectorization.
-* `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.
+* `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.\\
 For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details[(#Technical details) section.
 
 ## Ongoing work
