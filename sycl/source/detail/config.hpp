@@ -231,11 +231,7 @@ public:
   }
 };
 
-// Array is used by ONEAPI_DEVICE_SELECTOR.
-const std::array<std::pair<std::string, info::device_type>, 5> &
-getODSDeviceTypeMap();
-
-// Array is used by SYCL_DEVICE_ALLOWLIST.
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
 const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
 
