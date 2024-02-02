@@ -220,6 +220,9 @@
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
+??$ext_oneapi_get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KVnode@experimental@oneapi@ext@12@@Z
+??$ext_oneapi_get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KVnode@experimental@oneapi@ext@12@@Z
+??$ext_oneapi_get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KVnode@experimental@oneapi@ext@12@@Z
 ??$get_property@Vcompute_index@queue@property@intel@ext@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcompute_index@0property@intel@ext@12@XZ
 ??$get_property@Vcontext_bound@buffer@property@_V1@sycl@@@buffer_plain@detail@_V1@sycl@@IEBA?AVcontext_bound@buffer@property@23@XZ
 ??$get_property@Vcontext_bound@buffer@property@_V1@sycl@@@context@_V1@sycl@@QEBA?AVcontext_bound@buffer@property@12@XZ
