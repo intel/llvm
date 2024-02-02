@@ -60,12 +60,17 @@ Compilation::~Compilation() {
       delete Arg.second;
 }
 
-static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D) {
-  if (!OffloadArgList || (!OffloadArgList->hasArg(options::OPT_Xarch_device) &&
-                          !OffloadArgList->hasArg(options::OPT_Xarch_host)))
+static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D,
+                            bool IsDevice) {
+  if (!OffloadArgList)
     return;
 
-  bool IsDevice = OffloadArgList->hasArg(options::OPT_Xarch_device);
+  if (IsDevice && !OffloadArgList->hasArg(options::OPT_Xarch_device))
+    return;
+
+  if (!IsDevice && !OffloadArgList->hasArg(options::OPT_Xarch_host))
+    return;
+
   bool NeedHandle = false;
   std::vector<std::string> XarchValues;
   XarchValues = IsDevice
@@ -77,7 +82,7 @@ static void HandleXarchArgs(DerivedArgList *OffloadArgList, const Driver &D) {
       NeedHandle = true;
       StringRef XarchVRef(XarchV);
       SmallVector<StringRef, 8> XarchVecs;
-      XarchVRef.split(XarchVecs, ' ', -1, false);
+      XarchVRef.trim().split(XarchVecs, ' ', -1, false);
       size_t Index;
       const size_t XSize = XarchVecs.size();
       for (Index = 0; Index < XSize; ++Index) {
@@ -117,7 +122,6 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     TC = &DefaultToolChain;
 
   DerivedArgList *&Entry = TCArgs[{TC, BoundArch, DeviceOffloadKind}];
-  HandleXarchArgs(TranslatedArgs, getDriver());
   if (!Entry) {
     SmallVector<Arg *, 4> AllocatedArgs;
     DerivedArgList *OffloadArgs = nullptr;
@@ -133,9 +137,11 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
 
     DerivedArgList *NewDAL = nullptr;
     if (!OffloadArgs) {
+      HandleXarchArgs(TranslatedArgs, getDriver(), false);
       NewDAL = TC->TranslateXarchArgs(*TranslatedArgs, BoundArch,
                                       DeviceOffloadKind, &AllocatedArgs);
     } else {
+      HandleXarchArgs(OffloadArgs, getDriver(), true);
       NewDAL = TC->TranslateXarchArgs(*OffloadArgs, BoundArch, DeviceOffloadKind,
                                       &AllocatedArgs);
       if (!NewDAL)
