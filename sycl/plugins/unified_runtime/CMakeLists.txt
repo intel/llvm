@@ -5,9 +5,9 @@
 # source code.
 # DO-NOT-MERGE: Temporary UR tag override for intel/llvm CI testing.
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
-  "https://github.com/GeorgeWeb/unified-runtime.git" CACHE STRING "Override the Unified Runtime FetchContent repository")
+  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
-  "7fdaed24b7f5dd4b81471e444ce923b43591bf39" CACHE STRING "Override the Unified Runtime FetchContent tag")
+  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
 # to improve developer workflow.
@@ -58,14 +58,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d06ba9d9c539dc712444c6db95dfe1629bd5f7d8
-  # Merge:  e1414e1 35b6a5e
+  # commit cd97e172cbbfc411fccb0b80e0fff6f9126574f4
+  # Merge: bd745d10 2a9ded6f
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 11 15:09:01 2024 +0000
-  #     Merge pull request #1035 from Bensuo/cmd-buffer-profiling-l0
-  #     [EXP][CMDBUF] Add support for recovering CommandBuffer profiling
-  #     information
-  set(UNIFIED_RUNTIME_TAG d06ba9d9c539dc712444c6db95dfe1629bd5f7d8)
+  # Date:   Fri Feb 2 14:24:16 2024 +0000
+  #     Merge pull request #1249 from GeorgeWeb/georgi/hip_memadvise_coarse_grained
+  #     [HIP] Implement coarse-grained memory advice for the HIP adapter
+  set(UNIFIED_RUNTIME_TAG cd97e172cbbfc411fccb0b80e0fff6f9126574f4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
