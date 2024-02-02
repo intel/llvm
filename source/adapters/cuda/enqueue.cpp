@@ -237,7 +237,7 @@ setKernelParams(const ur_context_handle_t Context,
 
         if (hasExceededMaxRegistersPerBlock(Device, Kernel,
                                             KernelLocalWorkGroupSize)) {
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+          return UR_RESULT_ERROR_OUT_OF_RESOURCES;
         }
       } else {
         guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
