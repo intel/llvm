@@ -381,4 +381,4 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
         -DUMF_ENABLE_POOL_TRACKING=ON
     - name: Build
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+      run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)
