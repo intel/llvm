@@ -22,7 +22,7 @@ extern "C" __attribute__((weak)) void __asan_init(void);
 
 namespace ur_sanitizer_layer {
 
-bool IsInASanContext() { return __asan_init != nullptr; }
+bool IsInASanContext() { return (void *)__asan_init != nullptr; }
 
 static bool ReserveShadowMem(uptr Addr, uptr Size) {
     Size = RoundUpTo(Size, EXEC_PAGESIZE);
@@ -71,15 +71,11 @@ bool DestroyShadowMem() {
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {
-    void *handle = dlopen(LIBC_SO, RTLD_LAZY);
+    void *handle = dlopen(LIBC_SO, RTLD_NOLOAD);
     if (!handle) {
-        return (void *)nullptr;
+        return nullptr;
     }
-    void *ptr = dlsym(handle, FuncName);
-    if (!ptr) {
-        return (void *)nullptr;
-    }
-    return ptr;
+    return dlsym(handle, FuncName);
 }
 
 } // namespace ur_sanitizer_layer
