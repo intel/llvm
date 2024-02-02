@@ -1700,7 +1700,6 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     unsigned int ElementSize,
     std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
-  (void)Size;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Context->getPlugin();
@@ -1708,13 +1707,24 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
   }
-  if (Dim <= 1) {
+
+  // 2D and 3D buffers accessors can't have custom range or the data will
+  // likely be discontiguous.
+  bool RangesUsable = (Dim <= 1) || (Size == AccessRange);
+  // For 2D and 3D buffers, the offset must be 0, or the data will be
+  // discontiguous.
+  bool OffsetUsable = (Dim <= 1) || (AccessOffset == sycl::id<3>{0, 0, 0});
+  size_t RangeMultiplier = AccessRange[0] * AccessRange[1] * AccessRange[2];
+
+  if (RangesUsable && OffsetUsable) {
     Plugin->call<PiApiKind::piextCommandBufferMemBufferFill>(
         CommandBuffer, pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
         PatternSize, AccessOffset[0] * ElementSize,
-        AccessRange[0] * ElementSize, Deps.size(), Deps.data(), OutSyncPoint);
+        RangeMultiplier * ElementSize, Deps.size(), Deps.data(), OutSyncPoint);
     return;
   }
+  // The sycl::handler uses a parallel_for kernel in the case of unusable
+  // Range or Offset, not CG:Fill. So we should not be here.
   throw runtime_error("Not supported configuration of fill requested",
                       PI_ERROR_INVALID_OPERATION);
 }
