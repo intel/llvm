@@ -4174,9 +4174,9 @@ inline pi_result piextSyncPointGetProfilingInfo(
     return PI_ERROR_INVALID_PROPERTY;
   }
 
-  HANDLE_ERRORS(urSyncPointGetProfilingInfoExp(UREvent, SyncPoint, PropName,
-                                               ParamValueSize, ParamValue,
-                                               ParamValueSizeRet));
+  HANDLE_ERRORS(urEventGetSyncPointProfilingInfoExp(
+      UREvent, SyncPoint, PropName, ParamValueSize, ParamValue,
+      ParamValueSizeRet));
 
   return PI_SUCCESS;
 }
