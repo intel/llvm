@@ -686,9 +686,8 @@ sycl::detail::pi::PiDeviceBinaryType
 getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   auto MatchMagicNumber = [&](auto Number) {
-    if (ImgSize < sizeof(Number))
-      return false;
-    return std::memcmp(ImgData, &Number, sizeof(Number)) == 0;
+    return ImgSize >= sizeof(Number) &&
+           std::memcmp(ImgData, &Number, sizeof(Number)) == 0;
   };
 
   if (MatchMagicNumber(uint32_t{0x07230203}))
@@ -703,22 +702,21 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
 
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
-  if (ImgSize < 18 || !MatchMagicNumber(uint32_t{0x464c457F}))
-    return PI_DEVICE_BINARY_TYPE_NONE;
+  if (ImgSize >= 18 && MatchMagicNumber(uint32_t{0x464c457F})) {
+    uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
+    if (ELFHdrType == 0xFF04)
+      // OpenCL executable.
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
 
-  uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
-  if (ELFHdrType == 0xFF04)
-    // OpenCL executable.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
+    if (ELFHdrType == 0xFF12)
+      // ZEBIN executable.
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
 
-  if (ELFHdrType == 0xFF12)
-    // ZEBIN executable.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
-
-  // Newer ZEBIN format does not have a special header type, but can instead
-  // be identified by having a required .ze_info section.
-  if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
+    // Newer ZEBIN format does not have a special header type, but can instead
+    // be identified by having a required .ze_info section.
+    if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
+  }
 
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
