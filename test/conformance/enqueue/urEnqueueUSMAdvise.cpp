@@ -68,3 +68,11 @@ TEST_P(urEnqueueUSMAdviseTest, InvalidSizeTooLarge) {
                      urEnqueueUSMAdvise(queue, ptr, allocation_size * 2,
                                         UR_USM_ADVICE_FLAG_DEFAULT, nullptr));
 }
+
+TEST_P(urEnqueueUSMAdviseTest, NonCoherentDeviceMemorySuccessOrWarning) {
+    ur_result_t result =
+        urEnqueueUSMAdvise(queue, ptr, allocation_size,
+                           UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY, nullptr);
+    ASSERT_EQ(result,
+              result & (UR_RESULT_SUCCESS | UR_RESULT_ERROR_ADAPTER_SPECIFIC));
+}
