@@ -149,9 +149,11 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 42
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 43
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1424,8 +1426,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 /// Gets the native handle of a PI mem object.
 ///
 /// \param mem is the PI mem to get the native handle of.
+/// \param dev is the PI device that the native allocation will be resident on
 /// \param nativeHandle is the native handle of mem.
-__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                                 pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.

@@ -1,0 +1,91 @@
+name: SYCL E2E
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        type: string
+        required: True
+      runner:
+        type: string
+        required: True
+
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        type: string
+        default: ''
+      ref:
+        type: string
+        required: False
+
+      sycl_toolchain_artifact:
+        type: string
+        default: 'sycl_windows_default'
+        required: False
+      sycl_toolchain_archive:
+        type: string
+        default: ''
+        required: False
+
+      env:
+        type: string
+        default: '{}'
+        required: False
+jobs:
+  run:
+    name: ${{ inputs.name }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    environment: WindowsCILock
+    env: ${{ fromJSON(inputs.env) }}
+    steps:
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    # TODO: use cached_checkout
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        ref: ${{ inputs.ref || github.sha }}
+        path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
+    - name: Download compiler toolchain
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.sycl_toolchain_artifact }}
+    - name: Extract SYCL toolchain
+      shell: bash
+      run: |
+        mkdir install
+        tar -xf ${{ inputs.sycl_toolchain_archive }} -C install
+        rm ${{ inputs.sycl_toolchain_archive }}
+    - name: Setup SYCL toolchain
+      run: |
+        echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - run: |
+        sycl-ls
+    - run: |
+        sycl-ls --verbose
+    - name: Configure E2E with Level Zero target
+      shell: cmd
+      run: |
+        mkdir build-e2e
+        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="ext_oneapi_level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
+    - name: Run End-to-End tests
+      shell: bash
+      run: |
+        # Run E2E tests.
+        export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
+        cmake --build build-e2e --target check-sycl-e2e
+    - name: Cleanup
+      shell: cmd
+      if: always()
+      run: |
+        rmdir /q /s install
+        rmdir /q /s build-e2e

@@ -109,4 +109,16 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fmaf_rz(float x, float y, float z) {
   return __fp_fma(x, y, z, __IML_RTZ);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rd(float x) { return __fp_sqrt(x, __IML_RTN); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rn(float x) { return __fp_sqrt(x, __IML_RTE); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_ru(float x) { return __fp_sqrt(x, __IML_RTP); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rz(float x) { return __fp_sqrt(x, __IML_RTZ); }
 #endif

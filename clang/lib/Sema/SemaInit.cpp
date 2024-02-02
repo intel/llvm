@@ -5497,7 +5497,7 @@ static void TryOrBuildParenListInitialization(
         return;
     }
     //   ...and value-initialized for each k < i <= n;
-    if (ArrayLength > Args.size()) {
+    if (ArrayLength > Args.size() || Entity.isVariableLengthArrayNew()) {
       InitializedEntity SubEntity = InitializedEntity::InitializeElement(
           S.getASTContext(), Args.size(), Entity);
       InitializationKind SubKind = InitializationKind::CreateValue(
@@ -8492,6 +8492,10 @@ Sema::CreateMaterializeTemporaryExpr(QualType T, Expr *Temporary,
   // are done in both CreateMaterializeTemporaryExpr and MaybeBindToTemporary,
   // but there may be a chance to merge them.
   Cleanup.setExprNeedsCleanups(false);
+  if (isInLifetimeExtendingContext()) {
+    auto &Record = ExprEvalContexts.back();
+    Record.ForRangeLifetimeExtendTemps.push_back(MTE);
+  }
   return MTE;
 }
 
@@ -10742,7 +10746,14 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
     bool HasAnyDeductionGuide = false;
 
     auto SynthesizeAggrGuide = [&](InitListExpr *ListInit) {
-      auto *RD = cast<CXXRecordDecl>(Template->getTemplatedDecl());
+      auto *Pattern = Template;
+      while (Pattern->getInstantiatedFromMemberTemplate()) {
+        if (Pattern->isMemberSpecialization())
+          break;
+        Pattern = Pattern->getInstantiatedFromMemberTemplate();
+      }
+
+      auto *RD = cast<CXXRecordDecl>(Pattern->getTemplatedDecl());
       if (!(RD->getDefinition() && RD->isAggregate()))
         return;
       QualType Ty = Context.getRecordType(RD);
