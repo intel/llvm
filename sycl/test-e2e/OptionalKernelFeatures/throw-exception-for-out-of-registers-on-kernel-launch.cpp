@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "sycl/info/info_desc.hpp"
 #include <numeric>
 #include <string_view>
 #include <type_traits>
@@ -25,7 +26,7 @@
 class kernel_vadd_and_sum;
 
 int main() {
-  sycl::queue q;
+  sycl::queue q{};
   sycl::device dev = q.get_device();
   size_t local_size = dev.get_info<sycl::info::device::max_work_group_size>();
   if (local_size < 1024u) {
@@ -61,6 +62,23 @@ int main() {
 
   sycl::buffer<sycl::vec<elem_t, VEC_DIM>> outputBuf{GLOBAL_WORK_SIZE};
 
+  // Temp info
+  {
+    auto b = sycl::get_kernel_bundle<kernel_vadd_and_sum,
+                                     sycl::bundle_state::executable>(
+        q.get_context());
+    auto k = b.template get_kernel<kernel_vadd_and_sum>();
+    // maximum work-group size for the kernel
+    auto maxWGSize{k.template get_info<
+        sycl::info::kernel_device_specific::work_group_size>(q.get_device())};
+    std::cout << "TestKernel max WG size on this device: " << maxWGSize << '\n';
+    // number of used registers in the kernel
+    auto numRegs{k.template get_info<
+        sycl::info::kernel_device_specific::ext_codeplay_num_regs>(
+        q.get_device())};
+    std::cout << "TestKernel num Regs used by this kernel: " << numRegs << '\n';
+  }
+
   try {
     q.submit([&](sycl::handler &h) {
        auto input1 = valuesBuf1.get_access<sycl::access::mode::read>(h);
@@ -79,6 +97,8 @@ int main() {
              // compute vector add
              const auto vadd = values1 + values2 + values3 + values4;
 
+             // NB: 64 registers used to do the vector addition.
+
              // compute total vector elements sum
              auto sum = elem_t(0);
              for (int j = 0; j < VEC_DIM; j++) {
@@ -91,11 +111,11 @@ int main() {
              output[i] = vadd;
              output[i] += sum;
            });
-     }).wait();
-  } catch (sycl::exception &e) {
+     }).wait_and_throw();
+  } catch (const sycl::exception &e) {
     using std::string_view_literals::operator""sv;
     auto Msg = "Exceeded the number of registers available on the hardware."sv;
-    if (std::string(e.what()).find(Msg) != std::string::npos) {
+    if (std::string_view{e.what()}.find(Msg) != std::string_view::npos) {
       return 0;
     }
   }
