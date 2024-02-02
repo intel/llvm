@@ -3,7 +3,6 @@
 
 # Options to override the default behaviour of the FetchContent to include UR
 # source code.
-# DO-NOT-MERGE: Temporary UR tag override for intel/llvm CI testing.
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
   "" CACHE STRING "Override the Unified Runtime FetchContent repository")
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
