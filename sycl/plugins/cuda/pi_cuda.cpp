@@ -17,7 +17,12 @@
 #include <sycl/detail/pi.hpp>
 
 // Forward declarations
-void enableCUDATracing();
+struct cuda_tracing_context_t_;
+
+void enableCUDATracing(cuda_tracing_context_t_ *ctx);
+void disableCUDATracing(cuda_tracing_context_t_ *ctx);
+cuda_tracing_context_t_ *createCUDATracingContext();
+void freeCUDATracingContext(cuda_tracing_context_t_ *Ctx);
 
 //-- PI API implementation
 extern "C" {
@@ -228,8 +233,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                  HostPtr, RetImage);
 }
 
-pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+                                  pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -1237,7 +1243,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   std::memset(&(PluginInit->PiFunctionTable), 0,
               sizeof(PluginInit->PiFunctionTable));
 
-  enableCUDATracing();
+  cuda_tracing_context_t_ *Ctx = createCUDATracingContext();
+  enableCUDATracing(Ctx);
 
 // Forward calls to CUDA RT.
 #define _PI_API(api)                                                           \
