@@ -5,8 +5,7 @@
 
 #include <sycl/sycl.hpp>
 
-template <typename... Ts, typename FuncTy>
-void TestTypes(FuncTy F) {
+template <typename... Ts, typename FuncTy> void TestTypes(FuncTy F) {
   (F(Ts{}), ...);
 }
 
