@@ -700,14 +700,6 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     // 'I', 'N', 'T', 'C' ; Intel native
     return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
-  if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
-    // "ar" format is used to pack binaries for multiple devices, e.g. via
-    //
-    //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
-    //
-    // option.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
-
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
   if (ImgSize >= 18 && MatchMagicNumber(uint32_t{0x464c457F})) {
@@ -725,6 +717,14 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
       return PI_DEVICE_BINARY_TYPE_NATIVE;
   }
+
+  if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
+    // "ar" format is used to pack binaries for multiple devices, e.g. via
+    //
+    //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
+    //
+    // option.
+    return PI_DEVICE_BINARY_TYPE_NATIVE;
 
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
