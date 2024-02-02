@@ -147,6 +147,7 @@ piextQueueCreate
 piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
 piextSignalExternalSemaphore
+piextSyncPointGetProfilingInfo
 piextUSMDeviceAlloc
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
