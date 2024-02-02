@@ -1,14 +1,13 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if (level_zero && linux) %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
-// RUN: %if (level_zero && windows) %{env UR_L0_LEAKS_DEBUG=1 env SYCL_ENABLE_DEFAULT_CONTEXTS=0 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero  %{ %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Tests a dotp operation using device USM and an in-order queue with empty
 // nodes. The second run is to check that there are no leaks reported with the
-// embedded UR_L0_LEAKS_DEBUG=1 testing capability.
+// embedded UR_L0_LEAKS_DEBUG=1 ( %{l0_leak_check} ) testing capability.
 
 #include "../graph_common.hpp"
 
