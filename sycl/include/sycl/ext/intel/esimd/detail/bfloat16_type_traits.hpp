@@ -94,8 +94,6 @@ inline std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
   return O;
 }
 
-template <> struct is_esimd_arithmetic_type<bfloat16, void> : std::true_type {};
-
 } // namespace ext::intel::esimd::detail
 } // namespace _V1
 } // namespace sycl

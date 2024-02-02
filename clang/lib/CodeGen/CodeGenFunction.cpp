@@ -1628,7 +1628,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   }
 
   // Check if we should generate debug info for this function.
-  if (FD->hasAttr<NoDebugAttr>()) {
+  if (FD->hasAttr<NoDebugAttr>() || noSystemDebugInfo(FD, CGM)) {
     // Clear non-distinct debug info that was possibly attached to the function
     // due to an earlier declaration without the nodebug attribute
     Fn->setSubprogram(nullptr);
@@ -2686,6 +2686,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::Decltype:
     case Type::Auto:
     case Type::DeducedTemplateSpecialization:
+    case Type::PackIndexing:
       // Stop walking: nothing to do.
       return;
 

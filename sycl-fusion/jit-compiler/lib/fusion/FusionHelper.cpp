@@ -22,8 +22,8 @@ static Metadata *getConstantIntMD(llvm::LLVMContext &LLVMContext, T Val) {
 }
 
 static Metadata *getConstantMD(llvm::LLVMContext &LLVMCtx,
-                               llvm::StringRef Data) {
-  return MDString::get(LLVMCtx, Data);
+                               const jit_compiler::DynArray<char> &Data) {
+  return MDString::get(LLVMCtx, StringRef{Data.begin(), Data.size()});
 }
 
 static Metadata *getMDParam(LLVMContext &LLVMCtx,
@@ -108,10 +108,11 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
       // Attach ND-range of the fused kernel
       assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
-      F->setMetadata(SYCLKernelFusion::NDRangeMDKey, MDFromND(FF.FusedNDRange));
+      F->setMetadata(SYCLKernelFusion::NDRangeMDKey,
+                     MDFromND(FF.FusedNDRange.getNDR()));
 
       // Attach ND-ranges of each kernel to be fused
-      const auto SrcNDRanges = FF.NDRanges;
+      const auto SrcNDRanges = FF.FusedNDRange.getNDRanges();
       SmallVector<Metadata *> Nodes;
       std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
                      std::back_inserter(Nodes), MDFromND);
