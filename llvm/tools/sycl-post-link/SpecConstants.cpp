@@ -1004,9 +1004,11 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
 
   unsigned Offset = 0;
   for (const auto *Node : N->operands()) {
-    auto *Constant = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
-    collectCompositeElementsDefaultValuesRecursive(M, Constant, Offset,
-                                                   DefaultValues);
+    if (Node->getOperand(0)) {
+      auto *Constant = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
+      collectCompositeElementsDefaultValuesRecursive(M, Constant, Offset,
+                                                     DefaultValues);
+    }
   }
 
   return true;
