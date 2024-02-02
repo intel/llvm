@@ -21,16 +21,7 @@
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-#define NOMINMAX
-
-#include <windows.h>
-inline int ur_getpid(void) { return static_cast<int>(GetCurrentProcessId()); }
-#else
-
-#include <unistd.h>
-inline int ur_getpid(void) { return static_cast<int>(getpid()); }
-#endif
+int ur_getpid(void);
 
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)
@@ -63,7 +54,6 @@ inline int ur_getpid(void) { return static_cast<int>(getpid()); }
 #if defined(_WIN32)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
 #else
-#define HMODULE void *
 #if defined(__APPLE__)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
 #else
@@ -95,29 +85,7 @@ inline std::string create_library_path(const char *name, const char *path) {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-inline std::optional<std::string> ur_getenv(const char *name) {
-#if defined(_WIN32)
-    constexpr int buffer_size = 1024;
-    char buffer[buffer_size];
-    auto rc = GetEnvironmentVariableA(name, buffer, buffer_size);
-    if (0 != rc && rc < buffer_size) {
-        return std::string(buffer);
-    } else if (rc >= buffer_size) {
-        std::stringstream ex_ss;
-        ex_ss << "Environment variable " << name << " value too long!"
-              << " Maximum length is " << buffer_size - 1 << " characters.";
-        throw std::invalid_argument(ex_ss.str());
-    }
-    return std::nullopt;
-#else
-    const char *tmp_env = getenv(name);
-    if (tmp_env != nullptr) {
-        return std::string(tmp_env);
-    } else {
-        return std::nullopt;
-    }
-#endif
-}
+std::optional<std::string> ur_getenv(const char *name);
 
 inline bool getenv_tobool(const char *name) {
     auto env = ur_getenv(name);
@@ -297,5 +265,15 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
 }
 
 template <class> inline constexpr bool ur_always_false_t = false;
+
+namespace ur {
+[[noreturn]] inline void unreachable() {
+#ifdef _MSC_VER
+    __assume(0);
+#else
+    __builtin_unreachable();
+#endif
+}
+} // namespace ur
 
 #endif /* UR_UTIL_H */

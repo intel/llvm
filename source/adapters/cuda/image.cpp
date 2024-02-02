@@ -146,7 +146,7 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
           std::make_pair(image_channel_type, num_channels));
       cuda_format = cuda_format_and_size.first;
       pixel_size_bytes = cuda_format_and_size.second;
-    } catch (std::out_of_range &e) {
+    } catch (const std::out_of_range &) {
       return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
     }
   }
@@ -239,29 +239,38 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 
   try {
     /// pi_sampler_properties
+    /// Layout of UR samplers for CUDA
+    ///
+    /// Sampler property layout:
     /// |     <bits>     | <usage>
     /// -----------------------------------
-    /// |  31 30 ... 6   | N/A
-    /// |       5        | mip filter mode
-    /// |     4 3 2      | addressing mode
+    /// |  31 30 ... 12  | N/A
+    /// |       11       | mip filter mode
+    /// |    10 9 8      | addressing mode 3
+    /// |     7 6 5      | addressing mode 2
+    /// |     4 3 2      | addressing mode 1
     /// |       1        | filter mode
     /// |       0        | normalize coords
     CUDA_TEXTURE_DESC ImageTexDesc = {};
-    CUaddress_mode AddrMode = {};
-    ur_sampler_addressing_mode_t AddrModeProp = hSampler->getAddressingMode();
-    if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
-                         UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_CLAMP;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_BORDER;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_WRAP;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_MIRROR;
+    CUaddress_mode AddrMode[3];
+    for (size_t i = 0; i < 3; i++) {
+      ur_sampler_addressing_mode_t AddrModeProp =
+          hSampler->getAddressingModeDim(i);
+      if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
+                           UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_CLAMP;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_BORDER;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_WRAP;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_MIRROR;
+      }
     }
+
     CUfilter_mode FilterMode;
     ur_sampler_filter_mode_t FilterModeProp = hSampler->getFilterMode();
     FilterMode =
@@ -276,16 +285,17 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     ImageTexDesc.mipmapFilterMode = MipFilterMode;
     ImageTexDesc.maxMipmapLevelClamp = hSampler->MaxMipmapLevelClamp;
     ImageTexDesc.minMipmapLevelClamp = hSampler->MinMipmapLevelClamp;
-    ImageTexDesc.maxAnisotropy = hSampler->MaxAnisotropy;
+    ImageTexDesc.maxAnisotropy = static_cast<unsigned>(hSampler->MaxAnisotropy);
 
-    // The address modes can interfere with other dimensionsenqueueEventsWait
+    // The address modes can interfere with other dimensions
     // e.g. 1D texture sampling can be interfered with when setting other
     // dimension address modes despite their nonexistence.
-    ImageTexDesc.addressMode[0] = AddrMode; // 1D
-    ImageTexDesc.addressMode[1] =
-        pImageDesc->height > 0 ? AddrMode : ImageTexDesc.addressMode[1]; // 2D
+    ImageTexDesc.addressMode[0] = AddrMode[0]; // 1D
+    ImageTexDesc.addressMode[1] = pImageDesc->height > 0
+                                      ? AddrMode[1]
+                                      : ImageTexDesc.addressMode[1]; // 2D
     ImageTexDesc.addressMode[2] =
-        pImageDesc->depth > 0 ? AddrMode : ImageTexDesc.addressMode[2]; // 3D
+        pImageDesc->depth > 0 ? AddrMode[2] : ImageTexDesc.addressMode[2]; // 3D
 
     // flags takes the normalized coordinates setting -- unnormalized is default
     ImageTexDesc.flags = (hSampler->isNormalizedCoords())

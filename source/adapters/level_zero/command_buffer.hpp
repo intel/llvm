@@ -19,6 +19,11 @@
 #include "context.hpp"
 #include "queue.hpp"
 
+struct command_buffer_profiling_t {
+  ur_exp_command_buffer_sync_point_t NumEvents;
+  ze_kernel_timestamp_result_t *Timestamps;
+};
+
 struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
                                   ur_device_handle_t Device,

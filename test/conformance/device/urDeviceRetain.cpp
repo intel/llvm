@@ -20,8 +20,6 @@ TEST_F(urDeviceRetainTest, Success) {
         /* If device is a root level device, the device reference counts should
          * remain unchanged */
         ASSERT_EQ(prevRefCount, refCount);
-
-        EXPECT_SUCCESS(urDeviceRelease(device));
     }
 }
 
@@ -42,7 +40,7 @@ TEST_F(urDeviceRetainTest, SuccessSubdevices) {
             1,
         };
 
-        ur_device_handle_t sub_device;
+        ur_device_handle_t sub_device = nullptr;
         ASSERT_SUCCESS(
             urDevicePartition(device, &properties, 1, &sub_device, nullptr));
 
@@ -56,6 +54,7 @@ TEST_F(urDeviceRetainTest, SuccessSubdevices) {
 
         ASSERT_LT(prevRefCount, refCount);
 
+        EXPECT_SUCCESS(urDeviceRelease(sub_device));
         EXPECT_SUCCESS(urDeviceRelease(sub_device));
     }
 }

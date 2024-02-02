@@ -17,7 +17,7 @@ struct PlatformEnvironment : ::testing::Environment {
 
     struct PlatformOptions {
         std::string platform_name;
-        unsigned long platforms_count;
+        unsigned long platforms_count = 0;
     };
 
     PlatformEnvironment(int argc, char **argv);
@@ -39,7 +39,7 @@ struct DevicesEnvironment : PlatformEnvironment {
 
     struct DeviceOptions {
         std::string device_name;
-        unsigned long devices_count;
+        unsigned long devices_count = 0;
     };
 
     DevicesEnvironment(int argc, char **argv);
@@ -74,6 +74,12 @@ struct KernelsEnvironment : DevicesEnvironment {
 
     void LoadSource(const std::string &kernel_name, uint32_t device_index,
                     std::shared_ptr<std::vector<char>> &binary_out);
+
+    ur_result_t CreateProgram(ur_platform_handle_t hPlatform,
+                              ur_context_handle_t hContext,
+                              ur_device_handle_t hDevice,
+                              const std::vector<char> &binary,
+                              ur_program_handle_t *phProgram);
 
     std::vector<std::string> GetEntryPointNames(std::string program);
 

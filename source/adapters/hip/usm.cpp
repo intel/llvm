@@ -15,6 +15,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "ur_util.hpp"
 #include "usm.hpp"
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
@@ -72,7 +73,11 @@ USMFreeImpl([[maybe_unused]] ur_context_handle_t hContext, void *pMem) {
   try {
     hipPointerAttribute_t hipPointerAttributeType;
     UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
-    unsigned int Type = hipPointerAttributeType.memoryType;
+#if HIP_VERSION >= 50600000
+    const auto Type = hipPointerAttributeType.type;
+#else
+    const auto Type = hipPointerAttributeType.memoryType;
+#endif
     UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
     if (Type == hipMemoryTypeDevice) {
@@ -170,7 +175,11 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_SHARED);
       }
       UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+#if HIP_VERSION >= 50600000
+      Value = hipPointerAttributeType.type;
+#else
       Value = hipPointerAttributeType.memoryType;
+#endif
       UR_ASSERT(Value == hipMemoryTypeDevice || Value == hipMemoryTypeHost,
                 UR_RESULT_ERROR_INVALID_MEM_OBJECT);
       if (Value == hipMemoryTypeDevice) {
@@ -182,12 +191,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         return ReturnValue(UR_USM_TYPE_HOST);
       }
       // should never get here
-#ifdef _MSC_VER
-      __assume(0);
-#else
-      __builtin_unreachable();
-#endif
-      return ReturnValue(UR_USM_TYPE_UNKNOWN);
+      ur::unreachable();
     }
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer

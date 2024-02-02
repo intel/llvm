@@ -67,16 +67,14 @@ if(UR_OPENCL_ICD_LOADER_LIBRARY)
     set(OpenCLICDLoaderLibrary ${UR_OPENCL_ICD_LOADER_LIBRARY})
 else()
     find_package(OpenCL 3.0)
-    if(OpenCL_FOUND)
-        set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
-    else()
+    if(NOT OpenCL_FOUND)
         FetchContent_Declare(OpenCL-ICD-Loader
             GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git"
             GIT_TAG         main
         )
         FetchContent_MakeAvailable(OpenCL-ICD-Loader)
-        set(OpenCLICDLoaderLibrary ${PROJECT_BINARY_DIR}/lib/libOpenCL.so)
     endif()
+    set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
 endif()
 
 message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")

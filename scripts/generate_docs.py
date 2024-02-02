@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022 Intel Corporation
+ Copyright (C) 2022-2024 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -209,6 +209,7 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
         fout = os.path.join(dstpath, "api.rst")
         groupname = os.path.basename(dstpath).capitalize()
         util.makoWrite(fin, fout,
+            namespace=namespace,
             groupname=groupname,
             ver=ver,
             rev=rev,
@@ -262,7 +263,7 @@ def generate_html(dstpath):
     if result.returncode != 0:
         print("sphinx-build returned non-zero error code.")
         print("--- output ---")
-        print(result.stderr.read().decode())
+        print(result.stderr.decode())
         raise Exception("Failed to generate html documentation.")
 
 """
@@ -277,7 +278,7 @@ def generate_pdf(dstpath):
     if result.returncode != 0:
         print("sphinx-build returned non-zero error code.")
         print("--- output ---")
-        print(result.stderr.read().decode())
+        print(result.stderr.decode())
         raise Exception("Failed to generate pdf documentation.")
 
 """

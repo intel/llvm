@@ -11,7 +11,11 @@
 #include "program.hpp"
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
+#ifdef UR_COMGR_VERSION4_INCLUDE
+#include <amd_comgr.h>
+#else
 #include <amd_comgr/amd_comgr.h>
+#endif
 namespace {
 template <typename ReleaseType, ReleaseType Release, typename T>
 struct COMgrObjCleanUp {
@@ -74,6 +78,15 @@ void getCoMgrBuildLog(const amd_comgr_data_set_t BuildDataSet, char *BuildLog,
 } // namespace
 #endif
 
+std::pair<std::string, std::string>
+splitMetadataName(const std::string &metadataName) {
+  size_t splitPos = metadataName.rfind('@');
+  if (splitPos == std::string::npos)
+    return std::make_pair(metadataName, std::string{});
+  return std::make_pair(metadataName.substr(0, splitPos),
+                        metadataName.substr(splitPos, metadataName.length()));
+}
+
 ur_result_t
 ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
                                   size_t Length) {
@@ -81,10 +94,19 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
     const ur_program_metadata_t MetadataElement = Metadata[i];
     std::string MetadataElementName{MetadataElement.pName};
 
+    auto [Prefix, Tag] = splitMetadataName(MetadataElementName);
+
     if (MetadataElementName ==
         __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION) {
       assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
       IsRelocatable = MetadataElement.value.data32;
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
+      const char *MetadataValPtr =
+          reinterpret_cast<const char *>(MetadataElement.value.pData) +
+          sizeof(std::uint64_t);
+      const char *MetadataValPtrEnd =
+          MetadataValPtr + MetadataElement.size - sizeof(std::uint64_t);
+      GlobalIDMD[Prefix] = std::string{MetadataValPtr, MetadataValPtrEnd};
     }
   }
   return UR_RESULT_SUCCESS;

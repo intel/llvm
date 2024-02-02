@@ -6,13 +6,16 @@ on:
     # At 23:00 on Friday, GitHub actions schedule is in UTC time.
     - cron: 0 23 * * 5
 
+permissions:
+  contents: read
+
 jobs:
   weekly-prerelease:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Create weekly prerelease
         run:

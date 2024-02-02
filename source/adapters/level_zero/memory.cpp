@@ -1856,6 +1856,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t Mem, ///< [in] handle of the mem.
+    ur_device_handle_t,  ///< [in] handle of the device.
     ur_native_handle_t
         *NativeMem ///< [out] a pointer to the native handle of the mem.
 ) {

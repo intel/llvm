@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "ur_api.h"
 #include "ur_level_zero.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -41,6 +42,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  auto ZeDevice = Queue->Device->ZeDevice;
+
+  ze_kernel_handle_t ZeKernel{};
+  if (Kernel->ZeKernelMap.empty()) {
+    ZeKernel = Kernel->ZeKernel;
+  } else {
+    auto It = Kernel->ZeKernelMap.find(ZeDevice);
+    if (It == Kernel->ZeKernelMap.end()) {
+      /* kernel and queue don't match */
+      return UR_RESULT_ERROR_INVALID_QUEUE;
+    }
+    ZeKernel = It->second;
+  }
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
@@ -51,7 +65,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
-               (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
+               (ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
                 GlobalWorkOffset[2]));
   }
 
@@ -65,18 +79,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                         Queue->Device));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
-               (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
+               (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
   Kernel->PendingArguments.clear();
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
 
-  // global_work_size of unused dimensions must be set to 1
-  UR_ASSERT(WorkDim == 3 || GlobalWorkSize[2] == 1,
-            UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(WorkDim >= 2 || GlobalWorkSize[1] == 1,
-            UR_RESULT_ERROR_INVALID_VALUE);
+  // New variable needed because GlobalWorkSize parameter might not be of size 3
+  size_t GlobalWorkSize3D[3]{1, 1, 1};
+  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
+
   if (LocalWorkSize) {
     // L0
     UR_ASSERT(LocalWorkSize[0] < (std::numeric_limits<uint32_t>::max)(),
@@ -93,14 +106,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // values do not fit to 32-bit that the API only supports currently.
     bool SuggestGroupSize = true;
     for (int I : {0, 1, 2}) {
-      if (GlobalWorkSize[I] > UINT32_MAX) {
+      if (GlobalWorkSize3D[I] > UINT32_MAX) {
         SuggestGroupSize = false;
       }
     }
     if (SuggestGroupSize) {
       ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (Kernel->ZeKernel, GlobalWorkSize[0], GlobalWorkSize[1],
-                  GlobalWorkSize[2], &WG[0], &WG[1], &WG[2]));
+                 (ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
+                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
     } else {
       for (int I : {0, 1, 2}) {
         // Try to find a I-dimension WG size that the GlobalWorkSize[I] is
@@ -110,11 +123,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize[I]);
-        while (GlobalWorkSize[I] % GroupSize[I]) {
+        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
+        while (GlobalWorkSize3D[I] % GroupSize[I]) {
           --GroupSize[I];
         }
-        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
+        if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
           urPrint("urEnqueueKernelLaunch: can't find a WG size "
                   "suitable for global work size > UINT32_MAX\n");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -131,22 +144,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   switch (WorkDim) {
   case 3:
     ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize[0] / WG[0]);
+        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
     ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize[1] / WG[1]);
+        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
     ZeThreadGroupDimensions.groupCountZ =
-        static_cast<uint32_t>(GlobalWorkSize[2] / WG[2]);
+        static_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
     break;
   case 2:
     ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize[0] / WG[0]);
+        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
     ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize[1] / WG[1]);
+        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
     WG[2] = 1;
     break;
   case 1:
     ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize[0] / WG[0]);
+        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
     WG[1] = WG[2] = 1;
     break;
 
@@ -156,26 +169,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   // Error handling for non-uniform group size case
-  if (GlobalWorkSize[0] !=
+  if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
     urPrint("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 1st dimension\n");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
-  if (GlobalWorkSize[1] !=
+  if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
     urPrint("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 2nd dimension\n");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
-  if (GlobalWorkSize[2] !=
+  if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
     urPrint("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 3rd dimension\n");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
-  ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   bool UseCopyEngine = false;
   _ur_ze_event_list_t TmpWaitList;
@@ -227,18 +240,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     Queue->CaptureIndirectAccesses();
     // Add the command to the command list, which implies submission.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*Event)->WaitList.Length,
-                (*Event)->WaitList.ZeEventList));
+               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
+                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   } else {
     // Add the command to the command list for later submission.
     // No lock is needed here, unlike the immediate commandlist case above,
     // because the kernels are not actually submitted yet. Kernels will be
     // submitted only when the comamndlist is closed. Then, a lock is held.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*Event)->WaitList.Length,
-                (*Event)->WaitList.ZeEventList));
+               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
+                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
@@ -363,22 +374,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  ZeStruct<ze_kernel_desc_t> ZeKernelDesc;
-  ZeKernelDesc.flags = 0;
-  ZeKernelDesc.pKernelName = KernelName;
-
-  ze_kernel_handle_t ZeKernel;
-  ZE2UR_CALL(zeKernelCreate, (Program->ZeModule, &ZeKernelDesc, &ZeKernel));
-
   try {
-    ur_kernel_handle_t_ *UrKernel =
-        new ur_kernel_handle_t_(ZeKernel, true, Program);
+    ur_kernel_handle_t_ *UrKernel = new ur_kernel_handle_t_(true, Program);
     *RetKernel = reinterpret_cast<ur_kernel_handle_t>(UrKernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
+  for (auto It : Program->ZeModuleMap) {
+    auto ZeModule = It.second;
+    ZeStruct<ze_kernel_desc_t> ZeKernelDesc;
+    ZeKernelDesc.flags = 0;
+    ZeKernelDesc.pKernelName = KernelName;
+
+    ze_kernel_handle_t ZeKernel;
+    ZE2UR_CALL(zeKernelCreate, (ZeModule, &ZeKernelDesc, &ZeKernel));
+
+    auto ZeDevice = It.first;
+
+    // Store the kernel in the ZeKernelMap so the correct
+    // kernel can be retrieved later for a specific device
+    // where a queue is being submitted.
+    (*RetKernel)->ZeKernelMap[ZeDevice] = ZeKernel;
+    (*RetKernel)->ZeKernels.push_back(ZeKernel);
+
+    // If the device used to create the module's kernel is a root-device
+    // then store the kernel also using the sub-devices, since application
+    // could submit the root-device's kernel to a sub-device's queue.
+    uint32_t SubDevicesCount = 0;
+    zeDeviceGetSubDevices(ZeDevice, &SubDevicesCount, nullptr);
+    std::vector<ze_device_handle_t> ZeSubDevices(SubDevicesCount);
+    zeDeviceGetSubDevices(ZeDevice, &SubDevicesCount, ZeSubDevices.data());
+    for (auto ZeSubDevice : ZeSubDevices) {
+      (*RetKernel)->ZeKernelMap[ZeSubDevice] = ZeKernel;
+    }
+  }
+
+  (*RetKernel)->ZeKernel = (*RetKernel)->ZeKernelMap.begin()->second;
 
   UR_CALL((*RetKernel)->initialize());
 
@@ -396,6 +430,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 ) {
   std::ignore = Properties;
 
+  UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
   // in which case a NULL value will be used as the value for the argument
   // declared as a pointer to global or constant memory in the kernel"
@@ -409,8 +445,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   }
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  ZE2UR_CALL(zeKernelSetArgumentValue,
-             (Kernel->ZeKernel, ArgIndex, ArgSize, PArgValue));
+  if (Kernel->ZeKernelMap.empty()) {
+    auto ZeKernel = Kernel->ZeKernel;
+    ZE2UR_CALL(zeKernelSetArgumentValue,
+               (ZeKernel, ArgIndex, ArgSize, PArgValue));
+  } else {
+    for (auto It : Kernel->ZeKernelMap) {
+      auto ZeKernel = It.second;
+      ZE2UR_CALL(zeKernelSetArgumentValue,
+                 (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    }
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -596,16 +641,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
 
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (Kernel->ZeKernel));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      return ze2urResult(ZeResult);
+    for (auto &ZeKernel : Kernel->ZeKernels) {
+      auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+      // Gracefully handle the case that L0 was already unloaded.
+      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        return ze2urResult(ZeResult);
+    }
   }
+  Kernel->ZeKernelMap.clear();
   if (IndirectAccessTrackingEnabled) {
     UR_CALL(urContextRelease(KernelProgram->Context));
   }
-  // do a release on the program this kernel was part of
-  UR_CALL(urProgramRelease(KernelProgram));
+  // do a release on the program this kernel was part of without delete of the
+  // program handle
+  KernelProgram->ur_release_program_resources(false);
+
   delete Kernel;
 
   return UR_RESULT_SUCCESS;
@@ -639,6 +689,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
   std::ignore = PropSize;
   std::ignore = Properties;
 
+  auto ZeKernel = Kernel->ZeKernel;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
       *(static_cast<const ur_bool_t *>(PropValue)) == true) {
@@ -649,7 +700,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-    ZE2UR_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
+    ZE2UR_CALL(zeKernelSetIndirectAccess, (ZeKernel, IndirectFlags));
   } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
     ze_cache_config_flag_t ZeCacheConfig{};
     auto CacheConfig =
@@ -663,7 +714,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     else
       // Unexpected cache configuration value.
       return UR_RESULT_ERROR_INVALID_VALUE;
-    ZE2UR_CALL(zeKernelSetCacheConfig, (Kernel->ZeKernel, ZeCacheConfig););
+    ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
   } else {
     urPrint("urKernelSetExecInfo: unsupported ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;

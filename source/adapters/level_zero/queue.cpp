@@ -281,35 +281,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *Queue ///< [out] pointer to handle of queue object created
 ) {
-
-  // Make the Device appear as the first device in the context since this
-  // is where the urProgramBuild will only build the module to. Also, if
-  // the Device is a sub-device then see if there is a also its root-device
-  // in the context and make that go first instead (because sub-device can
-  // run code built for its root-device).
-  //
-  // TODO: this is all hacky and should be removed when we add support
-  // for building to all the devices in the context.
-  //
-  { // Lock context for thread-safe update
-    std::scoped_lock<ur_shared_mutex> Lock(Context->Mutex);
-    UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
-
-    auto MakeFirst = Context->Devices.begin();
-    for (auto I = Context->Devices.begin(); I != Context->Devices.end(); ++I) {
-      if (*I == Device) {
-        MakeFirst = I;
-        if (!Device->RootDevice)
-          break;
-        // continue the search for possible root-device in the context
-      } else if (*I == Device->RootDevice) {
-        MakeFirst = I;
-        break; // stop the search
-      }
-    }
-    if (MakeFirst != Context->Devices.begin())
-      std::iter_swap(MakeFirst, Context->Devices.begin());
-  }
   ur_queue_flags_t Flags{};
   if (Props) {
     Flags = Props->flags;
@@ -327,6 +298,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
       }
     }
   }
+
+  UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
@@ -438,7 +411,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
       return Res;
 
     // Make sure all commands get executed.
-    Queue->synchronize();
+    UR_CALL(Queue->synchronize());
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -654,7 +627,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
 
-    UrQueue->synchronize();
+    UR_CALL(UrQueue->synchronize());
   } else {
     std::unique_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
     std::vector<ze_command_queue_handle_t> ZeQueues;
@@ -1241,7 +1214,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (UrL0Serialize & UrL0SerializeBlock) != 0) {
     if (UsingImmCmdLists) {
-      synchronize();
+      UR_CALL(synchronize());
     } else {
       // Wait until command lists attached to the command queue are executed.
       ZE2UR_CALL(zeHostSynchronize, (ZeCommandQueue));
@@ -1445,7 +1418,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
         for (auto &QueueGroup : QueueMap) {
           if (UsingImmCmdLists) {
             for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
-              syncImmCmdList(this, ImmCmdList);
+              UR_CALL(syncImmCmdList(this, ImmCmdList));
           } else {
             for (auto &ZeQueue : QueueGroup.second.ZeQueues)
               if (ZeQueue)
