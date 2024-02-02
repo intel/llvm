@@ -812,8 +812,8 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
          if (LocalID == 0) {
            for (int I = 0; I < Threads * N; I += 8) {
              simd<T, 8> InVec(In + GlobalElemOffset + I);
-             simd<uint32_t, 8> offsets(I * sizeof(T), sizeof(T));
-             scatter<T>(InAcc, offsets, InVec);
+             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
+             scatter<T>(InAcc, Offsets, InVec);
            }
          }
          barrier();

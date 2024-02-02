@@ -3061,7 +3061,7 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 /// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask,
 ///                   PropertyListT props = {});                   // (acc-ga-2)
-/// Supported platforms: DG2, PVC in most cases. The DG2/PVC is not required if
+/// Supported platforms: DG2, PVC in most cases. DG2/PVC is not required if
 /// VS == 1 and no L1/L2 cache hints used and sizeof(T) <= 4 and N = {1,8,16,32}
 ///
 /// Loads ("gathers") elements of the type 'T' from memory locations addressed
@@ -3129,7 +3129,7 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 ///                   PropertyListT props = {});                   // (acc-ga-3)
-/// Supported platforms: DG2, PVC in most cases. The DG2/PVC is not required if
+/// Supported platforms: DG2, PVC in most cases. DG2/PVC is not required if
 /// VS == 1 and no L1/L2 cache hints used and sizeof(T) <= 4 and N = {1,8,16,32}
 ///
 /// Loads ("gathers") elements of the type 'T' from memory locations addressed
@@ -7421,7 +7421,7 @@ __ESIMD_API
 ///
 /// The next 3 functions are similar to (lacc-ga-1,2,3), but they don't have
 /// the template parameter 'VS'. These functions are added for convenience and
-/// to make it possible for user to omit the template parameters T and N,
+/// to make it possible for the user to omit the template parameters T and N,
 /// e.g. 'auto res = gather(acc, byte_offsets);
 /// template <typename T, int N, typename AccessorT,
 ///           typename PropertyListT = empty_properties_t>
@@ -7498,7 +7498,7 @@ gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 /// simd<T, N> gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N / VS> mask,
 ///                   PropertyListT props = {});                  // (lacc-ga-2)
-/// Supported platforms: DG2, PVC in most cases. The DG2/PVC is not required if
+/// Supported platforms: DG2, PVC in most cases. DG2/PVC is not required if
 /// VS == 1 and the __ESIMD_GATHER_SCATTER_LLVM_IR macro is used or sizeof(T) <=
 /// 4 and N = {1,2,4,8,16,32}
 ///
@@ -7541,7 +7541,7 @@ gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 ///           typename PropertyListT = empty_properties_t>
 /// simd<T, N> gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 ///                   PropertyListT props = {});                  // (lacc-ga-3)
-/// Supported platforms: DG2, PVC in most cases. The DG2/PVC is not required if
+/// Supported platforms: DG2, PVC in most cases. DG2/PVC is not required if
 /// VS == 1 and the __ESIMD_GATHER_SCATTER_LLVM_IR macro is used or sizeof(T) <=
 /// 4 and N = {1,2,4,8,16,32}
 ///
@@ -7581,9 +7581,9 @@ gather(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
 ///                   simd_mask<N> mask, simd<T, N> pass_thru,
 ///                   PropertyListT props = {});                  // (lacc-ga-4)
 /// This function is identical to (lacc-ga-1) except that vector size is fixed
-/// to 1. This variant is added for convenience and let user omit the template
-/// arguments and call the function as
-/// 'gather(acc, byte_offsets, mask, pass_thru);'.
+/// to 1. This variant is added for convenience and lets the user omit the
+/// template arguments and call the function as 'gather(acc, byte_offsets, mask,
+/// pass_thru);'.
 // Dev note: the mask type was turned into template parameter `MaskT` to
 // avoid the conflicts of this prototype with the old gather() function
 // accepting a 'global_offset' parameter and avoid 'ambiguous call' errors
