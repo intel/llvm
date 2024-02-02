@@ -252,7 +252,7 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     /// |       1        | filter mode
     /// |       0        | normalize coords
     CUDA_TEXTURE_DESC ImageTexDesc = {};
-    CUaddress_mode AddrMode[3];
+    CUaddress_mode AddrMode[3] = {};
     for (size_t i = 0; i < 3; i++) {
       ur_sampler_addressing_mode_t AddrModeProp =
           hSampler->getAddressingModeDim(i);
