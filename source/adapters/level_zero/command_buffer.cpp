@@ -45,13 +45,13 @@
   │  Prefix  │ Commands added to UR command-buffer by UR user │ Suffix  │
   └──────────┴────────────────────────────────────────────────┴─────────┘
 
-            ┌───────────────────┬──────────────────────────────┐
-  Prefix    │Reset signal event │ Barrier waiting on wait event│
-            └───────────────────┴──────────────────────────────┘
+            ┌───────────────────┬──────────────┐──────────────────────────────┐
+  Prefix    │Reset signal event │ Reset events │ Barrier waiting on wait event│
+            └───────────────────┴──────────────┘──────────────────────────────┘
 
             ┌─────────────────────────────────────────────┐──────────────┐
-  Suffix    │Barrier waiting on sync-point event,         │ Reset events │
-            │signalling the UR command-buffer signal event│              │
+  Suffix    │Barrier waiting on sync-point event,         │  Query CMD   │
+            │signalling the UR command-buffer signal event│  Timestamps  │
             └─────────────────────────────────────────────┘──────────────┘
 
   For a call to `urCommandBufferEnqueueExp` with an event_list `EL`,
@@ -379,6 +379,48 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   return UR_RESULT_SUCCESS;
 }
 
+// Helper function for enqueuing memory fills
+static ur_result_t enqueueCommandBufferFillHelper(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  // Pattern size must be a power of two.
+  UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Pattern size must fit the compute queue capabilities.
+  UR_ASSERT(
+      PatternSize <=
+          CommandBuffer->Device
+              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+              .ZeProperties.maxMemoryFillPatternSize,
+      UR_RESULT_ERROR_INVALID_VALUE);
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = CommandType;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryFill,
+             (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
+              LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+
+  urPrint("calling zeCommandListAppendMemoryFill() with"
+          "  ZeEvent %#lx\n",
+          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
@@ -391,6 +433,10 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
+  // Dependencies between commands are explicitly enforced by sync points when
+  // enqueuing. Consequently, relax the command ordering in the command list
+  // can enable the backend to further optimize the workload
+  ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
 
   ze_command_list_handle_t ZeCommandList;
   // TODO We could optimize this by pooling both Level Zero command-lists and UR
@@ -451,18 +497,6 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   ZE2UR_CALL(zeCommandListAppendBarrier,
              (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent,
               NumEvents, WaitEventList.data()));
-
-  // Reset the wait-event for the UR command-buffer that is signalled when its
-  // submission dependencies have been satisfied.
-  ZE2UR_CALL(zeCommandListAppendEventReset,
-             (CommandBuffer->ZeCommandList, CommandBuffer->WaitEvent->ZeEvent));
-
-  // Reset the L0 events we use for command-buffer internal sync-points to the
-  // non-signalled state
-  for (auto Event : WaitEventList) {
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandBuffer->ZeCommandList, Event));
-  }
 
   // Close the command list and have it ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
@@ -683,6 +717,141 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
       SyncPointWaitList, SyncPoint);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
+    ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  std::ignore = Flags;
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  if (NumSyncPointsInWaitList) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                ZeEventList.data()));
+  }
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = UR_COMMAND_USM_PREFETCH;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  // Add the prefetch command to the command buffer.
+  // Note that L0 does not handle migration flags.
+  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+             (CommandBuffer->ZeCommandList, Mem, Size));
+
+  // Level Zero does not have a completion "event" with the prefetch API,
+  // so manually add command to signal our event.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
+    ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  // A memory chunk can be advised with muliple memory advices
+  // We therefore prefer if statements to switch cases to combine all potential
+  // flags
+  uint32_t Value = 0;
+  if (Advice & UR_USM_ADVICE_FLAG_SET_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_CACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_CACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_UNCACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_UNCACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+
+  ze_memory_advice_t ZeAdvice = static_cast<ze_memory_advice_t>(Value);
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  if (NumSyncPointsInWaitList) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (CommandBuffer->ZeCommandList, NumSyncPointsInWaitList,
+                ZeEventList.data()));
+  }
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = UR_COMMAND_USM_ADVISE;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  ZE2UR_CALL(zeCommandListAppendMemAdvise,
+             (CommandBuffer->ZeCommandList, CommandBuffer->Device->ZeDevice,
+              Mem, Size, ZeAdvice));
+
+  // Level Zero does not have a completion "event" with the advise API,
+  // so manually add command to signal our event.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandBuffer->ZeCommandList, LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
+    const void *Pattern, size_t PatternSize, size_t Offset, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+
+  std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
+
+  char *ZeHandleDst = nullptr;
+  _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
+  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                                CommandBuffer->Device));
+
+  return enqueueCommandBufferFillHelper(
+      UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, ZeHandleDst + Offset,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, void *Ptr,
+    const void *Pattern, size_t PatternSize, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+
+  return enqueueCommandBufferFillHelper(
+      UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, Ptr,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t Queue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
@@ -722,13 +891,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create command-list to execute before `CommandListPtr` and will signal
   // when `EventWaitList` dependencies are complete.
   ur_command_list_ptr_t WaitCommandList{};
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList, false,
+                                                  false));
+
+  // Create a list of events of all the events that compose the command buffer
+  // workload.
+  // This loop also resets the L0 events we use for command-buffer internal
+  // sync-points to the non-signalled state.
+  // This is required for multiple submissions.
+  const size_t NumEvents = CommandBuffer->SyncPoints.size();
+  std::vector<ze_event_handle_t> WaitEventList{NumEvents};
+  for (size_t i = 0; i < NumEvents; i++) {
+    auto ZeEvent = CommandBuffer->SyncPoints[i]->ZeEvent;
+    WaitEventList[i] = ZeEvent;
+    ZE2UR_CALL(zeCommandListAppendEventReset,
+               (WaitCommandList->first, ZeEvent));
+  }
+
   if (NumEventsInWaitList) {
     _ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
-
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false))
 
     // Update the WaitList of the Wait Event
     // Events are appended to the WaitList if the WaitList is not empty
@@ -742,9 +925,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                 CommandBuffer->WaitEvent->WaitList.Length,
                 CommandBuffer->WaitEvent->WaitList.ZeEventList));
   } else {
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false));
-
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
   }
@@ -753,17 +933,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ur_event_handle_t RetEvent{};
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
-  if (Event) {
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
-                                                    false, false));
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
+                                                  false, false));
+  // Reset the wait-event for the UR command-buffer that is signalled when its
+  // submission dependencies have been satisfied.
+  ZE2UR_CALL(zeCommandListAppendEventReset,
+             (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
 
+  if (Event) {
     UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
                                          UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
                                          SignalCommandList, false));
 
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (SignalCommandList->first, RetEvent->ZeEvent, 1,
-                &(CommandBuffer->SignalEvent->ZeEvent)));
+    if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      // Multiple submissions of a command buffer implies that we need to save
+      // the event timestamps before resubmiting the command buffer. We
+      // therefore copy the these timestamps in a dedicated USM memory section
+      // before completing the command buffer execution, and then attach this
+      // memory to the event returned to users to allow to allow the profiling
+      // engine to recover these timestamps.
+      command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
+
+      Profiling->NumEvents = WaitEventList.size();
+      Profiling->Timestamps =
+          new ze_kernel_timestamp_result_t[Profiling->NumEvents];
+
+      ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
+                 (SignalCommandList->first, WaitEventList.size(),
+                  WaitEventList.data(), (void *)Profiling->Timestamps, 0,
+                  RetEvent->ZeEvent, 1,
+                  &(CommandBuffer->SignalEvent->ZeEvent)));
+
+      RetEvent->CommandData = static_cast<void *>(Profiling);
+    } else {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (SignalCommandList->first, RetEvent->ZeEvent, 1,
+                  &(CommandBuffer->SignalEvent->ZeEvent)));
+    }
   }
 
   // Execution our command-lists asynchronously

@@ -10,3 +10,6 @@ add_unit_test(getenv
 add_unit_test(params
     params.cpp
 )
+
+add_unit_test(print
+    print.cpp)

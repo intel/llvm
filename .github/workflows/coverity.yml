@@ -23,6 +23,8 @@ env:
   COVERITY_SCAN_BRANCH_PATTERN:      "main"
   TRAVIS_BRANCH:                     ${{ github.ref_name }}
 
+permissions:
+  contents: read
 
 jobs:
   linux:
@@ -31,7 +33,7 @@ jobs:
 
     steps:
       - name: Clone the git repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
@@ -51,6 +53,7 @@ jobs:
           -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so
           -DUR_BUILD_ADAPTER_NATIVE_CPU=ON
           -DUR_BUILD_ADAPTER_HIP=ON
+          -DUR_BUILD_ADAPTER_OPENCL=ON
 
       - name: Run Coverity
         run: |

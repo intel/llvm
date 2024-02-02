@@ -770,6 +770,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnMemBufferPartition_t)(
 /// @brief Function-pointer for urMemGetNativeHandle
 typedef ur_result_t(UR_APICALL *ur_pfnMemGetNativeHandle_t)(
     ur_mem_handle_t,
+    ur_device_handle_t,
     ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

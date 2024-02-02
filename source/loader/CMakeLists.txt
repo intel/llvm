@@ -89,6 +89,7 @@ target_sources(ur_loader
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_codeloc.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_print.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_valddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_validation_layer.cpp
 )
@@ -98,6 +99,30 @@ if(UR_ENABLE_TRACING)
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_tracing_layer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_trcddi.cpp
+    )
+endif()
+
+if(UR_ENABLE_SANITIZER)
+    target_sources(ur_loader
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
+    )
+
+    target_sources(ur_loader
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/san_utils.cpp
+    )
+
+    target_include_directories(ur_loader PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../"
     )
 endif()
 

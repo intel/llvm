@@ -124,13 +124,18 @@ add_ur_adapter(${TARGET_NAME}
 
 # TODO: fix level_zero adapter conversion warnings
 target_compile_options(${TARGET_NAME} PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/wd4267 /wd4805 /wd4244 /D_CRT_SECURE_NO_WARNINGS>
+    $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
+
+if (WIN32)
+ # 0x800: Search for the DLL only in the System32 folder
+ target_link_options(ur_adapter_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
+endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers

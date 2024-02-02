@@ -13,10 +13,8 @@
 #include <cassert>
 #include <ur_util.hpp>
 
-namespace {
-
-size_t GetHipFormatPixelSize(hipArray_Format Format) {
-  switch (Format) {
+size_t imageElementByteSize(hipArray_Format ArrayFormat) {
+  switch (ArrayFormat) {
   case HIP_AD_FORMAT_UNSIGNED_INT8:
   case HIP_AD_FORMAT_SIGNED_INT8:
     return 1;
@@ -31,9 +29,8 @@ size_t GetHipFormatPixelSize(hipArray_Format Format) {
   default:
     detail::ur::die("Invalid HIP format specifier");
   }
+  return 0;
 }
-
-} // namespace
 
 /// Decreases the reference count of the Mem object.
 /// If this is zero, calls the relevant HIP Free function
@@ -245,7 +242,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           UR_CHECK_ERROR(
               hipArray3DGetDescriptor(&ArrayDescriptor, Mem.getArray(Device)));
           const auto PixelSizeBytes =
-              GetHipFormatPixelSize(ArrayDescriptor.Format) *
+              imageElementByteSize(ArrayDescriptor.Format) *
               ArrayDescriptor.NumChannels;
           const auto ImageSizeBytes =
               PixelSizeBytes *
@@ -282,16 +279,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 /// \param[out] phNativeMem Set to the native handle of the UR mem object.
 ///
 /// \return UR_RESULT_SUCCESS
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(ur_mem_handle_t,
-                                                         ur_native_handle_t *) {
-  // FIXME: there is no good way of doing this with a multi device context.
-  // If we return a single pointer, how would we know which device's allocation
-  // it should be?
-  // If we return a vector of pointers, this is OK for read only access but if
-  // we write to a buffer, how would we know which one had been written to?
-  // Should unused allocations be updated afterwards? We have no way of knowing
-  // any of these things in the current API design.
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
+                     ur_native_handle_t *phNativeMem) {
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  if (sizeof(BufferMem::native_type) > sizeof(ur_native_handle_t)) {
+    // Check that all the upper bits that cannot be represented by
+    // ur_native_handle_t are empty.
+    // NOTE: The following shift might trigger a warning, but the check in the
+    // if above makes sure that this does not underflow.
+    BufferMem::native_type UpperBits =
+        std::get<BufferMem>(hMem->Mem).getPtr(Device) >>
+        (sizeof(ur_native_handle_t) * CHAR_BIT);
+    if (UpperBits) {
+      // Return an error if any of the remaining bits is non-zero.
+      return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+    }
+  }
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+      std::get<BufferMem>(hMem->Mem).getPtr(Device));
+#elif defined(__HIP_PLATFORM_AMD__)
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+      std::get<BufferMem>(hMem->Mem).getPtr(Device));
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
@@ -405,25 +418,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
       }
     };
 
-    const auto hipFormatToElementSize =
-        [](hipArray_Format HipFormat) -> size_t {
-      switch (HipFormat) {
-      case HIP_AD_FORMAT_UNSIGNED_INT8:
-      case HIP_AD_FORMAT_SIGNED_INT8:
-        return 1;
-      case HIP_AD_FORMAT_UNSIGNED_INT16:
-      case HIP_AD_FORMAT_SIGNED_INT16:
-      case HIP_AD_FORMAT_HALF:
-        return 2;
-      case HIP_AD_FORMAT_UNSIGNED_INT32:
-      case HIP_AD_FORMAT_SIGNED_INT32:
-      case HIP_AD_FORMAT_FLOAT:
-        return 4;
-      default:
-        detail::ur::die("Invalid Hip format specified.");
-      }
-    };
-
     switch (propName) {
     case UR_IMAGE_INFO_FORMAT:
       return ReturnValue(ur_image_format_t{UR_IMAGE_CHANNEL_ORDER_RGBA,
@@ -435,7 +429,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
     case UR_IMAGE_INFO_DEPTH:
       return ReturnValue(ArrayInfo.Depth);
     case UR_IMAGE_INFO_ELEMENT_SIZE:
-      return ReturnValue(hipFormatToElementSize(ArrayInfo.Format));
+      return ReturnValue(imageElementByteSize(ArrayInfo.Format));
     case UR_IMAGE_INFO_ROW_PITCH:
     case UR_IMAGE_INFO_SLICE_PITCH:
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
@@ -458,9 +452,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
   return UR_RESULT_SUCCESS;
 }
 
-inline ur_result_t
-allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
-                               const ur_device_handle_t hDevice) {
+ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
+                                           const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 

@@ -86,3 +86,7 @@ out/
 
 # External content
 */**/external
+
+# VS clangd
+/.cache
+/compile_commands.json

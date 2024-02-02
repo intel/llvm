@@ -1654,12 +1654,15 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device that the native handle will be resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
     ) try {
@@ -1669,7 +1672,7 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnGetNativeHandle(hMem, phNativeMem);
+    return pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
@@ -2885,6 +2888,9 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, `phProgram` will
+///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
+///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
 ///
 /// @remarks
 ///   _Analogues_

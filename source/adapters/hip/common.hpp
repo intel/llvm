@@ -10,28 +10,47 @@
 #pragma once
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
+#ifdef UR_COMGR_VERSION4_INCLUDE
+#include <amd_comgr.h>
+#else
 #include <amd_comgr/amd_comgr.h>
+#endif
 #endif
 #include <hip/hip_runtime.h>
 #include <ur/ur.hpp>
 
-// Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
-// indexed, but on NVidia it is an opaque type and needs to go through
-// cuArrayGetDescriptor so implement a utility function to get the array
-// properties
-inline void getArrayDesc(hipArray *Array, hipArray_Format &Format,
-                         size_t &Channels) {
+// Before ROCm 6, hipify doesn't support cuArrayGetDescriptor, on AMD the
+// hipArray can just be indexed, but on NVidia it is an opaque type and needs to
+// go through cuArrayGetDescriptor so implement a utility function to get the
+// array properties
+inline static hipError_t getArrayDesc(hipArray *Array, hipArray_Format &Format,
+                                      size_t &Channels) {
+#if HIP_VERSION_MAJOR >= 6
+  HIP_ARRAY_DESCRIPTOR ArrayDesc;
+  hipError_t err = hipArrayGetDescriptor(&ArrayDesc, Array);
+  if (err == hipSuccess) {
+    Format = ArrayDesc.Format;
+    Channels = ArrayDesc.NumChannels;
+  }
+  return err;
+#else
 #if defined(__HIP_PLATFORM_AMD__)
   Format = Array->Format;
   Channels = Array->NumChannels;
+  return hipSuccess;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
   CUDA_ARRAY_DESCRIPTOR ArrayDesc;
-  cuArrayGetDescriptor(&ArrayDesc, (CUarray)Array);
-
-  Format = ArrayDesc.Format;
-  Channels = ArrayDesc.NumChannels;
+  CUresult err = cuArrayGetDescriptor(&ArrayDesc, (CUarray)Array);
+  if (err == CUDA_SUCCESS) {
+    Format = ArrayDesc.Format;
+    Channels = ArrayDesc.NumChannels;
+    return hipSuccess;
+  } else {
+    return hipErrorUnknown; // No easy way to map CUerror to hipError
+  }
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
 #endif
 }
 

@@ -6,6 +6,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   ubuntu-build:
     name: Build - Ubuntu
@@ -36,7 +39,7 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install apt packages
       run: |
@@ -65,7 +68,7 @@ jobs:
       if: matrix.os == 'ubuntu-22.04'
       run: |
         sudo apt install libncurses5
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-09-21/sycl_linux.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
         mkdir -p ${{github.workspace}}/dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C ${{github.workspace}}/dpcpp_compiler
 
@@ -122,7 +125,7 @@ jobs:
     runs-on: 'ubuntu-22.04'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
@@ -163,10 +166,11 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: CUDA, triplet: nvptx64-nvidia-cuda, platform: ""},
-          {name: HIP, triplet: amdgcn-amd-amdhsa, platform: ""},
-          {name: L0, triplet: spir64, platform: ""},
-          {name: OPENCL, triplet: spir64, platform: "Intel(R) OpenCL"}
+          {name: CUDA, platform: ""},
+          {name: HIP, platform: ""},
+          {name: L0, platform: ""},
+          {name: OPENCL, platform: "Intel(R) OpenCL"},
+          {name: NATIVE_CPU, platform: ""}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -174,14 +178,14 @@ jobs:
     runs-on: ${{matrix.adapter.name}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
     - name: Download DPC++
       run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-09-21/sycl_linux.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
@@ -198,8 +202,7 @@ jobs:
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
-        -DUR_CONFORMANCE_TARGET_TRIPLES=${{matrix.adapter.triplet}}
-        ${{ matrix.adapter.name == 'HIP' && '-DAMD_ARCH=gfx1030' || '' }} 
+        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }} 
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
@@ -228,7 +231,8 @@ jobs:
 
   examples-build-hw:
     name: Build - examples on HW
-    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    # if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    if: false  # temporaily disabled due to conda env setup issues
     strategy:
       matrix:
         adapter: [
@@ -240,13 +244,13 @@ jobs:
     runs-on: ${{matrix.adapter.name}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
     
     - name: Init conda env
-      uses: conda-incubator/setup-miniconda@v2
+      uses: conda-incubator/setup-miniconda@9f54435e0e72c53962ee863144e47a4b094bfd35 # v2.3.0
       with:
           miniconda-version: "latest"
           activate-environment: examples
@@ -306,9 +310,9 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
       with:
         python-version: 3.9
 
@@ -357,9 +361,9 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
       with:
         python-version: 3.9
 

@@ -161,8 +161,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 /// \param[out] phNativeMem Set to the native handle of the UR mem object.
 ///
 /// \return UR_RESULT_SUCCESS
-UR_APIEXPORT ur_result_t UR_APICALL
-urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
+    ur_mem_handle_t hMem, ur_device_handle_t, ur_native_handle_t *phNativeMem) {
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(
       std::get<BufferMem>(hMem->Mem).get());
   return UR_RESULT_SUCCESS;

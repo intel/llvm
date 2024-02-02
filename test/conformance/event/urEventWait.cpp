@@ -64,7 +64,7 @@ using urEventWaitNegativeTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitNegativeTest);
 
 TEST_P(urEventWaitNegativeTest, ZeroSize) {
-    ur_event_handle_t event;
+    ur_event_handle_t event = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE, urEventWait(0, &event));
 }
 

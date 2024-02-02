@@ -10,7 +10,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferCreateWithNativeHandleTest);
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
     ur_native_handle_t hNativeMem = nullptr;
-    if (urMemGetNativeHandle(buffer, &hNativeMem)) {
+    if (urMemGetNativeHandle(buffer, device, &hNativeMem)) {
         GTEST_SKIP();
     }
 

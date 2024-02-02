@@ -111,8 +111,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
+urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+                     ur_native_handle_t *phNativeMem) {
   std::ignore = hMem;
+  std::ignore = hDevice;
   std::ignore = phNativeMem;
 
   DIE_NO_IMPLEMENTATION

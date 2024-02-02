@@ -40,6 +40,13 @@ class obj_traits:
             return False
 
     @staticmethod
+    def is_enum(obj):
+        try:
+            return True if re.match(r"enum", obj['type']) else False
+        except:
+            return False
+
+    @staticmethod
     def is_experimental(obj):
         try:
             return True if re.search("Exp$", obj['name']) else False
@@ -446,6 +453,13 @@ class param_traits:
     def is_release(cls, item):
         try:
             return True if re.match(cls.RE_RELEASE, item['desc']) else False
+        except:
+            return False
+
+    @classmethod
+    def is_typename(cls, item):
+        try:
+            return True if re.match(cls.RE_TYPENAME, item['desc']) else False
         except:
             return False
 
@@ -939,6 +953,17 @@ def make_func_name(namespace, tags, obj):
 
 """
 Public:
+    returns the name of a function from a given name with prefix
+"""
+def make_func_name_with_prefix(prefix, name):
+    func_name = re.sub(r'^[^_]+_', '', name)
+    func_name = re.sub('_t$', '', func_name).capitalize()
+    func_name = re.sub(r'_([a-z])', lambda match: match.group(1).upper(), func_name)
+    func_name = f'{prefix}{func_name}'
+    return func_name
+
+"""
+Public:
     returns the etor of a function
 """
 def make_func_etor(namespace, tags, obj):
@@ -1243,22 +1268,41 @@ def get_loader_prologue(namespace, tags, obj, meta):
 
 """
 Public:
+    returns an enum object with the given name
+"""
+def get_enum_by_name(specs, namespace, tags, name, only_typed):
+    for s in specs:
+        for obj in s['objects']:
+            if obj_traits.is_enum(obj) and make_enum_name(namespace, tags, obj) == name:
+                typed = obj.get('typed_etors', False) is True
+                if only_typed:
+                    if typed:
+                        return obj
+                    else:
+                        return None
+                else:
+                    return obj
+    return None
+
+"""
+Public:
     returns a list of dict for converting loader output parameters
 """
-def get_loader_epilogue(namespace, tags, obj, meta):
+def get_loader_epilogue(specs, namespace, tags, obj, meta):
     epilogue = []
 
     for i, item in enumerate(obj['params']):
         if param_traits.is_mbz(item):
             continue
+
+        name = subt(namespace, tags, item['name'])
+        tname = _remove_const_ptr(subt(namespace, tags, item['type']))
+
+        obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", tname)
+        fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
+
         if param_traits.is_release(item) or param_traits.is_output(item) or param_traits.is_inoutput(item):
             if type_traits.is_class_handle(item['type'], meta):
-                name = subt(namespace, tags, item['name'])
-                tname = _remove_const_ptr(subt(namespace, tags, item['type']))
-
-                obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", tname)
-                fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
-
                 if param_traits.is_range(item):
                     range_start = param_traits.range_start(item)
                     range_end   = param_traits.range_end(item)
@@ -1279,6 +1323,44 @@ def get_loader_epilogue(namespace, tags, obj, meta):
                         'release': param_traits.is_release(item),
                         'optional': param_traits.is_optional(item)
                     })
+            elif param_traits.is_typename(item):
+                typename = param_traits.typename(item)
+                underlying_type = None
+                for inner in obj['params']:
+                    iname = _get_param_name(namespace, tags, inner)
+                    if iname == typename:
+                        underlying_type = _get_type_name(namespace, tags, obj, inner)
+                if underlying_type is None:
+                    continue
+
+                prop_size = param_traits.typename_size(item)
+                enum = get_enum_by_name(specs, namespace, tags, underlying_type, True)
+                handle_etors = []
+                for etor in enum['etors']:
+                    associated_type = etor_get_associated_type(namespace, tags, etor)
+                    if 'handle' in associated_type:
+                        is_array = False
+                        if value_traits.is_array(associated_type):
+                            associated_type = value_traits.get_array_name(associated_type)
+                            is_array = True
+
+                        etor_name = make_etor_name(namespace, tags, enum['name'], etor['name'])
+                        obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", associated_type)
+                        fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", associated_type)
+                        handle_etors.append({'name': etor_name,
+                                             'type': associated_type,
+                                             'obj': obj_name,
+                                             'factory': fty_name,
+                                             'is_array': is_array})
+
+                if handle_etors:
+                    epilogue.append({
+                                     'name': name,
+                                     'obj': obj_name,
+                                     'release': False,
+                                     'typename': typename,
+                                     'size': prop_size,
+                                     'etors': handle_etors})
 
     return epilogue
 
