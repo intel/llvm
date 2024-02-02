@@ -26,7 +26,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; combination of instcombine and GVN).
 ; CHECK: spir_kernel void @__vecz_v{{[0-9]+}}_gep_duplication
 ; CHECK: entry:
-; CHECK: getelementptr inbounds [2 x i32], ptr %myStruct, i{{32|64}} 0, i{{32|64}} 1
+; CHECK: getelementptr inbounds {{\[2 x i32]|i8}}, ptr %myStruct, {{i64 0, i64 1|i64 4}}
 ; CHECK-NOT: getelementptr {{.*}}%myStruct
 define spir_kernel void @gep_duplication(ptr addrspace(1) align 4 %out) {
 entry:
