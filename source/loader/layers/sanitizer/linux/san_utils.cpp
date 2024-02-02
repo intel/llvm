@@ -12,6 +12,7 @@
  */
 
 #include "common.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <asm/param.h>
 #include <dlfcn.h>
@@ -71,11 +72,16 @@ bool DestroyShadowMem() {
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {
-    void *handle = dlopen(LIBC_SO, RTLD_NOLOAD);
+    void *handle = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
     if (!handle) {
+        context.logger.error("Failed to dlopen {}", LIBC_SO);
         return nullptr;
     }
-    return dlsym(handle, FuncName);
+    auto ptr = dlsym(handle, FuncName);
+    if (!ptr) {
+        context.logger.error("Failed to get '{}' from {}", FuncName, LIBC_SO);
+    }
+    return ptr;
 }
 
 } // namespace ur_sanitizer_layer
