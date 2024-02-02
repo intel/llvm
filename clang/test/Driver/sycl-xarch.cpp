@@ -19,7 +19,7 @@
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-instrumentation-with-call-threshold=0"
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-stack=0"
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-globals=0"
-// SYCL_XARCH_DEVICE_ONLY: llvm-link{{.*}}  "-only-needed"
+// SYCL_XARCH_DEVICE_ONLY: llc{{.*}} "-filetype=obj"
 // SYCL_XARCH_DEVICE_ONLY-NOT: fsanitize=address
 
 /// test behavior of -Xarch_device with multiple options for SYCL compiler, the
