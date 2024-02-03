@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux, cpu, aspect-fp64
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
