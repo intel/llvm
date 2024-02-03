@@ -118,3 +118,45 @@
 // SYCL_XARCH_COM_HOST_OPTIONS3-SAME: -fno-builtin
 // SYCL_XARCH_COM_NO_HOST: clang{{.*}} "-fsycl-is-host"
 // SYCL_XARCH_COM_NO_HOST-NOT: "-mllvm" "-enable-merge-functions"
+
+
+// test behavior of multiple usage of -Xarch_host in single command line
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_HOST_MULTIPLE1
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_HOST_MULTIPLE2
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_HOST_MULTIPLE3
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_HOST_MULTIPLE4
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_NO_DEVICE_MULTIPLE1
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_NO_DEVICE_MULTIPLE2
+// RUN: %clangxx -fsycl %s -Xarch_host "-fsanitize=address -mllvm -enable-merge-functions" \
+// RUN:   -Xarch_host -DFOO -Xarch_host -DFOO1 -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_XARCH_NO_DEVICE_MULTIPLE3
+// SYCL_XARCH_HOST_MULTIPLE1: clang{{.*}} "-fsycl-is-host"
+// SYCL_XARCH_HOST_MULTIPLE1-SAME: -fsanitize=address
+// SYCL_XARCH_HOST_MULTIPLE1-NEXT: libclang_rt.asan
+// SYCL_XARCH_HOST_MULTIPLE2: clang{{.*}} "-fsycl-is-host"
+// SYCL_XARCH_HOST_MULTIPLE2-SAME: "-mllvm" "-enable-merge-functions"
+// SYCL_XARCH_HOST_MULTIPLE3: clang{{.*}} "-fsycl-is-host"
+// SYCL_XARCH_HOST_MULTIPLE3-SAME: "FOO"
+// SYCL_XARCH_HOST_MULTIPLE4: clang{{.*}} "-fsycl-is-host"
+// SYCL_XARCH_HOST_MULTIPLE4-SAME: "FOO1"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE1: clang{{.*}} "-fsycl-is-device"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE1-NOT: -fsanitize=address
+// SYCL_XARCH_NO_DEVICE_MULTIPLE1: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE2: clang{{.*}} "-fsycl-is-device"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE2-NOT: "-mllvm" "-enable-merge-functions"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE2: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE3: clang{{.*}} "-fsycl-is-device"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE3-NOT: "FOO"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE3: llc{{.*}} "-filetype=obj"
