@@ -1303,4 +1303,9 @@ test_slm_gather_scatter(int byte_offset32) {
                                  props_align4);
   slm = slm_gather<float, 32, 2>(ioffset_n16_view, mask_n16, pass_thru_view,
                                  props_align4);
+
+  // Special case to verify calls to slm_gather with 64 bit data type are
+  // transformed to lsc calls
+  // CHECK-COUNT-1: call <32 x double> @llvm.masked.gather.v32f64.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x double> {{[^)]+}})
+  auto slm_double = slm_gather<double>(ioffset_n32, mask_n32);
 }
