@@ -44,7 +44,7 @@ int main() {
     Success = (StdErrc == static_cast<int>(errc::invalid));
   }
   assert(Success);
-  
+
   Graph.end_recording();
   return 0;
 }

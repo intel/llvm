@@ -229,7 +229,6 @@ void GlobalHandler::releaseDefaultContexts() {
   // races with the detaching of the DLL object that calls piTearDown.
 
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
-
 }
 
 struct DefaultContextReleaseHandler {
