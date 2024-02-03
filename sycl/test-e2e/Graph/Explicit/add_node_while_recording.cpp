@@ -7,9 +7,10 @@
 // Tests attempting to add a node to a command_graph while it is being
 // recorded to by a queue is an error.
 
-// On Windows, the DLLs are detached/teardown before the static global of the default context 
-// is released. This may cause the UR_L0 leak detector to report a leak.
-// We avoid this by not using the default context on Windows when running the leak check  
+// On Windows, the DLLs are detached/teardown before the static global of the
+// default context is released. This may cause the UR_L0 leak detector to report
+// a leak.  We avoid this by not using the default context on Windows when
+// running the leak check
 
 #include "../graph_common.hpp"
 

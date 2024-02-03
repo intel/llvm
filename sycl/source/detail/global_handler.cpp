@@ -226,7 +226,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
-  // races with the detaching of the DLL object that calls piTearDown. 
+  // races with the detaching of the DLL object that calls piTearDown.
 
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 

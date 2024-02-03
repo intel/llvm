@@ -175,7 +175,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         )
         if platform.system() == "Windows":
             substitutions.append(
-                ("%{l0_leak_check}", "env UR_L0_LEAKS_DEBUG=1 SYCL_ENABLE_DEFAULT_CONTEXTS=0")
+                (
+                    "%{l0_leak_check}",
+                    "env UR_L0_LEAKS_DEBUG=1 SYCL_ENABLE_DEFAULT_CONTEXTS=0",
+                )
             )
         else:
             substitutions.append(("%{l0_leak_check}", "env UR_L0_LEAKS_DEBUG=1"))
