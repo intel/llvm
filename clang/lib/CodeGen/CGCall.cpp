@@ -5707,8 +5707,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (!getLangOpts().FPAccuracyFuncMap.empty() ||
         !getLangOpts().FPAccuracyVal.empty()) {
       const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      if (FD) {
-        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+      if (FD && FD->getNameInfo().getName().isIdentifier()) {
+        CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
+                                    FD->getName(), FD->getBuiltinID());
         if (CI)
           return RValue::get(CI);
       }
