@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "backtrace.hpp"
 #include "common.hpp"
 #include "device_sanitizer_report.hpp"
+#include "stacktrace.hpp"
 
 #include <map>
 #include <memory>
@@ -23,17 +23,17 @@
 
 namespace ur_sanitizer_layer {
 
-enum USMMemoryType { DEVICE, SHARE, HOST, MEM_BUFFER, RELEASED };
+enum MemoryType { DEVICE_USM, SHARED_USM, HOST_USM, MEM_BUFFER, RELEASED };
 
 struct USMAllocInfo {
     uptr AllocBegin;
     uptr UserBegin;
     uptr UserEnd;
     size_t AllocSize;
-    USMMemoryType Type;
+    MemoryType Type;
 
-    std::vector<BacktraceLine> AllocStack;
-    std::vector<BacktraceLine> ReleaseStack;
+    StackTrace AllocStack;
+    StackTrace ReleaseStack;
 };
 
 enum class DeviceType { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
@@ -109,7 +109,7 @@ class SanitizerInterceptor {
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
-                               void **ResultPtr, USMMemoryType Type);
+                               void **ResultPtr, MemoryType Type);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,

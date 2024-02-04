@@ -12,8 +12,8 @@
  */
 
 #include "asan_interceptor.hpp"
-#include "backtrace.hpp"
 #include "device_sanitizer_report.hpp"
+#include "stacktrace.hpp"
 #include "ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
@@ -116,41 +116,56 @@ ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
     return Device;
 }
 
-void ReportBadFree(uptr Addr, std::shared_ptr<USMAllocInfo> AllocInfo) {
+const char *getFormatString(MemoryType MemoryType) {
+    switch (MemoryType) {
+    case MemoryType::DEVICE_USM:
+        return "USM Device Memory";
+    case MemoryType::HOST_USM:
+        return "USM Host Memory";
+    case MemoryType::SHARED_USM:
+        return "USM Shared Memory";
+    case MemoryType::MEM_BUFFER:
+        return "Memory Buffer";
+    default:
+        return "Unknown Memory";
+    }
+}
+
+void ReportBadFree(uptr Addr, StackTrace stack,
+                   std::shared_ptr<USMAllocInfo> AllocInfo) {
+    // attempting free on address which was not malloc()-ed: 0x511000023184 in thread T0
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: attempting free on address which "
-        "was not malloc()-ed: {}",
-        Addr);
+        "was not malloc()-ed: {} in thread T0",
+        (void *)Addr);
+    stack.Print();
 
     if (!AllocInfo) { // maybe Addr is host allocated memory
-        context.logger.always("maybe allocated on Host Memory");
-    } else {
-        switch (AllocInfo->Type) {
-        case USMMemoryType::HOST:
-            context.logger.always("maybe allocated on Host USM here:");
-            break;
-        case USMMemoryType::SHARE:
-            context.logger.always("maybe allocated on Shared USM here:");
-            break;
-        case USMMemoryType::DEVICE:
-            context.logger.always("maybe allocated on Device USM here:");
-            break;
-        default:
-            context.logger.always("maybe allocated on Unknown Memory here:");
-        }
-        for (unsigned i = 0; i < AllocInfo->AllocStack.size(); ++i) {
-            auto Line = AllocInfo->AllocStack[i];
-            context.logger.always(" #{} {}", i, Line);
-        }
+        context.logger.always("{} is maybe allocated on Host Memory",
+                              (void *)Addr);
+        exit(1);
     }
+
+    assert(AllocInfo->Type != MemoryType::RELEASED);
+
+    // 0x511000023184 is located 4 bytes inside of 256-byte region [0x511000023180,0x511000023280)
+    // allocated by thread T0 here:
+    context.logger.always("{} is located inside of {} region [{}, {}]",
+                          (void *)Addr, getFormatString(AllocInfo->Type),
+                          (void *)AllocInfo->UserBegin,
+                          (void *)AllocInfo->UserEnd);
+    context.logger.always("allocated by thread T0 here:");
+    AllocInfo->AllocStack.Print();
 
     exit(1);
 }
 
-}
-
-void ReportDoubleFree(uptr Addr, std::vector<BacktraceLine> Stack, std::shared_ptr<USMAllocInfo> AllocInfo) {
-
+void ReportDoubleFree(uptr Addr, StackTrace Stack,
+                      std::shared_ptr<USMAllocInfo> AllocInfo) {
+    context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
+                          (void *)Addr);
+    Stack.Print();
+    exit(1);
 }
 
 void ReportUseAfterFree(uptr Addr, std::shared_ptr<USMAllocInfo> AllocInfo) {}
@@ -198,7 +213,7 @@ SanitizerInterceptor::~SanitizerInterceptor() {
 ur_result_t SanitizerInterceptor::allocateMemory(
     ur_context_handle_t Context, ur_device_handle_t Device,
     const ur_usm_desc_t *Properties, ur_usm_pool_handle_t Pool, size_t Size,
-    void **ResultPtr, USMMemoryType Type) {
+    void **ResultPtr, MemoryType Type) {
     auto Alignment = Properties->align;
     assert(Alignment == 0 || IsPowerOfTwo(Alignment));
 
@@ -221,13 +236,13 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     void *Allocated = nullptr;
 
-    if (Type == USMMemoryType::DEVICE) {
+    if (Type == MemoryType::DEVICE_USM) {
         UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
-    } else if (Type == USMMemoryType::HOST) {
+    } else if (Type == MemoryType::HOST_USM) {
         UR_CALL(context.urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
                                                     NeededSize, &Allocated));
-    } else if (Type == USMMemoryType::SHARE) {
+    } else if (Type == MemoryType::SHARED_USM) {
         UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
             Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
@@ -292,27 +307,28 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     // Find the last element is not greater than key
     auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound(Addr);
     if (AllocInfoIt == ContextInfo->AllocatedUSMMap.begin()) {
-        ReportBadFree(Addr, nullptr);
+        ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     --AllocInfoIt;
     auto &AllocInfo = AllocInfoIt->second;
-    context.logger.debug("USMAllocInfo(AllocBegin={}, UserBegin={})",
-                         AllocInfo->AllocBegin, AllocInfo->UserBegin);
+    context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
+                         (void *)AllocInfo->AllocBegin,
+                         (void *)AllocInfo->UserBegin);
 
     auto AllocType = AllocInfo->Type;
 
-    if (AllocType == USMMemoryType::RELEASED) {
-        ReportDoubleFree(Addr, AllocInfo);
+    if (AllocType == MemoryType::RELEASED) {
+        ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     if (Addr != AllocInfo->UserBegin) {
-        ReportBadFree(Addr, AllocInfo);
+        ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    AllocInfo->Type = USMMemoryType::RELEASED;
+    AllocInfo->Type = MemoryType::RELEASED;
     AllocInfo->ReleaseStack = GetCurrentBacktrace();
 
     auto Device =
@@ -324,7 +340,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     //     return Res;
     // }
 
-    if (AllocType == USMMemoryType::HOST) {
+    if (AllocType == MemoryType::HOST_USM) {
         for (auto &pair : ContextInfo->DeviceMap) {
             auto DeviceInfo = pair.second;
             std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
@@ -569,7 +585,7 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ur_queue_handle_t Queue, std::shared_ptr<USMAllocInfo> &AllocInfo,
     ur_event_handle_t &LastEvent) {
-    if (AllocInfo->Type == USMMemoryType::RELEASED) {
+    if (AllocInfo->Type == MemoryType::RELEASED) {
         UR_CALL(enqueueMemSetShadow(Context, Device, Queue,
                                     AllocInfo->AllocBegin, AllocInfo->AllocSize,
                                     kUsmFreedMagic, LastEvent, &LastEvent));
@@ -595,16 +611,16 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
 
     int ShadowByte;
     switch (AllocInfo->Type) {
-    case USMMemoryType::HOST:
+    case MemoryType::HOST_USM:
         ShadowByte = kUsmHostRedzoneMagic;
         break;
-    case USMMemoryType::DEVICE:
+    case MemoryType::DEVICE_USM:
         ShadowByte = kUsmDeviceRedzoneMagic;
         break;
-    case USMMemoryType::SHARE:
+    case MemoryType::SHARED_USM:
         ShadowByte = kUsmSharedRedzoneMagic;
         break;
-    case USMMemoryType::MEM_BUFFER:
+    case MemoryType::MEM_BUFFER:
         ShadowByte = kMemBufferRedzoneMagic;
         break;
     default:

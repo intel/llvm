@@ -7,35 +7,28 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
-#include "backtrace.hpp"
+#include "stacktrace.hpp"
 
 #include <execinfo.h>
-#include <vector>
 
 namespace ur_sanitizer_layer {
 
-std::vector<BacktraceLine> getCurrentBacktrace() {
+StackTrace GetCurrentBacktrace() {
     void *backtraceFrames[MAX_BACKTRACE_FRAMES];
     int frameCount = backtrace(backtraceFrames, MAX_BACKTRACE_FRAMES);
     char **backtraceStr = backtrace_symbols(backtraceFrames, frameCount);
 
     if (backtraceStr == nullptr) {
-        return std::vector<BacktraceLine>(1, "Failed to acquire a backtrace");
+        return StackTrace();
     }
 
-    std::vector<BacktraceLine> backtrace;
-    try {
-        for (int i = 0; i < frameCount; i++) {
-            backtrace.emplace_back(backtraceStr[i]);
-        }
-    } catch (std::bad_alloc &) {
-        free(backtraceStr);
-        return std::vector<BacktraceLine>(1, "Failed to acquire a backtrace");
+    StackTrace stack;
+    for (int i = 0; i < frameCount; i++) {
+        stack.stack.emplace_back(backtraceStr[i]);
     }
-
     free(backtraceStr);
 
-    return backtrace;
+    return stack;
 }
 
 } // namespace ur_sanitizer_layer

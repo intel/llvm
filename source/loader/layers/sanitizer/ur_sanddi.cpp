@@ -36,7 +36,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     context.logger.debug("==== urUSMHostAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, nullptr, pUSMDesc, pool, size, ppMem, USMMemoryType::HOST);
+        hContext, nullptr, pUSMDesc, pool, size, ppMem, MemoryType::HOST_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     context.logger.debug("==== urUSMDeviceAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::DEVICE);
+        hContext, hDevice, pUSMDesc, pool, size, ppMem, MemoryType::DEVICE_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -86,7 +86,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     context.logger.debug("==== urUSMSharedAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::SHARE);
+        hContext, hDevice, pUSMDesc, pool, size, ppMem, MemoryType::SHARED_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
