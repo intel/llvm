@@ -231,9 +231,19 @@ public:
   }
 };
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// Array is used by ONEAPI_DEVICE_SELECTOR.
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getODSDeviceTypeMap();
+
+// Array is used by SYCL_DEVICE_ALLOWLIST.
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getSyclDeviceTypeMap();
+#else
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
 const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
+#endif
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
