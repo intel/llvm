@@ -13,7 +13,7 @@
 
 #include <sycl/sycl.hpp>
 
-#include <bits/chrono.h>
+#include <chrono>
 #include <iostream>
 #include <thread>
 
