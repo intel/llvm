@@ -121,12 +121,12 @@ int main() {
       static_assert(std::is_same_v<decltype(Expected), decltype(Result)>);
 
       auto Equal = [](auto x, auto y) {
-         for (size_t i = 0; i < x.size(); ++i)
-           if (x[i] != y[i])
-             return false;
+        for (size_t i = 0; i < x.size(); ++i)
+          if (x[i] != y[i])
+            return false;
 
-         return true;
-       };
+        return true;
+      };
 
       assert(Equal(Result, Expected));
 
