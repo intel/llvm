@@ -3064,6 +3064,14 @@ def fmodule_output : Flag<["-"], "fmodule-output">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Save intermediate module file results when compiling a standard C++ module unit.">;
 
+defm skip_odr_check_in_gmf : BoolOption<"f", "skip-odr-check-in-gmf",
+  LangOpts<"SkipODRCheckInGMF">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option],
+          "Skip ODR checks for decls in the global module fragment.">,
+  NegFlag<SetFalse, [], [CC1Option],
+          "Perform ODR checks for decls in the global module fragment.">>,
+  Group<f_Group>;
+
 def fmodules_prune_interval : Joined<["-"], "fmodules-prune-interval=">, Group<i_Group>,
   Visibility<[ClangOption, CC1Option]>, MetaVarName<"<seconds>">,
   HelpText<"Specify the interval (in seconds) between attempts to prune the module cache">,
@@ -8413,6 +8421,9 @@ def : CLFlag<"O1">, Alias<_SLASH_O>, AliasArgs<["1"]>,
   HelpText<"Optimize for size  (like /Og     /Os /Oy /Ob2 /GF /Gy)">;
 def : CLFlag<"O2">, Alias<_SLASH_O>, AliasArgs<["2"]>,
   HelpText<"Optimize for speed (like /Og /Oi /Ot /Oy /Ob2 /GF /Gy)">;
+def : CLFlag<"O3">, Alias<_SLASH_O>, AliasArgs<["3"]>,
+  HelpText<"Optimize for maximum speed and enable more aggressive optimizations"
+  " that may not improve performance on some programs">;
 def : CLFlag<"Ob0">, Alias<_SLASH_O>, AliasArgs<["b0"]>,
   HelpText<"Disable function inlining">;
 def : CLFlag<"Ob1">, Alias<_SLASH_O>, AliasArgs<["b1"]>,

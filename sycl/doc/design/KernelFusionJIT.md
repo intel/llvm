@@ -212,7 +212,8 @@ These restrictions can be simplified to:
 
 - No two local sizes specified by the nd-ranges will be different;
 - No global id remapping is needed ([see](#work-item-remapping)) or all input offsets are 0;
-- All the fused nd-ranges must have the same offset.
+- All the fused nd-ranges must have the same offset;
+- No global id remapping is needed for kernels specifying a local size.
 
 As we can see, there is no restrictions in the number of dimensions or global sizes of the input nd-ranges.
 
@@ -299,6 +300,18 @@ flag during static compilation.
 During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
 [here](./CompilerAndRuntimeDesign.md#kernel-fusion-support).
+
+### Interaction with `parallel_for` range rounding
+
+DPCPP's [range rounding](./ParallelForRangeRounding.md) transformation is
+transparent for fusion, meaning the generated wrapper kernel with the rounded up
+range will be used.
+
+[Private internalization](#internalization-behavior) is supported when fusing
+such kernels. We use the original, unrounded global size in dimension 0 when
+computing the private memory size. As range rounding only applies to basic
+kernels (parametrized by a `sycl::range`), local internalization is not affected
+by the range rounding transformation.
 
 ### Unsupported SYCL constructs
 

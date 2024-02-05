@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 73d85ef9f48ec4d1f213066a31ed7e4402b5499b
-  # Merge: e46dc359 7985d3ee
+  # commit 9363574db721d2388c7d76a10edb128764872352
+  # Merge: 553a6b82 5e513738
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jan 29 14:26:08 2024 +0000
-  #     Merge pull request #1289 from nrspruit/fix_multiDevice
-  #     [L0] Fix native kernel usage, multi device kernel pointer and WorkSize
-  set(UNIFIED_RUNTIME_TAG 73d85ef9f48ec4d1f213066a31ed7e4402b5499b)
+  # Date:   Thu Feb 1 11:50:16 2024 +0000
+  #     Merge pull request #1302 from kbenzie/benie/cl-binary-type-intermediate
+  #     [CL] Handle INTERMEDIATE binary type
+  set(UNIFIED_RUNTIME_TAG 9363574db721d2388c7d76a10edb128764872352)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -202,6 +202,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

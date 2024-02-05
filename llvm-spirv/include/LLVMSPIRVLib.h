@@ -135,6 +135,10 @@ struct SPIRVModuleTextReport {
 /// \returns String with the human-readable report.
 SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report);
 
+/// \brief Returns the message associated with the error code.
+/// \returns empty string if no known error code is found.
+std::string getErrorMessage(int ErrCode);
+
 } // End namespace SPIRV
 
 namespace llvm {

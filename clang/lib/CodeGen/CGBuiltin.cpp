@@ -23308,21 +23308,11 @@ static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
 
-llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
+llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
-    llvm::Value *FnPtr, const FunctionDecl *FD) {
-  llvm::Function *Func;
+    llvm::Value *FnPtr, StringRef Name, unsigned FDBuiltinID) {
   unsigned FPAccuracyIntrinsicID = 0;
-  StringRef Name;
-  if (CurrentBuiltinID == 0) {
-    // Even if the current function doesn't have a clang builtin, create
-    // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
-    // an NoBuiltin attribute.
-    if (FD->hasAttr<NoBuiltinAttr>() ||
-        !FD->getNameInfo().getName().isIdentifier())
-      return nullptr;
-
-    Name = FD->getName();
+  if (FDBuiltinID == 0) {
     FPAccuracyIntrinsicID =
         llvm::StringSwitch<unsigned>(Name)
             .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
@@ -23337,9 +23327,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   } else {
     // The function has a clang builtin. Create an attribute for it
     // only if it has an fpbuiltin intrinsic.
-    unsigned BuiltinID = getCurrentBuiltinID();
-    Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
-    switch (BuiltinID) {
+    switch (FDBuiltinID) {
     default:
       // If the function has a clang builtin but doesn't have an
       // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
@@ -23421,7 +23409,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
       !LangOpts.FPAccuracyVal.empty()) {
-    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    llvm::Function *Func =
+        CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
