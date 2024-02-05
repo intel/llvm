@@ -73,8 +73,8 @@ OpenCL backends.
 | Front-end option | L0 backend option | OpenCL backend option |
 | ---------------- | ----------------- | --------------------- |
 |      -O0         |  -ze-opt-disable  |   -cl-opt-disable     |
-|      -O1         |  -ze-opt-level=1  |   /* no option */     |
-|      -O2         |  -ze-opt-level=1  |   /* no option */     |
+|      -O1         |  -ze-opt-level=2  |   /* no option */     |
+|      -O2         |  -ze-opt-level=2  |   /* no option */     |
 |      -O3         |  -ze-opt-level=2  |   /* no option */     |
 
 

@@ -75,6 +75,8 @@
 #include <sycl/marray.hpp>                     // for __SYCL_BINOP, __SYCL_...
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+
 #include <array>       // for array
 #include <assert.h>    // for assert
 #include <cstddef>     // for size_t, NULL, byte
@@ -142,18 +144,59 @@ using select_apply_cl_t = std::conditional_t<
 template <typename T> struct vec_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }
+  static constexpr RetType set(T value) { return value; }
 };
 template <> struct vec_helper<bool> {
   using RetType = select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                     std::int32_t, std::int64_t>;
   static constexpr RetType get(bool value) { return value; }
+  static constexpr RetType set(bool value) { return value; }
+};
+
+template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
+  using RetType = sycl::ext::oneapi::bfloat16;
+  using BFloat16StorageT = sycl::ext::oneapi::detail::Bfloat16StorageT;
+  static constexpr RetType get(BFloat16StorageT value) {
+#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+    return sycl::bit_cast<RetType>(value);
+#else
+    // awkward workaround. sycl::bit_cast isn't constexpr in older GCC
+    // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
+    // but neither available yet.
+    union {
+      sycl::ext::oneapi::bfloat16 bf16;
+      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
+    } result = {};
+    result.storage = value;
+    return result.bf16;
+#endif
+  }
+
+  static constexpr RetType get(RetType value) { return value; }
+
+  static constexpr BFloat16StorageT set(RetType value) {
+#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+    return sycl::bit_cast<BFloat16StorageT>(value);
+#else
+    union {
+      sycl::ext::oneapi::bfloat16 bf16;
+      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
+    } result = {};
+    result.bf16 = value;
+    return result.storage;
+#endif
+  }
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
+  static constexpr RetType set(std::byte value) { return (RetType)value; }
   static constexpr std::byte get(std::uint8_t value) {
+    return (std::byte)value;
+  }
+  static constexpr std::byte set(std::uint8_t value) {
     return (std::byte)value;
   }
 };
@@ -312,6 +355,9 @@ template <typename Type, int NumElements> class vec {
       std::is_same_v<sycl::detail::half_impl::StorageT,
                      sycl::detail::host_half_impl::half>;
 
+  static constexpr bool IsBfloat16 =
+      std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>;
+
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
@@ -325,7 +371,7 @@ template <typename Type, int NumElements> class vec {
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
   static constexpr bool IsUsingArrayOnDevice =
-      (IsHostHalf || IsSizeGreaterThanMaxAlign);
+      (IsHostHalf || IsBfloat16 || IsSizeGreaterThanMaxAlign);
 
 #if defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool NativeVec = NumElements > 1 && !IsUsingArrayOnDevice;
@@ -338,7 +384,7 @@ template <typename Type, int NumElements> class vec {
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  static constexpr bool IsUsingArrayOnDevice = IsHostHalf;
+  static constexpr bool IsUsingArrayOnDevice = IsHostHalf || IsBfloat16;
 #endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   static constexpr int getNumElements() { return NumElements; }
@@ -393,11 +439,7 @@ template <typename Type, int NumElements> class vec {
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
-#else
-    return std::array<DataT_, 1>{vec_data<DataT_>::get(A)};
-#endif
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
     constexpr auto operator()(const T &A) const {
@@ -495,7 +537,12 @@ template <typename Type, int NumElements> class vec {
   template <size_t... Is>
   constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr,
                 std::index_sequence<Is...>)
-      : m_Data{vec_data_t<DataT>(static_cast<DataT>(Arr[Is]))...} {}
+      : m_Data{([&](vec_data_t<DataT> v) constexpr {
+          if constexpr (std::is_same_v<sycl::ext::oneapi::bfloat16, DataT>)
+            return v.value;
+          else
+            return vec_data_t<DataT>(static_cast<DataT>(v));
+        })(Arr[Is])...} {}
 
 public:
   using element_type = DataT;
@@ -580,7 +627,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
+          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
   operator=(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
@@ -596,7 +643,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
+          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
   operator=(const EnableIfUsingArrayOnDevice<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -613,7 +660,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
+          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
       vec &>
   operator=(const DataT &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -962,7 +1009,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -995,7 +1042,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1025,7 +1072,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1098,7 +1145,7 @@ public:
   template <typename T>                                                        \
   typename std::enable_if_t<std::is_convertible_v<T, DataT> &&                 \
                                 (std::is_fundamental_v<vec_data_t<T>> ||       \
-                                 std::is_same_v<T, half>),                     \
+                                 detail::is_half_or_bf16_v<T>),                \
                             vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
@@ -1116,7 +1163,7 @@ public:
   template <typename T>                                                        \
   typename std::enable_if_t<std::is_convertible_v<T, DataT> &&                 \
                                 (std::is_fundamental_v<vec_data_t<T>> ||       \
-                                 std::is_same_v<T, half>),                     \
+                                 detail::is_half_or_bf16_v<T>),                \
                             vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
@@ -1258,17 +1305,47 @@ public:
 
   // operator -
   template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
-    vec Ret{-m_Data};
-    if constexpr (std::is_same_v<Type, bool>) {
-      Ret.ConvertToDataT();
+    namespace oneapi = sycl::ext::oneapi;
+    if constexpr (IsBfloat16 && NumElements == 1) {
+      vec Ret{};
+      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data);
+      oneapi::bfloat16 w = -v;
+      Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
+    } else if constexpr (IsBfloat16) {
+      vec Ret{};
+      for (size_t I = 0; I < NumElements; ++I) {
+        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data[I]);
+        oneapi::bfloat16 w = -v;
+        Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
+      }
+      return Ret;
+    } else {
+      vec Ret{-m_Data};
+      if constexpr (std::is_same_v<Type, bool>) {
+        Ret.ConvertToDataT();
+      }
+      return Ret;
     }
-    return Ret;
   }
 
   template <typename T = vec> EnableIfUsingArray<T> operator-() const {
+    namespace oneapi = sycl::ext::oneapi;
     vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
+    if constexpr (IsBfloat16 && NumElements == 1) {
+      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data);
+      oneapi::bfloat16 w = -v;
+      Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
+    } else if constexpr (IsBfloat16) {
+      for (size_t I = 0; I < NumElements; I++) {
+        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data[I]);
+        oneapi::bfloat16 w = -v;
+        Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
+      }
+    } else {
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret.setValue(I,
+                     vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
+    }
     return Ret;
   }
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -1376,8 +1453,6 @@ public:
 
 #endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
-  // CP ---------------
-
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
   // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
@@ -1425,13 +1500,13 @@ private:
 
   // setValue and getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
-
+  // These versions are for N > 1.
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
                           int) {
-    m_Data[Index] = vec_data<DataT>::get(Value);
+    m_Data[Index] = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
@@ -1443,7 +1518,7 @@ private:
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
+    m_Data.s[Index] = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
@@ -1456,9 +1531,9 @@ private:
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    m_Data[Index] = vec_data<DataT>::get(Value);
+    m_Data[Index] = vec_data<DataT>::set(Value);
 #else
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
+    m_Data.s[Index] = vec_data<DataT>::set(Value);
 #endif
   }
 
@@ -1473,10 +1548,11 @@ private:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
+  // N==1 versions, used by host and device. Shouldn't trailing type be int?
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 == Num>>
   constexpr void setValue(int, const DataT &Value, float) {
-    m_Data = vec_data<DataT>::get(Value);
+    m_Data = vec_data<DataT>::set(Value);
   }
 
   template <int Num = NumElements,
@@ -1485,6 +1561,9 @@ private:
     return vec_data<DataT>::get(m_Data);
   }
 
+  // setValue and getValue.
+  // The "api" functions used by BINOP etc.  These versions just dispatch
+  // using additional int or float arg to disambiguate vec<1> vs. vec<N>
   // Special proxies as specialization is not allowed in class scope.
   constexpr void setValue(int Index, const DataT &Value) {
     if (NumElements == 1)
@@ -1614,13 +1693,13 @@ class SwizzleOp {
   using EnableIfScalarType = typename std::enable_if_t<
       std::is_convertible_v<DataT, T> &&
       (std::is_fundamental_v<vec_data_t<T>> ||
-       std::is_same_v<typename std::remove_const_t<T>, half>)>;
+       detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
 
   template <typename T>
   using EnableIfNoScalarType = typename std::enable_if_t<
       !std::is_convertible_v<DataT, T> ||
       !(std::is_fundamental_v<vec_data_t<T>> ||
-        std::is_same_v<typename std::remove_const_t<T>, half>)>;
+        detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
 
   template <int... Indices>
   using Swizzle =
@@ -1646,7 +1725,7 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getNumElements(); }
+  static constexpr size_t size() noexcept { return getNumElements(); }
 
   template <int Num = getNumElements()>
   __SYCL2020_DEPRECATED(
@@ -2196,7 +2275,7 @@ private:
   template <typename T, int Num>                                               \
   typename std::enable_if_t<                                                   \
       std::is_fundamental_v<vec_data_t<T>> ||                                  \
-          std::is_same_v<typename std::remove_const_t<T>, half>,               \
+          detail::is_half_or_bf16_v<typename std::remove_const_t<T>>,          \
       vec<T, Num>>                                                             \
   operator BINOP(const T & Lhs, const vec<T, Num> &Rhs) {                      \
     return vec<T, Num>(Lhs) BINOP Rhs;                                         \
@@ -2208,7 +2287,7 @@ private:
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<T, T1> &&                                          \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
       const T & Lhs,                                                           \
@@ -2252,7 +2331,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<T, DataT> &&                                       \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T & Lhs, const vec<DataT, Num> &Rhs) {               \
     return vec<T, Num>(static_cast<T>(Lhs)) RELLOGOP Rhs;                      \
@@ -2264,7 +2343,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible_v<T, T1> &&                                          \
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
+           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \
       const T & Lhs,                                                           \
@@ -2440,10 +2519,11 @@ struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
-// Single element floating-point (except half)
+// Single element floating-point (except half/bfloat16)
 template <typename T>
 struct VecStorage<
-    T, 1, typename std::enable_if_t<!is_half_v<T> && is_sgenfloat_v<T>>> {
+    T, 1,
+    typename std::enable_if_t<!is_half_or_bf16_v<T> && is_sgenfloat_v<T>>> {
   using DataType = T;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2451,13 +2531,14 @@ struct VecStorage<
 #endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
-// Multiple elements signed/unsigned integers and floating-point (except half)
+// Multiple elements signed/unsigned integers and floating-point (except
+// half/bfloat16)
 template <typename T, int N>
 struct VecStorage<
     T, N,
     typename std::enable_if_t<isValidVectorSize(N) &&
                               (is_sgeninteger_v<T> ||
-                               (is_sgenfloat_v<T> && !is_half_v<T>))>> {
+                               (is_sgenfloat_v<T> && !is_half_or_bf16_v<T>))>> {
   using DataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2501,6 +2582,26 @@ __SYCL_DEFINE_HALF_VECSTORAGE(4)
 __SYCL_DEFINE_HALF_VECSTORAGE(8)
 __SYCL_DEFINE_HALF_VECSTORAGE(16)
 #undef __SYCL_DEFINE_HALF_VECSTORAGE
+
+// Single element bfloat16
+template <> struct VecStorage<sycl::ext::oneapi::bfloat16, 1, void> {
+  using DataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+  // using VectorDataType = sycl::ext::oneapi::bfloat16;
+  using VectorDataType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+};
+// Multiple elements bfloat16
+#define __SYCL_DEFINE_BF16_VECSTORAGE(Num)                                     \
+  template <> struct VecStorage<sycl::ext::oneapi::bfloat16, Num, void> {      \
+    using DataType = sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;      \
+    using VectorDataType =                                                     \
+        sycl::ext::oneapi::detail::bf16::Vec##Num##StorageT;                   \
+  };
+__SYCL_DEFINE_BF16_VECSTORAGE(2)
+__SYCL_DEFINE_BF16_VECSTORAGE(3)
+__SYCL_DEFINE_BF16_VECSTORAGE(4)
+__SYCL_DEFINE_BF16_VECSTORAGE(8)
+__SYCL_DEFINE_BF16_VECSTORAGE(16)
+#undef __SYCL_DEFINE_BF16_VECSTORAGE
 } // namespace detail
 
 /// This macro must be defined to 1 when SYCL implementation allows user

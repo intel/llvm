@@ -612,8 +612,7 @@ bool test_fp_types(queue q) {
 
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
-    // TODO: fmin/max for double does not pass validation likely due to
-    // a driver bug. fcmpwr is hanging.
+    // TODO: fmin/fmax/fcmpxchg for double requires a newer GPU driver.
     if constexpr (!std::is_same_v<Op<double, N>, ImplLSCFmax<double, N>> &&
                   !std::is_same_v<Op<double, N>, ImplLSCFmin<double, N>> &&
                   !std::is_same_v<Op<double, N>, ImplLSCFcmpwr<double, N>>) {

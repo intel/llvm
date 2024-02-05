@@ -1128,6 +1128,15 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     StaticMemberDecl = transDebugInst<DIDerivedType>(
         BM->get<SPIRVExtInst>(Ops[StaticMemberDeclarationIdx]));
   }
+
+  DIExpression *DIExpr = nullptr;
+  // Check if Ops[VariableIdx] is not being used to hold a variable operand.
+  // Instead it is being used to hold an Expression that holds the initial
+  // value of the GlobalVariable.
+  if (getDbgInst<SPIRVDebug::Expression>(Ops[VariableIdx]))
+    DIExpr =
+        transDebugInst<DIExpression>(BM->get<SPIRVExtInst>(Ops[VariableIdx]));
+
   SPIRVWord Flags =
       getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   bool IsLocal = Flags & SPIRVDebug::FlagIsLocal;
@@ -1136,7 +1145,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
   if (IsDefinition) {
     VarDecl = getDIBuilder(DebugInst).createGlobalVariableExpression(
         Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, IsDefinition,
-        nullptr, StaticMemberDecl);
+        DIExpr, StaticMemberDecl);
   } else {
     VarDecl = getDIBuilder(DebugInst).createTempGlobalVariableFwdDecl(
         Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, StaticMemberDecl);
@@ -1145,15 +1154,20 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     llvm::TempMDNode TMP(VarDecl);
     VarDecl = getDIBuilder(DebugInst).replaceTemporary(std::move(TMP), VarDecl);
   }
-  // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
-  // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
-  // static const).
-  if (VarDecl && !getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
-    SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
-    Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
-    llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
-    if (GV && !GV->hasMetadata("dbg"))
-      GV->addMetadata("dbg", *VarDecl);
+
+  // Ops[VariableIdx] was not used to hold an Expression with the initial value
+  // for the GlobalVariable
+  if (!DIExpr) {
+    // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
+    // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
+    // static const).
+    if (VarDecl && !getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
+      SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
+      Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
+      llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
+      if (GV && !GV->hasMetadata("dbg"))
+        GV->addMetadata("dbg", *VarDecl);
+    }
   }
   return VarDecl;
 }

@@ -183,6 +183,8 @@ if lit_config.params.get("ur_l0_leaks_debug"):
     config.ur_l0_leaks_debug = lit_config.params.get("ur_l0_leaks_debug")
     lit_config.note("UR_L0_LEAKS_DEBUG: " + config.ur_l0_leaks_debug)
 
+if lit_config.params.get("enable-perf-tests", False):
+    config.available_features.add("enable-perf-tests")
 # Make sure that any dynamic checks below are done in the build directory and
 # not where the sources are located. This is important for the in-tree
 # configuration (as opposite to the standalone one).
@@ -413,7 +415,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
             continue
-        (backend, device, _) = line[1:].split(":", 2)
+        (backend, device) = line[1:].split("]")[0].split(":")
         devices.add("{}:{}".format(backend, device))
     config.sycl_devices = list(devices)
 
@@ -684,3 +686,7 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
+
+config.substitutions.append(
+    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
+)

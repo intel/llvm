@@ -215,7 +215,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
   }
   for (auto *F : ToProcess) {
     auto *MD = F->getMetadata(SYCLCP::Key);
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       if (const auto *MDS = dyn_cast<MDString>(I.value().get())) {
         // A value is masked-out if it has a non-empty MDString
