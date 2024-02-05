@@ -25,7 +25,7 @@ public:
   string() noexcept = default;
   ~string() { delete[] str; }
 
-  string(const std::string_view &strn) {
+  string(const std::string_view strn) {
     size_t len = strn.length();
     str = new char[len + 1];
     strn.copy(str, len);
@@ -52,7 +52,7 @@ public:
     return *this;
   }
 
-  string &operator=(const std::string_view &strn) {
+  string &operator=(const std::string_view strn) {
     *this = string{strn};
     return *this;
   }
@@ -60,10 +60,10 @@ public:
   const char *c_str() const noexcept { return str; }
 
   friend bool operator==(const string &lhs,
-                         const std::string_view &rhs) noexcept {
+                         const std::string_view rhs) noexcept {
     return rhs == lhs.c_str();
   }
-  friend bool operator==(const std::string_view &lhs,
+  friend bool operator==(const std::string_view lhs,
                          const string &rhs) noexcept {
     return lhs == rhs.c_str();
   }
