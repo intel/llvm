@@ -22,13 +22,10 @@ class string {
   char *str = nullptr;
 
 public:
-  string() noexcept {
-    str = new char[1];
-    *str = 0;
-  }
+  string() noexcept = default;
   ~string() { delete[] str; }
 
-  string(const std::string_view &strn) noexcept {
+  string(const std::string_view &strn) {
     size_t len = strn.length();
     str = new char[len + 1];
     strn.copy(str, len);
@@ -40,34 +37,26 @@ public:
   }
 
   string(string &&other) noexcept { swap(*this, other); }
-  string(const string &other) noexcept {
-    size_t len = strlen(other.str);
-    str = new char[len + 1];
-    strcpy(str, other.str);
+  string(const string &other) {
+    if (other.str == nullptr)
+      return;
+    *this = string{other.str};
   }
 
   string &operator=(string &&other) noexcept {
     swap(*this, other);
     return *this;
   }
-  string &operator=(const string &other) noexcept {
-    size_t len = strlen(other.str);
-    delete[] str;
-    str = new char[len + 1];
-    strcpy(str, other.str);
+  string &operator=(const string &other) {
+    *this = string{other.str};
     return *this;
   }
 
-  string &operator=(const std::string_view &strn) noexcept {
-    int len = strn.length();
-    delete[] str;
-    str = new char[len + 1];
-    strn.copy(str, len);
-    str[len] = 0;
+  string &operator=(const std::string_view &strn) {
+    *this = string{strn};
     return *this;
   }
 
-  const char *c_str() noexcept { return str; }
   const char *c_str() const noexcept { return str; }
 
   friend bool operator==(const string &lhs,
