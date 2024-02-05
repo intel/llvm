@@ -2703,35 +2703,44 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
 namespace detail {
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    (isPowerOf2(N, 32)) &&
     (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
      is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_write>)>
 scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
              uint32_t glob_offset, simd_mask<N> mask) {
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr int16_t scale = 0;
-  const auto si = __ESIMD_NS::get_surface_index(acc);
-
-  if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<std::is_integral_v<T>, T,
-                                    detail::uint_type_t<sizeof(T)>>;
-    using Treal = __raw_t<T>;
-    simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
-    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
-                                               int32_t, uint32_t>;
-    const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
-    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
-        mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
+  if constexpr (sizeof(T) == 8) {
+    scatter_impl<uint32_t, N>(
+        acc, vals.template bit_cast_view<uint32_t>().template select<N, 2>(0),
+        offsets, glob_offset, mask);
+    scatter_impl<uint32_t, N>(
+        acc, vals.template bit_cast_view<uint32_t>().template select<N, 2>(1),
+        offsets + sizeof(uint32_t), glob_offset, mask);
   } else {
-    using Treal = __raw_t<T>;
-    if constexpr (!std::is_same_v<Treal, T>) {
-      simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
-      __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
-          mask.data(), si, glob_offset, offsets.data(), Values.data());
+    constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+    // TODO (performance) use hardware-supported scale once BE supports it
+    constexpr int16_t scale = 0;
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+
+    if constexpr (sizeof(T) < 4) {
+      using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                      detail::uint_type_t<sizeof(T)>>;
+      using Treal = __raw_t<T>;
+      simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
+      using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                                 int32_t, uint32_t>;
+      const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
+      __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
+          mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
     } else {
-      __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
-          mask.data(), si, glob_offset, offsets.data(), vals.data());
+      using Treal = __raw_t<T>;
+      if constexpr (!std::is_same_v<Treal, T>) {
+        simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
+        __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
+            mask.data(), si, glob_offset, offsets.data(), Values.data());
+      } else {
+        __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
+            mask.data(), si, glob_offset, offsets.data(), vals.data());
+      }
     }
   }
 }
@@ -2743,42 +2752,52 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
-  static_assert(sizeof(T) <= 4 && detail::isPowerOf2(N, 32),
-                "Unexpected type or vector length");
+  static_assert(detail::isPowerOf2(N, 32), "Unexpected vector length");
+  using Treal = __raw_t<T>;
 
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr uint32_t scale = 0;
-  const auto si = get_surface_index(acc);
-
-  if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<std::is_integral_v<T>, T,
-                                    detail::uint_type_t<sizeof(T)>>;
-    using Treal = __raw_t<T>;
-    static_assert(std::is_integral<Tint>::value,
-                  "only integral 1- & 2-byte types are supported");
-    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
-                                               int32_t, uint32_t>;
-    simd<PromoT, N> promo_vals =
-        __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
-                                      scale>(si, glob_offset, offsets.data(),
-                                             mask.data());
-    auto Res = convert<Tint>(promo_vals);
-
-    if constexpr (!std::is_same_v<Tint, T>) {
-      return detail::bitcast<Treal, Tint, N>(Res.data());
-    } else {
-      return Res;
-    }
+  if constexpr (sizeof(T) == 8) {
+    simd<Treal, N> Res;
+    Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
+        gather_impl<uint32_t, N>(acc, offsets, glob_offset, mask);
+    Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
+        gather_impl<uint32_t, N>(acc, offsets + sizeof(uint32_t), glob_offset,
+                                 mask);
+    return Res;
   } else {
-    using Treal = __raw_t<T>;
-    simd<Treal, N> Res = __esimd_gather_masked_scaled2<Treal, N, decltype(si),
-                                                       TypeSizeLog2, scale>(
-        si, glob_offset, offsets.data(), mask.data());
-    if constexpr (!std::is_same_v<Treal, T>) {
-      return Res.template bit_cast_view<T>();
+
+    constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+    // TODO (performance) use hardware-supported scale once BE supports it
+    constexpr uint32_t scale = 0;
+    const auto si = get_surface_index(acc);
+
+    if constexpr (sizeof(T) < 4) {
+      using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                      detail::uint_type_t<sizeof(T)>>;
+
+      static_assert(std::is_integral<Tint>::value,
+                    "only integral 1- & 2-byte types are supported");
+      using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                                 int32_t, uint32_t>;
+      simd<PromoT, N> promo_vals =
+          __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
+                                        scale>(si, glob_offset, offsets.data(),
+                                               mask.data());
+      auto Res = convert<Tint>(promo_vals);
+
+      if constexpr (!std::is_same_v<Tint, T>) {
+        return detail::bitcast<Treal, Tint, N>(Res.data());
+      } else {
+        return Res;
+      }
     } else {
-      return Res;
+      simd<Treal, N> Res = __esimd_gather_masked_scaled2<Treal, N, decltype(si),
+                                                         TypeSizeLog2, scale>(
+          si, glob_offset, offsets.data(), mask.data());
+      if constexpr (!std::is_same_v<Treal, T>) {
+        return Res.template bit_cast_view<T>();
+      } else {
+        return Res;
+      }
     }
   }
 }
@@ -2905,7 +2924,7 @@ __ESIMD_API
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       byte_offsets, mask);
 #else
-  if constexpr (sizeof(T) > 4 || !(detail::isPowerOf2(N, 32))) {
+  if constexpr (!detail::isPowerOf2(N, 32)) {
     // Requires DG2 or PVC.
     simd<T, N> PassThru; // Intentionally undefined
     byte_offsets += glob_offset;
@@ -3322,13 +3341,13 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 ///
 ///
 template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_device_accessor_with_v<AccessorTy,
-                                      detail::accessor_mode_cap::can_write>>
-scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-        simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset = 0,
-        simd_mask<N> mask = 1) {
+__ESIMD_API
+    std::enable_if_t<(detail::isPowerOf2(N, 32)) &&
+                     detail::is_device_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>>
+    scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+            simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset = 0,
+            simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
@@ -3340,7 +3359,7 @@ scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    (detail::isPowerOf2(N, 32)) &&
     detail::is_device_accessor_with_v<AccessorTy,
                                       detail::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
@@ -4165,8 +4184,7 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
 /// the global offset parameters.
 ///
 template <typename T, int N>
-__ESIMD_API std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32) &&
-                             (sizeof(T) <= 4)>
+__ESIMD_API std::enable_if_t<(detail::isPowerOf2(N, 32))>
 slm_scatter(simd<uint32_t, N> offsets, simd<T, N> vals, simd_mask<N> mask = 1) {
   detail::LocalAccessorMarker acc;
   detail::scatter_impl<T, N>(acc, vals, offsets, 0, mask);
