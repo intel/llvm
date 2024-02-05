@@ -274,7 +274,7 @@ static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
 static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *Res;
   const char GetPrefix[] = "__dpcpp_nativecpu_get";
-  if (Name.startswith(GetPrefix)) {
+  if (Name.starts_with(GetPrefix)) {
     Res = addGetFunc(M, Name, StateType);
   } else if (Name == NativeCPUSetLocalId) {
     Res = addSetLocalIdFunc(M, Name, StateType);

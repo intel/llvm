@@ -3064,6 +3064,14 @@ def fmodule_output : Flag<["-"], "fmodule-output">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Save intermediate module file results when compiling a standard C++ module unit.">;
 
+defm skip_odr_check_in_gmf : BoolOption<"f", "skip-odr-check-in-gmf",
+  LangOpts<"SkipODRCheckInGMF">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option],
+          "Skip ODR checks for decls in the global module fragment.">,
+  NegFlag<SetFalse, [], [CC1Option],
+          "Perform ODR checks for decls in the global module fragment.">>,
+  Group<f_Group>;
+
 def fmodules_prune_interval : Joined<["-"], "fmodules-prune-interval=">, Group<i_Group>,
   Visibility<[ClangOption, CC1Option]>, MetaVarName<"<seconds>">,
   HelpText<"Specify the interval (in seconds) between attempts to prune the module cache">,
@@ -4690,6 +4698,8 @@ def mtls_size_EQ : Joined<["-"], "mtls-size=">, Group<m_Group>,
   HelpText<"Specify bit size of immediate TLS offsets (AArch64 ELF only): "
            "12 (for 4KB) | 24 (for 16MB, default) | 32 (for 4GB) | 48 (for 256TB, needs -mcmodel=large)">,
   MarshallingInfoInt<CodeGenOpts<"TLSSize">>;
+def mtls_dialect_EQ : Joined<["-"], "mtls-dialect=">, Group<m_Group>,
+  Flags<[TargetSpecific]>, HelpText<"Which thread-local storage dialect to use for dynamic accesses of TLS variables">;
 def mimplicit_it_EQ : Joined<["-"], "mimplicit-it=">, Group<m_Group>;
 def mdefault_build_attributes : Joined<["-"], "mdefault-build-attributes">, Group<m_Group>;
 def mno_default_build_attributes : Joined<["-"], "mno-default-build-attributes">, Group<m_Group>;
@@ -4888,6 +4898,10 @@ def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_Group>,
   HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64/LoongArch/RISC-V only)">;
 def mno_unaligned_access : Flag<["-"], "mno-unaligned-access">, Group<m_Group>,
   HelpText<"Force all memory accesses to be aligned (AArch32/AArch64/LoongArch/RISC-V only)">;
+def munaligned_symbols : Flag<["-"], "munaligned-symbols">, Group<m_Group>,
+  HelpText<"Expect external char-aligned symbols to be without ABI alignment (SystemZ only)">;
+def mno_unaligned_symbols : Flag<["-"], "mno-unaligned-symbols">, Group<m_Group>,
+  HelpText<"Expect external char-aligned symbols to be without ABI alignment (SystemZ only)">;
 } // let Flags = [TargetSpecific]
 def mstrict_align : Flag<["-"], "mstrict-align">, Alias<mno_unaligned_access>,
   Flags<[HelpHidden]>, Visibility<[ClangOption, CC1Option]>,
@@ -7381,6 +7395,9 @@ def fexperimental_assignment_tracking_EQ : Joined<["-"], "fexperimental-assignme
   Values<"disabled,enabled,forced">, NormalizedValues<["Disabled","Enabled","Forced"]>,
   MarshallingInfoEnum<CodeGenOpts<"AssignmentTrackingMode">, "Enabled">;
 
+def enable_tlsdesc : Flag<["-"], "enable-tlsdesc">,
+  MarshallingInfoFlag<CodeGenOpts<"EnableTLSDESC">>;
+
 } // let Visibility = [CC1Option]
 
 //===----------------------------------------------------------------------===//
@@ -8404,6 +8421,9 @@ def : CLFlag<"O1">, Alias<_SLASH_O>, AliasArgs<["1"]>,
   HelpText<"Optimize for size  (like /Og     /Os /Oy /Ob2 /GF /Gy)">;
 def : CLFlag<"O2">, Alias<_SLASH_O>, AliasArgs<["2"]>,
   HelpText<"Optimize for speed (like /Og /Oi /Ot /Oy /Ob2 /GF /Gy)">;
+def : CLFlag<"O3">, Alias<_SLASH_O>, AliasArgs<["3"]>,
+  HelpText<"Optimize for maximum speed and enable more aggressive optimizations"
+  " that may not improve performance on some programs">;
 def : CLFlag<"Ob0">, Alias<_SLASH_O>, AliasArgs<["b0"]>,
   HelpText<"Disable function inlining">;
 def : CLFlag<"Ob1">, Alias<_SLASH_O>, AliasArgs<["b1"]>,

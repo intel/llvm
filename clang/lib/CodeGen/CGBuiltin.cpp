@@ -14149,11 +14149,11 @@ CodeGenFunction::EmitAArch64CpuSupports(ArrayRef<StringRef> FeaturesStrs) {
 
 Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
                                            const CallExpr *E) {
-  if (BuiltinID == X86::BI__builtin_cpu_is)
+  if (BuiltinID == Builtin::BI__builtin_cpu_is)
     return EmitX86CpuIs(E);
-  if (BuiltinID == X86::BI__builtin_cpu_supports)
+  if (BuiltinID == Builtin::BI__builtin_cpu_supports)
     return EmitX86CpuSupports(E);
-  if (BuiltinID == X86::BI__builtin_cpu_init)
+  if (BuiltinID == Builtin::BI__builtin_cpu_init)
     return EmitX86CpuInit();
 
   // Handle MSVC intrinsics before argument evaluation to prevent double
@@ -16640,6 +16640,43 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
 
   switch (BuiltinID) {
   default: return nullptr;
+
+  case Builtin::BI__builtin_cpu_is: {
+    const Expr *CPUExpr = E->getArg(0)->IgnoreParenCasts();
+    StringRef CPUStr = cast<clang::StringLiteral>(CPUExpr)->getString();
+    unsigned NumCPUID = StringSwitch<unsigned>(CPUStr)
+#define PPC_LNX_CPU(Name, NumericID) .Case(Name, NumericID)
+#include "llvm/TargetParser/PPCTargetParser.def"
+                            .Default(-1U);
+    assert(NumCPUID < -1U && "Invalid CPU name. Missed by SemaChecking?");
+    Value *Op0 = llvm::ConstantInt::get(Int32Ty, PPC_FAWORD_CPUID);
+    llvm::Function *F = CGM.getIntrinsic(Intrinsic::ppc_fixed_addr_ld);
+    Value *TheCall = Builder.CreateCall(F, {Op0}, "cpu_is");
+    return Builder.CreateICmpEQ(TheCall,
+                                llvm::ConstantInt::get(Int32Ty, NumCPUID));
+  }
+  case Builtin::BI__builtin_cpu_supports: {
+    unsigned FeatureWord;
+    unsigned BitMask;
+    const Expr *CPUExpr = E->getArg(0)->IgnoreParenCasts();
+    StringRef CPUStr = cast<clang::StringLiteral>(CPUExpr)->getString();
+    std::tie(FeatureWord, BitMask) =
+        StringSwitch<std::pair<unsigned, unsigned>>(CPUStr)
+#define PPC_LNX_FEATURE(Name, Description, EnumName, Bitmask, FA_WORD)         \
+  .Case(Name, {FA_WORD, Bitmask})
+#include "llvm/TargetParser/PPCTargetParser.def"
+            .Default({0, 0});
+    assert(BitMask && "Invalid target feature string. Missed by SemaChecking?");
+    Value *Op0 = llvm::ConstantInt::get(Int32Ty, FeatureWord);
+    llvm::Function *F = CGM.getIntrinsic(Intrinsic::ppc_fixed_addr_ld);
+    Value *TheCall = Builder.CreateCall(F, {Op0}, "cpu_supports");
+    Value *Mask =
+        Builder.CreateAnd(TheCall, llvm::ConstantInt::get(Int32Ty, BitMask));
+    return Builder.CreateICmpNE(Mask, llvm::Constant::getNullValue(Int32Ty));
+#undef PPC_FAWORD_HWCAP
+#undef PPC_FAWORD_HWCAP2
+#undef PPC_FAWORD_CPUID
+  }
 
   // __builtin_ppc_get_timebase is GCC 4.8+'s PowerPC-specific name for what we
   // call __builtin_readcyclecounter.
@@ -23271,21 +23308,11 @@ static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
   return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
 }
 
-llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
+llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
-    llvm::Value *FnPtr, const FunctionDecl *FD) {
-  llvm::Function *Func;
+    llvm::Value *FnPtr, StringRef Name, unsigned FDBuiltinID) {
   unsigned FPAccuracyIntrinsicID = 0;
-  StringRef Name;
-  if (CurrentBuiltinID == 0) {
-    // Even if the current function doesn't have a clang builtin, create
-    // an 'fpbuiltin-max-error' attribute for it; unless it's marked with
-    // an NoBuiltin attribute.
-    if (FD->hasAttr<NoBuiltinAttr>() ||
-        !FD->getNameInfo().getName().isIdentifier())
-      return nullptr;
-
-    Name = FD->getName();
+  if (FDBuiltinID == 0) {
     FPAccuracyIntrinsicID =
         llvm::StringSwitch<unsigned>(Name)
             .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
@@ -23300,9 +23327,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   } else {
     // The function has a clang builtin. Create an attribute for it
     // only if it has an fpbuiltin intrinsic.
-    unsigned BuiltinID = getCurrentBuiltinID();
-    Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
-    switch (BuiltinID) {
+    switch (FDBuiltinID) {
     default:
       // If the function has a clang builtin but doesn't have an
       // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
@@ -23384,7 +23409,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
       !LangOpts.FPAccuracyVal.empty()) {
-    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    llvm::Function *Func =
+        CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }

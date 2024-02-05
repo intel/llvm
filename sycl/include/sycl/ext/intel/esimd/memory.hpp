@@ -179,6 +179,45 @@ __ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
   return lsc_format_ret<T>(Result);
 }
 
+/// USM pointer scatter.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_store.ugm
+///
+/// Scatters elements to specific address.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to store per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @param p is the base pointer.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param vals is values to store.
+/// @param pred is predicates.
+///
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, int N, typename Toffset>
+__ESIMD_API void scatter_impl(T *p, simd<Toffset, N> offsets,
+                              simd<T, N * NElts> vals, simd_mask<N> pred) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::store, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size VS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
+  addrs += convert<uintptr_t>(offsets);
+  simd<MsgT, N * NElts> Tmp = lsc_format_input<MsgT, T>(vals);
+  __esimd_lsc_store_stateless<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS, VS,
+                              Transposed, N>(pred.data(), addrs.data(),
+                                             Tmp.data());
+}
+
 // Returns true iff it is Ok to use llvm.masked.gather and llvm.masked.scatter.
 // By default (without use specifying __ESIMD_GATHER_SCATTER_LLVM_IR) it is
 // not used because of an issue in GPU driver, which does not recognize
@@ -616,62 +655,203 @@ gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
   return gather<Tx, N>(p, simd<Toffset, N>(offset), mask);
 }
 
+/// template <typename T, int N, int VS = 1, typename OffsetT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-1)
+
+/// template <typename T, int N, int VS = 1, typename OffsetT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+/// 	PropertyListT props = {});                         // (usm-sc-2)
+
+/// The next two functions are similar to usm-sc-{1,2} with the 'byte_offsets'
+/// parameter represerented as 'simd_view'.
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-3)
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///      PropertyListT props = {});                         // (usm-sc-4)
+
+/// template <typename T, int N, int VS = 1, typename OffsetT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-1)
+///
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
 /// value of the corresponding element in the input offset vector. Access to
 /// any element's memory location can be disabled via the input mask.
-/// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
-///   or \c 32.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
 /// @param p The base address.
-/// @param offsets A vector of 32-bit or 64-bit offsets in bytes. For each lane
-/// \c i,   ((byte*)p + offsets[i]) must be element size aligned.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
 /// @param vals The vector to scatter.
-/// @param mask The access mask, defaults to all 1s.
-///
-template <typename Tx, int N, typename Toffset>
-__ESIMD_API void scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
-                         simd_mask<N> mask = 1) {
-  using T = detail::__raw_t<Tx>;
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
-  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
-  simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
-  if constexpr (sizeof(T) == 1) {
-    simd<T, N * 4> D;
-    D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>(),
-                        detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), D.data(), mask.data());
-  } else if constexpr (sizeof(T) == 2) {
-    simd<T, N * 2> D;
-    D = __esimd_wrregion<T, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>(),
-                        detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), D.data(), mask.data());
-  } else
-    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>(),
-                        detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), vals.data(), mask.data());
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(std::is_integral_v<OffsetT>, "Unsupported offset type");
+  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
+
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+  static_assert(Alignment >= sizeof(T),
+                "scatter() requires at least element-size alignment");
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+
+  // Use LSC lowering if L1/L2 or VS > 1.
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                VS > 1 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+    static_assert(VS == 1 || sizeof(T) >= 4,
+                  "VS > 1 is supprted only for 4- and 8-byte elements");
+    return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
+                                L1Hint, L2Hint>(p, byte_offsets, vals, mask);
+  } else {
+    using Tx = detail::__raw_t<T>;
+    simd<uint64_t, N> byte_offsets_i = convert<uint64_t>(byte_offsets);
+    simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
+    addrs = addrs + byte_offsets_i;
+    if constexpr (sizeof(T) == 1) {
+      simd<T, N * 4> D = __esimd_wrregion<Tx, N * 4, N, /*VS*/ 0, N, 4>(
+          D.data(), vals.data(), 0);
+      __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<4>(),
+                          detail::ElemsPerAddrEncoding<1>()>(
+          addrs.data(), D.data(), mask.data());
+    } else if constexpr (sizeof(T) == 2) {
+      simd<Tx, N * 2> D = __esimd_wrregion<Tx, N * 2, N, /*VS*/ 0, N, 2>(
+          D.data(), vals.data(), 0);
+      __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<2>(),
+                          detail::ElemsPerAddrEncoding<2>()>(
+          addrs.data(), D.data(), mask.data());
+    } else
+      __esimd_svm_scatter<Tx, N, detail::ElemsPerAddrEncoding<1>(),
+                          detail::ElemsPerAddrEncoding<1>()>(
+          addrs.data(), vals.data(), mask.data());
+  }
 }
 
-/// A variation of \c scatter API with \c offsets represented as \c simd_view
-/// object.
+// template <typename T, int N, int VS = 1, typename OffsetT,
+// 	  typename PropertyListT = empty_properties_t>
+// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+// 	PropertyListT props = {});                               // (usm-sc-2)
 ///
-/// @tparam Tx Element type, must be of size 4 or less.
-/// @tparam N Number of elements to write; can be \c 1, \c 2, \c 4, \c 8, \c 16
-///   or \c 32.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
 /// @param p The base address.
-/// @param offsets A simd_view of 32-bit or 64-bit offsets in bytes. For each
-/// lane \c i,   ((byte*)p + offsets[i]) must be element size aligned.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
 /// @param vals The vector to scatter.
-/// @param mask The access mask, defaults to all 1s.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(p, byte_offsets, vals, Mask, props);
+}
+
+// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+// 	  typename PropertyListT = empty_properties_t>
+// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-sc-3)
 ///
-template <typename Tx, int N, typename OffsetObjT, typename RegionTy>
-__ESIMD_API void scatter(Tx *p, simd_view<OffsetObjT, RegionTy> offsets,
-                         simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  scatter<Tx, N>(p, offsets.read(), vals, mask);
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(p, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///      PropertyListT props = {});                         // (usm-sc-4)
+///
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(p, byte_offsets.read(), vals, Mask, props);
 }
 
 /// A variation of \c scatter API with \c offsets represented as scalar.
@@ -688,7 +868,7 @@ __ESIMD_API void scatter(Tx *p, simd_view<OffsetObjT, RegionTy> offsets,
 template <typename Tx, int N, typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> && N == 1>
 scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
+  scatter<Tx, N, 1>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
 namespace detail {
