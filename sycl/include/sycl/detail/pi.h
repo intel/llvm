@@ -151,9 +151,10 @@
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
 // 15.43 Changed the signature of piextMemGetNativeHandle to also take a
 // pi_device
+// 15.44 Add coarse-grain memory advice flag for HIP.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 43
+#define _PI_H_VERSION_MINOR 44
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -582,6 +583,8 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 
