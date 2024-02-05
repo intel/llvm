@@ -70,12 +70,7 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
   : GENX_Op<mnemonic, !listconcat(traits, [Pure])>,
     Results<(outs LLVM_Type:$res)>, Arguments<(ins)> {
   string llvmBuilder = [{
-    llvm::Type *retType = nullptr;
-    if (std::string("}] # fnName # [{") == std::string("__builtin_IB_get_global_size")) {
-      retType = builder.getInt32Ty();
-    } else {
-      retType = builder.getInt64Ty();
-    }
+    llvm::Type *retType = builder.getInt64Ty();
     llvm::Type *argType = builder.getInt32Ty();
     llvm::Value *val = llvm::ConstantInt::get(argType, }] # arg # [{);
     llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{",
@@ -114,20 +109,17 @@ def GENX_BlockIdZOp : GENX_DeviceFunctionOp<"workgroup.id.z",
 // Block and Grid range
 
 def GENX_BlockDimXOp : GENX_DeviceFunctionOp<"workgroup.dim.x",
-                        "_Z12get_local_sizej", 0>;
+                        "_Z14get_local_sizej", 0>;
 def GENX_BlockDimYOp : GENX_DeviceFunctionOp<"workgroup.dim.y",
-                        "_Z12get_local_sizej", 1>;
+                        "_Z14get_local_sizej", 1>;
 def GENX_BlockDimZOp : GENX_DeviceFunctionOp<"workgroup.dim.z",
-                        "_Z12get_local_sizej", 2>;
-// opencl function is currently not being parsed properly by IGC. 
-// Once IGC fixes this issue, we can switch back to the mangled function name or use 
-// a GenISA intrinsic. 
+                        "_Z14get_local_sizej", 2>;
 def GENX_GridDimXOp : GENX_DeviceFunctionOp<"grid.dim.x",
-                        "__builtin_IB_get_global_size", 0>;
+                        "_Z15get_global_sizej", 0>;
 def GENX_GridDimYOp : GENX_DeviceFunctionOp<"grid.dim.y",
-                        "__builtin_IB_get_global_size", 1>;
+                        "_Z15get_global_sizej", 1>;
 def GENX_GridDimZOp : GENX_DeviceFunctionOp<"grid.dim.z",
-                        "__builtin_IB_get_global_size", 2>;
+                        "_Z15get_global_sizej", 2>;
 
 //===----------------------------------------------------------------------===//
 // Synchronization
