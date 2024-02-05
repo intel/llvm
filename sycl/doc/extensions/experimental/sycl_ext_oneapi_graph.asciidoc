@@ -1151,7 +1151,7 @@ event::ext_oneapi_get_profiling_info(node Node) const;
 | Queries the profiling information of a SYCL Graph node for the graph
   execution associated with this SYCL event. If the requested info is
   not available when this member function is called due to incompletion of
-  command groups associated with the event, then the call to this member
+  graph execution associated with the event, then the call to this member
   function will block until the requested info is available.
 
 Parameters:
