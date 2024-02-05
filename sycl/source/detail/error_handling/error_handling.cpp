@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "error_handling.hpp"
-#include "sycl/detail/pi.h"
 
 #include <detail/plugin.hpp>
 #include <sycl/backend_types.hpp>
