@@ -1,11 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out
-// XFAIL: hip
-
-// COM: Test fails on hip due to unsupported CG kinds being tested. This test
-// only checks fusion does not crash on non-kernel CG (target independent test),
-// so having multiple CG kinds has higher priority than running the test on all
-// backends.
+// RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test non-kernel device command groups are not fused
 
@@ -104,14 +98,9 @@ int main() {
   {
     // CHECK: Not fusing 'fill usm' command group. Can only fuse device kernel command groups.
     fw.start_fusion();
-    q.submit([&](handler &cgh) { cgh.fill(dst, Pattern, count); });
-    fw.complete_fusion();
-  }
-
-  {
-    // CHECK: Not fusing 'prefetch usm' command group. Can only fuse device kernel command groups.
-    fw.start_fusion();
-    q.submit([&](handler &cgh) { cgh.prefetch(dst, count); });
+    q.submit([&](handler &cgh) {
+      cgh.memset(dst, static_cast<int>(Pattern), count);
+    });
     fw.complete_fusion();
   }
 
