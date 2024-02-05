@@ -120,10 +120,13 @@ int main() {
       auto Result = std::apply(F, ArgsTuple);
       static_assert(std::is_same_v<decltype(Expected), decltype(Result)>);
 
-      // Note: operator==(vec, vec) return vec.
       auto Equal = [](auto x, auto y) {
-        return std::equal(x.begin(), x.end(), y.begin());
-      };
+         for (size_t i = 0; i < x.size(); ++i)
+           if (x[i] != y[i])
+             return false;
+
+         return true;
+       };
 
       assert(Equal(Result, Expected));
 
