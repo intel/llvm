@@ -4259,6 +4259,10 @@ defm function_sections : BoolFOption<"function-sections",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Place each function in its own section">,
   NegFlag<SetFalse>>;
+defm basic_block_address_map : BoolFOption<"basic-block-address-map",
+  CodeGenOpts<"BBAddrMap">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Emit the basic block address map section.">,
+  NegFlag<SetFalse>>;
 def fbasic_block_sections_EQ : Joined<["-"], "fbasic-block-sections=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option, CC1AsOption]>,
   HelpText<"Place each function's basic blocks in unique sections (ELF Only)">,
@@ -5068,9 +5072,9 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
   HelpText<"Specify code object ABI version. Defaults to 5. (AMDGPU only)">,
   Visibility<[ClangOption, FlangOption, CC1Option, FC1Option]>,
-  Values<"none,4,5">,
+  Values<"none,4,5,6">,
   NormalizedValuesScope<"llvm::CodeObjectVersionKind">,
-  NormalizedValues<["COV_None", "COV_4", "COV_5"]>,
+  NormalizedValues<["COV_None", "COV_4", "COV_5", "COV_6"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_5">;
 
 defm cumode : SimpleMFlag<"cumode",
