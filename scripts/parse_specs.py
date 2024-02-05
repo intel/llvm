@@ -83,7 +83,7 @@ def _get_etor_value(value, prev):
 """
     validate documents meet some basic (easily detectable) requirements of code generation
 """
-def _validate_doc(f, d, tags, line_num):
+def _validate_doc(f, d, tags, line_num, meta):
     is_iso = lambda x : re.match(r"[_a-zA-Z][_a-zA-Z0-9]{0,30}", x)
 
     def __validate_ordinal(d):
@@ -265,7 +265,35 @@ def _validate_doc(f, d, tags, line_num):
             elif type_traits.is_properties(d['name']) and not d.get('base', "").endswith("base_properties_t"):
                 raise Exception("'base' must be '%s_base_properties_t': %s"%(namespace, d['name']))
 
-    def __validate_members(d, tags):
+    def __validate_struct_range_members(name, members, meta):
+        def has_handle(members, meta):
+            for m in members:
+                if type_traits.is_handle(m):
+                    return True
+                if type_traits.is_struct(m, meta):
+                    return has_handle(
+                        type_traits.get_struct_members(m['type']), meta)
+            return False
+
+        for m in members:
+            if param_traits.is_range(m) and type_traits.is_handle(m['type']):
+                raise Exception(
+                    f"struct range {name} must not contain range of object handles {m['name']}"
+                )
+            if type_traits.is_struct(m['type'], meta):
+                member_members = type_traits.get_struct_members(
+                    m['type'], meta)
+                # We can't handle a range of structs with handles within a range of structs
+                if param_traits.is_range(m) and has_handle(
+                        member_members, meta):
+                    raise Exception(
+                        f"struct range {m['name']} is already within struct range {name}, and must not contain an object handle"
+                    )
+                # We keep passing the original name so we can report it in
+                # exception messages.
+                __validate_struct_range_members(name, member_members, meta)
+
+    def __validate_members(d, tags, meta):
         if 'members' not in d:
             raise Exception("'%s' requires the following sequence of mappings: {`members`}"%d['type'])
 
@@ -286,21 +314,28 @@ def _validate_doc(f, d, tags, line_num):
             if not annotation:
                 raise Exception(prefix+"'desc' must start with {'[in]', '[out]', '[in,out]'}")
 
-            if type_traits.is_handle(item['type']):
-                raise Exception(prefix+"'type' must not be '*_handle_t': %s"%item['type'])
-
             if item['type'].endswith("flag_t"):
                 raise Exception(prefix+"'type' must not be '*_flag_t': %s"%item['type'])
 
             if d['type'] == 'union'and item.get('tag') is None:
                 raise Exception(prefix + f"union member {item['name']} must include a 'tag' annotation")
 
+            if type_traits.is_struct(item['type'],
+                                     meta) and param_traits.is_range(item):
+                member_members = type_traits.get_struct_members(
+                    item['type'], meta)
+                __validate_struct_range_members(item['name'], member_members,
+                                                meta)
+
+            if type_traits.is_handle(item['type']) and param_traits.is_output(item):
+                raise Exception(prefix + f"struct member {item['name']} is an object handle, so it must not be have the [out] tag")
+
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
                 raise Exception(prefix+"'version' must be increasing: %s"%item['version'])
             max_ver = ver
 
-    def __validate_params(d, tags):
+    def __validate_params(d, tags, meta):
         if 'params' not in d:
             raise Exception("'function' requires the following sequence of mappings: {`params`}")
 
@@ -346,6 +381,11 @@ def _validate_doc(f, d, tags, line_num):
 
                 if not has_queue:
                     raise Exception(prefix+"bounds must only be used on entry points which take a `hQueue` parameter")
+
+            if type_traits.is_struct(item['type'],
+                                     meta) and param_traits.is_range(item):
+                members = type_traits.get_struct_members(item['type'], meta)
+                __validate_struct_range_members(item['name'], members, meta)
 
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
@@ -421,7 +461,7 @@ def _validate_doc(f, d, tags, line_num):
                 __validate_union_tag(d)
             __validate_type(d, 'name', tags)
             __validate_base(d)
-            __validate_members(d, tags)
+            __validate_members(d, tags, meta)
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
@@ -435,7 +475,7 @@ def _validate_doc(f, d, tags, line_num):
             else:
                 __validate_name(d, 'name', tags, case='camel')
 
-            __validate_params(d, tags)
+            __validate_params(d, tags, meta)
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
@@ -893,7 +933,7 @@ def parse(section, version, tags, meta, ref):
 
         for i, d in enumerate(docs):
             d = _preprocess(d)
-            if not _validate_doc(f, d, tags, line_nums[i]):
+            if not _validate_doc(f, d, tags, line_nums[i], meta):
                 continue
 
             d = _filter_version(d, float(version))
