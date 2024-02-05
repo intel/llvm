@@ -1,17 +1,17 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o %t_temp.ll %s
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O0 -S -emit-llvm -o - %t_temp.ll | FileCheck %s
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -fno-inline -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O0 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
 
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm %s -o %t_temp.ll
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O0 -S -emit-llvm -o - %t_temp.ll | FileCheck %s
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -S -emit-llvm %s -o %t_temp.ll
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O0 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
 
 // Check that builtins are emitted as expected
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O0 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-BT
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-BT
 
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins.

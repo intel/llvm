@@ -59,7 +59,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   if (OptLevel != 0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
     MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
-    auto queryFunc =
+    auto QueryFunc =
         [](const llvm::Function &F, const llvm::ModuleAnalysisManager &,
            llvm::SmallVectorImpl<vecz::VeczPassOptions> &Opts) -> bool {
       if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
@@ -71,14 +71,14 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
       Opts.emplace_back(std::move(VPO));
       return true;
     };
-    MAM.registerPass([&] { return vecz::VeczPassOptionsAnalysis(queryFunc); });
+    MAM.registerPass([QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
     MPM.addPass(vecz::RunVeczPass());
   }
   compiler::utils::WorkItemLoopsPassOptions Opts;
   Opts.IsDebug = IsDebug;
   Opts.ForceNoTail = ForceNoTail;
-  MAM.registerPass([&] { return compiler::utils::BuiltinInfoAnalysis(); });
-  MAM.registerPass([&] { return compiler::utils::SubgroupAnalysis(); });
+  MAM.registerPass([] { return compiler::utils::BuiltinInfoAnalysis(); });
+  MAM.registerPass([] { return compiler::utils::SubgroupAnalysis(); });
   MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
   MPM.addPass(AlwaysInlinerPass());

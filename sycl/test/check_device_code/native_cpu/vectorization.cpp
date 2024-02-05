@@ -16,7 +16,8 @@ int main() {
     // CHECK-16: store <16 x i32> <i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42>
     // CHECK-4: store <4 x i32> <i32 42, i32 42, i32 42, i32 42>
     // CHECK-O0: store i32 42
+    // CHECK-O0-NOT: store <{{.*}}>
     // CHECK-DISABLE: store i32 42
-    // CHECK-DISABLE-NOT: store <8 x i32> <i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42>
+    // CHECK-DISABLE-NOT: store <{{.*}}>
   });
 }
