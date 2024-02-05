@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "error_handling.hpp"
+#include "sycl/detail/pi.h"
 
 #include <detail/plugin.hpp>
 #include <sycl/backend_types.hpp>
@@ -67,6 +68,10 @@ void handleOutOfResources(const device_impl &DeviceImpl, pi_kernel Kernel,
           PI_ERROR_OUT_OF_RESOURCES);
     }
   }
+  // Fallback
+  constexpr pi_result Error = PI_ERROR_OUT_OF_RESOURCES;
+  throw runtime_error(
+      "PI backend failed. PI backend returns: " + codeToString(Error), Error);
 }
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
