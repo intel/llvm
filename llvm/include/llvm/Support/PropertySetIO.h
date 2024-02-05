@@ -39,12 +39,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <istream>
-#include <map>
-#include <memory>
-#include <string>
-#include <type_traits>
-
 namespace llvm {
 namespace util {
 
