@@ -92,17 +92,17 @@ static void Parse_ODS_Device(ods_target &Target,
 
   std::string_view TopDeviceStr = DeviceSubTuple[0];
 
-  #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
       getODSDeviceTypeMap(); // <-- std::array<std::pair<std::string,
-                              // info::device::type>>
-  #else
+                             // info::device::type>>
+#else
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
       getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
                               // info::device::type>>
-  #endif
+#endif
 
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
@@ -271,11 +271,9 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
   if (Target.DeviceType) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  auto DeviceTypeMap =
-      getODSDeviceTypeMap();
+    auto DeviceTypeMap = getODSDeviceTypeMap();
 #else
-  auto DeviceTypeMap =
-      getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
 #endif
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),

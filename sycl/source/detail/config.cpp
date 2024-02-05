@@ -166,8 +166,8 @@ void dumpConfig() {
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
 // TODO: At some point, we should also align the inputs of SYCL_DEVICE_ALLOWLIST
-// and ONEAPI_DEVICE_SELECTOR. Currently, SYCL_DEVICE_ALLOWLIST accepts 'acc' while
-// ONEAPI_DEVICE_SELECTOR accepts 'fpga'.
+// and ONEAPI_DEVICE_SELECTOR. Currently, SYCL_DEVICE_ALLOWLIST accepts 'acc'
+// while ONEAPI_DEVICE_SELECTOR accepts 'fpga'.
 const std::array<std::pair<std::string, info::device_type>, 5> &
 getODSDeviceTypeMap() {
   static const std::array<std::pair<std::string, info::device_type>, 5>
