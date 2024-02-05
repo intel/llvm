@@ -13,8 +13,9 @@
 
 #include <sycl/sycl.hpp>
 
-#include <chrono>
+#include <bits/chrono.h>
 #include <iostream>
+#include <thread>
 
 namespace kernels {
 class SquareKrnl final {
@@ -117,12 +118,10 @@ int main() {
   q.parallel_for(sycl::range{1}, kernels::CoherencyTestKrnl{ptr});
 
   // wait until ptr is 2 from the kernel (or 3 seconds), then increment to 3.
-  std::chrono::steady_clock::time_point start =
-      std::chrono::steady_clock::now();
-  while (std::chrono::duration_cast<std::chrono::seconds>(
-             std::chrono::steady_clock::now() - start)
-                 .count() < 3 &&
-         *ptr == 2) {
+  while (*ptr == 2) {
+    using std::chrono_literals::operator""s;
+    std::this_thread::sleep_for(3s);
+    break;
   }
   *ptr += 1;
 
@@ -143,6 +142,6 @@ int main() {
 
   // Check if all coherency tests passed.
   assert(coherent);
-
-  return 0;
+  // The above assert won't trigger with NDEBUG, so ensure the right exit code.
+  return coherent ? 0 : 1;
 }
