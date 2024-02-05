@@ -62,23 +62,6 @@ int main() {
 
   sycl::buffer<sycl::vec<elem_t, VEC_DIM>> outputBuf{GLOBAL_WORK_SIZE};
 
-  // Temp info
-  {
-    auto b = sycl::get_kernel_bundle<kernel_vadd_and_sum,
-                                     sycl::bundle_state::executable>(
-        q.get_context());
-    auto k = b.template get_kernel<kernel_vadd_and_sum>();
-    // maximum work-group size for the kernel
-    auto maxWGSize{k.template get_info<
-        sycl::info::kernel_device_specific::work_group_size>(q.get_device())};
-    std::cout << "TestKernel max WG size on this device: " << maxWGSize << '\n';
-    // number of used registers in the kernel
-    auto numRegs{k.template get_info<
-        sycl::info::kernel_device_specific::ext_codeplay_num_regs>(
-        q.get_device())};
-    std::cout << "TestKernel num Regs used by this kernel: " << numRegs << '\n';
-  }
-
   try {
     q.submit([&](sycl::handler &h) {
        auto input1 = valuesBuf1.get_access<sycl::access::mode::read>(h);
@@ -115,7 +98,9 @@ int main() {
   } catch (const sycl::exception &e) {
     using std::string_view_literals::operator""sv;
     auto Msg = "Exceeded the number of registers available on the hardware."sv;
-    if (std::string_view{e.what()}.find(Msg) != std::string_view::npos) {
+    int Errc = PI_ERROR_OUT_OF_RESOURCES;
+    if (e.get_cl_code() == Errc &&
+        std::string_view{e.what()}.find(Msg) != std::string_view::npos) {
       return 0;
     }
   }
