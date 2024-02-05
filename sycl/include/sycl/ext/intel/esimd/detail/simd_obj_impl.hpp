@@ -125,14 +125,19 @@ constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
 
 template <class T, int N, size_t... Is>
 constexpr auto make_vector_impl(T Base, T Stride, std::index_sequence<Is...>) {
-  using CppT = typename element_type_traits<T>::EnclosingCppT;
-  CppT BaseCpp = Base;
-  CppT StrideCpp = Stride;
-  vector_type_t<CppT, N> VBase = BaseCpp;
-  vector_type_t<CppT, N> VStride = StrideCpp;
-  vector_type_t<CppT, N> VStrideCoef{(CppT)(Is)...};
-  vector_type_t<CppT, N> Result{VBase + VStride * VStrideCoef};
-  return wrapper_type_converter<T>::template to_vector<N>(Result);
+  if constexpr (std::is_integral_v<T> && N <= 3) {
+    // This sequence is a bit more efficient for integral types and N <= 3.
+    return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+  } else {
+    using CppT = typename element_type_traits<T>::EnclosingCppT;
+    CppT BaseCpp = Base;
+    CppT StrideCpp = Stride;
+    vector_type_t<CppT, N> VBase = BaseCpp;
+    vector_type_t<CppT, N> VStride = StrideCpp;
+    vector_type_t<CppT, N> VStrideCoef{(CppT)(Is)...};
+    vector_type_t<CppT, N> Result{VBase + VStride * VStrideCoef};
+    return wrapper_type_converter<T>::template to_vector<N>(Result);
+  }
 }
 
 template <class T, int N> constexpr auto make_vector(T Base, T Stride) {

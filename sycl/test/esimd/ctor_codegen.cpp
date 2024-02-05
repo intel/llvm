@@ -69,6 +69,17 @@ SYCL_EXTERNAL auto int_base_step_var(int base, int step) SYCL_ESIMD_FUNCTION {
   // CHECK-NEXT: ret void
 }
 
+// Variable base + step constructor, integer element type.
+SYCL_EXTERNAL auto int_base_step_var_n2(int base, int step) SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z20int_base_step_var_n2ii({{.*}} %[[RES:[a-zA-Z0-9_\.]+]], i32 noundef %[[BASE:[a-zA-Z0-9_\.]+]], i32 noundef %[[STEP:[a-zA-Z0-9_\.]+]]){{.*}} {
+  return simd<int, 2>{base, step};
+  // CHECK: %[[BASE_VEC_TMP1:[a-zA-Z0-9_\.]+]] = insertelement <2 x i32> poison, i32 %[[BASE]], i64 0
+  // CHECK: %[[BASE_INC:[a-zA-Z0-9_\.]+]] = add nsw i32 %[[BASE]], %[[STEP]]
+  // CHECK: %[[RESULT_VEC:[a-zA-Z0-9_\.]+]] = insertelement <2 x i32> %[[BASE_VEC_TMP1]], i32 %[[BASE_INC]], i64 1
+  // CHECK: store <2 x i32> %[[RESULT_VEC]], ptr addrspace(4) %[[RES]]
+  // CHECK-NEXT: ret void
+}
+
 // Broadcast constructor, FP element type, no loops exected - check.
 SYCL_EXTERNAL auto gee() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z3geev({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
