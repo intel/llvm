@@ -51,26 +51,26 @@ template <typename T> struct test_pow_cplx_cplx {
     experimental::complex<T> cplx_input1{init1.re, init1.im};
     experimental::complex<T> cplx_input2{init2.re, init2.im};
 
-    auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
-
+    sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};
     // Get std::complex output
     std::complex<T> std_out{ref.re, ref.im};
     if (!use_ref)
       std_out = std::pow(std_in1, std_in2);
 
     // Check cplx::complex output from device
-    Q.single_task([=]() {
-       cplx_out[0] = experimental::pow<T>(cplx_input1, cplx_input2);
-     }).wait();
-
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);
+    Q.submit([&](sycl::handler &h) {
+      sycl::accessor cplx_out{cplx_out_buf, h};
+      h.single_task([=]() {
+        cplx_out[0] = experimental::pow<T>(cplx_input1, cplx_input2);
+      });
+    });
+    sycl::accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
 
     // Check cplx::complex output from host
-    cplx_out[0] = experimental::pow<T>(cplx_input1, cplx_input2);
+    cplx_out_acc[0] = experimental::pow<T>(cplx_input1, cplx_input2);
 
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);
 
     return pass;
   }
@@ -87,26 +87,25 @@ template <typename T> struct test_pow_cplx_deci {
     experimental::complex<T> cplx_input{init1.re, init1.im};
     T deci_input = init2.re;
 
-    auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
-
+    sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};
     // Get std::complex output
     std::complex<T> std_out{ref.re, ref.im};
     if (!use_ref)
       std_out = std::pow(std_in, std_deci_in);
 
     // Check cplx::complex output from device
-    Q.single_task([=]() {
-       cplx_out[0] = experimental::pow(cplx_input, deci_input);
-     }).wait();
-
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);
+    Q.submit([&](sycl::handler &h) {
+      sycl::accessor cplx_out{cplx_out_buf, h};
+      h.single_task(
+          [=]() { cplx_out[0] = experimental::pow(cplx_input, deci_input); });
+    });
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
 
     // Check cplx::complex output from host
-    cplx_out[0] = experimental::pow(cplx_input, deci_input);
+    cplx_out_acc[0] = experimental::pow(cplx_input, deci_input);
 
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);
 
     return pass;
   }
@@ -123,26 +122,24 @@ template <typename T> struct test_pow_deci_cplx {
     experimental::complex<T> cplx_input{init2.re, init2.im};
     T deci_input = init1.re;
 
-    auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
-
+    sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};
     // Get std::complex output
     std::complex<T> std_out{ref.re, ref.im};
     if (!use_ref)
       std_out = std::pow(std_deci_in, std_in);
 
     // Check cplx::complex output from device
-    Q.single_task([=]() {
-       cplx_out[0] = experimental::pow(deci_input, cplx_input);
-     }).wait();
-
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);
-
+    Q.submit([&](sycl::handler &h) {
+      sycl::accessor cplx_out{cplx_out_buf};
+      h.single_task(
+          [=]() { cplx_out[0] = experimental::pow(deci_input, cplx_input); });
+    });
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
     // Check cplx::complex output from host
-    cplx_out[0] = experimental::pow(deci_input, cplx_input);
+    cplx_out_acc[0] = experimental::pow(deci_input, cplx_input);
 
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);
 
     return pass;
   }

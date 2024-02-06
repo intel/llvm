@@ -26,15 +26,17 @@ void check_sum(std::string_view desc, const ContainerT &data, size_t N) {
 template <typename RangeT>
 void test_regular(std::string_view desc, queue &q, size_t B, RangeT range) {
   auto N = range.size();
-  std::vector accumulators_v(B, 0, usm_allocator<int, usm::alloc::shared>(q));
-  auto *accumulators = accumulators_v.data();
-
-  q.parallel_for(range, [=](auto it) {
-     atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-         accumulators[it.get_linear_id() % B]);
-     ++ref;
-   }).wait();
-
+  std::vector accumulators_v(B, 0);
+  sycl::buffer accumulator_buf{accumulators_v};
+  q.submit([&](sycl::handler &h) {
+    sycl::accessor accumulators{accumulator_buf, h};
+    h.parallel_for(range, [=](auto it) {
+      atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+          accumulators[it.get_linear_id() % B]);
+      ++ref;
+    });
+  });
+  sycl::host_accessor host_accessor{accumulator_buf};
   check_sum(desc, accumulators_v, N);
 }
 
@@ -42,18 +44,18 @@ template <typename RangeT>
 void test_spec_constant(std::string_view desc, queue &q, size_t B,
                         RangeT range) {
   auto N = range.size();
-  std::vector accumulators_v(B, 0, usm_allocator<int, usm::alloc::shared>(q));
-  auto *accumulators = accumulators_v.data();
-
+  std::vector accumulators_v(B, 0);
+  sycl::buffer accumulators_buf{accumulators_v};
   q.submit([&](handler &cgh) {
-     cgh.set_specialization_constant<C>(2);
-     cgh.parallel_for(range, [=](auto it, kernel_handler h) {
-       atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-           accumulators[it.get_linear_id() % B]);
-       ref += h.get_specialization_constant<C>();
-     });
-   }).wait();
-
+    sycl::accessor accumulators{accumulators_buf, cgh};
+    cgh.set_specialization_constant<C>(2);
+    cgh.parallel_for(range, [=](auto it, kernel_handler h) {
+      atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+          accumulators[it.get_linear_id() % B]);
+      ref += h.get_specialization_constant<C>();
+    });
+  });
+  sycl::host_accessor host_accessor{accumulators_buf};
   check_sum(desc, accumulators_v, N * 2);
 }
 

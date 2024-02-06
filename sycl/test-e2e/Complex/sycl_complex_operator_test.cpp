@@ -15,23 +15,19 @@
       experimental::complex<T> cplx_input1{init_re1, init_im1};                \
       experimental::complex<T> cplx_input2{init_re2, init_im2};                \
                                                                                \
-      auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);    \
-                                                                               \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
       std::complex<T> std_out;                                                 \
       std_out = std_in1 op std_in2;                                            \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task([=]() { cplx_out[0] = cplx_input1 op cplx_input2; });    \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
-      Q.single_task([=]() {                                                    \
-         cplx_out[0] = cplx_input1 op cplx_input2;                             \
-       }).wait();                                                              \
+      cplx_out_acc[0] = cplx_input1 op cplx_input2;                            \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
-                                                                               \
-      cplx_out[0] = cplx_input1 op cplx_input2;                                \
-                                                                               \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
-                                                                               \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
       return pass;                                                             \
     }                                                                          \
   };
@@ -53,28 +49,32 @@ test_op(test_div, /);
       experimental::complex<T> cplx_input{init_re1, init_im1};                 \
                                                                                \
       auto std_inout = init_std_complex(init_re2, init_im2);                   \
-      auto *cplx_inout = sycl::malloc_shared<experimental::complex<T>>(1, Q);  \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
+      sycl::host_accessor cplx_inout{cplx_out_buf};                            \
       cplx_inout[0].real(init_re2);                                            \
       cplx_inout[0].imag(init_im2);                                            \
                                                                                \
       std_inout op_assign std_in;                                              \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task([=]() { cplx_out[0] op_assign cplx_input; });            \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
                                                                                \
-      Q.single_task([=]() { cplx_inout[0] op_assign cplx_input; }).wait();     \
+      pass &=                                                                  \
+          check_results(cplx_out_acc[0],                                       \
+                        std::complex<T>(std_inout.real(), std_inout.imag()),   \
+                        /*is_device*/ true);                                   \
                                                                                \
-      pass &= check_results(                                                   \
-          cplx_inout[0], std::complex<T>(std_inout.real(), std_inout.imag()),  \
-          /*is_device*/ true);                                                 \
+      cplx_out_acc[0].real(init_re2);                                          \
+      cplx_out_acc[0].imag(init_im2);                                          \
                                                                                \
-      cplx_inout[0].real(init_re2);                                            \
-      cplx_inout[0].imag(init_im2);                                            \
+      cplx_out_acc[0] op_assign cplx_input;                                    \
                                                                                \
-      cplx_inout[0] op_assign cplx_input;                                      \
-                                                                               \
-      pass &= check_results(                                                   \
-          cplx_inout[0], std::complex<T>(std_inout.real(), std_inout.imag()),  \
-          /*is_device*/ false);                                                \
-                                                                               \
-      sycl::free(cplx_inout, Q);                                               \
+      pass &=                                                                  \
+          check_results(cplx_out_acc[0],                                       \
+                        std::complex<T>(std_inout.real(), std_inout.imag()),   \
+                        /*is_device*/ false);                                  \
                                                                                \
       return pass;                                                             \
     }                                                                          \
@@ -99,19 +99,18 @@ test_op_assign(test_div_assign, /=);
       experimental::complex<T> cplx_input{init_re1, init_im1};                 \
                                                                                \
       std::complex<T> std_out{};                                               \
-      auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);    \
-                                                                               \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
       std_out = op std_in;                                                     \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task([=]() { cplx_out[0] op cplx_input; });                   \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
-      Q.single_task([=]() { cplx_out[0] = op cplx_input; }).wait();            \
+      cplx_out_acc[0] = op cplx_input;                                         \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
-                                                                               \
-      cplx_out[0] = op cplx_input;                                             \
-                                                                               \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
                                                                                \
       return pass;                                                             \
     }                                                                          \
