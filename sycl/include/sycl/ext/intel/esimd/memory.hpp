@@ -2822,10 +2822,9 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 /// @return is a vector of type T and size N * NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS, int N>
-__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
-slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
-                __ESIMD_NS::simd_mask<N> pred,
-                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
+__ESIMD_API simd<T, N * NElts> slm_gather_impl(simd<uint32_t, N> offsets,
+                                               simd_mask<N> pred,
+                                               simd<T, N * NElts> pass_thru) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   constexpr uint16_t AddressScale = 1;
@@ -2834,9 +2833,8 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
-      lsc_format_input<MsgT>(pass_thru);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+  simd<MsgT, N * NElts> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
+  simd<MsgT, N * NElts> Result =
       __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
                                  AddressScale, ImmOffset, EDS, LSCVS,
                                  Transposed, N>(pred.data(), offsets.data(),
@@ -2859,21 +2857,17 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param pred is predicates.
 ///
 template <typename T, int NElts, lsc_data_size DS, int N>
-__ESIMD_API void slm_scatter_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
-                                  __ESIMD_NS::simd<T, N * NElts> vals,
-                                  __ESIMD_NS::simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
+__ESIMD_API void slm_scatter_impl(simd<uint32_t, N> offsets,
+                                  simd<T, N * NElts> vals, simd_mask<N> pred) {
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size LSCVS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  using CstT = __ESIMD_DNS::uint_type_t<sizeof(T)>;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<CstT>();
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<MsgT, N * NElts> Tmp = lsc_format_input<MsgT, T>(vals);
   __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, AddressScale,
                         ImmOffset, EDS, LSCVS, Transposed, N>(
       pred.data(), offsets.data(), Tmp.data());
@@ -4181,8 +4175,8 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
 /// template <typename T, int N, int VS = 1,
 ///           typename PropertyListT = empty_properties_t>
 /// void slm_scatter(simd<uint32_t, N / VS> byte_offsets,
-///                   simd<T, N> vals, simd_mask<N / VS> mask,
-///                   PropertyListT props = {});                   // (slm-sc-1)
+///                  simd<T, N> vals, simd_mask<N / VS> mask,
+///                  PropertyListT props = {});                   // (slm-sc-1)
 /// void slm_scatter(simd<uint32_t, N / VS> byte_offsets,
 ///                   simd<T, N> vals, PropertyListT props = {});  // (slm-sc-2)
 ///
@@ -4252,7 +4246,7 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
 /// @tparam N Number of elements to read.
 /// @tparam VS Vector size. It can also be read as the number of reads per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
-/// only on DG2 and PVC.
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors..
 /// @param byte_offsets the vector of 32-bit offsets in bytes.
 /// For each i, (byte_offsets[i]) must be element size aligned.
 /// @param vals The vector of values to store.
@@ -4283,7 +4277,7 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
 /// @tparam N Number of elements to read.
 /// @tparam VS Vector size. It can also be read as the number of reads per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
-/// only on DG2 and PVC.
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors..
 /// @param byte_offsets the vector of 32-bit offsets in bytes.
 /// For each i, (byte_offsets[i]) must be element size aligned.
 /// If the alignment property is not passed, then it is assumed that each
