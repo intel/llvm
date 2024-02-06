@@ -8,9 +8,7 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "ModuleSplitter.h"
-#include "Support.h"
-
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -23,6 +21,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -426,14 +425,15 @@ private:
   DependencyGraph CG;
 };
 } // namespace
+
 namespace llvm {
 namespace module_split {
 
-void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
+Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
   // Early exit if there is only one group
   if (Groups.size() < 2)
-    return;
+    return Error::success();
 
   // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
   unsigned EntryPointNumber = 0;
@@ -451,19 +451,25 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
 
     std::optional<StringRef> VarEntryPointModule{};
     auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
-                                  &GV](const auto *F) {
+                                  &GV](const auto *F) -> Error {
       auto EntryPointModulesIt = EntryPointModules.find(F);
-      assert(EntryPointModulesIt != EntryPointModules.end() &&
-             "There is no group for an entry point");
+      if (EntryPointModulesIt == EntryPointModules.end())
+        return createStringError(inconvertibleErrorCode(),
+                                 "There is no group for an entry point");
+
       if (!VarEntryPointModule.has_value()) {
         VarEntryPointModule = EntryPointModulesIt->second;
-        return;
+        return Error::success();
       }
-      if (EntryPointModulesIt->second != *VarEntryPointModule) {
-        error("device_global variable '" + Twine(GV.getName()) +
-              "' with property \"device_image_scope\" is used in more "
-              "than one device image.");
-      }
+
+      if (EntryPointModulesIt->second != *VarEntryPointModule)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "device_global variable '" + Twine(GV.getName()) +
+                "' with property \"device_image_scope\" is used in more "
+                "than one device image.");
+
+      return Error::success();
     };
 
     SmallSetVector<const User *, 32> Workqueue;
@@ -478,13 +484,18 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
         continue;
       }
       if (auto *F = dyn_cast<const Function>(U)) {
-        if (EntryPointModules.count(F))
-          CheckEntryPointModule(F);
+        if (EntryPointModules.count(F)) {
+          auto E = CheckEntryPointModule(F);
+          if (!E)
+            return E;
+        }
       }
       for (auto *UU : U->users())
         Workqueue.insert(UU);
     }
   }
+
+  return Error::success();
 }
 
 #ifndef NDEBUG

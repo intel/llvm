@@ -13,7 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
@@ -40,6 +39,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -1009,8 +1009,10 @@ processInputModule(std::unique_ptr<Module> M) {
   Modified |= SplitOccurred;
 
   // FIXME: this check is not performed for ESIMD splits
-  if (DeviceGlobals)
-    Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+  if (DeviceGlobals) {
+    auto E = Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+    CHECK_AND_EXIT(E);
+  }
 
   // It is important that we *DO NOT* preserve all the splits in memory at the
   // same time, because it leads to a huge RAM consumption by the tool on bigger
