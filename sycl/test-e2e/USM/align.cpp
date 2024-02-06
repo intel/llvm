@@ -52,8 +52,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   };
 
   // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line,
-                         int Case) {
+  auto check_null = [&q](auto AllocFn, int Line, int Case) {
     decltype(AllocFn()) Ptr = AllocFn();
     auto v = reinterpret_cast<uintptr_t>(Ptr);
     if (v != 0) {

@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7
-  # Merge: 40517d2b fc1f3066
+  # commit cd97e172cbbfc411fccb0b80e0fff6f9126574f4
+  # Merge: bd745d10 2a9ded6f
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 31 10:38:07 2024 +0000
-  #     Merge pull request #1226 from hdelan/get-native-mem-on-device2
-  #     [UR] Add extra param to urMemGetNativeHandle
-  set(UNIFIED_RUNTIME_TAG d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7)
+  # Date:   Fri Feb 2 14:24:16 2024 +0000
+  #     Merge pull request #1249 from GeorgeWeb/georgi/hip_memadvise_coarse_grained
+  #     [HIP] Implement coarse-grained memory advice for the HIP adapter
+  set(UNIFIED_RUNTIME_TAG cd97e172cbbfc411fccb0b80e0fff6f9126574f4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -202,6 +202,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
