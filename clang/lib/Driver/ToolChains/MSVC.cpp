@@ -930,6 +930,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
       break;
     case '1':
     case '2':
+    case '3':
     case 'x':
     case 'd':
       // Ignore /O[12xd] flags that aren't the last one on the command line.
@@ -946,11 +947,14 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
         } else if (OptChar == '2' || OptChar == 'x') {
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
           DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "2");
+        } else if (OptChar == '3') {
+          DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
+          DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
         }
         if (SupportsForcingFramePointer &&
             !DAL.hasArgNoClaim(options::OPT_fno_omit_frame_pointer))
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fomit_frame_pointer));
-        if (OptChar == '1' || OptChar == '2')
+        if (OptChar == '1' || OptChar == '2' || OptChar == '3')
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_ffunction_sections));
       }
       break;
@@ -1070,7 +1074,8 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         // OptChar does not expand; it's an argument to the previous char.
         continue;
       }
-      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' || OptChar == 'd')
+      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' ||
+          OptChar == 'd' || OptChar == '3')
         ExpandChar = OptStr.data() + I;
     }
   }

@@ -1,0 +1,191 @@
+name: SYCL Nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  ubuntu2204_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_artifact_suffix: default
+      build_configure_extra_args: '--hip --cuda'
+      merge_ref: ''
+      retention-days: 90
+
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      artifact_archive_name: sycl_linux.tar.gz
+
+  ubuntu2204_test:
+    needs: [ubuntu2204_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: ext_oneapi_hip:gpu
+
+          - name: Intel L0 GPU
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu
+            reset_gpu: true
+
+          - name: Intel OCL GPU
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:gpu
+            reset_gpu: true
+
+          - name: OCL CPU (AMD)
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001
+            target_devices: opencl:cpu
+
+          - name: OCL CPU (Intel/GEN12)
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+          - name: OCL CPU (Intel/Arc)
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001
+            target_devices: opencl:cpu
+
+          - name: Self-hosted CUDA
+            runner: '["Linux", "cuda"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_cuda:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      reset_gpu: ${{ matrix.reset_gpu }}
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+  build-win:
+    uses: ./.github/workflows/sycl-windows-build.yml
+    if: github.repository == 'intel/llvm'
+    with:
+      retention-days: 90
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      artifact_archive_name: sycl_windows.tar.gz
+
+  e2e-win:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Intel GEN12 Graphics with Level Zero
+      runner: '["Windows","gen12"]'
+      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+
+  nightly_build_upload:
+    name: Nightly Build Upload
+    if: ${{ github.ref_name == 'sycl' }}
+    needs: [ubuntu2204_build, build-win]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: sycl_linux_default
+    - uses: actions/download-artifact@v4
+      with:
+        name: sycl_windows_default
+    - name: Compute tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+        else
+          # TODO: Use date of the commit?
+          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Upload binaries
+      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+      with:
+        files: |
+          sycl_linux.tar.gz
+          sycl_windows.tar.gz
+        tag_name: nightly-${{ steps.tag.outputs.TAG }}
+        name: DPC++ daily ${{ steps.tag.outputs.TAG }}
+        prerelease: true
+        body: "Daily build ${{ steps.tag.outputs.TAG }}"
+        target_commitish: ${{ github.sha }}
+
+  ubuntu2204_docker_build_push:
+    if: github.repository == 'intel/llvm'
+    runs-on: [Linux, build]
+    needs: ubuntu2204_build
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: sycl_linux_default
+        path: devops/
+    - name: Build and Push Container (with drivers)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.ref_name == 'sycl' }}
+        file: ubuntu2204_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
+    - name: Build and Push Container (no drivers)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.ref_name == 'sycl' }}
+        file: ubuntu2204_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2204_base
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
+    - name: Build and Push Container (Build image)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.ref_name == 'sycl' }}
+        file: ubuntu2204_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2204_build
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
