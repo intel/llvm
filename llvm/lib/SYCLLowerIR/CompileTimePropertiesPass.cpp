@@ -309,7 +309,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
-  if (!AttrKindStr.startswith("sycl-"))
+  if (!AttrKindStr.starts_with("sycl-"))
     return std::nullopt;
 
   auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
@@ -444,8 +444,10 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
-             "Unsupported GRF Size");
+      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+      // PropVal.
+      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+        return std::nullopt;
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
       static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
       static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;

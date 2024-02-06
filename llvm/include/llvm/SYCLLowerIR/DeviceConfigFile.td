@@ -72,6 +72,7 @@ def AspectExt_oneapi_ballot_group : Aspect<"ext_oneapi_ballot_group">;
 def AspectExt_oneapi_fixed_size_group : Aspect<"ext_oneapi_fixed_size_group">;
 def AspectExt_oneapi_opportunistic_group : Aspect<"ext_oneapi_opportunistic_group">;
 def AspectExt_oneapi_tangle_group : Aspect<"ext_oneapi_tangle_group">;
+def AspectExt_intel_matrix : Aspect<"ext_intel_matrix">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -124,8 +125,8 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
     AspectExt_oneapi_bindless_sampled_image_fetch_3d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_3d,
-    AspectExt_intel_esimd,
-    AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_tangle_group],
+    AspectExt_intel_esimd, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, 
+    AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_tangle_group, AspectExt_intel_matrix],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

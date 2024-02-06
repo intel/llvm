@@ -1532,6 +1532,12 @@ inline pi_result piextContextCreateWithNativeHandle(
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
 
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
+
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   const ur_device_handle_t *UrDevices =
@@ -1893,11 +1899,6 @@ inline pi_result piProgramCreateWithBinary(
   PI_ASSERT(Binaries && Lengths, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
 
-  // For now we support only one device.
-  if (NumDevices != 1) {
-    die("piProgramCreateWithBinary: level_zero supports only one device.");
-    return PI_ERROR_INVALID_VALUE;
-  }
   if (!Binaries[0] || !Lengths[0]) {
     if (BinaryStatus)
       *BinaryStatus = PI_ERROR_INVALID_VALUE;
@@ -1999,11 +2000,6 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
               pi_uint32 NumInputPrograms, const pi_program *InputPrograms,
               void (*PFnNotify)(pi_program Program, void *UserData),
               void *UserData, pi_program *RetProgram) {
-  // We only support one device with Level Zero currently.
-  if (NumDevices != 1) {
-    die("piProgramLink: level_zero supports only one device.");
-    return PI_ERROR_INVALID_VALUE;
-  }
 
   // Validate input parameters.
   PI_ASSERT(DeviceList, PI_ERROR_INVALID_DEVICE);
@@ -2075,14 +2071,6 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
                void *UserData) {
   PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
   if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList)) {
-    return PI_ERROR_INVALID_VALUE;
-  }
-
-  // We only support build to one device with Level Zero now.
-  // TODO: we should eventually build to the possibly multiple root
-  // devices in the context.
-  if (NumDevices != 1) {
-    die("piProgramBuild: level_zero supports only one device.");
     return PI_ERROR_INVALID_VALUE;
   }
 
@@ -3111,13 +3099,14 @@ inline pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
-inline pi_result piextMemGetNativeHandle(pi_mem Mem,
+inline pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
                                          pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
 
   ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+  ur_device_handle_t UrDev = reinterpret_cast<ur_device_handle_t>(Dev);
   ur_native_handle_t NativeMem{};
-  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, &NativeMem));
+  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, UrDev, &NativeMem));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
 
@@ -3403,6 +3392,12 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   }
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
   }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
@@ -4670,13 +4665,39 @@ inline pi_result piextCommandBufferAdviseUSM(
     pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
     pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  // TODO: Handle advice correctly
-  (void)Advice;
 
   ur_exp_command_buffer_handle_t UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
 
   ur_usm_advice_flags_t UrAdvice{};
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_RESET) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
+  }
+
   HANDLE_ERRORS(urCommandBufferAppendUSMAdviseExp(
       UrCommandBuffer, Ptr, Length, UrAdvice, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
@@ -4862,6 +4883,11 @@ inline pi_result piextBindlessImageSamplerCreate(
   UrMipProps.maxAnisotropy = MaxAnisotropy;
   UrProps.pNext = &UrMipProps;
 
+  ur_exp_sampler_addr_modes_t UrAddrModes{};
+  UrAddrModes.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
+  UrMipProps.pNext = &UrAddrModes;
+
+  int addrIndex = 0;
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -4874,17 +4900,22 @@ inline pi_result piextBindlessImageSamplerCreate(
           ur_cast<pi_sampler_addressing_mode>(
               ur_cast<pi_uint32>(*(++CurProperty)));
 
-      if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
-      else if (CurValueAddressingMode ==
-               PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_NONE;
+      if (CurValueAddressingMode ==
+          PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT) {
+        UrAddrModes.addrModes[addrIndex] =
+            UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+      } else if (CurValueAddressingMode ==
+                 PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE) {
+        UrAddrModes.addrModes[addrIndex] =
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_NONE;
+      }
+      addrIndex++;
     } break;
 
     case PI_SAMPLER_PROPERTIES_FILTER_MODE: {
@@ -4912,6 +4943,7 @@ inline pi_result piextBindlessImageSamplerCreate(
     }
     CurProperty++;
   }
+  UrProps.addressingMode = UrAddrModes.addrModes[0];
 
   ur_sampler_handle_t *UrSampler =
       reinterpret_cast<ur_sampler_handle_t *>(RetSampler);
