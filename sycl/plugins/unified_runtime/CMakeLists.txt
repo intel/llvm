@@ -56,15 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
-  # Merge: 475ce8b4 cf806c37
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 5 13:41:50 2024 +0000
-  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
-  #     
-  #     [Bindless][exp] 1D Image copy fix
-  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
+  # commit d216eb44d5c9fe3433eecdd09b10e3e79ac25bd7
+  # Merge: 40517d2b fc1f3066
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Jan 31 10:38:07 2024 +0000
+  #     Merge pull request #1226 from hdelan/get-native-mem-on-device2
+  #     [UR] Add extra param to urMemGetNativeHandle
+  set(UNIFIED_RUNTIME_TAG c56b44e7efd084617df349dbf49ce14b00aa8c11)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
