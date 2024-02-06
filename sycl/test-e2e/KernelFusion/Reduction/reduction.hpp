@@ -8,13 +8,11 @@
 
 using namespace sycl;
 
-constexpr inline size_t globalSize = 512;
-
 template <detail::reduction::strategy Strategy> struct is_fusion_supported {
   constexpr static inline bool value =
       detail::reduction::strategy::group_reduce_and_last_wg_detection <=
           Strategy &&
-      Strategy < detail::reduction::strategy::group_reduce_and_atomic_cross_wg;
+      Strategy < detail::reduction::strategy::group_reduce_and_multiple_kernels;
 };
 
 template <detail::reduction::strategy Strategy>
@@ -25,7 +23,9 @@ template <detail::reduction::strategy Strategy, bool Fuse>
 void test(nd_range<1> ndr) {
   static_assert(is_fusion_supported_v<Strategy>,
                 "Testing unsupported algorithm");
-  std::array<int, globalSize> data;
+
+  auto globalSize = static_cast<int>(ndr.get_global_range().size());
+  std::vector<int> data(globalSize);
   int sumRes = 0;
   int maxRes = 0;
 
@@ -70,17 +70,19 @@ void test(nd_range<1> ndr) {
     }
   }
 
-  constexpr int expectedMax = globalSize - 1;
-  constexpr int expectedSum = globalSize * expectedMax / 2;
+  int expectedMax = globalSize - 1;
+  int expectedSum = globalSize * expectedMax / 2;
 
   assert(sumRes == expectedSum);
   assert(maxRes == expectedMax);
 }
 
 template <detail::reduction::strategy Strategy> void test() {
-  for (size_t localSize = 1; localSize <= globalSize; localSize *= 2) {
-    nd_range<1> ndr{globalSize, localSize};
-    test<Strategy, true>(ndr);
-    test<Strategy, false>(ndr);
+  for (size_t globalSize : {16, 512}) {
+    for (size_t localSize = 1; localSize <= globalSize; localSize *= 2) {
+      nd_range<1> ndr{globalSize, localSize};
+      test<Strategy, true>(ndr);
+      test<Strategy, false>(ndr);
+    }
   }
 }
