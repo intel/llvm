@@ -75,30 +75,46 @@ ur_result_t setHipMemAdvise(const void *DevPtr, const size_t Size,
   if (URAdviceFlags &
       (UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY |
        UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY |
-       UR_USM_ADVICE_FLAG_BIAS_CACHED | UR_USM_ADVICE_FLAG_BIAS_UNCACHED)) {
+       UR_USM_ADVICE_FLAG_BIAS_CACHED | UR_USM_ADVICE_FLAG_BIAS_UNCACHED
+#if !defined(__HIP_PLATFORM_AMD__)
+       | UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY |
+       UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY
+#endif
+       )) {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   using ur_to_hip_advice_t = std::pair<ur_usm_advice_flags_t, hipMemoryAdvise>;
 
-  static constexpr std::array<ur_to_hip_advice_t, 6>
-      URToHIPMemAdviseDeviceFlags{
-          std::make_pair(UR_USM_ADVICE_FLAG_SET_READ_MOSTLY,
-                         hipMemAdviseSetReadMostly),
-          std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,
-                         hipMemAdviseUnsetReadMostly),
-          std::make_pair(UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
-                         hipMemAdviseSetPreferredLocation),
-          std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
-                         hipMemAdviseUnsetPreferredLocation),
-          std::make_pair(UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE,
-                         hipMemAdviseSetAccessedBy),
-          std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE,
-                         hipMemAdviseUnsetAccessedBy),
-      };
-  for (auto &FlagPair : URToHIPMemAdviseDeviceFlags) {
-    if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, FlagPair.second, Device));
+#if defined(__HIP_PLATFORM_AMD__)
+  constexpr size_t DeviceFlagCount = 8;
+#else
+  constexpr size_t DeviceFlagCount = 6;
+#endif
+  static constexpr std::array<ur_to_hip_advice_t, DeviceFlagCount>
+      URToHIPMemAdviseDeviceFlags {
+    std::make_pair(UR_USM_ADVICE_FLAG_SET_READ_MOSTLY,
+                   hipMemAdviseSetReadMostly),
+        std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,
+                       hipMemAdviseUnsetReadMostly),
+        std::make_pair(UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
+                       hipMemAdviseSetPreferredLocation),
+        std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
+                       hipMemAdviseUnsetPreferredLocation),
+        std::make_pair(UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE,
+                       hipMemAdviseSetAccessedBy),
+        std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE,
+                       hipMemAdviseUnsetAccessedBy),
+#if defined(__HIP_PLATFORM_AMD__)
+        std::make_pair(UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY,
+                       hipMemAdviseSetCoarseGrain),
+        std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY,
+                       hipMemAdviseUnsetCoarseGrain),
+#endif
+  };
+  for (const auto &[URAdvice, HIPAdvice] : URToHIPMemAdviseDeviceFlags) {
+    if (URAdviceFlags & URAdvice) {
+      UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, HIPAdvice, Device));
     }
   }
 
@@ -113,10 +129,9 @@ ur_result_t setHipMemAdvise(const void *DevPtr, const size_t Size,
                      hipMemAdviseUnsetAccessedBy),
   };
 
-  for (auto &FlagPair : URToHIPMemAdviseHostFlags) {
-    if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(
-          hipMemAdvise(DevPtr, Size, FlagPair.second, hipCpuDeviceId));
+  for (const auto &[URAdvice, HIPAdvice] : URToHIPMemAdviseHostFlags) {
+    if (URAdviceFlags & URAdvice) {
+      UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, HIPAdvice, hipCpuDeviceId));
     }
   }
 
@@ -300,15 +315,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
 
   {
-    ur_result_t Result = urDeviceGetInfo(
-        hQueue->Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
-    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+    MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
+    MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
+    MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
 
-    Result =
-        urDeviceGetInfo(hQueue->Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                        sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
-    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+    MaxWorkGroupSize = hQueue->Device->getMaxWorkGroupSize();
 
     // The MaxWorkGroupSize = 1024 for AMD GPU
     // The MaxThreadsPerBlock = {1024, 1024, 1024}
@@ -423,11 +434,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
 
     if (LocalMemSzPtr) {
-      int DeviceMaxLocalMem = 0;
-      UR_CHECK_ERROR(hipDeviceGetAttribute(
-          &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
-          Dev->get()));
-
+      int DeviceMaxLocalMem = Dev->getDeviceMaxLocalMem();
       static const int EnvVal = std::atoi(LocalMemSzPtr);
       if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
         setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
@@ -1484,7 +1491,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     // If the device does not support managed memory access, we can't set
     // mem_advise.
-    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    if (!Device->getManagedMemSupport()) {
       releaseEvent();
       setErrorMessage("mem_advise ignored as device does not support "
                       "managed memory access",
@@ -1558,7 +1565,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 
     // If the device does not support managed memory access, we can't set
     // mem_advise.
-    if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    if (!Device->getManagedMemSupport()) {
       releaseEvent();
       setErrorMessage("mem_advise ignored as device does not support "
                       "managed memory access",
@@ -1575,7 +1582,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                   UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE |
                   UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE |
                   UR_USM_ADVICE_FLAG_DEFAULT)) {
-      if (!getAttribute(Device, hipDeviceAttributeConcurrentManagedAccess)) {
+      if (!Device->getConcurrentManagedAccess()) {
         releaseEvent();
         setErrorMessage("mem_advise ignored as device does not support "
                         "concurrent managed access",
@@ -1598,6 +1605,10 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
           pMem, size, hipMemAdviseUnsetPreferredLocation, DeviceID));
       UR_CHECK_ERROR(
           hipMemAdvise(pMem, size, hipMemAdviseUnsetAccessedBy, DeviceID));
+#if defined(__HIP_PLATFORM_AMD__)
+      UR_CHECK_ERROR(
+          hipMemAdvise(pMem, size, hipMemAdviseUnsetCoarseGrain, DeviceID));
+#endif
     } else {
       Result = setHipMemAdvise(HIPDevicePtr, size, advice, DeviceID);
       // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid but
@@ -1663,8 +1674,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
+    // There is an issue with hipMemcpy2D* when hipMemcpyDefault is used, which
+    // makes the HIP runtime not correctly derive the copy kind (direction) for
+    // the copies since ROCm 5.6.0+. See: https://github.com/ROCm/clr/issues/40
+    // TODO: Add maximum HIP_VERSION when bug has been fixed.
+#if HIP_VERSION >= 50600000
+    hipPointerAttribute_t srcAttribs{};
+    hipPointerAttribute_t dstAttribs{};
+
+    bool srcIsSystemAlloc{false};
+    bool dstIsSystemAlloc{false};
+
+    hipError_t hipRes{};
+    // hipErrorInvalidValue returned from hipPointerGetAttributes for a non-null
+    // pointer refers to an OS-allocation, hence pageable host memory. However,
+    // this means we cannot rely on the attributes result, hence we mark system
+    // pageable memory allocation manually as host memory. The HIP runtime can
+    // handle the registering/unregistering of the memory as long as the right
+    // copy-kind (direction) is provided to hipMemcpy2DAsync for this case.
+    hipRes = hipPointerGetAttributes(&srcAttribs, (const void *)pSrc);
+    if (hipRes == hipErrorInvalidValue && pSrc)
+      srcIsSystemAlloc = true;
+    hipRes = hipPointerGetAttributes(&dstAttribs, (const void *)pDst);
+    if (hipRes == hipErrorInvalidValue && pDst)
+      dstIsSystemAlloc = true;
+
+    const unsigned int srcMemType{srcAttribs.type};
+    const unsigned int dstMemType{dstAttribs.type};
+
+    const bool srcIsHost{(srcMemType == hipMemoryTypeHost) || srcIsSystemAlloc};
+    const bool srcIsDevice{srcMemType == hipMemoryTypeDevice};
+    const bool dstIsHost{(dstMemType == hipMemoryTypeHost) || dstIsSystemAlloc};
+    const bool dstIsDevice{dstMemType == hipMemoryTypeDevice};
+
+    unsigned int cpyKind{};
+    if (srcIsHost && dstIsHost)
+      cpyKind = hipMemcpyHostToHost;
+    else if (srcIsHost && dstIsDevice)
+      cpyKind = hipMemcpyHostToDevice;
+    else if (srcIsDevice && dstIsHost)
+      cpyKind = hipMemcpyDeviceToHost;
+    else if (srcIsDevice && dstIsDevice)
+      cpyKind = hipMemcpyDeviceToDevice;
+    else
+      cpyKind = hipMemcpyDefault;
+
+    UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
+                                    height, (hipMemcpyKind)cpyKind, HIPStream));
+#else
     UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
                                     height, hipMemcpyDefault, HIPStream));
+#endif
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());

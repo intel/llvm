@@ -3237,13 +3237,16 @@ typedef enum ur_usm_advice_flag_t {
     UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST = UR_BIT(12),        ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST
     UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST = UR_BIT(13),   ///< Hint that the preferred memory location is the host
     UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST = UR_BIT(14), ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST
+    UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY = UR_BIT(15),       ///< Hint that memory coherence will be coarse-grained (up-to-date only at
+                                                                   ///< kernel boundaries)
+    UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY = UR_BIT(16),     ///< Removes the effect of ::UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY
     /// @cond
     UR_USM_ADVICE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_usm_advice_flag_t;
 /// @brief Bit Mask for validating ur_usm_advice_flags_t
-#define UR_USM_ADVICE_FLAGS_MASK 0xffff8000
+#define UR_USM_ADVICE_FLAGS_MASK 0xfffe0000
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of USM pool
@@ -9374,6 +9377,83 @@ typedef struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t {
 } ur_kernel_suggest_max_cooperative_group_count_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_get_info_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_queue_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_queue_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_create_params_t {
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    const ur_queue_properties_t **ppProperties;
+    ur_queue_handle_t **pphQueue;
+} ur_queue_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_retain_params_t {
+    ur_queue_handle_t *phQueue;
+} ur_queue_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_release_params_t {
+    ur_queue_handle_t *phQueue;
+} ur_queue_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueGetNativeHandle
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_get_native_handle_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_queue_native_desc_t **ppDesc;
+    ur_native_handle_t **pphNativeQueue;
+} ur_queue_get_native_handle_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueCreateWithNativeHandle
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_create_with_native_handle_params_t {
+    ur_native_handle_t *phNativeQueue;
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    const ur_queue_native_properties_t **ppProperties;
+    ur_queue_handle_t **pphQueue;
+} ur_queue_create_with_native_handle_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueFinish
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_finish_params_t {
+    ur_queue_handle_t *phQueue;
+} ur_queue_finish_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueFlush
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_flush_params_t {
+    ur_queue_handle_t *phQueue;
+} ur_queue_flush_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -10036,83 +10116,6 @@ typedef struct ur_enqueue_cooperative_kernel_launch_exp_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_cooperative_kernel_launch_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueGetInfo
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_get_info_params_t {
-    ur_queue_handle_t *phQueue;
-    ur_queue_info_t *ppropName;
-    size_t *ppropSize;
-    void **ppPropValue;
-    size_t **ppPropSizeRet;
-} ur_queue_get_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueCreate
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_create_params_t {
-    ur_context_handle_t *phContext;
-    ur_device_handle_t *phDevice;
-    const ur_queue_properties_t **ppProperties;
-    ur_queue_handle_t **pphQueue;
-} ur_queue_create_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueRetain
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_retain_params_t {
-    ur_queue_handle_t *phQueue;
-} ur_queue_retain_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueRelease
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_release_params_t {
-    ur_queue_handle_t *phQueue;
-} ur_queue_release_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueGetNativeHandle
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_get_native_handle_params_t {
-    ur_queue_handle_t *phQueue;
-    ur_queue_native_desc_t **ppDesc;
-    ur_native_handle_t **pphNativeQueue;
-} ur_queue_get_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueCreateWithNativeHandle
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_create_with_native_handle_params_t {
-    ur_native_handle_t *phNativeQueue;
-    ur_context_handle_t *phContext;
-    ur_device_handle_t *phDevice;
-    const ur_queue_native_properties_t **ppProperties;
-    ur_queue_handle_t **pphQueue;
-} ur_queue_create_with_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueFinish
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_finish_params_t {
-    ur_queue_handle_t *phQueue;
-} ur_queue_finish_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueFlush
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_flush_params_t {
-    ur_queue_handle_t *phQueue;
-} ur_queue_flush_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesUnsampledImageHandleDestroyExp
