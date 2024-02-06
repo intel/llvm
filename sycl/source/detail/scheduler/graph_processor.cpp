@@ -53,16 +53,6 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   BlockingT Blocking) {
   if (Cmd == RootCommand || Blocking)
     return true;
-  // Async kernel enqueue depending on host task is not compatible with in order
-  // queue. If we have host_task_1, kernel_2 depending on host_task_1 and
-  // kernel_3 without explicit dependencies submitted to in order queue: host
-  // task blocks kernel_2 from being enqueued while kernel_3 has no such
-  // dependencies so in current impl it could be enqueued earlier that kernel_2.
-  // That makes it impossible to use this path with blocking users for in order
-  // queue.
-  if (QueueImplPtr Queue = RootCommand->getEvent()->getSubmittedQueue();
-      Queue && Queue->isInOrder())
-    return true;
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {

@@ -176,6 +176,10 @@ This property is an assertion by the application that the associated pointer has
 the given alignment, specified in bytes. The behavior is undefined if the
 pointer value does not have the indicated alignment.
 
+
+When alignment is specified on `annotated_ptr`, the operators `+`, `[]`,
+`++`, and `--` (both post- and prefix) are disabled.
+
 |===
 --
 

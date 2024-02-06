@@ -582,24 +582,24 @@ bool MSVCToolChain::isPICDefaultForced() const {
 
 void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);
+  CudaInstallation->AddCudaIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
-  RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+  RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,
                                          ArgStringList &CmdArgs) const {
   CmdArgs.append({Args.MakeArgString(StringRef("-libpath:") +
-                                     RocmInstallation.getLibPath()),
+                                     RocmInstallation->getLibPath()),
                   "amdhip64.lib"});
 }
 
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {
-  CudaInstallation.print(OS);
-  RocmInstallation.print(OS);
+  CudaInstallation->print(OS);
+  RocmInstallation->print(OS);
 }
 
 std::string
@@ -672,7 +672,7 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(const ArgList &Args,
   llvm::SmallString<128> LibPath(UniversalCRTSdkPath);
   llvm::sys::path::append(LibPath, "Lib", UCRTVersion, "ucrt", ArchName);
 
-  Path = std::string(LibPath.str());
+  Path = std::string(LibPath);
   return true;
 }
 
@@ -930,6 +930,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
       break;
     case '1':
     case '2':
+    case '3':
     case 'x':
     case 'd':
       // Ignore /O[12xd] flags that aren't the last one on the command line.
@@ -946,11 +947,14 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
         } else if (OptChar == '2' || OptChar == 'x') {
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
           DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "2");
+        } else if (OptChar == '3') {
+          DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
+          DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
         }
         if (SupportsForcingFramePointer &&
             !DAL.hasArgNoClaim(options::OPT_fno_omit_frame_pointer))
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fomit_frame_pointer));
-        if (OptChar == '1' || OptChar == '2')
+        if (OptChar == '1' || OptChar == '2' || OptChar == '3')
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_ffunction_sections));
       }
       break;
@@ -1070,7 +1074,8 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         // OptChar does not expand; it's an argument to the previous char.
         continue;
       }
-      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' || OptChar == 'd')
+      if (OptChar == '1' || OptChar == '2' || OptChar == 'x' ||
+          OptChar == 'd' || OptChar == '3')
         ExpandChar = OptStr.data() + I;
     }
   }

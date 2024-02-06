@@ -613,7 +613,7 @@ mock_piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextMemGetNativeHandle(pi_mem mem,
+inline pi_result mock_piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                               pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(mem);
   return PI_SUCCESS;
@@ -1388,6 +1388,22 @@ inline pi_result mock_piextCommandBufferMemBufferFill(
 inline pi_result mock_piextCommandBufferFillUSM(
     pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
     size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point) {
   return PI_SUCCESS;

@@ -107,6 +107,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
+#include "llvm/IR/VFABIDemangler.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -170,6 +171,11 @@ private:
       V.printAsOperand(*OS, true, MST);
       *OS << '\n';
     }
+  }
+
+  void Write(const DPValue *V) {
+    if (V)
+      V->print(*OS, MST, false);
   }
 
   void Write(const Metadata *MD) {
@@ -2160,6 +2166,15 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
            V);
   }
 
+  Check(
+      (Attrs.hasFnAttr("aarch64_new_zt0") + Attrs.hasFnAttr("aarch64_in_zt0") +
+       Attrs.hasFnAttr("aarch64_inout_zt0") +
+       Attrs.hasFnAttr("aarch64_out_zt0") +
+       Attrs.hasFnAttr("aarch64_preserves_zt0")) <= 1,
+      "Attributes 'aarch64_new_zt0', 'aarch64_in_zt0', 'aarch64_out_zt0', "
+      "'aarch64_inout_zt0' and 'aarch64_preserves_zt0' are mutually exclusive",
+      V);
+
   if (Attrs.hasFnAttr(Attribute::JumpTable)) {
     const GlobalValue *GV = cast<GlobalValue>(V);
     Check(GV->hasGlobalUnnamedAddr(),
@@ -2258,6 +2273,13 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (S != "true" && S != "false")
       CheckFailed(
           "invalid value for 'branch-target-enforcement' attribute: " + S, V);
+  }
+
+  if (auto A = Attrs.getFnAttr("vector-function-abi-variant"); A.isValid()) {
+    StringRef S = A.getValueAsString();
+    const std::optional<VFInfo> Info = VFABI::tryDemangleForVFABI(S, FT);
+    if (!Info)
+      CheckFailed("invalid name for a VFABI variant: " + S, V);
   }
 }
 
@@ -2894,8 +2916,8 @@ void Verifier::visitFunction(const Function &F) {
       VisitDebugLoc(I, I.getDebugLoc().getAsMDNode());
       // The llvm.loop annotations also contain two DILocations.
       if (auto MD = I.getMetadata(LLVMContext::MD_loop))
-        for (unsigned i = 1; i < MD->getNumOperands(); ++i)
-          VisitDebugLoc(I, dyn_cast_or_null<MDNode>(MD->getOperand(i)));
+        for (const MDOperand &MDO : llvm::drop_begin(MD->operands()))
+          VisitDebugLoc(I, dyn_cast_or_null<MDNode>(MDO));
       if (BrokenDebugInfo)
         return;
     }
@@ -4694,8 +4716,7 @@ void Verifier::visitProfMetadata(Instruction &I, MDNode *MD) {
       Check(MD->getNumOperands() == 1 + ExpectedNumOperands,
             "Wrong number of operands", MD);
     }
-    for (unsigned i = 1; i < MD->getNumOperands(); ++i) {
-      auto &MDO = MD->getOperand(i);
+    for (const MDOperand &MDO : llvm::drop_begin(MD->operands())) {
       Check(MDO, "second operand should not be null", MD);
       Check(mdconst::dyn_extract<ConstantInt>(MDO),
             "!prof brunch_weights operand is not a const int");
@@ -4721,6 +4742,12 @@ void Verifier::visitDIAssignIDMetadata(Instruction &I, MDNode *MD) {
         CheckDI(DAI->getFunction() == I.getFunction(),
                 "dbg.assign not in same function as inst", DAI, &I);
     }
+  }
+  for (DPValue *DPV : cast<DIAssignID>(MD)->getAllDPValueUsers()) {
+    CheckDI(DPV->isDbgAssign(),
+            "!DIAssignID should only be used by Assign DPVs.", MD, DPV);
+    CheckDI(DPV->getFunction() == I.getFunction(),
+            "DPVAssign not in same function as inst", DPV, &I);
   }
 }
 
