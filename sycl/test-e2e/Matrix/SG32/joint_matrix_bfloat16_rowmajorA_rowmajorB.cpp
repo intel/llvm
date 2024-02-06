@@ -5,8 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// VNNI transform is not supported yet on DG2
+// UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -22,6 +24,5 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 constexpr size_t SG_SZ = 32;
-constexpr size_t TN = 16;
 
 #include "../joint_matrix_bfloat16_rowmajorA_rowmajorB_impl.hpp"
