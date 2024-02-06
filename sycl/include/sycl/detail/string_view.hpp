@@ -45,7 +45,7 @@ public:
     return *this;
   }
 
-  string_view &operator=(const std::string_view &strn) noexcept {
+  string_view &operator=(const std::string_view strn) noexcept {
     str = strn.data();
     return *this;
   }
@@ -53,11 +53,11 @@ public:
   const char *data() const noexcept { return str; }
 
   friend bool operator==(const string_view &lhs,
-                         const std::string_view &rhs) noexcept {
+                         const std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
   friend bool operator==(const std::string_view &lhs,
-                         const string_view &rhs) noexcept {
+                         const string_view rhs) noexcept {
     return lhs == rhs.data();
   }
 };
